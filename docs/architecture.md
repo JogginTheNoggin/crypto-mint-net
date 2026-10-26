@@ -1,0 +1,137 @@
+# Architecture
+
+## Summary
+
+This document maps the Proof of Ownership design onto the code. The code is a
+stack of small Go packages. Each package depends only on packages below it,
+and the design's three tiers of rules (consensus, series, node policy) each
+have a fixed home. The consensus packages are pure: they read no clock, no
+disk and no network, so the same inputs always give the same selected ledger.
+`pkg/engine` is the boundary of the full node. It takes items (transactions,
+entries, layers) from any transport, says whether to forward them, and
+reports what changed. Storage, the wire protocol and peer management
+(milestones 2 to 5) will sit around the engine and must not leak into the
+packages below it.
+
+## Package layers
+
+```mermaid
+graph TD
+  cmd[cmd/poo] --> engine
+  engine --> ledger
+  engine --> mempool
+  ledger --> entry
+  ledger --> layer
+  ledger --> state
+  mempool --> tx
+  entry --> tx
+  state --> tx
+  tx --> series
+  tx --> policy
+  series --> policy
+  layer --> weight
+  ledger --> weight
+  policy --> hash
+  policy --> encoding
+  layer --> hash
+  layer --> encoding
+```
+
+Arrows show imports; `hash`, `weight` and `encoding` import nothing from the
+project. Every package above `policy` also imports `hash`, and most import
+`encoding`; those edges are left out for readability.
+
+| Layer | Packages | Holds |
+| --- | --- | --- |
+| Primitives | `encoding`, `hash`, `weight` | Byte form, hashes and strength, credit and weight |
+| Series tier | `series`, `policy` | Published rules of a series, addresses, witnesses |
+| Consensus tier | `tx`, `entry`, `layer`, `state`, `ledger` | Validity, weight, selection, switching |
+| Node policy | `mempool`, `engine` (and their `Config`) | What to keep, follow and forward |
+| Tools | `cmd/poo`, `vectors`, `testutil` | CLI, demo, published vectors, test helpers |
+
+## The three tiers
+
+The design asks two questions of every rule. If two nodes following the same
+series disagreed on it, could they select different ledgers? If so, is it the
+same for every series?
+
+- **Consensus** rules are the same everywhere: what makes a transaction or an
+  entry valid, how a layer's credit is computed, which ledger is selected,
+  what happens to transactions when the selection switches.
+- **Series** rules are fixed by the series and read through
+  `*series.Series`: the hash, the number of mints, supply, pool size, the
+  minimum layer and entry strengths, whether entry hashes count as credit,
+  the allowed policy types and key algorithms, the witness ceiling and the
+  optional issuer.
+- **Node policy** may differ between nodes without anyone disagreeing about
+  ownership: K (how many inactive branches to keep), how many pending
+  transactions to hold, which series, pools and mints to follow, and when a
+  receiver considers a payment final. It lives in `ledger.Config`,
+  `engine.Config` and the arguments of `mempool.New`, with provisional
+  defaults recorded in [decisions.md](decisions.md).
+
+## Data flow through a full node
+
+```mermaid
+sequenceDiagram
+  participant T as Transport (later milestones)
+  participant E as engine.Engine
+  participant M as mempool.Pool
+  participant L as ledger.Pool
+  T->>E: HandleTx(tx, origin)
+  E->>E: seen list, follows?, tx.CheckStateless
+  E->>M: Add (checks against the selected ledger)
+  E-->>T: Forward = true unless Requested
+  T->>E: HandleEntry(entry, origin)
+  E->>L: AddEntry (structure, parent, state after parent)
+  L-->>E: AddResult{Switch, Pruned}
+  E->>M: AddCarried / Revalidate after a switch
+  T->>E: HandleLayer(layer, origin)
+  E->>L: AddLayer (credit to the entry and all below it)
+  L-->>E: AddResult{Switch?}
+```
+
+1. **Transactions** are checked without state first (series, serial range,
+   amounts, addresses, witnesses for a claim). Then the pending pool checks
+   them against the state of the selected ledger plus what is already
+   pending. Pending transactions are first come, first served: a second
+   spend of the same portion is refused, not swapped in.
+2. **Entries** are checked for structure (pool, nonce, canonical order,
+   minimum entry strength), then against the state just after their parent.
+   The parent may be on any branch the node holds; `state` overlays make
+   checking an entry on another branch cheap. An entry adds credit only if
+   the series counts entry hashes.
+3. **Layers** add credit to their entry and, by being part of every ledger
+   that contains that entry, to every ledger built on it. A layer is valid
+   only if its strength reaches the series minimum.
+4. **Selection** keeps the heaviest valid ledger. The node switches only to
+   a strictly heavier one; at equal weight it keeps the one it saw first.
+5. **Switching** reverts the old segment, applies the new one, and sorts
+   every transaction of the old segment into unchanged (also in the new
+   one), carried (still valid, back to pending) or void (conflicts with the
+   new ledger).
+6. **Pruning** keeps the selected ledger, the top K other branches by
+   weight, and a bounded number of branches tying the selected weight.
+
+## The ledger tree
+
+`ledger.Pool` keeps every held entry as a node in a tree rooted at the
+pool_id. The selected chain is a slice of nodes. Prefix weights along it are
+kept in a Fenwick tree so that a layer on an old entry costs O(log n) instead
+of O(n). Nodes off the selected chain keep a weight relative to the point
+where their branch leaves the chain, so a layer on the chain does not touch
+them. Checking an entry on another branch replays only the segment from the
+fork point, through an overlay on the current state.
+
+## Where later milestones attach
+
+- **Storage (M2)** wraps the engine: it persists entries, layers and pending
+  transactions and feeds them back through the `Handle*` calls on start-up.
+  Consensus packages stay in memory and unaware of disk.
+- **Wire protocol and forwarding (M3)** turn bytes into items, call the
+  engine with `Pushed` or `Requested` and forward what the engine says to
+  forward.
+- **Peers (M4, M5)** decide who to talk to. They never change validity.
+
+See [roadmap.md](roadmap.md) for the milestones and
+[modules/README.md](modules/README.md) for one page per package.

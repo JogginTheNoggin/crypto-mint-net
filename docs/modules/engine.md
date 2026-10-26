@@ -1,0 +1,42 @@
+# pkg/engine
+
+## Summary
+
+The transport-independent full node. It holds the known series, what the
+node follows, and for each followed pool a ledger and a pending pool. Every
+item (transaction, entry, layer) goes through one `Handle*` call that
+returns whether to forward it and what changed. Networking and storage in
+later milestones are built around this API; the engine never reads a clock
+or opens a socket. Calls are safe from multiple goroutines.
+
+## API
+
+- `New(Config{Ledger, MaxPending, SeenSize})`, `DefaultConfig`.
+- Series and following: `AddSeries`, `Series`, `FollowSeries`,
+  `FollowPool`, `FollowMint` (follows the mint's pool, decision D20),
+  `Follows`, `KeyOf(tx)`. `PoolKey{Series, Index}` names a pool.
+- Items: `HandleTx(t, origin)`, `HandleEntry(key, e, origin)`,
+  `HandleLayer(key, l, origin)`. `Origin` is `Pushed`, `Requested` or
+  `Local`. Results carry `Forward` (never true for `Requested`), and for
+  entries and layers the `Switch` and pruned hashes.
+- Building: `Build(key, maxTries)` bundles ready pending transactions on the
+  tip (`ErrNothingPending`, `ErrAlreadyBuilt`); `Work(key, entryHash, start,
+  tries)` grinds and adds a layer (`ErrNoStrongerLayer`).
+- Reading: `Status(key)`, `Payment(key, tid)` (pending, in which entry,
+  weight added since, selected), `Holdings(series, serial)`,
+  `Ledger(key, fn)` for read access under the lock.
+- `Seen`: a fixed-size ring of valid item hashes (decision D15: requested
+  items bypass it).
+
+## Behavior
+
+After a switch the engine returns carried transactions to the pending pool
+and revalidates it. Only valid items enter the seen list. A transaction's tid
+leaves out its witnesses, so a copy with a bad witness is refused without
+blocking the valid copy that arrives later.
+
+## Tests
+
+`engine_test.go` runs several engines on an in-process flood network:
+payments spreading, a double spend resolved by weight and then reversed,
+following rules, origins and the seen list.

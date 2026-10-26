@@ -1,0 +1,17 @@
+# Binaries
+/poo
+/bin/
+*.exe
+*.test
+*.out
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Local node data and secrets (never commit keys)
+/data/
+*.key
+.env
