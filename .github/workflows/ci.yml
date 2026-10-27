@@ -55,7 +55,7 @@ jobs:
           node-version: 22
       - name: browser
         run: |
-          cd "$RUNNER_TEMP" && npm init -y >/dev/null && npm install playwright@1.48.2
+          cd "$RUNNER_TEMP" && npm init -y >/dev/null && npm install playwright@1.63.0
           npx playwright install --with-deps chromium
       - name: end to end
         run: |
