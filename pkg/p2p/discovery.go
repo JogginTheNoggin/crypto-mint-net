@@ -549,7 +549,7 @@ func (h *Host) peerFollows(p *peer, res followResult) {
 			continue
 		}
 		if a := p.bookAddr(); a != "" {
-			if err := h.book.Verify(a, s, now); err != nil && !errors.Is(err, peers.ErrRangeFull) {
+			if err := h.book.Verify(a, s, peers.Priority, now); err != nil && !errors.Is(err, peers.ErrRangeFull) {
 				continue
 			}
 		}

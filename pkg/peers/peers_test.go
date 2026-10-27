@@ -42,7 +42,7 @@ func TestStates(t *testing.T) {
 	if got := b.Pick(pool1, 10, nil, t0); len(got) != 2 {
 		t.Fatalf("candidates for pool 1: %v", got)
 	}
-	must(b.Verify("10.1.0.1:1", pool1, t0))
+	must(b.Verify("10.1.0.1:1", pool1, peers.Priority, t0))
 	if got := b.VerifiedFor(series, false, nil); len(got) != 1 || got[0].Contact.Addr != "10.1.0.1:1" {
 		t.Fatalf("verified for series: %v", got)
 	}
@@ -52,14 +52,14 @@ func TestStates(t *testing.T) {
 	if got := b.VerifiedFor(series, true, []wire.Section{pool1}); len(got) != 1 {
 		t.Fatalf("pool 1 follower not listed for the part followed: %v", got)
 	}
-	if c := b.Count(wire.All); c[peers.Verified] != 1 || c[peers.Candidate] != 2 {
+	if c := b.Count(wire.All); c[peers.Priority] != 1 || c[peers.Candidate] != 2 {
 		t.Fatalf("counts %v", c)
 	}
 	b.Unverify("10.1.0.1:1")
 	if got := b.VerifiedFor(series, false, nil); len(got) != 0 {
 		t.Fatal("unverified peer still listed")
 	}
-	must(b.Verify("10.1.0.1:1", pool1, t0))
+	must(b.Verify("10.1.0.1:1", pool1, peers.Priority, t0))
 	b.Archive("10.1.0.1:1", pool1)
 	if got := b.VerifiedFor(series, false, nil); len(got) != 0 {
 		t.Fatal("archived peer still listed")
@@ -67,9 +67,22 @@ func TestStates(t *testing.T) {
 	if b.Unarchive(pool2) != 0 || b.Unarchive(series) != 1 {
 		t.Fatal("unarchive")
 	}
-	b.Delete("10.0.0.1:1")
-	if err := b.Add("10.0.0.1:1", []wire.Section{series}, peers.FromReply, t0); !errors.Is(err, peers.ErrDeleted) {
-		t.Fatalf("deleted address added again: %v", err)
+	if !b.Delete("10.0.0.1:1") || b.Delete("10.0.0.1:1") {
+		t.Fatal("delete")
+	}
+	// Deleting alone does not keep a node out; the refuse filter does.
+	if err := b.Add("10.0.0.1:1", []wire.Section{series}, peers.FromReply, t0); err != nil {
+		t.Fatalf("deleted address not added again: %v", err)
+	}
+	b.SetRefuse(func(a string) bool { return a == "10.0.0.9:1" })
+	if err := b.Add("10.0.0.9:1", []wire.Section{series}, peers.FromReply, t0); !errors.Is(err, peers.ErrRefused) {
+		t.Fatalf("refused address added: %v", err)
+	}
+	if err := b.Verify("10.1.0.1:1", pool1, peers.Candidate, t0); err == nil {
+		t.Fatal("verified as a candidate")
+	}
+	if st, ok := b.State("10.1.0.1:1", pool1); !ok || st != peers.Candidate {
+		t.Fatalf("state %v %v", st, ok)
 	}
 	if err := b.Add("nonsense", nil, peers.FromReply, t0); err == nil {
 		t.Fatal("bad address added")
@@ -86,13 +99,13 @@ func TestRangeLimits(t *testing.T) {
 	if err := b.Add("192.169.3.1:1", nil, peers.FromReply, t0); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Verify("192.168.1.1:1", pool1, t0); err != nil {
+	if err := b.Verify("192.168.1.1:1", pool1, peers.Backup, t0); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.Verify("192.168.2.1:1", pool1, t0); !errors.Is(err, peers.ErrRangeFull) {
+	if err := b.Verify("192.168.2.1:1", pool1, peers.Priority, t0); !errors.Is(err, peers.ErrRangeFull) {
 		t.Fatalf("second verified from one range: %v", err)
 	}
-	if err := b.Verify("192.168.2.1:1", pool2, t0); err != nil {
+	if err := b.Verify("192.168.2.1:1", pool2, peers.Backup, t0); err != nil {
 		t.Fatalf("another policy from the same range: %v", err)
 	}
 	for addr, want := range map[string]string{
@@ -133,10 +146,9 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.Add("10.0.0.1:1", []wire.Section{series}, peers.FromConfig, t0)
-	b.Verify("10.0.0.2:1", pool1, t0)
+	b.Verify("10.0.0.2:1", pool1, peers.Priority, t0)
 	b.Add("10.0.0.3:1", []wire.Section{pool2}, peers.FromReply, t0)
 	b.Archive("10.0.0.3:1")
-	b.Delete("10.0.0.4:1")
 	if err := b.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -151,8 +163,5 @@ func TestSaveAndLoad(t *testing.T) {
 	// Verification does not survive a restart; archived stays archived.
 	if recs[1].Policies[0].State != peers.Candidate || recs[2].Policies[0].State != peers.Archived || recs[1].Policies[0].Section != pool1 {
 		t.Fatalf("%+v", recs)
-	}
-	if !c.Deleted("10.0.0.4:1") {
-		t.Fatal("deletion lost")
 	}
 }

@@ -61,7 +61,7 @@ func TestRelayedDiscovery(t *testing.T) {
 		ps := peerAddrs(d)
 		return len(ps) == 3 && ps[b.addr()] && ps[c.addr()]
 	})
-	if st, _ := d.bookState(c.addr()); st != peers.Verified {
+	if st, _ := d.bookState(c.addr()); !st.Listed() {
 		t.Fatalf("c is %v in d's book", st)
 	}
 }

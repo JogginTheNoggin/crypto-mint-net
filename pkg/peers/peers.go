@@ -1,8 +1,9 @@
 // Package peers is a full node's peer book: every node it knows of, for
-// each mint policy, as a candidate, a verified peer or an archived one (the
-// design's "Peer Discovery and Management", Peer states). The book holds
-// contact details and states only; package p2p decides when a state
-// changes. Every change of state is node policy.
+// each mint policy, as a candidate, a priority or backup peer, or an
+// archived one (the design's "Peer Discovery and Management", Peer states,
+// and "Peer Categories and Ranking"). The book holds contact details and
+// states only; package p2p decides when a state changes, with the ranking
+// rules of this package (rank.go). Every change of state is node policy.
 //
 // Candidates come from address registries, peer lists, follow replies, the
 // node policy and the archive. No source makes the node connect anywhere at
@@ -34,21 +35,31 @@ const FileName = "peers.json"
 type State int
 
 const (
-	// Candidate: known from somewhere, not yet checked by this node.
+	// Candidate: known from somewhere, not yet checked by this node, or
+	// checked with no slot free for it.
 	Candidate State = iota
-	// Verified: answered this node's own follow request or ping with a yes
-	// or partial yes.
-	Verified
+	// Priority: verified, and relied on: asked, forwarded to, pinged
+	// regularly.
+	Priority
+	// Backup: verified and kept ready: forwarded to, pinged less often,
+	// asked only as a fallback.
+	Backup
 	// Archived: not in use; details kept as a starting point.
 	Archived
 )
+
+// Listed reports whether the state is priority or backup: verified, with a
+// slot.
+func (s State) Listed() bool { return s == Priority || s == Backup }
 
 func (s State) String() string {
 	switch s {
 	case Candidate:
 		return "candidate"
-	case Verified:
-		return "verified"
+	case Priority:
+		return "priority"
+	case Backup:
+		return "backup"
 	case Archived:
 		return "archived"
 	}
@@ -60,11 +71,15 @@ func (s State) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
 
 // UnmarshalText reads a state's name.
 func (s *State) UnmarshalText(b []byte) error {
-	for _, v := range []State{Candidate, Verified, Archived} {
+	for _, v := range []State{Candidate, Priority, Backup, Archived} {
 		if v.String() == string(b) {
 			*s = v
 			return nil
 		}
+	}
+	if string(b) == "verified" { // written before categories existed
+		*s = Backup
+		return nil
 	}
 	return fmt.Errorf("peers: unknown state %q", b)
 }
@@ -122,8 +137,8 @@ type Limits struct {
 	MaxRecords int
 	// PerRange bounds the records from one network range.
 	PerRange int
-	// VerifiedPerRange bounds the verified peers for one mint policy from
-	// one network range.
+	// VerifiedPerRange bounds the priority and backup peers for one mint
+	// policy from one network range.
 	VerifiedPerRange int
 	// Retry is the first wait before trying a candidate again after a
 	// failed attempt; it doubles with each failure.
@@ -137,22 +152,22 @@ func DefaultLimits() Limits {
 
 // Book is the peer book. It is safe for concurrent use.
 type Book struct {
-	mu      sync.Mutex
-	path    string
-	lim     Limits
-	recs    map[string]*Record
-	deleted map[string]bool
-	dirty   bool
+	mu     sync.Mutex
+	path   string
+	lim    Limits
+	recs   map[string]*Record
+	refuse func(addr string) bool
+	dirty  bool
 }
 
 type file struct {
 	Format  int       `json:"format"`
 	Records []*Record `json:"records"`
-	Deleted []string  `json:"deleted,omitempty"`
 }
 
-// ErrDeleted is returned for an address deleted from the book.
-var ErrDeleted = errors.New("peers: address was deleted")
+// ErrRefused is returned for an address the refuse filter turns away, such
+// as a blocked one.
+var ErrRefused = errors.New("peers: address refused")
 
 // ErrRangeFull is returned when a network range has reached its limit.
 var ErrRangeFull = errors.New("peers: too many from this network range")
@@ -176,7 +191,7 @@ func Open(path string, lim Limits) (*Book, error) {
 	if lim.Retry == 0 {
 		lim.Retry = d.Retry
 	}
-	b := &Book{path: path, lim: lim, recs: map[string]*Record{}, deleted: map[string]bool{}}
+	b := &Book{path: path, lim: lim, recs: map[string]*Record{}}
 	if path == "" {
 		return b, nil
 	}
@@ -191,11 +206,8 @@ func Open(path string, lim Limits) (*Book, error) {
 	if err := json.Unmarshal(data, &f); err != nil {
 		return nil, fmt.Errorf("peers: %s: %w", path, err)
 	}
-	for _, a := range f.Deleted {
-		b.deleted[a] = true
-	}
 	for _, r := range f.Records {
-		if r == nil || wire.CheckAddr(r.Addr) != nil || b.deleted[r.Addr] {
+		if r == nil || wire.CheckAddr(r.Addr) != nil {
 			continue
 		}
 		var ps []Policy
@@ -207,7 +219,7 @@ func Open(path string, lim Limits) (*Book, error) {
 			p.Section = s
 			// Nothing is verified across a restart: verification is this
 			// run's own check.
-			if p.State == Verified {
+			if p.State.Listed() {
 				p.State = Candidate
 			}
 			ps = append(ps, p)
@@ -230,10 +242,6 @@ func (b *Book) Save() error {
 		c := r.clone()
 		f.Records = append(f.Records, &c)
 	}
-	for a := range b.deleted {
-		f.Deleted = append(f.Deleted, a)
-	}
-	sort.Strings(f.Deleted)
 	b.dirty = false
 	b.mu.Unlock()
 	data, err := json.MarshalIndent(f, "", "  ")
@@ -292,18 +300,30 @@ func (b *Book) inRangeLocked(rng string) int {
 	return n
 }
 
+// SetRefuse sets a filter for addresses the book must not take in, such
+// as blocked ones. It is called without the book's lock held.
+func (b *Book) SetRefuse(f func(addr string) bool) {
+	b.mu.Lock()
+	b.refuse = f
+	b.mu.Unlock()
+}
+
 // Add records addr as a candidate for the sections, unless it is known
 // already (then the sections it lacks are added as candidates). It refuses
-// deleted addresses, a full book and a full network range.
+// addresses the refuse filter turns away, a full book and a full network
+// range.
 func (b *Book) Add(addr string, sections []wire.Section, src Source, now time.Time) error {
 	if err := wire.CheckAddr(addr); err != nil {
 		return err
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.deleted[addr] {
-		return ErrDeleted
+	refuse := b.refuse
+	b.mu.Unlock()
+	if refuse != nil && refuse(addr) {
+		return ErrRefused
 	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	r := b.recs[addr]
 	if r == nil {
 		if len(b.recs) >= b.lim.MaxRecords {
@@ -331,17 +351,20 @@ func (b *Book) verifiedInRangeLocked(s wire.Section, rng, except string) int {
 		if a == except || Range(a) != rng {
 			continue
 		}
-		if p := r.policy(s); p != nil && p.State == Verified {
+		if p := r.policy(s); p != nil && p.State.Listed() {
 			n++
 		}
 	}
 	return n
 }
 
-// Verify marks addr verified for s: it answered this node's own follow
-// request or ping. It refuses a range that already has its share of
-// verified peers for s.
-func (b *Book) Verify(addr string, s wire.Section, now time.Time) error {
+// Verify places addr in category st (priority or backup) for s: it
+// answered this node's own follow request or ping, and has a slot. It
+// refuses a range that already has its share of listed peers for s.
+func (b *Book) Verify(addr string, s wire.Section, st State, now time.Time) error {
+	if !st.Listed() {
+		return fmt.Errorf("peers: verify as %s", st)
+	}
 	if err := b.Add(addr, []wire.Section{s}, FromReply, now); err != nil {
 		return err
 	}
@@ -349,10 +372,10 @@ func (b *Book) Verify(addr string, s wire.Section, now time.Time) error {
 	defer b.mu.Unlock()
 	r := b.recs[addr]
 	p := r.policy(s)
-	if p.State != Verified && b.verifiedInRangeLocked(s, Range(addr), addr) >= b.lim.VerifiedPerRange {
+	if !p.State.Listed() && b.verifiedInRangeLocked(s, Range(addr), addr) >= b.lim.VerifiedPerRange {
 		return ErrRangeFull
 	}
-	p.State, p.LastHeard = Verified, now
+	p.State, p.LastHeard = st, now
 	r.Failures = 0
 	b.dirty = true
 	return nil
@@ -396,9 +419,9 @@ func (b *Book) Archive(addr string, ss ...wire.Section) {
 	b.dirty = true
 }
 
-// Unverify makes addr a candidate again for every policy it was verified
-// for, as when its connection closes.
-func (b *Book) Unverify(addr string) {
+// Unverify makes addr a candidate again for every policy it was listed
+// for, as when its connection closes; with sections, only for those.
+func (b *Book) Unverify(addr string, ss ...wire.Section) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	r := b.recs[addr]
@@ -406,21 +429,39 @@ func (b *Book) Unverify(addr string) {
 		return
 	}
 	for i := range r.Policies {
-		if r.Policies[i].State == Verified {
-			r.Policies[i].State = Candidate
-			b.dirty = true
+		p := &r.Policies[i]
+		if !p.State.Listed() {
+			continue
 		}
+		if len(ss) > 0 && !containsSection(ss, p.Section) {
+			continue
+		}
+		p.State = Candidate
+		b.dirty = true
 	}
 }
 
-// Delete removes addr for good, for misbehaviour, spam or memory limits.
-// It is not added again from any source.
-func (b *Book) Delete(addr string) {
+func containsSection(ss []wire.Section, s wire.Section) bool {
+	for _, x := range ss {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// Delete removes addr's details for good, by hand or to free memory. A
+// deleted node can return as a new candidate: deleting alone does not keep
+// it out; a block does.
+func (b *Book) Delete(addr string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if _, ok := b.recs[addr]; !ok {
+		return false
+	}
 	delete(b.recs, addr)
-	b.deleted[addr] = true
 	b.dirty = true
+	return true
 }
 
 // Tried notes a connection attempt and whether it failed.
@@ -520,7 +561,8 @@ func (b *Book) Unarchive(s wire.Section) int {
 	return n
 }
 
-// VerifiedFor lists the nodes verified for a mint policy overlapping s,
+// VerifiedFor lists the nodes listed (priority or backup) for a mint
+// policy overlapping s,
 // each with its verified policies that overlap s, sorted by address. With
 // full, only nodes that follow all of s, or all of the part named by
 // within, are listed.
@@ -532,7 +574,7 @@ func (b *Book) VerifiedFor(s wire.Section, full bool, within []wire.Section) []w
 		var ps []wire.Section
 		fully := false
 		for _, p := range r.Policies {
-			if p.State != Verified || !overlaps(p.Section, s) {
+			if !p.State.Listed() || !overlaps(p.Section, s) {
 				continue
 			}
 			ps = append(ps, p.Section)
@@ -583,9 +625,28 @@ func (b *Book) Records() []Record {
 	return out
 }
 
-// Deleted reports whether addr was deleted.
-func (b *Book) Deleted(addr string) bool {
+// Record returns a copy of addr's record.
+func (b *Book) Record(addr string) (Record, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.deleted[addr]
+	r := b.recs[addr]
+	if r == nil {
+		return Record{}, false
+	}
+	return r.clone(), true
+}
+
+// State returns addr's state for s, and whether it has one.
+func (b *Book) State(addr string, s wire.Section) (State, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	r := b.recs[addr]
+	if r == nil {
+		return Candidate, false
+	}
+	p := r.policy(s)
+	if p == nil {
+		return Candidate, false
+	}
+	return p.State, true
 }
