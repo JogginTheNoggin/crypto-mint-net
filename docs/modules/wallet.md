@@ -162,6 +162,9 @@ wallet's watched mints. The node still checks every rule for what it
 follows, so the wallet trusts no one for the pools it uses. Verifying only
 some mints of a pool is not done: a pool's entries carry every mint of the
 pool, so the pool is the smallest unit a node can follow on its own.
+When the node is running, `poo wallet follow` makes it apply the new list
+at once ([daemon.md](daemon.md)); otherwise the node applies it when it
+starts.
 
 ## Tests
 

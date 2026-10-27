@@ -90,6 +90,17 @@ the slots replace it.
 - `Accepted()` builds each listed series and applies the issuer rule,
   returning accepted series (with the verified issuer) and refused ones with
   reasons. One bad series never stops a node.
+- `AddFollow(f)` / `RemoveFollow(f)` edit the follow list with merge
+  rules (decision D93). Adding merges: an issuer appears once, a whole
+  series replaces any parts of it, and pools and mints of one series join
+  one entry. Removing an issuer or whole series takes it off entirely;
+  removing pools from a series followed whole first writes the series out
+  pool by pool; removing mints takes them off the listed mints, and a mint
+  followed only through its pool cannot be removed alone, since a mint is
+  checked with its whole pool. Both refuse a series not listed in
+  `series`. `poo follow`, `poo unfollow`, `poo wallet follow` and
+  `POST /v1/follow` all use them, so the file and the running node always
+  agree.
 - `EncodeWitness` / `DecodeWitness`: the hex form of an issuer witness.
 - `Manager{Root}`: `Save`, `Load`, `List`, `Current`, `Use`, `Archive`,
   `Unarchive(name, fresh)`, `Delete`, `Dir`.
