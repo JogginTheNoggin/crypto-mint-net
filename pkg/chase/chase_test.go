@@ -19,8 +19,8 @@ func h(b byte) *hash.Hash { x := hash.Hash{b}; return &x }
 
 func TestGroupingAndOneOpenPerSender(t *testing.T) {
 	q := chase.New(chase.Config{})
-	a, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(1), t0)
-	b, _ := q.Offer("p", sender("b", "r2", peers.CatBackup), h(1), t0)
+	a, _, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(1), t0)
+	b, _, _ := q.Offer("p", sender("b", "r2", peers.CatBackup), h(1), t0)
 	if a != b {
 		t.Fatal("the same entry hash made two groups")
 	}
@@ -29,7 +29,7 @@ func TestGroupingAndOneOpenPerSender(t *testing.T) {
 		t.Fatalf("groups %+v", g)
 	}
 	// A newer stated weight from a replaces its older one.
-	c, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(2), t0)
+	c, _, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(2), t0)
 	gs := q.Groups("p", t0)
 	if c == a || len(gs) != 2 {
 		t.Fatalf("groups after a moved: %d", len(gs))
@@ -40,13 +40,13 @@ func TestGroupingAndOneOpenPerSender(t *testing.T) {
 		}
 	}
 	// Stated weights with no hash are grouped by sender.
-	x, _ := q.Offer("p", sender("x", "r3", peers.CatCandidate), nil, t0)
-	y, _ := q.Offer("p", sender("x", "r3", peers.CatCandidate), nil, t0)
+	x, _, _ := q.Offer("p", sender("x", "r3", peers.CatCandidate), nil, t0)
+	y, _, _ := q.Offer("p", sender("x", "r3", peers.CatCandidate), nil, t0)
 	if x != y {
 		t.Fatal("one sender without hashes made two groups")
 	}
 	// Other pools are separate.
-	if z, _ := q.Offer("q", sender("x", "r3", peers.CatCandidate), nil, t0); z == x {
+	if z, _, _ := q.Offer("q", sender("x", "r3", peers.CatCandidate), nil, t0); z == x {
 		t.Fatal("pools share a group")
 	}
 }
@@ -58,9 +58,9 @@ func TestOrderByEvidenceNotWeight(t *testing.T) {
 		q.Offer("p", sender("u"+r, r, peers.CatUnlisted), h(byte(10+i)), t0)
 	}
 	q.Offer("p", sender("u0", "u9", peers.CatUnlisted), h(10), t0)
-	word, _ := q.Offer("p", sender("b", "r1", peers.CatBackup), h(1), t0.Add(time.Second))
-	prio, _ := q.Offer("p", sender("p", "r2", peers.CatPriority), h(2), t0.Add(2*time.Second))
-	work, _ := q.Offer("p", sender("w", "r3", peers.CatUnlisted), h(3), t0.Add(3*time.Second))
+	word, _, _ := q.Offer("p", sender("b", "r1", peers.CatBackup), h(1), t0.Add(time.Second))
+	prio, _, _ := q.Offer("p", sender("p", "r2", peers.CatPriority), h(2), t0.Add(2*time.Second))
+	work, _, _ := q.Offer("p", sender("w", "r3", peers.CatUnlisted), h(3), t0.Add(3*time.Second))
 	q.WorkChecked(work)
 	now := t0.Add(4 * time.Second)
 	gs := q.Groups("p", now)
@@ -98,7 +98,7 @@ func ids(gs []chase.Group) []uint64 {
 
 func TestNextLimitsAndBackoff(t *testing.T) {
 	q := chase.New(chase.Config{Chases: 2, PerPool: 1, Unlisted: 1, Backoff: time.Minute, MaxBackoff: 4 * time.Minute})
-	g1, _ := q.Offer("p", sender("a", "r1", peers.CatPriority), h(1), t0)
+	g1, _, _ := q.Offer("p", sender("a", "r1", peers.CatPriority), h(1), t0)
 	q.Offer("p", sender("b", "r2", peers.CatBackup), h(2), t0)
 	q.Offer("q", sender("u", "r3", peers.CatUnlisted), h(3), t0)
 	q.Offer("r", sender("v", "r4", peers.CatUnlisted), h(4), t0)
@@ -130,7 +130,7 @@ func TestNextLimitsAndBackoff(t *testing.T) {
 		q.Finish(j.Group.ID, chase.Gone, nil, t0)
 	}
 	// While a is backed off its new group waits; then it runs.
-	g, _ := q.Offer("p", sender("a", "r1", peers.CatPriority), h(5), t0.Add(30*time.Second))
+	g, _, _ := q.Offer("p", sender("a", "r1", peers.CatPriority), h(5), t0.Add(30*time.Second))
 	if _, ok := q.Next(t0.Add(30 * time.Second)); ok {
 		t.Fatal("a backed-off sender ran a chase")
 	}
@@ -146,7 +146,7 @@ func TestNextLimitsAndBackoff(t *testing.T) {
 		t.Fatalf("second backoff until %v", until.Sub(t0))
 	}
 	// A success resets it.
-	g, _ = q.Offer("p", sender("a", "r1", peers.CatPriority), h(6), t0.Add(5*time.Minute))
+	g, _, _ = q.Offer("p", sender("a", "r1", peers.CatPriority), h(6), t0.Add(5*time.Minute))
 	if j, ok := q.Next(t0.Add(5 * time.Minute)); !ok || j.Group.ID != g {
 		t.Fatalf("job %+v %v", j, ok)
 	}
@@ -158,7 +158,7 @@ func TestNextLimitsAndBackoff(t *testing.T) {
 
 func TestFalseBranchAndKnownBad(t *testing.T) {
 	q := chase.New(chase.Config{})
-	g, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(1), t0)
+	g, _, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(1), t0)
 	q.Offer("p", sender("b", "r2", peers.CatBackup), h(1), t0)
 	if _, ok := q.Next(t0); !ok {
 		t.Fatal("no job")
@@ -170,15 +170,15 @@ func TestFalseBranchAndKnownBad(t *testing.T) {
 	if !q.IsBad(hash.Hash{7}, t0) || q.IsBad(hash.Hash{7}, t0.Add(25*time.Hour)) {
 		t.Fatal("known-bad list")
 	}
-	if _, ok := q.Offer("p", sender("c", "r3", peers.CatPriority), h(1), t0); ok {
+	if _, _, ok := q.Offer("p", sender("c", "r3", peers.CatPriority), h(1), t0); ok {
 		t.Fatal("a known-bad hash started a group")
 	}
 }
 
 func TestConfirmMergeAndDrop(t *testing.T) {
 	q := chase.New(chase.Config{})
-	g, _ := q.Offer("p", sender("b", "r1", peers.CatBackup), h(1), t0)
-	o, _ := q.Offer("p", sender("c", "r2", peers.CatCandidate), h(9), t0)
+	g, _, _ := q.Offer("p", sender("b", "r1", peers.CatBackup), h(1), t0)
+	o, _, _ := q.Offer("p", sender("c", "r2", peers.CatCandidate), h(9), t0)
 	q.Confirm(g, sender("p1", "r5", peers.CatPriority), false)
 	gs := q.Groups("p", t0)
 	if gs[0].Evidence != chase.WordOnly || len(gs[0].Denied) != 1 {
@@ -211,10 +211,10 @@ func TestCapPerPool(t *testing.T) {
 	q := chase.New(chase.Config{GroupsPerPool: 2})
 	q.Offer("p", sender("u1", "r1", peers.CatUnlisted), h(1), t0)
 	q.Offer("p", sender("u2", "r2", peers.CatUnlisted), h(2), t0)
-	if _, ok := q.Offer("p", sender("u3", "r3", peers.CatUnlisted), h(3), t0.Add(time.Second)); ok {
+	if _, _, ok := q.Offer("p", sender("u3", "r3", peers.CatUnlisted), h(3), t0.Add(time.Second)); ok {
 		t.Fatal("a newer word-only unlisted group displaced an older one")
 	}
-	if _, ok := q.Offer("p", sender("p", "r4", peers.CatPriority), h(4), t0); !ok {
+	if _, _, ok := q.Offer("p", sender("p", "r4", peers.CatPriority), h(4), t0); !ok {
 		t.Fatal("a priority group was refused")
 	}
 	if n := len(q.Groups("p", t0)); n != 2 {

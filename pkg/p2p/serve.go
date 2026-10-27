@@ -29,7 +29,7 @@ func (h *Host) serve(p *peer, m wire.Message) error {
 		r.empty(wire.TypeNotHeld, weight.Zero)
 		return nil
 	}
-	h.checkStated(pi, p, m)
+	h.checkStated(pi, p, m.Stated, nil)
 	now := time.Now()
 	c := q.Common()
 	at := time.Unix(int64(c.Time), 0)

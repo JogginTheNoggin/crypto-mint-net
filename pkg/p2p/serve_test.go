@@ -11,6 +11,8 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
@@ -295,17 +297,41 @@ func TestMalformedMessageDisconnects(t *testing.T) {
 	r.expectClosed()
 }
 
-func TestInvalidEntryDisconnects(t *testing.T) {
-	a := startNode(t, "a", nil)
+// An invalid entry is an offence: a flag that bars priority. A second one
+// passes the timeout limit, and the address is timed out: disconnected and
+// refused until the timeout ends.
+func TestInvalidEntriesTimeOut(t *testing.T) {
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true}, "")
+	must(t, err)
+	a := startNode(t, "a", func(c *p2p.Config) { c.Tracker = tr })
 	sec := poolSection()
 	r := dialRaw(t, a, []wire.Section{sec})
-	bad := exKeys.Claim(4, P("alice", 100))
-	bad.Outputs[0].Amount = 99 // breaks the claim: the supply is 100
-	e, _, err := entry.Build(exSeries, exSeries.PoolID(exKey.Index), []*tx.Tx{bad}, 0)
-	must(t, err)
-	r.write(wire.Message{Header: wire.Header{Type: wire.TypeEntry, Section: sec}, Body: e.Encode()})
+	bad := func(serial uint64) wire.Message {
+		claim := exKeys.Claim(serial, P("alice", 100))
+		claim.Outputs[0].Amount = 99 // breaks the claim: the supply is 100
+		e, _, err := entry.Build(exSeries, exSeries.PoolID(exKey.Index), []*tx.Tx{claim}, 0)
+		must(t, err)
+		return wire.Message{Header: wire.Header{Type: wire.TypeEntry, Section: sec}, Body: e.Encode()}
+	}
+	r.write(bad(4))
+	eventually(t, "a flag", func() bool { return tr.Status("127.0.0.1:1", time.Now()).FlagTotal == 5 })
+	if st := tr.Status("127.0.0.1:1", time.Now()); st.Priority || !st.Allowed() {
+		t.Fatalf("after one invalid entry: %+v", st)
+	}
+	r.write(bad(5))
 	r.expectClosed()
 	if a.status().Height != 0 {
 		t.Fatal("invalid entry kept")
+	}
+	if st := tr.Status("127.0.0.1:1", time.Now()); !st.TimedOut {
+		t.Fatalf("not timed out: %+v", st)
+	}
+	// A new connection from the address is refused while it lasts.
+	c, err := net.Dial("tcp", a.h.Addr())
+	must(t, err)
+	defer c.Close()
+	c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := c.Read(make([]byte, 1)); err == nil {
+		t.Fatal("a timed out address was answered")
 	}
 }

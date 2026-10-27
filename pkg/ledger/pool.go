@@ -243,6 +243,20 @@ func (p *Pool) From(h hash.Hash) (weight.Weight, error) {
 	return p.Weight().Sub(p.bit.prefix(n.height - 1)), nil
 }
 
+// WeightTo returns the weight of the ledger that ends at a held entry: its
+// own weight and that of every entry before it. The pool_id has none. A
+// chase uses it for the weight to beat after a common entry.
+func (p *Pool) WeightTo(h hash.Hash) (weight.Weight, bool) {
+	if h == p.id {
+		return weight.Zero, true
+	}
+	n, ok := p.nodes[h]
+	if !ok {
+		return weight.Zero, false
+	}
+	return p.weightOf(n), true
+}
+
 // Locate returns the entry of the selected ledger that holds a tid.
 func (p *Pool) Locate(tid hash.Hash) (hash.Hash, bool) {
 	n, ok := p.tids[tid]

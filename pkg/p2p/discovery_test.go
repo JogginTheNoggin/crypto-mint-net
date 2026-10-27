@@ -99,7 +99,7 @@ func TestPeerListAndManager(t *testing.T) {
 	b, c := startNode(t, "b", nil), startNode(t, "c", nil)
 	a.connect(b)
 	a.connect(c)
-	d := startNode(t, "d", func(c *p2p.Config) { c.PeersPerPolicy = 3 })
+	d := startNode(t, "d", func(c *p2p.Config) { c.Slots = peers.Slots{Priority: 2, Backup: 1} })
 	d.connect(a)
 	d.h.Manage() // asks a for its peers
 	eventually(t, "candidates from a's peer list", func() bool {

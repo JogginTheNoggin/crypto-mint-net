@@ -19,6 +19,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
 
 // Evidence is how far a group has shown that its branch is real.
@@ -42,11 +43,14 @@ func (e Evidence) String() string {
 // MarshalText writes the evidence's name.
 func (e Evidence) MarshalText() ([]byte, error) { return []byte(e.String()), nil }
 
-// Sender is a peer or unlisted node that sent a stated weight.
+// Sender is a peer or unlisted node that sent a stated weight. Its stated
+// weight is kept only to tell, when its turn comes, whether the node has
+// caught up already; it never orders anything.
 type Sender struct {
-	ID    string         `json:"id"`
-	Range string         `json:"range"`
-	Cat   peers.Category `json:"-"`
+	ID     string         `json:"id"`
+	Range  string         `json:"range"`
+	Cat    peers.Category `json:"category"`
+	Stated weight.Weight  `json:"stated"`
 }
 
 // Config holds the queue's limits, all node policy. Zero values mean the
@@ -258,13 +262,14 @@ func (q *Queue) evidenceLocked(g *Group) Evidence {
 // else a group of the sender's own. A sender has one open stated weight
 // per pool, so a newer one replaces its older one. It returns the group's
 // id, and false when the pool's cap is reached and the group would be the
-// lowest in the order.
-func (q *Queue) Offer(pool string, s Sender, h *hash.Hash, now time.Time) (uint64, bool) {
+// lowest in the order. isNew reports whether the sender joined the group
+// with this stated weight, which is what counts against its budget.
+func (q *Queue) Offer(pool string, s Sender, h *hash.Hash, now time.Time) (id uint64, isNew, ok bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if h != nil {
 		if u, ok := q.bad[*h]; ok && now.Before(u) {
-			return 0, false
+			return 0, false, false
 		}
 	}
 	open := q.open[pool]
@@ -291,7 +296,7 @@ func (q *Queue) Offer(pool string, s Sender, h *hash.Hash, now time.Time) (uint6
 	}
 	if target == nil {
 		if q.countLocked(pool) >= q.cfg.GroupsPerPool && !q.evictLocked(pool, s, now) {
-			return 0, false
+			return 0, false, false
 		}
 		q.seq++
 		target = &Group{ID: q.seq, Pool: pool, Hashes: map[hash.Hash]bool{}, Senders: map[string]Sender{}, Added: now}
@@ -300,12 +305,24 @@ func (q *Queue) Offer(pool string, s Sender, h *hash.Hash, now time.Time) (uint6
 	if h != nil {
 		target.Hashes[*h] = true
 	}
-	if old, ok := target.Senders[s.ID]; !ok || s.Cat < old.Cat {
-		target.Senders[s.ID] = s
+	old, had := target.Senders[s.ID]
+	if had && old.Cat < s.Cat {
+		s.Cat = old.Cat
 	}
+	target.Senders[s.ID] = s
 	open[s.ID] = target.ID
 	target.Evidence = q.evidenceLocked(target)
-	return target.ID, true
+	return target.ID, !had, true
+}
+
+// Leave takes sender out of group id, as when its stated weight is over
+// its budget after all.
+func (q *Queue) Leave(id uint64, sender string) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if g := q.groups[id]; g != nil && g.running != sender {
+		q.leaveLocked(id, sender)
+	}
 }
 
 // leaveLocked takes sender out of group id, dropping the group when no
@@ -577,10 +594,16 @@ const (
 	// Gone: the sender went away mid-chase. It leaves the group, with no
 	// backoff.
 	Gone
+	// Caught: the node already holds as much as the sender stated. It
+	// leaves the group, with no backoff.
+	Caught
+	// Requeue: a priority peer confirmed the group, which waits for its
+	// next step with the priority peer as its best sender.
+	Requeue
 )
 
 func (o Outcome) String() string {
-	return [...]string{"switched", "nowhere", "false", "gone"}[o]
+	return [...]string{"switched", "nowhere", "false", "gone", "caught", "requeue"}[o]
 }
 
 // Finish ends the running chase of group id and returns the group as it
@@ -609,8 +632,10 @@ func (q *Queue) Finish(id uint64, o Outcome, bad []hash.Hash, now time.Time) Gro
 			q.addBadLocked(h, now)
 		}
 		q.dropLocked(g)
-	case Gone:
+	case Gone, Caught:
 		q.leaveLocked(id, sender)
+	case Requeue:
+		g.Evidence = q.evidenceLocked(g)
 	}
 	return out
 }

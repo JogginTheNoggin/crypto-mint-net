@@ -357,14 +357,30 @@ func TestPeersListed(t *testing.T) {
 	eventually(t, "one connection", func() bool { return len(a.h.Peers()) == 1 && len(b.h.Peers()) == 1 })
 }
 
-// A node with no pool in common is not kept as a peer.
-func TestNoOverlapIsRefused(t *testing.T) {
-	a := startNode(t, "a", nil)
+// A node with no pool in common is not a peer. It may stay connected as an
+// unlisted node, as a wallet would, and is served but sent nothing; with no
+// room for unlisted nodes it is disconnected.
+func TestUnlistedConnections(t *testing.T) {
 	other := testutil.MustSeries(func() series.Params { p := testutil.ExampleParams(); p.Mints = 16; return p }())
-	r := dialRaw(t, a, []wire.Section{wire.SeriesSection(hash.Zero, other.ID())})
-	if _, _, err := r.read(); err == nil {
-		t.Fatal("connection stayed open")
+	cov := []wire.Section{wire.SeriesSection(hash.Zero, other.ID())}
+
+	a := startNode(t, "a", nil)
+	r := dialRaw(t, a, cov)
+	eventually(t, "the follow request to time out", func() bool {
+		ps := a.h.Peers()
+		return len(ps) == 1 && len(ps[0].Categories) == 0
+	})
+	grow(t, a, nil, "alice", 1, 32)
+	if _, _, err := r.readUntil(time.Now().Add(300 * time.Millisecond)); err == nil {
+		t.Fatal("an unlisted node was forwarded to")
 	}
+	ms := r.ask(poolSection(), wire.WeightReq{RequestCommon: r.common(wire.Limits{})})
+	if ms[0].Type != wire.TypeWeight {
+		t.Fatalf("unlisted node not served: %s", ms[0].Type)
+	}
+
+	b := startNode(t, "b", func(c *p2p.Config) { c.UnlistedConns = -1 })
+	dialRaw(t, b, cov).expectClosed()
 }
 
 // When a peer holds the same entries with more layers on them, the node
