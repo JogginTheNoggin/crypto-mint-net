@@ -5,6 +5,18 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 2 Part B reviewed `claude/gui-4-watch @ 93ed36a` (PR #18): the new
+`-view-only` mode, the D101/D89 secret masking (a re-check of GUI-003), and the
+Watch/Explore views. Verified as solid: `-view-only` is a process-wide flag the
+core enforces with a default-deny command table plus a read-only view token, with
+no client bypass; the new masking is driven by the core's `cli.Stdio.Secret`
+signal (all interactive passphrase reads go through it) and no longer sniffs
+output; the GUI-001 sign-in fix (hashed, single-use, TTL tokens; an independent
+session cookie) holds; and Watch/Explore render every field via `textContent`, so
+node- or peer-controlled event data cannot inject HTML. New gaps: GUI-006 (secrets
+passed as arguments, not the interactive path, still persist) and GUI-007 (Watch's
+unbounded client buffers). Both low.
+
 First round reviewed against `claude/gui-5-release` (the GUI/Grey stack
 #10←#11←#12←#14, 2026-10-27). The `gui/server`, `gui/jobs` and `gui/shell`
 packages are unchanged across that stack, so every finding below applies to
@@ -44,3 +56,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-003](GUI-003-passphrase-mask-heuristic.md) | Low | Passphrase masking is an output-regex guess and can fail open | fixed (fca4369) |
 | [GUI-004](GUI-004-job-resource-exhaustion.md) | Low | No bound on running jobs or event streams (local DoS) | fixed (fca4369) |
 | [GUI-005](GUI-005-total-authority-no-confirm.md) | Info | A leaked secret is total node control; no confirmation on destructive commands | fixed (documented, fca4369) |
+| [GUI-006](GUI-006-secret-args-in-history.md) | Low | Secret-bearing command arguments (wallet seed) persist in terminal localStorage history and the Jobs list | open |
+| [GUI-007](GUI-007-watch-unbounded-buffers.md) | Low | Watch view's paused-event and error buffers grow without bound (local tab DoS) | open |
