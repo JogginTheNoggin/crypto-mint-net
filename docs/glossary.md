@@ -42,3 +42,14 @@ the design left open, the matching decision is linked.
 | **Consensus / series / node policy** | The three tiers of rules. See [architecture](architecture.md#the-three-tiers). |
 | **Issuer** | An optional address named by a series; its witness proves who published the series. |
 | **Following** | Which series, pools and mints a node keeps ledgers for. Node policy. |
+| **Peer category** | How a node treats a connection for one mint policy: **priority** (relied on: asked, forwarded to, pinged often), **backup** (kept ready), **candidate** (not yet verified, or no slot free) or **unlisted** (none of these, such as a wallet). Messages are handled in that order ([D58](decisions.md#d58-slots-replace-the-peer-count)). |
+| **Slot** | A place for a priority or backup peer of one mint policy; node policy sets how many. |
+| **Review** | The regular comparison of peers' points that moves them between categories. |
+| **Points** | A peer's score for one mint policy from what it was seen to do ([D61](decisions.md#d61-points-and-fair-comparisons)). **Fair points** use only the measures both categories being compared have. |
+| **Flag** | A record of an offence by an address, with a severity and an expiry. The live total decides loss of priority, timeouts and blocks. |
+| **Timeout / block** | Refusing an address for a while: a timeout keeps its categories for its return; a block does not, and can cover a network range. |
+| **Tracking template** | What a node records about a peer: basic, standard, detailed or custom. |
+| **Chase** | Following up a stated weight above the node's own: confirm, find the common entry, check the work, fetch the entries. |
+| **Evidence** | How far a chase group has shown its branch is real: word-only, corroborated or work-checked. The chase queue orders by evidence, never by stated weight. |
+| **Provisional layers** | Layers fetched during a chase to check a branch's work before any entry; never kept or counted. |
+| **Known-bad list** | Entry hashes shown to be false, ignored for a while. |

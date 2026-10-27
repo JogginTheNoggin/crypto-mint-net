@@ -3,7 +3,7 @@
 ## Summary
 
 The command-line tool. `poo node` runs the full node daemon with its store,
-its peer connections and local RPC; client commands talk to it; `poo policy` manages node
+its peer connections, its peer tracker (`tracking.json`) and local RPC; client commands talk to it; `poo policy` manages node
 policies; offline commands make keys, inspect series and run an in-process
 demo. `claim` and `pay` sign with a single raw key and exist so a node can
 be exercised end to end; the wallet comes in milestone 6. See
@@ -15,7 +15,10 @@ be exercised end to end; the wallet comes in milestone 6. See
 | --- | --- |
 | `poo init [-example] [-series FILE]... [-listen ADDR] [-p2p ADDR] [-advertise ADDR] [-peer ADDR]... [-registry LOC]... [-force]` | Writes a node policy that knows and follows the given series, and makes it current |
 | `poo node` | Runs the node until interrupted |
-| `poo peers` | The node's id, its p2p address, its connected peers and its peer book |
+| `poo peers` | The node's id, its p2p address, its connected peers with their categories and points, and its peer book |
+| `poo peer timeout\|block\|unblock\|clear\|template\|delete ADDR [-seconds N] [-range] [-what flags\|measures\|all] [-template NAME]` | Acts on one peer: pause it, block it (or its range; `-seconds -1` until unblocked), lift either, clear its records, choose its tracking template, or delete it from the book (flags before ADDR) |
+| `poo tracking [ADDR]` | Every tracked address's status and the blocked ranges, or one address's whole record |
+| `poo chases` | The chase queue: heavier stated weights waiting or being checked |
 | `poo status` | Every followed pool |
 | `poo claim -seed HEX -serial N` | Claims a whole mint for the key's 1-of-1 address |
 | `poo pay -seed HEX -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |

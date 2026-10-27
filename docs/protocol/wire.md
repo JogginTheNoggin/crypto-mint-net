@@ -10,9 +10,10 @@ policy updates, missing chunks). It implements the design's "Forwarding",
 "Ledger Data" and "Peer Discovery and Management" documents. Items inside messages
 (transactions, entries, layers) use the byte forms of
 [encoding.md](encoding.md) unchanged. The code is `pkg/wire` (encoding) and
-`pkg/p2p` (behaviour). Peer ranking (milestone 5) may add message types;
-numbers are never reused, and a node ignores types it does not know. The
-reasons for the choices here are decisions D30 to D39 and D40 to D49 in
+`pkg/p2p` (behaviour). Peer ranking, tracking and chasing (milestone 5)
+added no message types, only the order requests are sent in; numbers are
+never reused, and a node ignores types it does not know. The reasons for
+the choices here are decisions D30 to D39, D40 to D49 and D50 to D62 in
 [../decisions.md](../decisions.md).
 
 ## Primitives
@@ -191,27 +192,34 @@ pool's first entry.
 
 ## Catching up
 
-A node asks:
+Milestone 5 adds no message types; it changes when and in what order the
+catch-up requests are sent (decisions D52 to D54, D59, D60). Every stated
+weight above the node's own, from a pushed item, a notice, a reply or a
+**weight** request (sent to priority peers on each regular check, every
+minute by default, and when a peer is verified), only queues a chase. A
+chase then asks, from cheap to costly:
 
-- with a **full ledger** request when it holds nothing for the pool;
-- with an **extension** request from its tip, beating its own computed
-  weight, when it connects to a peer, on each regular check (every minute
-  by default), when a pushed entry or layer builds on something it lacks,
-  and when any message states a weight above its own.
+1. a priority peer, with an **extension** request from the node's tip,
+   whether it sees something heavier too (skipped when the sender is a
+   priority peer);
+2. a **full ledger** request, when the node holds nothing for the pool;
+3. **hash chains**: the latest hashes first, then pages back with the
+   oldest hash as anchor, until the newest hash it holds (if the chain
+   reaches the first entry with no shared hash, the split is the pool_id),
+   at most 16 pages;
+4. **layers** on the hashes after the split, as provisional work: their
+   credit must beat the weight of the node's own ledger after the split
+   before anything else is asked; they are not kept;
+5. **extensions** from the split, each entry matching the hash listed for
+   it. If the sender's ledger ends where the node's does, it holds more
+   layers on the same entries, and the node asks for the layers on its
+   latest entries instead.
 
 It continues after a more marker with an extension from the last entry it
-received. On "heavier, not from this entry" it finds the split with hash
-chains: the latest hashes first, then pages back with the oldest hash as
-anchor, until it finds the newest hash it holds; if the chain reaches the
-first entry with no shared hash, the split is the pool_id. It then asks
-for an extension from the split. If the reply brings no entries but the
-peer still states more weight, the peer holds more layers on the same
-entries, and the node asks for the layers on its latest entries.
-
-Received entries are checked in chain order, each must name the one
-before it (or the request's starting point) as parent, and they are taken
-in through the engine as requested data: checked exactly like pushed data,
-switched to only on computed weight, never forwarded.
+received. Received entries are checked in chain order, each must name the
+one before it (or the request's starting point) as parent, and they are
+taken in through the engine as requested data: checked exactly like
+pushed data, switched to only on computed weight, never forwarded.
 
 ## Peer discovery
 
@@ -279,11 +287,15 @@ inside it. A peer with no verified policy left is disconnected.
 
 ## Misbehaviour
 
-Until peer ranking (milestone 5), a node disconnects a peer that sends a
-malformed message, a request whose id does not match, a follow reply
-listing a mint policy outside the one asked about, an entry that breaks
-a rule, a layer below the series' minimum strength, a reply that does not
-fit the request, or more reply chunks than it can queue; and a peer whose
-send queue is full. It does not disconnect for a refused transaction: a
-transaction can be refused for honest reasons, such as a race with another
-spend.
+What a node does about a peer is node policy and never visible on the
+wire beyond a closed connection. The reference node (decisions D55 to D58):
+flags the address for an entry that breaks a rule or a layer below the
+series' minimum strength, for going over its budget of a message kind,
+for repeating held items or request ids, and for a provably false branch;
+flags it and closes the connection for a malformed message or a request
+whose id does not match; times out or blocks the address when its flags
+pass the limits, refusing its connections until then; and closes a
+connection whose send queue is full or that brings more reply chunks than
+it can queue. A repeated request id is answered with refused. A refused
+transaction is never a reason: a transaction can be refused for honest
+reasons, such as a race with another spend.

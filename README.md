@@ -19,8 +19,11 @@ command-line clients. Milestone 3 connects nodes: a wire protocol over TCP
 that forwards what each node keeps, answers ledger data requests, and lets
 a node catch up with a heavier ledger. Milestone 4 lets nodes find each
 other: follow requests checked against each peer, relayed discovery, peer
-lists, address registries and a saved peer book. Peer management comes
-next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
+lists, address registries and a saved peer book. Milestone 5 manages
+peers: priority, backup and candidate peers ranked by points from what
+each one does, flags, timeouts and blocks for misbehaviour, and chases of
+heavier ledgers that check the work behind a branch before fetching it.
+The wallet comes next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
 departs from the design documents is recorded in
 [docs/decisions.md](docs/decisions.md).
 
@@ -91,9 +94,11 @@ go build -o poo ./cmd/poo
 | `pkg/nodepolicy` | The node policy file and saved/archived node policies |
 | `pkg/node` | The engine with a data directory and a store per pool |
 | `pkg/wire` | The byte form of messages between full nodes |
-| `pkg/peers` | The peer book: known addresses, what they follow, network ranges |
+| `pkg/peers` | The peer book and ranking: known addresses, categories, slots, network ranges |
+| `pkg/tracking` | What each peer does: flags, timeouts, blocks, measures, points, templates |
+| `pkg/chase` | The chase queue: heavier stated weights by evidence, backoff, known-bad hashes |
 | `pkg/registry` | Address registries: bootstrap lists of nodes |
-| `pkg/p2p` | Peer connections: discovery, forwarding, ledger data requests, catch-up |
+| `pkg/p2p` | Peer connections: discovery, ranking, forwarding, ledger data requests, chasing |
 | `pkg/rpc` | The local control interface (JSON over HTTP, loopback, token) |
 | `pkg/vectors` | Published test vectors for independent implementations |
 | `pkg/testutil` | Deterministic keys and builders for tests and the demo |
@@ -115,8 +120,9 @@ go build -o poo ./cmd/poo
 
 Pre-release. The consensus core, a node with storage and a local RPC, and
 the wire protocol between full nodes (forwarding, ledger data requests and
-catch-up with the peers a node is told about) are implemented and tested.
-Nodes do not yet discover peers by themselves. Do not use it
+catch-up), peer discovery, and peer ranking, tracking and chasing are
+implemented and tested. The provisional defaults have not yet been tuned
+by simulation (milestone 7). Do not use it
 with anything of value. Keys made by the test helpers are derived from public
 labels and must never hold real funds.
 
