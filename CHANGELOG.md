@@ -29,5 +29,18 @@ built.
   ([docs/cryptography.md](docs/cryptography.md)). Wallets choose their key
   algorithm (`poo wallet create -alg`); `poo crypto`, `poo keygen -alg
   -hash` and `poo series new` are new. Requires Go 1.27.
+- **Viewing and watching:** one filter (series, pool, mint, address,
+  address policy, transaction, event kind) for views of pools, ledger
+  pages, pending transactions, unspent portions, a transaction and an
+  address, and for a live event stream (`poo pools`, `ledger`, `pending`,
+  `unspent`, `tx`, `address`, `watch`; `GET /v1/watch` as NDJSON).
+- **Live following:** `poo follow` and `poo unfollow` (and
+  `POST /v1/follow`) change what a running node follows and apply it at
+  once by reloading the node in place; `poo reload` and SIGHUP do the
+  same after a hand edit. `poo wallet follow` applies at once too.
+- **Wallet:** new wallets seal the seed with Argon2id (D95); older
+  PBKDF2 wallets still open, and `poo wallet passwd` upgrades them.
+- **Library:** the commands are package `pkg/cli`, so the GUI runs the
+  same code as `poo` (D84).
 - **Fixed:** a node catching up a heavier ledger one entry at a time could
   prune each entry before its work arrived and never switch (D79).

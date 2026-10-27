@@ -99,6 +99,11 @@ second can at least be detected.
   Argon2id (64 MiB, 3 passes, 16-byte random salt, random nonce; D95,
   older wallets PBKDF2-SHA256 at 600,000 iterations) and bound to its use
   with associated data (D64). The passphrase comes from an environment variable, a file or standard input, never a flag.
+- **Views and the watch stream (M10):** behind the same token. Every
+  view is bounded per request (D94). A watcher that reads slowly loses
+  events, counted in a `missed` line, and never holds up the node (D91).
+  `POST /v1/follow` validates the changed policy before saving it, and a
+  reload reopens the node through the same checks as a start-up (D92).
 - **Registries:** fetched with a 15-second timeout and read up to a size
   limit. An entry is only a suggestion (D40, D44).
 - **Storage:** nothing on disk is trusted. The log is replayed through the

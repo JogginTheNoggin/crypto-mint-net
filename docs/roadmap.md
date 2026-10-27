@@ -197,3 +197,16 @@ those advised against (RSA, SLH-DSA, Ed448, Falcon, a lone hashlock).
 
 Left for later: timelocks, which need a clock in consensus first, and
 wallet support for spending from hashlock and k-of-policies addresses.
+
+### M10: Viewing, watching and live following (done)
+
+The owner asked whether nodes configure and filter what they follow, set
+and forget, and for comprehensive views and watching per series or
+policy. A node already followed what `node.json` said; now it also
+changes what it follows while running (`poo follow`, `poo unfollow`,
+`POST /v1/follow`, a reload in place; D92, D93). One filter (series,
+pool, mint, address, address policy, transaction, kind; D90) selects
+items in every view (pools, ledger pages, pending, unspent, a
+transaction, an address; D94) and in a live event stream (`poo watch`,
+`GET /v1/watch`; D91). The GUI uses the same packages through `pkg/cli`
+and `pkg/rpc` (D84).
