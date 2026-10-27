@@ -23,12 +23,12 @@ their sizes, standards, where each is used and why it was chosen.
   post-quantum keys, and the claim side of atomic swaps.
 - **Not offered, on purpose:** RSA, SLH-DSA, Ed448, and timelocks. Each is
   explained under [Advised against or deferred](#advised-against-or-deferred).
-- **Off consensus**, the node uses HMAC-SHA256 and PBKDF2-SHA256 for wallet
-  keys, HKDF-SHA512 to turn a seed into a key of any algorithm,
+- **Off consensus**, the node uses HMAC-SHA256 for wallet keys, Argon2id
+  (PBKDF2-SHA256 for older wallets) for the passphrase, HKDF-SHA512 to turn a seed into a key of any algorithm,
   AES-256-GCM to seal the wallet seed, CRC-32C to find torn writes in its
   log, and the operating system's random number generator.
 - **Where the code comes from:** the Go standard library for everything
-  except BLAKE2b (`golang.org/x/crypto`, maintained by the Go team), BLAKE3
+  except BLAKE2b and Argon2id (`golang.org/x/crypto`, maintained by the Go team), BLAKE3
   (`zeebo/blake3`) and secp256k1 (`decred/dcrd` and `btcsuite/btcd`, the
   libraries of two production Bitcoin-family nodes). No primitive is
   implemented by this project (decision D83).
@@ -202,7 +202,8 @@ The same seed under two algorithms gives unrelated keys.
 | --- | --- | --- |
 | Seed | `crypto/rand` | 32 bytes |
 | Key *i* | The wallet's algorithm's key from seed `HMAC-SHA256(seed, "PoO-wallet-<name>-v1" ∥ U32 i)` | decisions D63, D81; for Ed25519 the label is `PoO-wallet-ed25519-v1`, as before |
-| Passphrase key | PBKDF2-HMAC-SHA256 | 600,000 iterations by default, 16-byte random salt, 32-byte key (decision D64) |
+| Passphrase key | Argon2id (`x/crypto/argon2`) | 3 passes, 64 MiB, 4 lanes, 16-byte random salt, 32-byte key (decision D95) |
+| Passphrase key, older wallets | PBKDF2-HMAC-SHA256 | 600,000 iterations, 16-byte random salt, 32-byte key (decision D64); still opened, moved to Argon2id by a new passphrase |
 | Sealed seed | AES-256-GCM | 12-byte random nonce, 16-byte tag, associated data `"PoO-wallet-seed-v1"` |
 
 A wallet's keys are all of one algorithm, chosen when it is created
