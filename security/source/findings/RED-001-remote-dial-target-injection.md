@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 581476e |
 | Component | pkg/p2p/discovery.go (handleFollow), pkg/p2p/host.go (dialCandidate), pkg/peers/peers.go (Book.Add/Pick/Range), pkg/wire/discovery.go (CheckAddr) |
 | Surface | peer |
-| Fixed by | — |
+| Fixed by | `claude/project-thread-ggo8dt` @ a733b18 (BLUE-002) |
 
 ## Summary
 
@@ -139,3 +139,19 @@ Tests: a `pkg/wire` test that `CheckAddr`/`CheckDialable` rejects a loopback
 and an RFC 1918 literal by default; a `pkg/p2p` test that a follow request
 carrying a non-global `Contact` does not cause an outbound dial; a
 `pkg/peers` test that N loopback addresses count against one range.
+
+## Resolution
+
+Fixed by BLUE-002 (decision D96). Addresses learned from peers and
+registries go into the book only if they are host names or public
+unicast IPs, and the connection manager's dialer checks the resolved IP
+of every attempt before connecting, which also covers host names that
+resolve to loopback and records from an older peer file. Policy
+`p2p.allow_local_peers` turns the checks off for local networks; listed
+`peers` are always dialled. Recommendation 2 (corroborate a contact) was
+not taken: a public address one peer names is an ordinary candidate,
+verified when dialled. Recommendation 3 (collapse the loopback range) was
+not taken either: with loopback refused from other parties, D45's
+assumption holds again, and collapsing it would cap local test networks.
+Tests: `TestPublicIP`, `TestLearnable`, `TestPeerCannotPlantLocalDialTarget`,
+`TestConfiguredLocalPeerIsDialled` in `pkg/p2p`.

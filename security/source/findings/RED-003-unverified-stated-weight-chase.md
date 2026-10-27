@@ -5,7 +5,7 @@
 | Severity | info |
 | Component | pkg/p2p/forward.go (handlePushed/checkStated), pkg/p2p/chase.go (offer/runChase confirm step) |
 | Found on | `claude/m10-watch` @ 581476e |
-| Status | open |
+| Status | won't fix |
 | Surface | peer |
 | Fixed by | — |
 
@@ -85,3 +85,14 @@ Hardening options for Blue/Grey to weigh (not a correctness fix):
   hint once the sender has standing.
 - Keep an eye on the interaction with RED-001 (an attacker who can also
   seed inbound Sybils benefits from both).
+
+## Resolution
+
+Blue's assessment: won't fix for now. The confirmation step is itself
+the defence: it asks a trusted peer before the node acts on an unlisted
+sender's weight. Refusing to chase on an unlisted sender's word would
+let a node miss a heavier ledger that only a new peer has seen, which is
+how a node catches up after a partition. The cost is bounded by the
+per-address chase budget and the `Unlisted` chase cap, as the finding
+notes. Revisit if a measurement shows the confirm load matters; Grey or
+the owner may overrule.

@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Component | pkg/p2p/discovery.go (handleMissing), pkg/wire/discovery.go (DecodeMissingChunksReq) |
 | Found on | `claude/m10-watch` @ 581476e |
 | Surface | peer |
-| Fixed by | — |
+| Fixed by | `claude/project-thread-ggo8dt` @ a733b18 (BLUE-002) |
 
 ## Summary
 
@@ -74,3 +74,12 @@ accounting on this path, so the behaviour is invisible to ranking.
 
 Test: `pkg/p2p` — a repeated-position `MissingChunksReq` resends each
 distinct valid chunk exactly once and records a cost against the peer.
+
+## Resolution
+
+Fixed by BLUE-002. `handleMissing` resends each distinct valid position
+once per request, ignores repeats and out-of-range positions, records the
+bytes resent as the peer's cost, and counts a repeated position as a
+repeat (`tracking.Repeat`), which flags a peer past the repeat limit.
+Test: `TestMissingChunksResentOnce` in `pkg/p2p` (5,000 repeats of one
+position give one resend).
