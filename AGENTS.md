@@ -41,6 +41,12 @@ a byte form without updating the test vectors on purpose.
 - Use the design's terms. Do not rename concepts.
 - `pkg/p2p` must never hold its own lock while calling the node, and
   node observers must never block: the lock order is node, engine, host.
+  Start host goroutines with `Host.spawn`, never `wg.Add` directly, so
+  none starts while `Run` waits for them.
+- `pkg/wallet` is a holder's habits, never a rule: it decides nothing
+  about validity, talks to a node only through `wallet.Node`, and never
+  writes the seed unsealed. Do not import it from the node packages
+  (`rpc` imports it only to implement `wallet.Node`).
 - Never make the repository public or change its visibility; that is the
   owner's decision.
 
@@ -62,5 +68,6 @@ a byte form without updating the test vectors on purpose.
 | What a node records about a peer's behaviour, offences and points | `pkg/tracking` (a setting bit, a measure, an offence rule) |
 | Which heavier ledger to check next | `pkg/chase` (the queue); the steps of a chase are in `pkg/p2p/chase.go` |
 | A new policy type or key algorithm | `pkg/policy` (register it; never reuse a number) |
+| How a holder chooses coins, derives keys, pays or follows a payment | `pkg/wallet` (a decision for each habit), `poo wallet` in `cmd/poo/wallet.go` |
 | A new series setting | `pkg/series` (changes the byte form and so the vectors) |
 | The command-line tool | `cmd/poo` |

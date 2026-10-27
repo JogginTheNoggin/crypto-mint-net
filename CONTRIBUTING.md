@@ -34,6 +34,7 @@ form layers, and a package only imports packages below it:
 ```
 cmd/poo
   rpc
+    wallet
     p2p
       tracking  chase
       peers  registry
@@ -65,6 +66,9 @@ The design sorts every rule into three tiers, and the code follows it:
   ownership (K, limits, what to follow, forwarding choices, storage). Lives
   in the node policy file (`pkg/nodepolicy`) and the configuration structs it
   fills (`ledger.Config`, `engine.Config`), with documented defaults.
+- **Wallet habits** are none of the three: how a holder derives keys,
+  chooses coins and decides a payment is settled. The network never sees
+  them. They live in `pkg/wallet`, each recorded as a decision.
 
 When adding a rule, ask the design's two questions. If two nodes following the
 same series disagreed on it, could they select different ledgers? If not, it

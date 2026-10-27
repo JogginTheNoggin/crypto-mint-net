@@ -18,7 +18,9 @@ control. Peer discovery (milestone 4) and peer management (milestone 5)
 live in `pkg/p2p` too, with the peer book and ranking rules in
 `pkg/peers`, bootstrap lists in `pkg/registry`, the record of what each
 peer does in `pkg/tracking` and the queue of heavier ledgers to check in
-`pkg/chase`. None of it leaks into the packages below the engine.
+`pkg/chase`. None of it leaks into the packages below the engine. The
+wallet (milestone 6, `pkg/wallet`) sits beside the node: it keeps a
+holder's keys and talks to a node only through reads and submissions.
 
 ## Package layers
 
@@ -47,6 +49,11 @@ graph TD
   peers --> wire
   registry --> wire
   rpc --> peers
+  rpc --> wallet
+  cmd --> wallet
+  wallet --> policy
+  wallet --> tx
+  wallet --> series
   wire --> entry
   wire --> layer
   wire --> tx
@@ -87,6 +94,7 @@ project. Every package above `policy` also imports `hash`, and most import
 | Node policy | `mempool`, `engine` (and their `Config`), `nodepolicy` | What to keep, follow and forward |
 | Node | `store`, `node`, `rpc` | Disk, the data directory, local control |
 | Network | `wire`, `peers`, `registry`, `tracking`, `chase`, `p2p` | Messages between full nodes, the peer book and ranking, bootstrap lists, peer tracking, the chase queue, discovery, forwarding, catch-up |
+| Wallet | `wallet` | Keys from one seed, payments, requests, co-signing, following weight |
 | Tools | `cmd/poo`, `vectors`, `testutil` | CLI, demo, published vectors, test helpers |
 
 ## The three tiers
@@ -187,6 +195,14 @@ fork point, through an overlay on the current state.
   validity: the engine still switches only on weight it computed. See
   [modules/tracking.md](modules/tracking.md) and
   [modules/chase.md](modules/chase.md).
+
+- **Wallet (M6, done)**: `pkg/wallet` sits beside the node, never inside
+  it: it reads holdings and payments and submits transactions through
+  the `wallet.Node` interface (`rpc.WalletNode` for a running node), and
+  everything it does is a holder's habit, not a rule. The node gained one
+  read for it: the rivals of a transaction on inactive branches
+  (`Ledger.Rivals`). Light mode is a node policy that follows only the
+  wallet's pools. See [modules/wallet.md](modules/wallet.md).
 
 See [roadmap.md](roadmap.md) for the milestones and
 [modules/README.md](modules/README.md) for one page per package.

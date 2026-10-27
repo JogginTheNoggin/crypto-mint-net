@@ -22,8 +22,8 @@ a license are the owner's decisions and are part of milestone 8.
 | M3 | Wire protocol and forwarding | Done |
 | M4 | Peer discovery, relaying, address registries | Done |
 | M5 | Peer categories, ranking, tracking, chasing | Done |
-| M6 | Wallet and user tools | Next |
-| M7 | Network simulator, fuzzing, benchmarks | Planned |
+| M6 | Wallet and user tools | Done |
+| M7 | Network simulator, fuzzing, benchmarks | Next |
 | M8 | Hardening and open release | Planned |
 
 ### M1: Consensus core and full-node engine (done)
@@ -114,11 +114,23 @@ Left for later milestones: tuning the provisional values (M7). Sharing
 what a node records with other nodes is not planned: the design keeps it
 on the node that recorded it.
 
-### M6: Wallet and user tools
+### M6: Wallet and user tools (done)
 
-Key storage, address and policy creation, building and signing payments,
-watching for confirmation weight, and a light-client mode derived from the
-full node.
+- `pkg/wallet`: one seed sealed with a passphrase (PBKDF2-SHA256 and
+  AES-256-GCM), keys derived from it with a gap limit, a fresh address per
+  payment, shared k-of-n policies, coin selection (one mint, else one
+  pool, else fewest pools), one signed transaction per mint, co-signing
+  through an unsigned payment file, payment requests that carry the
+  policy, and following every leg: pending, selected, dropped (resend) or
+  void, with from(e), known rivals and the receiver's settled rule.
+- `Ledger.Rivals`, and the engine and `GET /v1/payment` returning the
+  transaction and its rivals; `rpc.WalletNode` for a running node.
+- `poo wallet` with every command, and light mode as a node policy that
+  follows only the wallet's pools (`poo wallet follow`).
+
+Left for later milestones: verifying only some mints of a pool (not
+planned, decision D70), hardware signers (the unsigned file is the
+hand-off), and a wallet over a remote node with TLS.
 
 ### M7: Network simulator, fuzzing, benchmarks
 

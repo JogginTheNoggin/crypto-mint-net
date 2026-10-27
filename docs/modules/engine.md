@@ -25,7 +25,8 @@ or opens a socket. Calls are safe from multiple goroutines.
   tries)` grinds and adds a layer (`ErrNoStrongerLayer`).
 - Reading: `FollowedPools()`, `Pending(key)` (ready pending transactions,
   oldest first), `Status(key)`, `Payment(key, tid)` (pending, in which entry,
-  weight added since, selected), `Holdings(series, serial)`,
+  weight added since, selected, the transaction itself, and its rivals on
+  inactive branches from `Ledger.Rivals`), `Holdings(series, serial)`,
   `Ledger(key, fn)` for read access under the lock.
 - `Seen`: a fixed-size ring of valid item hashes (decision D15: requested
   items bypass it).

@@ -23,7 +23,11 @@ lists, address registries and a saved peer book. Milestone 5 manages
 peers: priority, backup and candidate peers ranked by points from what
 each one does, flags, timeouts and blocks for misbehaviour, and chases of
 heavier ledgers that check the work behind a branch before fetching it.
-The wallet comes next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
+Milestone 6 adds the wallet: keys from one sealed seed, a fresh address
+per payment, shared k-of-n policies with co-signing, payment requests
+that carry the receiver's policy, and following every payment's weight
+against known rivals (`poo wallet`). A simulator, fuzzing and benchmarks
+come next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
 departs from the design documents is recorded in
 [docs/decisions.md](docs/decisions.md).
 
@@ -100,6 +104,7 @@ go build -o poo ./cmd/poo
 | `pkg/registry` | Address registries: bootstrap lists of nodes |
 | `pkg/p2p` | Peer connections: discovery, ranking, forwarding, ledger data requests, chasing |
 | `pkg/rpc` | The local control interface (JSON over HTTP, loopback, token) |
+| `pkg/wallet` | Keys from one sealed seed, payments, requests, co-signing, following weight |
 | `pkg/vectors` | Published test vectors for independent implementations |
 | `pkg/testutil` | Deterministic keys and builders for tests and the demo |
 | `docs/` | Architecture, roadmap, decisions, protocol formats, module guides |

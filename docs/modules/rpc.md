@@ -7,8 +7,9 @@ with a bearer token, for the node's owner and their tools (decision D26).
 It submits transactions, entries and layers, asks the node to build entries
 and add layers, and reads status, payments and holdings. For the network
 it reports on peers, the tracker and the chase queue, and gives the owner
-controls over single peers. It is not the peer protocol (that is
-`pkg/p2p`).
+controls over single peers. `WalletNode` is a `wallet.Node` over the
+interface, so a wallet uses a running node. It is not the peer protocol
+(that is `pkg/p2p`).
 
 ## Endpoints
 
@@ -23,7 +24,7 @@ All under `/v1`, all requiring `Authorization: Bearer <token>`.
 | `POST /layer` | `{series, pool, layer}` | `{hash, strength, switched}` |
 | `POST /build` | `{series, pool, max_tries}` | the entry reply plus `entry` bytes |
 | `POST /work` | `{series, pool, entry, start, tries}` | the layer reply plus `layer` bytes |
-| `GET /payment` | `series, serial, tid` | `{pending, selected, entry, from}` |
+| `GET /payment` | `series, serial, tid` | `{pending, selected, entry, from, tx, rivals: [{tip, fork, entry, conflict, after}]}`: `tx` is the transaction's bytes in hex when the node holds it; each rival is an entry on an inactive branch holding a transaction that spends one of its inputs, with the branch's weight after its fork |
 | `GET /holdings` | `series, serial` | `[{tid, index, address, amount}]` |
 | `GET /peers` | | `{node_id, listen, peers: [{id, addr, key, outbound, agent, listen, coverage, categories: {policy: {category, points, partial}}, since, sent, received}], book: [{addr, source, added, last_tried, failures, policies: [{section, state, last_heard}]}]}` |
 | `GET /tracking` | `addr` (optional) | without: `{tracked: {key: status}, ranges: {range: until}}`; with: that address's record (`key, status, template, settings, flags, policies: {policy: measures and points}, log`) |
@@ -54,3 +55,13 @@ strings. Errors are `{"error", "code"}` with codes `bad_request`,
 Submitted items are taken in as `Pushed` (a wallet is an unlisted node);
 build and work are `Local`. A work request holds the node while it grinds,
 so it is capped at 2^24 nonces.
+
+## Wallets
+
+`NewWalletNode(client, tidOf)` returns a `wallet.Node` over a client:
+`Holdings` and `Payment` read the endpoints above (checking that the
+transaction returned has the tid asked for), and `Submit` posts a
+transaction. A transaction the node already holds is not an error for a
+wallet: when `POST /tx` refuses one with a conflict (seen or spent), `Submit`
+asks `GET /payment` and succeeds if the node holds it pending or
+selected. See [wallet.md](wallet.md).

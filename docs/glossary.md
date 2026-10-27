@@ -42,6 +42,13 @@ the design left open, the matching decision is linked.
 | **Consensus / series / node policy** | The three tiers of rules. See [architecture](architecture.md#the-three-tiers). |
 | **Issuer** | An optional address named by a series; its witness proves who published the series. |
 | **Following** | Which series, pools and mints a node keeps ledgers for. Node policy. |
+| **Wallet seed** | The 32 bytes every key of a wallet is derived from; sealed in the wallet file with the passphrase ([D63](decisions.md#d63-keys-from-one-seed-with-a-gap-limit), [D64](decisions.md#d64-the-seed-is-sealed-with-pbkdf2-and-aes-gcm)). |
+| **Gap limit** | How many unused derived addresses a wallet watches past the last one it gave out, so a restored wallet finds its payments. |
+| **Leg** | One transaction of a payment: the part paid from one mint. A payment across mints has one leg per mint, each settling under its own pool's weight. |
+| **Leg state** | `unsigned`, `pending`, `selected`, `dropped` (not held, inputs unspent: can be resent) or `void` (another transaction spent an input) ([D66](decisions.md#d66-leg-states-dropped-and-void)). |
+| **Rival** | An entry on an inactive branch holding a transaction that spends an input of a payment. Its branch's weight after the fork is what from(e) must stay ahead of ([D67](decisions.md#d67-rivals-and-settled)). |
+| **Payment request** | What a receiver hands a payer: series, fresh address, amount, memo and the policy behind the address, so the payer can check it ([D68](decisions.md#d68-payment-requests-carry-the-policy)). |
+| **Light mode** | A full node whose node policy follows only the pools of a wallet's watched mints ([D70](decisions.md#d70-light-mode-is-a-full-node-following-less)). |
 | **Peer category** | How a node treats a connection for one mint policy: **priority** (relied on: asked, forwarded to, pinged often), **backup** (kept ready), **candidate** (not yet verified, or no slot free) or **unlisted** (none of these, such as a wallet). Messages are handled in that order ([D58](decisions.md#d58-slots-replace-the-peer-count)). |
 | **Slot** | A place for a priority or backup peer of one mint policy; node policy sets how many. |
 | **Review** | The regular comparison of peers' points that moves them between categories. |
