@@ -10,7 +10,7 @@ import { launch } from './lib.mjs';
 const bin = process.argv[2];
 const shots = process.argv[3];
 const { home, env, page, errors, close } = await launch(bin);
-const poo = (...args) => execFileSync(bin, ['poo', ...args], { env }).toString();
+const poo = (args, extra = {}) => execFileSync(bin, ['poo', ...args], { env: { ...env, ...extra } }).toString();
 const section = title => page.locator('section.panel', { has: page.locator('h2', { hasText: title }) }).first();
 const until = async (cond, what, ms = 20000) => {
   for (const end = Date.now() + ms; !(await cond());) {
@@ -20,7 +20,7 @@ const until = async (cond, what, ms = 20000) => {
 };
 
 try {
-  poo('init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off');
+  poo(['init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off']);
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Start node")');
   await page.locator('.live-out', { hasText: 'pools followed' }).waitFor();
@@ -33,11 +33,11 @@ try {
   await live.locator('button:has-text("Start watching")').click();
   await live.locator('.run-status', { hasText: 'watching' }).waitFor();
   await page.waitForTimeout(300); // the stream is open before the claim
-  const claim = JSON.parse(poo('claim', '-seed', 'a1'.repeat(32), '-serial', '5'));
+  const claim = JSON.parse(poo(['claim', '-serial', '5'], { POO_SEED: 'a1'.repeat(32) }));
   const tid = claim.tid;
   assert.ok(tid, 'claim printed its tid');
   await live.locator('tr.ev-tx').first().waitFor();
-  poo('build', '-pool', '1', '-work', '4000'); // a layer gives the entry weight, so it is selected
+  poo(['build', '-pool', '1', '-work', '4000']); // a layer gives the entry weight, so it is selected
   await live.locator('tr.ev-selected').first().waitFor();
   // The filter left out entries and layers.
   assert.equal(await live.locator('tr.ev-entry, tr.ev-layer').count(), 0);
