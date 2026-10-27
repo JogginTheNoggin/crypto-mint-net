@@ -17,7 +17,11 @@ nothing on disk is trusted (D21), synced writes by default (D22),
 compaction that cannot flip a tie (D23), accepting any issuer until a
 project issuer exists (D24), the save, archive and delete operations for
 node policies (D25), and a local RPC limited to loopback with a token
-(D26).
+(D26). Milestone 3 connects nodes: a small framed binary protocol over
+plain TCP (D30), SHA-256 request ids (D31), a hello with coverage and a
+static peer list until discovery exists (D33), a notice after a switch that
+forwarding does not show (D36), hash chains to find a split (D35), and
+disconnecting misbehaving peers until ranking exists (D38).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -321,4 +325,130 @@ entry "Superseded by Dn".
   K already bounds what a node holds per pool. Expiry needs the entry-age
   questions the design lists as open; it can be added as a node policy
   setting once they are settled.
+- **Tier:** Node policy.
+
+### D30. A framed binary protocol over plain TCP
+
+- **Decision:** Nodes talk over TCP in frames (a `U32` length, at most 16
+  MiB) holding a versioned header and a body, using the primitives of the
+  byte form (D2). Items inside messages use their byte forms unchanged. The
+  connection is not encrypted or authenticated. See
+  [protocol/wire.md](protocol/wire.md).
+- **Why:** The design fixes what a message carries, not its encoding. A
+  binary form like the item forms is compact, exact and easy to
+  reimplement. Everything sent is public and every item is checked on
+  arrival, so encryption protects only privacy; it can be added under the
+  frames later (milestone 8) without changing any message.
+- **Tier:** Node policy (the protocol nodes agree on to talk; not
+  consensus: it never changes which ledger is selected).
+
+### D31. SHA-256 for request ids
+
+- **Decision:** A request id is SHA-256 of a tag, the type, the section
+  and the body, for every series. The hop count is left out.
+- **Why:** The id is checked before the node knows whether it follows the
+  series, and it only needs to be unique, not to match the series' hash.
+  The hop count changes at each relay (milestone 4).
+- **Tier:** Node policy.
+
+### D32. The mint policy section
+
+- **Decision:** The section is a depth (0–4) and the issuer, series id,
+  pool_id and serial up to that depth, wildcards from the right; a series
+  with no issuer uses the zero hash as issuer. Pushed items, notices and
+  ledger messages carry their pool section. A node advertises a whole
+  series as a series section and otherwise each followed pool, at most 4096
+  sections.
+- **Why:** This is the design's path written as bytes. A pool is the unit
+  that has a ledger, so pool sections are the finest messages need until
+  mint-level following is used for filtering.
+- **Tier:** Node policy.
+
+### D33. A hello, and listed peers only, until discovery
+
+- **Decision:** Each side sends a hello (protocol, a random node id per
+  run, an advertised address, an agent string, its coverage) and nothing
+  else until it has the other's, within 10 seconds. A node drops
+  connections to itself, to a node it is already connected to (both keep
+  the connection dialled by the lower id), with no coverage in common, or
+  above its peer limit. Peers come only from the node policy's list and
+  from inbound connections; listed peers are redialled with backoff from 2
+  seconds to 5 minutes.
+- **Why:** The hello is what both sides need before any other message
+  makes sense. Discovery, relaying and registries are milestone 4; a static
+  list is enough to run and test a network until then.
+- **Tier:** Node policy.
+
+### D34. Layers travel as nonces in replies
+
+- **Decision:** A reply with layers sends, for each entry, only the nonces
+  of its layers. Pushed layers keep their full byte form.
+- **Why:** A layer is an entry hash and a nonce, and in a reply the entry
+  hash is already known, so the hash would repeat for every layer. The
+  receiver rebuilds each layer and checks it as usual.
+- **Tier:** Node policy.
+
+### D35. Finding the split with hash chains
+
+- **Decision:** After "heavier, not from this entry", the node asks for
+  the latest hashes, then pages back with the oldest one as anchor, until
+  it finds the newest hash it holds (on any branch); if the chain reaches
+  the pool's first entry, the split is the pool_id. It does not step back
+  one entry at a time. An extension that brings no entries while the peer
+  still states more weight means more layers on shared entries, so the node
+  then asks for the layers on its latest entries.
+- **Why:** The design makes the choice node policy. Hash chains take a few
+  requests for a split of any depth and cost little for a shallow one. The
+  layers case is not spelled out in the design but follows from it: the
+  extension request answers only with entries.
+- **Tier:** Node policy.
+
+### D36. When to send a notice
+
+- **Decision:** After a switch, a node sends a notice (its new tip, with
+  its new stated weight) to covering peers other than the sender when the
+  item that caused the switch is not forwarded (requested data) or the
+  switch displaced entries. Notices can be turned off.
+- **Why:** Requested data is never forwarded, so without a notice peers
+  would learn of the switch only at their next check. A forwarded item
+  that extends the ledger already tells them.
+- **Tier:** Node policy.
+
+### D37. Provisional p2p defaults
+
+- **Decision:** 32 peers; asker limits 1 MiB chunks, 512 entries, 256
+  hashes, 65536 layers per reply; a server sends at most 1024 entries or
+  4096 hashes per reply; a regular check every minute; 30 seconds for each
+  reply chunk; request ids kept 10 minutes, 2 minutes of clock skew allowed;
+  4096 messages queued per peer; port 8646 on every interface. A zero limit
+  in a request means the asker sets none and the server applies its cap.
+- **Why:** The design leaves all of them to node policy. They keep one
+  reply well under the frame limit and keep a slow peer from holding
+  memory. Milestone 7's simulator should replace them with measured
+  values.
+- **Tier:** Node policy.
+
+### D38. Disconnecting misbehaving peers, until ranking exists
+
+- **Decision:** A peer is disconnected for a malformed message, a request
+  id that does not match, an invalid entry, a layer below the minimum
+  strength, a reply that does not fit its request or is out of chain
+  order, or a send queue that stays full. A refused transaction is not a
+  reason.
+- **Why:** The design leaves what to do about bad peers to node policy and
+  milestone 5 brings ranking and tracking. Until then, disconnecting is the
+  simplest response that keeps a node safe. Transactions can be refused for
+  honest reasons (a race between two spends).
+- **Tier:** Node policy.
+
+### D39. Every reply is chunked
+
+- **Decision:** Every reply, even one without a body, is sent as chunks
+  numbered from 1 with the last flag on the final one. An item larger than
+  the chunk size is sent alone in its chunk. Positions must arrive in
+  order; a node continues after a more marker with a new request from the
+  last whole item, never by position.
+- **Why:** One shape for every reply keeps the receiver simple. The design
+  cuts chunks only between whole items; an item that does not fit any
+  chunk must still be sendable.
 - **Tier:** Node policy.

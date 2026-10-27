@@ -182,10 +182,7 @@ func runNode(ctx context.Context, dir string, out io.Writer, ready func(string))
 		herr <- err
 	}()
 	select {
-	case <-p2pUp:
-		if a := host.Addr(); a != "" {
-			fmt.Fprintf(out, "p2p listening on %s\n", a)
-		}
+	case <-p2pUp: // the host logs its address
 	case err := <-herr:
 		return errors.Join(err, n.Close())
 	}

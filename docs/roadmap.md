@@ -4,10 +4,10 @@
 
 The project moves toward an open release in eight milestones, each delivered
 as one or more pull requests, each stacked on the one before. Milestone 1,
-the consensus core with a transport-independent full-node engine, and
-milestone 2, storage and the node daemon with a local RPC, are done. The
-next milestones add the wire protocol and forwarding, then peer discovery
-and peer management, then a wallet, then large-scale simulation, and
+the consensus core with a transport-independent full-node engine,
+milestone 2, storage and the node daemon with a local RPC, and milestone 3,
+the wire protocol with forwarding and ledger data requests, are done. The
+next milestones add peer discovery and peer management, then a wallet, then large-scale simulation, and
 finally hardening and release. Making the repository public and choosing
 a license are the owner's decisions and are part of milestone 8.
 
@@ -17,8 +17,8 @@ a license are the owner's decisions and are part of milestone 8.
 | --- | --- | --- |
 | M1 | Consensus core and full-node engine | Done |
 | M2 | Storage and node daemon | Done |
-| M3 | Wire protocol and forwarding | Next |
-| M4 | Peer discovery, relaying, address registries | Planned |
+| M3 | Wire protocol and forwarding | Done |
+| M4 | Peer discovery, relaying, address registries | Next |
 | M5 | Peer categories, ranking, tracking, chasing | Planned |
 | M6 | Wallet and user tools | Planned |
 | M7 | Network simulator, fuzzing, benchmarks | Planned |
@@ -51,14 +51,23 @@ the ledger against a brute-force model on random histories.
 Left open, as the design leaves them: expiry of entries and layers by age
 (D29), and witness pruning.
 
-### M3: Wire protocol and forwarding
+### M3: Wire protocol and forwarding (done)
 
-- Message framing over TCP, versioned, using the byte forms of
-  [protocol/encoding.md](protocol/encoding.md).
-- Pushing new items and forwarding valid ones once, using the seen list.
-- Ledger data requests: ask a peer for entries and layers by hash or range,
-  in chunks, never forwarding what was requested.
-- Notices of stated weight, and chasing a heavier ledger a peer claims.
+- `pkg/wire`: frames, the header with the mint policy section and stated
+  weight, request ids, and every message body. See
+  [protocol/wire.md](protocol/wire.md).
+- `pkg/p2p`: the hello with coverage, forwarding of kept items to covering
+  peers (never back, never requested data) with notices after switches,
+  serving extension, hash chain, entries, full ledger, layers and weight
+  requests from the active ledger, and catching up: full ledger for a new
+  pool, extensions on connect, on regular checks and on a higher stated
+  weight, and hash chains to find a deep split.
+- The node policy's `p2p` section, `poo init -p2p/-peer`, `poo peers` and
+  `/v1/peers`. Tests run several nodes over loopback TCP.
+
+Left for later milestones: peer discovery (M4), choosing which peer to ask,
+checking a branch's work with provisional layers before fetching it, and
+the optional full ledger with top K request (M5).
 
 ### M4: Peer discovery, relaying, address registries
 
