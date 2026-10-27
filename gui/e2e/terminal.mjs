@@ -28,7 +28,16 @@ try {
     await line.fill(text);
     await line.press('Enter');
   };
-  const idle = () => page.waitForFunction(n => Number(document.querySelector('.terminal').dataset.runs) >= n, expect);
+  // until polls cond from here rather than with page.waitForFunction,
+  // which some Playwright versions run through eval, and the page's CSP
+  // (rightly) forbids eval.
+  const until = async (cond, what, ms = 20000) => {
+    for (const end = Date.now() + ms; !(await cond());) {
+      assert.ok(Date.now() < end, `timed out waiting for ${what}`);
+      await page.waitForTimeout(50);
+    }
+  };
+  const idle = () => until(async () => (await runs()) >= expect, 'the command to end');
 
   // Same bytes as poo itself.
   const seed = 'ab'.repeat(32);
@@ -45,7 +54,7 @@ try {
 
   // A passphrase prompt gets a masked field, and the passphrase is not echoed.
   await type(`wallet create -wallet ${join(home, 'w.json')}`);
-  await page.waitForFunction(() => document.querySelector('#term-line').type === 'password');
+  await until(async () => (await line.getAttribute('type')) === 'password', 'a masked field');
   await line.fill('hunter2-secret');
   await line.press('Enter');
   await idle();
@@ -58,7 +67,7 @@ try {
   await type('init -example -listen 127.0.0.1:0 -p2p off');
   await idle();
   await type('node');
-  await page.waitForFunction(() => document.querySelector('.terminal .term-out').innerText.includes('pools followed'));
+  await out.filter({ hasText: 'pools followed' }).waitFor();
   if (shots) await page.screenshot({ path: join(shots, 'terminal.png') });
   await page.click('[data-act=detach]');
   await idle();
