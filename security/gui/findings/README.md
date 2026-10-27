@@ -5,6 +5,12 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+First round reviewed against `claude/gui-5-release` (the GUI/Grey stack
+#10←#11←#12←#14, 2026-10-27). The `gui/server`, `gui/jobs` and `gui/shell`
+packages are unchanged across that stack, so every finding below applies to
+the whole stack; the later `gui/web/static` view/render code was checked for
+XSS and is clean (all output rendered via `textContent`, no HTML sinks).
+
 One file per finding, named `GUI-NNN-short-slug.md`. Each finding carries:
 
 - **ID** — stable `GUI-NNN`.
