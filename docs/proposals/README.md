@@ -9,3 +9,9 @@ decides whether to adopt each one and records the outcome in the file.
 
 | Id | Layer | Title | Status |
 | --- | --- | --- | --- |
+| [GREEN-001](source/GREEN-001-cli-help-and-typos.md) | Source | Short errors, typo suggestions and `poo help COMMAND` | proposed |
+| [GREEN-002](source/GREEN-002-prometheus-metrics.md) | Source | Prometheus metrics at `GET /v1/metrics` | proposed |
+| [GREEN-003](source/GREEN-003-table-output.md) | Source | Readable table output for view commands | proposed |
+| [GREEN-004](source/GREEN-004-poo-doctor.md) | Source | `poo doctor`, one command to say what is wrong | proposed |
+| [GREEN-005](source/GREEN-005-shell-completion.md) | Source | Shell completion (`poo completion bash\|zsh\|fish`) | proposed |
+| [GREEN-006](source/GREEN-006-structured-logs.md) | Source | Structured, levelled node logs with `log/slog` | proposed |
