@@ -2,7 +2,7 @@
 
 - **ID:** GUI-003
 - **Severity:** Low
-- **Status:** fix-proposed
+- **Status:** fixed (merged by GUI/Grey into claude/gui-5-release at fca4369, verified)
 - **Fix branch:** `claude/gui-blue`
 - **Component:** `gui/web/static/terminal.js` (`setSecret`, the `state` handler), interacts with `pkg/cli/wallet.go` prompts
 

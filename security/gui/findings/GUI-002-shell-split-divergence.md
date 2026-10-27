@@ -2,7 +2,7 @@
 
 - **ID:** GUI-002
 - **Severity:** Medium (correctness / trust-boundary; not directly RCE)
-- **Status:** fix-proposed
+- **Status:** fixed (merged by GUI/Grey into claude/gui-5-release at fca4369, verified)
 - **Fix branch:** `claude/gui-blue`
 - **Component:** `gui/shell/shell.go` (`Split`), `gui/web/static/terminal.js` (client-side `clear`)
 

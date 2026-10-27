@@ -2,7 +2,7 @@
 
 - **ID:** GUI-004
 - **Severity:** Low (requires the secret; local only)
-- **Status:** fix-proposed
+- **Status:** fixed (merged by GUI/Grey into claude/gui-5-release at fca4369, verified)
 - **Fix branch:** `claude/gui-blue`
 - **Component:** `gui/jobs/jobs.go` (`Start`, `trim`), `gui/server/server.go` (`events`)
 

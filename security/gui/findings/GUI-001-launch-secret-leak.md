@@ -2,7 +2,7 @@
 
 - **ID:** GUI-001
 - **Severity:** Medium (High on a shared/multi-user host; Low on a single-user desktop)
-- **Status:** fix-proposed
+- **Status:** fixed (merged by GUI/Grey into claude/gui-5-release at fca4369, verified)
 - **Fix branch:** `claude/gui-blue`
 - **Component:** `gui/server/server.go` (`URL`, cookie swap), `gui/cmd/poo-gui/main.go` (`openURL`, `serve`)
 

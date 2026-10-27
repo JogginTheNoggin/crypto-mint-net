@@ -2,7 +2,7 @@
 
 - **ID:** GUI-005
 - **Severity:** Info (design / defense-in-depth)
-- **Status:** fix-proposed (docs); confirmation gate and read-only mode await jerry
+- **Status:** fixed (documented; merged at fca4369); no GUI-only gate or mode, by decision
 - **Fix branch:** `claude/gui-blue`
 - **Component:** architecture — `gui/server/server.go` (`/api/jobs`, `/api/run`), `gui/jobs/jobs.go`
 
@@ -60,4 +60,9 @@ GUI-004.
 
 - Documented the authority model: docs/gui.md (Security, "Authority") and a new poo-gui section in `SECURITY.md`. Both say that a sign-in address before use, or the session cookie, is full control of the node and should be treated like the wallet passphrase. The existing view-form confirmation is described as a guard against stray clicks, not a security boundary.
 - GUI-001's fix shrinks the blast radius: a leaked address is useless once it has been spent or has expired.
-- Not implemented: the server-enforced confirmation gate and a read-only mode. A confirmation gate in the terminal would make it behave differently from headless `poo`, which conflicts with jerry's hard rule. Both are policy decisions for jerry and GUI/Grey, so they are left open here.
+
+## Decision (lead architect, 2026-10-27)
+
+- The terminal stays identical to `poo`, with no GUI-only confirmation or mode. The views' existing confirmation for pay, claim and delete is enough.
+- If a read-only mode is ever wanted, it belongs in the headless core (for example a read-only RPC token, or a scope in node policy), so that `poo` and the GUI share it. That idea has gone to Source/Green as a proposal.
+- This finding closes as documented once GUI/Grey merges `claude/gui-blue`.
