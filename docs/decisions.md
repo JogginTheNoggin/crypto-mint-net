@@ -1148,3 +1148,25 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   the GUI's terminal and its buttons run the very code the headless
   binary runs, with no second implementation that could drift.
 - **Tier:** Implementation.
+
+### D95. New wallets seal the seed with Argon2id
+
+- **Decision:** A new wallet's passphrase key is Argon2id (RFC 9106) with
+  3 passes over 64 MiB in 4 lanes, a random 16-byte salt and a 32-byte
+  key, from `golang.org/x/crypto/argon2`. The wallet file names the
+  derivation and its settings (`name`, `iterations`, `memory`,
+  `threads`), so wallets sealed with PBKDF2 under D64 still open.
+  `Rekey` (`poo wallet passwd`) moves a PBKDF2 wallet to Argon2id
+  with the defaults and keeps an Argon2id wallet's own settings. Opening
+  refuses settings outside fixed limits (at most 4 GiB and 100 passes for
+  Argon2id, 100,000,000 iterations for PBKDF2, at least 8 KiB per lane)
+  before deriving anything, so a damaged or crafted wallet file cannot
+  make an unlock exhaust memory or run for hours.
+- **Why:** PBKDF2 costs an attacker who has stolen the wallet file only
+  computation, which GPUs and ASICs make cheap; Argon2id also costs
+  memory per guess. D1 kept the standard library only, but D83 already
+  depends on `x/crypto` (the Go team's), so Argon2id adds no new module.
+  64 MiB and 3 passes is RFC 9106's recommendation for memory-constrained
+  machines and takes a fraction of a second to unlock. This closes the
+  "Key derivation" open item of the M8 security review.
+- **Tier:** Wallet. Amends D64 for new wallets.

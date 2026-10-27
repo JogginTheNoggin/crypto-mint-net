@@ -8,3 +8,4 @@ added and how Grey checks it. See [AGENTS.md](../../../AGENTS.md#teams-read-firs
 
 | Id | Fixes | Branch | Merged by Grey in |
 | --- | --- | --- | --- |
+| [BLUE-001](BLUE-001.md) | docs/security.md open item "Key derivation" (Argon2id wallets, D95) | `claude/project-thread-ggo8dt` | |

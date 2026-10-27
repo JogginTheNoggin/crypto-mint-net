@@ -93,6 +93,9 @@ func newWallet(t *testing.T, name string, o wallet.Options) *wallet.Wallet {
 	if o.Iterations == 0 {
 		o.Iterations = 1
 	}
+	if o.Memory == 0 {
+		o.Memory = 32 // the least for 4 threads; keeps tests fast
+	}
 	w, err := wallet.Create(filepath.Join(t.TempDir(), name+".json"), "pass "+name, o)
 	must(t, err)
 	return w

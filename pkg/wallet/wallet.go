@@ -112,8 +112,13 @@ type Wallet struct {
 type Options struct {
 	// Seed restores a wallet from its seed; nil makes a new random one.
 	Seed []byte
-	// Iterations is the PBKDF2 work factor.
+	// KDF names the key derivation sealing the seed: KDFArgon2id (the
+	// default) or KDFPBKDF2.
+	KDF string
+	// Iterations is the work factor: Argon2id passes or PBKDF2 iterations.
 	Iterations int
+	// Memory is Argon2id's memory in KiB.
+	Memory uint32
 	// Gap is how many unused keys to keep ahead.
 	Gap int
 	// Alg is the key algorithm of the wallet's keys; 0 means Ed25519. It
@@ -138,8 +143,9 @@ func Create(path, passphrase string, o Options) (*Wallet, error) {
 	if len(seed) != SeedSize {
 		return nil, fmt.Errorf("wallet: a seed is %d bytes", SeedSize)
 	}
-	if o.Iterations == 0 {
-		o.Iterations = DefaultIterations
+	kdf, err := newKDF(o.KDF, o.Iterations, o.Memory)
+	if err != nil {
+		return nil, err
 	}
 	if o.Gap <= 0 {
 		o.Gap = DefaultGap
@@ -150,7 +156,7 @@ func Create(path, passphrase string, o Options) (*Wallet, error) {
 	if _, err := derive(seed, o.Alg, 0); err != nil {
 		return nil, err
 	}
-	kdf, sealed, err := seal(seed, passphrase, o.Iterations)
+	kdf, sealed, err := seal(seed, passphrase, kdf)
 	if err != nil {
 		return nil, err
 	}
@@ -226,12 +232,21 @@ func (w *Wallet) Seed() ([]byte, error) {
 	return append([]byte(nil), w.seed...), nil
 }
 
-// Rekey seals the seed again under a new passphrase.
+// Rekey seals the seed again under a new passphrase. A wallet sealed with
+// Argon2id keeps its settings; one sealed with PBKDF2 moves to Argon2id
+// with the default settings (decision D95).
 func (w *Wallet) Rekey(passphrase string) error {
 	if w.seed == nil {
 		return ErrLocked
 	}
-	kdf, sealed, err := seal(w.seed, passphrase, w.f.KDF.Iterations)
+	k := w.f.KDF
+	if k.Name != KDFArgon2id {
+		var err error
+		if k, err = newKDF(KDFArgon2id, 0, 0); err != nil {
+			return err
+		}
+	}
+	kdf, sealed, err := seal(w.seed, passphrase, k)
 	if err != nil {
 		return err
 	}

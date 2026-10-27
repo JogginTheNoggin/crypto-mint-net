@@ -56,8 +56,8 @@ comes from $POO_PASSPHRASE, -passphrase-file, or a line on standard input.
 The series and node come from the node policy flags, as for other commands.
 `
 
-// createIterations is the PBKDF2 work factor of new wallets; zero means
-// the default. Tests lower it.
+// createIterations is the work factor of new wallets (Argon2id passes,
+// decision D95); zero means the default. Tests lower it.
 var createIterations int
 
 // walletFlags are the flags shared by wallet commands.
