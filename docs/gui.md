@@ -229,4 +229,4 @@ The GUI is built in stacked pull requests:
 | G2 | The `gui` module: server, security, job runner, terminal, the import rule and identity tests, and CI |
 | G3 (this) | Views: node (start and stop, status), pools, peers, tracking, chases, node policies, series and crypto, and wallet (create, addresses, balance, pay, request, receive, status) |
 | G4 | Watch and filter views on the node thread's `poo watch` and filter flags: live transactions, a series' or policy's ledger, and pending items |
-| G5 | Packaging: `poo-gui` in the release script and the tag workflow |
+| G5 (done) | Packaging: `poo-gui` in the release script and the tag workflow |
