@@ -9,7 +9,8 @@ implementation that follows it must reproduce the published test vectors in
 [`pkg/vectors/testdata/vectors.json`](../../pkg/vectors/testdata/vectors.json).
 Changing any form here changes every id in every series, so a change needs a
 new entry in [decisions.md](../decisions.md) and regenerated vectors. The
-rationale for the forms is in decisions D2 to D9. As of release 0.1.0, byte
+rationale for the forms is in decisions D2 to D9, and every primitive is
+listed in [../cryptography.md](../cryptography.md). As of release 0.1.0, byte
 form v1 is **stable**: it will not change, and a test fails if its vectors
 do ([Stability](#stability)).
 

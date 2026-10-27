@@ -62,7 +62,8 @@ second can at least be detected.
 - **Signatures** use the standard library's Ed25519, which rejects
   non-canonical signatures. Threshold witnesses need exactly K signatures
   in strictly increasing key order, so a witness cannot repeat a key or
-  cost more than K checks.
+  cost more than K checks. Every primitive is listed in
+  [cryptography.md](cryptography.md).
 - **Ids** do not cover witnesses, so a re-signed transaction keeps its id
   and cannot be used to make two entries look different.
 

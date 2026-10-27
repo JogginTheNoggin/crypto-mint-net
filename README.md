@@ -123,6 +123,7 @@ go build -o poo ./cmd/poo
 - [Byte formats](docs/protocol/encoding.md): exact encodings and test vectors.
 - [Wire protocol](docs/protocol/wire.md): messages between full nodes.
 - [Glossary](docs/glossary.md): the terms used throughout.
+- [Cryptography](docs/cryptography.md): the hashes and signature schemes supported, and where each is used.
 - [Security review](docs/security.md) and [security policy](SECURITY.md).
 - [Releasing](docs/releasing.md): how releases are built and checked.
 - [Changelog](CHANGELOG.md).
