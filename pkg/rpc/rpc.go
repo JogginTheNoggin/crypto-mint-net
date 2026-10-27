@@ -1,7 +1,7 @@
 // Package rpc is the node's local control interface: JSON over HTTP, on a
 // loopback address by default, for the node's owner and their tools (a
-// wallet, a script, the poo command). It is not the peer-to-peer protocol,
-// which comes in a later milestone.
+// wallet, a script, the poo command). It is not the peer-to-peer protocol;
+// that is package p2p, and this interface only reports on it.
 //
 // Every request must carry the node's token, "Authorization: Bearer
 // <token>". The token is 32 random bytes in hex, created on first start in
@@ -24,6 +24,7 @@
 //	POST /work     {series, pool, entry, start, tries}
 //	GET  /payment?series=&serial=&tid=    where a transaction stands
 //	GET  /holdings?series=&serial=        unspent portions of a mint
+//	GET  /peers                           connected peers (when p2p runs)
 //
 // Errors are {"error": message, "code": code} with a matching HTTP status.
 package rpc
@@ -48,6 +49,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
@@ -115,6 +117,7 @@ func LoadOrCreateToken(dir string) (string, error) {
 // Handler serves the interface for one node.
 type Handler struct {
 	n     *node.Node
+	host  *p2p.Host
 	token []byte
 	mux   *http.ServeMux
 }
@@ -131,7 +134,27 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("POST /v1/work", h.work)
 	h.mux.HandleFunc("GET /v1/payment", h.payment)
 	h.mux.HandleFunc("GET /v1/holdings", h.holdings)
+	h.mux.HandleFunc("GET /v1/peers", h.peers)
 	return h
+}
+
+// SetHost lets the interface report on the node's p2p host. Call it before
+// serving.
+func (h *Handler) SetHost(host *p2p.Host) { h.host = host }
+
+// PeersReply is the reply of /v1/peers.
+type PeersReply struct {
+	NodeID string         `json:"node_id"`
+	Listen string         `json:"listen,omitempty"`
+	Peers  []p2p.PeerInfo `json:"peers"`
+}
+
+func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
+	if h.host == nil {
+		writeError(w, &Error{Message: "p2p is not running", Code: CodeNotFound, Status: http.StatusNotFound})
+		return
+	}
+	writeJSON(w, PeersReply{NodeID: h.host.ID().String(), Listen: h.host.Addr(), Peers: h.host.Peers()})
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

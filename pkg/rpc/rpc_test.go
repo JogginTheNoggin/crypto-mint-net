@@ -17,6 +17,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
@@ -343,5 +344,35 @@ func TestServeOff(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, rpc.TokenFile)); !os.IsNotExist(err) {
 		t.Fatal("token created with the interface off")
+	}
+}
+
+func TestPeers(t *testing.T) {
+	f := newFixture(t)
+	if _, err := f.c.Peers(); code(err) != rpc.CodeNotFound {
+		t.Fatalf("peers without p2p: %v", err)
+	}
+	host, err := p2p.New(f.n, p2p.Config{Listen: "127.0.0.1:0", CheckEvery: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	ready := make(chan struct{})
+	done := make(chan error, 1)
+	go func() { done <- host.Run(ctx, func() { close(ready) }) }()
+	<-ready
+	defer func() { cancel(); <-done }()
+	tok, _ := rpc.LoadOrCreateToken(f.dir)
+	h := rpc.NewHandler(f.n, tok)
+	h.SetHost(host)
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	c := rpc.NewClient(strings.TrimPrefix(srv.URL, "http://"), tok)
+	r, err := c.Peers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.NodeID != host.ID().String() || r.Listen != host.Addr() || len(r.Peers) != 0 {
+		t.Fatalf("%+v", r)
 	}
 }

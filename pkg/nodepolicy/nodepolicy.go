@@ -40,6 +40,10 @@ const FileName = "node.json"
 // DefaultListen is the default address of the local RPC: loopback only.
 const DefaultListen = "127.0.0.1:8645"
 
+// DefaultP2PListen is the default address for connections from peers: every
+// interface, since peers are on other machines.
+const DefaultP2PListen = ":8646"
+
 // ErrInvalid marks a node policy that cannot be used as written.
 var ErrInvalid = errors.New("nodepolicy: invalid")
 
@@ -68,6 +72,8 @@ type Policy struct {
 	NoSync bool `json:"no_sync,omitempty"`
 	// RPC configures the local control interface.
 	RPC RPC `json:"rpc"`
+	// P2P configures connections to other full nodes.
+	P2P P2P `json:"p2p"`
 }
 
 // SeriesInfo is one known series, with the issuer's witness when the series
@@ -109,6 +115,31 @@ type RPC struct {
 	AllowRemote bool `json:"allow_remote,omitempty"`
 }
 
+// P2P configures connections to other full nodes. Zero values mean the
+// defaults of package p2p.
+type P2P struct {
+	// Listen is the TCP address for peers; empty means DefaultP2PListen,
+	// "off" accepts no connections (the node still dials Peers).
+	Listen string `json:"listen,omitempty"`
+	// Advertise is the address peers are told to connect to.
+	Advertise string `json:"advertise,omitempty"`
+	// Peers are host:port addresses to stay connected to.
+	Peers []string `json:"peers,omitempty"`
+	// MaxPeers caps open connections.
+	MaxPeers int `json:"max_peers,omitempty"`
+	// The reply limits this node sets on its requests.
+	ChunkSize  uint32 `json:"chunk_size,omitempty"`
+	EntryLimit uint32 `json:"entry_limit,omitempty"`
+	HashLimit  uint32 `json:"hash_limit,omitempty"`
+	LayerLimit uint32 `json:"layer_limit,omitempty"`
+	// NoNotices stops the node telling peers when it switches to a ledger
+	// it asked for.
+	NoNotices bool `json:"no_notices,omitempty"`
+	// CheckSeconds is how often to ask a peer for an extension of each
+	// pool; 0 means the default, -1 never.
+	CheckSeconds int `json:"check_seconds,omitempty"`
+}
+
 // Default returns a node policy that knows no series and follows nothing.
 // Issuers.Any is on, because there is no project issuer yet (decision D24).
 func Default() Policy {
@@ -133,6 +164,18 @@ func (p Policy) ListenAddr() string {
 		return ""
 	}
 	return p.RPC.Listen
+}
+
+// P2PListenAddr returns the address for peers, or "" when the node accepts
+// none.
+func (p Policy) P2PListenAddr() string {
+	switch p.P2P.Listen {
+	case "":
+		return DefaultP2PListen
+	case "off":
+		return ""
+	}
+	return p.P2P.Listen
 }
 
 // Validate checks the policy for mistakes that would stop a node from
@@ -163,6 +206,19 @@ func (p Policy) Validate() error {
 		if !p.RPC.AllowRemote && !isLoopback(host) {
 			return fmt.Errorf("%w: rpc listen %q is not a loopback address; set allow_remote to permit it", ErrInvalid, addr)
 		}
+	}
+	if addr := p.P2PListenAddr(); addr != "" {
+		if _, _, err := net.SplitHostPort(addr); err != nil {
+			return fmt.Errorf("%w: p2p listen %q: %v", ErrInvalid, addr, err)
+		}
+	}
+	for _, a := range p.P2P.Peers {
+		if _, _, err := net.SplitHostPort(a); err != nil {
+			return fmt.Errorf("%w: p2p peer %q: %v", ErrInvalid, a, err)
+		}
+	}
+	if p.P2P.MaxPeers < 0 || p.P2P.CheckSeconds < -1 {
+		return fmt.Errorf("%w: p2p limits must not be negative", ErrInvalid)
 	}
 	return nil
 }

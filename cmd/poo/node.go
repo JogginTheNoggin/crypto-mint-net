@@ -12,11 +12,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -84,12 +86,17 @@ func initCmd(args []string, out io.Writer) error {
 	fs.Var(&files, "series", "series parameters JSON file to know and follow (repeatable)")
 	example := fs.Bool("example", false, "know and follow the worked example's series")
 	listen := fs.String("listen", "", "RPC listen address (default "+nodepolicy.DefaultListen+"; \"off\" to disable)")
+	p2pListen := fs.String("p2p", "", "address for peers (default "+nodepolicy.DefaultP2PListen+"; \"off\" to accept none)")
+	var peers stringList
+	fs.Var(&peers, "peer", "host:port of a peer to stay connected to (repeatable)")
 	force := fs.Bool("force", false, "replace the settings of an existing node policy (its data is kept)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	p := nodepolicy.Default()
 	p.RPC.Listen = *listen
+	p.P2P.Listen = *p2pListen
+	p.P2P.Peers = peers
 	var params []series.Params
 	if *example {
 		params = append(params, testutil.ExampleParams())
@@ -150,6 +157,7 @@ func nodeCmd(args []string, out io.Writer) error {
 // runNode opens the node in dir, serves its RPC until ctx is done, and
 // closes it. ready, if set, is called once the RPC accepts connections.
 func runNode(ctx context.Context, dir string, out io.Writer, ready func(string)) error {
+	out = &lockedWriter{w: out}
 	n, err := node.Open(dir, node.Options{Log: out})
 	if err != nil {
 		return err
@@ -157,15 +165,53 @@ func runNode(ctx context.Context, dir string, out io.Writer, ready func(string))
 	rs := n.Replayed()
 	fmt.Fprintf(out, "node %s: %d pools followed; replayed %d records from %d stores (%d kept)\n",
 		dir, len(n.Engine().FollowedPools()), rs.Records, rs.Pools, rs.Kept)
-	serr := rpc.Serve(ctx, n, func(addr string) {
+	cfg := p2p.FromPolicy(n.Policy())
+	cfg.Log = out
+	host, err := p2p.New(n, cfg)
+	if err != nil {
+		return errors.Join(err, n.Close())
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// The node runs while both the host and the interface do.
+	p2pUp := make(chan struct{})
+	herr := make(chan error, 1)
+	go func() {
+		err := host.Run(ctx, func() { close(p2pUp) })
+		cancel()
+		herr <- err
+	}()
+	select {
+	case <-p2pUp:
+		if a := host.Addr(); a != "" {
+			fmt.Fprintf(out, "p2p listening on %s\n", a)
+		}
+	case err := <-herr:
+		return errors.Join(err, n.Close())
+	}
+	serr := rpc.ServeHost(ctx, n, host, func(addr string) {
 		fmt.Fprintf(out, "rpc listening on %s\n", addr)
 		if ready != nil {
 			ready(addr)
 		}
 	})
+	cancel()
+	perr := <-herr
 	cerr := n.Close()
 	fmt.Fprintln(out, "node stopped")
-	return errors.Join(serr, cerr)
+	return errors.Join(serr, perr, cerr)
+}
+
+// lockedWriter lets the node's goroutines share one output.
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }
 
 // clientFlags are the flags shared by commands that talk to a running node.
@@ -461,6 +507,23 @@ func holdingsCmd(args []string, out io.Writer) error {
 		return err
 	}
 	r, err := cl.Holdings(s.ID(), *serial)
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, r)
+}
+
+func peersCmd(args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("peers", flag.ContinueOnError)
+	w := addWhere(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cl, err := rpc.Dial(w.resolve())
+	if err != nil {
+		return err
+	}
+	r, err := cl.Peers()
 	if err != nil {
 		return err
 	}

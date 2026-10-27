@@ -4,8 +4,9 @@
 // serves a local RPC, and talks to a running node: status, claims and
 // payments from a single key, building entries and adding layers, and
 // reading where a payment stands. It also manages node policies and has
-// offline commands for keys, series and an in-process demo. The node does
-// not talk to peers yet; see docs/roadmap.md.
+// offline commands for keys, series and an in-process demo. The node
+// connects to the peers its node policy lists and to those that connect to
+// it; finding peers by itself comes later (see docs/roadmap.md).
 package main
 
 import (
@@ -28,8 +29,10 @@ var Version = "0.1.0-dev"
 const usage = `poo: Proof of Ownership full node tool
 
 Usage:
-  poo init [-example] [-series FILE]...   write a node policy and make it current
+  poo init [-example] [-series FILE]... [-p2p ADDR] [-peer ADDR]...
+                              write a node policy and make it current
   poo node                    run the node until interrupted
+  poo peers                   the running node's connected peers
   poo status                  every followed pool of the running node
   poo claim -seed HEX -serial N
                               claim a whole mint for a key's address
@@ -99,6 +102,8 @@ func run(args []string, out io.Writer) error {
 		return workCmd(args[1:], out)
 	case "payment":
 		return paymentCmd(args[1:], out)
+	case "peers":
+		return peersCmd(args[1:], out)
 	case "holdings":
 		return holdingsCmd(args[1:], out)
 	case "policy":
