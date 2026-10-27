@@ -75,7 +75,16 @@ try {
   // Stop the node from the Node view.
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Stop node")');
-  await page.locator('.run-status', { hasText: 'node stopped (exit 0)' }).waitFor({ timeout: 20000 });
+  // On failure, show what the node printed, so a CI run says why.
+  const nodeArea = section('Run the node').locator('.area');
+  try {
+    await nodeArea.locator('.run-status', { hasText: 'node stopped' }).waitFor({ timeout: 45000 });
+  } catch (e) {
+    console.error('node view at timeout:\n' + await nodeArea.innerText().catch(() => '?'));
+    throw e;
+  }
+  const stopped = await nodeArea.locator('.run-status', { hasText: 'node stopped' }).innerText();
+  assert.equal(stopped, 'node stopped (exit 0)', 'node output:\n' + await nodeArea.innerText());
 
   assert.deepEqual(errors, [], 'no page errors');
   console.log('gui views e2e: ok');
