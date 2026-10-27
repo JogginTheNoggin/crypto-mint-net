@@ -1132,3 +1132,19 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   most used Go BLAKE3. Writing any of these ourselves would be far riskier
   than depending on them. `govulncheck` covers them at every release.
 - **Tier:** Implementation. Supersedes D1 in part.
+
+### D84. The commands are a library; the GUI runs the same code
+
+- **Decision:** Every `poo` command lives in package `pkg/cli`, behind
+  `cli.Main(ctx, args, Stdio{In, Out, Err})`. `cmd/poo` is only the process
+  around it: arguments, the standard streams, and an interrupt or SIGTERM
+  that cancels the context. Commands get input and cancellation from the
+  invocation, never from process globals, so one process can run several
+  invocations at once. The GUI (docs/gui.md) runs commands only through
+  `cli.Main`.
+- **Why:** The owner's hard requirement is that the headless tool and the
+  GUI always share the same code, the GUI being only a way to interact
+  with it. A `main` package cannot be imported; a library can, and then
+  the GUI's terminal and its buttons run the very code the headless
+  binary runs, with no second implementation that could drift.
+- **Tier:** Implementation.

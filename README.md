@@ -85,7 +85,7 @@ go build -o poo ./cmd/poo
 
 | Path | What it holds |
 | --- | --- |
-| `cmd/poo` | The node daemon, its client commands, and the in-process demo |
+| `pkg/cli`, `cmd/poo` | The `poo` command (node daemon, client commands, in-process demo) as a library, and the few lines of process around it |
 | `pkg/encoding` | The canonical byte form every hash is computed over |
 | `pkg/hash` | 32-byte hashes, the hash number list, domain tags, strength |
 | `pkg/weight` | Arbitrary-precision credit and weight |

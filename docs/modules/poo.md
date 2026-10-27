@@ -1,8 +1,12 @@
-# cmd/poo
+# pkg/cli and cmd/poo
 
 ## Summary
 
-The command-line tool. `poo node` runs the full node daemon with its store,
+The command-line tool. Every command is in package `cli`, behind
+`cli.Main(ctx, args, Stdio{In, Out, Err})`; `cmd/poo` is only the process
+around it (arguments, standard streams, and an interrupt that cancels the
+context). The GUI's terminal and every GUI action call the same `Main`, so
+the headless tool and the GUI cannot drift apart (decision D84). `poo node` runs the full node daemon with its store,
 its peer connections, its peer tracker (`tracking.json`) and local RPC; client commands talk to it; `poo policy` manages node
 policies; offline commands make keys, inspect series and run an in-process
 demo. `poo wallet` keeps a holder's keys and pays, requests, co-signs and
@@ -77,8 +81,13 @@ stopped. Flags go before positional arguments.
 
 ## Code
 
-`main.go` dispatches through `run(args, out)` so tests can call it
-directly; `node.go` holds the daemon, client and policy commands;
+`pkg/cli/main.go` has `Main` and `Run`, which take a context and
+`Stdio`, and dispatches through `run(args, out)`. The few commands that
+read input (passphrases) or run until stopped (`poo node`) get them from
+the invocation's out, with `inputOf(out)` and `contextOf(out)`, so every
+command keeps the signature `(args, out)` and no state is shared between
+invocations: the GUI can run several at once. Cancelling the context is
+what an interrupt does in a shell. In `pkg/cli`, `node.go` holds the daemon, client and policy commands;
 `wallet.go` holds the wallet commands; `sim.go` the simulator command; `demo.go` holds the demo. `node_test.go` runs a daemon in-process and drives
 it only through the commands, across a restart; `TestTwoNodes` runs two
 daemons where the second lists the first as a peer.

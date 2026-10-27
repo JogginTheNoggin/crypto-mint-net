@@ -176,7 +176,7 @@ pool, so the pool is the smallest unit a node can follow on its own.
 - request checks: wrong series, a policy that does not hash to the
   address, an unknown policy type.
 
-`select_test.go` checks coin selection. `cmd/poo/wallet_test.go` runs the
+`select_test.go` checks coin selection. `pkg/cli/wallet_test.go` runs the
 whole flow through `poo wallet` against a running node, co-signing
 included, restores from the seed, and checks `follow`.
 

@@ -24,7 +24,7 @@ for p in $platforms; do
 	[ "$os" = windows ] && bin=poo.exe
 	echo "== $name"
 	CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -buildvcs=false \
-		-ldflags "-s -w -buildid= -X main.Version=$v" -o "$dir/$bin" ./cmd/poo
+		-ldflags "-s -w -buildid= -X github.com/JogginTheNoggin/crypto-mint-net/pkg/cli.Version=$v" -o "$dir/$bin" ./cmd/poo
 	cp README.md "$dir/"
 	[ -f LICENSE ] && cp LICENSE "$dir/"
 	find "$dir" -exec touch -d "@$stamp" {} +

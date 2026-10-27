@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"context"
@@ -9,11 +9,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
@@ -156,9 +154,7 @@ func nodeCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	return runNode(ctx, w.resolve(), out, nil)
+	return runNode(contextOf(out), w.resolve(), out, nil)
 }
 
 // runNode opens the node in dir, serves its RPC until ctx is done, and
