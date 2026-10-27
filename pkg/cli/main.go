@@ -99,6 +99,7 @@ Usage:
   poo sim load|partition|attack|sizing [flags]
                               run the deterministic network simulator
                               (poo sim help)
+  poo help [COMMAND]          this text, or one command's usage
 
 Node commands pick a data directory with -dir, or with -root (default
 $POO_HOME or ~/.poo) and -policy (default: the current node policy).
@@ -224,10 +225,9 @@ func run(args []string, out io.Writer) error {
 	case "sim":
 		return simCmd(args[1:], out)
 	case "help", "-h", "--help":
-		fmt.Fprint(out, usage)
-		return nil
+		return helpCmd(args[1:], out)
 	default:
-		return fmt.Errorf("unknown command %q\n\n%s", args[0], usage)
+		return unknownCommand(args[0])
 	}
 }
 

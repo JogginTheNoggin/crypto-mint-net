@@ -43,6 +43,8 @@
 //	POST /follow   {remove, issuer, series, pools, mints, no_reload}
 //	                                      change it and apply it
 //	POST /reload                          apply the node policy again
+//	GET  /metrics                         status and peer counts in
+//	                                      Prometheus text format
 //
 // FILTER is the parameters of pkg/filter: series, pool, serial, address,
 // policy, tid and kind, each comma-separated.
@@ -163,6 +165,7 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("GET /v1/tracking", h.tracking)
 	h.mux.HandleFunc("GET /v1/chases", h.chases)
 	h.mux.HandleFunc("POST /v1/peer", h.peer)
+	h.mux.HandleFunc("GET /v1/metrics", h.metrics)
 	h.viewRoutes()
 	return h
 }
