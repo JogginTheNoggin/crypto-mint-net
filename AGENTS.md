@@ -13,7 +13,7 @@ a byte form without updating the test vectors on purpose.
 
 ## Teams (read first)
 
-The project's owner splits the work into two layers, each with three
+The project's owner splits the work into two layers, each with four
 teams. Every agent belongs to exactly one layer and one colour, given
 when its thread is created (for example "Source/Red"). Stay in your lane.
 
@@ -28,9 +28,10 @@ the source teams as a finding, not as a patch.
 
 | Colour | Does | Works on |
 | --- | --- | --- |
-| Grey | Builds features and general mitigation and hardening, owns the integration line, merges Blue's fixes | The integration line (below) |
+| Grey | Builds features and general mitigation and hardening, owns the integration line, merges Blue's fixes, decides on Green's proposals | The integration line (below) |
 | Red | Breaks things: finds exploits from outside (peers, the wire, registries, anything a remote party sends) and inside (local RPC, files, wallet, CLI, resource limits), writes findings and suggested fixes. Never implements them | Reads the integration line; writes only findings, on its own branch |
 | Blue | Implements fixes for Red's findings, with tests | Its own branch, started from the integration line |
+| Green | Explores: quality-of-life improvements, nice-to-haves and new ideas, as written proposals with an optional prototype. Grey decides whether to adopt each one | `claude/<layer>-green` (or `claude/<layer>-green-<topic>`), started from the integration line |
 
 ### The integration line
 
@@ -57,6 +58,30 @@ it. Once the stack is merged, `main` is the integration line again.
    that existing behaviour still works. Grey then updates `BASE.md` and
    the findings' status, and tells Blue and Red the new base. That commit
    is Blue's next starting point.
+
+### Green proposals
+
+Green runs beside the loop, not inside it. Green writes each idea to
+`docs/proposals/<layer>/GREEN-<NNN>-<short-slug>.md` on its own branch,
+optionally with a prototype on the same branch, and tells Grey the branch,
+commit and proposal ids. A proposal starts with this table, then the
+sections Summary, Problem, Idea, Cost and risk, and Prototype (what the
+branch holds, if anything).
+
+| Field | Value |
+| --- | --- |
+| Status | proposed, adopted, adopted in part, deferred, or declined |
+| Based on | branch @ commit |
+| Area | package, command or screen |
+| Effort | small, medium or large |
+| Decided by | Grey, with the merge commit or the reason |
+
+Grey reads each proposal and decides. Grey may merge Green's prototype,
+rewrite it, take part of it, defer it, or decline it, and records the
+outcome in the proposal's Status and Decided by fields. Nothing reaches
+the integration line except through Grey, and Green never changes
+consensus rules or another team's files. A Green idea that is really a
+security problem goes to Red as a note, not into a proposal.
 
 Threads talk through these files and through thread messages that name
 a branch, a commit and finding ids. Decisions still go in
