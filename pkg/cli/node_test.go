@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/daemon"
 )
 
 // startNode runs the node of root's current policy until the returned stop
@@ -20,7 +22,7 @@ func startNode(t *testing.T, dir string) func() {
 	ready := make(chan struct{})
 	done := make(chan error, 1)
 	var log bytes.Buffer
-	go func() { done <- runNode(ctx, dir, &log, func(string) { close(ready) }) }()
+	go func() { done <- runNode(ctx, dir, &log, func(string) { close(ready) }, daemon.Options{}) }()
 	select {
 	case <-ready:
 	case err := <-done:

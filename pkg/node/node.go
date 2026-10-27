@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -36,6 +37,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/store"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
@@ -57,6 +59,11 @@ const (
 type Options struct {
 	// Log receives progress and warnings. Nil discards them.
 	Log io.Writer
+	// LogLevel and LogFormat override the node policy's log section for
+	// this run ("" keeps the policy's; package logging).
+	LogLevel, LogFormat string
+	// Logger, if set, is used as it is instead of one made from Log.
+	Logger *slog.Logger
 	// CompactMin is the smallest log that is compacted automatically
 	// (0: DefaultCompactMin).
 	CompactMin int
@@ -69,7 +76,7 @@ type Node struct {
 	pol    nodepolicy.Policy
 	eng    *engine.Engine
 	logs   map[engine.PoolKey]*store.Log
-	out    io.Writer
+	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
 	cmin   int
 	unlock func()
 	closed bool
@@ -92,13 +99,22 @@ type ReplayStats struct {
 
 // Open opens the node in dir. The directory must hold a node.json.
 func Open(dir string, opt Options) (*Node, error) {
-	out := opt.Log
-	if out == nil {
-		out = io.Discard
-	}
 	pol, err := nodepolicy.Load(filepath.Join(dir, nodepolicy.FileName))
 	if err != nil {
 		return nil, err
+	}
+	lg := opt.Logger
+	if lg == nil {
+		level, format := pol.LogSettings()
+		if opt.LogLevel != "" {
+			level = opt.LogLevel
+		}
+		if opt.LogFormat != "" {
+			format = opt.LogFormat
+		}
+		if lg, err = logging.New(opt.Log, level, format); err != nil {
+			return nil, err
+		}
 	}
 	if opt.CompactMin <= 0 {
 		opt.CompactMin = DefaultCompactMin
@@ -108,7 +124,7 @@ func Open(dir string, opt Options) (*Node, error) {
 		return nil, err
 	}
 	n := &Node{
-		dir: dir, pol: pol, out: out, unlock: unlock, cmin: opt.CompactMin,
+		dir: dir, pol: pol, log: lg, unlock: unlock, cmin: opt.CompactMin,
 		eng: engine.New(engine.Config{
 			Ledger: pol.LedgerConfig(), MaxPending: pol.MaxPending, SeenSize: pol.SeenSize,
 		}),
@@ -126,11 +142,17 @@ func Open(dir string, opt Options) (*Node, error) {
 	return n, nil
 }
 
+// Logger returns the node's logger. Packages that serve the node (p2p,
+// rpc, daemon) log through it, each under its own component.
+func (n *Node) Logger() *slog.Logger { return n.log }
+
+func (n *Node) logger() *slog.Logger { return n.log.With(logging.Component, "node") }
+
 // configure makes accepted series known and applies the follow rules.
 func (n *Node) configure() error {
 	accepted, refused := n.pol.Accepted()
 	for _, r := range refused {
-		fmt.Fprintf(n.out, "series %d not accepted: %v\n", r.Index, r.Reason)
+		n.logger().Warn("series not accepted", "index", r.Index, "err", r.Reason)
 	}
 	byIssuer := map[hash.Hash][]hash.Hash{}
 	for _, a := range accepted {
@@ -145,7 +167,7 @@ func (n *Node) configure() error {
 		case f.Issuer != nil:
 			ids := byIssuer[*f.Issuer]
 			if len(ids) == 0 {
-				fmt.Fprintf(n.out, "follow %d: no accepted series from issuer %s\n", i, f.Issuer.Short())
+				n.logger().Warn("follow rule matches no accepted series", "follow", i, "issuer", f.Issuer.Short())
 			}
 			for _, id := range ids {
 				if err = n.eng.FollowSeries(id); err != nil {
@@ -169,7 +191,7 @@ func (n *Node) configure() error {
 		if errors.Is(err, engine.ErrUnknownSeries) {
 			// A series that was not accepted is not followed; the node
 			// still starts.
-			fmt.Fprintf(n.out, "follow %d: series %s is not known or not accepted\n", i, f.Series.Short())
+			n.logger().Warn("follow rule names a series not known or not accepted", "follow", i, "series", f.Series.Short())
 			continue
 		}
 		if err != nil {
@@ -199,7 +221,7 @@ func (n *Node) load() error {
 		n.replay.Pools++
 		n.replay.Cut += op.Cut
 		if op.Cut > 0 {
-			fmt.Fprintf(n.out, "pool %s: dropped %d bytes of an unfinished write\n", k, op.Cut)
+			n.logger().Warn("dropped an unfinished write", "pool", k.String(), "bytes", op.Cut)
 		}
 		for _, r := range op.Records {
 			n.replay.Records++
@@ -287,7 +309,7 @@ func (n *Node) compact(k engine.PoolKey, recs []store.Record) error {
 	if err := l.Rewrite(recs); err != nil {
 		return fmt.Errorf("node: compact %s: %w", k, err)
 	}
-	fmt.Fprintf(n.out, "pool %s: compacted store from %d to %d records\n", k, before, len(recs))
+	n.logger().Info("compacted store", "pool", k.String(), "from", before, "to", len(recs))
 	return nil
 }
 

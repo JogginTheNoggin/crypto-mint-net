@@ -41,7 +41,8 @@ const usage = `poo: Proof of Ownership full node tool
 Usage:
   poo init [-example] [-series FILE]... [-p2p ADDR] [-peer ADDR]...
                               write a node policy and make it current
-  poo node                    run the node until interrupted
+  poo node [-log-level L] [-log-format F]
+                              run the node until interrupted
   poo peers                   the running node's peers, their categories
                               and points, and its peer book
   poo peer timeout|block|unblock|clear|template|delete ADDR

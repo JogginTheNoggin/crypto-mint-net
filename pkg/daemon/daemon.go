@@ -14,11 +14,11 @@ package daemon
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
@@ -37,6 +37,9 @@ type Options struct {
 	Ready func(addr string)
 	// Reload, if set, makes the node reload whenever a value arrives.
 	Reload <-chan struct{}
+	// LogLevel and LogFormat override the node policy's log section
+	// (package logging); "" keeps the policy's.
+	LogLevel, LogFormat string
 }
 
 // Run runs the node in dir until ctx is done, reloading it when asked.
@@ -52,22 +55,22 @@ func Run(ctx context.Context, dir string, o Options) error {
 		if err != nil || !again || ctx.Err() != nil {
 			return err
 		}
-		fmt.Fprintln(log, "node reloading its node policy")
 	}
 }
 
 // runOnce runs the node until ctx is done or a reload is asked for, and
 // reports which.
 func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload bool, err error) {
-	n, err := node.Open(dir, node.Options{Log: log})
+	n, err := node.Open(dir, node.Options{Log: log, LogLevel: o.LogLevel, LogFormat: o.LogFormat})
 	if err != nil {
 		return false, err
 	}
+	nlog := n.Logger().With(logging.Component, "node")
 	rs := n.Replayed()
-	fmt.Fprintf(log, "node %s: %d pools followed; replayed %d records from %d stores (%d kept)\n",
-		dir, len(n.Engine().FollowedPools()), rs.Records, rs.Pools, rs.Kept)
+	nlog.Info("started", "dir", dir, "pools", len(n.Engine().FollowedPools()),
+		"records", rs.Records, "stores", rs.Pools, "kept", rs.Kept)
 	cfg := p2p.FromPolicy(n.Policy())
-	cfg.Log = log
+	cfg.Logger = n.Logger()
 	book, err := peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{})
 	if err != nil {
 		return false, errors.Join(err, n.Close())
@@ -115,7 +118,7 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 		return false, errors.Join(err, n.Close())
 	}
 	serr := rpc.ServeWith(inner, n, rpc.ServeConfig{Host: host, Hub: hub, Reload: ask}, func(addr string) {
-		fmt.Fprintf(log, "rpc listening on %s\n", addr)
+		n.Logger().With(logging.Component, "rpc").Info("listening", "addr", addr)
 		if o.Ready != nil {
 			o.Ready(addr)
 		}
@@ -124,11 +127,15 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	hub.Close()
 	perr := <-herr
 	cerr := n.Close()
-	fmt.Fprintln(log, "node stopped")
 	select {
 	case <-asked:
 		reload = ctx.Err() == nil
 	default:
+	}
+	if reload {
+		nlog.Info("reloading its node policy")
+	} else {
+		nlog.Info("stopped")
 	}
 	return reload, errors.Join(serr, perr, cerr)
 }

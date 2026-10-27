@@ -17,6 +17,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/daemon"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -150,16 +151,21 @@ func initCmd(args []string, out io.Writer) error {
 func nodeCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("node", out)
 	w := addWhere(fs)
+	level := fs.String("log-level", "", "debug, info, warn or error (default: the node policy's log.level, else info)")
+	format := fs.String("log-format", "", "plain, text or json (default: the node policy's log.format, else plain)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return runNode(contextOf(out), w.resolve(), out, nil)
+	if err := logging.Check(*level, *format); err != nil {
+		return err
+	}
+	return runNode(contextOf(out), w.resolve(), out, nil, daemon.Options{LogLevel: *level, LogFormat: *format})
 }
 
 // runNode runs the node in dir with pkg/daemon until ctx is done,
 // reloading its node policy on SIGHUP. ready, if set, is called once the
 // RPC first accepts connections.
-func runNode(ctx context.Context, dir string, out io.Writer, ready func(string)) error {
+func runNode(ctx context.Context, dir string, out io.Writer, ready func(string), opt daemon.Options) error {
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
 	defer signal.Stop(hup)
@@ -181,11 +187,13 @@ func runNode(ctx context.Context, dir string, out io.Writer, ready func(string))
 		}
 	}()
 	var once sync.Once
-	return daemon.Run(ctx, dir, daemon.Options{Log: out, Reload: reload, Ready: func(addr string) {
+	opt.Log, opt.Reload = out, reload
+	opt.Ready = func(addr string) {
 		if ready != nil {
 			once.Do(func() { ready(addr) })
 		}
-	}})
+	}
+	return daemon.Run(ctx, dir, opt)
 }
 
 // clientFlags are the flags shared by commands that talk to a running node.

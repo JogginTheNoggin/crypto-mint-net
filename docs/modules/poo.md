@@ -20,7 +20,7 @@ without a wallet. See
 | Command | Does |
 | --- | --- |
 | `poo init [-example] [-series FILE]... [-listen ADDR] [-p2p ADDR] [-advertise ADDR] [-peer ADDR]... [-registry LOC]... [-force]` | Writes a node policy that knows and follows the given series, and makes it current |
-| `poo node` | Runs the node until interrupted; SIGHUP makes it reload its node policy |
+| `poo node [-log-level L] [-log-format F]` | Runs the node until interrupted; SIGHUP makes it reload its node policy. The log flags override the policy's `log` section for this run ([logging.md](logging.md)) |
 | `poo peers` | The node's id, its p2p address, its connected peers with their categories and points, and its peer book |
 | `poo peer timeout\|block\|unblock\|clear\|template\|delete ADDR [-seconds N] [-range] [-what flags\|measures\|all] [-template NAME]` | Acts on one peer: pause it, block it (or its range; `-seconds -1` until unblocked), lift either, clear its records, choose its tracking template, or delete it from the book (flags before ADDR) |
 | `poo tracking [ADDR]` | Every tracked address's status and the blocked ranges, or one address's whole record |

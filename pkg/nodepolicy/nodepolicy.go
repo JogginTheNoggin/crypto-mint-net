@@ -29,6 +29,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
@@ -79,6 +80,8 @@ type Policy struct {
 	P2P P2P `json:"p2p"`
 	// Tracking configures what the node records about its peers.
 	Tracking Tracking `json:"tracking,omitempty"`
+	// Log chooses how much the node logs and in which form (GREEN-006).
+	Log *Log `json:"log,omitempty"`
 }
 
 // Tracking is what a node records about its peers and how offences are
@@ -141,6 +144,23 @@ type Follow struct {
 	Series *hash.Hash `json:"series,omitempty"`
 	Pools  []uint64   `json:"pools,omitempty"`
 	Mints  []uint64   `json:"mints,omitempty"`
+}
+
+// Log configures the node's log (package logging).
+type Log struct {
+	// Level is debug, info (the default), warn or error.
+	Level string `json:"level,omitempty"`
+	// Format is plain (the default: one readable line per event), text
+	// (key=value with time and level) or json (one object per line).
+	Format string `json:"format,omitempty"`
+}
+
+// LogSettings returns the log level and format, empty for the defaults.
+func (p Policy) LogSettings() (level, format string) {
+	if p.Log == nil {
+		return "", ""
+	}
+	return p.Log.Level, p.Log.Format
 }
 
 // RPC configures the local control interface.
@@ -272,6 +292,9 @@ func (p Policy) Validate() error {
 	}
 	if p.Ties < 0 || p.MaxPending < 0 || p.SeenSize < 0 {
 		return fmt.Errorf("%w: limits must not be negative", ErrInvalid)
+	}
+	if err := logging.Check(p.LogSettings()); err != nil {
+		return fmt.Errorf("%w: log: %v", ErrInvalid, err)
 	}
 	for i, f := range p.Follow {
 		if (f.Issuer == nil) == (f.Series == nil) {
