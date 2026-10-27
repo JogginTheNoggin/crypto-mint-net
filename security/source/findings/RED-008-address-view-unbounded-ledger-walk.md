@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ f18a76e |
 | Component | pkg/watch/query.go (AddressOf), pkg/engine/engine.go (Ledger), pkg/rpc/view.go (address), pkg/rpc/rpc.go (view token) |
 | Surface | local RPC (read-only view token) |
-| Fixed by | — |
+| Fixed by | `claude/project-thread-ggo8dt` @ 78cea9c (BLUE-004) |
 
 ## Summary
 
@@ -146,3 +146,17 @@ entries regardless of ledger height (mirroring `LedgerPage`), and an `rpc`
 test that a long address lookup does not hold the engine (a concurrent
 `Status` returns promptly), paralleling `TestBuildSearchHoldsNoLock` from
 BLUE-003.
+
+## Resolution
+
+Fixed by BLUE-004 (decision D103). `watch.AddressPage` looks at no more
+than 50×`limit` entries per request across all pools, stops a pool after
+`limit` matches, starts from `below` (0: the tips), and returns `next`
+(pool and `below`) for each unfinished pool. It checks the request's
+context before each pool and every 256 entries. `/v1/address` and `poo
+address` take `below`; `AddressOf` and `Client.Address` keep their
+signatures. A snapshot or read lock for views was not added: with the
+bound, one request holds the lock for at most 50,000 entries. Tests:
+`TestAddressPageIsBounded` (`pkg/watch`: on a 120-entry ledger, pages of
+50 entries for an address with no history, a page with history stops at
+limit, cancelling stops it), and a `below` case in `pkg/rpc`.
