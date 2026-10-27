@@ -24,6 +24,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
 
@@ -178,6 +179,11 @@ func runNode(ctx context.Context, dir string, out io.Writer, ready func(string))
 		return errors.Join(err, n.Close())
 	}
 	cfg.Book = book
+	tr, err := tracking.New(n.Policy().TrackingConfig(), filepath.Join(dir, tracking.FileName))
+	if err != nil {
+		return errors.Join(err, n.Close())
+	}
+	cfg.Tracker = tr
 	host, err := p2p.New(n, cfg)
 	if err != nil {
 		return errors.Join(err, n.Close())
@@ -532,6 +538,84 @@ func peersCmd(args []string, out io.Writer) error {
 		return err
 	}
 	r, err := cl.Peers()
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, r)
+}
+
+// peerCmd acts on one peer of the running node: a timeout, a block, lifting
+// them, clearing its records, choosing its tracking template, deleting it.
+func peerCmd(args []string, out io.Writer) error {
+	const use = "usage: poo peer timeout|block|unblock|clear|template|delete ADDR [-seconds N] [-range] [-what flags|measures|all] [-template NAME]"
+	if len(args) == 0 {
+		return errors.New(use)
+	}
+	fs := flag.NewFlagSet("peer", flag.ContinueOnError)
+	w := addWhere(fs)
+	secs := fs.Int("seconds", 0, "timeout or block: how long (0: the policy's length; block -1: until unblocked)")
+	rng := fs.Bool("range", false, "block: the address's whole network range")
+	what := fs.String("what", "all", "clear: flags, measures or all")
+	tpl := fs.String("template", "", "template: the tracking template (empty: its groups and the default)")
+	action := args[0]
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New(use)
+	}
+	cl, err := rpc.Dial(w.resolve())
+	if err != nil {
+		return err
+	}
+	r, err := cl.Peer(rpc.PeerRequest{Addr: fs.Arg(0), Action: action, Seconds: *secs, Range: *rng, What: *what, Template: *tpl})
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, r)
+}
+
+// trackingCmd shows what the running node's tracker keeps: every tracked
+// address's status, or one address's whole record.
+func trackingCmd(args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("tracking", flag.ContinueOnError)
+	w := addWhere(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() > 1 {
+		return errors.New("usage: poo tracking [ADDR]")
+	}
+	cl, err := rpc.Dial(w.resolve())
+	if err != nil {
+		return err
+	}
+	if fs.NArg() == 1 {
+		r, err := cl.TrackingOf(fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		return writeJSON(out, r)
+	}
+	r, err := cl.Tracking()
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, r)
+}
+
+// chasesCmd shows the running node's chase queue.
+func chasesCmd(args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("chases", flag.ContinueOnError)
+	w := addWhere(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cl, err := rpc.Dial(w.resolve())
+	if err != nil {
+		return err
+	}
+	r, err := cl.Chases()
 	if err != nil {
 		return err
 	}

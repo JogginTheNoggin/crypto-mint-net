@@ -5,8 +5,9 @@
 // payments from a single key, building entries and adding layers, and
 // reading where a payment stands. It also manages node policies and has
 // offline commands for keys, series and an in-process demo. The node
-// connects to the peers its node policy lists and to those that connect to
-// it; finding peers by itself comes later (see docs/roadmap.md).
+// finds peers from its node policy, address registries and its peers, ranks
+// them, and tracks how they behave; the owner can inspect and act on them
+// (poo peers, poo peer, poo tracking, poo chases).
 package main
 
 import (
@@ -32,7 +33,14 @@ Usage:
   poo init [-example] [-series FILE]... [-p2p ADDR] [-peer ADDR]...
                               write a node policy and make it current
   poo node                    run the node until interrupted
-  poo peers                   the running node's connected peers
+  poo peers                   the running node's peers, their categories
+                              and points, and its peer book
+  poo peer timeout|block|unblock|clear|template|delete ADDR
+           [-seconds N] [-range] [-what flags|measures|all] [-template NAME]
+                              act on one peer
+  poo tracking [ADDR]         what the tracker keeps: every address's
+                              status, or one address's record
+  poo chases                  the chase queue of heavier stated weights
   poo status                  every followed pool of the running node
   poo claim -seed HEX -serial N
                               claim a whole mint for a key's address
@@ -104,6 +112,12 @@ func run(args []string, out io.Writer) error {
 		return paymentCmd(args[1:], out)
 	case "peers":
 		return peersCmd(args[1:], out)
+	case "peer":
+		return peerCmd(args[1:], out)
+	case "tracking":
+		return trackingCmd(args[1:], out)
+	case "chases":
+		return chasesCmd(args[1:], out)
 	case "holdings":
 		return holdingsCmd(args[1:], out)
 	case "policy":

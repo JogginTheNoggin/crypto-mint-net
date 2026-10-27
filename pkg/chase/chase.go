@@ -135,18 +135,18 @@ func (c *Config) fill() {
 
 // Group is every stated weight that points at one branch of one pool.
 type Group struct {
-	ID       uint64
-	Pool     string
-	Hashes   map[hash.Hash]bool
-	Senders  map[string]Sender
-	Evidence Evidence
-	Added    time.Time
+	ID       uint64             `json:"id"`
+	Pool     string             `json:"pool"`
+	Hashes   map[hash.Hash]bool `json:"hashes"`
+	Senders  map[string]Sender  `json:"senders"`
+	Evidence Evidence           `json:"evidence"`
+	Added    time.Time          `json:"added"`
 	// Confirmed: a priority peer asked to confirm saw something heavier.
-	Confirmed bool
+	Confirmed bool `json:"confirmed,omitempty"`
 	// Asked: a priority peer was asked to confirm.
-	Asked bool
+	Asked bool `json:"asked,omitempty"`
 	// Denied lists priority peers that answered nothing heavier.
-	Denied []string
+	Denied []string `json:"denied,omitempty"`
 
 	running string // the sender a chase of it runs with, if any
 }

@@ -25,6 +25,10 @@
 //	GET  /payment?series=&serial=&tid=    where a transaction stands
 //	GET  /holdings?series=&serial=        unspent portions of a mint
 //	GET  /peers                           connected peers (when p2p runs)
+//	GET  /tracking[?addr=]                tracked peers, or one peer's record
+//	GET  /chases                          the chase queue
+//	POST /peer     {addr, action, ...}    time out, block, unblock, clear,
+//	                                      set a template for or delete a peer
 //
 // Errors are {"error": message, "code": code} with a matching HTTP status.
 package rpc
@@ -136,6 +140,9 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("GET /v1/payment", h.payment)
 	h.mux.HandleFunc("GET /v1/holdings", h.holdings)
 	h.mux.HandleFunc("GET /v1/peers", h.peers)
+	h.mux.HandleFunc("GET /v1/tracking", h.tracking)
+	h.mux.HandleFunc("GET /v1/chases", h.chases)
+	h.mux.HandleFunc("POST /v1/peer", h.peer)
 	return h
 }
 
@@ -153,8 +160,7 @@ type PeersReply struct {
 }
 
 func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
-	if h.host == nil {
-		writeError(w, &Error{Message: "p2p is not running", Code: CodeNotFound, Status: http.StatusNotFound})
+	if !h.needHost(w) {
 		return
 	}
 	book := h.host.Book().Records()

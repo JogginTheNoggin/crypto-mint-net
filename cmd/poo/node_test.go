@@ -228,6 +228,35 @@ func TestTwoNodes(t *testing.T) {
 	if s2.Pools[1].Height != 1 {
 		t.Fatalf("two: %+v", s2.Pools[1])
 	}
+
+	// The owner's view of the tracker and the chase queue, and acting on
+	// a peer: two times one out, which closes the connection.
+	var tracked struct{ Tracked map[string]any }
+	cli(t, &tracked, append([]string{"tracking"}, two...)...)
+	if _, ok := tracked.Tracked[peers.Listen]; !ok {
+		t.Fatalf("one is not tracked: %+v", tracked)
+	}
+	var chases struct{ Groups []any }
+	cli(t, &chases, append([]string{"chases"}, two...)...)
+	var acted struct {
+		Closed int
+		Status struct {
+			TimedOut bool `json:"timed_out"`
+		} `json:"status"`
+	}
+	cli(t, &acted, append(append([]string{"peer", "timeout"}, two...), "-seconds", "60", peers.Listen)...)
+	if acted.Closed != 1 || !acted.Status.TimedOut {
+		t.Fatalf("timeout: %+v", acted)
+	}
+	waitFor(t, func() bool {
+		cli(t, &peers, append([]string{"peers"}, two...)...)
+		return len(peers.Peers) == 0
+	})
+	acted.Status.TimedOut = false // omitted when false
+	cli(t, &acted, append(append([]string{"peer", "unblock"}, two...), peers.Listen)...)
+	if acted.Status.TimedOut {
+		t.Fatalf("unblock: %+v", acted)
+	}
 }
 
 func waitFor(t *testing.T, cond func() bool) {

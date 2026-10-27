@@ -39,6 +39,7 @@ var (
 	errTimeout   = errors.New("request timed out")
 	errClosed    = errors.New("connection closed")
 	errPaused    = errors.New("address timed out")
+	errDeleted   = errors.New("deleted by the owner")
 	errBlocked   = errors.New("address blocked")
 	errUnlisted  = errors.New("room for unlisted connections is full")
 )

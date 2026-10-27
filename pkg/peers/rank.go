@@ -24,6 +24,9 @@ const (
 // Categories lists every category in handling order.
 var Categories = []Category{CatPriority, CatBackup, CatCandidate, CatUnlisted}
 
+// MarshalText writes the category's name.
+func (c Category) MarshalText() ([]byte, error) { return []byte(c.String()), nil }
+
 func (c Category) String() string {
 	switch c {
 	case CatPriority:
