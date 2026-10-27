@@ -15,4 +15,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-004](source/GREEN-004-poo-doctor.md) | Source | `poo doctor`, one command to say what is wrong | adopted |
 | [GREEN-005](source/GREEN-005-shell-completion.md) | Source | Shell completion (`poo completion bash\|zsh\|fish`) | deferred |
 | [GREEN-006](source/GREEN-006-structured-logs.md) | Source | Structured, levelled node logs with `log/slog` | deferred |
-| [GREEN-007](source/GREEN-007-read-only-scope.md) | Source | A read-only control scope in the core | proposed |
+| [GREEN-007](source/GREEN-007-read-only-scope.md) | Source | A read-only control scope in the core | adopted in part |

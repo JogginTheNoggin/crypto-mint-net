@@ -6,7 +6,7 @@
 | Based on | `claude/m10-watch` @ `4692b4e` |
 | Area | `pkg/cli` (`view.go`, `node.go`) |
 | Effort | medium |
-| Decided by | Grey: build it after GREEN-004; JSON stays the default, since the GUI and scripts read it |
+| Decided by | Grey: merged as prototyped (columns from the JSON keys) in the GREEN-003/007 merge |
 
 ## Summary
 
