@@ -1380,3 +1380,18 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   GUI's tests and the design's vectors use fixed seeds, and a seed made
   for a vector holds nothing.
 - **Tier:** Implementation.
+
+### D100. A second, read-only token for the local interface
+
+- **Decision:** Beside `rpc.token`, the node creates `rpc.view-token`
+  (32 random bytes in hex, mode 0600) in its data directory. A request
+  carrying it is served for `GET` and `HEAD` only; any other method is
+  refused with `403 forbidden`. `rpc.token` keeps full control.
+  `rpc.DialView` dials with it. (GREEN-007, part 1.)
+- **Why:** A monitor, a metrics scraper (`GET /v1/metrics`) or a viewer
+  needs to read the node but should never be able to pay, build, change
+  follows or block peers. Every endpoint that changes something is a
+  `POST`, so the method is the scope, with no per-endpoint table to keep
+  in step. A second file means the full token never has to leave the
+  owner's account.
+- **Tier:** Implementation.

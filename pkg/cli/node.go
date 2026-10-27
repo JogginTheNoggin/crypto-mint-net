@@ -232,7 +232,11 @@ func (c *clientFlags) seriesOf(cl *rpc.Client) (*series.Series, error) {
 func statusCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	c := addClient(fs)
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	cl, err := c.dial()
@@ -243,7 +247,7 @@ func statusCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, st)
+	return o.write(out, st)
 }
 
 // errSeedFlag refuses a seed on the command line, where other users of
@@ -520,7 +524,11 @@ func holdingsCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("holdings", flag.ContinueOnError)
 	c := addClient(fs)
 	serial := fs.Uint64("serial", 0, "the mint's serial")
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	cl, err := c.dial()
@@ -535,13 +543,17 @@ func holdingsCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 func peersCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("peers", flag.ContinueOnError)
 	w := addWhere(fs)
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	cl, err := rpc.Dial(w.resolve())
@@ -552,7 +564,7 @@ func peersCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 // peerCmd acts on one peer of the running node: a timeout, a block, lifting
@@ -591,7 +603,11 @@ func peerCmd(args []string, out io.Writer) error {
 func trackingCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("tracking", flag.ContinueOnError)
 	w := addWhere(fs)
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	if fs.NArg() > 1 {
@@ -606,20 +622,24 @@ func trackingCmd(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return writeJSON(out, r)
+		return o.write(out, r)
 	}
 	r, err := cl.Tracking()
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 // chasesCmd shows the running node's chase queue.
 func chasesCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("chases", flag.ContinueOnError)
 	w := addWhere(fs)
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	cl, err := rpc.Dial(w.resolve())
@@ -630,7 +650,7 @@ func chasesCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 // policyCmd lists, switches, archives, takes out of the archive and deletes

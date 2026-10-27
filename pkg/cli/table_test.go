@@ -1,0 +1,86 @@
+package cli
+
+import (
+	"bytes"
+	"flag"
+	"strings"
+	"testing"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+)
+
+func render(t *testing.T, v any, args ...string) string {
+	t.Helper()
+	fs := flag.NewFlagSet("t", flag.ContinueOnError)
+	o := addOutput(fs)
+	if err := fs.Parse(args); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.check(); err != nil {
+		t.Fatal(err)
+	}
+	var b bytes.Buffer
+	if err := o.write(&b, v); err != nil {
+		t.Fatal(err)
+	}
+	return b.String()
+}
+
+type tRow struct {
+	ID    hash.Hash `json:"id"`
+	N     int       `json:"n"`
+	In    struct{ A, B int }
+	Tags  []string `json:"tags"`
+	Items []tRow   `json:"items,omitempty"`
+	Opt   *int     `json:"opt,omitempty"`
+}
+
+type tReply struct {
+	Name  string `json:"name"`
+	Stats struct {
+		X int `json:"x"`
+	} `json:"stats"`
+	Empty map[string]int `json:"empty"`
+	Rows  []tRow         `json:"rows"`
+}
+
+func TestTableOutput(t *testing.T) {
+	var id hash.Hash
+	for i := range id {
+		id[i] = byte(i * 7)
+	}
+	one := 1
+	r := tReply{Name: "pool", Empty: map[string]int{}, Rows: []tRow{
+		{ID: id, N: 1, Tags: []string{"a", "b"}, Items: []tRow{{}}},
+		{ID: id, N: 2, Opt: &one},
+	}}
+	r.Stats.X = 7
+	got := render(t, r, "-o", "table")
+	short := id.String()[:8] + ".." + id.String()[60:]
+	want := "name     pool\n" +
+		"stats.x  7\n" +
+		"empty    -\n" +
+		"\nrows:\n" +
+		"ID              N  IN.A  IN.B  TAGS  ITEMS  OPT\n" +
+		short + "  1  0     0     a,b   [1]    -\n" +
+		short + "  2  0     0     -     -      1\n"
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
+	}
+	if wide := render(t, r, "-o", "table", "-wide"); !strings.Contains(wide, id.String()) {
+		t.Fatalf("-wide shortened a hash:\n%s", wide)
+	}
+	if js := render(t, r); !strings.HasPrefix(js, "{\n") || !strings.Contains(js, id.String()) {
+		t.Fatalf("default is not JSON:\n%s", js)
+	}
+	if got := render(t, []tRow{}, "-o", "table"); got != "(none)\n" {
+		t.Fatalf("empty list: %q", got)
+	}
+}
+
+func TestTableOutputBadFormat(t *testing.T) {
+	err := run([]string{"status", "-o", "yaml", "-dir", t.TempDir()}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "-o must be json or table") {
+		t.Fatalf("got %v", err)
+	}
+}

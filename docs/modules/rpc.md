@@ -18,6 +18,13 @@ interface, so a wallet uses a running node. It is not the peer protocol
 
 All under `/v1`, all requiring `Authorization: Bearer <token>`.
 
+Two tokens are accepted, both 32 random bytes in hex in files readable
+only by the node's user and made on first start. `rpc.token` opens every
+endpoint. `rpc.view-token` opens the `GET` endpoints only, and any other
+method gets 403 with code `forbidden`. Give the view token to a monitor
+(a Prometheus scrape of `/metrics`), a dashboard or any tool that should
+only watch the node (GREEN-007).
+
 | Method and path | Body or query | Reply |
 | --- | --- | --- |
 | `GET /status` | | every followed pool, and replay stats |
@@ -74,8 +81,10 @@ strings. Errors are `{"error", "code"}` with codes `bad_request`,
 
 - `NewHandler(node, token)` and `SetHost(host)`, `Serve(ctx, node, ready)`
   (writes `rpc.addr`, creates the token, shuts down cleanly),
-  `ServeHost(ctx, node, host, ready)`, `LoadOrCreateToken(dir)`.
-- `Client`: `NewClient(addr, token)`, `Dial(dir)`, and one method per
+  `ServeHost(ctx, node, host, ready)`, `LoadOrCreateToken(dir)`,
+  `LoadOrCreateViewToken(dir)` and `SetViewToken(tok)` for the read-only token.
+- `Client`: `NewClient(addr, token)`, `Dial(dir)`, `DialView(dir)` (the
+  view token), and one method per
   endpoint (`Tracking`, `TrackingOf`, `Chases`, `Peer` for the new ones).
   Errors from the node are `*rpc.Error`.
 - `ServeWith(ctx, node, ServeConfig{Host, Hub, Reload}, ready)` is what

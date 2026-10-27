@@ -45,6 +45,20 @@ func Dial(dir string) (*Client, error) {
 	return NewClient(strings.TrimSpace(string(a)), strings.TrimSpace(string(t))), nil
 }
 
+// DialView is Dial with the view token, which only reads: every call that
+// changes something fails with CodeForbidden.
+func DialView(dir string) (*Client, error) {
+	a, err := os.ReadFile(filepath.Join(dir, AddrFile))
+	if err != nil {
+		return nil, fmt.Errorf("rpc: is the node running? %w", err)
+	}
+	t, err := os.ReadFile(filepath.Join(dir, ViewTokenFile))
+	if err != nil {
+		return nil, err
+	}
+	return NewClient(strings.TrimSpace(string(a)), strings.TrimSpace(string(t))), nil
+}
+
 func (c *Client) do(method, path string, body, out any) error {
 	var rd *bytes.Reader
 	if body != nil {

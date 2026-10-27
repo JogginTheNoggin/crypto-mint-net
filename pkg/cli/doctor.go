@@ -148,7 +148,7 @@ func filesCheck(dir string) Check {
 		return Check{Name: "files", Result: checkSkip, Detail: "permission bits are not checked on Windows"}
 	}
 	var loose []string
-	for _, f := range []string{dir, filepath.Join(dir, rpc.TokenFile)} {
+	for _, f := range []string{dir, filepath.Join(dir, rpc.TokenFile), filepath.Join(dir, rpc.ViewTokenFile)} {
 		st, err := os.Stat(f)
 		if err != nil {
 			continue // a token is made on first start
@@ -159,9 +159,9 @@ func filesCheck(dir string) Check {
 	}
 	if len(loose) > 0 {
 		return Check{Name: "files", Result: checkWarn, Detail: "others can read: " + strings.Join(loose, ", "),
-			Fix: "chmod 700 " + dir + "; chmod 600 " + filepath.Join(dir, rpc.TokenFile)}
+			Fix: "chmod 700 " + dir + "; chmod 600 " + filepath.Join(dir, "rpc.*token")}
 	}
-	return Check{Name: "files", Result: checkOK, Detail: "only the node's user can read the data directory and token"}
+	return Check{Name: "files", Result: checkOK, Detail: "only the node's user can read the data directory and tokens"}
 }
 
 // rpcCheck reports whether the node answers, and so whether it runs.

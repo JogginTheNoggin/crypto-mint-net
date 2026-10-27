@@ -5,7 +5,9 @@
 //
 // Every request must carry the node's token, "Authorization: Bearer
 // <token>". The token is 32 random bytes in hex, created on first start in
-// the data directory as rpc.token, readable only by the node's user. The
+// the data directory as rpc.token, readable only by the node's user. A
+// second token, rpc.view-token, made the same way, opens the GET endpoints
+// only: give it to a monitor or a read-only tool, never rpc.token. The
 // address the server actually listens on is written to rpc.addr, so a
 // client on the same machine needs only the data directory (see Dial).
 //
@@ -83,6 +85,9 @@ import (
 const (
 	TokenFile = "rpc.token"
 	AddrFile  = "rpc.addr"
+	// ViewTokenFile holds the view token: it opens every GET endpoint and
+	// nothing else, for a monitor or a read-only tool (GREEN-007).
+	ViewTokenFile = "rpc.view-token"
 )
 
 // MaxBody bounds a request body.
@@ -92,6 +97,7 @@ const MaxBody = 8 << 20
 const (
 	CodeBadRequest     = "bad_request"
 	CodeUnauthorized   = "unauthorized"
+	CodeForbidden      = "forbidden"
 	CodeNotFound       = "not_found"
 	CodeConflict       = "conflict"
 	CodeInvalid        = "invalid"
@@ -111,7 +117,16 @@ func (e *Error) Error() string { return e.Message }
 
 // LoadOrCreateToken returns the token in dir, creating it if missing.
 func LoadOrCreateToken(dir string) (string, error) {
-	path := filepath.Join(dir, TokenFile)
+	return loadOrCreateToken(filepath.Join(dir, TokenFile))
+}
+
+// LoadOrCreateViewToken returns the view token in dir, creating it if
+// missing.
+func LoadOrCreateViewToken(dir string) (string, error) {
+	return loadOrCreateToken(filepath.Join(dir, ViewTokenFile))
+}
+
+func loadOrCreateToken(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	if err == nil {
 		tok := strings.TrimSpace(string(b))
@@ -146,6 +161,7 @@ type Handler struct {
 	hub    *watch.Hub
 	reload func()
 	token  []byte
+	view   []byte // the view token, or nil for none
 	mux    *http.ServeMux
 }
 
@@ -169,6 +185,10 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.viewRoutes()
 	return h
 }
+
+// SetViewToken makes the interface also accept tok, for GET requests
+// only. Call it before serving.
+func (h *Handler) SetViewToken(tok string) { h.view = []byte(tok) }
 
 // SetHost lets the interface report on the node's p2p host. Call it before
 // serving.
@@ -196,7 +216,15 @@ func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok || subtle.ConstantTimeCompare([]byte(got), h.token) != 1 {
+	full := ok && subtle.ConstantTimeCompare([]byte(got), h.token) == 1
+	view := ok && len(h.view) > 0 && subtle.ConstantTimeCompare([]byte(got), h.view) == 1
+	switch {
+	case full:
+	case view && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+	case view:
+		writeError(w, &Error{Message: "the view token only reads; this needs " + TokenFile, Code: CodeForbidden, Status: http.StatusForbidden})
+		return
+	default:
 		writeError(w, &Error{Message: "missing or wrong token", Code: CodeUnauthorized, Status: http.StatusUnauthorized})
 		return
 	}
