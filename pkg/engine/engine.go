@@ -519,6 +519,12 @@ type Payment struct {
 	// entry's parent, to reverse the payment. Zero when not selected.
 	From     weight.Weight
 	Selected bool
+	// Tx is the transaction, when the node holds it (selected or pending).
+	Tx *tx.Tx
+	// Rivals are the inactive branches this node holds that spend one of
+	// the same portions, heaviest first. Against each, the margin is From
+	// minus the rival's weight after its fork point.
+	Rivals []ledger.Rival
 }
 
 // Payment reports where a transaction stands in pool k.
@@ -529,11 +535,26 @@ func (e *Engine) Payment(k PoolKey, tid hash.Hash) (Payment, error) {
 	if err != nil {
 		return Payment{}, err
 	}
+	var out Payment
 	if eh, ok := p.ledger.Locate(tid); ok {
 		w, _ := p.ledger.From(eh)
-		return Payment{Entry: eh, From: w, Selected: true}, nil
+		out = Payment{Entry: eh, From: w, Selected: true}
+		if en, ok := p.ledger.Entry(eh); ok {
+			h := p.ledger.Series().Hash()
+			for _, t := range en.Txs {
+				if t.TID(h) == tid {
+					out.Tx = t
+					break
+				}
+			}
+		}
+	} else if t, ok := p.pending.Get(tid); ok {
+		out = Payment{Pending: true, Tx: t}
 	}
-	return Payment{Pending: p.pending.Has(tid)}, nil
+	if out.Tx != nil {
+		out.Rivals = p.ledger.Rivals(out.Tx, tid)
+	}
+	return out, nil
 }
 
 // Holdings returns the unspent portions of one mint at the selected tip.

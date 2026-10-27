@@ -1,0 +1,887 @@
+package main
+
+import (
+	"bufio"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wallet"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
+)
+
+const walletUsage = `poo wallet: keys, payments and requests from one seed
+
+Usage: poo wallet COMMAND [flags]
+
+  create [-restore HEX] [-gap N]   make a wallet (or restore one from its seed)
+  seed                             print the seed (keep it secret)
+  passwd                           seal the seed under a new passphrase
+  address [-label TEXT]            give out a fresh address
+  addresses                        every address, used or not, and shared ones
+  watch [-serial N]... [-pool K]... add mints to look for portions in
+  follow                           make the node policy follow only the pools
+                                   of the watched mints (light mode)
+  balance                          spendable units per watched mint
+  claim -serial N                  claim a whole mint for a fresh address
+  pay -to ADDR -amount A [-mint N]... [-memo TEXT] [-out FILE]
+  pay -request FILE [-out FILE]    pay an address or a payment request; with
+                                   a shared policy, -out writes what
+                                   co-signers sign
+  request -amount A [-memo TEXT] [-out FILE]
+                                   ask to be paid, to a fresh address
+  receive (-address ADDR | -request FILE) [-serial N -tid HASH]...
+          [-threshold W]           what has arrived for a request
+  status [-threshold W]            where every payment sent stands
+  resend                           send dropped legs again
+  policy -name NAME -k K -key self|ALG:HEX|HEX... [-label TEXT]
+                                   record a shared k-of-n policy
+  cosign FILE                      add this wallet's signatures to FILE
+  submit FILE                      send a payment whose signatures are complete
+
+The wallet file is -wallet, default wallet.json in -root. The passphrase
+comes from $POO_PASSPHRASE, -passphrase-file, or a line on standard input.
+The series and node come from the node policy flags, as for other commands.
+`
+
+// stdin is where passphrases are read when no other source is given; tests
+// replace it.
+var stdin io.Reader = os.Stdin
+
+// createIterations is the PBKDF2 work factor of new wallets; zero means
+// the default. Tests lower it.
+var createIterations int
+
+// walletFlags are the flags shared by wallet commands.
+type walletFlags struct {
+	c        *clientFlags
+	path     *string
+	passFile *string
+}
+
+func addWallet(fs *flag.FlagSet) *walletFlags {
+	return &walletFlags{
+		c:        addClient(fs),
+		path:     fs.String("wallet", "", "wallet file (default: wallet.json in -root)"),
+		passFile: fs.String("passphrase-file", "", "read the passphrase from this file"),
+	}
+}
+
+func (f *walletFlags) file() string {
+	if *f.path != "" {
+		return *f.path
+	}
+	return filepath.Join(*f.c.w.root, wallet.FileName)
+}
+
+// passphrase reads the passphrase; prompt is shown when reading stdin.
+func (f *walletFlags) passphrase(out io.Writer, prompt string) (string, error) {
+	if p, ok := os.LookupEnv("POO_PASSPHRASE"); ok {
+		return p, nil
+	}
+	if *f.passFile != "" {
+		b, err := os.ReadFile(*f.passFile)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimRight(string(b), "\r\n"), nil
+	}
+	fmt.Fprint(out, prompt)
+	line, err := bufio.NewReader(stdin).ReadString('\n')
+	if err != nil && (err != io.EOF || line == "") {
+		return "", errors.New("no passphrase: set POO_PASSPHRASE or use -passphrase-file")
+	}
+	return strings.TrimRight(line, "\r\n"), nil
+}
+
+func (f *walletFlags) open() (*wallet.Wallet, error) { return wallet.Open(f.file()) }
+
+func (f *walletFlags) unlocked(out io.Writer) (*wallet.Wallet, error) {
+	w, err := f.open()
+	if err != nil {
+		return nil, err
+	}
+	p, err := f.passphrase(out, "passphrase: ")
+	if err != nil {
+		return nil, err
+	}
+	return w, w.Unlock(p)
+}
+
+// series returns the chosen series from the node policy, so commands that
+// do not need the node work offline.
+func (f *walletFlags) series() (*series.Series, error) {
+	path := filepath.Join(f.c.w.resolve(), nodepolicy.FileName)
+	p, err := nodepolicy.Load(path)
+	if err != nil {
+		return nil, err
+	}
+	accepted, _ := p.Accepted()
+	var pick []*series.Series
+	for _, a := range accepted {
+		if *f.c.series == "" || a.Series.ID().String() == *f.c.series {
+			pick = append(pick, a.Series)
+		}
+	}
+	switch {
+	case len(pick) == 1:
+		return pick[0], nil
+	case *f.c.series != "":
+		return nil, fmt.Errorf("%s does not know series %s", path, *f.c.series)
+	default:
+		return nil, fmt.Errorf("%s knows %d series; name one with -series", path, len(pick))
+	}
+}
+
+// node dials the running node as the wallet's Node.
+func (f *walletFlags) node(s *series.Series) (wallet.Node, error) {
+	cl, err := f.c.dial()
+	if err != nil {
+		return nil, err
+	}
+	h := s.Hash()
+	return rpc.NewWalletNode(cl, func(t *tx.Tx) hash.Hash { return t.TID(h) }), nil
+}
+
+func parseThreshold(s string) (weight.Weight, error) {
+	var w weight.Weight
+	if s == "" {
+		return w, nil
+	}
+	if err := w.UnmarshalText([]byte(s)); err != nil {
+		return w, fmt.Errorf("-threshold: %w", err)
+	}
+	return w, nil
+}
+
+func readJSON(path string, v any) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(b, v); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return nil
+}
+
+// writeOut writes v as JSON to path, or to out when path is empty.
+func writeOut(out io.Writer, path string, v any) error {
+	if path == "" {
+		return writeJSON(out, v)
+	}
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "wrote %s\n", path)
+	return nil
+}
+
+type uintList []uint64
+
+func (u *uintList) String() string { return fmt.Sprint(*u) }
+func (u *uintList) Set(v string) error {
+	n, err := strconv.ParseUint(v, 10, 64)
+	if err != nil {
+		return err
+	}
+	*u = append(*u, n)
+	return nil
+}
+
+func walletCmd(args []string, out io.Writer) error {
+	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
+		fmt.Fprint(out, walletUsage)
+		return nil
+	}
+	cmds := map[string]func(*flag.FlagSet, *walletFlags, []string, io.Writer) error{
+		"create": walletCreate, "seed": walletSeed, "passwd": walletPasswd,
+		"address": walletAddress, "addresses": walletAddresses, "watch": walletWatch,
+		"follow": walletFollow, "balance": walletBalance, "claim": walletClaim,
+		"pay": walletPay, "request": walletRequest, "receive": walletReceive,
+		"status": walletStatus, "resend": walletResend, "policy": walletPolicy,
+		"cosign": walletCosign, "submit": walletSubmit,
+	}
+	cmd, ok := cmds[args[0]]
+	if !ok {
+		return fmt.Errorf("unknown wallet command %q\n\n%s", args[0], walletUsage)
+	}
+	fs := flag.NewFlagSet("wallet "+args[0], flag.ContinueOnError)
+	return cmd(fs, addWallet(fs), args[1:], out)
+}
+
+func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	restore := fs.String("restore", "", "restore from this seed (64 hex digits)")
+	gap := fs.Int("gap", 0, fmt.Sprintf("unused keys to keep ahead (default %d)", wallet.DefaultGap))
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	o := wallet.Options{Gap: *gap, Iterations: createIterations}
+	if *restore != "" {
+		seed, err := hex.DecodeString(*restore)
+		if err != nil || len(seed) != wallet.SeedSize {
+			return fmt.Errorf("-restore must be %d hex digits", 2*wallet.SeedSize)
+		}
+		o.Seed = seed
+	}
+	if _, err := os.Stat(f.file()); err == nil {
+		return fmt.Errorf("%s exists", f.file())
+	}
+	p, err := f.passphrase(out, "new passphrase: ")
+	if err != nil {
+		return err
+	}
+	if p == "" {
+		return errors.New("the passphrase must not be empty")
+	}
+	if _, err := wallet.Create(f.file(), p, o); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "wrote %s\n", f.file())
+	if *restore == "" {
+		fmt.Fprintln(out, "back up the seed (poo wallet seed): it restores every key")
+	}
+	return nil
+}
+
+func walletSeed(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	w, err := f.unlocked(out)
+	if err != nil {
+		return err
+	}
+	seed, err := w.Seed()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(out, hex.EncodeToString(seed))
+	return nil
+}
+
+func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	newFile := fs.String("new-passphrase-file", "", "read the new passphrase from this file (default: $POO_NEW_PASSPHRASE or standard input)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	w, err := f.unlocked(out)
+	if err != nil {
+		return err
+	}
+	var p string
+	switch v, ok := os.LookupEnv("POO_NEW_PASSPHRASE"); {
+	case *newFile != "":
+		b, err := os.ReadFile(*newFile)
+		if err != nil {
+			return err
+		}
+		p = strings.TrimRight(string(b), "\r\n")
+	case ok:
+		p = v
+	default:
+		fmt.Fprint(out, "new passphrase: ")
+		line, _ := bufio.NewReader(stdin).ReadString('\n')
+		p = strings.TrimRight(line, "\r\n")
+	}
+	if p == "" {
+		return errors.New("the new passphrase must not be empty")
+	}
+	if err := w.Rekey(p); err != nil {
+		return err
+	}
+	if err := w.Save(); err != nil {
+		return err
+	}
+	fmt.Fprintln(out, "passphrase changed")
+	return nil
+}
+
+func walletAddress(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	label := fs.String("label", "", "what the address is for")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.unlocked(out)
+	if err != nil {
+		return err
+	}
+	o, err := w.NewAddress(s, *label)
+	if err != nil {
+		return err
+	}
+	if err := w.Save(); err != nil {
+		return err
+	}
+	var public string
+	for _, k := range w.Keys() {
+		if k.Index == *o.Key {
+			public = hex.EncodeToString(k.Public)
+		}
+	}
+	// The public key is what a co-signer names in a shared policy.
+	return writeJSON(out, map[string]any{"address": o.Address, "key": o.Key, "public": public, "policy": hex.EncodeToString(o.Policy.Encode())})
+}
+
+// ownerInfo is one row of poo wallet addresses.
+type ownerInfo struct {
+	Address hash.Hash `json:"address"`
+	Key     *uint32   `json:"key,omitempty"`
+	Shared  string    `json:"shared,omitempty"`
+	Label   string    `json:"label,omitempty"`
+	Used    bool      `json:"used"`
+}
+
+func walletAddresses(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.open()
+	if err != nil {
+		return err
+	}
+	var rows []ownerInfo
+	for _, o := range w.Owners(s) {
+		rows = append(rows, ownerInfo{o.Address, o.Key, o.Shared, o.Label, o.Used})
+	}
+	sortOwners(rows)
+	return writeJSON(out, rows)
+}
+
+// sortOwners orders keys by index, then shared policies by name.
+func sortOwners(rows []ownerInfo) {
+	less := func(a, b ownerInfo) bool {
+		switch {
+		case a.Key != nil && b.Key != nil:
+			return *a.Key < *b.Key
+		case a.Key != nil || b.Key != nil:
+			return a.Key != nil
+		}
+		return a.Shared < b.Shared
+	}
+	for i := 1; i < len(rows); i++ {
+		for j := i; j > 0 && less(rows[j], rows[j-1]); j-- {
+			rows[j], rows[j-1] = rows[j-1], rows[j]
+		}
+	}
+}
+
+func walletWatch(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	var serials, pools uintList
+	fs.Var(&serials, "serial", "a mint to watch (repeatable)")
+	fs.Var(&pools, "pool", "watch every mint of this pool (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.open()
+	if err != nil {
+		return err
+	}
+	for _, k := range pools {
+		if k >= s.PoolCount() {
+			return fmt.Errorf("pool %d out of range", k)
+		}
+		first, last := s.PoolRange(k)
+		for n := first; n <= last; n++ {
+			serials = append(serials, n)
+		}
+	}
+	if err := w.WatchMints(s, serials...); err != nil {
+		return err
+	}
+	if err := w.Save(); err != nil {
+		return err
+	}
+	return writeJSON(out, map[string]any{"mints": w.Watched(s.ID()), "pools": w.Pools(s)})
+}
+
+// walletFollow points the node policy at the wallet's pools: light mode,
+// where the node verifies and stores only what the wallet needs.
+func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.open()
+	if err != nil {
+		return err
+	}
+	pools := w.Pools(s)
+	if len(pools) == 0 {
+		return errors.New("the wallet watches no mints of this series (poo wallet watch)")
+	}
+	path := filepath.Join(f.c.w.resolve(), nodepolicy.FileName)
+	p, err := nodepolicy.Load(path)
+	if err != nil {
+		return err
+	}
+	id := s.ID()
+	var follow []nodepolicy.Follow
+	for _, fl := range p.Follow {
+		if fl.Series == nil || *fl.Series != id {
+			follow = append(follow, fl)
+		}
+	}
+	p.Follow = append(follow, nodepolicy.Follow{Series: &id, Pools: pools})
+	if err := nodepolicy.Save(path, p); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "wrote %s: series %s follows pools %v; restart the node to apply\n", path, id.Short(), pools)
+	return nil
+}
+
+func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.open()
+	if err != nil {
+		return err
+	}
+	n, err := f.node(s)
+	if err != nil {
+		return err
+	}
+	b, err := w.Balance(s, n)
+	if err != nil {
+		return err
+	}
+	var total uint64
+	mints := map[string]uint64{}
+	for serial, a := range b {
+		mints[strconv.FormatUint(serial, 10)] = a
+		total += a
+	}
+	return writeJSON(out, map[string]any{"mints": mints, "total": total})
+}
+
+func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	serial := fs.Uint64("serial", 0, "the mint's serial")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.unlocked(out)
+	if err != nil {
+		return err
+	}
+	n, err := f.node(s)
+	if err != nil {
+		return err
+	}
+	p, err := w.Claim(s, n, *serial)
+	if p != nil {
+		if serr := w.Save(); serr != nil && err == nil {
+			err = serr
+		}
+	}
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, p)
+}
+
+func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	to := fs.String("to", "", "the receiving address")
+	amount := fs.Uint64("amount", 0, "units to pay")
+	memo := fs.String("memo", "", "a note kept in the wallet")
+	reqFile := fs.String("request", "", "pay this payment request file instead of -to and -amount")
+	outFile := fs.String("out", "", "write the payment waiting for co-signers here")
+	var mints uintList
+	fs.Var(&mints, "mint", "pay only from this mint (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.unlocked(out)
+	if err != nil {
+		return err
+	}
+	n, err := f.node(s)
+	if err != nil {
+		return err
+	}
+	var (
+		sent *wallet.Sent
+		u    *wallet.Unsigned
+	)
+	if *reqFile != "" {
+		var r wallet.Request
+		if err := readJSON(*reqFile, &r); err != nil {
+			return err
+		}
+		sent, u, err = w.PayRequest(s, n, r)
+	} else {
+		addr, perr := hash.Parse(*to)
+		if perr != nil {
+			return fmt.Errorf("-to: %w", perr)
+		}
+		sent, u, err = w.Pay(s, n, addr, *amount, wallet.PayOptions{Memo: *memo, Mints: mints})
+	}
+	if sent != nil {
+		if serr := w.Save(); serr != nil && err == nil {
+			err = serr
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if u != nil {
+		fmt.Fprintf(out, "signatures missing (per leg, per input): %v\n", u.Missing())
+		if *outFile == "" {
+			fmt.Fprintln(out, "pass -out FILE to write the payment for co-signers")
+			return nil
+		}
+		return writeOut(out, *outFile, u)
+	}
+	return writeJSON(out, sent)
+}
+
+func walletRequest(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	amount := fs.Uint64("amount", 0, "units asked for")
+	memo := fs.String("memo", "", "what the payment is for")
+	outFile := fs.String("out", "", "write the request here (default: print it)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.unlocked(out)
+	if err != nil {
+		return err
+	}
+	r, err := w.Request(s, *amount, *memo)
+	if err != nil {
+		return err
+	}
+	if err := w.Save(); err != nil {
+		return err
+	}
+	return writeOut(out, *outFile, r)
+}
+
+func walletReceive(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	address := fs.String("address", "", "the requested address")
+	reqFile := fs.String("request", "", "the request file given out")
+	threshold := fs.String("threshold", "", "from(e) the receiver needs for settled (default 0)")
+	var serials uintList
+	var tids stringList
+	fs.Var(&serials, "serial", "mint of a transaction the payer named (pairs with -tid)")
+	fs.Var(&tids, "tid", "a transaction the payer named (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if len(serials) != len(tids) {
+		return errors.New("give one -serial per -tid")
+	}
+	th, err := parseThreshold(*threshold)
+	if err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.open()
+	if err != nil {
+		return err
+	}
+	var addr hash.Hash
+	switch {
+	case *reqFile != "":
+		var r wallet.Request
+		if err := readJSON(*reqFile, &r); err != nil {
+			return err
+		}
+		addr = r.Address
+	case *address != "":
+		if addr, err = hash.Parse(*address); err != nil {
+			return fmt.Errorf("-address: %w", err)
+		}
+	default:
+		return errors.New("name the request with -address or -request")
+	}
+	e, ok := w.Find(addr)
+	if !ok {
+		return fmt.Errorf("no request to %s in this wallet", addr.Short())
+	}
+	for i, t := range tids {
+		id, err := hash.Parse(t)
+		if err != nil {
+			return fmt.Errorf("-tid: %w", err)
+		}
+		e.Tell(wallet.TxRef{Serial: serials[i], TID: id})
+	}
+	if len(tids) > 0 {
+		if err := w.Save(); err != nil {
+			return err
+		}
+	}
+	n, err := f.node(s)
+	if err != nil {
+		return err
+	}
+	rc, err := w.Receive(s, n, e)
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, struct {
+		wallet.Receipt
+		Settled bool `json:"settled"`
+	}{rc, rc.Settled(th)})
+}
+
+// sentStatus is one row of poo wallet status.
+type sentStatus struct {
+	To      hash.Hash          `json:"to"`
+	Amount  uint64             `json:"amount"`
+	Memo    string             `json:"memo,omitempty"`
+	Claim   bool               `json:"claim,omitempty"`
+	Legs    []wallet.LegStatus `json:"legs"`
+	Settled bool               `json:"settled"`
+}
+
+func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	threshold := fs.String("threshold", "", "from(e) needed for settled (default 0)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	th, err := parseThreshold(*threshold)
+	if err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.open()
+	if err != nil {
+		return err
+	}
+	n, err := f.node(s)
+	if err != nil {
+		return err
+	}
+	rows := []sentStatus{}
+	for _, p := range w.Sent() {
+		if p.Series != s.ID() {
+			continue
+		}
+		legs, err := w.Refresh(s, n, p)
+		if err != nil {
+			return err
+		}
+		rows = append(rows, sentStatus{p.To, p.Amount, p.Memo, p.Claim, legs, wallet.Settled(legs, th)})
+	}
+	if err := w.Save(); err != nil {
+		return err
+	}
+	return writeJSON(out, rows)
+}
+
+func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.open()
+	if err != nil {
+		return err
+	}
+	n, err := f.node(s)
+	if err != nil {
+		return err
+	}
+	total := 0
+	for _, p := range w.Sent() {
+		if p.Series != s.ID() {
+			continue
+		}
+		if _, err := w.Refresh(s, n, p); err != nil {
+			return err
+		}
+		k, err := w.Resend(s, n, p)
+		total += k
+		if err != nil {
+			_ = w.Save()
+			return err
+		}
+	}
+	if err := w.Save(); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "resent %d legs\n", total)
+	return nil
+}
+
+// parsePolicyKey reads self, ALG:HEX or HEX (Ed25519).
+func parsePolicyKey(v string) (wallet.PolicyKey, error) {
+	if v == "self" {
+		return wallet.PolicyKey{}, nil
+	}
+	alg := uint32(policy.AlgEd25519)
+	if i := strings.IndexByte(v, ':'); i >= 0 {
+		a, err := strconv.ParseUint(v[:i], 10, 32)
+		if err != nil {
+			return wallet.PolicyKey{}, fmt.Errorf("-key %q: bad algorithm id", v)
+		}
+		alg, v = uint32(a), v[i+1:]
+	}
+	pub, err := hex.DecodeString(v)
+	if err != nil || len(pub) == 0 {
+		return wallet.PolicyKey{}, fmt.Errorf("-key %q: want self, ALG:HEX or HEX", v)
+	}
+	return wallet.PolicyKey{Alg: alg, Public: pub}, nil
+}
+
+func walletPolicy(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	name := fs.String("name", "", "the policy's name in this wallet")
+	k := fs.Uint("k", 1, "signatures needed")
+	label := fs.String("label", "", "what the policy is for")
+	var keys stringList
+	fs.Var(&keys, "key", "self (a fresh key of this wallet), or a co-signer's public key (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *k == 0 || *k > 0xffff {
+		return errors.New("-k out of range")
+	}
+	var pks []wallet.PolicyKey
+	for _, v := range keys {
+		pk, err := parsePolicyKey(v)
+		if err != nil {
+			return err
+		}
+		pks = append(pks, pk)
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.unlocked(out)
+	if err != nil {
+		return err
+	}
+	pi, err := w.AddPolicy(*name, uint16(*k), pks, *label)
+	if err != nil {
+		return err
+	}
+	p := pi.Params().Policy()
+	if err := wallet.CheckPolicy(s, p); err != nil {
+		return err
+	}
+	if err := w.Save(); err != nil {
+		return err
+	}
+	return writeJSON(out, map[string]any{"policy": pi, "address": s.Address(p)})
+}
+
+func walletCosign(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("usage: poo wallet cosign FILE")
+	}
+	file := fs.Arg(0)
+	var u wallet.Unsigned
+	if err := readJSON(file, &u); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.unlocked(out)
+	if err != nil {
+		return err
+	}
+	added, err := w.Cosign(s, &u)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "added %d signatures; still missing %v\n", added, u.Missing())
+	return writeOut(out, file, &u)
+}
+
+func walletSubmit(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return errors.New("usage: poo wallet submit FILE")
+	}
+	var u wallet.Unsigned
+	if err := readJSON(fs.Arg(0), &u); err != nil {
+		return err
+	}
+	s, err := f.series()
+	if err != nil {
+		return err
+	}
+	w, err := f.open()
+	if err != nil {
+		return err
+	}
+	n, err := f.node(s)
+	if err != nil {
+		return err
+	}
+	p, err := w.Submit(s, n, &u)
+	if p != nil {
+		if serr := w.Save(); serr != nil && err == nil {
+			err = serr
+		}
+	}
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, p)
+}
