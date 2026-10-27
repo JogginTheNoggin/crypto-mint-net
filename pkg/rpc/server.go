@@ -50,6 +50,10 @@ func ServeWith(ctx context.Context, n *node.Node, cfg ServeConfig, ready func(ad
 	if err != nil {
 		return err
 	}
+	view, err := LoadOrCreateViewToken(n.Dir())
+	if err != nil {
+		return err
+	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -61,6 +65,7 @@ func ServeWith(ctx context.Context, n *node.Node, cfg ServeConfig, ready func(ad
 	}
 	defer os.Remove(addrPath)
 	handler := NewHandler(n, tok)
+	handler.SetViewToken(view)
 	handler.SetHost(cfg.Host)
 	handler.SetHub(cfg.Hub)
 	handler.SetReload(cfg.Reload)
