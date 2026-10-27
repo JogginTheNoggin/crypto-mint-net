@@ -3,7 +3,7 @@
 ## Summary
 
 What the simulator ([modules/sim.md](modules/sim.md)) measured at
-milestone 7. All runs use the worked example's series: 8 mints of 100
+milestone 7, re-run in full at milestone 8 on networks of up to 128 nodes. All runs use the worked example's series: 8 mints of 100
 units, pool size 4 unless swept, minimum layer strength 0. The network
 has 16 nodes, 4 of them builders, each trying 64 nonces per pool every
 500 ms, with link delays of 20 to 200 ms. Every number can be reproduced
@@ -21,8 +21,14 @@ with the `poo sim` command beside it. The findings:
   pool.
 - Latency is what makes sibling work: about 0% of work is lost at 50 ms,
   9% at up to 1 s, and 35% at up to 3 s.
-- K = 8 kept every node in agreement after partitions. K = 1 or 2 left
-  3 of 20 networks split. This supports the default (D12).
+- Networks of 32 and 64 nodes split for up to 2 minutes all came back
+  together on the heavier side, but only once a pruning bug was fixed
+  (D79). Before the fix, a node catching up could drop each entry of the
+  heavier ledger before its work arrived, and half of a 24-node network
+  stayed on the losing side for good. The same bug was behind the splits
+  milestone 7 saw with K = 1 or 2: with it fixed, every K tried agrees.
+- Larger networks change little else: at 64 nodes the attack numbers are
+  close to those at 16, and loads of 64 and 128 nodes settle as fast.
 
 These are measurements of this model, not of a real network: see
 [Limits](#limits).
@@ -37,7 +43,9 @@ These are measurements of this model, not of a real network: see
 - Every losing-side payment that conflicted with no other payment was
   selected again after a rebuild.
 
-Before decision D72's fix, 1 run in 30 lost such a payment.
+Before decision D72's fix, 1 run in 30 lost such a payment. These numbers
+are the same, to the last payment, on the milestone 8 code: the runs are
+deterministic, and D79 changes nothing at this size.
 
 ## Attacks with a head start
 
@@ -103,17 +111,43 @@ cost, and it grows quickly once delays approach the build period (2 s).
 
 ## K under partitions
 
-`poo sim partition -runs 20 -k K`:
+`poo sim partition -runs 20 -k K`, before and after decision D79:
 
-| K | Agreed | Heavier side won | Uncontested payments lost |
-| --- | --- | --- | --- |
-| 1 | 17 / 20 | 17 / 20 | 101 |
-| 2 | 17 / 20 | 17 / 20 | 101 |
-| 8 (default) | 20 / 20 | 20 / 20 | 0 |
+| K | Agreed (M7) | Uncontested lost (M7) | Agreed (M8) | Uncontested lost (M8) |
+| --- | --- | --- | --- | --- |
+| 1 | 17 / 20 | 101 | 20 / 20 | 0 |
+| 2 | 17 / 20 | 101 | 20 / 20 | 0 |
+| 8 (default) | 20 / 20 | 0 | 20 / 20 | 0 |
 
-With a small K, a node can drop the branch it will need while the other
-side's entries arrive, and some nodes stay on the lighter ledger. This is
-the design's "agreement after drops" test. It supports the default of 8.
+Milestone 7 read the first two rows as a cost of a small K. They were a
+bug: a node catching up takes the other side's ledger one entry at a time,
+and its first entries alone were lighter than the K branches it kept, so
+each was pruned on arrival and the next had no parent. A small K made that
+likely. With the newest entry kept while it is a leaf (D79), every K
+tried agrees. This is the design's "agreement after drops" test. K stays 8
+(D74).
+
+## Larger networks
+
+Milestone 8 ran the scenarios at more nodes, with a quarter of them
+building and the attacker's share still of all work:
+
+| Run | Result |
+| --- | --- |
+| `load -nodes 64 -builders 16 -runs 10 -duration 300000` | 10 / 10 agree and conserve; 9768 of 9875 payments settled; mean wait 0.73 s; sibling share 0.004 |
+| `load -nodes 128 -builders 32 -degree 3 -runs 3 -duration 300000` | 3 / 3 agree and conserve; 2940 of 2971 settled; mean wait 0.63 s; sibling share 0.005 |
+| `partition -nodes 32 -builders 8 -runs 20 -split 60000` | 20 / 20 heavier side won and agree; 1198 carried, 0 uncontested lost |
+| `partition -nodes 32 -builders 8 -runs 10 -split 120000` | 10 / 10; 1314 carried, 0 lost |
+| `partition -nodes 64 -builders 16 -runs 10 -split 120000` | 10 / 10; 1321 carried, 0 lost |
+| `partition -nodes 64 -builders 16 -runs 5 -split 60000 -k 1` | 5 / 5; 342 carried, 0 lost |
+| `attack -nodes 64 -builders 16 -runs 20`, share 10% / 30%, threshold 10,000 | won 0.25 / 0.70 (0.27 / 0.87 at 16 nodes) |
+| the same at threshold 100,000 | won 0.20 / 0.75 (0.20 / 0.67 at 16 nodes) |
+
+Before D79, the 64-node partition did not finish in 45 minutes, and a
+24-node one split for 60 seconds never agreed. With it, each run takes
+seconds. More nodes spread the same work over more paths, so a payment
+reaches the threshold sooner at 64 nodes (2.0 s against 6.8 s for 10,000),
+which gives an attacker less time.
 
 ## Limits
 
@@ -122,10 +156,10 @@ the design's "agreement after drops" test. It supports the default of 8.
   no chasing (`pkg/p2p` has those and tests them over real connections).
 - **Builders are uniform.** Each has fixed tries per period. Real power is
   uneven.
-- **Runs are short.** They cover minutes of virtual time on one small
-  series. Numbers for a real series need its own parameters: `pkg/sim`
-  takes any series.
+- **Runs are short.** They cover minutes of virtual time, on networks of
+  at most 128 nodes, on one small series. Numbers for a real series need
+  its own parameters: `pkg/sim` takes any series.
 
-The provisional defaults of D12 and D62 are kept. The K measurement
-supports D12's. The peer management defaults (D62) are not exercised here,
+The provisional defaults of D12 and D62 are kept. Since D79, the K
+measurement no longer favours one K over another. The peer management defaults (D62) are not exercised here,
 since the simulator does not model peer ranking.

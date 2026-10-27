@@ -44,7 +44,9 @@ defaults on the evidence so far (D74). Milestone 8 hardens for release:
 inbound connections cannot take the outbound slots (D75), byte form v1 and
 wire version 1 are frozen (D76), releases build with a supported, patched
 Go toolchain (D77), and release archives are reproducible and published as
-drafts the owner approves (D78).
+drafts the owner approves (D78). Re-running the simulator at larger sizes
+found that pruning could drop a heavier ledger while it was being fetched,
+fixed by keeping the newest entry (D79).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -969,6 +971,10 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   defaults of D62 are not exercised, since the simulator does not model
   ranking. They stay provisional until a ranking model or a test network
   measures them.
+- **Revised by D79:** the splits with K = 1 or 2 were D79's pruning bug,
+  not a property of small K. With it fixed, K = 1, 2 and 8 each kept all
+  20 networks in agreement. K stays 8: the measurements no longer argue
+  for it, but nothing argues against it, and it costs little.
 - **Tier:** Node policy.
 
 ### D75. Inbound connections cannot take the outbound slots
@@ -1023,3 +1029,25 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   publishing, like the license and the repository's visibility, the
   owner's call.
 - **Tier:** Tooling.
+
+### D79. The newest entry is not pruned while it is a leaf
+
+- **Decision:** Pruning (D12) never drops the entry added last while it has
+  no children. It is ranked again, and dropped if it is still beyond the
+  limits, as soon as another entry arrives. This keeps at most one branch
+  beyond K and Ties.
+- **Why:** A node catching up takes a rival ledger one entry at a time, from
+  the fork, each followed by its layers. Its first entries alone are light,
+  and once a node had K stale siblings heavier than that (more builders, longer
+  partitions), each one was pruned the moment it arrived, before its layers
+  could count. The next entry then had no parent, and the node stayed on
+  the lighter ledger for good. The simulator found it at milestone 8: 24
+  nodes split for 60 seconds left half the network on the losing side
+  after the heal, with every node asking for the same entry forever.
+  `pkg/p2p`'s chase adds entries the same way, so real nodes had the bug
+  too. `TestRivalFetchedEntryByEntryIsKept` and
+  `TestLongPartitionLargerNetwork` pin the fix, and
+  `TestHeavierRivalBeyondKSiblings` shows it over real connections: before
+  the fix, two nodes never agreed.
+- **Tier:** Node policy (what a node keeps). Selection and validity are
+  unchanged.

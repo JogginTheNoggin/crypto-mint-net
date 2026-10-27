@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
@@ -450,4 +452,44 @@ func TestInboundCannotFillOutboundSlots(t *testing.T) {
 	}
 	a.connect(e)
 	eventually(t, "the outbound slot to be used", func() bool { return len(a.h.Peers()) == 3 })
+}
+
+// A node with K stale siblings, each heavier than a rival ledger's first
+// entry, still takes the rival when it is heavier in all: it fetches the
+// rival one entry at a time from the fork, and its first entry alone ranks
+// last (D79).
+func TestHeavierRivalBeyondKSiblings(t *testing.T) {
+	a, b := startNode(t, "a", nil), startNode(t, "b", nil)
+	last, owner := grow(t, a, nil, "alice", 2, 32)
+	copyLedger(t, a, b)
+	var fork hash.Hash
+	a.n.Engine().Ledger(exKey, func(l *ledger.Pool) { fork, _, _ = l.Tip() })
+	// K+1 siblings of distinct strengths: the strongest is selected and
+	// the other K are inactive.
+	for i := 0; i <= ledger.DefaultK; i++ {
+		spend := exKeys.Spend(4, []testutil.In{exKeys.Out(last, 0, owner)}, P(fmt.Sprintf("sib%d", i), 100))
+		e, _, err := entry.Build(exSeries, fork, []*tx.Tx{spend}, 0)
+		must(t, err)
+		_, err = a.n.HandleEntry(exKey, e, engine.Local)
+		must(t, err)
+		for n := uint64(0); ; n++ {
+			if l := (layer.Layer{Entry: e.Hash(exSeries), Nonce: n}); l.Strength(exSeries.Hash()) == 8+i {
+				_, err = a.n.HandleLayer(exKey, l, engine.Local)
+				must(t, err)
+				break
+			}
+		}
+	}
+	// The rival starts light, then grows heavy.
+	blast, bowner := growTagged(t, b, last, owner, "b", 3, 2)
+	growTagged(t, b, blast, bowner, "c", 30, 1024)
+	if !b.status().Weight.Greater(a.status().Weight) {
+		t.Fatalf("the rival should be heavier: %s against %s", b.status().Weight, a.status().Weight)
+	}
+	want := b.state()
+	a.connect(b)
+	converged(t, a, b)
+	if got := a.state(); got != want {
+		t.Fatalf("converged on %s, want the heavier %s", got, want)
+	}
 }

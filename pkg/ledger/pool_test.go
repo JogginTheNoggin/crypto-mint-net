@@ -452,13 +452,20 @@ func TestPruneKeepsTopK(t *testing.T) {
 	f.add(r2)
 	f.layers(r2.Hash(f.s), 3)
 	// A third arrives with no layers. It is the lightest branch, beyond
-	// K, so it is dropped at once.
+	// K, but the newest entry is kept until another arrives (D79).
 	r3 := f.build(f.pool.ID(), f.k.Claim(4, P("r3", 100)))
-	res := f.add(r3)
+	if res := f.add(r3); len(res.Pruned) != 0 || !f.pool.Has(r3.Hash(f.s)) {
+		t.Fatalf("the newest entry should be kept, pruned %v", res.Pruned)
+	}
+	// A fourth, on the selected tip, takes its place as the newest, and
+	// the third is dropped.
+	e2 := f.build(e1.Hash(f.s), f.k.Claim(5, P("alice", 100)))
+	res := f.add(e2)
 	if len(res.Pruned) != 1 || res.Pruned[0] != r3.Hash(f.s) || f.pool.Has(r3.Hash(f.s)) {
 		t.Fatalf("lightest branch beyond K should be dropped, pruned %v", res.Pruned)
 	}
-	if b := f.pool.Branches(); len(b) != 2 || b[0].Tip != r2.Hash(f.s) || b[1].Tip != r1.Hash(f.s) {
+	// The fourth ties with the selected ledger and is kept with the ties.
+	if b := f.pool.Branches(); len(b) != 3 || b[0].Tip != e2.Hash(f.s) || b[1].Tip != r2.Hash(f.s) || b[2].Tip != r1.Hash(f.s) {
 		t.Fatalf("branches %+v", b)
 	}
 	// Its layers are thrown out until it is held again.
@@ -508,5 +515,35 @@ func TestTransferLayers(t *testing.T) {
 	info, _ := f.pool.Info(b.Hash(f.s))
 	if info.Ledger.String() != "784" {
 		t.Fatalf("inactive branch weight %s, want 784", info.Ledger)
+	}
+}
+
+// A heavier rival fetched entry by entry, each followed by its layers, as
+// a node catching up does, must not be pruned before its layers arrive,
+// even when K inactive branches outweigh its first entry (decision D79).
+func TestRivalFetchedEntryByEntryIsKept(t *testing.T) {
+	f := newFixture(t, ledger.Config{K: 2})
+	e1 := f.build(f.pool.ID(), f.k.Claim(4, P("alice", 100)))
+	f.add(e1)
+	f.layers(e1.Hash(f.s), 10)
+	// Three siblings on e1: one selected, two inactive and heavy.
+	for i, o := range []string{"s1", "s2", "s3"} {
+		s := f.build(e1.Hash(f.s), f.k.Claim(5, P(o, 100)))
+		f.add(s)
+		f.layers(s.Hash(f.s), 2+i)
+	}
+	// The rival's first entry arrives with no credit yet: the lightest
+	// branch, beyond K.
+	r1 := f.build(f.pool.ID(), f.k.Claim(4, P("rival", 100)))
+	f.add(r1)
+	if !f.pool.Has(r1.Hash(f.s)) {
+		t.Fatal("the newest entry was pruned before its layers could arrive")
+	}
+	f.layers(r1.Hash(f.s), 11)
+	r2 := f.build(r1.Hash(f.s), f.k.Claim(5, P("rival", 100)))
+	f.add(r2)
+	f.layers(r2.Hash(f.s), 3)
+	if tip, _, _ := f.pool.Tip(); tip != r2.Hash(f.s) {
+		t.Fatalf("tip %s, want the rival's %s", tip.Short(), r2.Hash(f.s).Short())
 	}
 }

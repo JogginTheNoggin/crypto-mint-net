@@ -46,7 +46,9 @@ plus the top K other branches. It reproduces the design's worked example
   relative weights, and sorts displaced transactions into unchanged, carried
   and void by replaying them in order (decision D14).
 - **Pruning** keeps up to `Ties` branches tying the selected weight and the
-  top K others (decision D12). Unknown-parent entries are refused, not
+  top K others (decision D12), and the newest entry while it is a leaf
+  (decision D79), so a heavier branch fetched one entry at a time is not
+  dropped before its layers arrive. Unknown-parent entries are refused, not
   held; fetching the missing parent is the network layer's job.
 
 ## Tests

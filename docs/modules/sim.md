@@ -10,7 +10,9 @@ virtual, in milliseconds, and every random choice comes from one seed: the
 topology, latencies, payments and the nonces builders try. A run therefore
 repeats to the last hash, and a failure can be replayed by its seed. It
 exists to run the design's "tests to run". It found a real bug in its
-first week (a pending payment stuck after a partition, decision D72).
+first week (a pending payment stuck after a partition, decision D72), and
+another when run at larger sizes (a heavier ledger pruned while it was
+being fetched, decision D79).
 `poo sim` runs its scenarios from the command line, and
 [../simulation.md](../simulation.md) records what they measured.
 

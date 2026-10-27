@@ -144,8 +144,9 @@ hand-off), and a wallet over a remote node with TLS.
   could stay waiting forever (decision D72).
 - Fuzz targets for every decoder, run in CI (`scripts/fuzz.sh`).
 - Benchmarks for transactions, layer hashing, the ledger and the store.
-- The provisional defaults are kept; the simulator's K measurement
-  supports K = 8 (decision D74).
+- The provisional defaults are kept (decision D74). The measurement that
+  seemed to favour K = 8 turned out, at milestone 8, to be a pruning bug
+  (decision D79).
 
 Left for later: the remaining "tests to run" that need more workload
 models (uneven activity, one stockpile and several spends, spam and
@@ -166,6 +167,10 @@ Done:
 - Reproducible release builds for seven platforms, a tag workflow that
   opens a draft release, and [releasing.md](releasing.md) (D78).
 - [SECURITY.md](../SECURITY.md) and [CHANGELOG.md](../CHANGELOG.md).
+- A full re-run on the release candidate: the race-detected test suite
+  three times, every fuzz target for 2 minutes, and every simulation at
+  16 to 128 nodes. It found a bug in pruning that could keep a node on a
+  lighter ledger after a partition, now fixed (decision D79).
 
 Left, each needing the owner's explicit approval:
 

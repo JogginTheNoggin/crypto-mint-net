@@ -353,8 +353,8 @@ func TestAutomaticCompaction(t *testing.T) {
 		t.Fatalf("compacted too early: %q", log.String())
 	}
 	// Twenty rival entries on the parent of the tip are lighter than the
-	// selected ledger, so all but the top K = 8 are pruned, which makes
-	// most of the log dead.
+	// selected ledger, so all but the top K = 8 and the newest (D79) are
+	// pruned, which makes most of the log dead.
 	st, _ := n.Engine().Status(f.key)
 	var parent hash.Hash
 	n.Engine().Ledger(f.key, func(p *ledger.Pool) {
@@ -378,7 +378,7 @@ func TestAutomaticCompaction(t *testing.T) {
 	n = f.open()
 	defer n.Close()
 	got := f.snap(n)
-	before.entries += ledger.DefaultK - 1 // K branches kept; one was already held
+	before.entries += ledger.DefaultK // K branches and the newest kept; one was already held
 	if got != before {
 		t.Fatalf("got %+v\nwant %+v", got, before)
 	}

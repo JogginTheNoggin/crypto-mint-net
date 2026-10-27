@@ -7,7 +7,7 @@ an attacker can reach, what was checked, what was found and fixed, and what
 remains open. The node's attack surface is its TCP port (any peer can send
 it bytes), its address registries, and, on the owner's machine, the local
 RPC and the files in the data directory and wallet. The review found and
-fixed three things:
+fixed four things:
 
 - Inbound connections could fill every peer slot and shut out the peers
   the node chooses, an eclipse. Inbound now has its own cap (D75).
@@ -16,6 +16,10 @@ fixed three things:
   and `govulncheck` reports none (D77).
 - `staticcheck` found dead code and one test that checked the same thing
   twice. They are removed and fixed.
+- The full simulation re-run found that a node catching up after a
+  partition could prune the heavier ledger entry by entry as it arrived,
+  and stay on the lighter one for good. The newest entry is now kept while
+  it is a leaf (D79).
 
 Everything else checked held: decoders are bounded and fuzzed, amounts
 cannot overflow, signatures are strict, secrets stay in owner-only files,
@@ -104,7 +108,8 @@ second can at least be detected.
 | `staticcheck ./...` | 6 findings (dead code, a duplicated test condition, a needless guard), all fixed |
 | `govulncheck ./...` | 37 reachable standard library vulnerabilities on Go 1.24.7; none on Go 1.27.3 (D77) |
 | `go test -race ./...` | Clean |
-| Fuzzing | Every decoder, in CI on every change |
+| Fuzzing | Every decoder, in CI on every change, and 2 minutes each before release: no failures |
+| Simulation | Every scenario at 16 nodes, and load, partitions and attacks at 24 to 128 nodes: one bug found and fixed (D79) |
 
 ## Open items
 

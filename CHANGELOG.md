@@ -22,3 +22,5 @@ built.
   ([docs/security.md](docs/security.md)), a separate cap on inbound
   connections, byte form v1 and wire version 1 declared stable, a
   supported Go toolchain, and reproducible release builds.
+- **Fixed:** a node catching up a heavier ledger one entry at a time could
+  prune each entry before its work arrived and never switch (D79).
