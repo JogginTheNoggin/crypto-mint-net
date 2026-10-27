@@ -198,7 +198,7 @@ func addClient(fs *flag.FlagSet) *clientFlags {
 	return &clientFlags{w: addWhere(fs), series: fs.String("series", "", "series id (default: the only followed series)")}
 }
 
-func (c *clientFlags) dial() (*rpc.Client, error) { return rpc.Dial(c.w.resolve()) }
+func (c *clientFlags) dial(out io.Writer) (*rpc.Client, error) { return dialNode(out, c.w.resolve()) }
 
 // seriesOf returns the chosen series, as the node knows it.
 func (c *clientFlags) seriesOf(cl *rpc.Client) (*series.Series, error) {
@@ -239,7 +239,7 @@ func statusCmd(args []string, out io.Writer) error {
 	if err := o.check(); err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -275,6 +275,10 @@ func (f *seedFlags) read(out io.Writer, env bool) (string, error) {
 	}
 	switch {
 	case *f.file == "-":
+		if s, ok := out.(*stdio); ok && s.secret != nil {
+			v, err := s.secret("seed: ")
+			return strings.TrimSpace(v), err
+		}
 		line, err := inputOf(out).ReadString('\n')
 		if err != nil && (err != io.EOF || line == "") {
 			return "", errors.New("no seed on standard input")
@@ -322,7 +326,7 @@ func claimCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -366,7 +370,7 @@ func payCmd(args []string, out io.Writer) error {
 	if *amount == 0 {
 		return fmt.Errorf("-amount must be at least 1")
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -419,7 +423,7 @@ func buildCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -458,7 +462,7 @@ func workCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -505,7 +509,7 @@ func paymentCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("-tid: %w", err)
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -531,7 +535,7 @@ func holdingsCmd(args []string, out io.Writer) error {
 	if err := o.check(); err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -556,7 +560,7 @@ func peersCmd(args []string, out io.Writer) error {
 	if err := o.check(); err != nil {
 		return err
 	}
-	cl, err := rpc.Dial(w.resolve())
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
@@ -587,7 +591,7 @@ func peerCmd(args []string, out io.Writer) error {
 	if fs.NArg() != 1 {
 		return errors.New(use)
 	}
-	cl, err := rpc.Dial(w.resolve())
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
@@ -613,7 +617,7 @@ func trackingCmd(args []string, out io.Writer) error {
 	if fs.NArg() > 1 {
 		return errors.New("usage: poo tracking [ADDR]")
 	}
-	cl, err := rpc.Dial(w.resolve())
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
@@ -642,7 +646,7 @@ func chasesCmd(args []string, out io.Writer) error {
 	if err := o.check(); err != nil {
 		return err
 	}
-	cl, err := rpc.Dial(w.resolve())
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}

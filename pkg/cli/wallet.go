@@ -94,12 +94,11 @@ func (f *walletFlags) passphrase(out io.Writer, prompt string) (string, error) {
 		}
 		return strings.TrimRight(string(b), "\r\n"), nil
 	}
-	fmt.Fprint(out, prompt)
-	line, err := inputOf(out).ReadString('\n')
-	if err != nil && (err != io.EOF || line == "") {
+	p, err := readSecret(out, prompt)
+	if errors.Is(err, errNoInput) {
 		return "", errors.New("no passphrase: set POO_PASSPHRASE or use -passphrase-file")
 	}
-	return strings.TrimRight(line, "\r\n"), nil
+	return p, err
 }
 
 func (f *walletFlags) open() (*wallet.Wallet, error) { return wallet.Open(f.file()) }
@@ -142,8 +141,8 @@ func (f *walletFlags) series() (*series.Series, error) {
 }
 
 // node dials the running node as the wallet's Node.
-func (f *walletFlags) node(s *series.Series) (wallet.Node, error) {
-	cl, err := f.c.dial()
+func (f *walletFlags) node(out io.Writer, s *series.Series) (wallet.Node, error) {
+	cl, err := f.c.dial(out)
 	if err != nil {
 		return nil, err
 	}
@@ -297,9 +296,7 @@ func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	case ok:
 		p = v
 	default:
-		fmt.Fprint(out, "new passphrase: ")
-		line, _ := inputOf(out).ReadString('\n')
-		p = strings.TrimRight(line, "\r\n")
+		p, _ = readSecret(out, "new passphrase: ")
 	}
 	if p == "" {
 		return errors.New("the new passphrase must not be empty")
@@ -459,8 +456,8 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 		return err
 	}
 	dir := f.c.w.resolve()
-	if cl, err := rpc.Dial(dir); err == nil && cl.Reload() == nil {
-		waitBack(contextOf(out), dir)
+	if cl, err := dialNode(out, dir); err == nil && cl.Reload() == nil {
+		waitBack(out, dir)
 		fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applied it\n", path, id.Short(), pools)
 		return nil
 	}
@@ -480,7 +477,7 @@ func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -510,7 +507,7 @@ func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -545,7 +542,7 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -667,7 +664,7 @@ func walletReceive(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 			return err
 		}
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -708,7 +705,7 @@ func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -741,7 +738,7 @@ func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -877,7 +874,7 @@ func walletSubmit(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}

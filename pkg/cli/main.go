@@ -109,6 +109,10 @@ Node commands pick a data directory with -dir, or with -root (default
 $POO_HOME or ~/.poo) and -policy (default: the current node policy).
 Client commands take -series ID when the node follows more than one series.
 Read commands print JSON; -o table prints columns for reading (-wide: full hashes).
+
+poo -view-only COMMAND (or POO_VIEW_ONLY=1) only looks: it dials the node
+with rpc.view-token, which the node lets read and nothing else, and refuses
+every command that would change something.
 `
 
 // Stdio is where a command reads and writes. In is read for passphrases
@@ -116,6 +120,13 @@ Read commands print JSON; -o table prints columns for reading (-wide: full hashe
 type Stdio struct {
 	In       io.Reader
 	Out, Err io.Writer
+	// Secret, if set, reads a passphrase or a seed in place of In, so the
+	// caller can hide what is typed: a terminal with echo off, a GUI's
+	// masked field. prompt says what is asked for. Nil reads a line of In.
+	Secret func(prompt string) (string, error)
+	// ViewOnly runs the invocation in view-only mode (see scope.go), as
+	// $POO_VIEW_ONLY=1 or a leading -view-only argument also do.
+	ViewOnly bool
 }
 
 // Main runs the command line args (without the program name) and returns
@@ -136,7 +147,16 @@ func Run(ctx context.Context, args []string, s Stdio) error {
 	if in == nil {
 		in = strings.NewReader("")
 	}
-	return run(args, &stdio{Writer: s.Out, err: s.Err, in: bufio.NewReader(in), ctx: ctx})
+	view := s.ViewOnly || viewOnlyEnv()
+	if len(args) > 0 && (args[0] == "-view-only" || args[0] == "--view-only") {
+		view, args = true, args[1:]
+	}
+	if view {
+		if err := checkViewOnly(args); err != nil {
+			return err
+		}
+	}
+	return run(args, &stdio{Writer: s.Out, err: s.Err, in: bufio.NewReader(in), ctx: ctx, secret: s.Secret, viewOnly: view})
 }
 
 // stdio is the out of one invocation: commands write to it, and the few
@@ -152,6 +172,10 @@ type stdio struct {
 	// flag sets print nothing: poo __complete runs a command with -h to
 	// learn its flags (completion.go).
 	probe func(*flag.FlagSet)
+	// secret reads a secret (Stdio.Secret); nil reads a line of in.
+	secret func(prompt string) (string, error)
+	// viewOnly: the invocation may only look (scope.go).
+	viewOnly bool
 }
 
 // newFlagSet is the flag set of a command writing to out. Its usage and

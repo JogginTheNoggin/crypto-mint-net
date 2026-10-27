@@ -1353,3 +1353,27 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   in step. A second file means the full token never has to leave the
   owner's account.
 - **Tier:** Implementation.
+
+### D101. View-only mode, and secrets read through the caller
+
+- **Decision:** An invocation of `pkg/cli` is **view-only** when
+  `Stdio.ViewOnly` is set, when `$POO_VIEW_ONLY` is `1`, or when its
+  arguments start with `-view-only`. Then every command that talks to the
+  node dials with `rpc.view-token` (D100), and a fixed table in
+  `pkg/cli/scope.go` lets only the commands that read run: anything not
+  listed, a new command included, is refused with `view-only: poo X
+  changes things` before it runs. A test fails until every command is
+  classified. Separately, `Stdio.Secret`, when set, reads every
+  passphrase and seed in place of `In`; `cmd/poo` sets it when standard
+  input is a terminal, reading with echo off through `golang.org/x/term`
+  and prompting on standard error.
+- **Why:** The owner wants a GUI view mode that is the headless code,
+  not a second implementation: `poo-gui -view-only` only sets the
+  variable. Two layers keep it honest: the node refuses writes from the
+  view token whatever the client does, and the table stops local writes
+  (node policy, wallet file) that the node never sees. Refusing by default
+  means a forgotten command is safe. The secret callback lets the GUI
+  mask exactly the input that is a secret instead of guessing, and lets
+  the terminal hide typed passphrases, which `bufio` on standard input
+  could not. `x/term` is the Go team's, beside `x/crypto` (D83).
+- **Tier:** Implementation. Supersedes nothing; GREEN-007 part 2.

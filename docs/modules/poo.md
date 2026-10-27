@@ -70,6 +70,22 @@ Hashes are shortened to their first 8 and last 4 hex digits unless `-wide`
 is given. The table is built from the JSON, so it never shows a field the
 JSON lacks.
 
+**View-only mode.** `poo -view-only COMMAND`, or any command with
+`POO_VIEW_ONLY=1` set, only looks (D101). Commands that talk to the node
+use `rpc.view-token`, which the node lets read and nothing else, and every
+command that would change something is refused before it runs with
+`view-only: poo X changes things`. The commands that run are those of
+`readCommands` in `pkg/cli/scope.go`: the views and `watch`, `status`,
+`peers`, `tracking`, `chases`, `payment`, `holdings`, `follow` without
+flags, `doctor`, `policy list`, `wallet addresses` and `wallet balance`,
+and the offline commands (`crypto`, `keygen`, `series`, `sim`, `demo`,
+`help`, `version`, `completion`). `poo-gui -view-only` is this mode.
+
+**Secrets.** Passphrases and a seed given as `-seed-file -` are read
+through `Stdio.Secret` when the caller sets it; `poo` itself sets it when
+standard input is a terminal, so a typed passphrase is not echoed and its
+prompt goes to standard error. Piped input is read as a line, as before.
+
 `[filter]` is the shared filter ([filter.md](filter.md)): `-series`,
 `-pool`, `-serial`, `-address`, `-address-policy` (hex of a policy's byte
 form), `-tid` and `-kind` (`tx`, `entry`, `layer`, `switch`, `selected`,

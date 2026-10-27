@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -42,7 +41,7 @@ func (v *viewFlags) parse(fs *flag.FlagSet, args []string) error {
 	return err
 }
 
-func (v *viewFlags) dial() (*rpc.Client, error) { return rpc.Dial(v.w.resolve()) }
+func (v *viewFlags) dial(out io.Writer) (*rpc.Client, error) { return dialNode(out, v.w.resolve()) }
 
 // oneSeries returns the filter's series when it names exactly one, or nil
 // for the node to take the only followed series.
@@ -84,7 +83,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	} else if fs.NArg() != 0 {
 		return fmt.Errorf("poo %s takes flags only", name)
 	}
-	cl, err := v.dial()
+	cl, err := v.dial(out)
 	if err != nil {
 		return err
 	}
@@ -182,7 +181,7 @@ func watchCmd(args []string, out io.Writer) error {
 		return enc.Encode(ev)
 	}
 	for {
-		cl, err := v.dial()
+		cl, err := v.dial(out)
 		if err == nil {
 			err = cl.Watch(ctx, v.f, print)
 		}
@@ -244,7 +243,7 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 			return errors.New("poo unfollow needs -issuer or -series")
 		}
 		// No change: show what is followed.
-		if cl, err := rpc.Dial(dir); err == nil {
+		if cl, err := dialNode(out, dir); err == nil {
 			if r, err := cl.Follows(); err == nil {
 				return writeJSON(out, r)
 			}
@@ -254,6 +253,9 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 			return err
 		}
 		return writeJSON(out, rpc.FollowReply{Follow: p.Follow, Pools: []watch.Pool{}})
+	}
+	if viewOnlyOf(out) {
+		return errViewOnly(name)
 	}
 	req := rpc.FollowRequest{Remove: remove, Pools: pools, Mints: mints, NoReload: *noReload}
 	for _, x := range []struct {
@@ -270,12 +272,12 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 		}
 		*x.dst = &h
 	}
-	if cl, err := rpc.Dial(dir); err == nil {
+	if cl, err := dialNode(out, dir); err == nil {
 		r, err := cl.Follow(req)
 		if err == nil {
 			if r.Reloading {
-				waitBack(contextOf(out), dir)
-				if cl, err := rpc.Dial(dir); err == nil {
+				waitBack(out, dir)
+				if cl, err := dialNode(out, dir); err == nil {
 					if now, err := cl.Follows(); err == nil {
 						r = now
 					}
@@ -314,9 +316,10 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 
 // waitBack waits, for ten seconds at most, until the node in dir has gone
 // down for its reload and answers again.
-func waitBack(ctx context.Context, dir string) {
+func waitBack(out io.Writer, dir string) {
+	ctx := contextOf(out)
 	answers := func() bool {
-		cl, err := rpc.Dial(dir)
+		cl, err := dialNode(out, dir)
 		if err != nil {
 			return false
 		}
@@ -340,14 +343,14 @@ func reloadCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := rpc.Dial(w.resolve())
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
 	if err := cl.Reload(); err != nil {
 		return err
 	}
-	waitBack(contextOf(out), w.resolve())
+	waitBack(out, w.resolve())
 	fmt.Fprintln(out, "reloaded")
 	return nil
 }

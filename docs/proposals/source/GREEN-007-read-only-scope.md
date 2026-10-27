@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | adopted in part |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `5ea6828` |
 | Area | `pkg/rpc` (view token, prototyped), `pkg/cli` (read-only mode, proposed) |
 | Effort | small for the token, medium for the CLI mode |
-| Decided by | Grey: part 1 (rpc.view-token, GET and HEAD only) merged, decision D100; part 2 (a read-only pkg/cli mode) deferred until GUI/Grey says the GUI needs it |
+| Decided by | Grey: part 1 merged (D100); part 2 built by Grey at GUI/Grey's request (D101, pkg/cli/scope.go) |
 
 ## Summary
 
