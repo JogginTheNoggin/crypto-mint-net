@@ -126,3 +126,34 @@ details summary { cursor: pointer; color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .term-in input:focus-visible { outline: none; }
 main:focus { outline: none; }
+
+/* Next steps under errors, and empty states */
+.next-step { margin: 6px 0 0; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--bg); font-size: 13px; }
+.next-step a { color: var(--accent); font-weight: 600; }
+.hint.empty { font-style: italic; }
+
+/* Jobs filters */
+.job-tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 0 0 8px; font-size: 13px; }
+.job-tools input[type=search] { min-width: 220px; }
+.job-tools label { display: flex; gap: 4px; align-items: center; color: var(--muted); }
+.jobs .job time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 72px; }
+.jobs .job .count { color: var(--muted); font-size: 12px; }
+
+/* Narrow windows: a view menu instead of tabs that scroll out of sight */
+#nav-menu { display: none; }
+@media (max-width: 640px) {
+  #nav-menu { display: block; margin: 8px 16px; font: 14px var(--sans); padding: 6px 8px; }
+  .layout nav { display: none; }
+  .term-bar > span:first-child { display: none; }
+  .pane { padding: 12px; }
+}
+
+/* Users who ask for more contrast get firmer text and lines, in either theme */
+@media (prefers-contrast: more) {
+  :root { --muted: #44443f; --line: #8a8a82; }
+  :root[data-theme="dark"] { --muted: #c8c8c0; --line: #6a6b66; }
+  button, input, select, textarea { border-width: 2px; }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --muted: #c8c8c0; --line: #6a6b66; }
+}

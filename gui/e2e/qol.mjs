@@ -1,5 +1,6 @@
 // End-to-end check of the quality-of-life prototypes: tab completion read
-// from poo's help, the Getting started guide and the accessibility hooks.
+// from poo's help, the Getting started guide, the accessibility hooks, next
+// steps under errors, empty states, the Jobs filters and the narrow menu.
 //
 //   node gui/e2e/qol.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 //
@@ -57,6 +58,42 @@ try {
   await page.keyboard.press('Enter');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'main');
   assert.ok(!page.url().endsWith('#main'));
+
+  // An error keeps its exact text and gains a next step that links a view.
+  await page.click('nav a[data-id=pools]');
+  const status = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Followed pools' }) });
+  await status.locator('.next-step').waitFor();
+  assert.match(await status.locator('pre.err').innerText(), /^poo: rpc: is the node running\?/);
+  await status.locator('.next-step a').click();
+  await until(async () => (await page.locator('nav a[aria-current=page]').getAttribute('data-id')) === 'node', 'the Node view');
+  if (shots) await page.screenshot({ path: join(shots, 'next-step.png') });
+
+  // An empty listing says what to do instead of "No output."
+  await page.click('nav a[data-id=policies]');
+  await page.locator('.hint.empty', { hasText: 'No saved node policies yet' }).waitFor();
+
+  // Jobs: repeats of a command group into one row, and the filters narrow the list.
+  await page.click('nav a[data-id=jobs]');
+  const rows = page.locator('.jobs .job');
+  await rows.first().waitFor();
+  const statusRows = rows.filter({ has: page.locator('code', { hasText: /^poo status$/ }) });
+  await until(async () => (await statusRows.count()) === 1, 'poo status grouped into one row');
+  await page.fill('.job-tools input[type=search]', 'policy');
+  await until(async () => (await rows.count()) > 0 && (await rows.allInnerTexts()).every(t => t.includes('policy')), 'the text filter');
+  await page.fill('.job-tools input[type=search]', '');
+  await page.locator('.job-tools label', { hasText: 'Failed only' }).locator('input').check();
+  await until(async () => (await rows.allInnerTexts()).every(t => /exit [1-9]/.test(t)), 'the failed filter');
+  if (shots) await page.screenshot({ path: join(shots, 'jobs-filter.png') });
+
+  // A narrow window gets a view menu instead of scrolling tabs.
+  await page.setViewportSize({ width: 390, height: 800 });
+  assert.ok(await page.locator('#nav-menu').isVisible(), 'menu shown when narrow');
+  assert.ok(!(await page.locator('nav#nav').isVisible()), 'tabs hidden when narrow');
+  await page.selectOption('#nav-menu', 'wallet');
+  await page.locator('h1', { hasText: 'Wallet' }).waitFor();
+  if (shots) await page.screenshot({ path: join(shots, 'narrow.png') });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  assert.ok(!(await page.locator('#nav-menu').isVisible()), 'menu hidden when wide');
 
   assert.deepEqual(errors, [], 'no page errors');
   console.log('gui qol e2e: ok');

@@ -37,6 +37,15 @@ for (const v of all) {
   nav.append(a);
 }
 
+// On a narrow window the views are a menu instead of a row of tabs that
+// scrolls out of sight. Both are the same links; CSS shows one of them.
+const menu = document.createElement('select');
+menu.id = 'nav-menu';
+menu.setAttribute('aria-label', 'View');
+for (const v of all) menu.append(new Option(v.title, v.id));
+menu.addEventListener('change', () => { location.hash = `#/${menu.value}`; });
+nav.before(menu);
+
 let stopView = null;
 
 // openInTerminal shows the terminal with a command line typed and run, so
@@ -54,6 +63,7 @@ function show() {
     if (a.dataset.id === v.id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
   document.title = `${v.title} · poo GUI`;
+  menu.value = v.id;
   if (stopView) { stopView(); stopView = null; }
   const isTerm = v.id === 'terminal';
   termPane.hidden = !isTerm;
