@@ -2,7 +2,7 @@
 
 ## Summary
 
-The project moves toward an open release in eight milestones, each delivered
+The project moves toward an open release in nine milestones, each delivered
 as one or more pull requests, each stacked on the one before. Milestone 1,
 the consensus core with a transport-independent full-node engine,
 milestone 2, storage and the node daemon with a local RPC, milestone 3,
@@ -12,7 +12,9 @@ peer categories, ranking, tracking and chasing, milestone 6, the wallet,
 and milestone 7, the simulator with fuzzing and benchmarks, are done.
 Milestone 8 has its security review, stable byte form, release builds and
 changelog in place. What is left of it is the owner's: choosing a license,
-tagging the first release, and making the repository public.
+tagging the first release, and making the repository public. Milestone 9
+lets each mint choose its own hash, signature algorithms and address
+policy types from a vetted list.
 
 ## Milestones
 
@@ -26,6 +28,7 @@ tagging the first release, and making the repository public.
 | M6 | Wallet and user tools | Done |
 | M7 | Network simulator, fuzzing, benchmarks | Done |
 | M8 | Hardening and open release | In progress (owner steps left) |
+| M9 | Cryptographic choice for mints | Done |
 
 ### M1: Consensus core and full-node engine (done)
 
@@ -178,3 +181,19 @@ Left, each needing the owner's explicit approval:
 - Enabling private vulnerability reporting, which SECURITY.md points to.
 - Tagging `v0.1.0` and publishing the draft release.
 - Making the repository public.
+
+### M9: Cryptographic choice for mints (done)
+
+A series chooses from five hashes (SHA-256, SHA-512/256, SHA3-256,
+BLAKE2b-256, BLAKE3; D80), nine signature algorithms (Ed25519, ECDSA over
+P-256, P-384, P-521 and secp256k1, BIP-340 Schnorr, ML-DSA-44, -65 and -87;
+D81) and three address types (threshold, hashlock, nested k-of-policies;
+D82). Keys of every algorithm derive from a seed, wallets pick their
+algorithm at creation, and `poo crypto`, `poo keygen -alg -hash` and
+`poo series new` expose the choice. Known-answer tests, end-to-end wallet
+tests for every algorithm, and fuzz targets for every verifier and the new
+types cover it. [cryptography.md](cryptography.md) lists every option and
+those advised against (RSA, SLH-DSA, Ed448, Falcon, a lone hashlock).
+
+Left for later: timelocks, which need a clock in consensus first, and
+wallet support for spending from hashlock and k-of-policies addresses.

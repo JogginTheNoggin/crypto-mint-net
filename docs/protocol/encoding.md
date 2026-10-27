@@ -41,7 +41,7 @@ for every series whose parameters say format version 1:
 | `List<T>` | `U32` count, then each item |
 | `∥` | Concatenation |
 
-`H` is the hash named by the series (1 = SHA-256). `H(a ∥ b ∥ …)` hashes the
+`H` is the hash named by the series (1 SHA-256 to 5 BLAKE3, listed in [../cryptography.md](../cryptography.md); all have 32-byte output). `H(a ∥ b ∥ …)` hashes the
 concatenation. Tags are ASCII without a terminator. Decoders refuse trailing
 bytes and lengths or counts above the documented limits.
 
@@ -90,7 +90,35 @@ Threshold witness data:
 List<{U16 key index, Bytes signature}>    exactly K, indices strictly increasing
 ```
 
-Key algorithm 1 is Ed25519 (32-byte public keys, 64-byte signatures).
+Hashlock params (type 2):
+
+```
+U32  hash number            any hash of the hash list, not only the series'
+Hash digest                 32 bytes
+```
+
+Hashlock witness data: `Bytes(preimage)`, at most 1024 bytes, whose hash is
+the digest.
+
+K-of-policies params (type 3):
+
+```
+U16  K
+List<policy>                1 to 16 policies, no repeats, each in the policy
+                            form above, nested at most 4 deep
+```
+
+K-of-policies witness data:
+
+```
+List<{U16 policy index, Bytes data}>   exactly K, indices strictly increasing
+```
+
+Each part's data is the witness data of the policy at its index.
+
+The key algorithms (1 Ed25519 to 9 ML-DSA-87), their key and signature
+forms, and the hash list are in [../cryptography.md](../cryptography.md).
+Public keys are at most 4096 bytes and signatures 8192.
 
 ## Witnesses
 

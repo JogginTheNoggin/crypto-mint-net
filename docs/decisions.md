@@ -46,7 +46,11 @@ wire version 1 are frozen (D76), releases build with a supported, patched
 Go toolchain (D77), and release archives are reproducible and published as
 drafts the owner approves (D78). Re-running the simulator at larger sizes
 found that pruning could drop a heavier ledger while it was being fetched,
-fixed by keeping the newest entry (D79).
+fixed by keeping the newest entry (D79). Milestone 9 lets each mint
+choose its own cryptography: five hashes (D80), nine signature algorithms
+with one way to derive their keys from a seed (D81), hashlock and nested
+k-of-policies address types (D82), and the few maintained dependencies
+that needs (D83).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -57,6 +61,7 @@ entry "Superseded by Dn".
 
 - **Decision:** The node is written in Go (1.24 at first, see D77 for the
   current version) and imports nothing outside the standard library.
+  Superseded in part by D83, which allows a few cryptographic modules.
 - **Why:** Go builds a single static binary for every platform, has
   first-class concurrency and networking for later milestones, and ships
   SHA-256 and Ed25519. No third-party code means nothing to audit or pin in
@@ -1008,7 +1013,8 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 - **Decision:** `go.mod` says `go 1.26.0` (the oldest supported Go
   release) and `toolchain go1.27.3` (the newest patch), and CI and release
-  builds use the toolchain line. The security review runs `govulncheck`
+  builds use the toolchain line. Since milestone 9 it says `go 1.27.0`,
+  the first release with ML-DSA (D81). The security review runs `govulncheck`
   and `staticcheck` before each release.
 - **Why:** On Go 1.24.7, `govulncheck` reported 37 reachable standard
   library vulnerabilities (in `net/http`, `crypto/tls`, `crypto/x509` and
@@ -1051,3 +1057,78 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   the fix, two nodes never agreed.
 - **Tier:** Node policy (what a node keeps). Selection and validity are
   unchanged.
+
+### D80. Five hashes, all with 32-byte output
+
+- **Decision:** A series may name hash 1 SHA-256, 2 SHA-512/256, 3
+  SHA3-256, 4 BLAKE2b-256 or 5 BLAKE3 (32-byte output). Every hash the
+  node offers has a 32-byte output. `pkg/hash` keeps one table of number,
+  name and constructor, with a known-answer test for each.
+- **Why:** The owner asked that mints be able to pick their own. These are
+  the standard, widely reviewed 256-bit hashes of three unrelated designs
+  (SHA-2, Keccak, BLAKE), so a series can avoid any one family. Keeping
+  the output at 32 bytes leaves ids, strength (at most 256) and the byte
+  form unchanged, so no other package needs to know which hash a series
+  chose.
+- **Tier:** Consensus (a series' hash fixes all its ids). Existing series
+  are unchanged.
+
+### D81. Nine signature algorithms, keys from one seed
+
+- **Decision:** Key algorithms 2 to 9 are ECDSA over P-256, P-384 and
+  P-521 (with SHA-256, SHA-384, SHA-512), ECDSA over secp256k1
+  (SHA-256), BIP-340 Schnorr over secp256k1 (over SHA-256 of the message),
+  and ML-DSA-44, -65 and -87 (FIPS 204, empty context), beside Ed25519.
+  ECDSA keys are SEC 1 points (uncompressed for NIST curves, compressed
+  for secp256k1) and signatures r ∥ s with s in the lower half; the upper
+  half is refused. `policy.NewSigner(alg, seed)` derives any algorithm's
+  key from a 32-byte seed: Ed25519 and ML-DSA use it as their standard
+  seed, the others take the first valid scalar from HKDF-SHA512 with info
+  `"PoO-key-v1 <name> <attempt>"`. A wallet's keys all use one algorithm,
+  fixed at creation; key *i* comes from `HMAC-SHA256(seed,
+  "PoO-wallet-<name>-v1" ∥ U32 i)`, which for Ed25519 is D63's derivation
+  unchanged. Public keys are at most 4096 bytes and signatures 8192.
+- **Why:** These cover the keys holders already have: hardware tokens and
+  cloud key services (P-256), Bitcoin tooling (secp256k1), and resistance
+  to quantum computers (ML-DSA, the NIST standard). One encoding per
+  signature keeps witnesses from being re-encoded. Deriving every
+  algorithm from a seed keeps backup to one secret. Fixing one algorithm
+  per wallet keeps the wallet's gap of addresses one list. The size
+  limits fit ML-DSA-87 with room.
+- **Tier:** Consensus (verification). Wallet derivation is implementation.
+
+### D82. Hashlock and k-of-policies address types
+
+- **Decision:** Policy type 2, hashlock: params are a hash number (U32)
+  and a 32-byte digest; data is a preimage of at most 1024 bytes. Type 3,
+  k-of-policies: params are K (U16) and 1 to 16 distinct policies; data
+  is exactly K parts, each an index (strictly increasing) and that
+  policy's witness data. Nesting is at most 4 deep, counting the outermost
+  as 1. A series must allow every type and key algorithm inside, at every
+  depth. Timelocks are not added.
+- **Why:** With these a series can allow "key and preimage" (the claim side
+  of an atomic swap), "either of two keys of different algorithms" (a
+  post-quantum key beside a classical one), and groups of signers. A
+  hashlock names its own hash so it can match a lock made elsewhere. The
+  bounds keep a witness's cost proportional to its params. A timelock
+  needs a clock, and nothing in this design's consensus has one: validity
+  depends only on the transaction and the pool state, and each pool grows
+  on its own. That is a design question for later, not a policy type.
+- **Tier:** Consensus. Series that do not list the new types are
+  unaffected.
+
+### D83. A few maintained cryptographic dependencies
+
+- **Decision:** Beside the standard library, the module may import
+  `golang.org/x/crypto` (for BLAKE2b), `github.com/zeebo/blake3`,
+  `github.com/decred/dcrd/dcrec/secp256k1/v4` and
+  `github.com/btcsuite/btcd/btcec/v2` (for BIP-340), and what they
+  require. Each is pinned in `go.sum`. The project still implements no
+  primitive itself. Advised against, and not offered: RSA, SLH-DSA,
+  Ed448, Falcon, and hashes of other sizes ([cryptography.md](cryptography.md)).
+- **Why:** The standard library has no BLAKE2b, BLAKE3 or secp256k1.
+  `x/crypto` is the Go team's own. The secp256k1 packages run in
+  production in the `dcrd` and `btcd` full nodes. `zeebo/blake3` is the
+  most used Go BLAKE3. Writing any of these ourselves would be far riskier
+  than depending on them. `govulncheck` covers them at every release.
+- **Tier:** Implementation. Supersedes D1 in part.

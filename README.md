@@ -60,7 +60,7 @@ The full design lives in the project's design documents; the
 
 ## Quick start
 
-You need Go 1.26 or later (the `go` command fetches the toolchain `go.mod` names).
+You need Go 1.27 or later (the `go` command fetches the toolchain `go.mod` names).
 
 ```sh
 git clone https://github.com/JogginTheNoggin/crypto-mint-net
@@ -123,7 +123,7 @@ go build -o poo ./cmd/poo
 - [Byte formats](docs/protocol/encoding.md): exact encodings and test vectors.
 - [Wire protocol](docs/protocol/wire.md): messages between full nodes.
 - [Glossary](docs/glossary.md): the terms used throughout.
-- [Cryptography](docs/cryptography.md): the hashes and signature schemes supported, and where each is used.
+- [Cryptography](docs/cryptography.md): the hashes, signature schemes and address types a mint can choose from, the ones advised against, and where each is used.
 - [Security review](docs/security.md) and [security policy](SECURITY.md).
 - [Releasing](docs/releasing.md): how releases are built and checked.
 - [Changelog](CHANGELOG.md).

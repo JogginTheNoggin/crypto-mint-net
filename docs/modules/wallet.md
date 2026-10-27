@@ -27,6 +27,7 @@ and atomically) holds:
 
 | Field | What |
 | --- | --- |
+| `alg` | the key algorithm of every key (absent: Ed25519) |
 | `kdf`, `sealed` | the seed sealed with the passphrase |
 | `keys` | every derived key: index, public key, label, whether given out |
 | `gap` | how many unused keys to keep ahead (default 20) |
@@ -47,9 +48,16 @@ new address, and showing the seed need the passphrase.
   later). The additional data `PoO-wallet-seed-v1` binds the ciphertext to
   its purpose. A wrong passphrase fails authentication: `ErrPassphrase`.
   `Rekey` seals the same seed under a new passphrase.
-- **Derivation (decision D63).** Key *i* is the Ed25519 key whose seed is
-  HMAC-SHA256(seed, `PoO-wallet-ed25519-v1` ∥ U32(i)). Each key's address
-  is its 1-of-1 threshold policy's address in the series.
+- **Key algorithm (decision D81).** Every key of a wallet uses the
+  algorithm chosen at creation (`Options.Alg`, `poo wallet create -alg`),
+  Ed25519 by default. It cannot change later. A series must allow it, or
+  `NewAddress` refuses to give out an address there.
+- **Derivation (decisions D63, D81).** Key *i*'s 32-byte key seed is
+  HMAC-SHA256(seed, `PoO-wallet-<algorithm name>-v1` ∥ U32(i)), and
+  `policy.NewSigner` makes the key from it. For Ed25519 the label is
+  `PoO-wallet-ed25519-v1`, so wallets made before there was a choice keep
+  their keys. Each key's address is its 1-of-1 threshold policy's address
+  in the series.
 - **Gap limit.** The wallet always derives `gap` keys past the last one
   given out and watches their addresses, so a restored wallet finds
   payments to addresses it handed out before, as long as no more than
@@ -174,9 +182,13 @@ included, restores from the seed, and checks `follow`.
 
 ## Extending
 
-- **Another key algorithm.** Derive it under a new label (not
-  `PoO-wallet-ed25519-v1`) and add it to `keyIndex` and the signer lookup;
-  old wallets keep their keys.
+- **Another key algorithm.** Nothing to do here: once `policy.NewSigner`
+  knows it, wallets can be created with it. `TestEveryKeyAlgorithm` claims,
+  pays and receives with every algorithm.
+- **Spending from hashlock or k-of-policies addresses.** The wallet signs
+  threshold policies only. It accepts payments to any policy the series
+  allows (`CheckPolicy`), but holding one would need the wallet to build
+  k-of-policies witness data.
 - **Another node.** Implement `Node` (three calls) over any transport.
 - **Hardware or external signers.** `Unsigned` is the hand-off: an
   external signer adds signatures to its inputs like a co-signer.

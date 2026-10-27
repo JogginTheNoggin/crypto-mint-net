@@ -6,7 +6,7 @@ The first release: a full node for Proof of Ownership, with its wallet and
 simulator. See [docs/roadmap.md](docs/roadmap.md) for what each milestone
 built.
 
-- **Consensus core:** series, pools, threshold policies with Ed25519,
+- **Consensus core:** series, pools, threshold policies,
   transactions, entries, layers and credit, pool state, the per-pool ledger
   tree with selection, switching and top-K pruning, and the pending pool.
 - **Node:** an append-only, checksummed store replayed on start-up, node
@@ -22,5 +22,12 @@ built.
   ([docs/security.md](docs/security.md)), a separate cap on inbound
   connections, byte form v1 and wire version 1 declared stable, a
   supported Go toolchain, and reproducible release builds.
+- **Cryptographic choice:** a series can use SHA-256, SHA-512/256,
+  SHA3-256, BLAKE2b-256 or BLAKE3; allow Ed25519, ECDSA (P-256, P-384,
+  P-521, secp256k1), BIP-340 Schnorr and ML-DSA-44/65/87 keys; and allow
+  hashlock and nested k-of-policies addresses
+  ([docs/cryptography.md](docs/cryptography.md)). Wallets choose their key
+  algorithm (`poo wallet create -alg`); `poo crypto`, `poo keygen -alg
+  -hash` and `poo series new` are new. Requires Go 1.27.
 - **Fixed:** a node catching up a heavier ledger one entry at a time could
   prune each entry before its work arrived and never switch (D79).

@@ -59,10 +59,13 @@ second can at least be detected.
 - **Amounts** are summed with overflow checks (`bits.Add64`) on both the
   output and input sides of a transaction.
 - **Weights** are arbitrary precision (D10), and strength is at most 256.
-- **Signatures** use the standard library's Ed25519, which rejects
-  non-canonical signatures. Threshold witnesses need exactly K signatures
+- **Signatures** of every algorithm have one accepted encoding: Ed25519
+  and Schnorr parse strictly, and ECDSA refuses the upper-half s.
+  `FuzzVerify` gives every verifier arbitrary keys and signatures.
+  Threshold witnesses need exactly K signatures
   in strictly increasing key order, so a witness cannot repeat a key or
-  cost more than K checks. Every primitive is listed in
+  cost more than K checks. A k-of-policies witness checks each listed
+  policy at most once, nested at most 4 deep. Every primitive is listed in
   [cryptography.md](cryptography.md).
 - **Ids** do not cover witnesses, so a re-signed transaction keeps its id
   and cannot be used to make two entries look different.
@@ -127,6 +130,13 @@ second can at least be detected.
 - **Transport privacy.** Connections are plain TCP (D30). Peers see what a
   node follows and sends. Nothing secret crosses the wire, but an observer
   can link a node to its payments.
+- **Dependencies (D83).** Milestone 9 added BLAKE2b, BLAKE3 and
+  secp256k1 from four maintained modules outside the standard library.
+  They are pinned in `go.sum` and covered by `govulncheck`, which reports
+  one module-level advisory, for `x/crypto/openpgp`, a package the node
+  does not import. An external review should include how they are used.
+- **Timelocks.** The k-of-policies type can express the claim side of an
+  atomic swap but not its refund, since consensus has no clock (D82).
 - **Key derivation.** PBKDF2 is the strongest key derivation in the
   standard library (D1). A memory-hard one would resist guessing better,
   and the wallet file names its KDF, so one can be added later.
