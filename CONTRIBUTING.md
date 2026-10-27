@@ -33,6 +33,7 @@ form layers, and a package only imports packages below it:
 
 ```
 cmd/poo
+  sim
   rpc
     wallet
     p2p
@@ -84,6 +85,17 @@ consensus; otherwise it belongs to the series.
   (`pkg/ledger/property_test.go`). If you change selection or switching,
   extend it rather than only adding examples.
 - Tests must be deterministic: seed any randomness.
+- Every decoder has a fuzz target that checks it never panics and that
+  whatever it accepts re-encodes to the same bytes. A new decoder gets one.
+  `./scripts/fuzz.sh` runs them all (`FUZZTIME=1m` for longer); CI runs
+  each for 5 s. A failing input lands in the package's `testdata/fuzz`:
+  commit it with the fix.
+- Benchmarks sit next to the code (`go test -bench . ./pkg/ledger`).
+  Quote before and after numbers in a pull request that changes a hot
+  path.
+- A change to how nodes agree (selection, switching, pending
+  transactions, catch-up) should also pass `go test ./pkg/sim` and, for
+  confidence, a few hundred seeds of `poo sim partition -runs 200`.
 
 ## Style
 

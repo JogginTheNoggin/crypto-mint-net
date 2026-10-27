@@ -33,5 +33,6 @@ together. When you change a package, update its page.
 | `pkg/p2p` | [p2p.md](p2p.md) | Node (network) |
 | `pkg/rpc` | [rpc.md](rpc.md) | Node (local control) |
 | `pkg/wallet` | [wallet.md](wallet.md) | Wallet (holder's habits) |
+| `pkg/sim` | [sim.md](sim.md) | Tooling (network simulator) |
 | `pkg/vectors`, `pkg/testutil` | [vectors-and-testutil.md](vectors-and-testutil.md) | Tooling |
 | `cmd/poo` | [poo.md](poo.md) | Tooling |

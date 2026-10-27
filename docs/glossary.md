@@ -48,6 +48,8 @@ the design left open, the matching decision is linked.
 | **Leg state** | `unsigned`, `pending`, `selected`, `dropped` (not held, inputs unspent: can be resent) or `void` (another transaction spent an input) ([D66](decisions.md#d66-leg-states-dropped-and-void)). |
 | **Rival** | An entry on an inactive branch holding a transaction that spends an input of a payment. Its branch's weight after the fork is what from(e) must stay ahead of ([D67](decisions.md#d67-rivals-and-settled)). |
 | **Payment request** | What a receiver hands a payer: series, fresh address, amount, memo and the policy behind the address, so the payer can check it ([D68](decisions.md#d68-payment-requests-carry-the-policy)). |
+| **Simulator** | `pkg/sim`: real engines over a simulated network in virtual time, driven by one seed ([D71](decisions.md#d71-the-simulator-runs-real-engines-over-a-modelled-network)). |
+| **Sibling share** | The share of layer credit made on entries that end outside the selected ledger: work lost to competing entries. |
 | **Light mode** | A full node whose node policy follows only the pools of a wallet's watched mints ([D70](decisions.md#d70-light-mode-is-a-full-node-following-less)). |
 | **Peer category** | How a node treats a connection for one mint policy: **priority** (relied on: asked, forwarded to, pinged often), **backup** (kept ready), **candidate** (not yet verified, or no slot free) or **unlisted** (none of these, such as a wallet). Messages are handled in that order ([D58](decisions.md#d58-slots-replace-the-peer-count)). |
 | **Slot** | A place for a priority or backup peer of one mint policy; node policy sets how many. |

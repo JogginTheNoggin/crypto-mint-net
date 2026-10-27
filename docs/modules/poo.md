@@ -34,6 +34,7 @@ without a wallet. See
 | `poo keygen [-seed hex]` | A new Ed25519 key and its 1-of-1 address |
 | `poo series example` | The example series parameters as JSON |
 | `poo series info FILE` | Validates a series file and prints its id and pools |
+| `poo sim load\|partition\|attack\|sizing [flags]` | Runs a scenario of the network simulator and prints JSON; `-seed` and `-runs` pick the seeds, other flags shape the network and the attack ([sim.md](sim.md), [../simulation.md](../simulation.md)) |
 | `poo demo [-quiet]` | Four in-process nodes: claims, payments, a rival double spend that wins, a carried payment, and the honest ledger restored |
 
 Node and client commands choose a data directory with `-dir`, or with
@@ -76,6 +77,6 @@ stopped. Flags go before positional arguments.
 
 `main.go` dispatches through `run(args, out)` so tests can call it
 directly; `node.go` holds the daemon, client and policy commands;
-`wallet.go` holds the wallet commands; `demo.go` holds the demo. `node_test.go` runs a daemon in-process and drives
+`wallet.go` holds the wallet commands; `sim.go` the simulator command; `demo.go` holds the demo. `node_test.go` runs a daemon in-process and drives
 it only through the commands, across a restart; `TestTwoNodes` runs two
 daemons where the second lists the first as a peer.

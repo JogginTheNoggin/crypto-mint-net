@@ -16,6 +16,8 @@ after a switch take precedence and may wait on each other (decision D13).
 - `AddCarried(l, items)`: puts carried transactions back, evicting
   conflicting pending ones; dependents wait.
 - `Revalidate(l)`: after the selected ledger changes, drops what is now
-  included or invalid and promotes waiting transactions; oldest first.
+  included, then rechecks the rest oldest first until nothing changes:
+  invalid ones are dropped and waiting ones whose parents are now in the
+  ledger become pending, a whole chain in one call (decision D72).
 - `Ready` (in arrival order, ready to bundle), `Waiting`, `Remove`, `Has`,
   `Get`, `Len`.
