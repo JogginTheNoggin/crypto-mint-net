@@ -106,6 +106,12 @@ type Config struct {
 	Registries []string
 	// MaxOutbound caps connections this node dials itself.
 	MaxOutbound int
+	// AllowLocalPeers lets addresses learned from peers and registries be
+	// loopback, private, link-local or otherwise not public, and lets the
+	// connection manager dial them. Off by default, so another party cannot
+	// make the node connect into its own network (decision D96). Addresses
+	// in Peers are always dialled. Local test networks turn it on.
+	AllowLocalPeers bool
 	// MaxInbound caps connections other nodes open to this one. By
 	// default it is MaxPeers less MaxOutbound, so that inbound connections
 	// cannot take the slots the node keeps for peers it chose itself
@@ -371,6 +377,9 @@ type Host struct {
 	lastBcast map[wire.Section]time.Time
 	lastReg   time.Time
 	selfAddrs map[string]bool // addresses found to lead back to this node
+	// configured are the addresses in cfg.Peers, dialled whatever their
+	// range; read-only after New.
+	configured map[string]bool
 }
 
 // New prepares a host for n. Run starts it.
@@ -396,6 +405,8 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 
 		lastBcast: map[wire.Section]time.Time{},
 		selfAddrs: map[string]bool{},
+
+		configured: map[string]bool{},
 	}
 	if h.book == nil {
 		h.book, _ = peers.Open("", peers.Limits{})
@@ -446,6 +457,7 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 		return nil, fmt.Errorf("p2p: following %d separate pools; follow whole series instead", len(h.coverage))
 	}
 	for _, a := range cfg.Peers {
+		h.configured[a] = true
 		h.book.Add(a, h.coverage, peers.FromConfig, time.Now())
 	}
 	n.Observe(h.onKept)

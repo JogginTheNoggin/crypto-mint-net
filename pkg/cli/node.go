@@ -246,10 +246,61 @@ func statusCmd(args []string, out io.Writer) error {
 	return writeJSON(out, st)
 }
 
-func signerFrom(seedHex string) (*policy.Ed25519Signer, error) {
+// errSeedFlag refuses a seed on the command line, where other users of
+// the machine can read it in the process list and it stays in the shell's
+// history (RED-005, decision D98).
+var errSeedFlag = errors.New("-seed is not accepted: other users can read the command line; set POO_SEED or use -seed-file")
+
+// seedFlags say where a command reads a key's seed: $POO_SEED, or a file
+// (-seed-file, "-" for standard input), never the command line.
+type seedFlags struct {
+	file, flag *string
+}
+
+func addSeed(fs *flag.FlagSet, use string) *seedFlags {
+	return &seedFlags{
+		file: fs.String("seed-file", "", "file holding "+use+" in hex, - for standard input (or set POO_SEED)"),
+		flag: fs.String("seed", "", "not accepted: use POO_SEED or -seed-file"),
+	}
+}
+
+// read returns the seed in hex, or "" when none is given.
+func (f *seedFlags) read(out io.Writer, env bool) (string, error) {
+	if *f.flag != "" {
+		return "", errSeedFlag
+	}
+	switch {
+	case *f.file == "-":
+		line, err := inputOf(out).ReadString('\n')
+		if err != nil && (err != io.EOF || line == "") {
+			return "", errors.New("no seed on standard input")
+		}
+		return strings.TrimSpace(line), nil
+	case *f.file != "":
+		b, err := os.ReadFile(*f.file)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	if v, ok := os.LookupEnv("POO_SEED"); ok && env {
+		return strings.TrimSpace(v), nil
+	}
+	return "", nil
+}
+
+// signer reads the seed and returns its Ed25519 key.
+func (f *seedFlags) signer(out io.Writer) (*policy.Ed25519Signer, error) {
+	seedHex, err := f.read(out, true)
+	if err != nil {
+		return nil, err
+	}
+	if seedHex == "" {
+		return nil, errors.New("no seed: set POO_SEED or use -seed-file (see poo keygen)")
+	}
 	seed, err := hex.DecodeString(seedHex)
 	if err != nil || len(seed) != 32 {
-		return nil, fmt.Errorf("-seed must be 64 hex digits (see poo keygen)")
+		return nil, fmt.Errorf("the seed must be 64 hex digits (see poo keygen)")
 	}
 	return policy.NewEd25519Signer(seed)
 }
@@ -258,12 +309,12 @@ func signerFrom(seedHex string) (*policy.Ed25519Signer, error) {
 func claimCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("claim", flag.ContinueOnError)
 	c := addClient(fs)
-	seed := fs.String("seed", "", "the claiming key's seed in hex")
+	seed := addSeed(fs, "the claiming key's seed")
 	serial := fs.Uint64("serial", 0, "the mint's serial")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	signer, err := signerFrom(*seed)
+	signer, err := seed.signer(out)
 	if err != nil {
 		return err
 	}
@@ -293,14 +344,14 @@ func claimCmd(args []string, out io.Writer) error {
 func payCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("pay", flag.ContinueOnError)
 	c := addClient(fs)
-	seed := fs.String("seed", "", "the paying key's seed in hex")
+	seed := addSeed(fs, "the paying key's seed")
 	serial := fs.Uint64("serial", 0, "the mint's serial")
 	to := fs.String("to", "", "the receiving address")
 	amount := fs.Uint64("amount", 0, "units to pay")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	signer, err := signerFrom(*seed)
+	signer, err := seed.signer(out)
 	if err != nil {
 		return err
 	}

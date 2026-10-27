@@ -182,6 +182,11 @@ type P2P struct {
 	Registries []string `json:"registries,omitempty"`
 	// MaxOutbound caps the connections the node dials itself.
 	MaxOutbound int `json:"max_outbound,omitempty"`
+	// AllowLocalPeers lets addresses learned from peers and registries be
+	// loopback, private or otherwise not public, and dials them. Off by
+	// default (decision D96); turn it on for a network on one machine or
+	// one LAN. Addresses in Peers are always dialled.
+	AllowLocalPeers bool `json:"allow_local_peers,omitempty"`
 	// MaxInbound caps the connections other nodes open to this one; by
 	// default MaxPeers less MaxOutbound, -1 for no separate cap.
 	MaxInbound int `json:"max_inbound,omitempty"`

@@ -41,11 +41,15 @@ const (
 )
 
 // Limits on the settings a wallet file may name, so a damaged or crafted
-// file cannot make opening it take hours or exhaust memory.
+// file cannot make opening it take minutes or exhaust a modest machine's
+// memory (decisions D95, D97). Argon2id may use at most 1 GiB, and its
+// passes times its memory at most 8 GiB, so 1 GiB allows 8 passes and the
+// default 64 MiB allows 100.
 const (
-	maxIterations  = 100_000_000
+	maxIterations  = 10_000_000
 	maxArgonPasses = 100
-	maxArgonMemory = 4 << 20 // KiB, 4 GiB
+	maxArgonMemory = 1 << 20 // KiB, 1 GiB
+	maxArgonWork   = 8 << 20 // passes × KiB
 )
 
 // ErrPassphrase is returned when a passphrase does not open the seed.
@@ -102,6 +106,13 @@ func newKDF(name string, iterations int, memory uint32) (KDF, error) {
 	return k, k.check()
 }
 
+// CheckKDF reports whether o's key derivation settings are within the
+// limits a wallet may use, without deriving anything.
+func CheckKDF(o Options) error {
+	_, err := newKDF(o.KDF, o.Iterations, o.Memory)
+	return err
+}
+
 // check refuses settings that are unknown, too weak to be meant, or so
 // costly that opening the wallet would hang or exhaust memory.
 func (k KDF) check() error {
@@ -112,7 +123,8 @@ func (k KDF) check() error {
 		}
 	case KDFArgon2id:
 		if k.Iterations < 1 || k.Iterations > maxArgonPasses || k.Threads < 1 ||
-			k.Memory < 8*uint32(k.Threads) || k.Memory > maxArgonMemory {
+			k.Memory < 8*uint32(k.Threads) || k.Memory > maxArgonMemory ||
+			uint64(k.Iterations)*uint64(k.Memory) > maxArgonWork {
 			return errors.New("wallet: bad key derivation settings")
 		}
 	default:

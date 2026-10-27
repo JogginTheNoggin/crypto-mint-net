@@ -60,7 +60,9 @@ beyond the slots become candidates. Peers this node dialled win ties.
   range and `VerifiedPerRange` the priority and backup peers for one
   policy. Each
   loopback address is its own range, so local test networks are not
-  limited.
+  limited. That is safe because `pkg/p2p` keeps loopback and other
+  non-public addresses another party names out of the book unless the
+  node allows local peers (D96).
 - **Spacing**: `Pick` returns candidates oldest attempt first, one per
   range before a second from any range, and skips a candidate that failed
   until `Retry` doubled per failure has passed.

@@ -40,6 +40,7 @@ D25). Nothing here changes what is valid.
     "registries": ["https://registry.example/poo.json"],
     "max_outbound": 8,
     "max_inbound": 24,
+    "allow_local_peers": false,
     "no_relay": false,
     "hop_limit": 8,
     "request_rate": 120,
@@ -75,7 +76,10 @@ Without `advertise` the node is never offered to others as a contact. The p2p de
 no unlisted connections; `review_seconds: -1` never reviews.
 `max_inbound` defaults to `max_peers` less `max_outbound`, so inbound
 connections cannot take the outbound slots (D75); `-1` caps inbound only
-by `max_peers`. In
+by `max_peers`. `allow_local_peers` (off by default, D96) lets addresses
+learned from peers and registries be loopback, private, link-local or
+otherwise not public; turn it on only for a network on one machine or LAN.
+Addresses in `peers` are always dialled. In
 `tracking`, `escalate_at: -1` never escalates; every template name must
 be known, custom templates may not form a cycle, and groups must be
 priority, backup, candidate, unlisted, inbound or outbound (see
