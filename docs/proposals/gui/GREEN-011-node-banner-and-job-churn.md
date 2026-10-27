@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | accepted, later |
+| Status | job churn done; banner later |
 | Based on | claude/gui-5-release @ 7209952 |
 | Area | gui/web/static (app.js, views.js); maybe gui/server |
 | Effort | medium |
@@ -55,3 +55,5 @@ meantime, but does not stop the eviction.
 ## Decision
 
 Accepted. The job churn matters more now that GUI-004 caps jobs; Grey will keep panel refreshes from evicting user jobs, and add the banner, in a later GUI change.
+
+Update: the job churn part is done on claude/gui-4-watch. A panel's own runs (on opening and on its timer) are refresh jobs (`refresh` in the API, `jobs.StartRefresh`), and finished refreshes are dropped before any user job. The single "no node" banner is still to do.

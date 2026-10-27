@@ -17,8 +17,10 @@ async function post(path, body) {
 export function run(args) { return post('/api/run', { args }); }
 
 // start starts a job from args or a typed line: {id, args, command}.
-export function start(cmd) {
-  return post('/api/jobs', typeof cmd === 'string' ? { line: cmd } : { args: cmd });
+// refresh marks a view re-running a command on a timer, whose finished
+// jobs are dropped before the user's own.
+export function start(cmd, { refresh = false } = {}) {
+  return post('/api/jobs', { ...(typeof cmd === 'string' ? { line: cmd } : { args: cmd }), ...(refresh ? { refresh } : {}) });
 }
 
 export function input(id, line) { return post(`/api/jobs/${id}/input`, { line }); }

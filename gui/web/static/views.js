@@ -26,7 +26,7 @@ export function el(tag, attrs = {}, ...kids) {
 // an input field whenever the command reads input (masked unless the
 // user shows it), and the result rendered once it ends. It resolves to
 // {code, out, err}.
-export function runJob(args, area, { onStart, empty } = {}) {
+export function runJob(args, area, { onStart, empty, refresh } = {}) {
   area.textContent = '';
   const status = el('div', { class: 'run-status live' }, 'running…');
   const live = el('pre', { class: 'live-out' });
@@ -46,7 +46,7 @@ export function runJob(args, area, { onStart, empty } = {}) {
   ask.append(askLabel, askInput, showBtn, el('button', { type: 'submit', class: 'primary' }, 'Send'));
   area.append(el('div', { class: 'run-bar' }, status, stopBtn), ask, live);
   return new Promise(resolve => {
-    api.start(args).then(j => {
+    api.start(args, { refresh }).then(j => {
       if (onStart) onStart(j);
       let out = '', err = '', tail = '';
       stopBtn.onclick = () => api.cancel(j.id).catch(() => {});
@@ -132,17 +132,19 @@ export function panel(ctx, { title, about, args, refresh, empty }) {
   const sec = el('section', { class: 'panel' },
     el('div', { class: 'panel-head' }, el('h2', {}, title), btn), about ? el('p', { class: 'hint' }, about) : null, line, area);
   let busy = false;
-  const go = async () => {
+  // auto is a run the panel starts itself, on opening or on its timer: a
+  // refresh job, dropped before the user's own when the list is full.
+  const go = async (auto) => {
     if (busy) return;
     busy = true;
     const a = args();
     line.set(a);
-    await runJob(a, area, { empty });
+    await runJob(a, area, { empty, refresh: auto === true });
     busy = false;
   };
-  btn.onclick = go;
-  go();
-  let t = refresh ? setInterval(go, refresh) : null;
+  btn.onclick = () => go(false);
+  go(true);
+  let t = refresh ? setInterval(() => go(true), refresh) : null;
   return { el: sec, stop: () => t && clearInterval(t) };
 }
 

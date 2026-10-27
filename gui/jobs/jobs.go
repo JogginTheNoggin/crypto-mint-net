@@ -102,7 +102,14 @@ var ErrClosed = errors.New("jobs: runner closed")
 var ErrBusy = errors.New("jobs: too many commands running; stop one first")
 
 // Start runs args (without the program name) as a new job.
-func (r *Runner) Start(args []string) (*Job, error) {
+func (r *Runner) Start(args []string) (*Job, error) { return r.start(args, false) }
+
+// StartRefresh runs args as a refresh: a view re-running a command on a
+// timer. Finished refreshes are dropped before any other finished job, so
+// they never push the user's own commands out of the list (GREEN-011).
+func (r *Runner) StartRefresh(args []string) (*Job, error) { return r.start(args, true) }
+
+func (r *Runner) start(args []string, refresh bool) (*Job, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.ctx.Err() != nil {
@@ -117,6 +124,7 @@ func (r *Runner) Start(args []string) (*Job, error) {
 		ID:      strconv.Itoa(r.next),
 		Args:    slices.Clone(args),
 		Started: time.Now(),
+		Refresh: refresh,
 		cancel:  cancel,
 		max:     r.maxOutput,
 		changed: make(chan struct{}),
@@ -161,15 +169,18 @@ func (r *Runner) trim() {
 			total += j.outputSize()
 		}
 	}
-	for i := 0; (len(r.order) > r.maxJobs || total > r.maxTotal) && i < len(r.order); {
-		id := r.order[i]
-		if j := r.jobs[id]; j.Done() {
-			total -= j.outputSize()
-			delete(r.jobs, id)
-			r.order = slices.Delete(r.order, i, i+1)
-			continue
+	// Finished refreshes go first, then other finished jobs, oldest first.
+	for _, refreshOnly := range []bool{true, false} {
+		for i := 0; (len(r.order) > r.maxJobs || total > r.maxTotal) && i < len(r.order); {
+			id := r.order[i]
+			if j := r.jobs[id]; j.Done() && (j.Refresh || !refreshOnly) {
+				total -= j.outputSize()
+				delete(r.jobs, id)
+				r.order = slices.Delete(r.order, i, i+1)
+				continue
+			}
+			i++
 		}
-		i++
 	}
 }
 
@@ -214,6 +225,7 @@ type Job struct {
 	ID      string
 	Args    []string
 	Started time.Time
+	Refresh bool // started by StartRefresh
 
 	cancel context.CancelFunc
 	in     *input

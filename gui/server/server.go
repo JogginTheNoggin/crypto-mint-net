@@ -5,7 +5,8 @@
 //
 // API (JSON; changes are POSTs carrying the X-Poo-GUI header):
 //
-//	POST /api/jobs              {args} or {line}  start a job: {id, args, command}
+//	POST /api/jobs              {args} or {line}  start a job: {id, args, command};
+//	                            [refresh]         refresh: a view re-running it on a timer
 //	GET  /api/jobs                                the kept jobs
 //	GET  /api/jobs/{id}/events?from=N             the job's output as server-sent
 //	                                              events: chunk, dropped, state, exit
@@ -233,6 +234,9 @@ func (s *Server) post(f http.HandlerFunc) http.HandlerFunc {
 type command struct {
 	Args []string `json:"args"`
 	Line *string  `json:"line"`
+	// Refresh marks a view re-running a command on a timer; it changes
+	// only which finished jobs are dropped first (jobs.StartRefresh).
+	Refresh bool `json:"refresh"`
 }
 
 func (c command) resolve() ([]string, error) {
@@ -248,12 +252,20 @@ func (c command) resolve() ([]string, error) {
 	return c.Args, nil
 }
 
-func readCommand(r *http.Request) ([]string, error) {
+func readCommand(r *http.Request) ([]string, bool, error) {
 	var c command
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return c.resolve()
+	args, err := c.resolve()
+	return args, c.Refresh, err
+}
+
+func (s *Server) start(args []string, refresh bool) (*jobs.Job, error) {
+	if refresh {
+		return s.runner.StartRefresh(args)
+	}
+	return s.runner.Start(args)
 }
 
 type jobInfo struct {
@@ -263,11 +275,12 @@ type jobInfo struct {
 	Started time.Time `json:"started"`
 	Done    bool      `json:"done"`
 	Code    *int      `json:"code,omitempty"`
+	Refresh bool      `json:"refresh,omitempty"`
 }
 
 func info(j *jobs.Job) jobInfo {
 	st := j.Read(1 << 62)
-	ji := jobInfo{ID: j.ID, Args: j.Args, Command: shell.Quote(j.Args), Started: j.Started, Done: st.Done}
+	ji := jobInfo{ID: j.ID, Args: j.Args, Command: shell.Quote(j.Args), Started: j.Started, Done: st.Done, Refresh: j.Refresh}
 	if st.Done {
 		ji.Code = &st.Code
 	}
@@ -275,12 +288,12 @@ func info(j *jobs.Job) jobInfo {
 }
 
 func (s *Server) startJob(w http.ResponseWriter, r *http.Request) {
-	args, err := readCommand(r)
+	args, refresh, err := readCommand(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	j, err := s.runner.Start(args)
+	j, err := s.start(args, refresh)
 	if err != nil {
 		writeErr(w, http.StatusServiceUnavailable, err.Error())
 		return
@@ -335,12 +348,12 @@ func (s *Server) cancel(w http.ResponseWriter, r *http.Request) {
 // run runs a command to the end, for views that render one command's
 // output. A client that goes away cancels it.
 func (s *Server) run(w http.ResponseWriter, r *http.Request) {
-	args, err := readCommand(r)
+	args, refresh, err := readCommand(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	j, err := s.runner.Start(args)
+	j, err := s.start(args, refresh)
 	if err != nil {
 		writeErr(w, http.StatusServiceUnavailable, err.Error())
 		return

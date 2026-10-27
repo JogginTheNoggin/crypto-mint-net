@@ -240,3 +240,39 @@ func must(j *Job, err error) *Job {
 	}
 	return j
 }
+
+// TestTrimDropsRefreshesFirst checks a view's timer runs never push the
+// user's own finished commands out while finished refreshes remain.
+func TestTrimDropsRefreshesFirst(t *testing.T) {
+	r := New(context.Background(), Options{MaxJobs: 3, Main: func(ctx context.Context, args []string, s cli.Stdio) int { return 0 }})
+	defer r.Close(5 * time.Second)
+	mine, _ := r.Start([]string{"mine"})
+	wait(t, mine)
+	for range 10 {
+		j, err := r.StartRefresh([]string{"status"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		wait(t, j)
+	}
+	if _, ok := r.Get(mine.ID); !ok {
+		t.Fatal("a user's job was dropped while refreshes were kept")
+	}
+	if n := len(r.List()); n > 3 {
+		t.Fatalf("%d jobs kept", n)
+	}
+	// With only user jobs left, the oldest goes as before.
+	for range 3 {
+		j, _ := r.Start([]string{"later"})
+		wait(t, j)
+	}
+	// A finished job's trim runs just after it ends, so give it a moment.
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(time.Millisecond) {
+		if _, ok := r.Get(mine.ID); !ok {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatal("the oldest user job was kept past the limit")
+		}
+	}
+}
