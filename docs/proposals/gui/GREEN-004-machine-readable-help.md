@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | accepted, later |
 | Based on | claude/gui-5-release @ f93508e |
 | Area | pkg/cli (a new flag on help), then gui forms and completion |
 | Effort | medium |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -42,3 +42,7 @@ code and is Grey's call first.
 ## Prototype
 
 None.
+
+## Decision
+
+Accepted. It changes pkg/cli, which the headless tool shares, so it waits until the Source/Grey watch and filter commands land in pkg/cli to avoid conflicting edits. It then replaces the help-text parsing of GREEN-002.

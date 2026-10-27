@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-5-release @ f93508e |
 | Area | gui/web/static/terminal.js, new complete.js |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -49,3 +49,7 @@ runs, because Enter still goes to `cli.Main`.
 `gui/web/static/complete.js`, the Tab binding in `terminal.js`, and checks
 in `gui/e2e/qol.mjs` (a command, a wallet subcommand, an inline policy
 subcommand, and an ambiguous prefix).
+
+## Decision
+
+Adopted. Words come only from poo help run as commands, so completion cannot drift from poo. The parsing of usage text is a stopgap until GREEN-004.

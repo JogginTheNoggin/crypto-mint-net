@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | deferred |
 | Based on | claude/gui-5-release @ f93508e |
 | Area | gui/web/static (new palette.js) |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -36,3 +36,7 @@ Grey is still building views.
 ## Prototype
 
 None.
+
+## Decision
+
+Deferred. Navigation and Tab completion cover most of it today. Revisit with GREEN-004, which would give the palette its command list.

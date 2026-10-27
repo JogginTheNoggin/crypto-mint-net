@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | deferred |
 | Based on | claude/gui-5-release @ f93508e |
 | Area | gui/web/static/render.js, the G4 watch views |
 | Effort | medium |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -43,3 +43,7 @@ did not print; it must label every number with the field it came from.
 ## Prototype
 
 None yet. Green can prototype on top of G4 when it exists.
+
+## Decision
+
+Deferred to G4, which builds on the poo watch stream. Decide then.

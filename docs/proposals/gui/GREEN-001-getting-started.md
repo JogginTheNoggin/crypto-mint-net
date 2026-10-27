@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-5-release @ f93508e |
 | Area | gui/web/static (new start.js, app.js nav) |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -52,3 +52,7 @@ command changes. They only describe; the command validates.
 `gui/web/static/start.js`, the nav entry in `app.js`, the `.steps` CSS,
 and checks in `gui/e2e/qol.mjs` (a step's button runs its line in the
 terminal).
+
+## Decision
+
+Adopted as the landing view. Every step is a poo command line typed into the terminal, so it teaches the headless tool too.

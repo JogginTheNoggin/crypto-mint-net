@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-5-release @ f93508e |
 | Area | gui/web/static (index.html, app.js, terminal.js, style.css) |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -48,3 +48,7 @@ About 30 lines across four files. No behaviour changes for mouse users.
 
 On the branch, with checks in `gui/e2e/qol.mjs` (aria-current, the status
 announcement, and the skip link).
+
+## Decision
+
+Adopted as prototyped.
