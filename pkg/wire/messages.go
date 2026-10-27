@@ -29,28 +29,21 @@ func finish(r *encoding.Reader, what string) error {
 }
 
 // Hello opens a connection. Each side sends one first and nothing else
-// until it has the other's.
+// until it has the other's. It says nothing about what the sender follows:
+// a node learns that by asking (follow requests), never from a claim.
 type Hello struct {
 	// Protocol is the highest protocol version the sender speaks.
 	Protocol uint16
 	// NodeID is random per run, so a node can tell it connected to itself.
 	NodeID hash.Hash
-	// Listen is the address where the sender accepts connections, or empty.
-	Listen string
 	// Agent names the software, for logs only.
 	Agent string
-	// Coverage lists the mint policies the sender follows.
-	Coverage []Section
 }
 
 // Encode returns the body.
 func (h Hello) Encode() []byte {
-	w := encoding.NewWriter(128 + 140*len(h.Coverage))
-	w.U16(h.Protocol).Raw(h.NodeID[:]).VarBytes([]byte(h.Listen)).VarBytes([]byte(h.Agent))
-	w.Count(len(h.Coverage))
-	for _, s := range h.Coverage {
-		s.encode(w)
-	}
+	w := encoding.NewWriter(64)
+	w.U16(h.Protocol).Raw(h.NodeID[:]).VarBytes([]byte(h.Agent))
 	return w.Bytes()
 }
 
@@ -60,12 +53,7 @@ func DecodeHello(b []byte) (Hello, error) {
 	var h Hello
 	h.Protocol = r.U16()
 	r.Into(h.NodeID[:])
-	h.Listen = string(r.VarBytes(maxString))
 	h.Agent = string(r.VarBytes(maxString))
-	n := r.Count(maxCoverage, 1)
-	for i := 0; i < n && r.Err() == nil; i++ {
-		h.Coverage = append(h.Coverage, decodeSection(r))
-	}
 	return h, finish(r, "hello")
 }
 

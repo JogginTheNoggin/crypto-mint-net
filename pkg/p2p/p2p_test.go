@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -84,7 +85,9 @@ func startNode(t *testing.T, name string, edit func(*p2p.Config)) *tnode {
 		tn.events = append(tn.events, ev)
 		tn.mu.Unlock()
 	})
-	cfg := p2p.Config{Listen: "127.0.0.1:0", CheckEvery: -1, RequestTimeout: 5 * time.Second, Log: tn.log}
+	addr := freeAddr(t)
+	cfg := p2p.Config{Listen: addr, Advertise: addr, CheckEvery: -1, ManageEvery: -1, PingEvery: -1,
+		RequestTimeout: 5 * time.Second, FollowTimeout: 500 * time.Millisecond, Log: tn.log}
 	if edit != nil {
 		edit(&cfg)
 	}
@@ -112,6 +115,18 @@ func startNode(t *testing.T, name string, edit func(*p2p.Config)) *tnode {
 		}
 	})
 	return tn
+}
+
+// freeAddr returns a loopback address with a port free a moment ago, so a
+// node can advertise the address it listens on.
+func freeAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	return ln.Addr().String()
 }
 
 func (tn *tnode) stop() {

@@ -55,6 +55,11 @@ func TestStates(t *testing.T) {
 	if c := b.Count(wire.All); c[peers.Verified] != 1 || c[peers.Candidate] != 2 {
 		t.Fatalf("counts %v", c)
 	}
+	b.Unverify("10.1.0.1:1")
+	if got := b.VerifiedFor(series, false, nil); len(got) != 0 {
+		t.Fatal("unverified peer still listed")
+	}
+	must(b.Verify("10.1.0.1:1", pool1, t0))
 	b.Archive("10.1.0.1:1", pool1)
 	if got := b.VerifiedFor(series, false, nil); len(got) != 0 {
 		t.Fatal("archived peer still listed")
@@ -92,6 +97,7 @@ func TestRangeLimits(t *testing.T) {
 	}
 	for addr, want := range map[string]string{
 		"1.2.3.4:5": "v4:1.2", "[2001:db8::1]:5": "v6:20010db8", "node.example:5": "host:node.example",
+		"127.0.0.1:5": "loopback:127.0.0.1:5",
 	} {
 		if got := peers.Range(addr); got != want {
 			t.Errorf("%s: %s", addr, got)

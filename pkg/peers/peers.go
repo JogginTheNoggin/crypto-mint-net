@@ -260,7 +260,9 @@ func (b *Book) sortedLocked() []*Record {
 }
 
 // Range names the network range of an address: the /16 of an IPv4
-// address, the /32 of an IPv6 address, or the host name itself.
+// address, the /32 of an IPv6 address, or the host name itself. Each
+// loopback address is its own range, so nodes on one machine (tests, a
+// local network of nodes) are not limited.
 func Range(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -270,6 +272,8 @@ func Range(addr string) string {
 	switch {
 	case ip == nil:
 		return "host:" + host
+	case ip.IsLoopback():
+		return "loopback:" + addr
 	case ip.To4() != nil:
 		v4 := ip.To4()
 		return fmt.Sprintf("v4:%d.%d", v4[0], v4[1])
@@ -390,6 +394,23 @@ func (b *Book) Archive(addr string, ss ...wire.Section) {
 		}
 	}
 	b.dirty = true
+}
+
+// Unverify makes addr a candidate again for every policy it was verified
+// for, as when its connection closes.
+func (b *Book) Unverify(addr string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	r := b.recs[addr]
+	if r == nil {
+		return
+	}
+	for i := range r.Policies {
+		if r.Policies[i].State == Verified {
+			r.Policies[i].State = Candidate
+			b.dirty = true
+		}
+	}
 }
 
 // Delete removes addr for good, for misbehaviour, spam or memory limits.
