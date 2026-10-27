@@ -25,6 +25,8 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		HopLimit:    p.P2P.HopLimit,
 		RequestRate: p.P2P.RequestRate,
 
+		AllowLocalPeers: p.P2P.AllowLocalPeers,
+
 		UnlistedConns: p.P2P.UnlistedConns,
 		StrictReturn:  p.P2P.StrictReturn,
 		NoConfirm:     p.P2P.NoConfirm,

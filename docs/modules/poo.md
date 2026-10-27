@@ -26,8 +26,8 @@ without a wallet. See
 | `poo tracking [ADDR]` | Every tracked address's status and the blocked ranges, or one address's whole record |
 | `poo chases` | The chase queue: heavier stated weights waiting or being checked |
 | `poo status` | Every followed pool |
-| `poo claim -seed HEX -serial N` | Claims a whole mint for the key's 1-of-1 address |
-| `poo pay -seed HEX -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |
+| `poo claim -seed-file FILE -serial N` | Claims a whole mint for the key's 1-of-1 address; the seed comes from `POO_SEED` or the file (`-` for standard input), never an argument (D98) |
+| `poo pay -seed-file FILE -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |
 | `poo build -pool K [-work N]` | Builds an entry from the pending transactions, optionally adding a layer |
 | `poo work -pool K [-entry HASH] [-start S] [-tries N]` | Adds the strongest layer found (default target: the selected tip) |
 | `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it |
@@ -47,7 +47,7 @@ without a wallet. See
 | `poo help [COMMAND]` | The usage, or one command's usage lines; a mistyped command gets the nearest names ("did you mean status?") |
 | `poo version` | Prints the version |
 | `poo crypto` | Lists the hashes, key algorithms (with key and signature sizes) and policy types, with their numbers ([../cryptography.md](../cryptography.md)) |
-| `poo keygen [-alg NAME] [-hash NAME] [-seed hex]` | A new key (default Ed25519) and its 1-of-1 address under a hash (default SHA-256; `address_sha256` is kept for SHA-256) |
+| `poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE]` | A new key (default Ed25519; `-seed HEX` is kept for test vectors only, since other users can read a command line) and its 1-of-1 address under a hash (default SHA-256; `address_sha256` is kept for SHA-256) |
 | `poo series example` | The example series parameters as JSON |
 | `poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] [-supply S] [-pool-size P] [-min-layer-strength] [-min-entry-strength] [-entry-hash-credit] [-max-witness]` | Checked parameters of a new series as JSON; names or numbers, lists comma-separated |
 | `poo series info FILE` | Validates a series file and prints its id and pools |

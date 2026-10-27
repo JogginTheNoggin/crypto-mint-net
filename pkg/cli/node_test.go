@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -62,7 +64,7 @@ func TestNodeEndToEnd(t *testing.T) {
 	cli(t, &bobKey, "keygen", "-seed", bob)
 
 	var claim struct{ TID string }
-	cli(t, &claim, append([]string{"claim", "-seed", alice, "-serial", "5"}, r...)...)
+	cli(t, &claim, append([]string{"claim", "-seed-file", seedFile(t, alice), "-serial", "5"}, r...)...)
 	var built struct {
 		Hash     string
 		Switched bool
@@ -82,7 +84,7 @@ func TestNodeEndToEnd(t *testing.T) {
 	// More work on the selected tip, the default target.
 	cli(t, &worked, append([]string{"work", "-pool", "1", "-start", "4000", "-tries", "100"}, r...)...)
 	var pay struct{ TID string }
-	cli(t, &pay, append([]string{"pay", "-seed", alice, "-serial", "5", "-to", bobKey.Address, "-amount", "30"}, r...)...)
+	cli(t, &pay, append([]string{"pay", "-seed-file", seedFile(t, alice), "-serial", "5", "-to", bobKey.Address, "-amount", "30"}, r...)...)
 	var bw struct {
 		Layer struct{ Switched bool }
 	}
@@ -128,7 +130,7 @@ func TestNodeEndToEnd(t *testing.T) {
 	}
 	// Paying more than the key holds fails before anything is sent.
 	var out bytes.Buffer
-	if err := run(append([]string{"pay", "-seed", alice, "-serial", "5", "-to", bobKey.Address, "-amount", "71"}, r...), &out); err == nil {
+	if err := run(append([]string{"pay", "-seed-file", seedFile(t, alice), "-serial", "5", "-to", bobKey.Address, "-amount", "71"}, r...), &out); err == nil {
 		t.Fatal("overspend accepted")
 	}
 }
@@ -168,7 +170,7 @@ func TestPolicyCommands(t *testing.T) {
 		{"policy", "frobnicate", "-root", root, "x"},
 		{"policy", "delete", "-root", root, "nope"},
 		{"status", "-root", root},
-		{"claim", "-root", root, "-seed", "00"},
+		{"claim", "-root", root, "-seed-file", seedFile(t, "00")},
 	} {
 		if err := run(args, &out); err == nil {
 			t.Errorf("poo %v succeeded", args)
@@ -210,7 +212,7 @@ func TestTwoNodes(t *testing.T) {
 	})
 
 	alice := strings.Repeat("a1", 32)
-	cli(t, nil, append([]string{"claim", "-seed", alice, "-serial", "5"}, one...)...)
+	cli(t, nil, append([]string{"claim", "-seed-file", seedFile(t, alice), "-serial", "5"}, one...)...)
 	cli(t, nil, append([]string{"build", "-pool", "1", "-work", "4000"}, one...)...)
 	type status struct {
 		Pools []struct {
@@ -267,5 +269,56 @@ func waitFor(t *testing.T, cond func() bool) {
 			t.Fatal("timed out")
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// seedFile writes a seed in hex to a file only the owner reads, the way
+// claim and pay take it.
+func seedFile(t *testing.T, seedHex string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "seed")
+	if err := os.WriteFile(p, []byte(seedHex+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// RED-005: claim and pay never take the seed from the command line; they
+// read it from POO_SEED, a file or standard input.
+func TestSeedNotOnCommandLine(t *testing.T) {
+	seed := strings.Repeat("ab", 32)
+	var out bytes.Buffer
+	for _, cmd := range []string{"claim", "pay"} {
+		err := run([]string{cmd, "-seed", seed, "-serial", "5"}, &out)
+		if err == nil || !strings.Contains(err.Error(), "POO_SEED") {
+			t.Errorf("%s -seed: %v", cmd, err)
+		}
+		t.Setenv("POO_SEED", "")
+		if err := run([]string{cmd, "-root", t.TempDir(), "-serial", "5"}, &out); err == nil || !strings.Contains(err.Error(), "seed") {
+			t.Errorf("%s with an empty POO_SEED: %v", cmd, err)
+		}
+	}
+	// Every source gives the same key: the signer is read before the node
+	// is dialled, so a missing node shows the seed was taken.
+	f := &seedFlags{file: new(string), flag: new(string)}
+	t.Setenv("POO_SEED", seed)
+	if s, err := f.read(&out, true); err != nil || s != seed {
+		t.Fatalf("POO_SEED: %q %v", s, err)
+	}
+	*f.file = seedFile(t, seed)
+	if s, err := f.read(&out, true); err != nil || s != seed {
+		t.Fatalf("-seed-file: %q %v", s, err)
+	}
+	*f.file = "-"
+	in := &stdio{Writer: &out, in: bufio.NewReader(strings.NewReader(seed + "\n"))}
+	if s, err := f.read(in, true); err != nil || s != seed {
+		t.Fatalf("standard input: %q %v", s, err)
+	}
+	// keygen still takes -seed for test vectors, and -seed-file.
+	var a, b map[string]string
+	cli(t, &a, "keygen", "-seed", seed)
+	cli(t, &b, "keygen", "-seed-file", seedFile(t, seed))
+	if a["address"] != b["address"] || a["address"] == "" {
+		t.Fatalf("keygen: %v vs %v", a, b)
 	}
 }
