@@ -33,6 +33,13 @@ the source teams as a finding, not as a patch.
 | Blue | Implements fixes for Red's findings, with tests | Its own branch, started from the integration line |
 | Green | Explores: quality-of-life improvements, nice-to-haves and new ideas, as written proposals with an optional prototype. Grey decides whether to adopt each one | `claude/<layer>-green` (or `claude/<layer>-green-<topic>`), started from the integration line |
 
+### Rounds
+
+Red, Blue and Green work in rounds, which the owner starts. Between
+rounds only Grey works. A team finishes the work it has when a round
+ends, hands it to Grey, and does not start more until the next round.
+Grey merges what is handed over, and sends no new work to a paused team.
+
 ### The integration line
 
 The owner calls it `main`. While the milestone pull requests wait for the
