@@ -15,11 +15,11 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-004](GREEN-004-machine-readable-help.md) | `poo help -json`, so the GUI never parses usage text | medium | no | accepted, later |
 | [GREEN-005](GREEN-005-command-palette.md) | A command palette (Ctrl-K) over views and forms | small | no | deferred |
 | [GREEN-006](GREEN-006-linked-ids-and-pool-picture.md) | Linked ids and a live pool picture (after G4) | medium | no | deferred |
-| [GREEN-007](GREEN-007-error-next-steps.md) | Next steps under common errors, and helpful empty states | small | yes | proposed |
-| [GREEN-008](GREEN-008-jobs-filters.md) | Jobs view: filter, failed only, start times, grouped repeats | small | yes | proposed |
-| [GREEN-009](GREEN-009-narrow-menu.md) | A view menu instead of scrolling tabs in narrow windows | small | yes | proposed |
-| [GREEN-010](GREEN-010-high-contrast.md) | Honour the system's high contrast setting | small | yes | proposed |
-| [GREEN-011](GREEN-011-node-banner-and-job-churn.md) | One node banner instead of an error per panel; stop refresh jobs evicting user jobs | medium | no | proposed |
+| [GREEN-007](GREEN-007-error-next-steps.md) | Next steps under common errors, and helpful empty states | small | yes | adopted |
+| [GREEN-008](GREEN-008-jobs-filters.md) | Jobs view: filter, failed only, start times, grouped repeats | small | yes | adopted |
+| [GREEN-009](GREEN-009-narrow-menu.md) | A view menu instead of scrolling tabs in narrow windows | small | yes | adopted |
+| [GREEN-010](GREEN-010-high-contrast.md) | Honour the system's high contrast setting | small | yes | adopted |
+| [GREEN-011](GREEN-011-node-banner-and-job-churn.md) | One node banner instead of an error per panel; stop refresh jobs evicting user jobs | medium | no | accepted, later |
 
 ## How to try the prototypes
 

@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-5-release @ 7209952 |
 | Area | gui/web/static (new hints.js, showResult and panel in views.js) |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -53,3 +53,7 @@ no hint. Each hint is prose, so it needs to be kept true when views move.
 `.next-step` and `.hint.empty` CSS, and checks in `gui/e2e/qol.mjs` (the
 error keeps its exact text, the hint links to Node, and the empty
 policies text shows).
+
+## Decision
+
+Adopted. The command's error stays exactly as printed; the hint only links to a view. Hints match poo's error text, so a reworded error just drops its hint.

@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-5-release @ 7209952 |
 | Area | gui/web/static/style.css |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -35,3 +35,7 @@ setting in the light and dark schemes and checks the colour token.
 ## Prototype
 
 On the branch, in `style.css`.
+
+## Decision
+
+Adopted as prototyped.

@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-5-release @ 7209952 |
 | Area | gui/web/static/views.js (jobsView), style.css |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -42,3 +42,7 @@ switching grouping off.
 `jobsView` in `views.js`, the `.job-tools` CSS, and checks in
 `gui/e2e/qol.mjs` (two `poo status` runs show as one row, the text filter,
 and Failed only).
+
+## Decision
+
+Adopted as prototyped.

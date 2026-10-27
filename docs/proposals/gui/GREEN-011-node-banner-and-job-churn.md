@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | accepted, later |
 | Based on | claude/gui-5-release @ 7209952 |
 | Area | gui/web/static (app.js, views.js); maybe gui/server |
 | Effort | medium |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -51,3 +51,7 @@ printed.
 
 None. GREEN-008's "Group repeats" makes the churn easier to read in the
 meantime, but does not stop the eviction.
+
+## Decision
+
+Accepted. The job churn matters more now that GUI-004 caps jobs; Grey will keep panel refreshes from evicting user jobs, and add the banner, in a later GUI change.

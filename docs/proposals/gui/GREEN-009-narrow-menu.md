@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-5-release @ 7209952 |
 | Area | gui/web/static (app.js, style.css) |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-27 |
 
 ## Summary
 
@@ -42,3 +42,7 @@ About 15 lines. Wide windows are unchanged.
 On the branch, with checks in `gui/e2e/qol.mjs` (the menu shows and the
 tabs hide when narrow, choosing Wallet opens it, and the menu hides when
 wide again).
+
+## Decision
+
+Adopted. Cut-off placeholders are noted for a later pass.
