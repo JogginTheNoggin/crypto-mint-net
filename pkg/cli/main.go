@@ -76,8 +76,9 @@ Usage:
                               claim a whole mint for a key's address
   poo pay -seed-file FILE -serial N -to ADDR -amount A
                               pay from a key's address, change back to it
-  poo build -pool K           build an entry from the pending transactions
-  poo work -pool K [-entry HASH] [-tries N]
+  poo build -pool K | -serial N [-work N]
+                              build an entry from the pending transactions
+  poo work -pool K | -serial N [-entry HASH] [-tries N]
                               add a layer (default: on the selected tip)
   poo payment -serial N -tid HASH
                               where a transaction stands, and its weight
