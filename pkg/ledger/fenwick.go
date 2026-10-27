@@ -12,9 +12,6 @@ type fenwick struct {
 
 func newFenwick() *fenwick { return &fenwick{t: make([]weight.Weight, 1, 64)} }
 
-// len returns the number of heights held.
-func (f *fenwick) len() int { return len(f.t) - 1 }
-
 // push appends the own weight of the next height.
 func (f *fenwick) push(w weight.Weight) {
 	i := len(f.t)

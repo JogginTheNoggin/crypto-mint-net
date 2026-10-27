@@ -79,9 +79,7 @@ func (s *State) spend(in tx.Input) (tx.Portion, bool) {
 	if !ok {
 		return p, false
 	}
-	if _, own := s.unspent[in]; own {
-		delete(s.unspent, in)
-	}
+	delete(s.unspent, in)
 	if s.baseHas(in) {
 		s.removed[in] = struct{}{}
 	}
