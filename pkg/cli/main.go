@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -50,6 +51,7 @@ Usage:
                               status, or one address's record
   poo chases                  the chase queue of heavier stated weights
   poo status                  every followed pool of the running node
+  poo doctor [-json]          check the node's setup and say what to fix
   poo follow [-issuer ID | -series ID [-pool K]... [-mint N]...] [-no-reload]
                               follow more; applied by a running node at once
                               (no flags: show what is followed)
@@ -69,9 +71,9 @@ Usage:
                               live events, one JSON object per line
                               FILTER: -series -pool -serial -address
                               -address-policy -tid -kind (repeatable, comma lists)
-  poo claim -seed HEX -serial N
+  poo claim -seed-file FILE -serial N
                               claim a whole mint for a key's address
-  poo pay -seed HEX -serial N -to ADDR -amount A
+  poo pay -seed-file FILE -serial N -to ADDR -amount A
                               pay from a key's address, change back to it
   poo build -pool K           build an entry from the pending transactions
   poo work -pool K [-entry HASH] [-tries N]
@@ -87,7 +89,7 @@ Usage:
   poo version                 print the version
   poo crypto                  list the hashes, key algorithms and policy
                               types a series can choose from
-  poo keygen [-alg NAME] [-hash NAME] [-seed HEX]
+  poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE]
                               make a key (default Ed25519) and its 1-of-1
                               address under a hash (default SHA-256)
   poo series example          print the worked example's series as JSON
@@ -188,6 +190,8 @@ func run(args []string, out io.Writer) error {
 		return nodeCmd(args[1:], out)
 	case "status":
 		return statusCmd(args[1:], out)
+	case "doctor":
+		return doctorCmd(args[1:], out)
 	case "pools", "ledger", "pending", "unspent", "tx", "address":
 		return viewCmd(args[0], args[1:], out)
 	case "watch":
@@ -233,7 +237,8 @@ func run(args []string, out io.Writer) error {
 
 func keygen(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
-	seedHex := fs.String("seed", "", "32-byte seed in hex (random if empty)")
+	seedHex := fs.String("seed", "", "32-byte seed in hex, for test vectors only: other users can read the command line (random if empty)")
+	seedFile := fs.String("seed-file", "", "file holding the seed in hex, - for standard input (random if neither)")
 	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")
 	hashName := fs.String("hash", "sha256", "hash of the series the address is for")
 	if err := fs.Parse(args); err != nil {
@@ -246,6 +251,17 @@ func keygen(args []string, out io.Writer) error {
 	hid, err := parseHash(*hashName)
 	if err != nil {
 		return err
+	}
+	if *seedHex != "" && *seedFile != "" {
+		return errors.New("give -seed or -seed-file, not both")
+	}
+	if *seedFile != "" {
+		f := &seedFlags{file: seedFile, flag: new(string)}
+		s, err := f.read(out, false)
+		if err != nil {
+			return err
+		}
+		*seedHex = s
 	}
 	seed := make([]byte, policy.SeedSize)
 	if *seedHex != "" {

@@ -8,6 +8,9 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 
 | Id | Title | Severity | Status |
 | --- | --- | --- | --- |
-| [RED-001](RED-001-remote-dial-target-injection.md) | A peer can make the node dial arbitrary addresses (internal-scan / reflection) | medium | open |
-| [RED-002](RED-002-missing-chunks-amplification.md) | Missing-chunks request resends chunks without dedup or per-chunk cost | low | open |
-| [RED-003](RED-003-unverified-stated-weight-chase.md) | An unverified inbound peer can start chases and pull in honest priority peers | info | open |
+| [RED-001](RED-001-remote-dial-target-injection.md) | A peer can make the node dial arbitrary addresses (internal-scan / reflection) | medium | fixed |
+| [RED-002](RED-002-missing-chunks-amplification.md) | Missing-chunks request resends chunks without dedup or per-chunk cost | low | fixed |
+| [RED-003](RED-003-unverified-stated-weight-chase.md) | An unverified inbound peer can start chases and pull in honest priority peers | info | won't fix |
+| [RED-004](RED-004-wallet-kdf-memory-ceiling.md) | A crafted wallet file can still force a ~4 GiB allocation on open | low | fixed |
+| [RED-005](RED-005-seed-on-command-line.md) | `poo claim`/`pay`/`keygen` take the raw seed on the command line | medium | fixed |
+| [RED-006](RED-006-unbounded-build-pow-under-lock.md) | `/v1/build` runs unbounded entry proof-of-work while holding the global node lock | medium | open |

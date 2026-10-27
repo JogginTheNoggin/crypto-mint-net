@@ -61,7 +61,7 @@ func TestViewFollowAndWatch(t *testing.T) {
 
 	alice := strings.Repeat("a1", 32)
 	var claim struct{ TID string }
-	cli(t, &claim, append([]string{"claim", "-seed", alice, "-serial", "5"}, r...)...)
+	cli(t, &claim, append([]string{"claim", "-seed-file", seedFile(t, alice), "-serial", "5"}, r...)...)
 	var pend []struct{ TID string }
 	cli(t, &pend, append([]string{"pending", "-serial", "5"}, r...)...)
 	if len(pend) != 1 || pend[0].TID != claim.TID {
@@ -125,7 +125,7 @@ func TestViewFollowAndWatch(t *testing.T) {
 		t.Fatalf("follow shows %+v", fr)
 	}
 	var b bytes.Buffer
-	if err := run(append([]string{"claim", "-seed", alice, "-serial", "1"}, r...), &b); err == nil {
+	if err := run(append([]string{"claim", "-seed-file", seedFile(t, alice), "-serial", "1"}, r...), &b); err == nil {
 		t.Fatal("claim in an unfollowed pool accepted")
 	}
 	// The stream ended for the reload and came back: end, hello. Events
@@ -135,7 +135,7 @@ func TestViewFollowAndWatch(t *testing.T) {
 		t.Fatalf("around the reload: %v", got)
 	}
 	var pay struct{ TID string }
-	cli(t, &pay, append([]string{"pay", "-seed", alice, "-serial", "5", "-to", addr, "-amount", "10"}, r...)...)
+	cli(t, &pay, append([]string{"pay", "-seed-file", seedFile(t, alice), "-serial", "5", "-to", addr, "-amount", "10"}, r...)...)
 	if got = waitFor(6); got[5] != "tx "+pay.TID {
 		t.Fatalf("after the reload: %v", got)
 	}

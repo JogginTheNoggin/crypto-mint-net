@@ -44,14 +44,20 @@ Ctrl-C; it compacts its stores and exits.
 ```sh
 ./poo keygen > alice.json          # note "seed"
 ./poo keygen > bob.json            # note "address_sha256"
-./poo claim -seed ALICE_SEED -serial 5
+export POO_SEED=ALICE_SEED        # or -seed-file FILE; never on the command line
+./poo claim -serial 5
 ./poo build -pool 1 -work 100000   # an entry, then a layer that selects it
-./poo pay -seed ALICE_SEED -serial 5 -to BOB_ADDRESS -amount 30
+./poo pay -serial 5 -to BOB_ADDRESS -amount 30
 ./poo build -pool 1 -work 100000
 ./poo payment -serial 5 -tid TID_FROM_PAY
 ./poo holdings -serial 5
 ./poo status
 ```
+
+`claim` and `pay` read the key's seed from `POO_SEED` or `-seed-file`
+(`-` for standard input), never from an argument: other users of the
+machine can read a command line, and the shell keeps it in its history
+(D98). For everyday spending use `poo wallet`, which keeps the seed sealed.
 
 Mint 5 is in pool 1 (pools hold serials 0 to 3 and 4 to 7). A new entry
 has no weight until a layer lands on it, so it is held but not selected;
@@ -163,7 +169,11 @@ as a peer:
 ```
 
 `init` makes the new policy current, so give the first node's commands
-`-policy default` from now on. On connecting, the second node asks the first for its whole ledger of each
+`-policy default` from now on. A listed peer such as `127.0.0.1:8646` is
+always dialled, but a node does not take loopback or private addresses
+it hears of from other nodes (D96): for several nodes on one machine to
+find each other, set `"allow_local_peers": true` in each policy's `p2p`
+section. On connecting, the second node asks the first for its whole ledger of each
 pool. From then on, whatever either node keeps is forwarded to the other:
 claim, pay and build on the first node and `./poo status -policy second`
 shows the same tips and weights a moment later. To let the first node dial

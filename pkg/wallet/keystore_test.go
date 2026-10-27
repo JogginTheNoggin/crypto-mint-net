@@ -97,10 +97,15 @@ func TestCraftedKDFSettingsRefused(t *testing.T) {
 	salt := readKDF(t, path).Salt
 	cases := map[string]wallet.KDF{
 		"argon2 memory":     {Name: wallet.KDFArgon2id, Iterations: 1, Memory: 1 << 30, Threads: 4},
+		"argon2 4 GiB":      {Name: wallet.KDFArgon2id, Iterations: 1, Memory: 4 << 20, Threads: 4}, // RED-004
+		"argon2 1 GiB + 1":  {Name: wallet.KDFArgon2id, Iterations: 1, Memory: 1<<20 + 1, Threads: 4},
+		"argon2 work":       {Name: wallet.KDFArgon2id, Iterations: 9, Memory: 1 << 20, Threads: 4}, // RED-004: 9 passes × 1 GiB
+		"argon2 work 64M":   {Name: wallet.KDFArgon2id, Iterations: 129, Memory: 64 << 10, Threads: 4},
 		"argon2 passes":     {Name: wallet.KDFArgon2id, Iterations: 1 << 30, Memory: 32, Threads: 4},
 		"argon2 no threads": {Name: wallet.KDFArgon2id, Iterations: 1, Memory: 32},
 		"argon2 low memory": {Name: wallet.KDFArgon2id, Iterations: 1, Memory: 8, Threads: 4},
 		"pbkdf2 iterations": {Name: wallet.KDFPBKDF2, Iterations: 1 << 40},
+		"pbkdf2 10M + 1":    {Name: wallet.KDFPBKDF2, Iterations: 10_000_001},
 		"pbkdf2 zero":       {Name: wallet.KDFPBKDF2},
 		"pbkdf2 memory":     {Name: wallet.KDFPBKDF2, Iterations: 1, Memory: 32},
 		"unknown":           {Name: "md5", Iterations: 1},
@@ -124,6 +129,29 @@ func TestCraftedKDFSettingsRefused(t *testing.T) {
 		}
 		if d := time.Since(start); d > time.Second {
 			t.Errorf("%s: took %v", name, d)
+		}
+	}
+}
+
+// RED-004: the most a file may ask is still accepted at the limits, and
+// the defaults sit well inside them. Settings are checked without
+// deriving, so this test costs nothing.
+func TestKDFLimits(t *testing.T) {
+	for _, o := range []wallet.Options{
+		{}, {KDF: wallet.KDFPBKDF2},
+		{Iterations: 8, Memory: 1 << 20}, {Iterations: 100, Memory: 64 << 10},
+		{KDF: wallet.KDFPBKDF2, Iterations: 10_000_000},
+	} {
+		if err := wallet.CheckKDF(o); err != nil {
+			t.Errorf("%+v refused: %v", o, err)
+		}
+	}
+	for _, o := range []wallet.Options{
+		{Iterations: 9, Memory: 1 << 20}, {Memory: 1<<20 + 1}, {Iterations: 101},
+		{KDF: wallet.KDFPBKDF2, Iterations: 10_000_001},
+	} {
+		if err := wallet.CheckKDF(o); err == nil {
+			t.Errorf("%+v accepted", o)
 		}
 	}
 }

@@ -6,7 +6,7 @@
 | Based on | `claude/m10-watch` @ `4692b4e` |
 | Area | `pkg/cli` (new command), reads `pkg/nodepolicy` and `pkg/rpc` |
 | Effort | medium |
-| Decided by | Grey: build it next; read-only and local only, as proposed |
+| Decided by | Grey: merged as prototyped in 70718f2 |
 
 ## Summary
 
@@ -51,4 +51,18 @@ machine.
 
 ## Prototype
 
-None yet.
+On `claude/source-green`, based on `claude/m10-watch` @ `454cd3d`:
+`pkg/cli/doctor.go`, `pkg/cli/doctor_test.go`, the `doctor` case and usage line
+in `pkg/cli/main.go`, and a row in `docs/modules/poo.md`.
+
+Checks, in order: `policy` (loads and validates), `files` (data directory
+and `rpc.token` not readable by others; skipped on Windows), `series`
+(every listed series accepted), `rpc` (the node answers with the token; a
+missing `rpc.addr` is a warning, a leftover one that nothing answers is a
+failure), and `p2p` (the reported listen address accepts on loopback, and
+the node has peers or a way to find them). A check is skipped when one it
+depends on did not pass. `-json` prints a `DoctorReport` for the GUI. The
+command exits 1 only when a check fails, so a stopped node is a warning.
+
+It never writes, never takes the data directory's lock (so it cannot stop
+a node from starting), and dials only the node's own addresses.

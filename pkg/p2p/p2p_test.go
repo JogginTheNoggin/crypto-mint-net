@@ -88,7 +88,8 @@ func startNode(t *testing.T, name string, edit func(*p2p.Config)) *tnode {
 		tn.mu.Unlock()
 	})
 	addr := freeAddr(t)
-	cfg := p2p.Config{Listen: addr, Advertise: addr, CheckEvery: -1, ManageEvery: -1, PingEvery: -1,
+	// Every test node is on loopback, so peers must be allowed to name it.
+	cfg := p2p.Config{Listen: addr, Advertise: addr, AllowLocalPeers: true, CheckEvery: -1, ManageEvery: -1, PingEvery: -1,
 		RequestTimeout: 5 * time.Second, FollowTimeout: 500 * time.Millisecond, Log: tn.log}
 	if edit != nil {
 		edit(&cfg)

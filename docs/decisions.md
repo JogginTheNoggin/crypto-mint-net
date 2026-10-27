@@ -1321,3 +1321,62 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   machines and takes a fraction of a second to unlock. This closes the
   "Key derivation" open item of the M8 security review.
 - **Tier:** Wallet. Amends D64 for new wallets.
+
+### D96. Addresses learned from others must be public
+
+- **Decision:** An address another node gives (a follow request's or
+  reply's contact, a peer list entry) or a registry lists goes into the
+  peer book only if it is a host name or a public unicast IP: not
+  loopback, unspecified, private (RFC 1918, fc00::/7), link-local,
+  multicast, shared (100.64/10), documentation, benchmarking, 0/8, 240/4
+  or broadcast. When the connection manager dials a book candidate, the
+  dialer checks the resolved IP of each attempt the same way before
+  connecting, so a host name resolving to a local address, or a record
+  from an older peer file, is refused too. Addresses in the policy's
+  `peers` and `Host.Connect` from the owner are not checked. Policy
+  `p2p.allow_local_peers` (off by default) turns the checks off, for
+  networks on one machine or one LAN; the `pkg/p2p` tests turn it on.
+  `peers.Range` still gives each loopback address its own range.
+- **Why:** Red finding RED-001: any peer that had only sent a hello could
+  name an address in a follow request, and the node would later connect
+  to it, letting a remote party probe the node's own machine and network
+  (`127.0.0.1:N`, `169.254.169.254`, RFC 1918 hosts) through it. Checking
+  the resolved address at dial time closes the DNS route as well as the
+  literal one. The per-address loopback range (D45) assumed loopback
+  could not be an outside attacker's; with this check that holds again,
+  and collapsing it would cap local test networks for no gain. Asking a
+  second peer to corroborate a contact was not added: a public address
+  one peer names is an ordinary candidate, verified when dialled, and
+  dialling is paced by the manager.
+- **Tier:** Node policy.
+
+### D97. Tighter limits on a wallet file's key derivation
+
+- **Decision:** A wallet file's Argon2id settings may name at most 1 GiB
+  of memory and at most 8 GiB in passes times memory (so 8 passes at
+  1 GiB, or 100 at the default 64 MiB); PBKDF2 at most 10,000,000
+  iterations. `wallet.CheckKDF` checks settings without deriving. This
+  replaces the 4 GiB and 100,000,000 limits of D95.
+- **Why:** Red finding RED-004: with D95's limits a crafted or imported
+  wallet file could still make opening it allocate 4 GiB, or run 100
+  passes over it, before the passphrase is checked, which can exhaust a
+  modest node host. The defaults (192 MiB-passes) sit far inside the new
+  limits, and so does any setting a person would choose on purpose.
+- **Tier:** Wallet. Amends D95.
+
+### D98. A seed is never a command-line argument
+
+- **Decision:** `poo claim` and `poo pay` read the key's seed from
+  `POO_SEED` or `-seed-file FILE` (`-` for standard input). `-seed` is
+  refused with an error that names the alternatives. `poo keygen` takes
+  `-seed-file` too and keeps `-seed HEX` for reproducible test vectors,
+  documented as visible to other users; with neither it makes a random
+  seed, and it does not read `POO_SEED`, so an exported seed is never
+  reused for a new key by accident.
+- **Why:** Red finding RED-005: a seed in an argument is readable by every
+  user of the machine through the process list and `/proc/<pid>/cmdline`,
+  and stays in the shell's history and the GUI terminal's. `poo wallet`
+  already reads its passphrase this way. `keygen -seed` stays because the
+  GUI's tests and the design's vectors use fixed seeds, and a seed made
+  for a vector holds nothing.
+- **Tier:** Implementation.
