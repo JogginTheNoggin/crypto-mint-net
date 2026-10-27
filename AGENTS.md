@@ -46,12 +46,15 @@ previous one is finished:
 | C | Blue | Fixes Red's findings on its branch | Grey, for the next round's Part A |
 
 The team working a part decides when that part is finished. When it is,
-it stops making edits and says so. Teams outside the current part do not
-edit until the round reaches them again. The owner starts every round
-and every part after the first: when a part is done, report it (for
-example "Source Round 2 Part A done") and wait. The owner may stop the
-cycle at a part, which means not starting the next one; only an explicit
-"interrupt" or "stop now" interrupts work in progress.
+it stops making edits and reports it (for example "Source Round 2 Part
+A done"). Teams outside the current part do not edit until the round
+reaches them again. Within a round the parts follow on by themselves:
+once a part is reported done, the coordinator starts the next one. Only
+a new round waits for the owner, who is told when each round is complete
+and decides when the next one starts, for Source and GUI separately. The
+owner may also "stop at" a part, which means that part is not started
+until the owner says so; only an explicit "interrupt" or "stop now"
+interrupts work in progress.
 
 ### The integration line
 
