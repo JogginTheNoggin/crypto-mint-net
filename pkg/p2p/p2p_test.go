@@ -434,3 +434,20 @@ func TestFromPolicy(t *testing.T) {
 		t.Fatalf("%+v", c)
 	}
 }
+
+// Inbound connections cannot take the slots kept for peers the node dials
+// itself (decision D75).
+func TestInboundCannotFillOutboundSlots(t *testing.T) {
+	a := startNode(t, "a", func(c *p2p.Config) { c.MaxPeers = 3; c.MaxOutbound = 1 })
+	b, c, d, e := startNode(t, "b", nil), startNode(t, "c", nil), startNode(t, "d", nil), startNode(t, "e", nil)
+	b.connect(a)
+	c.connect(a)
+	eventually(t, "two inbound peers", func() bool { return len(a.h.Peers()) == 2 })
+	d.h.Connect(a.h.Addr())
+	time.Sleep(100 * time.Millisecond)
+	if n := len(a.h.Peers()); n != 2 {
+		t.Fatalf("a third inbound connection was kept: %d peers", n)
+	}
+	a.connect(e)
+	eventually(t, "the outbound slot to be used", func() bool { return len(a.h.Peers()) == 3 })
+}

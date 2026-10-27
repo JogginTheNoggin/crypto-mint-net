@@ -182,6 +182,9 @@ type P2P struct {
 	Registries []string `json:"registries,omitempty"`
 	// MaxOutbound caps the connections the node dials itself.
 	MaxOutbound int `json:"max_outbound,omitempty"`
+	// MaxInbound caps the connections other nodes open to this one; by
+	// default MaxPeers less MaxOutbound, -1 for no separate cap.
+	MaxInbound int `json:"max_inbound,omitempty"`
 	// NoRelay stops the node relaying other nodes' broadcast follow
 	// requests; HopLimit is the hop count at which it stops relaying.
 	NoRelay  bool `json:"no_relay,omitempty"`
@@ -298,7 +301,7 @@ func (p Policy) Validate() error {
 		}
 	}
 	if p.P2P.MaxPeers < 0 || p.P2P.CheckSeconds < -1 || p.P2P.PingSeconds < -1 || p.P2P.ReviewSeconds < -1 ||
-		p.P2P.MaxOutbound < 0 || p.P2P.HopLimit < 0 || p.P2P.RequestRate < 0 || p.P2P.PrioritySlots < 0 ||
+		p.P2P.MaxOutbound < 0 || p.P2P.MaxInbound < -1 || p.P2P.HopLimit < 0 || p.P2P.RequestRate < 0 || p.P2P.PrioritySlots < 0 ||
 		p.P2P.BackupSlots < 0 || p.P2P.Margin < 0 || p.P2P.UnlistedConns < -1 || p.P2P.DepthLimit < 0 {
 		return fmt.Errorf("%w: p2p limits must not be negative", ErrInvalid)
 	}

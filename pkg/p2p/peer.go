@@ -415,7 +415,7 @@ func (h *Host) handshake(c net.Conn, outbound bool, addr string) (*peer, error) 
 		} else {
 			return nil, errDuplicate
 		}
-	} else if len(h.peers) >= h.cfg.MaxPeers {
+	} else if h.fullLocked(p.outbound) {
 		return nil, errTooMany
 	}
 	h.peers[p.id] = p
