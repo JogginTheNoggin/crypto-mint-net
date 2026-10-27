@@ -705,6 +705,11 @@ func (h *Host) manage(ctx context.Context) {
 	if ctx == nil || ctx.Err() != nil {
 		return
 	}
+	defer func() {
+		if err := h.book.Save(); err != nil {
+			h.logf("saving the peer book: %v", err)
+		}
+	}()
 	now := time.Now()
 	for _, s := range h.coverage {
 		have := h.peersFor(s, "")

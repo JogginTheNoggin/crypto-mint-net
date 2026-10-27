@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -193,7 +194,15 @@ func TestTwoNodes(t *testing.T) {
 		t.Fatalf("peers of one: %+v", peers)
 	}
 	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "off", "-peer", peers.Listen}, two...)...)
-	defer startNode(t, root+"/policies/two")()
+	stopTwo := startNode(t, root+"/policies/two")
+	defer func() {
+		stopTwo()
+		// The peer book is saved with the node.
+		b, err := os.ReadFile(root + "/policies/two/peers.json")
+		if err != nil || !strings.Contains(string(b), peers.Listen) {
+			t.Errorf("peer book: %v\n%s", err, b)
+		}
+	}()
 	firstID := peers.NodeID
 	waitFor(t, func() bool {
 		cli(t, &peers, append([]string{"peers"}, two...)...)

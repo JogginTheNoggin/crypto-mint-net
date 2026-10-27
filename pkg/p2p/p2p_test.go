@@ -413,4 +413,8 @@ func TestFromPolicy(t *testing.T) {
 	if c := p2p.FromPolicy(pol); c.CheckEvery != 5*time.Second {
 		t.Fatal(c.CheckEvery)
 	}
+	pol.P2P.Registries, pol.P2P.NoRelay, pol.P2P.HopLimit, pol.P2P.PingSeconds = []string{"r"}, true, 3, -1
+	if c := p2p.FromPolicy(pol); len(c.Registries) != 1 || !c.NoRelay || c.HopLimit != 3 || c.PingEvery >= 0 {
+		t.Fatalf("%+v", c)
+	}
 }

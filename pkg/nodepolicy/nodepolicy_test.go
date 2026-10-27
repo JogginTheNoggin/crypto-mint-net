@@ -47,6 +47,12 @@ func TestValidate(t *testing.T) {
 		{"p2p negative", func(p *nodepolicy.Policy) { p.P2P.MaxPeers = -1 }, false},
 		{"p2p never check", func(p *nodepolicy.Policy) { p.P2P.CheckSeconds = -1 }, true},
 		{"p2p check too low", func(p *nodepolicy.Policy) { p.P2P.CheckSeconds = -2 }, false},
+		{"p2p registries", func(p *nodepolicy.Policy) { p.P2P.Registries = []string{"https://example.org/reg.json"} }, true},
+		{"p2p empty registry", func(p *nodepolicy.Policy) { p.P2P.Registries = []string{" "} }, false},
+		{"p2p negative hops", func(p *nodepolicy.Policy) { p.P2P.HopLimit = -1 }, false},
+		{"p2p advertise", func(p *nodepolicy.Policy) { p.P2P.Advertise = "node.example:8646" }, true},
+		{"p2p bad advertise", func(p *nodepolicy.Policy) { p.P2P.Advertise = "node.example" }, false},
+		{"p2p ping never", func(p *nodepolicy.Policy) { p.P2P.PingSeconds = -1 }, true},
 	}
 	for _, c := range cases {
 		p := nodepolicy.Default()
