@@ -26,8 +26,9 @@ a byte form without updating the test vectors on purpose.
 - Do not import anything outside the Go standard library without recording
   the reason in `docs/decisions.md`.
 - Do not add network, disk or clock access to `tx`, `entry`, `layer`,
-  `state`, `ledger` or `engine`. Disk belongs to `store` and `node`; the
-  network belongs to `wire` and `p2p`.
+  `state`, `ledger` or `engine`. Disk belongs to `store`, `node` and
+  `peers` (its book file); the network belongs to `wire`, `registry` and
+  `p2p`.
   Consensus reads no clock; the ledger records first-seen times only
   through an injected clock that selection never reads.
 - `go test ./pkg/vectors` failing means you changed an encoding or a hash.
@@ -57,6 +58,7 @@ a byte form without updating the test vectors on purpose.
 | A local control endpoint | `pkg/rpc` (handler, client method, test) |
 | A message between full nodes | `pkg/wire` (byte form, never reuse a type number), `docs/protocol/wire.md` |
 | What a node sends, serves or asks peers | `pkg/p2p` (test it with nodes over loopback TCP) |
+| What a node remembers about other nodes | `pkg/peers` (the book's rules and file) |
 | A new policy type or key algorithm | `pkg/policy` (register it; never reuse a number) |
 | A new series setting | `pkg/series` (changes the byte form and so the vectors) |
 | The command-line tool | `cmd/poo` |

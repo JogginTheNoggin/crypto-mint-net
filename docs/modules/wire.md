@@ -4,7 +4,8 @@
 
 The byte form of the messages full nodes send each other: frames, the
 common header with the mint policy section and stated weight, request ids,
-the hello, and every push, request and reply body. It only encodes and
+the hello, every push, ledger request and reply body, and the peer
+discovery messages. It only encodes and
 decodes; what a node does with a message is in `pkg/p2p`. The full
 specification is [../protocol/wire.md](../protocol/wire.md).
 
@@ -23,14 +24,19 @@ specification is [../protocol/wire.md](../protocol/wire.md).
   and `DecodeRequest`; reply chunks `EntriesChunk`, `HashChainChunk`,
   `HeldEntriesChunk`, `LayersChunk` with their `Decode*`, and
   `DecodeEmpty` for replies without a body.
+- Discovery (`discovery.go`): `FollowReq`, `PeerListReq`, `Ping`,
+  `MissingChunksReq`, `FollowReply`, `PongReply`, `PeerListChunk`, with
+  `Contact`, `DiscoveryLimits`, `PeerVariant` and `PeerInfo`;
+  `SortSections` / `LessSection` (the design's order), `Section.Text` and
+  `ParseSection` (the text form used by registries), `CheckAddr`.
 - `ErrMalformed` wraps every decoding failure; a peer that sends one is
   disconnected.
 
 ## Tests
 
-`wire_test.go`: section coverage cases, round trips of the header and
+`wire_test.go` and `discovery_test.go`: section coverage cases, round trips of the header and
 every body, malformed inputs (bad version, flags, depth, trailing bytes,
-oversized frames), request id stability, and two fuzz targets:
+oversized frames), request id stability, section text and order, and two fuzz targets:
 `FuzzDecode` (a message that decodes encodes back to the same bytes) and
 `FuzzBodies` (no body decoder panics on any input).
 

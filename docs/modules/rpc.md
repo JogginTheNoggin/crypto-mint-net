@@ -23,7 +23,7 @@ All under `/v1`, all requiring `Authorization: Bearer <token>`.
 | `POST /work` | `{series, pool, entry, start, tries}` | the layer reply plus `layer` bytes |
 | `GET /payment` | `series, serial, tid` | `{pending, selected, entry, from}` |
 | `GET /holdings` | `series, serial` | `[{tid, index, address, amount}]` |
-| `GET /peers` | | `{node_id, listen, peers: [{id, addr, outbound, agent, listen, coverage, since, sent, received}]}`, or `not_found` when p2p is not running |
+| `GET /peers` | | `{node_id, listen, peers: [{id, addr, outbound, agent, listen, coverage, since, sent, received}], book: [{addr, source, added, last_tried, failures, policies: [{section, state, last_heard}]}]}`, or `not_found` when p2p is not running |
 
 Items are hex of their byte form; hashes are hex; weights are decimal
 strings. Errors are `{"error", "code"}` with codes `bad_request`,

@@ -21,7 +21,11 @@ node policies (D25), and a local RPC limited to loopback with a token
 plain TCP (D30), SHA-256 request ids (D31), a hello with coverage and a
 static peer list until discovery exists (D33), a notice after a switch that
 forwarding does not show (D36), hash chains to find a split (D35), and
-disconnecting misbehaving peers until ranking exists (D38).
+disconnecting misbehaving peers until ranking exists (D38). Milestone 4
+finds peers: a connection is a peer only for what the node verified with
+its own follow request (D40), broadcasts are marked in the request body
+(D41), registries have a provisional format and no default list yet
+(D44), and verification is never carried across a restart (D46).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -366,6 +370,9 @@ entry "Superseded by Dn".
 
 ### D33. A hello, and listed peers only, until discovery
 
+*Partly superseded by D40: the hello no longer carries an address or
+coverage, and peers also come from discovery.*
+
 - **Decision:** Each side sends a hello (protocol, a random node id per
   run, an advertised address, an agent string, its coverage) and nothing
   else until it has the other's, within 10 seconds. A node drops
@@ -451,4 +458,134 @@ entry "Superseded by Dn".
 - **Why:** One shape for every reply keeps the receiver simple. The design
   cuts chunks only between whole items; an item that does not fit any
   chunk must still be sendable.
+- **Tier:** Node policy.
+
+### D40. Peers are verified by follow requests, not by the hello
+
+- **Decision:** The hello carries only the protocol, a node id and an
+  agent string. After it, each side sends the other a direct follow
+  request for each mint policy it follows; the policies answered with a
+  yes or partial yes make the connection a peer for them. A connection
+  verified for nothing within the follow timeout is closed. Forwarding,
+  ledger requests and catching up use only verified policies.
+- **Why:** The design defines a peer as a node this node verified with its
+  own follow request or ping, and treats anything a node says about itself
+  as a hint. The M3 hello carried coverage that was trusted; that was a
+  shortcut until discovery existed. It supersedes the coverage part of
+  D33.
+- **Tier:** Node policy.
+
+### D41. Broadcast is a flag in the follow request body
+
+- **Decision:** A follow request carries a broadcast flag in its body. Only
+  broadcast requests are relayed; a direct one is answered only by the node
+  it was sent to. Replies to a broadcast only add candidates; verification
+  always comes from a direct request.
+- **Why:** The design has broadcast and direct follow requests but does not
+  say how a receiver tells them apart. In the body the flag is covered by
+  the request id, so no relay can turn a direct request into a broadcast.
+  A reply to a broadcast may come from a node the asker has never
+  connected to, so it cannot verify it.
+- **Tier:** Node policy.
+
+### D42. Hop counts on replies
+
+- **Decision:** A relaying node adds 1 to the hop count of a reply it
+  passes back, so a reply's hop count tells the asker how far it came. A
+  replier sends a single message without peers whenever the request's hop
+  count is above 0.
+- **Why:** The design gives replies to relayed requests a different shape
+  but puts the hop count only on requests. Counting on the way back costs
+  nothing and lets both ends tell a relayed exchange from a direct one.
+- **Tier:** Node policy.
+
+### D43. Chunks of a follow reply with peers
+
+- **Decision:** A direct follow reply whose peers do not fit one chunk
+  sends the reply (contact, list, more marker, first peers) in chunk 1 and
+  only more peers in later chunks. Peer list replies are kept 2 minutes for
+  missing chunk requests; follow replies are not kept.
+- **Why:** The design says such replies come in chunks but not how they
+  split. Keeping peer list replies, the larger ones, is enough for the
+  missing chunk request to be useful; how long to keep them is node
+  policy.
+- **Tier:** Node policy.
+
+### D44. A provisional registry format, and no default registry yet
+
+- **Decision:** A registry is a JSON document (`format`, then `nodes` with
+  `addr` and `follows` in the text form of a section), fetched over http or
+  https or read from a file, at most 1 MiB. A node has no default registry
+  list until a project registry exists.
+- **Why:** The design leaves the format, signing and how the default list
+  is updated open, and the project has no public site yet (the repository
+  stays private until the owner decides). JSON is easy to publish by hand
+  or from a script. A signed format can replace it with a new `format`
+  number.
+- **Tier:** Node policy.
+
+### D45. Network ranges
+
+- **Decision:** A network range is the /16 of an IPv4 address, the /32 of
+  an IPv6 address, or the host name of an unresolved address. The book
+  keeps at most 16 records and the host at most 4 verified peers per mint
+  policy from one range. Each loopback address is its own range.
+- **Why:** The design asks for spreading by network range and leaves the
+  size to node policy. These are the usual sizes of one provider's block.
+  Loopback cannot be an outside attacker's range, and local test networks
+  need many nodes on one machine.
+- **Tier:** Node policy.
+
+### D46. What the peer book keeps across a restart
+
+- **Decision:** The peer book (`peers.json`) keeps candidates, archived
+  nodes, attempt times and the deleted list. A verified policy is a
+  candidate again after a restart. An inbound peer's offered contact is
+  only ever a candidate; only an address this node dialled itself is
+  marked verified in the book.
+- **Why:** Verification is this node's own check of a live node; after a
+  restart it must be done again. An inbound peer can claim any address,
+  including a victim's, so trusting it would let one node point others at
+  an address it does not own.
+- **Tier:** Node policy.
+
+### D47. Provisional discovery defaults
+
+- **Decision:** 4 verified peers per mint policy, 8 outbound connections,
+  the connection manager every 30 seconds, a broadcast and peer list
+  request at most every 5 minutes per policy, registries reloaded at most
+  hourly, 5 seconds to wait for a follow reply, a hop limit of 8, 120
+  discovery requests per peer per minute, a ping every 2 minutes with 3
+  silences ending a peering, return paths kept 30 seconds.
+- **Why:** The design leaves all of them to node policy. Milestone 7's
+  simulator should replace them with measured values.
+- **Tier:** Node policy.
+
+### D48. Dropped policies
+
+- **Decision:** A dropped policy update ends the peering for every
+  verified policy inside the one named; a wider verified policy that holds
+  it stays (a section cannot say "all but this part"), and the next ping
+  shows what the peer still follows. A node sends updates through
+  `Host.DropPolicy`; since following changes only with a new node policy,
+  which needs a restart, a running node does not send them yet.
+- **Why:** The design makes the update optional and leaves what peers do
+  with it to node policy. Pings already catch a node that stopped
+  following something.
+- **Tier:** Node policy.
+
+### D49. Answering and relaying discovery requests
+
+- **Decision:** A node answers a follow request or ping for a mint policy
+  it follows all of with a yes or pong, one it follows part of with a
+  partial yes or partial pong listing its policies inside it, and stays
+  silent otherwise. It drops a discovery request whose id does not match,
+  that it has seen, that is outside the time window, or over the peer's
+  rate. It relays only as a follower of the policy, only to its peers for
+  it, and only below its hop limit. Contact details in a follow request or
+  reply make the sender a candidate, never a connection.
+- **Why:** These are the design's rules, in the cheap-checks-first order it
+  gives. Turning contact details into candidates only, dialled later by
+  the connection manager with backoff and range limits, is the design's
+  protection against aiming nodes at a victim.
 - **Tier:** Node policy.

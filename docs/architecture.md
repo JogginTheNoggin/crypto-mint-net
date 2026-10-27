@@ -14,8 +14,10 @@ policy and a store per pool, replayed through the engine on start-up so
 nothing on disk is trusted. `pkg/p2p` connects nodes over the wire protocol
 of `pkg/wire`: it hands what peers send to the node and forwards what the
 node keeps, and it never decides validity. `pkg/rpc` gives the owner local
-control. Peer discovery and management (milestones 4 and 5) will sit in
-`pkg/p2p` and must not leak into the packages below the engine.
+control. Peer discovery (milestone 4) lives in `pkg/p2p` too, with the peer
+book in `pkg/peers` and bootstrap lists in `pkg/registry`; peer management
+(milestone 5) will join it there. None of it leaks into the packages below
+the engine.
 
 ## Package layers
 
@@ -31,6 +33,11 @@ graph TD
   p2p --> engine
   p2p --> ledger
   p2p --> nodepolicy
+  p2p --> peers
+  p2p --> registry
+  peers --> wire
+  registry --> wire
+  rpc --> peers
   wire --> entry
   wire --> layer
   wire --> tx
@@ -70,7 +77,7 @@ project. Every package above `policy` also imports `hash`, and most import
 | Consensus tier | `tx`, `entry`, `layer`, `state`, `ledger` | Validity, weight, selection, switching |
 | Node policy | `mempool`, `engine` (and their `Config`), `nodepolicy` | What to keep, follow and forward |
 | Node | `store`, `node`, `rpc` | Disk, the data directory, local control |
-| Network | `wire`, `p2p` | Messages between full nodes, peers, forwarding, catch-up |
+| Network | `wire`, `peers`, `registry`, `p2p` | Messages between full nodes, the peer book, bootstrap lists, discovery, forwarding, catch-up |
 | Tools | `cmd/poo`, `vectors`, `testutil` | CLI, demo, published vectors, test helpers |
 
 ## The three tiers
@@ -158,7 +165,12 @@ fork point, through an overlay on the current state.
   the sending peer, and forwards what the node reports through its
   observers when the engine says to forward. Serving ledger data reads the
   engine through `Engine.Ledger`. See [modules/p2p.md](modules/p2p.md).
-- **Peers (M4, M5)** decide who to talk to. They never change validity.
+- **Peer discovery (M4, done)**: `pkg/p2p` verifies each peer's follows with
+  follow requests, relays discovery requests, and keeps the peer book of
+  `pkg/peers` (saved as `peers.json`) filled from peer lists, broadcasts and
+  the registries of `pkg/registry`. See [modules/peers.md](modules/peers.md).
+- **Peer management (M5)** ranks and tracks peers. Like discovery, it
+  decides who to talk to and never changes validity.
 
 See [roadmap.md](roadmap.md) for the milestones and
 [modules/README.md](modules/README.md) for one page per package.

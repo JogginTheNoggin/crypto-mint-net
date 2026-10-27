@@ -5,9 +5,10 @@
 The project moves toward an open release in eight milestones, each delivered
 as one or more pull requests, each stacked on the one before. Milestone 1,
 the consensus core with a transport-independent full-node engine,
-milestone 2, storage and the node daemon with a local RPC, and milestone 3,
-the wire protocol with forwarding and ledger data requests, are done. The
-next milestones add peer discovery and peer management, then a wallet, then large-scale simulation, and
+milestone 2, storage and the node daemon with a local RPC, milestone 3,
+the wire protocol with forwarding and ledger data requests, and milestone
+4, peer discovery with relaying and address registries, are done. The next
+milestones add peer ranking and chasing, then a wallet, then large-scale simulation, and
 finally hardening and release. Making the repository public and choosing
 a license are the owner's decisions and are part of milestone 8.
 
@@ -18,8 +19,8 @@ a license are the owner's decisions and are part of milestone 8.
 | M1 | Consensus core and full-node engine | Done |
 | M2 | Storage and node daemon | Done |
 | M3 | Wire protocol and forwarding | Done |
-| M4 | Peer discovery, relaying, address registries | Next |
-| M5 | Peer categories, ranking, tracking, chasing | Planned |
+| M4 | Peer discovery, relaying, address registries | Done |
+| M5 | Peer categories, ranking, tracking, chasing | Next |
 | M6 | Wallet and user tools | Planned |
 | M7 | Network simulator, fuzzing, benchmarks | Planned |
 | M8 | Hardening and open release | Planned |
@@ -69,10 +70,22 @@ Left for later milestones: peer discovery (M4), choosing which peer to ask,
 checking a branch's work with provisional layers before fetching it, and
 the optional full ledger with top K request (M5).
 
-### M4: Peer discovery, relaying, address registries
+### M4: Peer discovery, relaying, address registries (done)
 
-Bootstrapping, exchanging peer addresses, relaying for nodes that cannot
-accept connections, and registries that map addresses to reachable nodes.
+- `pkg/wire`: follow requests (direct and broadcast), yes and partial yes,
+  peer lists, pings and pongs, dropped policy updates, missing chunks.
+- `pkg/peers`: the peer book with candidate, verified and archived states
+  per mint policy, network-range limits and retry backoff, in `peers.json`.
+- `pkg/registry`: a provisional address registry format.
+- `pkg/p2p`: peers verified by follow requests, relaying of broadcasts with
+  return paths, rate and hop limits, peer lists, pings, dropped policies,
+  and a connection manager that keeps enough verified peers per policy.
+- The node policy's `registries`, `advertise` and discovery limits, `poo
+  init -advertise -registry`, and the peer book in `poo peers`.
+
+Left open, as the design leaves them: registry signing and updates to the
+default registry list (there is no project registry yet), and announcing
+dropped policies while running.
 
 ### M5: Peer categories, ranking, tracking, chasing
 

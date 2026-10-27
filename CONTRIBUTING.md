@@ -35,7 +35,8 @@ form layers, and a package only imports packages below it:
 cmd/poo
   rpc
     p2p
-      wire
+      peers  registry
+        wire
     node
       engine    store    nodepolicy
     ledger      mempool

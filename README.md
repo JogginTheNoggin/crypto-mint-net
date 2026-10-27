@@ -17,8 +17,10 @@ a crash-safe store per pool that is replayed and checked again on start-up,
 node policy files with save, archive and delete, and a local RPC with
 command-line clients. Milestone 3 connects nodes: a wire protocol over TCP
 that forwards what each node keeps, answers ledger data requests, and lets
-a node catch up with a heavier ledger. Peer discovery and peer management
-come next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
+a node catch up with a heavier ledger. Milestone 4 lets nodes find each
+other: follow requests checked against each peer, relayed discovery, peer
+lists, address registries and a saved peer book. Peer management comes
+next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
 departs from the design documents is recorded in
 [docs/decisions.md](docs/decisions.md).
 
@@ -89,7 +91,9 @@ go build -o poo ./cmd/poo
 | `pkg/nodepolicy` | The node policy file and saved/archived node policies |
 | `pkg/node` | The engine with a data directory and a store per pool |
 | `pkg/wire` | The byte form of messages between full nodes |
-| `pkg/p2p` | Peer connections: forwarding, ledger data requests, catch-up |
+| `pkg/peers` | The peer book: known addresses, what they follow, network ranges |
+| `pkg/registry` | Address registries: bootstrap lists of nodes |
+| `pkg/p2p` | Peer connections: discovery, forwarding, ledger data requests, catch-up |
 | `pkg/rpc` | The local control interface (JSON over HTTP, loopback, token) |
 | `pkg/vectors` | Published test vectors for independent implementations |
 | `pkg/testutil` | Deterministic keys and builders for tests and the demo |
