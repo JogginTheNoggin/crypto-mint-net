@@ -125,6 +125,18 @@ func TestAppendixA2Weights(t *testing.T) {
 			t.Errorf("from(E%d) = %s, want %s", i+1, got, want[i])
 		}
 	}
+	// WeightTo is the rest: the weight up to and including an entry.
+	for i, w := range []string{"4096", "9216", "13312", "18432"} {
+		if got, ok := f.pool.WeightTo(hs[i]); !ok || got.String() != w {
+			t.Errorf("to(E%d) = %s, want %s", i+1, got, w)
+		}
+	}
+	if w, ok := f.pool.WeightTo(f.pool.ID()); !ok || !w.IsZero() {
+		t.Error("the pool_id carries weight")
+	}
+	if _, ok := f.pool.WeightTo(hash.Hash{1}); ok {
+		t.Error("an unknown entry has a weight")
+	}
 	tip, height, _ := f.pool.Tip()
 	if tip != hs[3] || height != 4 {
 		t.Fatal("tip wrong")

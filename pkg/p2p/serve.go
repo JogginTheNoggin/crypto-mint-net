@@ -6,6 +6,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
@@ -33,11 +34,21 @@ func (h *Host) serve(p *peer, m wire.Message) error {
 	now := time.Now()
 	c := q.Common()
 	at := time.Unix(int64(c.Time), 0)
-	if c.Time > 1<<62 || now.Sub(at) > h.cfg.RequestWindow || at.Sub(now) > h.cfg.ClockSkew || !h.reqs.add(m.RequestID, now) {
+	if c.Time > 1<<62 || now.Sub(at) > h.cfg.RequestWindow || at.Sub(now) > h.cfg.ClockSkew {
 		r.empty(wire.TypeRefused, h.ownWeight(pi))
 		return nil
 	}
+	if !h.reqs.add(m.RequestID, now) {
+		// The same request again: refused, and counted as a repeat.
+		r.empty(wire.TypeRefused, h.ownWeight(pi))
+		if a := h.tr.Repeat(p.key, now); a != tracking.None {
+			h.act(p, a)
+		}
+		return nil
+	}
 	r.lim = h.limits(c.Limits)
+	r.text = pi.section.Text()
+	_, r.large = q.(wire.FullLedgerReq)
 	var reply func()
 	err = h.n.Engine().Ledger(pi.key, func(l *ledger.Pool) {
 		r.stated = l.Weight()
@@ -81,6 +92,8 @@ type replier struct {
 	m      wire.Message
 	stated weight.Weight
 	lim    served
+	text   string // the pool, for the cost of the reply
+	large  bool   // a whole ledger was asked for
 }
 
 func (r replier) header(t wire.Type, chunk uint32, flags uint8) wire.Header {
@@ -98,6 +111,7 @@ func (r replier) chunks(t wire.Type, bodies [][]byte, more bool) {
 	if len(bodies) == 0 {
 		bodies = [][]byte{nil}
 	}
+	n := 0
 	for i, b := range bodies {
 		var f uint8
 		if i == len(bodies)-1 {
@@ -107,6 +121,10 @@ func (r replier) chunks(t wire.Type, bodies [][]byte, more bool) {
 			}
 		}
 		r.p.send(wire.Message{Header: r.header(t, uint32(i+1), f), Body: b})
+		n += len(b)
+	}
+	if r.text != "" {
+		r.h.tr.Cost(r.p.key, r.text, n, 0, r.large, time.Now())
 	}
 }
 

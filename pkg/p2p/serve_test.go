@@ -335,3 +335,32 @@ func TestInvalidEntriesTimeOut(t *testing.T) {
 		t.Fatal("a timed out address was answered")
 	}
 }
+
+// What a node serves is counted against the asker, a whole ledger as a
+// large request; asking the same request again is a repeat and refused.
+func TestServedCostAndRepeats(t *testing.T) {
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, RepeatLimit: 1, Default: tracking.StandardName}, "")
+	must(t, err)
+	a := startNode(t, "a", func(c *p2p.Config) { c.Tracker = tr })
+	grow(t, a, nil, "alice", 2, 32)
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	q := wire.FullLedgerReq{RequestCommon: r.common(wire.Limits{})}
+	if ms := r.ask(sec, q); ms[0].Type != wire.TypeExtension {
+		t.Fatalf("full ledger answered %s", ms[0].Type)
+	}
+	rep, _ := tr.Report("127.0.0.1", time.Now())
+	pr := rep.Policies[sec.Text()]
+	if pr.Served == 0 || pr.Large != 1 {
+		t.Fatalf("cost not counted: %+v in %+v", pr, rep)
+	}
+	if ms := r.ask(sec, q); ms[0].Type != wire.TypeRefused {
+		t.Fatalf("a repeated request answered %s", ms[0].Type)
+	}
+	if ms := r.ask(sec, q); ms[0].Type != wire.TypeRefused {
+		t.Fatalf("a repeated request answered %s", ms[0].Type)
+	}
+	if st := tr.Status("127.0.0.1", time.Now()); st.FlagTotal == 0 {
+		t.Fatalf("repeats past the limit not flagged: %+v", st)
+	}
+}

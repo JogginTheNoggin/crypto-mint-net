@@ -606,6 +606,9 @@ func (h *Host) Connect(addr string) error {
 	if ctx == nil {
 		return errors.New("p2p: host not running")
 	}
+	if st := h.tr.Status(addr, time.Now()); !st.Allowed() {
+		return errBlocked
+	}
 	d := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second}
 	c, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
@@ -655,7 +658,7 @@ type PeerInfo struct {
 	// Coverage lists what the peer was verified to follow.
 	Coverage []string `json:"coverage"`
 	// Categories maps each of this node's mint policies the peer was
-	// verified for to its category and points.
+	// verified for, in full text form, to its category and points.
 	Categories map[string]Standing `json:"categories,omitempty"`
 	Since      time.Time           `json:"since"`
 	Sent       uint64              `json:"sent"`
@@ -715,8 +718,8 @@ func (h *Host) Book() *peers.Book { return h.book }
 // Tracker returns the tracker.
 func (h *Host) Tracker() *tracking.Tracker { return h.tr }
 
-// Chases returns the chase queue's groups, in queue order.
-func (h *Host) Chases() []chase.Group { return h.cq.Groups("", time.Now()) }
+// ChaseQueue returns the chase queue.
+func (h *Host) ChaseQueue() *chase.Queue { return h.cq }
 
 // idCache remembers request ids for a window.
 type idCache struct {

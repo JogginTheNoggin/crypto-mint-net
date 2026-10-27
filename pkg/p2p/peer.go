@@ -216,15 +216,15 @@ func (p *peer) info() PeerInfo {
 	cats := map[string]Standing{}
 	var secs []wire.Section
 	for s, st := range p.pols {
-		cats[s.String()] = Standing{Category: st.cat.String(), Partial: st.parts != nil}
+		cats[s.Text()] = Standing{Category: st.cat.String(), Partial: st.parts != nil}
 		secs = append(secs, s)
 	}
 	p.mu.Unlock()
 	now := time.Now()
 	for _, s := range secs {
-		c := cats[s.String()]
+		c := cats[s.Text()]
 		c.Points = p.h.tr.Points(p.key, s.Text(), 0, now)
-		cats[s.String()] = c
+		cats[s.Text()] = c
 	}
 	return PeerInfo{
 		ID: p.id, Addr: p.addr, Key: p.key, Outbound: p.outbound, Agent: p.hello.Agent,

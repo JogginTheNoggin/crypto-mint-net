@@ -389,6 +389,18 @@ type file struct {
 // ErrUnknownTemplate is returned for a template name that is not known.
 var ErrUnknownTemplate = errors.New("tracking: unknown template")
 
+// GroupNames are the peer groups a template can be chosen for.
+var GroupNames = []string{"priority", "backup", "candidate", "unlisted", "inbound", "outbound"}
+
+func isGroup(g string) bool {
+	for _, n := range GroupNames {
+		if n == g {
+			return true
+		}
+	}
+	return false
+}
+
 // New loads the tracker at path, or starts an empty one. An empty path
 // keeps records in memory only.
 func New(cfg Config, path string) (*Tracker, error) {
@@ -400,6 +412,11 @@ func New(cfg Config, path string) (*Tracker, error) {
 	for _, n := range append([]string{cfg.Default}, values(cfg.Groups, cfg.Peers)...) {
 		if _, ok := tpl.Get(n); !ok {
 			return nil, fmt.Errorf("%w %q", ErrUnknownTemplate, n)
+		}
+	}
+	for g := range cfg.Groups {
+		if !isGroup(g) {
+			return nil, fmt.Errorf("tracking: unknown peer group %q", g)
 		}
 	}
 	t := &Tracker{cfg: cfg, tpl: tpl, path: path, recs: map[string]*record{}, ranges: map[string]time.Time{}}
@@ -1286,6 +1303,9 @@ type PolicyReport struct {
 	ChasesConfirmed uint64    `json:"chases_confirmed"`
 	ChasesNowhere   uint64    `json:"chases_nowhere"`
 	Denials         uint64    `json:"denials"`
+	Served          uint64    `json:"bytes_served"`
+	Received        uint64    `json:"bytes_received"`
+	Large           uint64    `json:"large_requests"`
 	Highest         string    `json:"highest_stated,omitempty"`
 }
 
@@ -1330,6 +1350,7 @@ func (t *Tracker) Report(addr string, now time.Time) (Report, bool) {
 			Answered:        m.ReqAnswered.Sum(now, w), TimedOut: m.ReqTimedOut.Sum(now, w),
 			ChasesConfirmed: m.ChaseConfirmed.Sum(now, w), ChasesNowhere: m.ChaseNowhere.Sum(now, w),
 			Denials: m.Denials.Sum(now, w), Highest: m.Highest,
+			Served: m.Served.Sum(now, w), Received: m.Received.Sum(now, w), Large: m.Large.Sum(now, w),
 		}
 		if m.RTT.N > 0 {
 			pr.RTTMillis = m.RTT.Value * 1000

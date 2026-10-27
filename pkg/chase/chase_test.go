@@ -19,10 +19,20 @@ func h(b byte) *hash.Hash { x := hash.Hash{b}; return &x }
 
 func TestGroupingAndOneOpenPerSender(t *testing.T) {
 	q := chase.New(chase.Config{})
-	a, _, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(1), t0)
-	b, _, _ := q.Offer("p", sender("b", "r2", peers.CatBackup), h(1), t0)
+	a, isNew, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(1), t0)
+	if !isNew {
+		t.Fatal("the first stated weight was not new")
+	}
+	b, isNew, _ := q.Offer("p", sender("b", "r2", peers.CatBackup), h(1), t0)
 	if a != b {
 		t.Fatal("the same entry hash made two groups")
+	}
+	if !isNew {
+		t.Fatal("b's first stated weight was not new")
+	}
+	// The same claim again from a starts nothing new.
+	if _, isNew, _ := q.Offer("p", sender("a", "r1", peers.CatBackup), h(1), t0); isNew {
+		t.Fatal("a repeated stated weight counted as new")
 	}
 	// Two independent listed senders corroborate.
 	if g := q.Groups("p", t0); len(g) != 1 || g[0].Evidence != chase.Corroborated {

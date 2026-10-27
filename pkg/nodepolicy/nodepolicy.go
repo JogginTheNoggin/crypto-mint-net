@@ -173,8 +173,8 @@ type P2P struct {
 	// NoNotices stops the node telling peers when it switches to a ledger
 	// it asked for.
 	NoNotices bool `json:"no_notices,omitempty"`
-	// CheckSeconds is how often to ask a peer for an extension of each
-	// pool; 0 means the default, -1 never.
+	// CheckSeconds is how often to ask the priority peers of each pool for
+	// their stated weight; 0 means the default, -1 never.
 	CheckSeconds int `json:"check_seconds,omitempty"`
 	// Registries are address registry locations (http(s) URLs or files)
 	// to find first peers from. None by default: there is no project
