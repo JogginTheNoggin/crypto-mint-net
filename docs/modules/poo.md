@@ -26,6 +26,7 @@ without a wallet. See
 | `poo tracking [ADDR]` | Every tracked address's status and the blocked ranges, or one address's whole record |
 | `poo chases` | The chase queue: heavier stated weights waiting or being checked |
 | `poo status` | Every followed pool |
+| `poo doctor [-json]` | Checks the node's setup (policy, file permissions, series, the local RPC, peers) and prints ok, warn, fail or skip for each, with the fix; read-only and local only; exits 1 if a check fails |
 | `poo claim -seed HEX -serial N` | Claims a whole mint for the key's 1-of-1 address |
 | `poo pay -seed HEX -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |
 | `poo build -pool K [-work N]` | Builds an entry from the pending transactions, optionally adding a layer |

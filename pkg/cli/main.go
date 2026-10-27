@@ -50,6 +50,7 @@ Usage:
                               status, or one address's record
   poo chases                  the chase queue of heavier stated weights
   poo status                  every followed pool of the running node
+  poo doctor [-json]          check the node's setup and say what to fix
   poo follow [-issuer ID | -series ID [-pool K]... [-mint N]...] [-no-reload]
                               follow more; applied by a running node at once
                               (no flags: show what is followed)
@@ -188,6 +189,8 @@ func run(args []string, out io.Writer) error {
 		return nodeCmd(args[1:], out)
 	case "status":
 		return statusCmd(args[1:], out)
+	case "doctor":
+		return doctorCmd(args[1:], out)
 	case "pools", "ledger", "pending", "unspent", "tx", "address":
 		return viewCmd(args[0], args[1:], out)
 	case "watch":
