@@ -22,6 +22,9 @@ built.
   ([docs/security.md](docs/security.md)), a separate cap on inbound
   connections, byte form v1 and wire version 1 declared stable, a
   supported Go toolchain, and reproducible release builds.
+- **GUI:** `poo-gui`, a local web app over the same `poo` commands
+  (`pkg/cli`), with a terminal that is `poo` itself, a job list, and a
+  locked-down loopback server ([docs/gui.md](docs/gui.md)).
 - **Cryptographic choice:** a series can use SHA-256, SHA-512/256,
   SHA3-256, BLAKE2b-256 or BLAKE3; allow Ed25519, ECDSA (P-256, P-384,
   P-521, secp256k1), BIP-340 Schnorr and ML-DSA-44/65/87 keys; and allow

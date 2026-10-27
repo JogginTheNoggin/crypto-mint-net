@@ -197,3 +197,18 @@ those advised against (RSA, SLH-DSA, Ed448, Falcon, a lone hashlock).
 
 Left for later: timelocks, which need a clock in consensus first, and
 wallet support for spending from hashlock and k-of-policies addresses.
+
+### GUI: a visual layer over the headless tool (in progress)
+
+The owner asked for a GUI with the same core functionality as the
+headless tool, built on its exact code, with a terminal that works
+identically ([gui.md](gui.md)). The plan is a set of stacked PRs:
+
+- G1: the commands as a library, `pkg/cli` (D84).
+- G2: the `gui` module with `poo-gui`, the job runner, the terminal, the
+  Jobs view, the locked-down loopback server, the import rule and identity
+  tests, and a browser end-to-end test (D85 to D88).
+- G3: views for the node, pools, peers, tracking, chases, node policies,
+  series and wallet.
+- G4: watch and filter views over the node's watch commands.
+- G5: `poo-gui` in the release archives.

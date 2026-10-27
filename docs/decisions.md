@@ -1148,3 +1148,66 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   the GUI's terminal and its buttons run the very code the headless
   binary runs, with no second implementation that could drift.
 - **Tier:** Implementation.
+
+### D85. The GUI is a local web app in Go
+
+- **Decision:** The GUI is the program `poo-gui`. It serves a page on a
+  loopback address and opens it in the system browser, or in a browser
+  app window with `-app`. The page is plain HTML, CSS and JavaScript,
+  embedded in the binary, with no framework, npm or CDN. A native webview
+  shell may wrap the same server later.
+- **Why:** It is cross-platform wherever Go builds, needs no CGO or native
+  toolkit, keeps release builds reproducible with only the Go toolchain
+  (D78), and can be tested end to end in a headless browser. Fyne and
+  Wails need CGO and native libraries. Electron and Tauri add a second
+  toolchain. A TUI is not the visual layer that was asked for. The
+  options are compared in [gui.md](gui.md).
+- **Tier:** Implementation.
+
+### D86. The GUI is its own module and may import only pkg/cli
+
+- **Decision:** The GUI is the Go module `.../crypto-mint-net/gui` in
+  `gui/`. It requires the core module through `replace ../`. Its packages
+  may import only the standard library, their own packages and
+  `pkg/cli`. `gui/imports_test.go` enforces this and checks that nothing
+  in the core imports the GUI.
+- **Why:** The headless tool is the source, and the GUI is a layer on
+  top. A module boundary means the headless binary can never contain GUI
+  code. Allowing only `pkg/cli` means the GUI cannot compute, sign or
+  read node state except by running the commands. To move the GUI to its
+  own repository, the `replace` line becomes a version requirement, and
+  the GUI still builds on the same source.
+- **Tier:** Implementation.
+
+### D87. Every GUI action is a poo command line
+
+- **Decision:** The GUI does everything by running a command line through
+  `cli.Main` as a job, with its own context, input and output. A view
+  runs a command and renders what it prints. A form builds an argv, and
+  the command validates it. The terminal splits a typed line as a shell
+  would and runs it unchanged. Each view and job shows its command line.
+  Data that no command prints is added to `pkg/cli`, never computed in
+  the GUI.
+- **Why:** This makes it true by construction that the GUI and the
+  headless tool behave the same. Tests compare the GUI's output with
+  `cli.Main`'s byte for byte. Showing the command teaches the headless
+  tool, and anything the views do not cover is one line away in the
+  terminal.
+- **Tier:** Implementation.
+
+### D88. The GUI server is locked to this machine and this browser
+
+- **Decision:** `poo-gui` listens only on loopback and refuses any other
+  address. A random secret, made at each launch, is in the address it
+  opens. The first visit trades the secret for an HttpOnly, SameSite=Strict
+  cookie, which every API call needs. Requests with a different Host are
+  refused. Changes must be POSTs with the `X-Poo-GUI` header and no
+  foreign Origin. A strict Content-Security-Policy is sent. Job input is
+  dropped when the job ends, and the terminal masks a passphrase prompt.
+  Release archives ship `poo` alone and `poo-gui` separately (G5).
+- **Why:** Whoever can reach the GUI can run any command, including
+  spending from a wallet. Loopback stops other machines. The secret and
+  cookie stop other local users and other pages. The Host check stops DNS
+  rebinding. The header and Origin checks stop cross-site requests. The
+  CSP stops injected script.
+- **Tier:** Implementation.
