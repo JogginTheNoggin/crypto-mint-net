@@ -44,6 +44,9 @@ type Event struct {
 	// Void: for reverted, whether the transaction can no longer apply
 	// (else it is pending again).
 	Void bool `json:"void,omitempty"`
+	// Missed: for missed, the stream's own notice that this many events
+	// were dropped because the reader fell behind.
+	Missed uint64 `json:"missed,omitempty"`
 }
 
 // EventEntry describes an entry in an event.

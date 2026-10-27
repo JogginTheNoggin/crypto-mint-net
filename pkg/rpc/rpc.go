@@ -30,6 +30,22 @@
 //	GET  /chases                          the chase queue
 //	POST /peer     {addr, action, ...}    time out, block, unblock, clear,
 //	                                      set a template for or delete a peer
+//	GET  /pools?FILTER                    followed pools the filter covers
+//	GET  /ledger?series=&pool=&below=&limit=&FILTER
+//	                                      a page of the selected ledger
+//	GET  /pending?FILTER                  pending transactions
+//	GET  /unspent?FILTER                  unspent portions
+//	GET  /tx?series=&id=[&serial=]        one transaction and its status
+//	GET  /address?series=&id=&limit=&FILTER
+//	                                      an address's balance and history
+//	GET  /watch?FILTER                    a live event stream (NDJSON)
+//	GET  /follow                          what the node follows
+//	POST /follow   {remove, issuer, series, pools, mints, no_reload}
+//	                                      change it and apply it
+//	POST /reload                          apply the node policy again
+//
+// FILTER is the parameters of pkg/filter: series, pool, serial, address,
+// policy, tid and kind, each comma-separated.
 //
 // Errors are {"error": message, "code": code} with a matching HTTP status.
 package rpc
@@ -58,6 +74,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/watch"
 )
 
 // File names in the data directory.
@@ -122,10 +139,12 @@ func LoadOrCreateToken(dir string) (string, error) {
 
 // Handler serves the interface for one node.
 type Handler struct {
-	n     *node.Node
-	host  *p2p.Host
-	token []byte
-	mux   *http.ServeMux
+	n      *node.Node
+	host   *p2p.Host
+	hub    *watch.Hub
+	reload func()
+	token  []byte
+	mux    *http.ServeMux
 }
 
 // NewHandler returns the HTTP handler for n, accepting only token.
@@ -144,6 +163,7 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("GET /v1/tracking", h.tracking)
 	h.mux.HandleFunc("GET /v1/chases", h.chases)
 	h.mux.HandleFunc("POST /v1/peer", h.peer)
+	h.viewRoutes()
 	return h
 }
 

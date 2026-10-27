@@ -458,7 +458,13 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err := nodepolicy.Save(path, p); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "wrote %s: series %s follows pools %v; restart the node to apply\n", path, id.Short(), pools)
+	dir := f.c.w.resolve()
+	if cl, err := rpc.Dial(dir); err == nil && cl.Reload() == nil {
+		waitBack(contextOf(out), dir)
+		fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applied it\n", path, id.Short(), pools)
+		return nil
+	}
+	fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applies it when it starts\n", path, id.Short(), pools)
 	return nil
 }
 

@@ -261,27 +261,27 @@ func (b *Builder) Filter() Filter {
 }
 
 // Flags registers the filter flags on fs: -series, -pool, -serial,
-// -address, -policy, -tid and -kind, each repeatable and taking
+// -address, -address-policy, -tid and -kind, each repeatable and taking
 // comma-separated values. Call the returned function after fs.Parse.
 func Flags(fs *flag.FlagSet) func() (Filter, error) {
 	b := &Builder{}
 	var errs []error
-	add := func(name, usage string) {
-		fs.Func(name, usage+" (repeatable, comma-separated)", func(s string) error {
-			err := b.Add(name, s)
+	add := func(flagName, field, usage string) {
+		fs.Func(flagName, usage+" (repeatable, comma-separated)", func(s string) error {
+			err := b.Add(field, s)
 			if err != nil {
 				errs = append(errs, err)
 			}
 			return err
 		})
 	}
-	add("series", "only these series (id hex)")
-	add("pool", "only these pool indices")
-	add("serial", "only items of these mints")
-	add("address", "only items paying or spending these addresses")
-	add("policy", "only items paying or spending these policies (hex), under each series' hash")
-	add("tid", "only these transactions")
-	add("kind", "only these kinds of event: "+kindList())
+	add("series", "series", "only these series (id hex)")
+	add("pool", "pool", "only these pool indices")
+	add("serial", "serial", "only items of these mints")
+	add("address", "address", "only items paying or spending these addresses")
+	add("address-policy", "policy", "only items paying or spending the addresses of these policies (hex), under each series' hash")
+	add("tid", "tid", "only these transactions")
+	add("kind", "kind", "only these kinds of event: "+kindList())
 	return func() (Filter, error) { return b.Filter(), errors.Join(errs...) }
 }
 

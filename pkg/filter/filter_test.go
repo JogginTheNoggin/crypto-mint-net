@@ -71,7 +71,7 @@ func TestValuesAndFlags(t *testing.T) {
 	if err != nil || len(ff.Pools) != 2 || ff.Pools[0] != 1 || len(ff.Kinds) != 1 || len(ff.Series) != 1 {
 		t.Fatalf("%v %+v", err, ff)
 	}
-	for _, bad := range [][]string{{"-kind", "nope"}, {"-pool", "x"}, {"-series", "zz"}, {"-policy", "00"}} {
+	for _, bad := range [][]string{{"-kind", "nope"}, {"-pool", "x"}, {"-series", "zz"}, {"-address-policy", "00"}} {
 		fs := flag.NewFlagSet("x", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
 		Flags(fs)
