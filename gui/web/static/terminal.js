@@ -2,6 +2,7 @@
 // shell would and runs it through cli.Main, the same as typing it after
 // "poo" in a shell. Nothing here changes the command line.
 import * as api from './api.js';
+import { complete } from './complete.js';
 
 const HISTORY_KEY = 'poo-gui-history';
 
@@ -16,12 +17,13 @@ export function mount(root) {
   root.innerHTML = `
     <section class="terminal" aria-label="Terminal">
       <div class="term-bar">
-        <span>Terminal: the same commands as <code>poo</code> in a shell. Ctrl-C stops a command, Ctrl-L clears.</span>
+        <span>Terminal: the same commands as <code>poo</code> in a shell. Tab completes, Ctrl-C stops a command, Ctrl-L clears.</span>
         <span class="spacer"></span>
         <button type="button" data-act="detach" disabled title="Keep the running command going in the background">Run in background</button>
         <button type="button" data-act="stop" disabled>Stop</button>
       </div>
-      <pre class="term-out" tabindex="0" aria-live="polite"></pre>
+      <pre class="term-out" tabindex="0" aria-label="Terminal output"></pre>
+      <div class="sr-only" role="status" aria-live="polite"></div>
       <form class="term-in" autocomplete="off">
         <label class="prompt" for="term-line">$ poo</label>
         <input id="term-line" name="line" spellcheck="false" autocapitalize="off" autofocus>
@@ -33,6 +35,9 @@ export function mount(root) {
   const prompt = root.querySelector('.prompt');
   const stopBtn = root.querySelector('[data-act=stop]');
   const detachBtn = root.querySelector('[data-act=detach]');
+  // Screen readers hear when a command ends, not every chunk it prints.
+  const status = root.querySelector('[role=status]');
+  const announce = text => { status.textContent = text; };
   const history = loadHistory();
   let hpos = history.length;
   let job = null; // {id, unfollow, tail}
@@ -84,6 +89,7 @@ export function mount(root) {
       state: s => { if (job === cur) setSecret(s.waiting && /passphrase: ?$/i.test(cur.tail)); },
       exit: e => {
         if (e.code !== 0) write(`[exit ${e.code}]\n`, 'note');
+        announce(e.code === 0 ? 'Command finished.' : `Command failed with exit ${e.code}.`);
         if (job === cur) setRunning(null);
         finished();
         line.focus();
@@ -118,6 +124,15 @@ export function mount(root) {
     } else if (ev.ctrlKey && ev.key === 'l') {
       ev.preventDefault();
       out.textContent = '';
+    } else if (ev.key === 'Tab' && !job && !ev.shiftKey && line.selectionStart === line.value.length) {
+      // Completion only reads poo's help; it never changes what runs.
+      ev.preventDefault();
+      const typed = line.value;
+      complete(typed).then(c => {
+        if (line.value !== typed) return;
+        line.value = c.line;
+        if (c.options.length) write(c.options.join('  ') + '\n', 'note');
+      });
     } else if (ev.key === 'ArrowUp' && !job && hpos > 0) {
       ev.preventDefault();
       line.value = history[--hpos];
