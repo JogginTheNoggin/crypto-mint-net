@@ -1,7 +1,7 @@
 // Package server serves the GUI: the embedded page and an API that runs
 // poo command lines as jobs. It listens only on a loopback address, and
-// every API call needs the secret the GUI was started with (docs/gui.md,
-// Security).
+// every request needs a session cookie, which a browser gets by opening a
+// one-time sign-in address (docs/gui.md, Security).
 //
 // API (JSON; changes are POSTs carrying the X-Poo-GUI header):
 //
@@ -13,12 +13,13 @@
 //	POST /api/jobs/{id}/cancel                    stop the job
 //	POST /api/run               {args} or {line}  run to the end: {code, out, err, command}
 //	GET  /api/split?line=                         the args a typed line is: {args, command}
+//	GET  /api/grammar                             the terminal's grammar: {grammar}, posix or windows
 package server
 
 import (
 	"context"
 	"crypto/rand"
-	"crypto/subtle"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -28,13 +29,14 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/gui/jobs"
 	"github.com/JogginTheNoggin/crypto-mint-net/gui/shell"
 )
 
-// CookieName is the session cookie set from the launch secret.
+// CookieName is the session cookie a sign-in sets.
 const CookieName = "poo_gui"
 
 // Header must be sent with every POST; a cross-site page cannot send it
@@ -44,24 +46,42 @@ const Header = "X-Poo-GUI"
 // MaxBody bounds a request body.
 const MaxBody = 1 << 20
 
+// DefaultMaxStreams bounds the event streams open at once (GUI-004 in
+// security/gui/findings).
+const DefaultMaxStreams = 32
+
 // Server is the GUI's HTTP server.
 type Server struct {
 	runner *jobs.Runner
 	static fs.FS
-	secret string
 	host   string // the Host requests must carry, such as 127.0.0.1:4321
 	mux    *http.ServeMux
 	// Heartbeat is how often an idle event stream sends a comment.
 	Heartbeat time.Duration
+	// MaxStreams bounds the event streams open at once.
+	MaxStreams int
+
+	mu       sync.Mutex
+	tokens   map[string]time.Time // hashes of unused sign-in tokens, and when each expires
+	sessions map[string]bool      // hashes of session cookies
+	streams  int
+	now      func() time.Time
 }
 
-// NewSecret returns a fresh launch secret.
-func NewSecret() (string, error) {
+// newToken returns 32 random bytes in hex.
+func newToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// hash is the key a token or cookie is kept under, so the server holds no
+// usable credential and a map lookup leaks nothing useful about one.
+func hash(t string) string {
+	h := sha256.Sum256([]byte(t))
+	return string(h[:])
 }
 
 // Listen opens a loopback listener on addr, refusing any other address.
@@ -87,8 +107,12 @@ func Listen(addr string) (net.Listener, error) {
 
 // New returns a server for requests addressed to host (the listener's
 // address), serving static as the page.
-func New(runner *jobs.Runner, static fs.FS, secret, host string) *Server {
-	s := &Server{runner: runner, static: static, secret: secret, host: host, mux: http.NewServeMux(), Heartbeat: 15 * time.Second}
+func New(runner *jobs.Runner, static fs.FS, host string) *Server {
+	s := &Server{
+		runner: runner, static: static, host: host, mux: http.NewServeMux(),
+		Heartbeat: 15 * time.Second, MaxStreams: DefaultMaxStreams,
+		tokens: map[string]time.Time{}, sessions: map[string]bool{}, now: time.Now,
+	}
 	s.mux.HandleFunc("POST /api/jobs", s.post(s.startJob))
 	s.mux.HandleFunc("GET /api/jobs", s.listJobs)
 	s.mux.HandleFunc("GET /api/jobs/{id}/events", s.events)
@@ -96,14 +120,54 @@ func New(runner *jobs.Runner, static fs.FS, secret, host string) *Server {
 	s.mux.HandleFunc("POST /api/jobs/{id}/cancel", s.post(s.cancel))
 	s.mux.HandleFunc("POST /api/run", s.post(s.run))
 	s.mux.HandleFunc("GET /api/split", s.split)
+	s.mux.HandleFunc("GET /api/grammar", s.grammar)
 	s.mux.Handle("GET /", http.FileServerFS(static))
 	return s
 }
 
-// URL is the address to open: it carries the secret once, which the first
-// visit swaps for a cookie.
-func (s *Server) URL() string {
-	return "http://" + s.host + "/?t=" + url.QueryEscape(s.secret)
+// Home is the GUI's address without a sign-in token.
+func (s *Server) Home() string { return "http://" + s.host + "/" }
+
+// SignInURL returns a new sign-in address. Its token works once, within
+// ttl: the first visit swaps it for a session cookie that is not derived
+// from it, so the address left in a process list, the browser's history
+// or a log signs nobody in (GUI-001 in security/gui/findings).
+func (s *Server) SignInURL(ttl time.Duration) (string, error) {
+	t, err := newToken()
+	if err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now()
+	for k, exp := range s.tokens {
+		if !now.Before(exp) {
+			delete(s.tokens, k)
+		}
+	}
+	s.tokens[hash(t)] = now.Add(ttl)
+	return s.Home() + "?t=" + url.QueryEscape(t), nil
+}
+
+// signIn spends token t and returns a new session cookie value.
+func (s *Server) signIn(t string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := hash(t)
+	exp, ok := s.tokens[k]
+	if !ok {
+		return "", false
+	}
+	delete(s.tokens, k)
+	if !s.now().Before(exp) {
+		return "", false
+	}
+	c, err := newToken()
+	if err != nil {
+		return "", false
+	}
+	s.sessions[hash(c)] = true
+	return c, true
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -119,32 +183,34 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if t := r.URL.Query().Get("t"); t != "" && r.URL.Path == "/" {
-		if !s.secretOK(t) {
-			http.Error(w, "wrong secret: open the address poo-gui printed", http.StatusForbidden)
+		if c, ok := s.signIn(t); ok {
+			http.SetCookie(w, &http.Cookie{Name: CookieName, Value: c, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
+		} else if !s.authed(r) {
+			http.Error(w, "This sign-in address was already used or has expired. Press Enter in the window running poo-gui for a new one.", http.StatusForbidden)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{Name: CookieName, Value: s.secret, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 	if !s.authed(r) {
 		if len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api/" {
-			writeErr(w, http.StatusUnauthorized, "not signed in: open the address poo-gui printed")
+			writeErr(w, http.StatusUnauthorized, "not signed in: open a sign-in address from poo-gui")
 			return
 		}
-		http.Error(w, "Open the address poo-gui printed when it started; it signs this browser in.", http.StatusUnauthorized)
+		http.Error(w, "Not signed in. Press Enter in the window running poo-gui to print a sign-in address, and open it.", http.StatusUnauthorized)
 		return
 	}
 	s.mux.ServeHTTP(w, r)
 }
 
-func (s *Server) secretOK(t string) bool {
-	return subtle.ConstantTimeCompare([]byte(t), []byte(s.secret)) == 1
-}
-
 func (s *Server) authed(r *http.Request) bool {
 	c, err := r.Cookie(CookieName)
-	return err == nil && s.secretOK(c.Value)
+	if err != nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sessions[hash(c.Value)]
 }
 
 // post guards a handler that changes something.
@@ -302,6 +368,10 @@ func (s *Server) split(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"args": args, "command": shell.Quote(args)})
 }
 
+func (s *Server) grammar(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"grammar": shell.Native.String()})
+}
+
 // events streams a job's output as server-sent events until the job ends
 // or the client goes away:
 //
@@ -319,6 +389,19 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
+	s.mu.Lock()
+	if s.streams >= s.MaxStreams {
+		s.mu.Unlock()
+		writeErr(w, http.StatusServiceUnavailable, "too many open event streams")
+		return
+	}
+	s.streams++
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.streams--
+		s.mu.Unlock()
+	}()
 	from, _ := strconv.ParseInt(r.URL.Query().Get("from"), 10, 64)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)

@@ -7,9 +7,14 @@
 //
 //	poo-gui [-listen 127.0.0.1:PORT] [-no-open] [-app]
 //	poo-gui poo ARGS...     run a poo command exactly as poo ARGS... would
+//
+// A browser signs in by opening a sign-in address once. poo-gui opens one
+// itself, or with -no-open prints one; press Enter in its window for
+// another (docs/gui.md, Security).
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -54,35 +59,69 @@ func run(ctx context.Context, args []string, s cli.Stdio, open func(url string, 
 		}
 		return 2
 	}
-	if err := serve(ctx, *listen, s.Out, func(url string) error {
-		if *noOpen {
-			return nil
-		}
-		return open(url, *app)
-	}); err != nil {
+	var opener func(string) error
+	if !*noOpen {
+		opener = func(url string) error { return open(url, *app) }
+	}
+	if err := serve(ctx, *listen, s.In, s.Out, opener); err != nil {
 		fmt.Fprintln(s.Err, "poo-gui:", err)
 		return 1
 	}
 	return 0
 }
 
+// How long a sign-in address works. The one poo-gui opens itself is used
+// by the browser at once, so it lives only long enough for a browser to
+// start; a printed one leaves time to copy it.
+const (
+	openTTL  = time.Minute
+	printTTL = 5 * time.Minute
+)
+
 // serve runs the GUI until ctx is done, then stops every job, giving a
-// running node time to close its stores.
-func serve(ctx context.Context, listen string, out io.Writer, ready func(url string) error) error {
+// running node time to close its stores. open, when not nil, opens a
+// sign-in address in a browser; otherwise one is printed. Each line read
+// from in prints a new sign-in address.
+func serve(ctx context.Context, listen string, in io.Reader, out io.Writer, open func(url string) error) error {
 	ln, err := server.Listen(listen)
 	if err != nil {
 		return err
 	}
-	secret, err := server.NewSecret()
-	if err != nil {
-		ln.Close()
-		return err
-	}
 	runner := jobs.New(ctx, jobs.Options{})
-	srv := server.New(runner, web.FS(), secret, ln.Addr().String())
-	fmt.Fprintf(out, "poo-gui %s: open %s\n", cli.Version, srv.URL())
-	if err := ready(srv.URL()); err != nil {
-		fmt.Fprintf(out, "could not open a browser (%v); open the address above\n", err)
+	srv := server.New(runner, web.FS(), ln.Addr().String())
+	printURL := func(prefix string) {
+		u, err := srv.SignInURL(printTTL)
+		if err != nil {
+			fmt.Fprintln(out, "poo-gui:", err)
+			return
+		}
+		fmt.Fprintf(out, "%sopen %s\n  (works once, within %v; press Enter here for another)\n", prefix, u, printTTL)
+	}
+	opened := false
+	if open != nil {
+		// The token in this address is in the browser's arguments only
+		// until the browser spends it.
+		u, err := srv.SignInURL(openTTL)
+		if err == nil {
+			err = open(u)
+		}
+		if err == nil {
+			opened = true
+			fmt.Fprintf(out, "poo-gui %s: opened %s in your browser; press Enter here for a sign-in address to open it elsewhere\n", cli.Version, srv.Home())
+		} else {
+			fmt.Fprintf(out, "poo-gui %s: could not open a browser (%v)\n", cli.Version, err)
+		}
+	}
+	if !opened {
+		printURL(fmt.Sprintf("poo-gui %s: ", cli.Version))
+	}
+	if in != nil {
+		go func() {
+			sc := bufio.NewScanner(in)
+			for sc.Scan() && ctx.Err() == nil {
+				printURL("")
+			}
+		}()
 	}
 	serr := srv.Serve(ctx, ln)
 	if err := runner.Close(15 * time.Second); err != nil {

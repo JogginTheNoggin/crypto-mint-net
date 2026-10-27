@@ -39,12 +39,13 @@ func TestServeOpensAndStops(t *testing.T) {
 		pw.Close()
 	}()
 	line, err := bufio.NewReader(pr).ReadString('\n')
-	if err != nil || !strings.Contains(line, "open http://127.0.0.1:") {
+	if err != nil || !strings.Contains(line, "opened http://127.0.0.1:") {
 		t.Fatalf("banner %q %v", line, err)
 	}
 	go io.Copy(io.Discard, pr)
 	url := <-opened
-	if !strings.Contains(line, url) {
+	// GUI-001: the token the browser got is not printed.
+	if i := strings.Index(url, "?t="); i < 0 || strings.Contains(line, url[i:]) {
 		t.Fatalf("opened %s, printed %s", url, line)
 	}
 	jar, _ := cookiejar.New(nil)
@@ -66,6 +67,64 @@ func TestServeOpensAndStops(t *testing.T) {
 	case <-time.After(20 * time.Second):
 		t.Fatal("did not stop")
 	}
+}
+
+// TestNoOpenPrintsOneUseAddresses is GUI-001: with -no-open poo-gui
+// prints a sign-in address, Enter prints a new one, and each works once.
+func TestNoOpenPrintsOneUseAddresses(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	inR, inW := io.Pipe()
+	outR, outW := io.Pipe()
+	done := make(chan int, 1)
+	go func() {
+		done <- run(ctx, []string{"-no-open"}, cli.Stdio{In: inR, Out: outW, Err: io.Discard}, nil)
+		outW.Close()
+	}()
+	urls := make(chan string, 4)
+	go func() {
+		sc := bufio.NewScanner(outR)
+		for sc.Scan() {
+			if f := strings.Fields(sc.Text()); len(f) > 0 && strings.Contains(f[len(f)-1], "?t=") {
+				urls <- f[len(f)-1]
+			}
+		}
+	}()
+	next := func() string {
+		select {
+		case u := <-urls:
+			return u
+		case <-time.After(10 * time.Second):
+			t.Fatal("no sign-in address printed")
+			return ""
+		}
+	}
+	first := next()
+	io.WriteString(inW, "\n")
+	second := next()
+	if first == second {
+		t.Fatal("Enter printed the same address")
+	}
+	get := func(u string) int {
+		jar, _ := cookiejar.New(nil)
+		resp, err := (&http.Client{Jar: jar}).Get(u)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	for _, u := range []string{first, second} {
+		if c := get(u); c != http.StatusOK {
+			t.Fatalf("first use of %s: %d", u, c)
+		}
+		if c := get(u); c != http.StatusForbidden {
+			t.Fatalf("second use of %s: %d", u, c)
+		}
+	}
+	cancel()
+	inW.Close()
+	<-done
 }
 
 func TestRefusesPublicListen(t *testing.T) {

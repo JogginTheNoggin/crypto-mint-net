@@ -180,3 +180,63 @@ func TestCloseCancelsAndRefuses(t *testing.T) {
 		t.Fatalf("Start after Close: %v", err)
 	}
 }
+
+// TestMaxRunning checks the cap on jobs running at once (GUI-004).
+func TestMaxRunning(t *testing.T) {
+	block := make(chan struct{})
+	r := New(context.Background(), Options{MaxRunning: 2, Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		select {
+		case <-block:
+		case <-ctx.Done():
+		}
+		return 0
+	}})
+	defer r.Close(5 * time.Second)
+	a, _ := r.Start(nil)
+	if _, err := r.Start(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Start(nil); err != ErrBusy {
+		t.Fatalf("third running job: %v, want ErrBusy", err)
+	}
+	a.Cancel()
+	wait(t, a)
+	if _, err := r.Start(nil); err != nil {
+		t.Fatalf("after one stopped: %v", err)
+	}
+	close(block)
+}
+
+// TestMaxTotalOutput checks finished jobs are dropped to keep their output
+// within the total limit (GUI-004).
+func TestMaxTotalOutput(t *testing.T) {
+	r := New(context.Background(), Options{MaxTotalOutput: 100, Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		fmt.Fprint(s.Out, strings.Repeat("x", 40))
+		return 0
+	}})
+	defer r.Close(5 * time.Second)
+	for range 10 {
+		wait(t, must(r.Start(nil)))
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		total := 0
+		for _, j := range r.List() {
+			total += len(j.Output(Stdout))
+		}
+		if total <= 100 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("finished jobs keep %d bytes", total)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func must(j *Job, err error) *Job {
+	if err != nil {
+		panic(err)
+	}
+	return j
+}

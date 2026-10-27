@@ -17,10 +17,13 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/cli"
 )
 
-// Limits on what a runner keeps.
+// Limits on what a runner runs and keeps (GUI-004 in
+// security/gui/findings).
 const (
-	DefaultMaxOutput = 4 << 20 // bytes of output kept per job
-	DefaultMaxJobs   = 64      // jobs kept, finished ones dropped first
+	DefaultMaxOutput      = 4 << 20  // bytes of output kept per job
+	DefaultMaxJobs        = 64       // jobs kept, finished ones dropped first
+	DefaultMaxRunning     = 16       // jobs running at once
+	DefaultMaxTotalOutput = 64 << 20 // bytes of output kept by finished jobs
 )
 
 // Stream names a chunk's stream.
@@ -49,6 +52,8 @@ type Runner struct {
 	main      MainFunc
 	maxOutput int
 	maxJobs   int
+	maxRun    int
+	maxTotal  int
 
 	mu    sync.Mutex
 	next  int
@@ -59,8 +64,10 @@ type Runner struct {
 
 // Options adjust a runner; zero values mean the defaults.
 type Options struct {
-	MaxOutput int
-	MaxJobs   int
+	MaxOutput      int
+	MaxJobs        int
+	MaxRunning     int
+	MaxTotalOutput int
 	// Main replaces cli.Main; only tests set it.
 	Main MainFunc
 }
@@ -68,7 +75,7 @@ type Options struct {
 // New returns a runner whose jobs are cancelled when ctx is done or the
 // runner is closed.
 func New(ctx context.Context, o Options) *Runner {
-	r := &Runner{main: cli.Main, maxOutput: DefaultMaxOutput, maxJobs: DefaultMaxJobs, jobs: map[string]*Job{}}
+	r := &Runner{main: cli.Main, maxOutput: DefaultMaxOutput, maxJobs: DefaultMaxJobs, maxRun: DefaultMaxRunning, maxTotal: DefaultMaxTotalOutput, jobs: map[string]*Job{}}
 	if o.Main != nil {
 		r.main = o.Main
 	}
@@ -78,6 +85,12 @@ func New(ctx context.Context, o Options) *Runner {
 	if o.MaxJobs > 0 {
 		r.maxJobs = o.MaxJobs
 	}
+	if o.MaxRunning > 0 {
+		r.maxRun = o.MaxRunning
+	}
+	if o.MaxTotalOutput > 0 {
+		r.maxTotal = o.MaxTotalOutput
+	}
 	r.ctx, r.cancel = context.WithCancel(ctx)
 	return r
 }
@@ -85,12 +98,18 @@ func New(ctx context.Context, o Options) *Runner {
 // ErrClosed is returned by Start after Close.
 var ErrClosed = errors.New("jobs: runner closed")
 
+// ErrBusy is returned by Start while the most jobs allowed are running.
+var ErrBusy = errors.New("jobs: too many commands running; stop one first")
+
 // Start runs args (without the program name) as a new job.
 func (r *Runner) Start(args []string) (*Job, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.ctx.Err() != nil {
 		return nil, ErrClosed
+	}
+	if r.running() >= r.maxRun {
+		return nil, ErrBusy
 	}
 	r.next++
 	ctx, cancel := context.WithCancel(r.ctx)
@@ -114,16 +133,38 @@ func (r *Runner) Start(args []string) (*Job, error) {
 		code := r.main(ctx, j.Args, cli.Stdio{In: j.in, Out: j.writer(Stdout), Err: j.writer(Stderr)})
 		cancel()
 		j.finish(code)
+		r.mu.Lock()
+		r.trim()
+		r.mu.Unlock()
 	}()
 	return j, nil
 }
 
-// trim drops the oldest finished jobs beyond the limit. Running jobs are
-// never dropped.
+func (r *Runner) running() int {
+	n := 0
+	for _, j := range r.jobs {
+		if !j.Done() {
+			n++
+		}
+	}
+	return n
+}
+
+// trim drops the oldest finished jobs while more jobs are kept than the
+// limit, or finished jobs keep more output than the total limit. Running
+// jobs are never dropped; their output is bounded per job and their
+// number by MaxRunning.
 func (r *Runner) trim() {
-	for i := 0; len(r.order) > r.maxJobs && i < len(r.order); {
+	total := 0
+	for _, j := range r.jobs {
+		if j.Done() {
+			total += j.outputSize()
+		}
+	}
+	for i := 0; (len(r.order) > r.maxJobs || total > r.maxTotal) && i < len(r.order); {
 		id := r.order[i]
-		if r.jobs[id].Done() {
+		if j := r.jobs[id]; j.Done() {
+			total -= j.outputSize()
 			delete(r.jobs, id)
 			r.order = slices.Delete(r.order, i, i+1)
 			continue
@@ -259,6 +300,12 @@ func (j *Job) Output(stream Stream) string {
 		}
 	}
 	return string(b)
+}
+
+func (j *Job) outputSize() int {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.size
 }
 
 func (j *Job) notify() {
