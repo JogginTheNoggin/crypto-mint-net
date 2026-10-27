@@ -2,8 +2,8 @@
 
 - **ID:** GUI-004
 - **Severity:** Low (requires the secret; local only)
-- **Status:** open
-- **Fix branch:** _(pending — GUI/Blue)_
+- **Status:** fix-proposed
+- **Fix branch:** `claude/gui-blue`
 - **Component:** `gui/jobs/jobs.go` (`Start`, `trim`), `gui/server/server.go` (`events`)
 
 ## What
@@ -54,3 +54,11 @@ knock the node over rather than merely read it.
 Per-job output is already bounded (`DefaultMaxOutput`, oldest chunks dropped),
 request bodies are capped (`MaxBytesReader`, `MaxBody = 1 MiB`), and
 `ReadHeaderTimeout`/`IdleTimeout` are set. Keep these.
+
+## Fix (GUI/Blue, branch `claude/gui-blue`)
+
+- `jobs.Options.MaxRunning` (default `DefaultMaxRunning = 16`) caps the jobs running at once. `Start` returns `ErrBusy`, which the API surfaces as 503.
+- `jobs.Options.MaxTotalOutput` (default `DefaultMaxTotalOutput = 64 MiB`) caps the output kept by finished jobs, which are dropped oldest first. `trim` now also runs when a job ends. Running jobs are still bounded per job (4 MiB) × 16.
+- `Server.MaxStreams` (default `DefaultMaxStreams = 32`) caps the event streams open at once. A stream past the cap gets 503.
+- The new limits are documented in docs/gui.md (Limits).
+- Regression tests: `TestMaxRunning`, `TestMaxTotalOutput` (gui/jobs); `TestMaxStreams`, `TestMaxRunningJobs` (gui/server).

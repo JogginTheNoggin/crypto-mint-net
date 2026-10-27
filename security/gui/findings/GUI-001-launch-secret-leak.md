@@ -2,8 +2,8 @@
 
 - **ID:** GUI-001
 - **Severity:** Medium (High on a shared/multi-user host; Low on a single-user desktop)
-- **Status:** open
-- **Fix branch:** _(pending — GUI/Blue)_
+- **Status:** fix-proposed
+- **Fix branch:** `claude/gui-blue`
 - **Component:** `gui/server/server.go` (`URL`, cookie swap), `gui/cmd/poo-gui/main.go` (`openURL`, `serve`)
 
 ## What
@@ -81,3 +81,11 @@ Entropy (32 bytes via `crypto/rand`), constant-time comparison
 (`subtle.ConstantTimeCompare`), `HttpOnly`, `SameSite=Strict`, and
 `Referrer-Policy: no-referrer` are all correct and should be kept. This
 finding is about where the secret travels, not how it is compared.
+
+## Fix (GUI/Blue, branch `claude/gui-blue`)
+
+- `?t=` is now a one-time sign-in token with a time limit (`server.SignInURL`). The first visit spends it and sets a session cookie that is an independent random value, so the cookie is no longer the token. A spent or expired token gets a 403. The server stores only SHA-256 hashes of tokens and cookies.
+- The address poo-gui opens itself lives for 1 minute and is not printed. The banner shows only the plain `http://127.0.0.1:PORT/`. With `-no-open`, poo-gui prints an address that lives for 5 minutes. Pressing Enter in poo-gui's window prints a fresh address, so expiry never locks a user out.
+- Result: history, logs and scrollback only ever hold spent or expired tokens. The process-argv channel shrinks to the time between the browser starting and spending the token (usually under a second). This residual is documented in docs/gui.md (Security), with `-no-open` recommended on shared hosts. A file-based hand-off was considered and rejected, because snap-packaged browsers cannot read `/tmp` or dot-directories, so it would break the default open on Ubuntu.
+- Kept: entropy, HttpOnly, SameSite=Strict, no-referrer.
+- Regression tests: `TestSignIn`, `TestSignInTokenOneUse`, `TestSignInTokenExpires` (gui/server); `TestServeOpensAndStops`, `TestNoOpenPrintsOneUseAddresses` (gui/cmd/poo-gui); browser e2e check that a used address is refused in a second browser context (gui/e2e/terminal.mjs).

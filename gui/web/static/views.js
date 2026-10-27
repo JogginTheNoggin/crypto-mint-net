@@ -19,8 +19,8 @@ export function el(tag, attrs = {}, ...kids) {
 }
 
 // runJob runs args as a job and shows it in area: output as it arrives,
-// an input field whenever the command reads input (masked for a
-// passphrase), and the result rendered once it ends. It resolves to
+// an input field whenever the command reads input (masked unless the
+// user shows it), and the result rendered once it ends. It resolves to
 // {code, out, err}.
 export function runJob(args, area, { onStart } = {}) {
   area.textContent = '';
@@ -28,9 +28,18 @@ export function runJob(args, area, { onStart } = {}) {
   const live = el('pre', { class: 'live-out' });
   const ask = el('form', { class: 'ask', hidden: true });
   const askLabel = el('label', {});
-  const askInput = el('input', { autocomplete: 'off', spellcheck: 'false' });
+  // The answer is masked unless the user shows it: which prompts read a
+  // secret is not guessed from the output (GUI-003).
+  const askInput = el('input', { type: 'password', autocomplete: 'off', spellcheck: 'false' });
+  const showBtn = el('button', { type: 'button', class: 'small', 'aria-pressed': 'false', title: 'Show what you type' }, 'Show');
+  showBtn.onclick = () => {
+    const show = askInput.type === 'password';
+    askInput.type = show ? 'text' : 'password';
+    showBtn.setAttribute('aria-pressed', String(show));
+    askInput.focus();
+  };
   const stopBtn = el('button', { type: 'button' }, 'Stop');
-  ask.append(askLabel, askInput, el('button', { type: 'submit', class: 'primary' }, 'Send'));
+  ask.append(askLabel, askInput, showBtn, el('button', { type: 'submit', class: 'primary' }, 'Send'));
   area.append(el('div', { class: 'run-bar' }, status, stopBtn), ask, live);
   return new Promise(resolve => {
     api.start(args).then(j => {
@@ -41,6 +50,8 @@ export function runJob(args, area, { onStart } = {}) {
         ev.preventDefault();
         const v = askInput.value;
         askInput.value = '';
+        askInput.type = 'password';
+        showBtn.setAttribute('aria-pressed', 'false');
         ask.hidden = true;
         api.input(j.id, v).catch(e => { err += `poo-gui: ${e.message}\n`; });
       };
@@ -57,7 +68,6 @@ export function runJob(args, area, { onStart } = {}) {
           if (s.waiting) {
             const prompt = tail.split('\n').pop().trim() || 'input:';
             askLabel.textContent = prompt;
-            askInput.type = /passphrase/i.test(prompt) ? 'password' : 'text';
             askInput.focus();
           }
         },

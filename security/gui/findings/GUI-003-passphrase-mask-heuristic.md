@@ -2,8 +2,8 @@
 
 - **ID:** GUI-003
 - **Severity:** Low
-- **Status:** open
-- **Fix branch:** _(pending — GUI/Blue)_
+- **Status:** fix-proposed
+- **Fix branch:** `claude/gui-blue`
 - **Component:** `gui/web/static/terminal.js` (`setSecret`, the `state` handler), interacts with `pkg/cli/wallet.go` prompts
 
 ## What
@@ -74,3 +74,11 @@ passphrase is rendered in clear text on a screen the user may be sharing.
 Input lines during a running job are correctly kept out of localStorage
 history, and the server zeroes the unread input buffer on job completion
 (`input.close` sets `in.buf = nil`). Keep both.
+
+## Fix (GUI/Blue, branch `claude/gui-blue`)
+
+- Masking no longer depends on the output. The terminal masks its input field (`type=password`, with the prompt reading "input (hidden)") for the whole time a command is running, and does not echo what is sent. A "Show typing" button reveals the input for that command only. Views' input fields (`runJob` in views.js) are masked by default the same way, with a Show button. Because it fails closed, a missed or reworded prompt, interleaved stderr, a >64-byte gap, or an event-ordering race can no longer expose a passphrase.
+- The core signal suggested in this finding, where `cli.Main` declares that it is reading a secret, would be a `pkg/cli` change, so it belongs to the Source teams. Passed to GUI/Grey to raise if wanted. Since the GUI now fails closed, the signal would only improve the UX (no masking on non-secret prompts).
+- Related, for Source: headless `poo` reads passphrases from stdin with echo on (`pkg/cli/wallet.go`), so in a real terminal the passphrase is visible as it is typed. Passed to GUI/Grey for the Source teams.
+- Kept: input during a job stays out of localStorage history, and unread input is dropped when a job ends.
+- Regression tests: the e2e checks that the field is masked while `wallet create` waits and that the passphrase is not echoed (gui/e2e/terminal.mjs, gui/e2e/views.mjs).

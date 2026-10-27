@@ -31,5 +31,5 @@ export async function launch(bin) {
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(url);
   const close = async () => { await browser.close(); gui.kill('SIGINT'); };
-  return { home, env, page, errors, close };
+  return { home, env, url, browser, page, errors, close };
 }

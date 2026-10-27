@@ -2,8 +2,8 @@
 
 - **ID:** GUI-005
 - **Severity:** Info (design / defense-in-depth)
-- **Status:** open
-- **Fix branch:** _(pending — GUI/Blue)_
+- **Status:** fix-proposed (docs); confirmation gate and read-only mode await jerry
+- **Fix branch:** `claude/gui-blue`
 - **Component:** architecture — `gui/server/server.go` (`/api/jobs`, `/api/run`), `gui/jobs/jobs.go`
 
 ## What
@@ -55,3 +55,9 @@ Mitigation of this item is a policy/UX decision for jerry and GUI/Grey as much
 as a code change; it is filed as Info so it is tracked, not because an
 immediate fix is required. The concrete, actionable items are GUI-001 through
 GUI-004.
+
+## Fix (GUI/Blue, branch `claude/gui-blue`)
+
+- Documented the authority model: docs/gui.md (Security, "Authority") and a new poo-gui section in `SECURITY.md`. Both say that a sign-in address before use, or the session cookie, is full control of the node and should be treated like the wallet passphrase. The existing view-form confirmation is described as a guard against stray clicks, not a security boundary.
+- GUI-001's fix shrinks the blast radius: a leaked address is useless once it has been spent or has expired.
+- Not implemented: the server-enforced confirmation gate and a read-only mode. A confirmation gate in the terminal would make it behave differently from headless `poo`, which conflicts with jerry's hard rule. Both are policy decisions for jerry and GUI/Grey, so they are left open here.
