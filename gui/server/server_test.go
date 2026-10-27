@@ -346,7 +346,7 @@ func TestJobStreamAndInput(t *testing.T) {
 		case strings.HasPrefix(l, "data: "):
 			d := l[6:]
 			datas = append(datas, d)
-			if d == `{"waiting":true}` && !sentInput {
+			if d == `{"secret":false,"waiting":true}` && !sentInput {
 				sentInput = true
 				if r := h.do("POST", "/api/jobs/"+j.ID+"/input", map[string]string{"line": "world"}, nil); r.StatusCode != http.StatusNoContent {
 					t.Fatalf("input: %d", r.StatusCode)
@@ -358,7 +358,7 @@ func TestJobStreamAndInput(t *testing.T) {
 		}
 	}
 	all := strings.Join(datas, "\n")
-	for _, want := range []string{`"data":"passphrase: "`, `{"waiting":true}`, `"data":"hello world\n"`, `"stream":"err","data":"bye\n"`, `{"code":4}`} {
+	for _, want := range []string{`"data":"passphrase: "`, `{"secret":false,"waiting":true}`, `"data":"hello world\n"`, `"stream":"err","data":"bye\n"`, `{"code":4}`} {
 		if !strings.Contains(all, want) {
 			t.Errorf("events lack %s:\n%s", want, all)
 		}
@@ -428,5 +428,44 @@ func TestSplitEndpoint(t *testing.T) {
 	decode(t, h.do("GET", "/api/grammar", nil, nil), &g)
 	if g.Grammar != shell.Native.String() {
 		t.Fatalf("grammar %q", g.Grammar)
+	}
+}
+
+// TestSecretState checks that a job reading a secret through
+// cli.Stdio.Secret says so in its state event, so the page masks that
+// line and only that line.
+func TestSecretState(t *testing.T) {
+	h := newHarness(t, jobs.Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		if _, err := s.Secret("passphrase: "); err != nil {
+			return 2
+		}
+		return 0
+	}})
+	var j struct{ ID string }
+	decode(t, h.do("POST", "/api/jobs", map[string]any{"args": []string{"wallet", "addresses"}}, nil), &j)
+	resp := h.do("GET", "/api/jobs/"+j.ID+"/events", nil, nil)
+	sc := bufio.NewScanner(resp.Body)
+	for sc.Scan() {
+		if sc.Text() == `data: {"secret":true,"waiting":true}` {
+			h.do("POST", "/api/jobs/"+j.ID+"/input", map[string]string{"line": "pw"}, nil)
+		}
+		if sc.Text() == "event: exit" {
+			return
+		}
+	}
+	t.Fatal("no exit event")
+}
+
+func TestInfo(t *testing.T) {
+	for _, view := range []bool{false, true} {
+		h := newHarness(t, jobs.Options{ViewOnly: view})
+		var got struct {
+			Grammar  string
+			ViewOnly bool
+		}
+		decode(t, h.do("GET", "/api/info", nil, nil), &got)
+		if got.ViewOnly != view || got.Grammar != shell.Native.String() {
+			t.Fatalf("view-only %v: info %+v", view, got)
+		}
 	}
 }

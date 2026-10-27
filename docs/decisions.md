@@ -1212,6 +1212,21 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   CSP stops injected script.
 - **Tier:** Implementation.
 
+### D89. The GUI takes secrets and view-only mode from the core
+
+- **Decision:** Every job's `cli.Stdio` carries a `Secret` reader. It
+  writes the prompt to standard error, reads one line that is never
+  written to the output, and marks the job's state `secret` while it
+  waits; the page masks that line and only that line. `poo-gui
+  -view-only` sets `cli.Stdio.ViewOnly` on every job and shows a "view
+  only" badge; `GET /api/info` reports it.
+- **Why:** The core now says when it reads a secret and decides what a
+  view-only invocation may run (D101). Taking both from it keeps the GUI
+  free of its own rules, as D86 and D87 require: what the GUI masks and
+  refuses is exactly what headless `poo` hides and refuses. It replaces
+  masking every input line (GUI-003), which hid ordinary answers too.
+- **Tier:** Implementation.
+
 ### D90. One filter for every view, the stream and every front end
 
 - **Decision:** Package `pkg/filter` defines the only way to select

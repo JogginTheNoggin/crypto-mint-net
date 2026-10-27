@@ -59,22 +59,24 @@ export function mount(root) {
     out.scrollTop = out.scrollHeight;
   };
 
-  // Input to a running command is masked unless the user asks to see it:
-  // the terminal cannot know which prompts read a secret, so it never
-  // guesses from the output (GUI-003 in security/gui/findings).
+  // A passphrase or seed is masked and never echoed, exactly when poo
+  // reads one: the core reads every secret through cli.Stdio.Secret
+  // (decision D101), and the job's state says so. Other input shows as
+  // typed, as in a shell. Show typing unmasks a secret on request.
   let showTyping = false;
+  let secret = false;
   const setRunning = j => {
     job = j;
     stopBtn.disabled = detachBtn.disabled = !j;
-    showBtn.hidden = !j;
-    showTyping = false;
+    secret = showTyping = false;
     refreshInput();
   };
   const refreshInput = () => {
-    const masked = !!job && !showTyping;
+    const masked = !!job && secret && !showTyping;
     line.type = masked ? 'password' : 'text';
+    showBtn.hidden = !(job && secret);
     showBtn.setAttribute('aria-pressed', String(showTyping));
-    prompt.textContent = job ? (masked ? 'input (hidden)' : 'input') : '$ poo';
+    prompt.textContent = job ? (secret ? (masked ? 'secret (hidden)' : 'secret') : 'input') : '$ poo';
   };
 
   async function runLine(text) {
@@ -94,6 +96,7 @@ export function mount(root) {
     cur.unfollow = api.follow(j.id, {
       chunk: c => write(c.data, c.stream === 'err' ? 'err' : ''),
       dropped: () => write('[earlier output dropped]\n', 'note'),
+      state: st => { if (job === cur && st.secret !== secret) { secret = !!st.secret; showTyping = false; refreshInput(); } },
       exit: e => {
         if (e.code !== 0) write(`[exit ${e.code}]\n`, 'note');
         announce(e.code === 0 ? 'Command finished.' : `Command failed with exit ${e.code}.`);
@@ -111,7 +114,9 @@ export function mount(root) {
     line.value = '';
     if (job) {
       // The running command reads this line, as from a shell's input.
-      write(line.type === 'password' ? '\n' : text + '\n', 'echo');
+      // A secret is not echoed (poo ends its line itself, as the headless
+      // terminal does); other input is, as a shell's terminal echoes it.
+      if (!secret) write(text + '\n', 'echo');
       try { await api.input(job.id, text); } catch (e) { write(`poo-gui: ${e.message}\n`, 'err'); }
       return;
     }

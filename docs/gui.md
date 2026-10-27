@@ -23,11 +23,16 @@ source, and the GUI is built on top of it:
   with `-app`. It needs no CGO, no native toolkit and no JavaScript build
   step, so it builds for every platform the headless tool builds for.
 - The terminal splits a line exactly as the platform's shell would, or
-  refuses it. A browser signs in through a one-time sign-in address, and
-  input to a running command is masked by default. The GUI Red team's
+  refuses it. A browser signs in through a one-time sign-in address. A
+  passphrase or seed is masked exactly when `poo` reads one, because the
+  core tells the GUI (cli.Stdio.Secret, D101). The GUI Red team's
   findings GUI-001 to GUI-005 (security/gui/findings/) led to these rules.
+- `poo-gui -view-only` runs every command in the core's view-only mode
+  (D101): reads use the node's view token and anything that changes
+  something is refused by `poo` itself. The GUI adds only a "view only"
+  badge.
 
-Decisions D85 to D88 record these choices.
+Decisions D85 to D89 record these choices.
 
 ## TLDR
 
@@ -120,9 +125,10 @@ with a button that runs it in the terminal.
 | Terminal | Anything, typed |
 
 When a running command reads input, such as a passphrase prompt, the view
-shows an input field next to it. The field is masked unless the user
-clicks Show, because the GUI cannot know which prompts read a secret and
-does not guess from the output. Actions that move funds or delete something ask for
+shows an input field next to it. The field is masked when, and only when,
+`poo` is reading a passphrase or seed: the core reads every secret through
+`cli.Stdio.Secret` (D101), and the job's state says so. Show unmasks it on
+request. The GUI never guesses from the output. Actions that move funds or delete something ask for
 confirmation first, and the confirmation shows the command line. The
 terminal adds no flags: what you type is what runs.
 
@@ -182,8 +188,10 @@ into the same argv. A test checks that the page's quoting matches
 
 ### Same output, byte for byte
 
-`gui/jobs` gives `cli.Main` an output writer and an input reader, and
-nothing else. A test runs a set of commands both directly through
+`gui/jobs` gives `cli.Main` an output writer, an input reader, a secret
+reader and, with `-view-only`, the view-only switch, and nothing else. The
+secret reader behaves as the headless terminal does: the prompt goes to
+standard error and the typed line is not echoed. A test runs a set of commands both directly through
 `cli.Main` and through the GUI's HTTP API, and requires identical bytes
 and exit codes.
 
@@ -227,10 +235,18 @@ server is locked down:
   without a preflight, and the server answers no preflight.
 - **A strict Content-Security-Policy.** Only the GUI's own scripts and
   styles run, and no third-party code is loaded.
-- **Secrets stay out of the scrollback.** While a command runs, the
-  terminal's input is masked and what is sent is not echoed, unless the
-  user clicks Show typing. The GUI does not guess from a command's output
-  whether a prompt reads a secret, because a guess can fail open.
+- **Secrets stay out of the scrollback.** When `poo` reads a passphrase
+  or seed, it asks through `cli.Stdio.Secret` (D101), so the GUI knows
+  exactly which line is a secret. That line is masked and not echoed,
+  unless the user clicks Show typing. Other input shows as typed, as in a
+  shell. The GUI does not guess from a command's output whether a prompt
+  reads a secret, because a guess can fail open. Before D101 every line
+  sent to a running command was masked (GUI-003).
+- **View-only mode.** `poo-gui -view-only` passes the core's view-only
+  switch to every job, so commands dial the node with `rpc.view-token`
+  and the core refuses every command not in its read table. The GUI has
+  no list of its own; it only shows a badge. Write forms still render,
+  and running one prints the core's refusal, as `poo -view-only` would.
   Passphrases are never stored, and a job's unread input is discarded
   when the job ends.
 - **Authority.** The session cookie, like a sign-in address before it is

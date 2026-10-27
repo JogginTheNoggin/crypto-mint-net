@@ -2,7 +2,7 @@
 
 - **ID:** GUI-003
 - **Severity:** Low
-- **Status:** fixed (merged by GUI/Grey into claude/gui-5-release at fca4369, verified)
+- **Status:** fixed (merged by GUI/Grey into claude/gui-5-release at fca4369, verified). Since D89 (GUI Round 2 Part A) the GUI masks exactly the lines the core reads through cli.Stdio.Secret (D101) instead of every input line; for GUI/Red to re-check next round.
 - **Fix branch:** `claude/gui-blue`
 - **Component:** `gui/web/static/terminal.js` (`setSecret`, the `state` handler), interacts with `pkg/cli/wallet.go` prompts
 

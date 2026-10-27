@@ -45,13 +45,16 @@ export function follow(id, h, from = 0) {
 }
 
 // grammar is how the server splits a typed line (shell.Native): posix,
-// or windows for cmd.exe and poo.exe. loadGrammar asks the server once.
+// or windows for cmd.exe and poo.exe. viewOnly is true when every job
+// runs in poo's view-only mode (poo-gui -view-only). loadInfo asks the
+// server once.
 let grammar = 'posix';
-export async function loadGrammar() {
+export let viewOnly = false;
+export async function loadInfo() {
   try {
-    const r = await fetch('/api/grammar');
-    if (r.ok) grammar = (await r.json()).grammar;
-  } catch (_) { /* keep posix */ }
+    const r = await fetch('/api/info');
+    if (r.ok) ({ grammar, viewOnly } = await r.json());
+  } catch (_) { /* keep posix, not view-only */ }
 }
 
 // quote shows args as the poo command line the platform's shell would

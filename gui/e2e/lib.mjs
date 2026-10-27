@@ -9,11 +9,12 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
-export async function launch(bin) {
+// flags are extra poo-gui flags, such as -view-only.
+export async function launch(bin, flags = []) {
   const home = mkdtempSync(join(tmpdir(), 'poo-gui-e2e-'));
   const env = { ...process.env, POO_HOME: home };
   delete env.POO_PASSPHRASE;
-  const gui = spawn(bin, ['-no-open'], { env, stdio: ['ignore', 'pipe', 'inherit'] });
+  const gui = spawn(bin, ['-no-open', ...flags], { env, stdio: ['ignore', 'pipe', 'inherit'] });
   const url = await new Promise((resolve, reject) => {
     let buf = '';
     gui.stdout.on('data', d => {

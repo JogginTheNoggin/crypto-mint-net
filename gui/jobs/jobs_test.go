@@ -1,10 +1,12 @@
 package jobs
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -274,5 +276,101 @@ func TestTrimDropsRefreshesFirst(t *testing.T) {
 		if time.Now().After(end) {
 			t.Fatal("the oldest user job was kept past the limit")
 		}
+	}
+}
+
+// TestSecret checks the job's cli.Stdio.Secret: the prompt goes to
+// standard error, State.Secret is true only while the secret is read, the
+// line is not in the output, and input after it is left for In.
+func TestSecret(t *testing.T) {
+	r := New(context.Background(), Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		v, err := s.Secret("passphrase: ")
+		if err != nil {
+			return 2
+		}
+		line, _ := bufio.NewReader(s.In).ReadString('\n')
+		fmt.Fprintf(s.Out, "%d %q", len(v), line)
+		return 0
+	}})
+	defer r.Close(5 * time.Second)
+	j, _ := r.Start(nil)
+	deadline := time.Now().Add(5 * time.Second)
+	for st := j.Read(0); !st.Waiting || !st.Secret; st = j.Read(0) {
+		if time.Now().After(deadline) {
+			t.Fatal("job never waited for a secret")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := j.Input("hunter2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.Input("next"); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, j)
+	if got := j.Output(Stdout); got != `7 "next\n"` {
+		t.Fatalf("stdout %q", got)
+	}
+	if got := j.Output(Stderr); got != "passphrase: \n" {
+		t.Fatalf("stderr %q", got)
+	}
+	if j.Read(0).Secret {
+		t.Fatal("still reading a secret after the job ended")
+	}
+}
+
+func TestSecretEndsOnCancel(t *testing.T) {
+	r := New(context.Background(), Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		if _, err := s.Secret("seed: "); err != nil {
+			return 3
+		}
+		return 0
+	}})
+	defer r.Close(5 * time.Second)
+	j, _ := r.Start(nil)
+	for !j.Read(0).Waiting {
+		time.Sleep(time.Millisecond)
+	}
+	j.Cancel()
+	if code := wait(t, j); code != 3 {
+		t.Fatalf("code %d", code)
+	}
+}
+
+// TestViewOnly runs jobs through the core with Options.ViewOnly: reads
+// run as they do headless, and a command that changes something is
+// refused by the core itself, exactly as poo -view-only refuses it.
+func TestViewOnly(t *testing.T) {
+	r := New(context.Background(), Options{ViewOnly: true})
+	defer r.Close(5 * time.Second)
+	if !r.ViewOnly() {
+		t.Fatal("ViewOnly() is false")
+	}
+	dir := t.TempDir()
+	for _, args := range [][]string{
+		{"version"},
+		{"crypto"},
+		{"init", "-root", dir},
+		{"claim", "-root", dir},
+	} {
+		var out, errOut bytes.Buffer
+		want := cli.Main(context.Background(), append([]string{"-view-only"}, args...), cli.Stdio{Out: &out, Err: &errOut})
+		j, err := r.Start(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := wait(t, j); got != want {
+			t.Errorf("%v: exit %d, poo -view-only %d", args, got, want)
+		}
+		if j.Output(Stdout) != out.String() || j.Output(Stderr) != errOut.String() {
+			t.Errorf("%v: output differs from poo -view-only", args)
+		}
+	}
+	j, _ := r.Start([]string{"init", "-root", dir})
+	if wait(t, j) == 0 || !strings.Contains(j.Output(Stderr), "view-only") {
+		t.Fatalf("init was not refused: %q", j.Output(Stderr))
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Fatalf("view-only init wrote %d files", len(entries))
 	}
 }

@@ -23,8 +23,8 @@ export function el(tag, attrs = {}, ...kids) {
 }
 
 // runJob runs args as a job and shows it in area: output as it arrives,
-// an input field whenever the command reads input (masked unless the
-// user shows it), and the result rendered once it ends. It resolves to
+// an input field whenever the command reads input (masked when it is a
+// passphrase or seed), and the result rendered once it ends. It resolves to
 // {code, out, err}.
 export function runJob(args, area, { onStart, empty, refresh } = {}) {
   area.textContent = '';
@@ -32,8 +32,8 @@ export function runJob(args, area, { onStart, empty, refresh } = {}) {
   const live = el('pre', { class: 'live-out' });
   const ask = el('form', { class: 'ask', hidden: true });
   const askLabel = el('label', {});
-  // The answer is masked unless the user shows it: which prompts read a
-  // secret is not guessed from the output (GUI-003).
+  // A passphrase or seed is masked: the job's state says when poo reads
+  // one (cli.Stdio.Secret, decision D101), never a guess from the output.
   const askInput = el('input', { type: 'password', autocomplete: 'off', spellcheck: 'false' });
   const showBtn = el('button', { type: 'button', class: 'small', 'aria-pressed': 'false', title: 'Show what you type' }, 'Show');
   showBtn.onclick = () => {
@@ -69,6 +69,9 @@ export function runJob(args, area, { onStart, empty, refresh } = {}) {
         },
         state: s => {
           ask.hidden = !s.waiting;
+          askInput.type = s.secret ? 'password' : 'text';
+          showBtn.hidden = !s.secret;
+          showBtn.setAttribute('aria-pressed', 'false');
           if (s.waiting) {
             const prompt = tail.split('\n').pop().trim() || 'input:';
             askLabel.textContent = prompt;

@@ -15,6 +15,8 @@
 //	POST /api/run               {args} or {line}  run to the end: {code, out, err, command}
 //	GET  /api/split?line=                         the args a typed line is: {args, command}
 //	GET  /api/grammar                             the terminal's grammar: {grammar}, posix or windows
+//	GET  /api/info                                {grammar, viewOnly}: viewOnly when jobs run in the
+//	                                              core's view-only mode (poo-gui -view-only)
 package server
 
 import (
@@ -122,6 +124,7 @@ func New(runner *jobs.Runner, static fs.FS, host string) *Server {
 	s.mux.HandleFunc("POST /api/run", s.post(s.run))
 	s.mux.HandleFunc("GET /api/split", s.split)
 	s.mux.HandleFunc("GET /api/grammar", s.grammar)
+	s.mux.HandleFunc("GET /api/info", s.info)
 	s.mux.Handle("GET /", http.FileServerFS(static))
 	return s
 }
@@ -385,12 +388,17 @@ func (s *Server) grammar(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"grammar": shell.Native.String()})
 }
 
+func (s *Server) info(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"grammar": shell.Native.String(), "viewOnly": s.runner.ViewOnly()})
+}
+
 // events streams a job's output as server-sent events until the job ends
 // or the client goes away:
 //
 //	event: chunk    data: {seq, stream, data}
 //	event: dropped  data: {next}       output before next was dropped
-//	event: state    data: {waiting}    the job started or stopped waiting for input
+//	event: state    data: {waiting, secret}  the job started or stopped waiting for
+//	                                         input; secret: the input is a passphrase or seed
 //	event: exit     data: {code}       the last event
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	j, ok := s.job(w, r)
@@ -420,7 +428,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	beat := time.NewTicker(s.Heartbeat)
 	defer beat.Stop()
-	waiting := false
+	waiting, secret := false, false
 	first := true
 	for {
 		st := j.Read(from)
@@ -431,9 +439,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			sse(w, "chunk", c)
 		}
 		from = st.Next
-		if st.Waiting != waiting || first {
-			waiting, first = st.Waiting, false
-			sse(w, "state", map[string]bool{"waiting": waiting})
+		if st.Waiting != waiting || st.Secret != secret || first {
+			waiting, secret, first = st.Waiting, st.Secret, false
+			sse(w, "state", map[string]bool{"waiting": waiting, "secret": secret})
 		}
 		if st.Done {
 			sse(w, "exit", map[string]int{"code": st.Code})

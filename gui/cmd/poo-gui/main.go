@@ -49,8 +49,9 @@ func run(ctx context.Context, args []string, s cli.Stdio, open func(url string, 
 	listen := fs.String("listen", "127.0.0.1:0", "loopback address to serve the GUI on")
 	noOpen := fs.Bool("no-open", false, "print the address instead of opening a browser")
 	app := fs.Bool("app", false, "open a browser app window (Chrome, Chromium or Edge) instead of a tab")
+	viewOnly := fs.Bool("view-only", false, "run every command in poo's view-only mode: read with the node's view token, refuse changes")
 	fs.Usage = func() {
-		fmt.Fprint(s.Err, "Usage:\n  poo-gui [-listen ADDR] [-no-open] [-app]\n  poo-gui poo ARGS...   run a poo command exactly as poo ARGS... would\n\n")
+		fmt.Fprint(s.Err, "Usage:\n  poo-gui [-listen ADDR] [-no-open] [-app] [-view-only]\n  poo-gui poo ARGS...   run a poo command exactly as poo ARGS... would\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -63,7 +64,7 @@ func run(ctx context.Context, args []string, s cli.Stdio, open func(url string, 
 	if !*noOpen {
 		opener = func(url string) error { return open(url, *app) }
 	}
-	if err := serve(ctx, *listen, s.In, s.Out, opener); err != nil {
+	if err := serve(ctx, *listen, *viewOnly, s.In, s.Out, opener); err != nil {
 		fmt.Fprintln(s.Err, "poo-gui:", err)
 		return 1
 	}
@@ -81,13 +82,14 @@ const (
 // serve runs the GUI until ctx is done, then stops every job, giving a
 // running node time to close its stores. open, when not nil, opens a
 // sign-in address in a browser; otherwise one is printed. Each line read
-// from in prints a new sign-in address.
-func serve(ctx context.Context, listen string, in io.Reader, out io.Writer, open func(url string) error) error {
+// from in prints a new sign-in address. viewOnly runs every job in poo's
+// view-only mode (decision D101).
+func serve(ctx context.Context, listen string, viewOnly bool, in io.Reader, out io.Writer, open func(url string) error) error {
 	ln, err := server.Listen(listen)
 	if err != nil {
 		return err
 	}
-	runner := jobs.New(ctx, jobs.Options{})
+	runner := jobs.New(ctx, jobs.Options{ViewOnly: viewOnly})
 	srv := server.New(runner, web.FS(), ln.Addr().String())
 	printURL := func(prefix string) {
 		u, err := srv.SignInURL(printTTL)

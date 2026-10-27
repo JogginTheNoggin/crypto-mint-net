@@ -81,4 +81,7 @@ document.querySelector('.skip').addEventListener('click', ev => {
 });
 
 window.addEventListener('hashchange', show);
-api.loadGrammar().then(show);
+api.loadInfo().then(() => {
+  document.getElementById('view-only').hidden = !api.viewOnly;
+  show();
+});

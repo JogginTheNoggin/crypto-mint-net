@@ -11,6 +11,7 @@ import (
 	"io"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,6 +55,7 @@ type Runner struct {
 	maxJobs   int
 	maxRun    int
 	maxTotal  int
+	viewOnly  bool
 
 	mu    sync.Mutex
 	next  int
@@ -68,6 +70,10 @@ type Options struct {
 	MaxJobs        int
 	MaxRunning     int
 	MaxTotalOutput int
+	// ViewOnly runs every job in the core's view-only mode
+	// (cli.Stdio.ViewOnly, decision D101): commands dial the node with
+	// its view token and anything that changes something is refused.
+	ViewOnly bool
 	// Main replaces cli.Main; only tests set it.
 	Main MainFunc
 }
@@ -91,9 +97,13 @@ func New(ctx context.Context, o Options) *Runner {
 	if o.MaxTotalOutput > 0 {
 		r.maxTotal = o.MaxTotalOutput
 	}
+	r.viewOnly = o.ViewOnly
 	r.ctx, r.cancel = context.WithCancel(ctx)
 	return r
 }
+
+// ViewOnly reports whether the runner's jobs run in view-only mode.
+func (r *Runner) ViewOnly() bool { return r.viewOnly }
 
 // ErrClosed is returned by Start after Close.
 var ErrClosed = errors.New("jobs: runner closed")
@@ -138,7 +148,7 @@ func (r *Runner) start(args []string, refresh bool) (*Job, error) {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		code := r.main(ctx, j.Args, cli.Stdio{In: j.in, Out: j.writer(Stdout), Err: j.writer(Stderr)})
+		code := r.main(ctx, j.Args, cli.Stdio{In: j.in, Out: j.writer(Stdout), Err: j.writer(Stderr), Secret: j.readSecret, ViewOnly: r.viewOnly})
 		cancel()
 		j.finish(code)
 		r.mu.Lock()
@@ -230,6 +240,7 @@ type Job struct {
 	cancel context.CancelFunc
 	in     *input
 	max    int
+	secret bool // a passphrase or seed is being read (readSecret)
 
 	mu      sync.Mutex
 	chunks  []Chunk
@@ -278,6 +289,9 @@ type State struct {
 	Code    int // the exit code, once Done
 	// Waiting is true while the job is blocked reading its input.
 	Waiting bool
+	// Secret is true while what it waits for is a passphrase or a seed,
+	// so the GUI masks that line and only that line.
+	Secret bool
 	// Changed is closed when anything above changes.
 	Changed <-chan struct{}
 }
@@ -286,7 +300,7 @@ type State struct {
 func (j *Job) Read(from int64) State {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	s := State{Next: j.nextSeq, Changed: j.changed, Waiting: j.in.waiting()}
+	s := State{Next: j.nextSeq, Changed: j.changed, Waiting: j.in.waiting(), Secret: j.secret}
 	if from < j.first {
 		s.Dropped, from = true, j.first
 	}
@@ -345,6 +359,26 @@ func (j *Job) finish(code int) {
 	defer j.mu.Unlock()
 	j.code = code
 	close(j.done)
+	j.notify()
+}
+
+// readSecret is the job's cli.Stdio.Secret: the core calls it for every
+// passphrase and seed (decision D101). Like the headless terminal, it
+// writes the prompt to standard error and reads one line, which is never
+// written to the output; while it waits, State.Secret is true.
+func (j *Job) readSecret(prompt string) (string, error) {
+	j.setSecret(true)
+	defer j.setSecret(false)
+	j.write(Stderr, []byte(prompt))
+	line, err := j.in.readLine()
+	j.write(Stderr, []byte("\n"))
+	return line, err
+}
+
+func (j *Job) setSecret(on bool) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.secret = on
 	j.notify()
 }
 
@@ -421,6 +455,28 @@ func (in *input) waiting() bool {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	return in.nwait > 0
+}
+
+// errNoSecret is what readLine returns when the job ends first.
+var errNoSecret = errors.New("nothing was entered")
+
+// readLine reads one line, without its line ending, and nothing after it,
+// so what the command reads next is left in place.
+func (in *input) readLine() (string, error) {
+	var line []byte
+	b := make([]byte, 1)
+	for {
+		if _, err := in.Read(b); err != nil {
+			if len(line) == 0 {
+				return "", errNoSecret
+			}
+			return string(line), nil
+		}
+		if b[0] == '\n' {
+			return strings.TrimSuffix(string(line), "\r"), nil
+		}
+		line = append(line, b[0])
+	}
 }
 
 func (in *input) Read(p []byte) (int, error) {

@@ -24,7 +24,9 @@ built.
   supported Go toolchain, and reproducible release builds.
 - **GUI:** `poo-gui`, a local web app over the same `poo` commands
   (`pkg/cli`), with a terminal that is `poo` itself, a job list, and a
-  locked-down loopback server ([docs/gui.md](docs/gui.md)).
+  locked-down loopback server ([docs/gui.md](docs/gui.md)). `poo-gui
+  -view-only` runs every command in poo's view-only mode, and the GUI
+  masks a passphrase or seed exactly when poo reads one (D89).
 - **Cryptographic choice:** a series can use SHA-256, SHA-512/256,
   SHA3-256, BLAKE2b-256 or BLAKE3; allow Ed25519, ECDSA (P-256, P-384,
   P-521, secp256k1), BIP-340 Schnorr and ML-DSA-44/65/87 keys; and allow
