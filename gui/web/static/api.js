@@ -42,7 +42,29 @@ export function follow(id, h, from = 0) {
   return () => es.close();
 }
 
-// quote shows args as the poo command line a shell would take.
+// grammar is how the server splits a typed line (shell.Native): posix,
+// or windows for cmd.exe and poo.exe. loadGrammar asks the server once.
+let grammar = 'posix';
+export async function loadGrammar() {
+  try {
+    const r = await fetch('/api/grammar');
+    if (r.ok) grammar = (await r.json()).grammar;
+  } catch (_) { /* keep posix */ }
+}
+
+// quote shows args as the poo command line the platform's shell would
+// take, and that the terminal splits back into args. It is shell.Quote in
+// gui/shell/shell.go, which the tests pin.
 export function quote(args) {
-  return ['poo', ...args.map(a => (a !== '' && !/[\s'"\\]/.test(a)) ? a : `'${a.replaceAll("'", `'"'"'`)}'`)].join(' ');
+  return ['poo', ...args.map(grammar === 'windows' ? quoteWindows : quotePOSIX)].join(' ');
+}
+
+function quotePOSIX(a) {
+  return /^[A-Za-z0-9_\-.,\/:@%+=]+$/.test(a) ? a : `'${a.replaceAll("'", `'"'"'`)}'`;
+}
+
+function quoteWindows(a) {
+  if (a !== '' && !/[ \t"&|<>^]/.test(a)) return a;
+  // Backslashes before a quote, and at the end, are doubled.
+  return '"' + a.replace(/(\\*)"/g, (_, b) => b + b + '\\"').replace(/(\\+)$/, '$1$1') + '"';
 }

@@ -12,10 +12,18 @@ import { launch } from './lib.mjs';
 
 const bin = process.argv[2];
 const shots = process.argv[3];
-const { home, env, page, errors, close } = await launch(bin);
+const { home, env, url, browser, page, errors, close } = await launch(bin);
 
 try {
   assert.ok(!page.url().includes('?t='), 'the secret stays in the address bar');
+  // GUI-001: the sign-in address works once; a second browser that opens
+  // it (from history, a process list or a log) is not signed in.
+  {
+    const other = await browser.newContext();
+    const r = await (await other.newPage()).goto(url);
+    assert.equal(r.status(), 403, 'a used sign-in address is refused');
+    await other.close();
+  }
   await page.click('nav a[data-id=terminal]');
   const line = page.locator('#term-line');
   const out = page.locator('.terminal .term-out');
@@ -51,6 +59,22 @@ try {
   await type('no-such-command');
   await idle();
   assert.match(await out.innerText(), /poo: unknown command "no-such-command"[\s\S]*\[exit 1\]/);
+
+  // GUI-002: "clear" is a poo command line like any other, as in a
+  // shell after "poo"; the Clear button clears the screen.
+  await type('clear');
+  await idle();
+  assert.match(await out.innerText(), /poo: unknown command "clear"/);
+  await page.click('[data-act=clear]');
+  assert.equal(await out.innerText(), '');
+  // GUI-002: shell syntax the terminal does not run is refused, not
+  // given a meaning a shell would not give it.
+  const before = errors.length;
+  await type('status | cat');
+  await idle();
+  assert.match(await out.innerText(), /no shell syntax/);
+  // The browser logs the refused request; that one is expected.
+  errors.splice(before, errors.length - before, ...errors.slice(before).filter(e => !/status of 400/.test(e)));
 
   // A passphrase prompt gets a masked field, and the passphrase is not echoed.
   await type(`wallet create -wallet ${join(home, 'w.json')}`);

@@ -19,6 +19,8 @@ export function mount(root) {
       <div class="term-bar">
         <span>Terminal: the same commands as <code>poo</code> in a shell. Tab completes, Ctrl-C stops a command, Ctrl-L clears.</span>
         <span class="spacer"></span>
+        <button type="button" data-act="clear" title="Clear the screen (Ctrl-L)">Clear</button>
+        <button type="button" data-act="show" hidden aria-pressed="false" title="Show what you type to the running command">Show typing</button>
         <button type="button" data-act="detach" disabled title="Keep the running command going in the background">Run in background</button>
         <button type="button" data-act="stop" disabled>Stop</button>
       </div>
@@ -38,9 +40,11 @@ export function mount(root) {
   // Screen readers hear when a command ends, not every chunk it prints.
   const status = root.querySelector('[role=status]');
   const announce = text => { status.textContent = text; };
+  const clearBtn = root.querySelector('[data-act=clear]');
+  const showBtn = root.querySelector('[data-act=show]');
   const history = loadHistory();
   let hpos = history.length;
-  let job = null; // {id, unfollow, tail}
+  let job = null; // {id, unfollow}
   // section.dataset.runs counts the command lines that have ended, so a
   // test or a script driving the page can tell when one is done.
   const section = root.querySelector('.terminal');
@@ -55,20 +59,28 @@ export function mount(root) {
     out.scrollTop = out.scrollHeight;
   };
 
+  // Input to a running command is masked unless the user asks to see it:
+  // the terminal cannot know which prompts read a secret, so it never
+  // guesses from the output (GUI-003 in security/gui/findings).
+  let showTyping = false;
   const setRunning = j => {
     job = j;
     stopBtn.disabled = detachBtn.disabled = !j;
-    prompt.textContent = j ? 'input' : '$ poo';
-    if (!j) setSecret(false);
+    showBtn.hidden = !j;
+    showTyping = false;
+    refreshInput();
   };
-  const setSecret = on => {
-    line.type = on ? 'password' : 'text';
-    prompt.textContent = job ? (on ? 'secret' : 'input') : '$ poo';
+  const refreshInput = () => {
+    const masked = !!job && !showTyping;
+    line.type = masked ? 'password' : 'text';
+    showBtn.setAttribute('aria-pressed', String(showTyping));
+    prompt.textContent = job ? (masked ? 'input (hidden)' : 'input') : '$ poo';
   };
 
   async function runLine(text) {
+    // Every line goes to poo, even "clear": clearing the screen is the
+    // Clear button and Ctrl-L, never a command (GUI-002).
     write(`$ poo ${text.replace(/^\s*poo(\s+|$)/, '')}\n`, 'echo');
-    if (text.trim() === 'clear') { out.textContent = ''; finished(); return; }
     let j;
     try {
       j = await api.start(text);
@@ -77,16 +89,11 @@ export function mount(root) {
       finished();
       return;
     }
-    const cur = { id: j.id, tail: '' };
+    const cur = { id: j.id };
     setRunning(cur);
     cur.unfollow = api.follow(j.id, {
-      chunk: c => {
-        write(c.data, c.stream === 'err' ? 'err' : '');
-        cur.tail = (cur.tail + c.data).slice(-64);
-      },
+      chunk: c => write(c.data, c.stream === 'err' ? 'err' : ''),
       dropped: () => write('[earlier output dropped]\n', 'note'),
-      // A command reading a passphrase gets a masked field.
-      state: s => { if (job === cur) setSecret(s.waiting && /passphrase: ?$/i.test(cur.tail)); },
       exit: e => {
         if (e.code !== 0) write(`[exit ${e.code}]\n`, 'note');
         announce(e.code === 0 ? 'Command finished.' : `Command failed with exit ${e.code}.`);
@@ -104,9 +111,7 @@ export function mount(root) {
     line.value = '';
     if (job) {
       // The running command reads this line, as from a shell's input.
-      const secret = line.type === 'password';
-      write(secret ? '\n' : text + '\n', 'echo');
-      setSecret(false);
+      write(line.type === 'password' ? '\n' : text + '\n', 'echo');
       try { await api.input(job.id, text); } catch (e) { write(`poo-gui: ${e.message}\n`, 'err'); }
       return;
     }
@@ -142,6 +147,8 @@ export function mount(root) {
       line.value = history[hpos] || '';
     }
   });
+  clearBtn.addEventListener('click', () => { out.textContent = ''; line.focus(); });
+  showBtn.addEventListener('click', () => { showTyping = !showTyping; refreshInput(); line.focus(); });
   stopBtn.addEventListener('click', () => { if (job) { write('^C\n', 'note'); api.cancel(job.id).catch(() => {}); } });
   detachBtn.addEventListener('click', () => {
     if (!job) return;

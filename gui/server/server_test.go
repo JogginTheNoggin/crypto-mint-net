@@ -27,16 +27,40 @@ type harness struct {
 func newHarness(t *testing.T, o jobs.Options) *harness {
 	t.Helper()
 	runner := jobs.New(context.Background(), o)
-	secret, _ := NewSecret()
 	static := fstest.MapFS{"index.html": {Data: []byte("<!doctype html>page")}}
 	h := &harness{t: t}
 	h.srv = httptest.NewUnstartedServer(nil)
 	h.srv.Start()
-	h.s = New(runner, static, secret, h.srv.Listener.Addr().String())
+	h.s = New(runner, static, h.srv.Listener.Addr().String())
 	h.srv.Config.Handler = h.s
-	h.cookie = &http.Cookie{Name: CookieName, Value: secret}
 	t.Cleanup(func() { h.srv.Close(); runner.Close(5 * time.Second) })
+	h.cookie = h.signIn(h.signInPath(time.Minute))
+	if h.cookie == nil {
+		t.Fatal("sign-in set no cookie")
+	}
 	return h
+}
+
+// signInPath returns a new sign-in address, as a path.
+func (h *harness) signInPath(ttl time.Duration) string {
+	h.t.Helper()
+	u, err := h.s.SignInURL(ttl)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return strings.TrimPrefix(u, h.srv.URL)
+}
+
+// signIn opens path without a cookie and returns the cookie it set.
+func (h *harness) signIn(path string) *http.Cookie {
+	h.t.Helper()
+	r := h.do("GET", path, nil, func(r *http.Request) { r.Header.Del("Cookie") })
+	for _, c := range r.Cookies() {
+		if c.Name == CookieName {
+			return c
+		}
+	}
+	return nil
 }
 
 func (h *harness) do(method, path string, body any, mod func(*http.Request)) *http.Response {
@@ -49,7 +73,9 @@ func (h *harness) do(method, path string, body any, mod func(*http.Request)) *ht
 		rd = bytes.NewReader(nil)
 	}
 	req, _ := http.NewRequest(method, h.srv.URL+path, rd)
-	req.AddCookie(h.cookie)
+	if h.cookie != nil {
+		req.AddCookie(h.cookie)
+	}
 	if method == "POST" {
 		req.Header.Set(Header, "1")
 	}
@@ -99,11 +125,15 @@ func TestSignIn(t *testing.T) {
 		t.Fatalf("api without cookie: %d", r.StatusCode)
 	}
 	if r := h.do("GET", "/?t=wrong", nil, noCookie); r.StatusCode != http.StatusForbidden {
-		t.Fatalf("wrong secret: %d", r.StatusCode)
+		t.Fatalf("wrong token: %d", r.StatusCode)
 	}
-	r := h.do("GET", "/?t="+h.cookie.Value, nil, noCookie)
+	path := h.signInPath(time.Minute)
+	if !strings.HasPrefix(path, "/?t=") {
+		t.Fatalf("sign-in path %s", path)
+	}
+	r := h.do("GET", path, nil, noCookie)
 	if r.StatusCode != http.StatusSeeOther || r.Header.Get("Location") != "/" {
-		t.Fatalf("secret: %d %s", r.StatusCode, r.Header.Get("Location"))
+		t.Fatalf("token: %d %s", r.StatusCode, r.Header.Get("Location"))
 	}
 	var set *http.Cookie
 	for _, c := range r.Cookies() {
@@ -111,14 +141,103 @@ func TestSignIn(t *testing.T) {
 			set = c
 		}
 	}
-	if set == nil || set.Value != h.cookie.Value || !set.HttpOnly || set.SameSite != http.SameSiteStrictMode {
+	if set == nil || !set.HttpOnly || set.SameSite != http.SameSiteStrictMode {
 		t.Fatalf("cookie %+v", set)
 	}
+	// GUI-001: the cookie is not the token, so the address is not the
+	// credential.
+	if strings.Contains(path, set.Value) {
+		t.Fatal("the session cookie is the sign-in token")
+	}
+	h.cookie = set
 	if r := h.do("GET", "/", nil, nil); r.StatusCode != http.StatusOK || !strings.Contains(r.Header.Get("Content-Security-Policy"), "default-src 'self'") {
 		t.Fatalf("page: %d, csp %q", r.StatusCode, r.Header.Get("Content-Security-Policy"))
 	}
-	if h.s.URL() != h.srv.URL+"/?t="+h.cookie.Value {
-		t.Fatalf("URL %s", h.s.URL())
+	// A signed-in browser that opens a used address again stays signed in.
+	if r := h.do("GET", path, nil, nil); r.StatusCode != http.StatusSeeOther {
+		t.Fatalf("used address with a cookie: %d", r.StatusCode)
+	}
+	if h.s.Home() != h.srv.URL+"/" {
+		t.Fatalf("Home %s", h.s.Home())
+	}
+}
+
+// TestSignInTokenOneUse is GUI-001: a sign-in address left in a process
+// list, the browser's history or a log does not sign anyone else in.
+func TestSignInTokenOneUse(t *testing.T) {
+	h := newHarness(t, jobs.Options{})
+	path := h.signInPath(time.Minute)
+	if h.signIn(path) == nil {
+		t.Fatal("first use did not sign in")
+	}
+	if c := h.signIn(path); c != nil {
+		t.Fatal("a used token signed in again")
+	}
+	if r := h.do("GET", path, nil, func(r *http.Request) { r.Header.Del("Cookie") }); r.StatusCode != http.StatusForbidden {
+		t.Fatalf("used token: %d", r.StatusCode)
+	}
+	// Each sign-in is its own session.
+	a, b := h.signIn(h.signInPath(time.Minute)), h.signIn(h.signInPath(time.Minute))
+	if a == nil || b == nil || a.Value == b.Value {
+		t.Fatalf("sessions %v %v", a, b)
+	}
+}
+
+func TestSignInTokenExpires(t *testing.T) {
+	h := newHarness(t, jobs.Options{})
+	now := time.Now()
+	h.s.now = func() time.Time { return now }
+	path := h.signInPath(time.Minute)
+	now = now.Add(time.Minute)
+	if c := h.signIn(path); c != nil {
+		t.Fatal("an expired token signed in")
+	}
+}
+
+// TestMaxStreams is GUI-004: event streams open at once are bounded.
+func TestMaxStreams(t *testing.T) {
+	block := make(chan struct{})
+	defer close(block)
+	h := newHarness(t, jobs.Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		select {
+		case <-block:
+		case <-ctx.Done():
+		}
+		return 0
+	}})
+	h.s.MaxStreams = 2
+	var j struct{ ID string }
+	decode(t, h.do("POST", "/api/jobs", map[string]any{"args": []string{"x"}}, nil), &j)
+	path := "/api/jobs/" + j.ID + "/events"
+	for range 2 {
+		if r := h.do("GET", path, nil, nil); r.StatusCode != http.StatusOK {
+			t.Fatalf("stream: %d", r.StatusCode)
+		}
+	}
+	r := h.do("GET", path, nil, nil)
+	if r.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("stream past the limit: %d", r.StatusCode)
+	}
+}
+
+// TestMaxRunningJobs is GUI-004 through the API: a start past the limit
+// is refused with 503.
+func TestMaxRunningJobs(t *testing.T) {
+	block := make(chan struct{})
+	defer close(block)
+	h := newHarness(t, jobs.Options{MaxRunning: 1, Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		select {
+		case <-block:
+		case <-ctx.Done():
+		}
+		return 0
+	}})
+	body := map[string]any{"args": []string{"x"}}
+	if r := h.do("POST", "/api/jobs", body, nil); r.StatusCode != http.StatusCreated {
+		t.Fatalf("first: %d", r.StatusCode)
+	}
+	if r := h.do("POST", "/api/jobs", body, nil); r.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("past the limit: %d", r.StatusCode)
 	}
 }
 
@@ -290,7 +409,24 @@ func TestSplitEndpoint(t *testing.T) {
 		Command string
 	}
 	decode(t, h.do("GET", "/api/split?line="+strings.ReplaceAll("poo pay -memo 'x y'", " ", "%20"), nil, nil), &got)
-	if len(got.Args) != 3 || got.Args[2] != "x y" || got.Command != "poo pay -memo 'x y'" {
+	if len(got.Args) != 3 || got.Args[2] != "x y" || got.Command != shell.Quote([]string{"pay", "-memo", "x y"}) {
 		t.Fatalf("%+v", got)
+	}
+	// GUI-002: a line a shell would split differently is refused.
+	for _, bad := range []string{"a%0Ab", "a%20%7C%20b", "%24HOME"} {
+		if shell.Native == shell.Windows && bad == "%24HOME" {
+			continue
+		}
+		if r := h.do("GET", "/api/split?line="+bad, nil, nil); r.StatusCode != http.StatusBadRequest {
+			t.Errorf("split %s: %d", bad, r.StatusCode)
+		}
+	}
+	if r := h.do("POST", "/api/jobs", map[string]any{"line": "a\nb c"}, nil); r.StatusCode != http.StatusBadRequest {
+		t.Errorf("job line with a newline: %d", r.StatusCode)
+	}
+	var g struct{ Grammar string }
+	decode(t, h.do("GET", "/api/grammar", nil, nil), &g)
+	if g.Grammar != shell.Native.String() {
+		t.Fatalf("grammar %q", g.Grammar)
 	}
 }
