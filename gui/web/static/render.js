@@ -12,7 +12,21 @@ function el(tag, cls, text) {
 const isHex = s => typeof s === 'string' && s.length >= 24 && /^[0-9a-f]+$/i.test(s);
 const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-function scalar(v) {
+// LOOKUPS are the fields whose value Explore can look up. A value under
+// one of these keys gets a link that opens Explore with it filled in, and
+// Explore runs the same poo command its form shows.
+const LOOKUPS = { tid: 'tid', address: 'address', to: 'address' };
+
+export function lookupLink(key, v) {
+  const param = LOOKUPS[key];
+  if (!param || !isHex(v)) return null;
+  const a = el('a', 'lookup', 'look up');
+  a.href = `#/explore?${param}=${v}`;
+  a.title = `Open Explore with this ${param === 'tid' ? 'transaction' : 'address'}`;
+  return a;
+}
+
+function scalar(v, key) {
   if (v === null) return el('span', 'nil', '—');
   if (typeof v === 'boolean') return el('span', v ? 'yes' : 'no', v ? 'yes' : 'no');
   if (isHex(v)) {
@@ -21,8 +35,20 @@ function scalar(v) {
     const s = el('code', 'hex', `${v.slice(0, 10)}…${v.slice(-6)}`);
     s.title = `${v}\n(click to copy)`;
     s.tabIndex = 0;
-    s.addEventListener('click', () => { navigator.clipboard && navigator.clipboard.writeText(v); s.classList.add('copied'); setTimeout(() => s.classList.remove('copied'), 800); });
-    return s;
+    // Copying can be refused (no clipboard permission); then the full value
+    // is still in the tooltip, and nothing is reported as copied.
+    s.addEventListener('click', () => {
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(v).then(() => {
+        s.classList.add('copied');
+        setTimeout(() => s.classList.remove('copied'), 800);
+      }, () => { s.title = `${v}\n(copying was refused by the browser)`; });
+    });
+    const link = lookupLink(key, v);
+    if (!link) return s;
+    const span = el('span', 'hex-wrap');
+    span.append(s, ' ', link);
+    return span;
   }
   return el('span', typeof v === 'number' ? 'num' : '', String(v));
 }
@@ -36,7 +62,7 @@ function table(rows) {
   const body = t.createTBody();
   for (const r of rows.slice(0, MAX_ROWS)) {
     const tr = body.insertRow();
-    for (const k of keys) tr.insertCell().append(k in r ? render(r[k], 2) : el('span', 'nil', ''));
+    for (const k of keys) tr.insertCell().append(k in r ? render(r[k], 2, k) : el('span', 'nil', ''));
   }
   const wrap = el('div', 'table-wrap');
   wrap.append(t);
@@ -45,8 +71,9 @@ function table(rows) {
 }
 
 // depth is how deep v is in the output; deep lists of rows start folded.
-export function render(v, depth = 0) {
-  if (!isObj(v) && !Array.isArray(v)) return scalar(v);
+// key is the field v was printed under, if any.
+export function render(v, depth = 0, key = '') {
+  if (!isObj(v) && !Array.isArray(v)) return scalar(v, key);
   if (Array.isArray(v)) {
     if (v.length === 0) return el('span', 'nil', 'none');
     if (v.every(isObj)) return depth >= 2 && v.length > 3 ? collapsed(`${v.length} items`, () => table(v)) : table(v);
@@ -60,7 +87,7 @@ export function render(v, depth = 0) {
   for (const k of keys) {
     dl.append(el('dt', '', k.replaceAll('_', ' ')));
     const dd = el('dd');
-    dd.append(render(v[k], depth + 1));
+    dd.append(render(v[k], depth + 1, k));
     dl.append(dd);
   }
   return dl;

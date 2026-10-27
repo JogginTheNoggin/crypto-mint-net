@@ -57,8 +57,11 @@ export function openInTerminal(text) {
 }
 
 function show() {
-  const id = location.hash.replace(/^#\//, '') || all[0].id;
+  // A view may take parameters after "?", for example #/explore?tid=HEX,
+  // which a link elsewhere uses to open it with a field filled in.
+  const [id, query] = location.hash.replace(/^#\//, '').split('?');
   const v = all.find(x => x.id === id) || all[0];
+  const params = new URLSearchParams(query || '');
   for (const a of nav.children) {
     a.classList.toggle('active', a.dataset.id === v.id);
     if (a.dataset.id === v.id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
@@ -71,7 +74,7 @@ function show() {
   viewPane.hidden = isTerm;
   if (isTerm) { term.focus(); return; }
   viewPane.textContent = '';
-  stopView = v.mount(viewPane, { openInTerminal }) || null;
+  stopView = v.mount(viewPane, { openInTerminal, params }) || null;
 }
 
 // The skip link moves focus without touching the hash the views use.
