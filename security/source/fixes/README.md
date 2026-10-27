@@ -9,4 +9,4 @@ added and how Grey checks it. See [AGENTS.md](../../../AGENTS.md#teams-read-firs
 | Id | Fixes | Branch | Merged by Grey in |
 | --- | --- | --- | --- |
 | [BLUE-001](BLUE-001.md) | docs/security.md open item "Key derivation" (Argon2id wallets, D95) | `claude/project-thread-ggo8dt` @ b6d2e75 | a9469fe |
-| [BLUE-002](BLUE-002.md) | RED-001, RED-002, RED-004, RED-005 (D96 to D98) | `claude/project-thread-ggo8dt` | |
+| [BLUE-002](BLUE-002.md) | RED-001, RED-002, RED-004, RED-005 (D96 to D98) | `claude/project-thread-ggo8dt` @ fb9999e | 12ab084 |
