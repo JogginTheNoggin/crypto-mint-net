@@ -57,7 +57,7 @@ func DecodeThresholdParams(reg *Registry, b []byte) (ThresholdParams, error) {
 	p.Keys = make([]Key, 0, n)
 	for i := 0; i < n && r.Err() == nil; i++ {
 		alg := AlgID(r.U32())
-		pub := r.VarBytes(1024)
+		pub := r.VarBytes(MaxKeySize)
 		p.Keys = append(p.Keys, Key{Alg: alg, Public: pub})
 	}
 	if err := r.Finish(); err != nil {
@@ -116,7 +116,7 @@ func DecodeThresholdData(b []byte) (ThresholdData, error) {
 	d := ThresholdData{Sigs: make([]Sig, 0, n)}
 	for i := 0; i < n && r.Err() == nil; i++ {
 		idx := r.U16()
-		sig := r.VarBytes(1024)
+		sig := r.VarBytes(MaxSigSize)
 		d.Sigs = append(d.Sigs, Sig{Index: idx, Signature: sig})
 	}
 	if err := r.Finish(); err != nil {

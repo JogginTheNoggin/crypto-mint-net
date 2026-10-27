@@ -67,3 +67,30 @@ func TestOrderAndText(t *testing.T) {
 		t.Fatal("want length error")
 	}
 }
+
+// Every hash in the list against a published answer for "abc", split across
+// parts to check concatenation.
+func TestKnownAnswers(t *testing.T) {
+	want := map[ID]string{
+		SHA256:     "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+		SHA512_256: "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23",
+		SHA3_256:   "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
+		BLAKE2b256: "bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319",
+		BLAKE3:     "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85",
+	}
+	if len(IDs()) != len(want) {
+		t.Fatalf("%d hashes known, %d tested", len(IDs()), len(want))
+	}
+	for _, id := range IDs() {
+		f, err := Lookup(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := f([]byte("a"), []byte("bc")); got != MustParse(want[id]) {
+			t.Errorf("%s: got %s", id.Name(), got)
+		}
+		if back, ok := ByName(id.Name()); !ok || back != id {
+			t.Errorf("%s: name does not map back", id.Name())
+		}
+	}
+}

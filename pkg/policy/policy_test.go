@@ -145,11 +145,11 @@ func TestUnknownTypeAndAlg(t *testing.T) {
 	h := sha(t)
 	tid := h([]byte("tx"))
 	unknownType := Policy{Type: 77, Params: []byte{1}}
-	open := rules{types: map[TypeID]bool{77: true, TypeThreshold: true}, algs: map[AlgID]bool{AlgEd25519: true, 9: true}}
+	open := rules{types: map[TypeID]bool{77: true, TypeThreshold: true}, algs: map[AlgID]bool{AlgEd25519: true, 999: true}}
 	if err := Default().Check(h, open, Witness{Policy: unknownType}, Address(h, unknownType), tid); !errors.Is(err, ErrUnknownType) {
 		t.Fatalf("want ErrUnknownType, got %v", err)
 	}
-	unknownAlg := SingleKey(9, make([]byte, 32))
+	unknownAlg := SingleKey(999, make([]byte, 32))
 	if err := Default().Check(h, open, Witness{Policy: unknownAlg}, Address(h, unknownAlg), tid); !errors.Is(err, ErrUnknownAlg) {
 		t.Fatalf("want ErrUnknownAlg, got %v", err)
 	}

@@ -38,10 +38,26 @@ const (
 	TypeThreshold TypeID = 1
 )
 
-// Known key algorithms.
+// Known key algorithms (decision D81). docs/cryptography.md gives the
+// sizes and standards of each.
 const (
 	// AlgEd25519 is Ed25519 (RFC 8032), 32-byte keys, 64-byte signatures.
 	AlgEd25519 AlgID = 1
+	// AlgECDSAP256 is ECDSA over P-256 with SHA-256.
+	AlgECDSAP256 AlgID = 2
+	// AlgECDSAP384 is ECDSA over P-384 with SHA-384.
+	AlgECDSAP384 AlgID = 3
+	// AlgECDSAP521 is ECDSA over P-521 with SHA-512.
+	AlgECDSAP521 AlgID = 4
+	// AlgECDSASecp256k1 is ECDSA over secp256k1 with SHA-256 (Bitcoin's).
+	AlgECDSASecp256k1 AlgID = 5
+	// AlgSchnorrSecp256k1 is BIP-340 Schnorr over secp256k1.
+	AlgSchnorrSecp256k1 AlgID = 6
+	// AlgMLDSA44, AlgMLDSA65 and AlgMLDSA87 are ML-DSA (FIPS 204), the
+	// post-quantum lattice signature, at NIST security categories 2, 3, 5.
+	AlgMLDSA44 AlgID = 7
+	AlgMLDSA65 AlgID = 8
+	AlgMLDSA87 AlgID = 9
 )
 
 // Limits that bound decoding before any policy-specific check runs.
@@ -50,6 +66,11 @@ const (
 	MaxParamsSize = 64 * 1024
 	// MaxDataSize bounds the witness data of any policy.
 	MaxDataSize = 64 * 1024
+	// MaxKeySize and MaxSigSize bound one public key and one signature,
+	// with room above the largest algorithm (ML-DSA-87: 2,592 and 4,627
+	// bytes).
+	MaxKeySize = 4096
+	MaxSigSize = 8192
 )
 
 // Errors returned by witness checks. All of them make a witness invalid;
@@ -177,7 +198,17 @@ func NewRegistry() *Registry {
 var defaultRegistry = func() *Registry {
 	r := NewRegistry()
 	r.RegisterType(thresholdType{})
+	r.RegisterType(hashlockType{})
+	r.RegisterType(kOfType{})
 	r.RegisterAlg(ed25519Alg{})
+	for _, id := range []AlgID{AlgECDSAP256, AlgECDSAP384, AlgECDSAP521} {
+		r.RegisterAlg(nistAlgs[id])
+	}
+	r.RegisterAlg(k1Alg{})
+	r.RegisterAlg(schnorrAlg{})
+	for _, id := range []AlgID{AlgMLDSA44, AlgMLDSA65, AlgMLDSA87} {
+		r.RegisterAlg(mldsaAlgs[id])
+	}
 	return r
 }()
 
@@ -213,6 +244,47 @@ func (r *Registry) Alg(id AlgID) (KeyAlg, bool) {
 	return a, ok
 }
 
+// Types returns the registered policy types, in number order.
+func (r *Registry) Types() []Type {
+	out := make([]Type, 0, len(r.types))
+	for id := TypeID(1); len(out) < len(r.types); id++ {
+		if t, ok := r.types[id]; ok {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// Algs returns the registered key algorithms, in number order.
+func (r *Registry) Algs() []KeyAlg {
+	out := make([]KeyAlg, 0, len(r.algs))
+	for id := AlgID(1); len(out) < len(r.algs); id++ {
+		if a, ok := r.algs[id]; ok {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// TypeByName and AlgByName look a number up by its name.
+func (r *Registry) TypeByName(name string) (TypeID, bool) {
+	for id, t := range r.types {
+		if t.Name() == name {
+			return id, true
+		}
+	}
+	return 0, false
+}
+
+func (r *Registry) AlgByName(name string) (AlgID, bool) {
+	for id, a := range r.algs {
+		if a.Name() == name {
+			return id, true
+		}
+	}
+	return 0, false
+}
+
 // HasType reports whether the registry implements a policy type.
 func (r *Registry) HasType(id TypeID) bool { _, ok := r.types[id]; return ok }
 
@@ -228,21 +300,50 @@ func (r *Registry) Check(h hash.Func, rules Rules, w Witness, addr, tid hash.Has
 	if Address(h, w.Policy) != addr {
 		return ErrAddressMismatch
 	}
-	if !rules.AllowsPolicyType(w.Policy.Type) {
-		return ErrTypeNotAllowed
-	}
-	t, ok := r.types[w.Policy.Type]
-	if !ok {
-		return ErrUnknownType
-	}
-	algs, err := t.KeyAlgs(r, w.Policy.Params)
+	t, err := r.allowed(rules, w.Policy)
 	if err != nil {
 		return err
 	}
+	return t.Satisfy(r, w.Policy.Params, w.Data, Message(tid))
+}
+
+// allowed checks that the series allows policy p's type and key
+// algorithms, and those of every policy inside it (decision D82).
+func (r *Registry) allowed(rules Rules, p Policy) (Type, error) {
+	if !rules.AllowsPolicyType(p.Type) {
+		return nil, ErrTypeNotAllowed
+	}
+	t, ok := r.types[p.Type]
+	if !ok {
+		return nil, ErrUnknownType
+	}
+	algs, err := t.KeyAlgs(r, p.Params)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range algs {
 		if !rules.AllowsKeyAlg(a) {
-			return ErrAlgNotAllowed
+			return nil, ErrAlgNotAllowed
 		}
 	}
-	return t.Satisfy(r, w.Policy.Params, w.Data, Message(tid))
+	if c, ok := t.(Composite); ok {
+		parts, err := c.Parts(r, p.Params)
+		if err != nil {
+			return nil, err
+		}
+		for _, q := range parts {
+			if _, err := r.allowed(rules, q); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return t, nil
+}
+
+// CheckPolicy reports whether a policy is well formed and allowed by the
+// rules, without a witness: what a receiver checks before giving out an
+// address.
+func (r *Registry) CheckPolicy(rules Rules, p Policy) error {
+	_, err := r.allowed(rules, p)
+	return err
 }
