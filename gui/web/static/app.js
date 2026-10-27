@@ -2,6 +2,7 @@
 // and run poo command lines (views.js); the terminal runs typed ones.
 import * as terminal from './terminal.js';
 import { views } from './views.js';
+import { startView } from './start.js';
 import * as where from './where.js';
 
 where.applyTheme();
@@ -27,7 +28,7 @@ const viewPane = document.createElement('div');
 viewPane.className = 'pane';
 main.append(viewPane);
 
-const all = [...views, { id: 'terminal', title: 'Terminal' }];
+const all = [startView, ...views, { id: 'terminal', title: 'Terminal' }];
 for (const v of all) {
   const a = document.createElement('a');
   a.href = `#/${v.id}`;
@@ -48,7 +49,11 @@ export function openInTerminal(text) {
 function show() {
   const id = location.hash.replace(/^#\//, '') || all[0].id;
   const v = all.find(x => x.id === id) || all[0];
-  for (const a of nav.children) a.classList.toggle('active', a.dataset.id === v.id);
+  for (const a of nav.children) {
+    a.classList.toggle('active', a.dataset.id === v.id);
+    if (a.dataset.id === v.id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  }
+  document.title = `${v.title} · poo GUI`;
   if (stopView) { stopView(); stopView = null; }
   const isTerm = v.id === 'terminal';
   termPane.hidden = !isTerm;
@@ -57,6 +62,12 @@ function show() {
   viewPane.textContent = '';
   stopView = v.mount(viewPane, { openInTerminal }) || null;
 }
+
+// The skip link moves focus without touching the hash the views use.
+document.querySelector('.skip').addEventListener('click', ev => {
+  ev.preventDefault();
+  main.focus();
+});
 
 window.addEventListener('hashchange', show);
 show();
