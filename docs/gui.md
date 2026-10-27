@@ -242,6 +242,18 @@ server is locked down:
   shell. The GUI does not guess from a command's output whether a prompt
   reads a secret, because a guess can fail open. Before D101 every line
   sent to a running command was masked (GUI-003).
+- **Secrets on the command line.** A seed can also be passed as an
+  argument: `wallet create -restore HEX`, `keygen -seed HEX`. The GUI runs
+  poo in its own process, so no other process sees that argument. It
+  keeps the seed out of two places that last (GUI-006). The terminal saves
+  its history in the browser's storage, and it does not save a line that
+  holds a secret flag (`shell.SecretFlags`: `-restore`, `-seed`, except
+  `sim -seed`), or a line that starts with a space, as a shell with
+  `HISTCONTROL=ignorespace` does. Up-arrow still recalls such a line for
+  the rest of the session, and Forget history clears what is saved. Jobs
+  and `GET /api/jobs` show the flag's value as `<hidden>` and do not offer
+  the line to run again. The terminal still echoes the line as typed, as a
+  shell does, and a form's preview shows it.
 - **View-only mode.** `poo-gui -view-only` passes the core's view-only
   switch to every job, so commands dial the node with `rpc.view-token`
   and the core refuses every command not in its read table. The GUI has
@@ -267,6 +279,9 @@ server is locked down:
 - At most 16 jobs run at once. Starting another is refused (HTTP 503)
   until one ends.
 - At most 32 event streams are open at once.
+- The Watch view shows at most 1000 events. While it is paused it holds
+  at most the newest 1000 more and says how many it dropped. It keeps the
+  last 64 KiB of error text and drops a line longer than 1 MiB (GUI-007).
 
 ## Technology choice (D85)
 

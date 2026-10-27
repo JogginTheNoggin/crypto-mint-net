@@ -47,14 +47,27 @@ export function follow(id, h, from = 0) {
 // grammar is how the server splits a typed line (shell.Native): posix,
 // or windows for cmd.exe and poo.exe. viewOnly is true when every job
 // runs in poo's view-only mode (poo-gui -view-only). loadInfo asks the
-// server once.
+// server once. secretFlags are the poo flags whose value is a secret
+// (shell.SecretFlags).
 let grammar = 'posix';
 export let viewOnly = false;
+let secretFlags = ['restore', 'seed'];
 export async function loadInfo() {
   try {
     const r = await fetch('/api/info');
-    if (r.ok) ({ grammar, viewOnly } = await r.json());
+    if (r.ok) ({ grammar, viewOnly, secretFlags = secretFlags } = await r.json());
   } catch (_) { /* keep posix, not view-only */ }
+}
+
+// secretLine reports whether a typed line may hold a secret: a secret
+// flag such as -restore or -seed (except in poo sim, where -seed is a
+// random-number seed). It errs toward true, since it only keeps a line
+// out of saved history (GUI-006 in security/gui/findings).
+export function secretLine(text) {
+  const words = text.trim().split(/\s+/).map(w => w.replace(/^['"]+/, ''));
+  if (words[0] === 'poo') words.shift();
+  if (words.find(w => !w.startsWith('-')) === 'sim') return false;
+  return words.some(w => secretFlags.some(f => new RegExp(`^--?${f}(=|$)`).test(w)));
 }
 
 // quote shows args as the poo command line the platform's shell would

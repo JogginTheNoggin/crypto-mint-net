@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fix-proposed |
 | Found on | claude/gui-4-watch @ 93ed36a |
 | Component | gui/web/static/watch.js (`held`, `errOut`, `buf`) |
 | Surface | local (browser tab) |
-| Fixed by | _(pending — GUI/Blue)_ |
+| Fixed by | `claude/gui-blue` |
 
 ## Summary
 
@@ -66,3 +66,11 @@ The visible table is correctly capped at 1000 rows, the server bounds per-job ou
 rendering is `textContent`/`render()` so node- or peer-controlled event fields
 (`origin`, `from`, `tid`, `kind`, …) cannot inject HTML. This finding is only about
 the unbounded client-side accumulators.
+
+## Fix (GUI/Blue, branch `claude/gui-blue`)
+
+- `held` is capped at `MAX_EVENTS` (1000). The oldest held events are dropped, the Pause button reads "Resume (N dropped)", and on resume the status line and the counts report "N events dropped while paused".
+- The error box keeps only the last `MAX_ERR` (64 KiB) of text, behind an "[earlier errors dropped]" marker.
+- An unfinished line longer than `MAX_LINE` (1 MiB) is dropped, with a note in the error box.
+- Documented in docs/gui.md (Limits).
+- Regression test: gui/e2e/bounds.mjs, added to CI. It serves a synthetic stream of 1,500 events plus 200 KiB of stderr while the view is paused. It asserts that 500 are reported dropped, that the error box stays at or under 64 KiB, and that the table holds the newest 1,000 after resume. It times out against the unfixed watch.js.

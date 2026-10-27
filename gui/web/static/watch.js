@@ -7,7 +7,12 @@ import { render } from './render.js';
 import * as where from './where.js';
 
 const KINDS = ['tx', 'entry', 'layer', 'selected', 'reverted', 'switch', 'dropped'];
+// Bounds on what the view keeps, so a busy node cannot exhaust the tab
+// (GUI-007 in security/gui/findings): table rows and events held while
+// paused, the error text's tail, and one unfinished line.
 const MAX_EVENTS = 1000;
+const MAX_ERR = 64 << 10;
+const MAX_LINE = 1 << 20;
 
 // filterFields are the form fields of a filter; filterFlags turns their
 // values into poo's filter flags (comma lists, as poo takes them).
@@ -78,7 +83,15 @@ export const watchView = {
     const detail = el('div', { class: 'event-detail' });
     const errOut = el('pre', { class: 'text-out err', hidden: true });
 
-    let job = null, unfollow = null, paused = false, held = [], buf = '';
+    let job = null, unfollow = null, paused = false, held = [], heldDropped = 0, buf = '';
+    // errAppend adds text to the error box, keeping its last MAX_ERR
+    // characters.
+    const errAppend = text => {
+      errOut.hidden = false;
+      let t = errOut.textContent + text;
+      if (t.length > MAX_ERR) t = '[earlier errors dropped]\n' + t.slice(-MAX_ERR);
+      errOut.textContent = t;
+    };
     const tally = {};
     const showCounts = () => { counts.textContent = Object.entries(tally).map(([k, n]) => `${k} ${n}`).join(' · '); };
     const add = ev => {
@@ -99,8 +112,10 @@ export const watchView = {
     const lineIn = text => {
       if (!text.trim()) return;
       let ev;
-      try { ev = JSON.parse(text); } catch (_) { errOut.hidden = false; errOut.append(text + '\n'); return; }
-      if (paused) held.push(ev); else add(ev);
+      try { ev = JSON.parse(text); } catch (_) { errAppend(text + '\n'); return; }
+      if (!paused) { add(ev); return; }
+      held.push(ev);
+      if (held.length > MAX_EVENTS) { held.shift(); heldDropped++; pauseBtn.textContent = `Resume (${heldDropped} dropped)`; }
     };
     const setRunning = on => { startBtn.disabled = on; stopBtn.disabled = pauseBtn.disabled = !on; };
     f.addEventListener('submit', async e => {
@@ -114,11 +129,12 @@ export const watchView = {
       state.textContent = `watching: ${job.command}`;
       unfollow = api.follow(job.id, {
         chunk: c => {
-          if (c.stream === 'err') { errOut.hidden = false; errOut.append(c.data); return; }
+          if (c.stream === 'err') { errAppend(c.data); return; }
           buf += c.data;
           const lines = buf.split('\n');
           buf = lines.pop();
           lines.forEach(lineIn);
+          if (buf.length > MAX_LINE) { errAppend(`[dropped a line longer than ${MAX_LINE} bytes]\n`); buf = ''; }
         },
         exit: x => { setRunning(false); state.textContent = `stopped (exit ${x.code})`; job = null; },
       });
@@ -126,7 +142,12 @@ export const watchView = {
     pauseBtn.onclick = () => {
       paused = !paused;
       pauseBtn.textContent = paused ? `Resume` : 'Pause';
-      if (!paused) { held.forEach(add); held = []; }
+      if (!paused) {
+        if (heldDropped) { state.textContent = `${heldDropped} events dropped while paused (only the newest ${MAX_EVENTS} are held)`; tally['dropped while paused'] = (tally['dropped while paused'] || 0) + heldDropped; showCounts(); }
+        held.forEach(add);
+        held = [];
+        heldDropped = 0;
+      }
     };
     stopBtn.onclick = () => { if (job) api.cancel(job.id).catch(() => {}); };
     clearBtn.onclick = () => { body.textContent = ''; detail.textContent = ''; for (const k in tally) delete tally[k]; showCounts(); };

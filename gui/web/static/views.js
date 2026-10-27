@@ -356,7 +356,7 @@ const walletView = {
         args: v => ['wallet', 'watch', ...wf(v), ...flags('serial', v.serial), ...flags('pool', v.pool)], submit: 'Watch' }),
       form(ctx, { title: 'Claim a mint', fields: [w, { name: 'serial', label: 'Mint serial', type: 'number' }, series],
         args: v => ['wallet', 'claim', ...wf(v), ...flag('serial', v.serial), ...flag('series', v.series)], submit: 'Claim', danger: true }),
-      form(ctx, { title: 'Create or restore a wallet', fields: [w, { name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519 (see Crypto)' }, { name: 'restore', label: 'Restore from seed', placeholder: 'hex, to restore', help: 'Part of the command line, as in a shell: it shows in the preview and in Jobs.' }, { name: 'gap', label: 'Gap', type: 'number' }],
+      form(ctx, { title: 'Create or restore a wallet', fields: [w, { name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519 (see Crypto)' }, { name: 'restore', label: 'Restore from seed', placeholder: 'hex, to restore', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }, { name: 'gap', label: 'Gap', type: 'number' }],
         args: v => ['wallet', 'create', ...wf(v), ...flag('alg', v.alg), ...flag('restore', v.restore), ...flag('gap', v.gap)], submit: 'Create' }),
     ]);
   },
@@ -385,7 +385,7 @@ const cryptoView = {
     return mountAll(root, 'Series and keys', 'Offline tools: the choices a series can make, keys, and series parameters.', [
       panel(ctx, { title: 'Hashes, key algorithms and policy types', args: () => ['crypto'] }),
       form(ctx, { title: 'Make a key', about: 'A key and its 1-of-1 address. Leave the seed empty for a random one; the output includes the seed.',
-        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519' }, { name: 'hash', label: 'Hash', placeholder: 'sha256' }, { name: 'seed', label: 'Seed', placeholder: 'hex, optional', help: 'Part of the command line, as in a shell.' }],
+        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519' }, { name: 'hash', label: 'Hash', placeholder: 'sha256' }, { name: 'seed', label: 'Seed', placeholder: 'hex, optional', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }],
         args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...flag('seed', v.seed)], submit: 'Make key' }),
       form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked. More options are in the terminal (poo series new -h).',
         fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list' }, { name: 'types', label: 'Policy types', placeholder: 'comma list' }, { name: 'mints', label: 'Mints', type: 'number' }],
@@ -463,7 +463,8 @@ const jobsView = {
           el('span', { class: j.done ? (j.code === 0 ? 'ok' : 'bad') : 'live' }, state),
           el('button', { type: 'button', onclick: () => showJob(j) }, 'Output'),
           j.done ? null : el('button', { type: 'button', onclick: () => api.cancel(j.id).then(refresh) }, 'Stop'),
-          el('button', { type: 'button', onclick: () => ctx.openInTerminal(j.command.replace(/^poo /, '')) }, 'Run again in terminal')));
+          // A line with a hidden secret cannot be run again as shown.
+          j.redacted ? null : el('button', { type: 'button', onclick: () => ctx.openInTerminal(j.command.replace(/^poo /, '')) }, 'Run again in terminal')));
       }
     }
     function showJob(j) {

@@ -15,8 +15,12 @@
 //	POST /api/run               {args} or {line}  run to the end: {code, out, err, command}
 //	GET  /api/split?line=                         the args a typed line is: {args, command}
 //	GET  /api/grammar                             the terminal's grammar: {grammar}, posix or windows
-//	GET  /api/info                                {grammar, viewOnly}: viewOnly when jobs run in the
-//	                                              core's view-only mode (poo-gui -view-only)
+//	GET  /api/info                                {grammar, viewOnly, secretFlags}: viewOnly when jobs
+//	                                              run in the core's view-only mode (poo-gui -view-only);
+//	                                              secretFlags are shell.SecretFlags
+//
+// A job's args and command are shown with secret flag values hidden
+// (shell.Redact), and redacted is set.
 package server
 
 import (
@@ -279,11 +283,15 @@ type jobInfo struct {
 	Done    bool      `json:"done"`
 	Code    *int      `json:"code,omitempty"`
 	Refresh bool      `json:"refresh,omitempty"`
+	// Redacted is true when a secret flag's value is hidden in Args and
+	// Command (GUI-006), so the line cannot be run again as shown.
+	Redacted bool `json:"redacted,omitempty"`
 }
 
 func info(j *jobs.Job) jobInfo {
 	st := j.Read(1 << 62)
-	ji := jobInfo{ID: j.ID, Args: j.Args, Command: shell.Quote(j.Args), Started: j.Started, Done: st.Done, Refresh: j.Refresh}
+	args, redacted := shell.Redact(j.Args)
+	ji := jobInfo{ID: j.ID, Args: args, Command: shell.Quote(args), Started: j.Started, Done: st.Done, Refresh: j.Refresh, Redacted: redacted}
 	if st.Done {
 		ji.Code = &st.Code
 	}
@@ -389,7 +397,7 @@ func (s *Server) grammar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) info(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"grammar": shell.Native.String(), "viewOnly": s.runner.ViewOnly()})
+	writeJSON(w, http.StatusOK, map[string]any{"grammar": shell.Native.String(), "viewOnly": s.runner.ViewOnly(), "secretFlags": shell.SecretFlags})
 }
 
 // events streams a job's output as server-sent events until the job ends

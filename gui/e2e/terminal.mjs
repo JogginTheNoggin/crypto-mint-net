@@ -55,6 +55,25 @@ try {
   const text = await out.innerText();
   assert.ok(text.includes(want.trim().split('\n')[1].trim()), 'keygen output matches poo');
 
+  // GUI-006: a line holding a seed is not saved to the browser's storage,
+  // nor is one that starts with a space; up-arrow still recalls it this
+  // session, and Jobs hides the seed.
+  await type(' version');
+  await idle();
+  const saved = await page.evaluate(() => localStorage.getItem('poo-gui-history') || '');
+  assert.ok(!saved.includes(seed), 'the seed is not saved in history');
+  assert.ok(!saved.includes(' version'), 'a line starting with a space is not saved');
+  await line.press('ArrowUp');
+  await line.press('ArrowUp');
+  assert.equal(await line.inputValue(), `poo keygen -seed ${seed} -alg ed25519`, 'up-arrow recalls the line this session');
+  await line.fill('');
+  await page.click('nav a[data-id=jobs]');
+  const keyRow = page.locator('.job', { hasText: /^poo keygen/ }).first();
+  await keyRow.waitFor();
+  assert.ok((await keyRow.innerText()).includes('<hidden>') && !(await keyRow.innerText()).includes(seed), 'Jobs hides the seed');
+  assert.equal(await keyRow.getByRole('button', { name: 'Run again in terminal' }).count(), 0, 'a hidden line is not offered to run again');
+  await page.click('nav a[data-id=terminal]');
+
   // An error is shown with its exit code, as a shell would.
   await type('no-such-command');
   await idle();

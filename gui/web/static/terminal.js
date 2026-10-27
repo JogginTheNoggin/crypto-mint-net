@@ -6,11 +6,17 @@ import { complete } from './complete.js';
 
 const HISTORY_KEY = 'poo-gui-history';
 
+// A line is saved to the browser's storage unless it may hold a secret,
+// such as a seed after -restore, or starts with a space, as a shell with
+// HISTCONTROL=ignorespace skips it. Up-arrow still recalls every line of
+// this session (GUI-006 in security/gui/findings).
+const saveable = text => !/^\s/.test(text) && !api.secretLine(text);
+
 function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch (_) { return []; }
+  try { return (JSON.parse(localStorage.getItem(HISTORY_KEY)) || []).filter(saveable); } catch (_) { return []; }
 }
 function saveHistory(h) {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-200))); } catch (_) { /* storage off */ }
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.filter(saveable).slice(-200))); } catch (_) { /* storage off */ }
 }
 
 export function mount(root) {
@@ -20,6 +26,7 @@ export function mount(root) {
         <span>Terminal: the same commands as <code>poo</code> in a shell. Tab completes, Ctrl-C stops a command, Ctrl-L clears.</span>
         <span class="spacer"></span>
         <button type="button" data-act="clear" title="Clear the screen (Ctrl-L)">Clear</button>
+        <button type="button" data-act="forget" title="Forget the command lines this browser saved">Forget history</button>
         <button type="button" data-act="show" hidden aria-pressed="false" title="Show what you type to the running command">Show typing</button>
         <button type="button" data-act="detach" disabled title="Keep the running command going in the background">Run in background</button>
         <button type="button" data-act="stop" disabled>Stop</button>
@@ -43,7 +50,16 @@ export function mount(root) {
   const clearBtn = root.querySelector('[data-act=clear]');
   const showBtn = root.querySelector('[data-act=show]');
   const history = loadHistory();
+  // Lines saved by an older version may hold a secret; drop them now.
+  saveHistory(history);
   let hpos = history.length;
+  root.querySelector('[data-act=forget]').addEventListener('click', () => {
+    history.length = 0;
+    hpos = 0;
+    try { localStorage.removeItem(HISTORY_KEY); } catch (_) { /* storage off */ }
+    announce('History forgotten');
+    line.focus();
+  });
   let job = null; // {id, unfollow}
   // section.dataset.runs counts the command lines that have ended, so a
   // test or a script driving the page can tell when one is done.

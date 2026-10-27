@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fix-proposed |
 | Found on | claude/gui-4-watch @ 93ed36a |
 | Component | gui/web/static/terminal.js (history), gui/server/server.go (`info`/`/api/jobs`), gui/jobs/jobs.go (`Args` retention) |
 | Surface | wallet / local |
-| Fixed by | _(pending — GUI/Blue)_ |
+| Fixed by | `claude/gui-blue` |
 
 ## Summary
 
@@ -83,3 +83,13 @@ Interactive passphrase reads are correctly masked and never stored (GUI-003 fix,
 verified this round), and input sent to a running job is kept out of history. This
 finding is only about secrets that arrive as arguments rather than through the
 secret-read path.
+
+## Fix (GUI/Blue, branch `claude/gui-blue`)
+
+- `gui/shell` declares `SecretFlags` (`restore`, `seed`) and `Redact(args)`, which replaces a secret flag's value with `<hidden>`. `sim` is exempt, because there `-seed` is a random-number seed. `TestSecretFlagsExist` fails if poo renames either flag.
+- **History.** The terminal never writes a line to `localStorage` if it holds a secret flag (`api.secretLine`, which uses the server's list from `/api/info`), or if it starts with a space (`HISTCONTROL=ignorespace`). Up-arrow still recalls such a line for the session. Lines saved by older versions are filtered out on load, which purges seeds already stored. A **Forget history** button clears the saved history.
+- **Jobs.** `info()` redacts `Args` and `Command` in `POST /api/jobs` and `GET /api/jobs` and sets `redacted`. The Jobs view hides "Run again in terminal" for such rows. The command itself still gets the real argv.
+- **Forms.** The restore and keygen-seed help now says the value shows in the preview, is hidden in Jobs, and is never saved.
+- Echo is left as typed, as a shell does. The scrollback is not persisted.
+- Not done, belongs to Source: an interactive masked seed entry (for example `wallet create -restore -` reading through `cli.Stdio.Secret`) would keep the seed off the argv entirely. Passed to GUI/Grey for the Source teams. Also worth considering in the core: let poo declare its secret flags, so the GUI list cannot drift.
+- Regression tests: `TestRedact`, `TestSecretFlagsExist` (gui/shell); `TestJobsHideSecretFlags` (gui/server); in gui/e2e/terminal.mjs, checks that the `keygen -seed` line and a space-prefixed line are not in `localStorage`, that up-arrow recalls the seed line, and that Jobs shows `<hidden>` with no Run again button.

@@ -469,3 +469,40 @@ func TestInfo(t *testing.T) {
 		}
 	}
 }
+
+// TestJobsHideSecretFlags is GUI-006: a seed passed on the command line is
+// hidden in the jobs list, while the command still gets it.
+func TestJobsHideSecretFlags(t *testing.T) {
+	seed := strings.Repeat("ab", 32)
+	got := make(chan []string, 1)
+	h := newHarness(t, jobs.Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		got <- args
+		return 0
+	}})
+	r := h.do("POST", "/api/jobs", map[string]any{"line": "keygen -seed " + seed}, nil)
+	var started struct {
+		Args     []string
+		Command  string
+		Redacted bool
+	}
+	decode(t, r, &started)
+	if a := <-got; len(a) != 3 || a[2] != seed {
+		t.Fatalf("the command got %q", a)
+	}
+	var list []struct {
+		Args     []string
+		Command  string
+		Redacted bool
+	}
+	decode(t, h.do("GET", "/api/jobs", nil, nil), &list)
+	for _, ji := range append(list, started) {
+		if strings.Contains(ji.Command, seed) || strings.Contains(strings.Join(ji.Args, " "), seed) || !ji.Redacted {
+			t.Fatalf("seed shown: %+v", ji)
+		}
+	}
+	var info struct{ SecretFlags []string }
+	decode(t, h.do("GET", "/api/info", nil, nil), &info)
+	if len(info.SecretFlags) == 0 {
+		t.Fatal("no secretFlags in /api/info")
+	}
+}
