@@ -5,42 +5,16 @@
 //   node gui/e2e/terminal.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 //
 // Needs the playwright package and a Chromium it can launch.
-import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
-
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
+import { launch } from './lib.mjs';
 
 const bin = process.argv[2];
 const shots = process.argv[3];
-const home = mkdtempSync(join(tmpdir(), 'poo-gui-e2e-'));
-const env = { ...process.env, POO_HOME: home };
-delete env.POO_PASSPHRASE;
-
-const gui = spawn(bin, ['-no-open'], { env, stdio: ['ignore', 'pipe', 'inherit'] });
-const url = await new Promise((resolve, reject) => {
-  let buf = '';
-  gui.stdout.on('data', d => {
-    buf += d;
-    const m = buf.match(/open (http:\/\/127\.0\.0\.1:\d+\/\?t=[0-9a-f]+)/);
-    if (m) resolve(m[1]);
-  });
-  gui.on('exit', c => reject(new Error(`poo-gui exited ${c}`)));
-  setTimeout(() => reject(new Error('no address printed')), 20000);
-});
-
-const browser = await chromium.launch();
-const page = await browser.newPage();
-const errors = [];
-page.on('pageerror', e => errors.push(e.message));
-page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+const { home, env, page, errors, close } = await launch(bin);
 
 try {
-  await page.goto(url);
   assert.ok(!page.url().includes('?t='), 'the secret stays in the address bar');
   await page.click('nav a[data-id=terminal]');
   const line = page.locator('#term-line');
@@ -54,7 +28,16 @@ try {
     await line.fill(text);
     await line.press('Enter');
   };
-  const idle = () => page.waitForFunction(n => Number(document.querySelector('.terminal').dataset.runs) >= n, expect);
+  // until polls cond from here rather than with page.waitForFunction,
+  // which some Playwright versions run through eval, and the page's CSP
+  // (rightly) forbids eval.
+  const until = async (cond, what, ms = 20000) => {
+    for (const end = Date.now() + ms; !(await cond());) {
+      assert.ok(Date.now() < end, `timed out waiting for ${what}`);
+      await page.waitForTimeout(50);
+    }
+  };
+  const idle = () => until(async () => (await runs()) >= expect, 'the command to end');
 
   // Same bytes as poo itself.
   const seed = 'ab'.repeat(32);
@@ -71,7 +54,7 @@ try {
 
   // A passphrase prompt gets a masked field, and the passphrase is not echoed.
   await type(`wallet create -wallet ${join(home, 'w.json')}`);
-  await page.waitForFunction(() => document.querySelector('#term-line').type === 'password');
+  await until(async () => (await line.getAttribute('type')) === 'password', 'a masked field');
   await line.fill('hunter2-secret');
   await line.press('Enter');
   await idle();
@@ -84,7 +67,7 @@ try {
   await type('init -example -listen 127.0.0.1:0 -p2p off');
   await idle();
   await type('node');
-  await page.waitForFunction(() => document.querySelector('.terminal .term-out').innerText.includes('pools followed'));
+  await out.filter({ hasText: 'pools followed' }).waitFor();
   if (shots) await page.screenshot({ path: join(shots, 'terminal.png') });
   await page.click('[data-act=detach]');
   await idle();
@@ -107,6 +90,5 @@ try {
   assert.deepEqual(errors, [], 'no page errors');
   console.log('gui e2e: ok');
 } finally {
-  await browser.close();
-  gui.kill('SIGINT');
+  await close();
 }

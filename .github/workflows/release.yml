@@ -20,7 +20,9 @@ jobs:
         with:
           go-version-file: go.mod
       - name: test
-        run: go test -race -count=1 ./...
+        run: |
+          go test -race -count=1 ./...
+          go -C gui test -race -count=1 ./...
       - name: build
         run: ./scripts/release.sh "$GITHUB_REF_NAME"
       - name: draft release

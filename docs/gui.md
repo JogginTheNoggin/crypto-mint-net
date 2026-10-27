@@ -90,6 +90,33 @@ running, for example as a service, the client commands find it through
 its data directory, the same way they do from a shell. The GUI does not
 need to know which case it is in.
 
+### Views
+
+Each view is a set of panels and forms. A panel runs one command when it
+opens (some refresh on a timer) and renders its output. JSON becomes
+tables and lists, and any other output is shown exactly as printed. A form
+builds one command line from its fields. Its preview updates as you type,
+and Run starts that exact line. Every panel and form shows its command,
+with a button that runs it in the terminal.
+
+| View | Commands |
+| --- | --- |
+| Node | `node` (start and stop it in the GUI), `status`, `init` |
+| Pools and payments | `status`, `holdings`, `payment`, `build`, `work` |
+| Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
+| Peers | `peers`, `peer ACTION`, `tracking`, `chases` |
+| Node policies | `policy list`, `use`, `archive`, `unarchive`, `delete` |
+| Series and keys | `crypto`, `keygen`, `series new`, `series info` |
+| Jobs | Every command run, its output, stop, run again |
+| Settings | `-root` and `-policy`, which views add to their commands |
+| Terminal | Anything, typed |
+
+When a running command reads input, such as a passphrase prompt, the view
+shows an input field next to it. The field is masked when the prompt asks
+for a passphrase. Actions that move funds or delete something ask for
+confirmation first, and the confirmation shows the command line. The
+terminal adds no flags: what you type is what runs.
+
 ### What the GUI may contain
 
 The GUI may contain:
@@ -200,6 +227,6 @@ The GUI is built in stacked pull requests:
 | --- | --- |
 | G1 (#10) | `pkg/cli`: the commands as a library, behind `cli.Main` (D84) |
 | G2 | The `gui` module: server, security, job runner, terminal, the import rule and identity tests, and CI |
-| G3 | Views: node (start and stop, status), pools, peers, tracking, chases, node policies, series and crypto, and wallet (create, addresses, balance, pay, request, receive, status) |
+| G3 (this) | Views: node (start and stop, status), pools, peers, tracking, chases, node policies, series and crypto, and wallet (create, addresses, balance, pay, request, receive, status) |
 | G4 | Watch and filter views on the node thread's `poo watch` and filter flags: live transactions, a series' or policy's ledger, and pending items |
-| G5 | Packaging: `poo-gui` in the release script and the tag workflow |
+| G5 (done) | Packaging: `poo-gui` in the release script and the tag workflow |

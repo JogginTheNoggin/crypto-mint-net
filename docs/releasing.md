@@ -42,7 +42,12 @@ leaves a draft. Publishing it is a separate, manual step.
 | Windows amd64, arm64 | `poo-VERSION-windows-ARCH.zip` |
 | FreeBSD amd64 | `poo-VERSION-freebsd-amd64.tar.gz` |
 
-Each holds the `poo` binary, the README and, once there is one, the
+Each platform also gets a `poo-gui-VERSION-OS-ARCH` archive with the GUI
+([gui.md](gui.md)). `poo-gui` contains the same commands as `poo`
+(`poo-gui poo ARGS` runs `poo ARGS`), so it can be installed instead of
+`poo` or beside it. The `poo` archives never contain GUI code.
+
+Each holds the `poo` (or `poo-gui`) binary, the README and, once there is one, the
 license. Binaries are static (`CGO_ENABLED=0`) and print their version with
 `poo version`.
 
