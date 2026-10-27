@@ -72,12 +72,25 @@ try {
   await page.click('nav a[data-id=policies]');
   await page.locator('.hint.empty', { hasText: 'No saved node policies yet' }).waitFor();
 
-  // Jobs: repeats of a command group into one row, and the filters narrow the list.
+  // Jobs: repeats of a command group into one row, and the filters narrow
+  // the list. Three runs in a row from the terminal are adjacent whatever
+  // the views' refresh timers did, so the check does not depend on timing.
+  await page.click('nav a[data-id=terminal]');
+  const term = page.locator('#term-line');
+  for (let i = 0; i < 3; i++) {
+    const before = Number(await page.locator('.terminal').getAttribute('data-runs'));
+    await term.fill('version');
+    await term.press('Enter');
+    await until(async () => Number(await page.locator('.terminal').getAttribute('data-runs')) > before, 'version to finish');
+  }
   await page.click('nav a[data-id=jobs]');
   const rows = page.locator('.jobs .job');
   await rows.first().waitFor();
-  const statusRows = rows.filter({ has: page.locator('code', { hasText: /^poo status$/ }) });
-  await until(async () => (await statusRows.count()) === 1, 'poo status grouped into one row');
+  // The newest row is the three runs, shown once with their count.
+  const newest = rows.first();
+  await until(async () => (await newest.locator('code').innerText()) === 'poo version' &&
+    (await newest.locator('.count').count()) === 1, 'poo version grouped into one row');
+  assert.equal(await newest.locator('.count').innerText(), '×3');
   await page.fill('.job-tools input[type=search]', 'policy');
   await until(async () => (await rows.count()) > 0 && (await rows.allInnerTexts()).every(t => t.includes('policy')), 'the text filter');
   await page.fill('.job-tools input[type=search]', '');
