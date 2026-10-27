@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"strconv"
@@ -109,7 +108,7 @@ func parseList[T ~uint32](v string, parse func(string) (T, error)) ([]T, error) 
 // worked example's and changed by the flags.
 func seriesNew(args []string, out io.Writer) error {
 	ex := testutil.ExampleParams()
-	fs := flag.NewFlagSet("series new", flag.ContinueOnError)
+	fs := newFlagSet("series new", out)
 	h := fs.String("hash", "sha256", "the series' hash, by name or number")
 	algs := fs.String("algs", "ed25519", "allowed key algorithms, comma-separated")
 	types := fs.String("types", "threshold", "allowed policy types, comma-separated")
