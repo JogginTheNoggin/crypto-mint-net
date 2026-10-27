@@ -339,6 +339,8 @@ type Event struct {
 	Forward bool
 	// Switch is set when the item changed the selected ledger.
 	Switch *ledger.Switch
+	// Dropped lists pending transactions the item made invalid.
+	Dropped []hash.Hash
 	// Weight is the selected ledger's weight after the item: the node's
 	// stated weight for the pool.
 	Weight weight.Weight
@@ -407,7 +409,7 @@ func (n *Node) HandleEntryFrom(k engine.PoolKey, e *entry.Entry, origin engine.O
 	if err := n.record(k, store.KindEntry, e.Encode()); err != nil {
 		return res, err
 	}
-	n.emit(Event{Key: k, Entry: e, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch})
+	n.emit(Event{Key: k, Entry: e, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
 	return res, nil
 }
 
@@ -430,7 +432,7 @@ func (n *Node) HandleLayerFrom(k engine.PoolKey, l layer.Layer, origin engine.Or
 	if err := n.record(k, store.KindLayer, l.Encode()); err != nil {
 		return res, err
 	}
-	n.emit(Event{Key: k, Layer: &l, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch})
+	n.emit(Event{Key: k, Layer: &l, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
 	return res, nil
 }
 
@@ -449,7 +451,7 @@ func (n *Node) Build(k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.En
 	if err := n.record(k, store.KindEntry, e.Encode()); err != nil {
 		return e, res, err
 	}
-	n.emit(Event{Key: k, Entry: e, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch})
+	n.emit(Event{Key: k, Entry: e, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
 	return e, res, nil
 }
 
@@ -468,7 +470,7 @@ func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) 
 	if err := n.record(k, store.KindLayer, l.Encode()); err != nil {
 		return l, res, err
 	}
-	n.emit(Event{Key: k, Layer: &l, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch})
+	n.emit(Event{Key: k, Layer: &l, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
 	return l, res, nil
 }
 

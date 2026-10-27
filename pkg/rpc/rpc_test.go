@@ -263,7 +263,7 @@ func TestAuthAndMalformedRequests(t *testing.T) {
 	if got := raw(t, f, "POST", "/v1/tx", tok, strings.Repeat(" ", rpc.MaxBody+1)); got != http.StatusBadRequest {
 		t.Fatalf("huge body: %d", got)
 	}
-	if got := raw(t, f, "GET", "/v1/tx", tok, ""); got != http.StatusMethodNotAllowed {
+	if got := raw(t, f, "GET", "/v1/entry", tok, ""); got != http.StatusMethodNotAllowed {
 		t.Fatalf("wrong method: %d", got)
 	}
 }

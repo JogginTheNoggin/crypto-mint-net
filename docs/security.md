@@ -96,9 +96,14 @@ second can at least be detected.
   requests and unsigned transactions `poo wallet` writes when asked, which
   hold nothing secret.
 - **Wallet:** the seed is sealed with AES-256-GCM under a key from
-  PBKDF2-SHA256 (600,000 iterations, 16-byte random salt, random nonce) and
-  bound to its use with associated data (D64). The passphrase comes from
-  an environment variable, a file or standard input, never a flag.
+  Argon2id (64 MiB, 3 passes, 16-byte random salt, random nonce; D95,
+  older wallets PBKDF2-SHA256 at 600,000 iterations) and bound to its use
+  with associated data (D64). The passphrase comes from an environment variable, a file or standard input, never a flag.
+- **Views and the watch stream (M10):** behind the same token. Every
+  view is bounded per request (D94). A watcher that reads slowly loses
+  events, counted in a `missed` line, and never holds up the node (D91).
+  `POST /v1/follow` validates the changed policy before saving it, and a
+  reload reopens the node through the same checks as a start-up (D92).
 - **Registries:** fetched with a 15-second timeout and read up to a size
   limit. An entry is only a suggestion (D40, D44).
 - **Storage:** nothing on disk is trusted. The log is replayed through the
@@ -137,9 +142,9 @@ second can at least be detected.
   does not import. An external review should include how they are used.
 - **Timelocks.** The k-of-policies type can express the claim side of an
   atomic swap but not its refund, since consensus has no clock (D82).
-- **Key derivation.** PBKDF2 is the strongest key derivation in the
-  standard library (D1). A memory-hard one would resist guessing better,
-  and the wallet file names its KDF, so one can be added later.
+- **Key derivation.** Closed by D95: new wallets seal the seed with
+  Argon2id (64 MiB, 3 passes), which resists guessing on GPUs far better
+  than PBKDF2, and `poo wallet passwd` upgrades older wallets.
 
 ## Reporting
 

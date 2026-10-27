@@ -6,7 +6,7 @@ The command-line tool. Every command is in package `cli`, behind
 `cli.Main(ctx, args, Stdio{In, Out, Err})`; `cmd/poo` is only the process
 around it (arguments, standard streams, and an interrupt that cancels the
 context). The GUI's terminal and every GUI action call the same `Main`, so
-the headless tool and the GUI cannot drift apart (decision D84). `poo node` runs the full node daemon with its store,
+the headless tool and the GUI cannot drift apart (decision D84). `poo node` runs the full node ([daemon.md](daemon.md)) with its store,
 its peer connections, its peer tracker (`tracking.json`) and local RPC; client commands talk to it; `poo policy` manages node
 policies; offline commands make keys, inspect series and run an in-process
 demo. `poo wallet` keeps a holder's keys and pays, requests, co-signs and
@@ -20,7 +20,7 @@ without a wallet. See
 | Command | Does |
 | --- | --- |
 | `poo init [-example] [-series FILE]... [-listen ADDR] [-p2p ADDR] [-advertise ADDR] [-peer ADDR]... [-registry LOC]... [-force]` | Writes a node policy that knows and follows the given series, and makes it current |
-| `poo node` | Runs the node until interrupted |
+| `poo node` | Runs the node until interrupted; SIGHUP makes it reload its node policy |
 | `poo peers` | The node's id, its p2p address, its connected peers with their categories and points, and its peer book |
 | `poo peer timeout\|block\|unblock\|clear\|template\|delete ADDR [-seconds N] [-range] [-what flags\|measures\|all] [-template NAME]` | Acts on one peer: pause it, block it (or its range; `-seconds -1` until unblocked), lift either, clear its records, choose its tracking template, or delete it from the book (flags before ADDR) |
 | `poo tracking [ADDR]` | Every tracked address's status and the blocked ranges, or one address's whole record |
@@ -32,8 +32,19 @@ without a wallet. See
 | `poo work -pool K [-entry HASH] [-start S] [-tries N]` | Adds the strongest layer found (default target: the selected tip) |
 | `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it |
 | `poo holdings -serial N` | Unspent portions of a mint |
+| `poo pools [filter]` | The followed pools the filter covers |
+| `poo ledger -pool K [-below H] [-limit N] [filter]` | A page of a pool's selected ledger, newest first, with each entry's transactions |
+| `poo pending [filter]` | Pending transactions |
+| `poo unspent [filter]` | Unspent portions |
+| `poo tx [-in-serial N] TID` | One transaction: where it stands, the weight behind it, rivals, its contents |
+| `poo address [-limit N] [filter] ADDRESS` | An address's balance, holdings, history and pending transactions |
+| `poo watch [-notices] [-once] [filter]` | Prints events as they happen, one JSON line each, until interrupted; reconnects after a reload unless `-once` |
+| `poo follow [-issuer HEX] [-series ID] [-pool K]... [-mint N]... [-no-reload]` | Without flags, what is followed; with them, adds to the follow list and applies it to the running node (or edits `node.json` when the node is stopped) |
+| `poo unfollow (-issuer HEX \| -series ID) [-pool K]... [-mint N]... [-no-reload]` | Removes from the follow list, the same way |
+| `poo reload` | Makes the running node apply its node policy again (as SIGHUP to `poo node` does) |
 | `poo policy list\|use\|archive\|unarchive\|delete [-root DIR] [NAME]` | Manages node policies (flags before NAME) |
 | `poo wallet COMMAND` | The wallet; see below |
+| `poo help [COMMAND]` | The usage, or one command's usage lines; a mistyped command gets the nearest names ("did you mean status?") |
 | `poo version` | Prints the version |
 | `poo crypto` | Lists the hashes, key algorithms (with key and signature sizes) and policy types, with their numbers ([../cryptography.md](../cryptography.md)) |
 | `poo keygen [-alg NAME] [-hash NAME] [-seed hex]` | A new key (default Ed25519) and its 1-of-1 address under a hash (default SHA-256; `address_sha256` is kept for SHA-256) |
@@ -47,6 +58,15 @@ Node and client commands choose a data directory with `-dir`, or with
 `-root` (default `$POO_HOME` or `~/.poo`) and `-policy` (default: the current
 node policy, else `default`). Client commands take `-series ID` when the
 node follows more than one series.
+
+`[filter]` is the shared filter ([filter.md](filter.md)): `-series`,
+`-pool`, `-serial`, `-address`, `-address-policy` (hex of a policy's byte
+form), `-tid` and `-kind` (`tx`, `entry`, `layer`, `switch`, `selected`,
+`reverted`, `dropped`; `watch` only). Each takes comma-separated values
+and may repeat; fields combine with "and", values with "or". For example
+`poo watch -serial 5 -kind tx,selected` prints mint 5's transactions as
+they arrive and are selected. Event lines are described in
+[watch.md](watch.md). Flags go before positional arguments.
 
 ## Wallet commands
 
@@ -66,7 +86,7 @@ stopped. Flags go before positional arguments.
 | `address [-label TEXT]` | Gives out a fresh address, with its public key for co-signers |
 | `addresses` | Every address the wallet watches: derived keys (the gap included) and shared policies |
 | `watch [-serial N]... [-pool K]...` | Adds mints to look for portions in |
-| `follow` | Rewrites the node policy to follow only the pools of the watched mints (light mode); restart the node to apply |
+| `follow` | Rewrites the node policy to follow only the pools of the watched mints (light mode); a running node applies it at once |
 | `balance` | Spendable units per watched mint |
 | `claim -serial N` | Claims a whole mint for a fresh address |
 | `pay -to ADDR -amount A [-mint N]... [-memo TEXT] [-out FILE]` | Pays an address; with a shared policy, writes the payment for co-signers to `-out` |
@@ -88,6 +108,7 @@ the invocation's out, with `inputOf(out)` and `contextOf(out)`, so every
 command keeps the signature `(args, out)` and no state is shared between
 invocations: the GUI can run several at once. Cancelling the context is
 what an interrupt does in a shell. In `pkg/cli`, `node.go` holds the daemon, client and policy commands;
-`wallet.go` holds the wallet commands; `sim.go` the simulator command; `demo.go` holds the demo. `node_test.go` runs a daemon in-process and drives
+`view.go` the view, watch, follow and reload commands; `wallet.go` holds the wallet commands; `sim.go` the simulator command; `demo.go` holds the demo. `node_test.go` runs a daemon in-process and drives
 it only through the commands, across a restart; `TestTwoNodes` runs two
-daemons where the second lists the first as a peer.
+daemons where the second lists the first as a peer. `view_test.go`
+drives the views, a watcher, and a live unfollow with its reload.

@@ -31,7 +31,7 @@ again picks up its history.
 - `HandleTxFrom`, `HandleEntryFrom`, `HandleLayerFrom`: the same, naming
   the peer that sent the item.
 - `Observe(f)`: f receives an `Event{Key, Tx|Entry|Layer, Origin, From,
-  Forward, Switch, Weight}` for every item kept from then on, after it is
+  Forward, Switch, Dropped, Weight}` for every item kept from then on, after it is
   stored, in order. It runs under the node's lock: it must not block or
   call the node.
 - `Engine()` for reads (changes made directly on the engine are not

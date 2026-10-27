@@ -42,12 +42,16 @@ new address, and showing the seed need the passphrase.
 
 ## Keys and the seed
 
-- **Sealing (decision D64).** The 32-byte seed is sealed with AES-256-GCM
-  under a key from PBKDF2-HMAC-SHA256 of the passphrase, a random 16-byte
-  salt and 600,000 iterations (stored with the file, so they can be raised
-  later). The additional data `PoO-wallet-seed-v1` binds the ciphertext to
-  its purpose. A wrong passphrase fails authentication: `ErrPassphrase`.
-  `Rekey` seals the same seed under a new passphrase.
+- **Sealing (decisions D64, D95).** The 32-byte seed is sealed with
+  AES-256-GCM under a key from Argon2id of the passphrase: a random 16-byte
+  salt, 3 passes over 64 MiB in 4 lanes (stored with the file, so they can
+  be raised later). Wallets made before D95 use PBKDF2-HMAC-SHA256 at
+  600,000 iterations and still open; `Options.KDF` can still choose it.
+  Opening refuses settings outside fixed limits, so a damaged file cannot
+  make an unlock exhaust memory. The additional data `PoO-wallet-seed-v1`
+  binds the ciphertext to its purpose. A wrong passphrase fails
+  authentication: `ErrPassphrase`. `Rekey` seals the same seed under a
+  new passphrase, moving a PBKDF2 wallet to Argon2id.
 - **Key algorithm (decision D81).** Every key of a wallet uses the
   algorithm chosen at creation (`Options.Alg`, `poo wallet create -alg`),
   Ed25519 by default. It cannot change later. A series must allow it, or
@@ -158,6 +162,9 @@ wallet's watched mints. The node still checks every rule for what it
 follows, so the wallet trusts no one for the pools it uses. Verifying only
 some mints of a pool is not done: a pool's entries carry every mint of the
 pool, so the pool is the smallest unit a node can follow on its own.
+When the node is running, `poo wallet follow` makes it apply the new list
+at once ([daemon.md](daemon.md)); otherwise the node applies it when it
+starts.
 
 ## Tests
 

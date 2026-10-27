@@ -50,6 +50,25 @@ Usage:
                               status, or one address's record
   poo chases                  the chase queue of heavier stated weights
   poo status                  every followed pool of the running node
+  poo follow [-issuer ID | -series ID [-pool K]... [-mint N]...] [-no-reload]
+                              follow more; applied by a running node at once
+                              (no flags: show what is followed)
+  poo unfollow -issuer ID | -series ID [-pool K]... [-mint N]...
+                              follow less, the same way
+  poo reload                  make the running node apply its node policy
+  poo pools [FILTER]          followed pools: tip, height, weight, pending
+  poo ledger -pool K [-below H] [-limit N] [FILTER]
+                              the selected ledger, newest entry first
+  poo pending [FILTER]        pending transactions
+  poo unspent [FILTER]        unspent portions
+  poo tx [-series ID] [-in-serial N] TID
+                              one transaction and where it stands
+  poo address [-series ID] [-limit N] [FILTER] ADDRESS
+                              an address's balance, history and pending
+  poo watch [-notices] [-once] [FILTER]
+                              live events, one JSON object per line
+                              FILTER: -series -pool -serial -address
+                              -address-policy -tid -kind (repeatable, comma lists)
   poo claim -seed HEX -serial N
                               claim a whole mint for a key's address
   poo pay -seed HEX -serial N -to ADDR -amount A
@@ -80,6 +99,7 @@ Usage:
   poo sim load|partition|attack|sizing [flags]
                               run the deterministic network simulator
                               (poo sim help)
+  poo help [COMMAND]          this text, or one command's usage
 
 Node commands pick a data directory with -dir, or with -root (default
 $POO_HOME or ~/.poo) and -policy (default: the current node policy).
@@ -168,6 +188,16 @@ func run(args []string, out io.Writer) error {
 		return nodeCmd(args[1:], out)
 	case "status":
 		return statusCmd(args[1:], out)
+	case "pools", "ledger", "pending", "unspent", "tx", "address":
+		return viewCmd(args[0], args[1:], out)
+	case "watch":
+		return watchCmd(args[1:], out)
+	case "follow":
+		return followCmd(false, args[1:], out)
+	case "unfollow":
+		return followCmd(true, args[1:], out)
+	case "reload":
+		return reloadCmd(args[1:], out)
 	case "claim":
 		return claimCmd(args[1:], out)
 	case "pay":
@@ -195,10 +225,9 @@ func run(args []string, out io.Writer) error {
 	case "sim":
 		return simCmd(args[1:], out)
 	case "help", "-h", "--help":
-		fmt.Fprint(out, usage)
-		return nil
+		return helpCmd(args[1:], out)
 	default:
-		return fmt.Errorf("unknown command %q\n\n%s", args[0], usage)
+		return unknownCommand(args[0])
 	}
 }
 

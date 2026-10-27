@@ -56,8 +56,8 @@ comes from $POO_PASSPHRASE, -passphrase-file, or a line on standard input.
 The series and node come from the node policy flags, as for other commands.
 `
 
-// createIterations is the PBKDF2 work factor of new wallets; zero means
-// the default. Tests lower it.
+// createIterations is the work factor of new wallets (Argon2id passes,
+// decision D95); zero means the default. Tests lower it.
 var createIterations int
 
 // walletFlags are the flags shared by wallet commands.
@@ -458,7 +458,13 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err := nodepolicy.Save(path, p); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "wrote %s: series %s follows pools %v; restart the node to apply\n", path, id.Short(), pools)
+	dir := f.c.w.resolve()
+	if cl, err := rpc.Dial(dir); err == nil && cl.Reload() == nil {
+		waitBack(contextOf(out), dir)
+		fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applied it\n", path, id.Short(), pools)
+		return nil
+	}
+	fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applies it when it starts\n", path, id.Short(), pools)
 	return nil
 }
 

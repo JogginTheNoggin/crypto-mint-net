@@ -99,8 +99,50 @@ A shared policy needs every co-signer's signature:
 ```
 
 For a lighter node, `poo wallet follow` rewrites the node policy to follow
-only the pools of the mints the wallet watches; restart the node to apply
-it. See [modules/wallet.md](modules/wallet.md).
+only the pools of the mints the wallet watches, and a running node applies
+it at once. See [modules/wallet.md](modules/wallet.md).
+
+## 4c. View, watch and change what the node follows
+
+Every view takes the same filter flags: `-series`, `-pool`, `-serial`,
+`-address`, `-address-policy`, `-tid` and, for `watch`, `-kind`. Values
+are comma-separated; fields combine with "and" ([modules/filter.md](modules/filter.md)).
+
+```sh
+./poo pools                               # every followed pool: tip, height, weight, pending
+./poo ledger -pool 1 -limit 10            # the newest ten entries of pool 1, with their transactions
+./poo ledger -pool 1 -serial 5            # only entries holding mint 5's transactions
+./poo pending -address ADDR               # pending transactions paying or spending ADDR
+./poo tx TID                              # where a transaction stands, its rivals and contents
+./poo address ADDR                        # balance, holdings, history, pending
+./poo unspent -serial 5                   # unspent portions of mint 5
+```
+
+`poo watch` prints events as they happen, one JSON line each, until you
+stop it. In another terminal:
+
+```sh
+./poo watch -serial 5 -kind tx,selected,reverted
+```
+
+then pay from mint 5 and build an entry: the watcher prints the `tx`
+line, then `selected` once the entry is built. The event lines are
+described in [modules/watch.md](modules/watch.md).
+
+What the node follows can change while it runs:
+
+```sh
+./poo follow                              # what node.json follows, and what the node follows now
+./poo unfollow -series SERIES_ID -pool 0  # stop following pool 0
+./poo follow -series SERIES_ID -pool 0    # follow it again: its store replays from disk
+```
+
+The node applies each change at once by reloading its node policy in
+place (`poo reload` or SIGHUP does the same after a hand edit of
+`node.json`). A running `poo watch` reconnects by itself; events during
+the reload, which takes a moment, are not replayed, so look at the views
+for anything that happened then. With the node stopped, `poo follow`
+edits `node.json` and the node applies it when it starts.
 
 ## 5. Restart
 

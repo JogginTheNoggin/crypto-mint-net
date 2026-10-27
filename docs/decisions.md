@@ -1211,3 +1211,113 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   rebinding. The header and Origin checks stop cross-site requests. The
   CSP stops injected script.
 - **Tier:** Implementation.
+
+### D90. One filter for every view, the stream and every front end
+
+- **Decision:** Package `pkg/filter` defines the only way to select
+  items: by series, pool, mint serial, address, address policy,
+  transaction id and event kind. Fields are joined with "and" and values
+  within a field with "or"; an empty field matches everything. The same
+  value is used by the views, the watch stream, the RPC (as query
+  parameters) and the command line (as flags). An address policy matches
+  through the address it makes under each series' own hash.
+- **Why:** The owner asked for comprehensive filtering per series or
+  policy, and for the GUI to reuse the headless code exactly. One value,
+  with one meaning, keeps the command line, the RPC and the GUI from
+  each growing their own slightly different selection. "And" across
+  fields and "or" within them is the rule people expect from search
+  filters, and it covers every combination asked for without a query
+  language.
+- **Tier:** Implementation. Changes nothing on the wire or in consensus.
+
+### D91. A live event stream that drops, never blocks, and does not replay
+
+- **Decision:** `pkg/watch`'s hub turns every item the node keeps into
+  typed events (`tx`, `entry`, `layer`, `switch`, `selected`,
+  `reverted`, `dropped`) and delivers each to the subscribers whose
+  filter matches it. Each subscriber has a bounded buffer (1024 events);
+  when it is full, events for that subscriber are dropped and counted,
+  and the stream says so with a `missed` notice. Over the RPC the stream
+  is newline-delimited JSON on `GET /v1/watch`, with `hello`, `ping`
+  (every 15 seconds of quiet), `missed` and `end` notices. Events are
+  not stored: a client that reconnects, after a reload for instance,
+  reads the views for where things stand.
+- **Why:** The hub runs under the node's lock, so a slow or stuck
+  watcher must never hold up the node; dropping with a count is the only
+  choice that keeps the node's pace independent of its viewers. Storing
+  events for replay would add a second history beside the store, which
+  is already the record and which the views read. NDJSON over plain HTTP
+  needs nothing but the existing interface and its token, and every
+  language reads it.
+- **Tier:** Implementation.
+
+### D92. A running node reloads its node policy in place
+
+- **Decision:** `pkg/daemon` is the one place that runs a node. On a
+  reload (`POST /v1/reload`, `POST /v1/follow`, SIGHUP to `poo node`)
+  it ends the watch streams, stops the host and the interface, closes
+  the node, and opens it again with the node policy on disk, in the same
+  process. Stores of pools no longer followed stay on disk.
+- **Why:** The owner asked that following be set and forget. Before,
+  changing what a node follows needed a restart by hand. Reopening is
+  the same path as a start-up, which is already tested and checks every
+  record, so a reload cannot leave the node in a state a restart would
+  not. Changing the engine's pools while it runs would be faster but
+  would need new locking in every package that holds a pool. Keeping the
+  stores means following a pool again replays it rather than fetching
+  it from peers.
+- **Tier:** Implementation.
+
+### D93. Follow edits merge into the follow list
+
+- **Decision:** `nodepolicy.AddFollow` and `RemoveFollow` change the
+  follow list by merging: an issuer once, a whole series in place of its
+  parts, pools and mints of a series in one entry. Removing pools from a
+  series followed whole lists the rest. A mint followed only through its
+  pool cannot be removed alone. Both validate the series and ranges, and
+  the policy is validated before it is saved. Every front end (`poo
+  follow`, `poo unfollow`, `poo wallet follow`, `POST /v1/follow`) goes
+  through them.
+- **Why:** Edits from several tools must leave one clean list, not a
+  growing pile of overlapping entries, and must never save a policy the
+  node would refuse at start-up. A mint is checked with its whole pool
+  (the pool is the unit of verification), so taking one mint off a
+  followed pool would promise something the node cannot do.
+- **Tier:** Node policy.
+
+### D94. Views are bounded per request
+
+- **Decision:** Every view walks only the pools its filter's scope can
+  match (`MatchScope`), and a ledger view walks only as far as its page
+  needs: at most `limit` entries (default 50, at most 1000), newest
+  first, with `next` to continue. A filtered page looks at no more than
+  50 × `limit` entries, stepping over those that do not match, so `next`
+  always moves back and a filter that matches nothing costs a bounded
+  walk.
+- **Why:** The interface is local and trusted, but a GUI polling a large
+  ledger should cost each request the same, not the whole ledger's
+  length. Pages that always move keep paging simple and stop a filter
+  that matches nothing from being an unbounded walk.
+- **Tier:** Implementation.
+
+### D95. New wallets seal the seed with Argon2id
+
+- **Decision:** A new wallet's passphrase key is Argon2id (RFC 9106) with
+  3 passes over 64 MiB in 4 lanes, a random 16-byte salt and a 32-byte
+  key, from `golang.org/x/crypto/argon2`. The wallet file names the
+  derivation and its settings (`name`, `iterations`, `memory`,
+  `threads`), so wallets sealed with PBKDF2 under D64 still open.
+  `Rekey` (`poo wallet passwd`) moves a PBKDF2 wallet to Argon2id
+  with the defaults and keeps an Argon2id wallet's own settings. Opening
+  refuses settings outside fixed limits (at most 4 GiB and 100 passes for
+  Argon2id, 100,000,000 iterations for PBKDF2, at least 8 KiB per lane)
+  before deriving anything, so a damaged or crafted wallet file cannot
+  make an unlock exhaust memory or run for hours.
+- **Why:** PBKDF2 costs an attacker who has stolen the wallet file only
+  computation, which GPUs and ASICs make cheap; Argon2id also costs
+  memory per guess. D1 kept the standard library only, but D83 already
+  depends on `x/crypto` (the Go team's), so Argon2id adds no new module.
+  64 MiB and 3 passes is RFC 9106's recommendation for memory-constrained
+  machines and takes a fraction of a second to unlock. This closes the
+  "Key derivation" open item of the M8 security review.
+- **Tier:** Wallet. Amends D64 for new wallets.
