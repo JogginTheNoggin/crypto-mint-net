@@ -201,12 +201,19 @@ func (h *Handler) address(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
+	below, e := optInt(r, "below")
+	if e != nil {
+		writeError(w, e)
+		return
+	}
 	f, e := readFilter(r)
 	if e != nil {
 		writeError(w, e)
 		return
 	}
-	out, err := watch.AddressOf(h.n.Engine(), id, a, f, limit)
+	// Bounded per request and given up when the client goes away
+	// (RED-008, decision D103).
+	out, err := watch.AddressPage(r.Context(), h.n.Engine(), id, a, f, below, limit)
 	if err != nil {
 		writeError(w, classify(err))
 		return

@@ -65,7 +65,7 @@ Usage:
   poo unspent [FILTER]        unspent portions
   poo tx [-series ID] [-in-serial N] TID
                               one transaction and where it stands
-  poo address [-series ID] [-limit N] [FILTER] ADDRESS
+  poo address [-series ID] [-below H] [-limit N] [FILTER] ADDRESS
                               an address's balance, history and pending
   poo watch [-notices] [-once] [FILTER]
                               live events, one JSON object per line

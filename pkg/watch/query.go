@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"sort"
@@ -294,12 +295,31 @@ type Address struct {
 	Holdings []Holding     `json:"holdings"`
 	History  []HistoryItem `json:"history"`
 	Pending  []PendingTx   `json:"pending"`
+	// Next lists the pools whose history was not walked to height 1, with
+	// the height to pass as below for the rest (narrow the scope to that
+	// pool).
+	Next []PoolNext `json:"next,omitempty"`
+}
+
+// PoolNext is where the history of one pool continues.
+type PoolNext struct {
+	Pool  uint64 `json:"pool"`
+	Below int    `json:"below"`
 }
 
 // AddressOf returns the holdings, selected history (newest first, at most
 // limit items) and pending transactions of address a in the followed pools
-// of series id that f's scope covers.
+// of series id that f's scope covers. It is AddressPage from the tips.
 func AddressOf(e *engine.Engine, id, a hash.Hash, f filter.Filter, limit int) (Address, error) {
+	return AddressPage(context.Background(), e, id, a, f, 0, limit)
+}
+
+// AddressPage is AddressOf for the history from height below down in
+// every pool (0: from the tips), as LedgerPage reads below. Like LedgerPage it looks at no more than
+// 50*limit entries in all, so a request cannot walk whole ledgers while
+// holding the engine's lock; Next says where each unfinished pool goes
+// on. It stops with ctx's error once ctx is done (RED-008, decision D103).
+func AddressPage(ctx context.Context, e *engine.Engine, id, a hash.Hash, f filter.Filter, below, limit int) (Address, error) {
 	s, ok := e.Series(id)
 	if !ok {
 		return Address{}, engine.ErrUnknownSeries
@@ -313,13 +333,31 @@ func AddressOf(e *engine.Engine, id, a hash.Hash, f filter.Filter, limit int) (A
 	for _, h := range out.Holdings {
 		out.Balance += h.Amount
 	}
+	budget := 50 * limit
 	for _, k := range e.FollowedPools() {
 		first, last := s.PoolRange(k.Index)
 		if k.Series != id || !f.MatchScope(id, k.Index, first, last) {
 			continue
 		}
+		if err := ctx.Err(); err != nil {
+			return Address{}, err
+		}
+		var err error
 		e.Ledger(k, func(p *ledger.Pool) {
-			for h := p.Height(); h >= 1; h-- {
+			h := p.Height()
+			if below > 0 && below <= h {
+				h = below
+			}
+			// A pool's history comes newest first, so more than limit
+			// items from one pool are never needed.
+			found := 0
+			for ; h >= 1 && found < limit && budget > 0; h-- {
+				budget--
+				if budget%256 == 0 {
+					if err = ctx.Err(); err != nil {
+						return
+					}
+				}
 				eh := p.Chain(h, h)[0]
 				en, _ := p.Entry(eh)
 				for _, t := range txsOf(s, en) {
@@ -339,9 +377,16 @@ func AddressOf(e *engine.Engine, id, a hash.Hash, f filter.Filter, limit int) (A
 						}
 					}
 					out.History = append(out.History, it)
+					found++
 				}
 			}
+			if h >= 1 {
+				out.Next = append(out.Next, PoolNext{Pool: k.Index, Below: h})
+			}
 		})
+		if err != nil {
+			return Address{}, err
+		}
 	}
 	sort.SliceStable(out.History, func(i, j int) bool {
 		return out.History[i].From.Cmp(out.History[j].From) < 0

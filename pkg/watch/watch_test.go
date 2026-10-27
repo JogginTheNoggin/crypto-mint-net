@@ -1,8 +1,10 @@
 package watch_test
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -239,3 +241,67 @@ func TestSlowWatcherMisses(t *testing.T) {
 }
 
 func hexOf(b []byte) string { return hex.EncodeToString(b) }
+
+// RED-008: the address view looks at no more than 50*limit entries per
+// request, however tall the ledger, says where to go on, and stops when
+// its context is done.
+func TestAddressPageIsBounded(t *testing.T) {
+	f := newFixture(t)
+	n, s, k := f.n, f.s, f.k
+	prev := k.Claim(4, P("alice", 100))
+	const height = 120
+	for i := 0; i < height; i++ {
+		if i > 0 {
+			prev = k.Spend(4, []testutil.In{k.Out(prev, 0, "alice")}, P("alice", 100))
+		}
+		_, err := n.HandleTx(prev, engine.Local)
+		must(t, err)
+		e, _, err := n.Build(f.key, 0)
+		must(t, err)
+		_, _, err = n.Work(f.key, e.Hash(s), 0, 20)
+		must(t, err)
+	}
+	if st, _ := n.Engine().Status(f.key); st.Height != height {
+		t.Fatalf("height %d", st.Height)
+	}
+	eng := n.Engine()
+	scope := parse(t, "pool", "1")
+	// An address with no history: each page looks at 50 entries.
+	var walked []int
+	below := 0
+	for {
+		a, err := watch.AddressPage(context.Background(), eng, s.ID(), k.Addr("zed"), scope, below, 1)
+		must(t, err)
+		if len(a.History) != 0 {
+			t.Fatalf("zed has history %+v", a.History)
+		}
+		if len(a.Next) == 0 {
+			break
+		}
+		if len(a.Next) != 1 || a.Next[0].Pool != 1 {
+			t.Fatalf("next %+v", a.Next)
+		}
+		below = a.Next[0].Below
+		walked = append(walked, below)
+	}
+	if len(walked) != 2 || walked[0] != height-50 || walked[1] != height-100 {
+		t.Fatalf("pages ended at %v, want [%d %d]", walked, height-50, height-100)
+	}
+	// An address with history: a page stops at limit items, newest first,
+	// and the next page carries on below them.
+	a, err := watch.AddressPage(context.Background(), eng, s.ID(), k.Addr("alice"), scope, 0, 3)
+	must(t, err)
+	if len(a.History) != 3 || a.History[0].Height != height || len(a.Next) != 1 || a.Next[0].Below != height-3 {
+		t.Fatalf("alice page %d items, next %+v", len(a.History), a.Next)
+	}
+	b, err := watch.AddressPage(context.Background(), eng, s.ID(), k.Addr("alice"), scope, a.Next[0].Below, 3)
+	must(t, err)
+	if len(b.History) != 3 || b.History[0].Height != height-3 {
+		t.Fatalf("second page %+v", b.History)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := watch.AddressPage(ctx, eng, s.ID(), k.Addr("zed"), scope, 0, 10); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled: %v", err)
+	}
+}

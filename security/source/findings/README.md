@@ -15,3 +15,4 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-005](RED-005-seed-on-command-line.md) | `poo claim`/`pay`/`keygen` take the raw seed on the command line | medium | fixed |
 | [RED-006](RED-006-unbounded-build-pow-under-lock.md) | `/v1/build` runs unbounded entry proof-of-work while holding the global node lock | medium | fixed |
 | [RED-007](RED-007-ipv6-transition-address-bypass.md) | Public-address filter misses IPv4-embedding IPv6 transition ranges (NAT64 / 6to4 / Teredo) | low | open |
+| [RED-008](RED-008-address-view-unbounded-ledger-walk.md) | `/v1/address` walks the whole ledger per request under the engine lock, reachable with the read-only view token | medium | open |

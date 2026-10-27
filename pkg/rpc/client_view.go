@@ -71,8 +71,17 @@ func (c *Client) Tx(series *hash.Hash, tid hash.Hash, serial *uint64) (watch.TxS
 // items, 0 for the default) and pending transactions, in the pools f's
 // pool and serial fields cover.
 func (c *Client) Address(series *hash.Hash, a hash.Hash, limit int, f filter.Filter) (watch.Address, error) {
+	return c.AddressPage(series, a, 0, limit, f)
+}
+
+// AddressPage is Address for the history from height below down (0: the
+// tips); the reply's Next says where each unfinished pool goes on.
+func (c *Client) AddressPage(series *hash.Hash, a hash.Hash, below, limit int, f filter.Filter) (watch.Address, error) {
 	v := withSeries(f.Values(), series)
 	v.Set("id", a.String())
+	if below > 0 {
+		v.Set("below", strconv.Itoa(below))
+	}
 	if limit > 0 {
 		v.Set("limit", strconv.Itoa(limit))
 	}

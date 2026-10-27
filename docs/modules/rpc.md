@@ -56,7 +56,7 @@ when the node follows exactly one series. Reply shapes are in
 | `GET /pending` | filter | `[PendingTx]` |
 | `GET /unspent` | filter | `[Holding]` |
 | `GET /tx` | `series`, `id`, `serial` (optional) | `TxStatus`; `not_found` when the node does not hold it |
-| `GET /address` | `series`, `id`, `limit`, filter (pool, serial) | `Address`: balance, holdings, history, pending |
+| `GET /address` | `series`, `id`, `below`, `limit`, filter (pool, serial) | `Address`: balance, holdings, history, pending, and `next` (per pool, the `below` for the rest); at most 50×`limit` entries looked at per request, stopped if the client goes away (D103) |
 | `GET /watch` | filter | A stream of newline-delimited JSON events with `hello`, `ping`, `missed` and `end` notices; it ends on a reload |
 | `GET /follow` | | `{follow, pools}`: the node policy's follow list and the pools followed now |
 | `POST /follow` | `{remove, issuer, series, pools, mints, no_reload}` | `{follow, pools, reloading}`; saves the changed node policy and, unless `no_reload`, reloads the node after replying |

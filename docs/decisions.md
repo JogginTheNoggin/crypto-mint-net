@@ -1377,3 +1377,33 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   the terminal hide typed passphrases, which `bufio` on standard input
   could not. `x/term` is the Go team's, beside `x/crypto` (D83).
 - **Tier:** Implementation. Supersedes nothing; GREEN-007 part 2.
+
+### D102. IPv6 addresses that carry an IPv4 address are not public
+
+- **Decision:** The public-address check of D96 also refuses NAT64
+  (`64:ff9b::/96` and the local-use `64:ff9b:1::/48`), 6to4 (`2002::/16`),
+  Teredo (`2001::/32`), IPv4-compatible (`::/96`) and IPv4-translated
+  (`::ffff:0:0:0/96`) addresses, whatever IPv4 address they carry. Listed
+  `peers` and `allow_local_peers` work as before.
+- **Why:** Red finding RED-007: on a host with NAT64, `64:ff9b::7f00:1`
+  reaches 127.0.0.1, so a peer could name loopback or a private host in
+  IPv6 form and get past D96. Refusing the ranges outright is simpler and
+  safer than decoding each form (Teredo obfuscates its address, and a
+  network may use its own NAT64 prefix, which no check can know): a peer
+  reachable through one of them has a native IPv4 address to give.
+- **Tier:** Node policy. Amends D96.
+
+### D103. The address view is bounded per request
+
+- **Decision:** `watch.AddressPage` (behind `GET /v1/address` and `poo
+  address`) looks at no more than 50×`limit` entries per request in all
+  followed pools, at most `limit` matching items per pool, from height
+  `below` down (0: the tips). The reply's `next` lists each pool it did
+  not finish with the `below` to ask for the rest. It checks the
+  request's context before each pool and while walking. `AddressOf` keeps
+  its signature, from the tips.
+- **Why:** Red finding RED-008: the view walked every followed pool's
+  ledger to height 1 under the engine's lock, and the read-only view
+  token (D100) could ask for it, so a reader could stall the node on a
+  tall ledger. `LedgerPage` already had this bound (D94).
+- **Tier:** Implementation.
