@@ -210,7 +210,9 @@ identically ([gui.md](gui.md)). The plan is a set of stacked PRs:
   tests, and a browser end-to-end test (D85 to D88).
 - G3: views for the node, pools, peers, tracking, chases, node policies,
   series and wallet.
-- G4: watch and filter views over the node's watch commands.
+- G4: Watch (live events from `poo watch`) and Explore (pools, ledger,
+  pending, unspent, tx, address) with the same filter flags, and follow,
+  unfollow and reload on the Node view.
 - G5: `poo-gui` in the release archives.
 
 ### M10: Viewing, watching and live following (done)

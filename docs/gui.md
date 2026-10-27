@@ -101,7 +101,10 @@ with a button that runs it in the terminal.
 
 | View | Commands |
 | --- | --- |
-| Node | `node` (start and stop it in the GUI), `status`, `init` |
+| Getting started | First steps, each a command line run in the terminal |
+| Node | `node` (start and stop it in the GUI), `status`, `follow`, `unfollow`, `reload`, `init` |
+| Watch | `watch` with the filter flags: live events, newest first, with pause, counts and each event in full |
+| Explore | `pools`, `ledger` (page by page), `pending`, `unspent`, `tx`, `address`, with the same filter flags |
 | Pools and payments | `status`, `holdings`, `payment`, `build`, `work` |
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
 | Peers | `peers`, `peer ACTION`, `tracking`, `chases` |
@@ -228,5 +231,5 @@ The GUI is built in stacked pull requests:
 | G1 (#10) | `pkg/cli`: the commands as a library, behind `cli.Main` (D84) |
 | G2 | The `gui` module: server, security, job runner, terminal, the import rule and identity tests, and CI |
 | G3 (this) | Views: node (start and stop, status), pools, peers, tracking, chases, node policies, series and crypto, and wallet (create, addresses, balance, pay, request, receive, status) |
-| G4 | Watch and filter views on the node thread's `poo watch` and filter flags: live transactions, a series' or policy's ledger, and pending items |
+| G4 (done) | Watch and filter views on the node thread's `poo watch` and filter flags: live transactions, a series' or policy's ledger, and pending items |
 | G5 (done) | Packaging: `poo-gui` in the release script and the tag workflow |

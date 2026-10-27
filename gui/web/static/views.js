@@ -5,6 +5,9 @@
 import * as api from './api.js';
 import { render } from './render.js';
 import * as where from './where.js';
+// The watch and explore views live in watch.js; views lists every view so
+// the order of the navigation is in one place.
+import { watchView, exploreView } from './watch.js';
 
 export function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
@@ -95,7 +98,7 @@ export function showResult(out, err) {
 }
 
 // cmdLine shows a command line with a button that runs it in the terminal.
-function cmdLine(args, ctx) {
+export function cmdLine(args, ctx) {
   const code = el('code', {}, api.quote(args));
   const row = el('div', { class: 'cmd' }, el('span', { class: 'cmd-label' }, 'Runs'), code,
     el('button', { type: 'button', class: 'small', title: 'Type this command into the terminal and run it', onclick: () => ctx.openInTerminal(api.quote(row.args).replace(/^poo /, '')) }, 'Run in terminal'));
@@ -105,7 +108,7 @@ function cmdLine(args, ctx) {
 }
 
 // panel runs args() when shown (and every refresh ms) and renders it.
-function panel(ctx, { title, about, args, refresh }) {
+export function panel(ctx, { title, about, args, refresh }) {
   const area = el('div', { class: 'area' });
   const line = cmdLine(args(), ctx);
   const btn = el('button', { type: 'button' }, 'Refresh');
@@ -129,7 +132,7 @@ function panel(ctx, { title, about, args, refresh }) {
 // form builds a command line from fields and runs it on submit.
 //   fields: [{name, label, type: text|number|password|select|check|list, flag, options, placeholder, required, help}]
 //   args(values) returns the argv; the preview updates as fields change.
-function form(ctx, { title, about, fields, args, submit = 'Run', danger }) {
+export function form(ctx, { title, about, fields, args, submit = 'Run', danger }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
   const f = el('form', { class: 'fields', autocomplete: 'off' });
@@ -168,10 +171,10 @@ function form(ctx, { title, about, fields, args, submit = 'Run', danger }) {
 }
 
 // flag adds -name value when value is set.
-const flag = (name, value) => (value === '' || value === undefined || value === false) ? [] : value === true ? [`-${name}`] : [`-${name}`, value];
-const flags = (name, list) => list.flatMap(v => [`-${name}`, v]);
+export const flag = (name, value) => (value === '' || value === undefined || value === false) ? [] : value === true ? [`-${name}`] : [`-${name}`, value];
+export const flags = (name, list) => list.flatMap(v => [`-${name}`, v]);
 
-function mountAll(root, title, intro, parts) {
+export function mountAll(root, title, intro, parts) {
   root.append(el('h1', {}, title), intro ? el('p', { class: 'hint' }, intro) : null);
   for (const p of parts) root.append(p.el);
   return () => parts.forEach(p => p.stop());
@@ -237,8 +240,22 @@ const nodeView = {
         ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('force', v.force)],
       submit: 'Write policy',
     });
+    const followFields = [
+      { name: 'issuer', label: 'Issuer id', placeholder: 'every series of an issuer' },
+      { name: 'series', label: 'Series id' },
+      { name: 'pool', label: 'Pools', type: 'list', placeholder: 'K …' },
+      { name: 'mint', label: 'Mints', type: 'list', placeholder: 'serial …' },
+    ];
+    const followArgs = (cmd, v) => [cmd, ...where.flags(), ...flag('issuer', v.issuer), ...flag('series', v.series), ...flags('pool', v.pool), ...flags('mint', v.mint), ...flag('no-reload', v.noReload)];
+    const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy.', args: () => ['follow', ...where.flags()] });
+    const follow = form(ctx, { title: 'Follow more', about: 'Adds to the node policy; a running node applies it at once.',
+      fields: [...followFields, { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }], args: v => followArgs('follow', v), submit: 'Follow' });
+    const unfollow = form(ctx, { title: 'Follow less', fields: [...followFields, { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
+      args: v => followArgs('unfollow', v), submit: 'Unfollow', danger: true });
+    const reload = form(ctx, { title: 'Reload the node policy', about: 'Makes the running node apply its node policy file as it now stands.', fields: [],
+      args: () => ['reload', ...where.flags()], submit: 'Reload' });
     const t = setInterval(showRunning, 3000);
-    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [{ el: runSec, stop: () => clearInterval(t) }, status, init]);
+    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [{ el: runSec, stop: () => clearInterval(t) }, status, follows, follow, unfollow, reload, init]);
     return stop;
   },
 };
@@ -420,4 +437,4 @@ const jobsView = {
   },
 };
 
-export const views = [nodeView, poolsView, walletView, peersView, policiesView, cryptoView, jobsView, settingsView];
+export const views = [nodeView, watchView, exploreView, poolsView, walletView, peersView, policiesView, cryptoView, jobsView, settingsView];
