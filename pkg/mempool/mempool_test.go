@@ -142,6 +142,53 @@ func TestCarriedChainsWait(t *testing.T) {
 	}
 }
 
+// TestOlderChildOfCarriedParent is a regression test found by the network
+// simulator: b was pending, spending a, which was in the selected ledger.
+// A switch displaced a and carried it back, so b waited on it; b is older
+// in the pool than a. When a is selected again, the same Revalidate must
+// make b ready, though b comes first in the pool's order.
+func TestOlderChildOfCarriedParent(t *testing.T) {
+	k, lp, mp, claim := setup(t)
+	v := view{lp}
+	s := testutil.ExampleSeries()
+	a := k.Spend(4, []testutil.In{k.Out(claim, 0, "alice")}, P("bob", 100))
+	b := k.Spend(4, []testutil.In{k.Out(a, 0, "bob")}, P("carol", 100))
+	// a in the selected ledger, b pending on it.
+	tip, _, _ := lp.Tip()
+	ea, ha, _ := entry.Build(s, tip, []*tx.Tx{a}, 0)
+	lp.AddEntry(ea)
+	l, _ := layer.GrindTo(s.Hash(), ha, 0, 1, 1000)
+	lp.AddLayer(l)
+	if err := mp.Add(v, b, tid(b)); err != nil {
+		t.Fatal(err)
+	}
+	// A switch away from a (to its parent, here simulated by a rival
+	// sibling) carries a back: b now waits on it.
+	rival, hr, _ := entry.Build(s, tip, nil, 0)
+	lp.AddEntry(rival)
+	for n := uint64(0); lp.InSelected(ha); n += 1000 {
+		l, _ := layer.GrindTo(s.Hash(), hr, n, 4, 1000)
+		lp.AddLayer(l)
+	}
+	mp.AddCarried(v, []mempool.Item{{TID: tid(a), Tx: a}})
+	mp.Revalidate(v)
+	if mp.Waiting() != 1 {
+		t.Fatalf("b should wait on a: waiting %d", mp.Waiting())
+	}
+	// a is bundled again and selected.
+	tip, _, _ = lp.Tip()
+	ea2, ha2, _ := entry.Build(s, tip, []*tx.Tx{a}, 0)
+	lp.AddEntry(ea2)
+	for n := uint64(0); !lp.InSelected(ha2); n += 1000 {
+		l, _ := layer.GrindTo(s.Hash(), ha2, n, 4, 1000)
+		lp.AddLayer(l)
+	}
+	mp.Revalidate(v)
+	if r := mp.Ready(); len(r) != 1 || r[0].TID != tid(b) || mp.Waiting() != 0 {
+		t.Fatalf("b should be ready once a is selected again: ready %v, waiting %d", r, mp.Waiting())
+	}
+}
+
 func TestCarriedEvictsConflictingPending(t *testing.T) {
 	k, lp, mp, claim := setup(t)
 	v := view{lp}
