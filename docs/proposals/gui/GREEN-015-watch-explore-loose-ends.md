@@ -17,8 +17,10 @@ for Grey, not prototyped:
    Explore loses the live stream.
 2. Explore's "Older" paging finds `next` by scanning the rendered page
    for a `dt` element whose text is `next`.
-3. `gui/e2e/watch.mjs` failed once in 8 runs on 93ed36a. It timed out
-   waiting for "node stopped (exit 0)" after Stop node.
+3. `gui/e2e/watch.mjs` fails about 1 run in 6, on 93ed36a and on this
+   branch alike. The cause is in the headless node, not the GUI: after
+   Stop node, `poo node` prints "node stopped" and then
+   `poo: context deadline exceeded`, and exits 1 instead of 0.
 4. A Source loose end: `poo tx` and `poo unspent` accept `-kind`, which
    only means something for `poo watch`.
 
@@ -34,9 +36,16 @@ for Grey, not prototyped:
    JSON, or `runJob` could resolve with it, so the ledger form reads
    `next` from the data instead of from the rendered page. That is a
    small change to `runJob`'s callers.
-3. **Flaky stop.** It may be the 20-second wait racing a slow shutdown
-   on a loaded runner, or the Node view's `showRunning` following a job
-   that ended between polls. Worth a look before CI meets it.
+3. **Flaky stop (a Source issue).** `pkg/rpc/server.go` gives
+   `srv.Shutdown` 5 seconds. When a request is still in a handler after
+   that, `Shutdown` returns `context.DeadlineExceeded`, and `poo node`
+   reports it as a failure even though the node itself stopped cleanly.
+   The run that failed had `poo status` refreshes from the Node view in
+   flight. Options for Source/Grey: treat a shutdown timeout as a
+   warning, not an exit-1 error; or close the remaining connections
+   (`srv.Close`) after the deadline, and exit 0. In the meantime,
+   watch.mjs could accept "node stopped" with any exit code. Whether a
+   client can hold shutdown open on purpose is a question for Red.
 4. **`-kind` on non-stream commands.** The shared filter flag set gives
    every view command `-kind`. Either ignore it with a warning, refuse
    it, or document what it does for `tx` and `unspent`. That is for
@@ -46,7 +55,7 @@ for Grey, not prototyped:
 ## Cost and risk
 
 Item 1 is medium, about 60 lines, because the table and counters move
-out of `mount`. Items 2 and 3 are small. Item 4 is a Source decision.
+out of `mount`. Item 2 is small. Items 3 and 4 are Source decisions.
 
 ## Prototype
 
