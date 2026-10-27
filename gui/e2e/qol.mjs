@@ -1,6 +1,6 @@
 // End-to-end check of the quality-of-life prototypes: tab completion read
 // from poo's help, the Getting started guide, the accessibility hooks, next
-// steps under errors, empty states, the Jobs filters and the narrow menu.
+// steps under errors, empty states, the Jobs filters, the narrow menu and high contrast.
 //
 //   node gui/e2e/qol.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 //
@@ -94,6 +94,14 @@ try {
   if (shots) await page.screenshot({ path: join(shots, 'narrow.png') });
   await page.setViewportSize({ width: 1280, height: 800 });
   assert.ok(!(await page.locator('#nav-menu').isVisible()), 'menu hidden when wide');
+
+  // A system that asks for more contrast gets firmer colours, in both themes.
+  const muted = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--muted').trim());
+  await page.emulateMedia({ contrast: 'more', colorScheme: 'light' });
+  assert.equal(await muted(), '#44443f');
+  await page.emulateMedia({ contrast: 'more', colorScheme: 'dark' });
+  assert.equal(await muted(), '#c8c8c0');
+  await page.emulateMedia({ contrast: 'no-preference', colorScheme: 'light' });
 
   assert.deepEqual(errors, [], 'no page errors');
   console.log('gui qol e2e: ok');

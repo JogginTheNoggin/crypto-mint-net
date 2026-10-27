@@ -29,9 +29,8 @@ already uses those tokens, so nothing else changes.
 
 ## Cost and risk
 
-About 10 lines of CSS, with no script. There is no automated check yet,
-because the media feature cannot be emulated in the Playwright version CI
-uses without extra set-up. It was checked by eye.
+About 10 lines of CSS, with no script. `gui/e2e/qol.mjs` emulates the
+setting in the light and dark schemes and checks the colour token.
 
 ## Prototype
 
