@@ -1381,6 +1381,27 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   for a vector holds nothing.
 - **Tier:** Implementation.
 
+### D99. Building an entry is bounded, cancellable and lock-free
+
+- **Decision:** `/v1/build` accepts `max_tries` up to `MaxBuildTries`
+  (2^24, the same as `MaxWorkTries`); 0 or no value means that limit, and
+  more is a bad request. The engine splits `Build` into `BuildEntry`
+  (choose the ready transactions and the tip under the engine's lock,
+  then search for the nonce without it) and `HandleEntry`, and `Work`
+  into `GrindLayer` and `HandleLayer`. `Node.Build` and `Node.Work` hold
+  the node's lock only to take the result in and store it, never while
+  searching. `entry.BuildContext` and `Node.BuildContext` stop the search
+  with the context's error; the RPC passes the request's context, so a
+  client that goes away, or a shutdown, ends the search. `entry.Build`
+  and `engine.Build` keep their signatures, with no limit, for callers in
+  process. `poo build -max-tries 0` now means the node's limit.
+- **Why:** Red finding RED-006: a build with no limit on a series with a
+  high minimum entry strength searched for up to 2^64 nonces holding both
+  the node's and the engine's locks, so one request froze the RPC and all
+  peer processing until the process was killed. If the tip moves during
+  a search, the entry is still valid on its old parent and is kept as a
+  branch, the same as one received from a peer.
+
 ### D100. A second, read-only token for the local interface
 
 - **Decision:** Beside `rpc.token`, the node creates `rpc.view-token`
@@ -1395,3 +1416,27 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   in step. A second file means the full token never has to leave the
   owner's account.
 - **Tier:** Implementation.
+
+### D101. View-only mode, and secrets read through the caller
+
+- **Decision:** An invocation of `pkg/cli` is **view-only** when
+  `Stdio.ViewOnly` is set, when `$POO_VIEW_ONLY` is `1`, or when its
+  arguments start with `-view-only`. Then every command that talks to the
+  node dials with `rpc.view-token` (D100), and a fixed table in
+  `pkg/cli/scope.go` lets only the commands that read run: anything not
+  listed, a new command included, is refused with `view-only: poo X
+  changes things` before it runs. A test fails until every command is
+  classified. Separately, `Stdio.Secret`, when set, reads every
+  passphrase and seed in place of `In`; `cmd/poo` sets it when standard
+  input is a terminal, reading with echo off through `golang.org/x/term`
+  and prompting on standard error.
+- **Why:** The owner wants a GUI view mode that is the headless code,
+  not a second implementation: `poo-gui -view-only` only sets the
+  variable. Two layers keep it honest: the node refuses writes from the
+  view token whatever the client does, and the table stops local writes
+  (node policy, wallet file) that the node never sees. Refusing by default
+  means a forgotten command is safe. The secret callback lets the GUI
+  mask exactly the input that is a secret instead of guessing, and lets
+  the terminal hide typed passphrases, which `bufio` on standard input
+  could not. `x/term` is the Go team's, beside `x/crypto` (D83).
+- **Tier:** Implementation. Supersedes nothing; GREEN-007 part 2.

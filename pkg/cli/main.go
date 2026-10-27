@@ -102,11 +102,17 @@ Usage:
                               run the deterministic network simulator
                               (poo sim help)
   poo help [COMMAND]          this text, or one command's usage
+  poo completion bash|zsh|fish
+                              print a shell completion script
 
 Node commands pick a data directory with -dir, or with -root (default
 $POO_HOME or ~/.poo) and -policy (default: the current node policy).
 Client commands take -series ID when the node follows more than one series.
 Read commands print JSON; -o table prints columns for reading (-wide: full hashes).
+
+poo -view-only COMMAND (or POO_VIEW_ONLY=1) only looks: it dials the node
+with rpc.view-token, which the node lets read and nothing else, and refuses
+every command that would change something.
 `
 
 // Stdio is where a command reads and writes. In is read for passphrases
@@ -114,6 +120,13 @@ Read commands print JSON; -o table prints columns for reading (-wide: full hashe
 type Stdio struct {
 	In       io.Reader
 	Out, Err io.Writer
+	// Secret, if set, reads a passphrase or a seed in place of In, so the
+	// caller can hide what is typed: a terminal with echo off, a GUI's
+	// masked field. prompt says what is asked for. Nil reads a line of In.
+	Secret func(prompt string) (string, error)
+	// ViewOnly runs the invocation in view-only mode (see scope.go), as
+	// $POO_VIEW_ONLY=1 or a leading -view-only argument also do.
+	ViewOnly bool
 }
 
 // Main runs the command line args (without the program name) and returns
@@ -134,7 +147,16 @@ func Run(ctx context.Context, args []string, s Stdio) error {
 	if in == nil {
 		in = strings.NewReader("")
 	}
-	return run(args, &stdio{Writer: s.Out, in: bufio.NewReader(in), ctx: ctx})
+	view := s.ViewOnly || viewOnlyEnv()
+	if len(args) > 0 && (args[0] == "-view-only" || args[0] == "--view-only") {
+		view, args = true, args[1:]
+	}
+	if view {
+		if err := checkViewOnly(args); err != nil {
+			return err
+		}
+	}
+	return run(args, &stdio{Writer: s.Out, err: s.Err, in: bufio.NewReader(in), ctx: ctx, secret: s.Secret, viewOnly: view})
 }
 
 // stdio is the out of one invocation: commands write to it, and the few
@@ -143,8 +165,34 @@ func Run(ctx context.Context, args []string, s Stdio) error {
 // leaves no state shared between invocations.
 type stdio struct {
 	io.Writer
+	err io.Writer     // where flag errors and -h go; nil: os.Stderr
 	in  *bufio.Reader // one reader, so successive lines are not lost
 	ctx context.Context
+	// probe, when set, is given every flag set a command makes, and the
+	// flag sets print nothing: poo __complete runs a command with -h to
+	// learn its flags (completion.go).
+	probe func(*flag.FlagSet)
+	// secret reads a secret (Stdio.Secret); nil reads a line of in.
+	secret func(prompt string) (string, error)
+	// viewOnly: the invocation may only look (scope.go).
+	viewOnly bool
+}
+
+// newFlagSet is the flag set of a command writing to out. Its usage and
+// errors go to the invocation's Err, so the GUI's terminal shows them as a
+// shell does, rather than the GUI process's own stderr.
+func newFlagSet(name string, out io.Writer) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	if s, ok := out.(*stdio); ok {
+		if s.err != nil {
+			fs.SetOutput(s.err)
+		}
+		if s.probe != nil {
+			fs.SetOutput(io.Discard)
+			s.probe(fs)
+		}
+	}
+	return fs
 }
 
 // inputOf returns the input of the invocation writing to out.
@@ -179,7 +227,7 @@ func run(args []string, out io.Writer) error {
 	case "series":
 		return seriesCmd(args[1:], out)
 	case "demo":
-		fs := flag.NewFlagSet("demo", flag.ContinueOnError)
+		fs := newFlagSet("demo", out)
 		quiet := fs.Bool("quiet", false, "print only the summary")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
@@ -229,6 +277,10 @@ func run(args []string, out io.Writer) error {
 		return walletCmd(args[1:], out)
 	case "sim":
 		return simCmd(args[1:], out)
+	case "completion":
+		return completionCmd(args[1:], out)
+	case "__complete":
+		return completeCmd(args[1:], out)
 	case "help", "-h", "--help":
 		return helpCmd(args[1:], out)
 	default:
@@ -237,7 +289,7 @@ func run(args []string, out io.Writer) error {
 }
 
 func keygen(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
+	fs := newFlagSet("keygen", out)
 	seedHex := fs.String("seed", "", "32-byte seed in hex, for test vectors only: other users can read the command line (random if empty)")
 	seedFile := fs.String("seed-file", "", "file holding the seed in hex, - for standard input (random if neither)")
 	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")

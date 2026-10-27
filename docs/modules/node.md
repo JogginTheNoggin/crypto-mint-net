@@ -27,7 +27,9 @@ again picks up its history.
 - `Open(dir, Options{Log, CompactMin})`, `Close`.
 - `HandleTx`, `HandleEntry`, `HandleLayer`, `Build`, `Work`: the engine's
   calls, plus storing what is kept. Calls are serialized so each log is in
-  the order the engine accepted items.
+  the order the engine accepted items. `Build`, `BuildContext` and `Work`
+  search without the node's lock and then take the result in like
+  `HandleEntry` (D99), so a long search never stalls peers or the RPC.
 - `HandleTxFrom`, `HandleEntryFrom`, `HandleLayerFrom`: the same, naming
   the peer that sent the item.
 - `Observe(f)`: f receives an `Event{Key, Tx|Entry|Layer, Origin, From,

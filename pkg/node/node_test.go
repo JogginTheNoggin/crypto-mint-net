@@ -2,11 +2,13 @@ package node_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
@@ -381,5 +383,63 @@ func TestAutomaticCompaction(t *testing.T) {
 	before.entries += ledger.DefaultK // K branches and the newest kept; one was already held
 	if got != before {
 		t.Fatalf("got %+v\nwant %+v", got, before)
+	}
+}
+
+// RED-006: the search for an entry's nonce holds neither the node's lock
+// nor the engine's, so the node keeps taking items, and the search stops
+// when its context is cancelled.
+func TestBuildSearchHoldsNoLock(t *testing.T) {
+	pr := testutil.ExampleParams()
+	pr.MinEntryStrength = series.MaxStrength // never met: the search runs until cancelled
+	s := testutil.MustSeries(pr)
+	id := s.ID()
+	p := nodepolicy.Default()
+	p.Series = []nodepolicy.SeriesInfo{{Params: pr}}
+	p.Follow = []nodepolicy.Follow{{Series: &id, Pools: []uint64{1}}}
+	p.RPC.Listen = "off"
+	dir := t.TempDir()
+	if err := nodepolicy.Save(filepath.Join(dir, nodepolicy.FileName), p); err != nil {
+		t.Fatal(err)
+	}
+	n, err := node.Open(dir, node.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer n.Close()
+	k := testutil.NewKeys(s)
+	key := engine.PoolKey{Series: id, Index: 1}
+	if _, err := n.HandleTx(k.Claim(4, P("alice", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := n.BuildContext(ctx, key, 0)
+		done <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+	start := time.Now()
+	if _, err := n.HandleTx(k.Claim(5, P("bob", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("a transaction waited %v for the build", d)
+	}
+	n.Engine().Status(key)
+	select {
+	case err := <-done:
+		t.Fatalf("the search ended by itself: %v", err)
+	default:
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("want context.Canceled, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the search did not stop when cancelled")
 	}
 }

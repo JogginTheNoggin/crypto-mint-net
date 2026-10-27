@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ func wantResults(t *testing.T, r DoctorReport, want map[string]string) {
 }
 
 func TestDoctorNoPolicy(t *testing.T) {
-	r := doctor(t.TempDir())
+	r := doctor(io.Discard, t.TempDir())
 	if r.OK {
 		t.Fatal("ok without a policy")
 	}
@@ -46,7 +47,7 @@ func TestDoctorNoPolicy(t *testing.T) {
 func TestDoctorBadPolicy(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "node.json"), []byte(`{"format": 99}`), 0o600)
-	r := doctor(dir)
+	r := doctor(io.Discard, dir)
 	wantResults(t, r, map[string]string{"policy": checkFail})
 }
 
@@ -54,7 +55,7 @@ func TestDoctorStoppedNode(t *testing.T) {
 	dir := t.TempDir()
 	os.Chmod(dir, 0o700) // as poo init makes it under -root
 	cli(t, nil, "init", "-example", "-dir", dir, "-p2p", "off")
-	r := doctor(dir)
+	r := doctor(io.Discard, dir)
 	if !r.OK {
 		t.Fatalf("a stopped node is a warning, not a failure: %+v", r.Checks)
 	}
@@ -69,7 +70,7 @@ func TestDoctorStoppedNode(t *testing.T) {
 	ln.Close()
 	os.WriteFile(filepath.Join(dir, "rpc.addr"), []byte(addr+"\n"), 0o600)
 	os.WriteFile(filepath.Join(dir, "rpc.token"), []byte(strings.Repeat("ab", 32)+"\n"), 0o600)
-	r = doctor(dir)
+	r = doctor(io.Discard, dir)
 	wantResults(t, r, map[string]string{"rpc": checkFail})
 	if !strings.Contains(r.Checks[3].Detail, "left over") {
 		t.Errorf("stale rpc.addr: %+v", r.Checks[3])
@@ -77,7 +78,7 @@ func TestDoctorStoppedNode(t *testing.T) {
 
 	if runtime.GOOS != "windows" {
 		os.Chmod(filepath.Join(dir, "rpc.token"), 0o644)
-		wantResults(t, doctor(dir), map[string]string{"files": checkWarn})
+		wantResults(t, doctor(io.Discard, dir), map[string]string{"files": checkWarn})
 	}
 }
 

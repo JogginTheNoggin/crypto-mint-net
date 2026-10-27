@@ -43,6 +43,11 @@ built.
   same after a hand edit. `poo wallet follow` applies at once too.
 - **Wallet:** new wallets seal the seed with Argon2id (D95); older
   PBKDF2 wallets still open, and `poo wallet passwd` upgrades them.
+- **Read-only use:** `rpc.view-token` reads and nothing else (D100), and
+  `poo -view-only` / `POO_VIEW_ONLY=1` runs only the commands that read
+  (D101). `poo help`, typo suggestions, `poo doctor`, `-o table`, shell
+  completion (`poo completion`) and `GET /v1/metrics` are new. A
+  passphrase typed at a terminal is no longer echoed.
 - **Library:** the commands are package `pkg/cli`, so the GUI runs the
   same code as `poo` (D84).
 - **Fixed:** a node catching up a heavier ledger one entry at a time could

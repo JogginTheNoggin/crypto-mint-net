@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -46,13 +45,13 @@ type DoctorReport struct {
 }
 
 func doctorCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fs := newFlagSet("doctor", out)
 	w := addWhere(fs)
 	asJSON := fs.Bool("json", false, "print the report as JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	rep := doctor(w.resolve())
+	rep := doctor(out, w.resolve())
 	if *asJSON {
 		if err := writeJSON(out, rep); err != nil {
 			return err
@@ -74,7 +73,7 @@ func doctorCmd(args []string, out io.Writer) error {
 
 // doctor runs every check on the data directory dir. A check that needs an
 // earlier one to pass is skipped when it did not.
-func doctor(dir string) DoctorReport {
+func doctor(out io.Writer, dir string) DoctorReport {
 	rep := DoctorReport{Dir: dir, OK: true}
 	add := func(c Check) {
 		rep.Checks = append(rep.Checks, c)
@@ -130,7 +129,7 @@ func doctor(dir string) DoctorReport {
 		skipRest("p2p")
 		return rep
 	}
-	c, running := rpcCheck(dir)
+	c, running := rpcCheck(out, dir)
 	add(c)
 	if !running {
 		skipRest("p2p")
@@ -138,7 +137,7 @@ func doctor(dir string) DoctorReport {
 	}
 
 	// 5. Peers.
-	add(p2pCheck(dir, p))
+	add(p2pCheck(out, dir, p))
 	return rep
 }
 
@@ -165,12 +164,12 @@ func filesCheck(dir string) Check {
 }
 
 // rpcCheck reports whether the node answers, and so whether it runs.
-func rpcCheck(dir string) (Check, bool) {
+func rpcCheck(out io.Writer, dir string) (Check, bool) {
 	addrPath := filepath.Join(dir, rpc.AddrFile)
 	if _, err := os.Stat(addrPath); errors.Is(err, fs.ErrNotExist) {
 		return Check{Name: "rpc", Result: checkWarn, Detail: "the node is not running (no " + rpc.AddrFile + ")", Fix: "poo node"}, false
 	}
-	cl, err := rpc.Dial(dir)
+	cl, err := dialNode(out, dir)
 	if err != nil {
 		return Check{Name: "rpc", Result: checkFail, Detail: err.Error(), Fix: "restart the node; it writes a new token if " + rpc.TokenFile + " is missing"}, false
 	}
@@ -193,12 +192,12 @@ func rpcCheck(dir string) (Check, bool) {
 
 // p2pCheck reports whether the running node accepts peers and has, or can
 // find, any.
-func p2pCheck(dir string, p nodepolicy.Policy) Check {
+func p2pCheck(out io.Writer, dir string, p nodepolicy.Policy) Check {
 	if p.P2PListenAddr() == "" && len(p.P2P.Peers) == 0 && len(p.P2P.Registries) == 0 {
 		return Check{Name: "p2p", Result: checkWarn, Detail: "p2p listen is off and no peers or registries are set, so the node is alone",
 			Fix: "add p2p.peers or p2p.registries (poo init -peer ADDR), or set p2p.listen"}
 	}
-	cl, err := rpc.Dial(dir)
+	cl, err := dialNode(out, dir)
 	if err != nil {
 		return Check{Name: "p2p", Result: checkFail, Detail: err.Error()}
 	}

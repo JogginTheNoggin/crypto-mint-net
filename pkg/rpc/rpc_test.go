@@ -208,6 +208,10 @@ func TestErrors(t *testing.T) {
 	if _, err := f.c.Work(f.pool, hash.Hash{1}, 0, 0); code(err) != rpc.CodeBadRequest {
 		t.Fatalf("zero tries: %v", err)
 	}
+	// RED-006: a build may not ask for more than MaxBuildTries nonces.
+	if _, err := f.c.Build(f.pool, rpc.MaxBuildTries+1); code(err) != rpc.CodeBadRequest {
+		t.Fatalf("unbounded build: %v", err)
+	}
 	if _, err := f.c.Holdings(f.s.ID(), 99); code(err) != rpc.CodeBadRequest {
 		t.Fatalf("serial out of range: %v", err)
 	}

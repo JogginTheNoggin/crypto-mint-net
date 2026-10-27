@@ -24,6 +24,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -431,55 +432,83 @@ func (e *Engine) afterSwitch(p *poolState, sw *ledger.Switch) []hash.Hash {
 // sets a minimum entry strength it tries up to maxTries nonces (0: no
 // limit).
 func (e *Engine) Build(k PoolKey, maxTries uint64) (*entry.Entry, EntryResult, error) {
+	en, err := e.BuildEntry(context.Background(), k, maxTries)
+	if err != nil {
+		return en, EntryResult{Key: k}, err
+	}
+	res, err := e.HandleEntry(k, en, Local)
+	return en, res, err
+}
+
+// BuildEntry makes the entry Build would make but does not take it in.
+// Only choosing the transactions and the tip holds the engine's lock: the
+// search for a nonce runs without it, so a long search never stalls the
+// engine, and it stops with ctx's error once ctx is done (RED-006). The
+// caller hands the entry to HandleEntry; if the tip moved meanwhile it is
+// kept as a branch like any other entry.
+func (e *Engine) BuildEntry(ctx context.Context, k PoolKey, maxTries uint64) (*entry.Entry, error) {
 	e.mu.Lock()
 	p, err := e.pool(k)
 	if err != nil {
 		e.mu.Unlock()
-		return nil, EntryResult{Key: k}, err
+		return nil, err
 	}
 	ready := p.pending.Ready()
 	if len(ready) == 0 {
 		e.mu.Unlock()
-		return nil, EntryResult{Key: k}, ErrNothingPending
+		return nil, ErrNothingPending
 	}
 	txs := make([]*tx.Tx, len(ready))
 	for i, r := range ready {
 		txs[i] = r.Tx
 	}
 	parent, _, _ := p.ledger.Tip()
-	en, h, err := entry.Build(p.s, parent, txs, maxTries)
-	if err == nil && p.ledger.Has(h) {
-		err = ErrAlreadyBuilt
-	}
+	s := p.s
 	e.mu.Unlock()
+	en, h, err := entry.BuildContext(ctx, s, parent, txs, maxTries)
 	if err != nil {
-		return en, EntryResult{Key: k, Hash: h}, err
+		return nil, err
 	}
-	res, err := e.HandleEntry(k, en, Local)
-	return en, res, err
+	e.mu.Lock()
+	held := p.ledger.Has(h)
+	e.mu.Unlock()
+	if held {
+		return en, ErrAlreadyBuilt
+	}
+	return en, nil
 }
 
 // Work tries tries nonces on an entry hash of pool k, starting at start,
 // and adds the strongest layer found.
 func (e *Engine) Work(k PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, LayerResult, error) {
+	l, err := e.GrindLayer(k, entryHash, start, tries)
+	if err != nil {
+		return l, LayerResult{Key: k}, err
+	}
+	res, err := e.HandleLayer(k, l, Local)
+	return l, res, err
+}
+
+// GrindLayer finds the layer Work would add but does not take it in. The
+// grinding runs without the engine's lock.
+func (e *Engine) GrindLayer(k PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, error) {
 	e.mu.Lock()
 	p, err := e.pool(k)
 	if err != nil {
 		e.mu.Unlock()
-		return layer.Layer{}, LayerResult{Key: k}, err
+		return layer.Layer{}, err
 	}
 	h := p.s.Hash()
 	held := p.ledger.Has(entryHash)
 	e.mu.Unlock()
 	if !held {
-		return layer.Layer{}, LayerResult{Key: k}, ledger.ErrUnknownEntry
+		return layer.Layer{}, ledger.ErrUnknownEntry
 	}
 	l, strength := layer.Grind(h, entryHash, start, tries)
 	if strength < 0 {
-		return l, LayerResult{Key: k}, ErrNoStrongerLayer
+		return l, ErrNoStrongerLayer
 	}
-	res, err := e.HandleLayer(k, l, Local)
-	return l, res, err
+	return l, nil
 }
 
 // PoolStatus summarizes one pool.

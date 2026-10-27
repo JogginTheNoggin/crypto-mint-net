@@ -99,6 +99,10 @@ second can at least be detected.
   Argon2id (64 MiB, 3 passes, 16-byte random salt, random nonce; D95,
   older wallets PBKDF2-SHA256 at 600,000 iterations) and bound to its use
   with associated data (D64). The passphrase comes from an environment variable, a file or standard input, never a flag.
+- **View token and view-only mode (D100, D101):** `rpc.view-token` (mode
+  0600) opens `GET` and `HEAD` only; `poo -view-only` and
+  `POO_VIEW_ONLY=1` use it and refuse every command that writes. A typed
+  passphrase is read with echo off.
 - **Views and the watch stream (M10):** behind the same token. Every
   view is bounded per request (D94). A watcher that reads slowly loses
   events, counted in a `missed` line, and never holds up the node (D91).

@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ a226c79 |
 | Component | pkg/rpc/rpc.go (build, `BuildRequest.MaxTries`), pkg/engine/engine.go (Build), pkg/entry/entry.go (Build), pkg/node/node.go (Build) |
 | Surface | local RPC |
-| Fixed by | — |
+| Fixed by | `claude/project-thread-ggo8dt` @ 16b68ed (BLUE-003) |
 
 ## Summary
 
@@ -119,3 +119,18 @@ Test: a `pkg/engine`/`pkg/node` test that `Build` with a large/zero
 `maxTries` on a hard-strength series does not hold the lock for the search
 (e.g. a concurrent `Status` call returns promptly), and an `rpc` test that
 `/v1/build` rejects or clamps an unbounded `max_tries`.
+
+## Resolution
+
+Fixed by BLUE-003 (decision D99), all three recommendations. `/v1/build`
+caps `max_tries` at `MaxBuildTries` (2^24; 0 means the cap, more is a bad
+request) and passes the request's context. The search runs outside both
+locks: `Engine.BuildEntry` reads the pool under the engine lock and
+releases it before searching, and `Node.Build`/`BuildContext` take the
+node lock only to store the result. `Node.Work` likewise grinds before
+locking. `entry.BuildContext` checks the context every 4,096 nonces.
+`poo build -max-tries 0` now means the node's limit. Tests:
+`TestBuildContextCancels` (`pkg/entry`), `TestBuildSearchHoldsNoLock`
+(`pkg/node`: a transaction goes in promptly during an endless search,
+and cancelling ends it), and an unbounded `max_tries` rejected in
+`pkg/rpc`.

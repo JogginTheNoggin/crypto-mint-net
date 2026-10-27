@@ -45,6 +45,7 @@ without a wallet. See
 | `poo reload` | Makes the running node apply its node policy again (as SIGHUP to `poo node` does) |
 | `poo policy list\|use\|archive\|unarchive\|delete [-root DIR] [NAME]` | Manages node policies (flags before NAME) |
 | `poo wallet COMMAND` | The wallet; see below |
+| `poo completion bash\|zsh\|fish` | A shell completion script. It asks `poo __complete WORDS... CURRENT` (hidden) for candidates: commands and subcommands from the usage texts, each command's flags from its own flag set, and saved policy names after `-policy` |
 | `poo help [COMMAND]` | The usage, or one command's usage lines; a mistyped command gets the nearest names ("did you mean status?") |
 | `poo version` | Prints the version |
 | `poo crypto` | Lists the hashes, key algorithms (with key and signature sizes) and policy types, with their numbers ([../cryptography.md](../cryptography.md)) |
@@ -68,6 +69,22 @@ object becomes one field per line followed by a table for each list in it.
 Hashes are shortened to their first 8 and last 4 hex digits unless `-wide`
 is given. The table is built from the JSON, so it never shows a field the
 JSON lacks.
+
+**View-only mode.** `poo -view-only COMMAND`, or any command with
+`POO_VIEW_ONLY=1` set, only looks (D101). Commands that talk to the node
+use `rpc.view-token`, which the node lets read and nothing else, and every
+command that would change something is refused before it runs with
+`view-only: poo X changes things`. The commands that run are those of
+`readCommands` in `pkg/cli/scope.go`: the views and `watch`, `status`,
+`peers`, `tracking`, `chases`, `payment`, `holdings`, `follow` without
+flags, `doctor`, `policy list`, `wallet addresses` and `wallet balance`,
+and the offline commands (`crypto`, `keygen`, `series`, `sim`, `demo`,
+`help`, `version`, `completion`). `poo-gui -view-only` is this mode.
+
+**Secrets.** Passphrases and a seed given as `-seed-file -` are read
+through `Stdio.Secret` when the caller sets it; `poo` itself sets it when
+standard input is a terminal, so a typed passphrase is not echoed and its
+prompt goes to standard error. Piped input is read as a line, as before.
 
 `[filter]` is the shared filter ([filter.md](filter.md)): `-series`,
 `-pool`, `-serial`, `-address`, `-address-policy` (hex of a policy's byte

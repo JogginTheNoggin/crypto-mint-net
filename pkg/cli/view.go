@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -42,7 +41,7 @@ func (v *viewFlags) parse(fs *flag.FlagSet, args []string) error {
 	return err
 }
 
-func (v *viewFlags) dial() (*rpc.Client, error) { return rpc.Dial(v.w.resolve()) }
+func (v *viewFlags) dial(out io.Writer) (*rpc.Client, error) { return dialNode(out, v.w.resolve()) }
 
 // oneSeries returns the filter's series when it names exactly one, or nil
 // for the node to take the only followed series.
@@ -57,7 +56,7 @@ func (v *viewFlags) oneSeries() (*hash.Hash, error) {
 }
 
 func viewCmd(name string, args []string, out io.Writer) error {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs := newFlagSet(name, out)
 	v := addView(fs)
 	var below, limit *int
 	var serial *string
@@ -84,7 +83,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	} else if fs.NArg() != 0 {
 		return fmt.Errorf("poo %s takes flags only", name)
 	}
-	cl, err := v.dial()
+	cl, err := v.dial(out)
 	if err != nil {
 		return err
 	}
@@ -163,7 +162,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 // views (ledger, pending, tx, address) show where things stand. Stream notices (hello, ping,
 // end) are left out unless -notices is given; missed lines always show.
 func watchCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
+	fs := newFlagSet("watch", out)
 	v := addView(fs)
 	notices := fs.Bool("notices", false, "also print hello, ping and end lines")
 	once := fs.Bool("once", false, "stop when the stream ends instead of connecting again")
@@ -182,7 +181,7 @@ func watchCmd(args []string, out io.Writer) error {
 		return enc.Encode(ev)
 	}
 	for {
-		cl, err := v.dial()
+		cl, err := v.dial(out)
 		if err == nil {
 			err = cl.Watch(ctx, v.f, print)
 		}
@@ -209,7 +208,7 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 	if remove {
 		name = "unfollow"
 	}
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs := newFlagSet(name, out)
 	w := addWhere(fs)
 	issuer := fs.String("issuer", "", "an issuer's address (hex)")
 	seriesID := fs.String("series", "", "a series id (hex)")
@@ -244,7 +243,7 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 			return errors.New("poo unfollow needs -issuer or -series")
 		}
 		// No change: show what is followed.
-		if cl, err := rpc.Dial(dir); err == nil {
+		if cl, err := dialNode(out, dir); err == nil {
 			if r, err := cl.Follows(); err == nil {
 				return writeJSON(out, r)
 			}
@@ -254,6 +253,9 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 			return err
 		}
 		return writeJSON(out, rpc.FollowReply{Follow: p.Follow, Pools: []watch.Pool{}})
+	}
+	if viewOnlyOf(out) {
+		return errViewOnly(name)
 	}
 	req := rpc.FollowRequest{Remove: remove, Pools: pools, Mints: mints, NoReload: *noReload}
 	for _, x := range []struct {
@@ -270,12 +272,12 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 		}
 		*x.dst = &h
 	}
-	if cl, err := rpc.Dial(dir); err == nil {
+	if cl, err := dialNode(out, dir); err == nil {
 		r, err := cl.Follow(req)
 		if err == nil {
 			if r.Reloading {
-				waitBack(contextOf(out), dir)
-				if cl, err := rpc.Dial(dir); err == nil {
+				waitBack(out, dir)
+				if cl, err := dialNode(out, dir); err == nil {
 					if now, err := cl.Follows(); err == nil {
 						r = now
 					}
@@ -314,9 +316,10 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 
 // waitBack waits, for ten seconds at most, until the node in dir has gone
 // down for its reload and answers again.
-func waitBack(ctx context.Context, dir string) {
+func waitBack(out io.Writer, dir string) {
+	ctx := contextOf(out)
 	answers := func() bool {
-		cl, err := rpc.Dial(dir)
+		cl, err := dialNode(out, dir)
 		if err != nil {
 			return false
 		}
@@ -335,19 +338,19 @@ func waitBack(ctx context.Context, dir string) {
 
 // reloadCmd makes a running node apply its node policy again.
 func reloadCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("reload", flag.ContinueOnError)
+	fs := newFlagSet("reload", out)
 	w := addWhere(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := rpc.Dial(w.resolve())
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
 	if err := cl.Reload(); err != nil {
 		return err
 	}
-	waitBack(contextOf(out), w.resolve())
+	waitBack(out, w.resolve())
 	fmt.Fprintln(out, "reloaded")
 	return nil
 }
