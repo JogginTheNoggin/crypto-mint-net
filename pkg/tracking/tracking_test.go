@@ -72,7 +72,7 @@ func TestTemplates(t *testing.T) {
 		t.Fatal(err)
 	}
 	mine, _ := tpl.Get("mine")
-	if !mine.Has(tracking.Basic | tracking.RequestOutcomes) || mine.Has(tracking.ReplyTiming) {
+	if !mine.Has(tracking.Basic|tracking.RequestOutcomes) || mine.Has(tracking.ReplyTiming) {
 		t.Fatalf("mine = %v", mine)
 	}
 	lean, _ := tpl.Get("lean")

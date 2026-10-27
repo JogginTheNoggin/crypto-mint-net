@@ -362,7 +362,7 @@ type record struct {
 	ChaseFlag   int64               `json:"chase_flagged,omitempty"`
 	Conns       map[string]*Counter `json:"conns,omitempty"`
 
-	Log     []Event             `json:"log,omitempty"`
+	Log     []Event                  `json:"log,omitempty"`
 	Traffic map[string]*TrafficCount `json:"traffic,omitempty"`
 
 	Seen     time.Time            `json:"seen"`
