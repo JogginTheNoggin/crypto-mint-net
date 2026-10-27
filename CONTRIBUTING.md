@@ -33,7 +33,9 @@ form layers, and a package only imports packages below it:
 
 ```
 cmd/poo
-  engine
+  rpc
+    node
+      engine    store    nodepolicy
     ledger      mempool
       entry  layer  state
         tx
@@ -43,8 +45,8 @@ cmd/poo
 
 Keep it that way. A new feature usually belongs in a new package rather than
 in a larger existing one. Network and storage code must never be imported by
-the consensus packages (`tx`, `entry`, `layer`, `state`, `ledger`); the engine
-is the boundary.
+the consensus packages (`tx`, `entry`, `layer`, `state`, `ledger`) or by the
+engine; the engine is the boundary, and `node` is where storage meets it.
 
 ## Where a rule belongs
 
@@ -55,9 +57,9 @@ The design sorts every rule into three tiers, and the code follows it:
 - **Series**: fixed per series (hash, supply, pool size, minimums, allowed
   types). Lives in `series` and is read through `*series.Series`.
 - **Node policy**: may differ between nodes without anyone disagreeing about
-  ownership (K, limits, what to follow, forwarding choices). Lives in
-  configuration structs (`ledger.Config`, `engine.Config`) with documented
-  defaults.
+  ownership (K, limits, what to follow, forwarding choices, storage). Lives
+  in the node policy file (`pkg/nodepolicy`) and the configuration structs it
+  fills (`ledger.Config`, `engine.Config`), with documented defaults.
 
 When adding a rule, ask the design's two questions. If two nodes following the
 same series disagreed on it, could they select different ledgers? If not, it

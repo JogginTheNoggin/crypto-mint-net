@@ -12,10 +12,11 @@ in Go with no dependencies outside the standard library. Milestone 1, the
 consensus core, is complete: series and pools, addresses and witnesses,
 transactions, entries, layers, pool state, the per-pool ledger tree with
 heaviest-ledger selection and switching, pending transactions, and a
-transport-independent full-node engine. A command-line tool runs four
-in-process full nodes through a payment, a double spend and its resolution.
-Networking, storage and peer management come in later milestones
-([roadmap](docs/roadmap.md)). Every design decision and every place this code
+transport-independent full-node engine. Milestone 2 adds the node daemon:
+a crash-safe store per pool that is replayed and checked again on start-up,
+node policy files with save, archive and delete, and a local RPC with
+command-line clients. Networking and peer management come in later
+milestones ([roadmap](docs/roadmap.md)). Every design decision and every place this code
 departs from the design documents is recorded in
 [docs/decisions.md](docs/decisions.md).
 
@@ -56,11 +57,20 @@ go run ./cmd/poo series example > series.json
 go run ./cmd/poo series info series.json
 ```
 
+To run a node with a store and a local RPC, and pay with it, see
+[docs/running-a-node.md](docs/running-a-node.md):
+
+```sh
+go build -o poo ./cmd/poo
+./poo init -example      # a node policy following the example series
+./poo node               # in another terminal: ./poo status
+```
+
 ## Repository layout
 
 | Path | What it holds |
 | --- | --- |
-| `cmd/poo` | The command-line tool and the in-process demo |
+| `cmd/poo` | The node daemon, its client commands, and the in-process demo |
 | `pkg/encoding` | The canonical byte form every hash is computed over |
 | `pkg/hash` | 32-byte hashes, the hash number list, domain tags, strength |
 | `pkg/weight` | Arbitrary-precision credit and weight |
@@ -73,12 +83,17 @@ go run ./cmd/poo series info series.json
 | `pkg/ledger` | One pool's tree of entries, selection, switching, top K |
 | `pkg/mempool` | Pending transactions of a pool |
 | `pkg/engine` | The transport-independent full-node core |
+| `pkg/store` | The append-only, checksummed log of one pool |
+| `pkg/nodepolicy` | The node policy file and saved/archived node policies |
+| `pkg/node` | The engine with a data directory and a store per pool |
+| `pkg/rpc` | The local control interface (JSON over HTTP, loopback, token) |
 | `pkg/vectors` | Published test vectors for independent implementations |
 | `pkg/testutil` | Deterministic keys and builders for tests and the demo |
 | `docs/` | Architecture, roadmap, decisions, protocol formats, module guides |
 
 ## Documentation
 
+- [Running a node](docs/running-a-node.md): start a node, pay, restart.
 - [Architecture](docs/architecture.md): how the code is organized and why.
 - [Roadmap](docs/roadmap.md): milestones from here to an open release.
 - [Decisions](docs/decisions.md): design decisions and deviations from the design documents.
@@ -89,8 +104,9 @@ go run ./cmd/poo series info series.json
 
 ## Status
 
-Pre-release. The consensus core is implemented and tested; the node does not
-yet talk to other nodes over a network or store data on disk. Do not use it
+Pre-release. The consensus core and a single node with storage and a local
+RPC are implemented and tested; the node does not yet talk to other nodes
+over a network. Do not use it
 with anything of value. Keys made by the test helpers are derived from public
 labels and must never hold real funds.
 

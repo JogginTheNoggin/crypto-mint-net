@@ -3,11 +3,12 @@
 ## Summary
 
 The project moves toward an open release in eight milestones, each delivered
-as one or more pull requests. Milestone 1, the consensus core with a
-transport-independent full-node engine, is done. The next milestones add
-storage and a node daemon, then the wire protocol and forwarding, then peer
-discovery and peer management, then a wallet, then large-scale simulation,
-and finally hardening and release. Making the repository public and choosing
+as one or more pull requests, each stacked on the one before. Milestone 1,
+the consensus core with a transport-independent full-node engine, and
+milestone 2, storage and the node daemon with a local RPC, are done. The
+next milestones add the wire protocol and forwarding, then peer discovery
+and peer management, then a wallet, then large-scale simulation, and
+finally hardening and release. Making the repository public and choosing
 a license are the owner's decisions and are part of milestone 8.
 
 ## Milestones
@@ -15,8 +16,8 @@ a license are the owner's decisions and are part of milestone 8.
 | # | Name | Status |
 | --- | --- | --- |
 | M1 | Consensus core and full-node engine | Done |
-| M2 | Storage and node daemon | Next |
-| M3 | Wire protocol and forwarding | Planned |
+| M2 | Storage and node daemon | Done |
+| M3 | Wire protocol and forwarding | Next |
 | M4 | Peer discovery, relaying, address registries | Planned |
 | M5 | Peer categories, ranking, tracking, chasing | Planned |
 | M6 | Wallet and user tools | Planned |
@@ -33,15 +34,22 @@ pool, the engine, published test vectors, and the `poo` CLI with a 4-node
 demo. Tests reproduce the design's worked example (Appendix A) and compare
 the ledger against a brute-force model on random histories.
 
-### M2: Storage and node daemon
+### M2: Storage and node daemon (done)
 
-- An append-only store of entries, layers and pending transactions per pool,
-  replayed through the engine on start-up.
-- Node policy for old data: keep, archive or delete inactive branches and
-  deep history, per the design's save/archive/delete options.
-- A configuration file for node policy (follows, K, limits).
-- A `poo node` daemon with a local RPC (status, submit a transaction, ask
-  about a payment, holdings).
+- `pkg/store`: an append-only, checksummed log per pool of entries, layers
+  and pending transactions, replayed through the engine on start-up, with
+  crash-safe tail cutting and atomic compaction.
+- `pkg/nodepolicy`: the node policy file (series, issuers, follows, K and
+  limits, durability, RPC) and the design's save, archive and delete
+  operations for node policies.
+- `pkg/node`: the engine with a data directory, a lock and a store per pool.
+- `pkg/rpc`: a local JSON-over-HTTP interface on loopback with a token.
+- `poo init`, `poo node` and client commands (status, claim, pay, build,
+  work, payment, holdings, policy). See
+  [running-a-node.md](running-a-node.md).
+
+Left open, as the design leaves them: expiry of entries and layers by age
+(D29), and witness pruning.
 
 ### M3: Wire protocol and forwarding
 

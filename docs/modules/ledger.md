@@ -21,6 +21,9 @@ plus the top K other branches. It reproduces the design's worked example
 - Queries: `Tip`, `Weight`, `Height`, `Len`, `State`, `Has`, `Entry`,
   `Info`, `Layers`, `InSelected`, `From(h)` (weight added since entry h),
   `Locate(tid)`, `Chain`, `HeightOf`, `Branches`, `SetK`.
+- `ReplayOrder()`: every held entry in an order that rebuilds the same tree
+  and selected ledger in an empty pool (the selected ledger first, then the
+  rest by first sighting). Stores use it to compact (decision D23).
 - Errors: `ErrKnownEntry`, `ErrUnknownParent`, `ErrInvalidEntry`,
   `ErrUnknownEntry`, `ErrWeakLayer`, `ErrKnownLayer`, `ErrNotSelected`.
 
@@ -47,4 +50,6 @@ plus the top K other branches. It reproduces the design's worked example
   layers, pruning and every error.
 - `property_test.go`: random trees, transactions and layers compared
   against a model that recomputes every ledger's weight and state from
-  scratch. Extend it when changing selection, switching or pruning.
+  scratch, then rebuilds the pool from `ReplayOrder` and checks it selects
+  the same ledger. Extend it when changing selection, switching or
+  pruning.

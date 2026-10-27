@@ -26,8 +26,9 @@ a byte form without updating the test vectors on purpose.
 - Do not import anything outside the Go standard library without recording
   the reason in `docs/decisions.md`.
 - Do not add network, disk or clock access to `tx`, `entry`, `layer`,
-  `state` or `ledger`. Consensus reads no clock; the ledger records first-seen
-  times only through an injected clock that selection never reads.
+  `state`, `ledger` or `engine`. Disk belongs to `store` and `node`.
+  Consensus reads no clock; the ledger records first-seen times only
+  through an injected clock that selection never reads.
 - `go test ./pkg/vectors` failing means you changed an encoding or a hash.
   That changes every id in every series. Do it only on purpose, record it, and
   regenerate with `go test ./pkg/vectors -update`.
@@ -48,6 +49,9 @@ a byte form without updating the test vectors on purpose.
 | Weight, selection, switching, top K | `pkg/ledger` |
 | Pending transactions | `pkg/mempool` |
 | What a full node does with an item | `pkg/engine` |
+| How items are kept on disk | `pkg/store` (format), `pkg/node` (when and what) |
+| A node policy setting | `pkg/nodepolicy` (an optional field with a documented default) |
+| A local control endpoint | `pkg/rpc` (handler, client method, test) |
 | A new policy type or key algorithm | `pkg/policy` (register it; never reuse a number) |
 | A new series setting | `pkg/series` (changes the byte form and so the vectors) |
 | The command-line tool | `cmd/poo` |

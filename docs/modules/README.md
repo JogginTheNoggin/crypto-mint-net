@@ -22,5 +22,9 @@ together. When you change a package, update its page.
 | `pkg/ledger` | [ledger.md](ledger.md) | Consensus |
 | `pkg/mempool` | [mempool.md](mempool.md) | Node policy |
 | `pkg/engine` | [engine.md](engine.md) | Node |
+| `pkg/store` | [store.md](store.md) | Node (storage) |
+| `pkg/nodepolicy` | [nodepolicy.md](nodepolicy.md) | Node policy |
+| `pkg/node` | [node.md](node.md) | Node |
+| `pkg/rpc` | [rpc.md](rpc.md) | Node (local control) |
 | `pkg/vectors`, `pkg/testutil` | [vectors-and-testutil.md](vectors-and-testutil.md) | Tooling |
 | `cmd/poo` | [poo.md](poo.md) | Tooling |
