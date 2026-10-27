@@ -35,10 +35,23 @@ the source teams as a finding, not as a patch.
 
 ### Rounds
 
-Red, Blue and Green work in rounds, which the owner starts. Between
-rounds only Grey works. A team finishes the work it has when a round
-ends, hands it to Grey, and does not start more until the next round.
-Grey merges what is handed over, and sends no new work to a paused team.
+Each layer (Source, GUI) runs its own rounds, independently of the
+other. A round has three parts, in order, and no part starts before the
+previous one is finished:
+
+| Part | Who works | Does | Hands to |
+| --- | --- | --- | --- |
+| A | Grey | Changes the integration line: its own work (from the owner or itself), the adopted Green proposals and the Blue fixes from the last round. Updates `BASE.md` | Red and Green, by naming the new base |
+| B | Red and Green, side by side | Start from Grey's new base. Red explores security and writes findings; Green explores creative ideas, loose ends, mismatches and inconsistencies and writes proposals | Red's findings go to Blue; Green's proposals go to Grey for the next round |
+| C | Blue | Fixes Red's findings on its branch | Grey, for the next round's Part A |
+
+The team working a part decides when that part is finished. When it is,
+it stops making edits and says so. Teams outside the current part do not
+edit until the round reaches them again. The owner starts every round
+and every part after the first: when a part is done, report it (for
+example "Source Round 2 Part A done") and wait. The owner may stop the
+cycle at a part, which means not starting the next one; only an explicit
+"interrupt" or "stop now" interrupts work in progress.
 
 ### The integration line
 
