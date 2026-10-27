@@ -87,7 +87,10 @@ type Watch struct {
 
 // File is the wallet file.
 type File struct {
-	Format   int          `json:"format"`
+	Format int `json:"format"`
+	// Alg is the key algorithm of every derived key; 0 means Ed25519, so
+	// wallets made before there was a choice read unchanged.
+	Alg      uint32       `json:"alg,omitempty"`
 	KDF      KDF          `json:"kdf"`
 	Sealed   Hex          `json:"sealed"`
 	Keys     []KeyInfo    `json:"keys"`
@@ -113,6 +116,10 @@ type Options struct {
 	Iterations int
 	// Gap is how many unused keys to keep ahead.
 	Gap int
+	// Alg is the key algorithm of the wallet's keys; 0 means Ed25519. It
+	// cannot change later: a series must allow it for the wallet to
+	// receive there.
+	Alg policy.AlgID
 }
 
 // Create makes a new wallet at path, sealed with passphrase, and returns it
@@ -137,11 +144,20 @@ func Create(path, passphrase string, o Options) (*Wallet, error) {
 	if o.Gap <= 0 {
 		o.Gap = DefaultGap
 	}
+	if o.Alg == 0 {
+		o.Alg = policy.AlgEd25519
+	}
+	if _, err := derive(seed, o.Alg, 0); err != nil {
+		return nil, err
+	}
 	kdf, sealed, err := seal(seed, passphrase, o.Iterations)
 	if err != nil {
 		return nil, err
 	}
 	w := &Wallet{path: path, f: File{Format: 1, KDF: kdf, Sealed: sealed, Gap: o.Gap}, seed: append([]byte(nil), seed...)}
+	if o.Alg != policy.AlgEd25519 {
+		w.f.Alg = uint32(o.Alg)
+	}
 	w.topUp()
 	return w, w.Save()
 }
@@ -162,7 +178,18 @@ func Open(path string) (*Wallet, error) {
 	if w.f.Gap <= 0 {
 		w.f.Gap = DefaultGap
 	}
+	if _, ok := policy.Default().Alg(w.KeyAlg()); !ok {
+		return nil, fmt.Errorf("wallet: %s: unknown key algorithm %d", path, w.f.Alg)
+	}
 	return w, nil
+}
+
+// KeyAlg returns the key algorithm of the wallet's keys.
+func (w *Wallet) KeyAlg() policy.AlgID {
+	if w.f.Alg == 0 {
+		return policy.AlgEd25519
+	}
+	return policy.AlgID(w.f.Alg)
 }
 
 // Path returns the wallet's file.
@@ -242,7 +269,11 @@ func (w *Wallet) topUp() {
 	}
 	for len(w.f.Keys) < last+1+w.f.Gap {
 		i := uint32(len(w.f.Keys))
-		w.f.Keys = append(w.f.Keys, KeyInfo{Index: i, Public: derive(w.seed, i).Public()})
+		s, err := derive(w.seed, w.KeyAlg(), i)
+		if err != nil {
+			panic(err) // unreachable: Create and Open check the algorithm
+		}
+		w.f.Keys = append(w.f.Keys, KeyInfo{Index: i, Public: s.Public()})
 	}
 }
 
@@ -251,7 +282,7 @@ func (w *Wallet) signer(index uint32) (policy.Signer, error) {
 	if w.seed == nil {
 		return nil, ErrLocked
 	}
-	return derive(w.seed, index), nil
+	return derive(w.seed, w.KeyAlg(), index)
 }
 
 // takeKey marks the first unused key as used for label and returns it.
@@ -286,7 +317,7 @@ type Owner struct {
 }
 
 // keyPolicy is the 1-of-1 policy of a derived key.
-func keyPolicy(k KeyInfo) policy.Policy { return policy.SingleKey(policy.AlgEd25519, k.Public) }
+func (w *Wallet) keyPolicy(k KeyInfo) policy.Policy { return policy.SingleKey(w.KeyAlg(), k.Public) }
 
 // Owners returns everything the wallet can spend from in series s: each
 // derived key's address (the unused gap included, so payments to them are
@@ -294,7 +325,7 @@ func keyPolicy(k KeyInfo) policy.Policy { return policy.SingleKey(policy.AlgEd25
 func (w *Wallet) Owners(s *series.Series) map[hash.Hash]Owner {
 	out := map[hash.Hash]Owner{}
 	for _, k := range w.f.Keys {
-		p := keyPolicy(k)
+		p := w.keyPolicy(k)
 		a := s.Address(p)
 		idx := k.Index
 		out[a] = Owner{Address: a, Policy: p, Key: &idx, Label: k.Label, Used: k.Used}
@@ -309,12 +340,18 @@ func (w *Wallet) Owners(s *series.Series) map[hash.Hash]Owner {
 
 // NewAddress gives out a fresh single-key address of series s for label,
 // the design's habit of one address per payment.
+// It refuses a series that does not allow the wallet's key algorithm,
+// since nothing paid there could be spent.
 func (w *Wallet) NewAddress(s *series.Series, label string) (Owner, error) {
+	if !s.AllowsPolicyType(policy.TypeThreshold) || !s.AllowsKeyAlg(w.KeyAlg()) {
+		a, _ := policy.Default().Alg(w.KeyAlg())
+		return Owner{}, fmt.Errorf("wallet: series does not allow this wallet's %s keys", a.Name())
+	}
 	k, err := w.takeKey(label)
 	if err != nil {
 		return Owner{}, err
 	}
-	p := keyPolicy(k)
+	p := w.keyPolicy(k)
 	a := s.Address(p)
 	idx := k.Index
 	return Owner{Address: a, Policy: p, Key: &idx, Label: label, Used: true}, nil
@@ -343,14 +380,14 @@ func (w *Wallet) AddPolicy(name string, k uint16, keys []PolicyKey, label string
 			ki := &w.f.Keys[*pk.Wallet]
 			ki.Used = true
 			idx := ki.Index
-			pk = PolicyKey{Wallet: &idx, Alg: uint32(policy.AlgEd25519), Public: ki.Public}
+			pk = PolicyKey{Wallet: &idx, Alg: uint32(w.KeyAlg()), Public: ki.Public}
 		case len(pk.Public) == 0:
 			ki, err := w.takeKey("policy " + name)
 			if err != nil {
 				return PolicyInfo{}, err
 			}
 			idx := ki.Index
-			pk = PolicyKey{Wallet: &idx, Alg: uint32(policy.AlgEd25519), Public: ki.Public}
+			pk = PolicyKey{Wallet: &idx, Alg: uint32(w.KeyAlg()), Public: ki.Public}
 		default:
 			if pk.Alg == 0 {
 				pk.Alg = uint32(policy.AlgEd25519)
@@ -369,24 +406,12 @@ func (w *Wallet) AddPolicy(name string, k uint16, keys []PolicyKey, label string
 // Policies returns the shared policies.
 func (w *Wallet) Policies() []PolicyInfo { return append([]PolicyInfo(nil), w.f.Policies...) }
 
-// CheckPolicy reports whether s allows p and its keys, and this software
-// can satisfy it: a payer's check before paying an address it was given
-// with its policy (the design's section 17.6).
+// CheckPolicy reports whether s allows p, every policy inside it and every
+// key algorithm they name: a payer's check before paying an address it
+// was given with its policy (the design's section 17.6).
 func CheckPolicy(s *series.Series, p policy.Policy) error {
-	if !s.AllowsPolicyType(p.Type) {
-		return fmt.Errorf("wallet: series does not allow policy type %d", p.Type)
-	}
-	if p.Type != policy.TypeThreshold {
-		return fmt.Errorf("wallet: policy type %d is not one this wallet recognizes", p.Type)
-	}
-	tp, err := policy.DecodeThresholdParams(policy.Default(), p.Params)
-	if err != nil {
-		return err
-	}
-	for _, k := range tp.Keys {
-		if !s.AllowsKeyAlg(k.Alg) {
-			return fmt.Errorf("wallet: series does not allow key algorithm %d", k.Alg)
-		}
+	if err := s.Registry().CheckPolicy(s, p); err != nil {
+		return fmt.Errorf("wallet: series does not allow this policy: %w", err)
 	}
 	return nil
 }

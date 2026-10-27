@@ -24,15 +24,18 @@ var exS = testutil.ExampleSeries()
 // engineNode is a wallet.Node over an engine, standing in for a full node.
 type engineNode struct {
 	e    *engine.Engine
+	s    *series.Series
 	hide map[hash.Hash]bool // tids to report as not held
 }
 
-func newNode(t *testing.T) *engineNode {
+func newNode(t *testing.T) *engineNode { return newNodeFor(t, exS) }
+
+func newNodeFor(t *testing.T, s *series.Series) *engineNode {
 	t.Helper()
 	e := engine.New(engine.Config{Ledger: ledger.Config{K: ledger.Unlimited}})
-	e.AddSeries(exS)
-	must(t, e.FollowSeries(exS.ID()))
-	return &engineNode{e: e, hide: map[hash.Hash]bool{}}
+	e.AddSeries(s)
+	must(t, e.FollowSeries(s.ID()))
+	return &engineNode{e: e, s: s, hide: map[hash.Hash]bool{}}
 }
 
 func (n *engineNode) Holdings(s hash.Hash, serial uint64) ([]wallet.Portion, error) {
@@ -58,7 +61,7 @@ func (n *engineNode) Payment(s hash.Hash, serial uint64, tid hash.Hash) (wallet.
 }
 
 func (n *engineNode) Submit(t *tx.Tx) error {
-	delete(n.hide, t.TID(exS.Hash()))
+	delete(n.hide, t.TID(n.s.Hash()))
 	_, err := n.e.HandleTx(t, engine.Local)
 	if errors.Is(err, engine.ErrSeen) {
 		return nil // already held
@@ -70,7 +73,7 @@ func (n *engineNode) Submit(t *tx.Tx) error {
 // layer.
 func (n *engineNode) mine(t *testing.T, pool uint64) hash.Hash {
 	t.Helper()
-	k := engine.PoolKey{Series: exS.ID(), Index: pool}
+	k := engine.PoolKey{Series: n.s.ID(), Index: pool}
 	_, res, err := n.e.Build(k, 0)
 	must(t, err)
 	_, _, err = n.e.Work(k, res.Hash, 0, 4000)
@@ -232,6 +235,62 @@ func TestClaimPayAndReceive(t *testing.T) {
 	must(t, err)
 	if rc2.Received != 5 || len(rc2.Legs) != 1 || rc2.Legs[0].TID != p2.Legs[0].TID {
 		t.Fatalf("found receipt %+v", rc2)
+	}
+}
+
+// Wallets of every key algorithm claim, pay and receive, in series of
+// every hash, each series allowing only the algorithms in use.
+func TestEveryKeyAlgorithm(t *testing.T) {
+	algs := policy.Default().Algs()
+	ids := hash.IDs()
+	for i, a := range algs {
+		payee := algs[(i+1)%len(algs)].ID()
+		t.Run(a.Name(), func(t *testing.T) {
+			p := testutil.ExampleParams()
+			p.HashID = ids[i%len(ids)]
+			p.KeyAlgs = []policy.AlgID{a.ID(), payee}
+			if payee < a.ID() {
+				p.KeyAlgs[0], p.KeyAlgs[1] = payee, a.ID()
+			}
+			s := testutil.MustSeries(p)
+			n := newNodeFor(t, s)
+			alice := newWallet(t, "alice", wallet.Options{Alg: a.ID()})
+			bob := newWallet(t, "bob", wallet.Options{Alg: payee})
+			if alice.KeyAlg() != a.ID() {
+				t.Fatalf("key algorithm %d", alice.KeyAlg())
+			}
+			_, err := alice.Claim(s, n, 4)
+			must(t, err)
+			n.mine(t, 1)
+			must(t, bob.WatchMints(s, 4))
+			req, err := bob.Request(s, 30, "")
+			must(t, err)
+			_, _, err = alice.PayRequest(s, n, req)
+			must(t, err)
+			n.mine(t, 1)
+			e, _ := bob.Find(req.Address)
+			rc, err := bob.Receive(s, n, e)
+			must(t, err)
+			if rc.Received != 30 || rc.Legs[0].State != wallet.StateSelected {
+				t.Fatalf("receipt %+v", rc)
+			}
+			// Reopened, the wallet derives the same keys.
+			again, err := wallet.Open(alice.Path())
+			must(t, err)
+			must(t, again.Unlock("pass alice"))
+			if again.KeyAlg() != a.ID() || string(again.Keys()[0].Public) != string(alice.Keys()[0].Public) {
+				t.Fatal("reopened wallet differs")
+			}
+		})
+	}
+	// A series that does not allow the wallet's algorithm refuses its
+	// addresses.
+	w := newWallet(t, "k1", wallet.Options{Alg: policy.AlgECDSASecp256k1})
+	if _, err := w.Request(exS, 1, ""); err == nil {
+		t.Fatal("request for an algorithm the series does not allow")
+	}
+	if _, err := wallet.Create(filepath.Join(t.TempDir(), "x.json"), "p", wallet.Options{Alg: 999, Iterations: 1}); err == nil {
+		t.Fatal("unknown algorithm accepted")
 	}
 }
 

@@ -230,10 +230,15 @@ func walletCmd(args []string, out io.Writer) error {
 func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
 	restore := fs.String("restore", "", "restore from this seed (64 hex digits)")
 	gap := fs.Int("gap", 0, fmt.Sprintf("unused keys to keep ahead (default %d)", wallet.DefaultGap))
+	algName := fs.String("alg", "ed25519", "key algorithm of every key, by name or number (poo crypto); fixed for the wallet's life")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	o := wallet.Options{Gap: *gap, Iterations: createIterations}
+	alg, err := parseAlg(*algName)
+	if err != nil {
+		return err
+	}
+	o := wallet.Options{Gap: *gap, Iterations: createIterations, Alg: alg}
 	if *restore != "" {
 		seed, err := hex.DecodeString(*restore)
 		if err != nil || len(seed) != wallet.SeedSize {
@@ -761,16 +766,17 @@ func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	return nil
 }
 
-// parsePolicyKey reads self, ALG:HEX or HEX (Ed25519).
+// parsePolicyKey reads self, ALG:HEX or HEX (Ed25519). ALG is a key
+// algorithm's name or number.
 func parsePolicyKey(v string) (wallet.PolicyKey, error) {
 	if v == "self" {
 		return wallet.PolicyKey{}, nil
 	}
 	alg := uint32(policy.AlgEd25519)
 	if i := strings.IndexByte(v, ':'); i >= 0 {
-		a, err := strconv.ParseUint(v[:i], 10, 32)
+		a, err := parseAlg(v[:i])
 		if err != nil {
-			return wallet.PolicyKey{}, fmt.Errorf("-key %q: bad algorithm id", v)
+			return wallet.PolicyKey{}, fmt.Errorf("-key %q: %v", v, err)
 		}
 		alg, v = uint32(a), v[i+1:]
 	}

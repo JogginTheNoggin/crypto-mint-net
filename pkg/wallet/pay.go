@@ -277,7 +277,7 @@ func (w *Wallet) addSigs(s *series.Series, ul *UnsignedLeg, tid hash.Hash) (int,
 
 // keyIndex finds the wallet key behind a policy key.
 func (w *Wallet) keyIndex(k policy.Key) (uint32, bool) {
-	if k.Alg != policy.AlgEd25519 {
+	if k.Alg != w.KeyAlg() {
 		return 0, false
 	}
 	for _, ki := range w.f.Keys {
