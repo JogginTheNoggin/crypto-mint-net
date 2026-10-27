@@ -218,7 +218,7 @@ func walletCmd(args []string, out io.Writer) error {
 	if !ok {
 		return fmt.Errorf("unknown wallet command %q\n\n%s", args[0], walletUsage)
 	}
-	fs := flag.NewFlagSet("wallet "+args[0], flag.ContinueOnError)
+	fs := newFlagSet("wallet "+args[0], out)
 	return cmd(fs, addWallet(fs), args[1:], out)
 }
 

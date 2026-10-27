@@ -102,6 +102,8 @@ Usage:
                               run the deterministic network simulator
                               (poo sim help)
   poo help [COMMAND]          this text, or one command's usage
+  poo completion bash|zsh|fish
+                              print a shell completion script
 
 Node commands pick a data directory with -dir, or with -root (default
 $POO_HOME or ~/.poo) and -policy (default: the current node policy).
@@ -134,7 +136,7 @@ func Run(ctx context.Context, args []string, s Stdio) error {
 	if in == nil {
 		in = strings.NewReader("")
 	}
-	return run(args, &stdio{Writer: s.Out, in: bufio.NewReader(in), ctx: ctx})
+	return run(args, &stdio{Writer: s.Out, err: s.Err, in: bufio.NewReader(in), ctx: ctx})
 }
 
 // stdio is the out of one invocation: commands write to it, and the few
@@ -143,8 +145,30 @@ func Run(ctx context.Context, args []string, s Stdio) error {
 // leaves no state shared between invocations.
 type stdio struct {
 	io.Writer
+	err io.Writer     // where flag errors and -h go; nil: os.Stderr
 	in  *bufio.Reader // one reader, so successive lines are not lost
 	ctx context.Context
+	// probe, when set, is given every flag set a command makes, and the
+	// flag sets print nothing: poo __complete runs a command with -h to
+	// learn its flags (completion.go).
+	probe func(*flag.FlagSet)
+}
+
+// newFlagSet is the flag set of a command writing to out. Its usage and
+// errors go to the invocation's Err, so the GUI's terminal shows them as a
+// shell does, rather than the GUI process's own stderr.
+func newFlagSet(name string, out io.Writer) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	if s, ok := out.(*stdio); ok {
+		if s.err != nil {
+			fs.SetOutput(s.err)
+		}
+		if s.probe != nil {
+			fs.SetOutput(io.Discard)
+			s.probe(fs)
+		}
+	}
+	return fs
 }
 
 // inputOf returns the input of the invocation writing to out.
@@ -179,7 +203,7 @@ func run(args []string, out io.Writer) error {
 	case "series":
 		return seriesCmd(args[1:], out)
 	case "demo":
-		fs := flag.NewFlagSet("demo", flag.ContinueOnError)
+		fs := newFlagSet("demo", out)
 		quiet := fs.Bool("quiet", false, "print only the summary")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
@@ -229,6 +253,10 @@ func run(args []string, out io.Writer) error {
 		return walletCmd(args[1:], out)
 	case "sim":
 		return simCmd(args[1:], out)
+	case "completion":
+		return completionCmd(args[1:], out)
+	case "__complete":
+		return completeCmd(args[1:], out)
 	case "help", "-h", "--help":
 		return helpCmd(args[1:], out)
 	default:
@@ -237,7 +265,7 @@ func run(args []string, out io.Writer) error {
 }
 
 func keygen(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
+	fs := newFlagSet("keygen", out)
 	seedHex := fs.String("seed", "", "32-byte seed in hex, for test vectors only: other users can read the command line (random if empty)")
 	seedFile := fs.String("seed-file", "", "file holding the seed in hex, - for standard input (random if neither)")
 	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")

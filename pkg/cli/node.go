@@ -79,7 +79,7 @@ func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 
 // initCmd writes a new node policy and makes it current.
 func initCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("init", flag.ContinueOnError)
+	fs := newFlagSet("init", out)
 	w := addWhere(fs)
 	var files stringList
 	fs.Var(&files, "series", "series parameters JSON file to know and follow (repeatable)")
@@ -148,7 +148,7 @@ func initCmd(args []string, out io.Writer) error {
 
 // nodeCmd runs the node until interrupted.
 func nodeCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("node", flag.ContinueOnError)
+	fs := newFlagSet("node", out)
 	w := addWhere(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -230,7 +230,7 @@ func (c *clientFlags) seriesOf(cl *rpc.Client) (*series.Series, error) {
 }
 
 func statusCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs := newFlagSet("status", out)
 	c := addClient(fs)
 	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
@@ -311,7 +311,7 @@ func (f *seedFlags) signer(out io.Writer) (*policy.Ed25519Signer, error) {
 
 // claimCmd claims a whole mint for a key's 1-of-1 address and submits it.
 func claimCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("claim", flag.ContinueOnError)
+	fs := newFlagSet("claim", out)
 	c := addClient(fs)
 	seed := addSeed(fs, "the claiming key's seed")
 	serial := fs.Uint64("serial", 0, "the mint's serial")
@@ -346,7 +346,7 @@ func claimCmd(args []string, out io.Writer) error {
 // payCmd pays an amount of one mint from a key's 1-of-1 address, with
 // change back to the same address, and submits it.
 func payCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("pay", flag.ContinueOnError)
+	fs := newFlagSet("pay", out)
 	c := addClient(fs)
 	seed := addSeed(fs, "the paying key's seed")
 	serial := fs.Uint64("serial", 0, "the mint's serial")
@@ -411,7 +411,7 @@ func payCmd(args []string, out io.Writer) error {
 }
 
 func buildCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("build", flag.ContinueOnError)
+	fs := newFlagSet("build", out)
 	c := addClient(fs)
 	pool := fs.Uint64("pool", 0, "pool index")
 	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: no limit)")
@@ -449,7 +449,7 @@ func buildCmd(args []string, out io.Writer) error {
 }
 
 func workCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("work", flag.ContinueOnError)
+	fs := newFlagSet("work", out)
 	c := addClient(fs)
 	pool := fs.Uint64("pool", 0, "pool index")
 	entryHex := fs.String("entry", "", "entry hash (default: the pool's selected tip)")
@@ -494,7 +494,7 @@ func workCmd(args []string, out io.Writer) error {
 }
 
 func paymentCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("payment", flag.ContinueOnError)
+	fs := newFlagSet("payment", out)
 	c := addClient(fs)
 	serial := fs.Uint64("serial", 0, "the mint's serial")
 	tidHex := fs.String("tid", "", "the transaction id")
@@ -521,7 +521,7 @@ func paymentCmd(args []string, out io.Writer) error {
 }
 
 func holdingsCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("holdings", flag.ContinueOnError)
+	fs := newFlagSet("holdings", out)
 	c := addClient(fs)
 	serial := fs.Uint64("serial", 0, "the mint's serial")
 	o := addOutput(fs)
@@ -547,7 +547,7 @@ func holdingsCmd(args []string, out io.Writer) error {
 }
 
 func peersCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("peers", flag.ContinueOnError)
+	fs := newFlagSet("peers", out)
 	w := addWhere(fs)
 	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
@@ -574,7 +574,7 @@ func peerCmd(args []string, out io.Writer) error {
 	if len(args) == 0 {
 		return errors.New(use)
 	}
-	fs := flag.NewFlagSet("peer", flag.ContinueOnError)
+	fs := newFlagSet("peer", out)
 	w := addWhere(fs)
 	secs := fs.Int("seconds", 0, "timeout or block: how long (0: the policy's length; block -1: until unblocked)")
 	rng := fs.Bool("range", false, "block: the address's whole network range")
@@ -601,7 +601,7 @@ func peerCmd(args []string, out io.Writer) error {
 // trackingCmd shows what the running node's tracker keeps: every tracked
 // address's status, or one address's whole record.
 func trackingCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("tracking", flag.ContinueOnError)
+	fs := newFlagSet("tracking", out)
 	w := addWhere(fs)
 	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
@@ -633,7 +633,7 @@ func trackingCmd(args []string, out io.Writer) error {
 
 // chasesCmd shows the running node's chase queue.
 func chasesCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("chases", flag.ContinueOnError)
+	fs := newFlagSet("chases", out)
 	w := addWhere(fs)
 	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
@@ -656,7 +656,7 @@ func chasesCmd(args []string, out io.Writer) error {
 // policyCmd lists, switches, archives, takes out of the archive and deletes
 // node policies.
 func policyCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("policy", flag.ContinueOnError)
+	fs := newFlagSet("policy", out)
 	root := fs.String("root", defaultRoot(), "directory holding the node policies ($POO_HOME)")
 	fresh := fs.Bool("fresh", false, "unarchive: drop the stored data and start from scratch")
 	if len(args) == 0 {

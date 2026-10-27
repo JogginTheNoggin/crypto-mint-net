@@ -15,6 +15,15 @@ for testing, never for anything of value.
 go build -o poo ./cmd/poo
 ```
 
+Optionally, turn on tab completion of commands, subcommands, flags and
+policy names. With `poo` on your `PATH`:
+
+```sh
+source <(poo completion bash)                          # bash, this shell
+poo completion zsh > "${fpath[1]}/_poo"                # zsh
+poo completion fish > ~/.config/fish/completions/poo.fish   # fish
+```
+
 ## 2. Write a node policy
 
 ```sh

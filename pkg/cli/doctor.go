@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -46,7 +45,7 @@ type DoctorReport struct {
 }
 
 func doctorCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fs := newFlagSet("doctor", out)
 	w := addWhere(fs)
 	asJSON := fs.Bool("json", false, "print the report as JSON")
 	if err := fs.Parse(args); err != nil {

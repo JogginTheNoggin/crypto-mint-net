@@ -45,6 +45,7 @@ without a wallet. See
 | `poo reload` | Makes the running node apply its node policy again (as SIGHUP to `poo node` does) |
 | `poo policy list\|use\|archive\|unarchive\|delete [-root DIR] [NAME]` | Manages node policies (flags before NAME) |
 | `poo wallet COMMAND` | The wallet; see below |
+| `poo completion bash\|zsh\|fish` | A shell completion script. It asks `poo __complete WORDS... CURRENT` (hidden) for candidates: commands and subcommands from the usage texts, each command's flags from its own flag set, and saved policy names after `-policy` |
 | `poo help [COMMAND]` | The usage, or one command's usage lines; a mistyped command gets the nearest names ("did you mean status?") |
 | `poo version` | Prints the version |
 | `poo crypto` | Lists the hashes, key algorithms (with key and signature sizes) and policy types, with their numbers ([../cryptography.md](../cryptography.md)) |

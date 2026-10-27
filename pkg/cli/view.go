@@ -57,7 +57,7 @@ func (v *viewFlags) oneSeries() (*hash.Hash, error) {
 }
 
 func viewCmd(name string, args []string, out io.Writer) error {
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs := newFlagSet(name, out)
 	v := addView(fs)
 	var below, limit *int
 	var serial *string
@@ -163,7 +163,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 // views (ledger, pending, tx, address) show where things stand. Stream notices (hello, ping,
 // end) are left out unless -notices is given; missed lines always show.
 func watchCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
+	fs := newFlagSet("watch", out)
 	v := addView(fs)
 	notices := fs.Bool("notices", false, "also print hello, ping and end lines")
 	once := fs.Bool("once", false, "stop when the stream ends instead of connecting again")
@@ -209,7 +209,7 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 	if remove {
 		name = "unfollow"
 	}
-	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs := newFlagSet(name, out)
 	w := addWhere(fs)
 	issuer := fs.String("issuer", "", "an issuer's address (hex)")
 	seriesID := fs.String("series", "", "a series id (hex)")
@@ -335,7 +335,7 @@ func waitBack(ctx context.Context, dir string) {
 
 // reloadCmd makes a running node apply its node policy again.
 func reloadCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("reload", flag.ContinueOnError)
+	fs := newFlagSet("reload", out)
 	w := addWhere(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
