@@ -70,7 +70,11 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	if name == "tx" {
 		serial = fs.String("in-serial", "", "look only in this mint's pool")
 	}
+	o := addOutput(fs)
 	if err := v.parse(fs, args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	if name == "tx" || name == "address" {
@@ -90,19 +94,19 @@ func viewCmd(name string, args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return writeJSON(out, r)
+		return o.write(out, r)
 	case "pending":
 		r, err := cl.Pending(v.f)
 		if err != nil {
 			return err
 		}
-		return writeJSON(out, r)
+		return o.write(out, r)
 	case "unspent":
 		r, err := cl.Unspent(v.f)
 		if err != nil {
 			return err
 		}
-		return writeJSON(out, r)
+		return o.write(out, r)
 	}
 	sid, err := v.oneSeries()
 	if err != nil {
@@ -119,7 +123,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return writeJSON(out, r)
+		return o.write(out, r)
 	case "tx":
 		tid, err := hash.Parse(fs.Arg(0))
 		if err != nil {
@@ -137,7 +141,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return writeJSON(out, r)
+		return o.write(out, r)
 	default: // address
 		a, err := hash.Parse(fs.Arg(0))
 		if err != nil {
@@ -147,7 +151,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return writeJSON(out, r)
+		return o.write(out, r)
 	}
 }
 

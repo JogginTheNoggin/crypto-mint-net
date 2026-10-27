@@ -41,4 +41,20 @@ so nothing breaks.
 
 ## Prototype
 
-None yet. Green can build it if Grey wants it.
+On `claude/source-green`, after GREEN-004: `pkg/cli/table.go` and
+`pkg/cli/table_test.go`; `-o` and `-wide` on `status`, `pools`, `ledger`,
+`pending`, `unspent`, `tx`, `address`, `holdings`, `peers`, `tracking` and
+`chases`; a usage line and a paragraph in `docs/modules/poo.md`.
+
+The prototype differs from the idea above in one way. It has no
+per-reply formatters. The table is built from the reply's JSON, read with
+its key order kept. A list of objects becomes columns named after the JSON
+fields, and small flat objects become dotted columns (`input.tid`). An
+object becomes one field per line, with a titled table for each list in
+it. Lists of objects inside a row show their count (`[3]`). So a field
+added to a reply shows up in the table with no change here, and the table
+can never disagree with the JSON. Golden tests per command were not needed:
+one exact-output test covers the renderer.
+
+Not done: `POO_OUTPUT`, and table output for `watch` (a stream) and the
+wallet commands.
