@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `4692b4e` |
 | Area | `pkg/cli` (`view.go`, `node.go`) |
 | Effort | medium |
-| Decided by | |
+| Decided by | Grey: build it after GREEN-004; JSON stays the default, since the GUI and scripts read it |
 
 ## Summary
 

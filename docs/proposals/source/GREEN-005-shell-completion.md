@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | deferred |
 | Based on | `claude/m10-watch` @ `4692b4e` |
 | Area | `pkg/cli` (new command) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey: worth having, but it needs the per-command flag set refactor first; revisit after GREEN-003 |
 
 ## Summary
 

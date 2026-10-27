@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `4692b4e` |
 | Area | `pkg/rpc` (new `metrics.go`) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey: merged as prototyped in 3955bb9; documented in docs/modules/rpc.md |
 
 ## Summary
 

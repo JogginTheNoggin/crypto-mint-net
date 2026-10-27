@@ -44,6 +44,7 @@ without a wallet. See
 | `poo reload` | Makes the running node apply its node policy again (as SIGHUP to `poo node` does) |
 | `poo policy list\|use\|archive\|unarchive\|delete [-root DIR] [NAME]` | Manages node policies (flags before NAME) |
 | `poo wallet COMMAND` | The wallet; see below |
+| `poo help [COMMAND]` | The usage, or one command's usage lines; a mistyped command gets the nearest names ("did you mean status?") |
 | `poo version` | Prints the version |
 | `poo crypto` | Lists the hashes, key algorithms (with key and signature sizes) and policy types, with their numbers ([../cryptography.md](../cryptography.md)) |
 | `poo keygen [-alg NAME] [-hash NAME] [-seed hex]` | A new key (default Ed25519) and its 1-of-1 address under a hash (default SHA-256; `address_sha256` is kept for SHA-256) |

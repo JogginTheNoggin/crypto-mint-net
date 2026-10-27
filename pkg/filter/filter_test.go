@@ -1,9 +1,12 @@
 package filter
 
 import (
+	"errors"
 	"flag"
 	"io"
+	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -82,4 +85,29 @@ func TestValuesAndFlags(t *testing.T) {
 	if !(Filter{}).Empty() || f.Empty() {
 		t.Error("Empty")
 	}
+}
+
+// FuzzFromValues: any query string either fails with ErrBad or reads to a
+// filter that writes back to parameters reading to the same filter.
+func FuzzFromValues(f *testing.F) {
+	for _, s := range []string{"", "pool=1,2&serial=5", "kind=tx,selected", "series=zz", "policy=00", "tid=" + strings.Repeat("ab", 32)} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, q string) {
+		v, err := url.ParseQuery(q)
+		if err != nil {
+			return
+		}
+		got, err := FromValues(v)
+		if err != nil {
+			if !errors.Is(err, ErrBad) {
+				t.Fatalf("error %v is not ErrBad", err)
+			}
+			return
+		}
+		again, err := FromValues(got.Values())
+		if err != nil || again.Values().Encode() != got.Values().Encode() {
+			t.Fatalf("round trip of %q: %v, %v vs %v", q, err, again.Values(), got.Values())
+		}
+	})
 }

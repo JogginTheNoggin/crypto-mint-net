@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `4692b4e` |
 | Area | `pkg/cli` (new command), reads `pkg/nodepolicy` and `pkg/rpc` |
 | Effort | medium |
-| Decided by | |
+| Decided by | Grey: build it next; read-only and local only, as proposed |
 
 ## Summary
 

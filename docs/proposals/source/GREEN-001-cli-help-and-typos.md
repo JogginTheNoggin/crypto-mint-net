@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `4692b4e` |
 | Area | `pkg/cli` (`main.go`, new `help.go`) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey: merged as prototyped in 3955bb9 |
 
 ## Summary
 
