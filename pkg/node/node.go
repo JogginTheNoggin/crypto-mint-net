@@ -20,6 +20,7 @@
 package node
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -439,39 +440,43 @@ func (n *Node) HandleLayerFrom(k engine.PoolKey, l layer.Layer, origin engine.Or
 // Build makes an entry from the pending transactions of pool k (see
 // engine.Engine.Build) and stores it.
 func (n *Node) Build(k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.EntryResult, error) {
+	return n.BuildContext(context.Background(), k, maxTries)
+}
+
+// BuildContext is Build that gives up, with ctx's error, once ctx is
+// done. The search for a nonce holds neither the node's lock nor the
+// engine's, so a long build never stalls peers or the RPC (RED-006).
+func (n *Node) BuildContext(ctx context.Context, k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.EntryResult, error) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.closed {
+	closed := n.closed
+	n.mu.Unlock()
+	if closed {
 		return nil, engine.EntryResult{}, ErrClosed
 	}
-	e, res, err := n.eng.Build(k, maxTries)
+	e, err := n.eng.BuildEntry(ctx, k, maxTries)
 	if err != nil {
-		return e, res, err
+		return e, engine.EntryResult{Key: k}, err
 	}
-	if err := n.record(k, store.KindEntry, e.Encode()); err != nil {
-		return e, res, err
-	}
-	n.emit(Event{Key: k, Entry: e, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
-	return e, res, nil
+	res, err := n.HandleEntry(k, e, engine.Local)
+	return e, res, err
 }
 
 // Work grinds a layer on an entry of pool k (see engine.Engine.Work) and
 // stores it.
 func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, engine.LayerResult, error) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.closed {
+	closed := n.closed
+	n.mu.Unlock()
+	if closed {
 		return layer.Layer{}, engine.LayerResult{}, ErrClosed
 	}
-	l, res, err := n.eng.Work(k, entryHash, start, tries)
+	// Grinding holds neither lock, so it never stalls peers or the RPC.
+	l, err := n.eng.GrindLayer(k, entryHash, start, tries)
 	if err != nil {
-		return l, res, err
+		return l, engine.LayerResult{Key: k}, err
 	}
-	if err := n.record(k, store.KindLayer, l.Encode()); err != nil {
-		return l, res, err
-	}
-	n.emit(Event{Key: k, Layer: &l, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
-	return l, res, nil
+	res, err := n.HandleLayer(k, l, engine.Local)
+	return l, res, err
 }
 
 // Engine returns the engine, for reading. Changes must go through the

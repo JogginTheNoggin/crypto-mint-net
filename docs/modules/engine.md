@@ -22,7 +22,10 @@ or opens a socket. Calls are safe from multiple goroutines.
   entries and layers the `Switch` and pruned hashes.
 - Building: `Build(key, maxTries)` bundles ready pending transactions on the
   tip (`ErrNothingPending`, `ErrAlreadyBuilt`); `Work(key, entryHash, start,
-  tries)` grinds and adds a layer (`ErrNoStrongerLayer`).
+  tries)` grinds and adds a layer (`ErrNoStrongerLayer`). `BuildEntry(ctx,
+  key, maxTries)` and `GrindLayer` do the search without taking the item
+  in, and hold the engine's lock only to read the pool, never while
+  searching (D99).
 - Reading: `FollowedPools()`, `Pending(key)` (ready pending transactions,
   oldest first), `Status(key)`, `Payment(key, tid)` (pending, in which entry,
   weight added since, selected, the transaction itself, and its rivals on

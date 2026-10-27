@@ -1,11 +1,13 @@
 package entry_test
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"testing"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/state"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
@@ -160,5 +162,18 @@ func TestEncodeDecode(t *testing.T) {
 	empty, eh, _ := entry.Build(s, s.PoolID(1), nil, 0)
 	if back, err := entry.Decode(empty.Encode()); err != nil || back.Hash(s) != eh {
 		t.Fatal("empty entry round trip failed")
+	}
+}
+
+// RED-006: a nonce search with no limit stops once its context is done.
+func TestBuildContextCancels(t *testing.T) {
+	p := testutil.ExampleParams()
+	p.MinEntryStrength = series.MaxStrength // never met
+	s := testutil.MustSeries(p)
+	k := testutil.NewKeys(s)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, err := entry.BuildContext(ctx, s, s.PoolID(0), []*tx.Tx{k.Claim(0, P("a", 100))}, 0); !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
