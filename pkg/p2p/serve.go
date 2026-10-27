@@ -39,9 +39,12 @@ func (h *Host) serve(p *peer, m wire.Message) error {
 		return nil
 	}
 	if !h.reqs.add(m.RequestID, now) {
-		// The same request again: refused, and counted as a repeat.
+		// The same request again: refused, and counted as a repeat. It is
+		// counted before the refusal goes out, so whoever sees the refusal
+		// also sees the count; any action follows the refusal.
+		a := h.tr.Repeat(p.key, now)
 		r.empty(wire.TypeRefused, h.ownWeight(pi))
-		if a := h.tr.Repeat(p.key, now); a != tracking.None {
+		if a != tracking.None {
 			h.act(p, a)
 		}
 		return nil
@@ -111,7 +114,15 @@ func (r replier) chunks(t wire.Type, bodies [][]byte, more bool) {
 	if len(bodies) == 0 {
 		bodies = [][]byte{nil}
 	}
-	n := 0
+	// The cost is counted before the reply goes out, so whoever sees the
+	// reply also sees it counted.
+	if r.text != "" {
+		n := 0
+		for _, b := range bodies {
+			n += len(b)
+		}
+		r.h.tr.Cost(r.p.key, r.text, n, 0, r.large, time.Now())
+	}
 	for i, b := range bodies {
 		var f uint8
 		if i == len(bodies)-1 {
@@ -121,10 +132,6 @@ func (r replier) chunks(t wire.Type, bodies [][]byte, more bool) {
 			}
 		}
 		r.p.send(wire.Message{Header: r.header(t, uint32(i+1), f), Body: b})
-		n += len(b)
-	}
-	if r.text != "" {
-		r.h.tr.Cost(r.p.key, r.text, n, 0, r.large, time.Now())
 	}
 }
 
