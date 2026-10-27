@@ -303,3 +303,49 @@ func TestSeen(t *testing.T) {
 		t.Fatal("repeated adds")
 	}
 }
+
+func TestStoredOrigin(t *testing.T) {
+	s := testutil.ExampleSeries()
+	k := testutil.NewKeys(s)
+	e := engine.New(engine.Config{Ledger: ledger.Config{K: 0}})
+	e.AddSeries(s)
+	e.FollowSeries(s.ID())
+	key := engine.PoolKey{Series: s.ID(), Index: 1}
+	if got := e.FollowedPools(); len(got) != 2 || got[0].Index != 0 || got[1].Index != 1 {
+		t.Fatalf("followed %v", got)
+	}
+	claim := k.Claim(4, P("alice", 100))
+	if r, err := e.HandleTx(claim, engine.Stored); err != nil || r.Forward {
+		t.Fatalf("stored tx: forward=%v err=%v", r.Forward, err)
+	}
+	if p, _ := e.Pending(key); len(p) != 1 || p[0].TID != claim.TID(s.Hash()) {
+		t.Fatalf("pending %v", p)
+	}
+	en, _, err := e.Build(key, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := e.Work(key, en.Hash(s), 0, 100); err != nil {
+		t.Fatal(err)
+	}
+	// A lighter sibling: kept, then pruned at once with K = 0.
+	rival, _, _ := entry.Build(s, s.PoolID(1), []*tx.Tx{k.Claim(4, P("eve", 100))}, 0)
+	res, err := e.HandleEntry(key, rival, engine.Pushed)
+	if err != nil || len(res.Pruned) != 1 {
+		t.Fatalf("rival: %v %+v", err, res)
+	}
+	// Pushed again it is on the seen list; read back from the store it is
+	// taken in again, and not forwarded.
+	if _, err := e.HandleEntry(key, rival, engine.Pushed); !errors.Is(err, engine.ErrSeen) {
+		t.Fatalf("want ErrSeen, got %v", err)
+	}
+	res, err = e.HandleEntry(key, rival, engine.Stored)
+	if err != nil || res.Forward {
+		t.Fatalf("stored entry: forward=%v err=%v", res.Forward, err)
+	}
+	for o, want := range map[engine.Origin]string{engine.Pushed: "pushed", engine.Requested: "requested", engine.Local: "local", engine.Stored: "stored", 9: "origin(9)"} {
+		if o.String() != want {
+			t.Errorf("%d: %q", int(o), o.String())
+		}
+	}
+}

@@ -614,6 +614,31 @@ func (p *Pool) Branches() []Branch {
 	return out
 }
 
+// ReplayOrder returns every held entry in an order that, given with its
+// layers to an empty pool with the same configuration, rebuilds the same
+// tree and the same selected ledger: the selected ledger from the pool_id
+// up, then every other entry by first sighting. A store uses it to compact
+// its log. Putting the selected ledger first matters for ties: replayed
+// first, it is selected first, so a branch of equal weight does not take
+// its place.
+func (p *Pool) ReplayOrder() []hash.Hash {
+	out := make([]hash.Hash, 0, len(p.nodes))
+	for _, n := range p.chain {
+		out = append(out, n.hash)
+	}
+	rest := make([]*node, 0, len(p.nodes)-len(p.chain))
+	for _, n := range p.nodes {
+		if !n.onChain {
+			rest = append(rest, n)
+		}
+	}
+	sort.Slice(rest, func(i, j int) bool { return rest[i].seq < rest[j].seq })
+	for _, n := range rest {
+		out = append(out, n.hash)
+	}
+	return out
+}
+
 // offChainLeaves returns the off-chain nodes with no children, best first.
 func (p *Pool) offChainLeaves() []*node {
 	var leaves []*node
