@@ -25,7 +25,7 @@ All under `/v1`, all requiring `Authorization: Bearer <token>`.
 | `POST /tx` | `{tx}` | `{series, pool, tid, forward}` |
 | `POST /entry` | `{series, pool, entry}` | `{hash, switched, pruned, dropped}` |
 | `POST /layer` | `{series, pool, layer}` | `{hash, strength, switched}` |
-| `POST /build` | `{series, pool, max_tries}` | the entry reply plus `entry` bytes |
+| `POST /build` | `{series, pool, max_tries}` | the entry reply plus `entry` bytes; `max_tries` at most `MaxBuildTries` (2^24), 0 meaning that; the search holds no lock and stops if the client goes away (D99) |
 | `POST /work` | `{series, pool, entry, start, tries}` | the layer reply plus `layer` bytes |
 | `GET /payment` | `series, serial, tid` | `{pending, selected, entry, from, tx, rivals: [{tip, fork, entry, conflict, after}]}`: `tx` is the transaction's bytes in hex when the node holds it; each rival is an entry on an inactive branch holding a transaction that spends one of its inputs, with the branch's weight after its fork |
 | `GET /holdings` | `series, serial` | `[{tid, index, address, amount}]` |

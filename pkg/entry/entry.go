@@ -15,6 +15,7 @@
 package entry
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -217,6 +218,16 @@ func CheckAgainst(s *series.Series, v tx.View, items []Item) error {
 // a minimum entry strength, tries nonces from 0 until the hash reaches it or
 // maxTries nonces have been tried (0 means no limit).
 func Build(s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64) (*Entry, hash.Hash, error) {
+	return BuildContext(context.Background(), s, parent, txs, maxTries)
+}
+
+// cancelEvery is how many nonces BuildContext tries between looks at its
+// context.
+const cancelEvery = 1 << 12
+
+// BuildContext is Build that stops searching for a nonce, with ctx's
+// error, once ctx is done (RED-006).
+func BuildContext(ctx context.Context, s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64) (*Entry, hash.Hash, error) {
 	items := make([]Item, len(txs))
 	for i, t := range txs {
 		items[i] = Item{TID: t.TID(s.Hash()), Tx: t}
@@ -240,6 +251,11 @@ func Build(s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64) (*
 		}
 		if nonce == ^uint64(0) {
 			break
+		}
+		if nonce%cancelEvery == cancelEvery-1 {
+			if err := ctx.Err(); err != nil {
+				return nil, hash.Zero, err
+			}
 		}
 	}
 	return nil, hash.Zero, ErrNotFound

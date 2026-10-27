@@ -464,6 +464,10 @@ func (h *Handler) submitLayer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, LayerReply{Hash: res.Hash, Strength: res.Hash.Strength(), Switched: res.Switch != nil})
 }
 
+// MaxBuildTries bounds the nonces one build request may try for an entry,
+// and is what a request that names none gets.
+const MaxBuildTries = 1 << 24
+
 // BuildRequest asks the node to build an entry from its pending
 // transactions.
 type BuildRequest struct {
@@ -477,7 +481,16 @@ func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	en, res, err := h.n.Build(req.key(), req.MaxTries)
+	// Bounded like work, and given up when the client goes away
+	// (RED-006, decision D99).
+	switch {
+	case req.MaxTries == 0:
+		req.MaxTries = MaxBuildTries
+	case req.MaxTries > MaxBuildTries:
+		writeError(w, badRequest("max_tries must be at most %d", MaxBuildTries))
+		return
+	}
+	en, res, err := h.n.BuildContext(r.Context(), req.key(), req.MaxTries)
 	if err != nil {
 		writeError(w, classify(err))
 		return

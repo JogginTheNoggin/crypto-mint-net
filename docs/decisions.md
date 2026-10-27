@@ -1317,3 +1317,25 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   GUI's tests and the design's vectors use fixed seeds, and a seed made
   for a vector holds nothing.
 - **Tier:** Implementation.
+
+### D99. Building an entry is bounded, cancellable and lock-free
+
+- **Decision:** `/v1/build` accepts `max_tries` up to `MaxBuildTries`
+  (2^24, the same as `MaxWorkTries`); 0 or no value means that limit, and
+  more is a bad request. The engine splits `Build` into `BuildEntry`
+  (choose the ready transactions and the tip under the engine's lock,
+  then search for the nonce without it) and `HandleEntry`, and `Work`
+  into `GrindLayer` and `HandleLayer`. `Node.Build` and `Node.Work` hold
+  the node's lock only to take the result in and store it, never while
+  searching. `entry.BuildContext` and `Node.BuildContext` stop the search
+  with the context's error; the RPC passes the request's context, so a
+  client that goes away, or a shutdown, ends the search. `entry.Build`
+  and `engine.Build` keep their signatures, with no limit, for callers in
+  process. `poo build -max-tries 0` now means the node's limit.
+- **Why:** Red finding RED-006: a build with no limit on a series with a
+  high minimum entry strength searched for up to 2^64 nonces holding both
+  the node's and the engine's locks, so one request froze the RPC and all
+  peer processing until the process was killed. If the tip moves during
+  a search, the entry is still valid on its old parent and is kept as a
+  branch, the same as one received from a peer.
+- **Tier:** Implementation.

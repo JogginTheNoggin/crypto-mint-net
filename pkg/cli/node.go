@@ -410,7 +410,7 @@ func buildCmd(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("build", flag.ContinueOnError)
 	c := addClient(fs)
 	pool := fs.Uint64("pool", 0, "pool index")
-	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: no limit)")
+	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: the node's limit, 16777216)")
 	work := fs.Uint64("work", 0, "then add the strongest layer found in this many nonces")
 	if err := fs.Parse(args); err != nil {
 		return err
