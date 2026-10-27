@@ -9,7 +9,25 @@ implementation that follows it must reproduce the published test vectors in
 [`pkg/vectors/testdata/vectors.json`](../../pkg/vectors/testdata/vectors.json).
 Changing any form here changes every id in every series, so a change needs a
 new entry in [decisions.md](../decisions.md) and regenerated vectors. The
-rationale for the forms is in decisions D2 to D9.
+rationale for the forms is in decisions D2 to D9. As of release 0.1.0, byte
+form v1 is **stable**: it will not change, and a test fails if its vectors
+do ([Stability](#stability)).
+
+## Stability
+
+Byte form v1 is frozen (decision D76). Everything in this document is fixed
+for every series whose parameters say format version 1:
+
+- No form here is edited, reordered or given a new meaning. A fix or an
+  extension is a new format version, with its own document and vectors,
+  and a series opts in through the format version byte of its parameters.
+  Series made under v1 keep v1 forever, since their ids depend on it.
+- `TestByteFormV1Frozen` in `pkg/vectors` checks the SHA-256 of
+  `vectors.json`. Regenerating the vectors with `-update` does not get past
+  it.
+- What may still change without a new version: limits a node applies before
+  decoding (they decide what a node accepts, not what bytes mean), error
+  messages, and this document's wording where it does not change a byte.
 
 ## Primitives
 

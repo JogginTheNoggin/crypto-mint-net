@@ -166,7 +166,8 @@ dropped policies, the answers to follow requests and pings, rate limits,
 peer list chunks and follow replies with peers. `p2p_test.go`: forwarding,
 catching up with the full ledger, a deep fork converging on the heavier
 side, requested data spreading only through notices, extra layers,
-regular checks, self connections, and unlisted connections. `rank_test.go`:
+regular checks, self connections, unlisted connections, and inbound
+connections kept out of the outbound slots (D75). `rank_test.go`:
 placing peers in slots, closing an outbound peer with no slot, a review
 swapping a backup with a priority peer by points, and blocked addresses
 refused both ways. `chase_test.go` drives a chase against a hand-driven

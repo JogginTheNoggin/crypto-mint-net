@@ -39,6 +39,7 @@ D25). Nothing here changes what is valid.
     "check_seconds": 60,
     "registries": ["https://registry.example/poo.json"],
     "max_outbound": 8,
+    "max_inbound": 24,
     "no_relay": false,
     "hop_limit": 8,
     "request_rate": 120,
@@ -71,7 +72,10 @@ every branch. `rpc.listen: "off"` disables the interface. `p2p.listen:
 `check_seconds: -1` turns off regular checks and `ping_seconds: -1` pings.
 Without `advertise` the node is never offered to others as a contact. The p2p defaults are in
 `p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
-no unlisted connections; `review_seconds: -1` never reviews. In
+no unlisted connections; `review_seconds: -1` never reviews.
+`max_inbound` defaults to `max_peers` less `max_outbound`, so inbound
+connections cannot take the outbound slots (D75); `-1` caps inbound only
+by `max_peers`. In
 `tracking`, `escalate_at: -1` never escalates; every template name must
 be known, custom templates may not form a cycle, and groups must be
 priority, backup, candidate, unlisted, inbound or outbound (see

@@ -28,8 +28,10 @@ per payment, shared k-of-n policies with co-signing, payment requests
 that carry the receiver's policy, and following every payment's weight
 against known rivals (`poo wallet`). Milestone 7 adds a deterministic
 network simulator, fuzzing and benchmarks: see [docs/simulation.md](docs/simulation.md) for
-what they measured. Hardening and the open release come next
-([roadmap](docs/roadmap.md)). Every design decision and every place this code
+what they measured. Milestone 8 hardens it for release: a security review
+([docs/security.md](docs/security.md)), byte form v1 declared stable, and
+reproducible release builds ([docs/releasing.md](docs/releasing.md)). The
+license and the open release are next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
 departs from the design documents is recorded in
 [docs/decisions.md](docs/decisions.md).
 
@@ -58,7 +60,7 @@ The full design lives in the project's design documents; the
 
 ## Quick start
 
-You need Go 1.24 or later.
+You need Go 1.26 or later (the `go` command fetches the toolchain `go.mod` names).
 
 ```sh
 git clone https://github.com/JogginTheNoggin/crypto-mint-net
@@ -121,6 +123,9 @@ go build -o poo ./cmd/poo
 - [Byte formats](docs/protocol/encoding.md): exact encodings and test vectors.
 - [Wire protocol](docs/protocol/wire.md): messages between full nodes.
 - [Glossary](docs/glossary.md): the terms used throughout.
+- [Security review](docs/security.md) and [security policy](SECURITY.md).
+- [Releasing](docs/releasing.md): how releases are built and checked.
+- [Changelog](CHANGELOG.md).
 - [Module guides](docs/modules/README.md): one page per package.
 - [Contributing](CONTRIBUTING.md) and [notes for AI agents](AGENTS.md).
 
@@ -133,7 +138,9 @@ implemented and tested, with a wallet. Every decoder is fuzzed, the hot
 paths are benchmarked, and a deterministic network simulator runs the
 design's tests ([docs/simulation.md](docs/simulation.md)); its numbers
 support the provisional defaults but come from a model, not a real
-network. Do not use it
+network. A security review has been done by the project itself
+([docs/security.md](docs/security.md)) but not yet by anyone outside it.
+Do not use it
 with anything of value. Keys made by the test helpers are derived from public
 labels and must never hold real funds.
 

@@ -1,0 +1,2 @@
+# Test vectors are compared byte for byte; keep their line endings.
+pkg/vectors/testdata/** -text

@@ -1,8 +1,10 @@
 package vectors
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,5 +34,20 @@ func TestGolden(t *testing.T) {
 	if string(got) != string(want) {
 		t.Fatalf("test vectors changed. An encoding or hash changed, which changes every id.\n"+
 			"If this is intended, record it in docs/decisions.md and run go test ./pkg/vectors -update.\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// v1Digest is the SHA-256 of testdata/vectors.json for byte form v1, which
+// is frozen (decision D76). -update cannot change it: a new byte form is a
+// new format version beside this one, never an edit of it.
+const v1Digest = "d89968f2aeccc918b072e3796a1717b2c12bc9f3c837fa12b73e399ac885754f"
+
+func TestByteFormV1Frozen(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("testdata", "vectors.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprintf("%x", sha256.Sum256(b)); got != v1Digest {
+		t.Fatalf("testdata/vectors.json has digest %s, want %s: byte form v1 is frozen (docs/protocol/encoding.md, Stability)", got, v1Digest)
 	}
 }

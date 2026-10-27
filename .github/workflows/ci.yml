@@ -34,3 +34,5 @@ jobs:
         run: go run ./cmd/poo demo -quiet
       - name: fuzz
         run: FUZZTIME=5s ./scripts/fuzz.sh
+      - name: release build
+        run: DIST="$RUNNER_TEMP/dist" ./scripts/release.sh 0.0.0-ci

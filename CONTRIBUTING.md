@@ -12,7 +12,7 @@ the test vectors stable unless the change is meant to alter them.
 
 ## Setting up
 
-- Install Go 1.24 or later. There are no other dependencies.
+- Install Go 1.26 or later (the `go` command fetches the toolchain `go.mod` names). There are no other dependencies.
 - `go build ./...` builds everything; `go test ./...` runs the tests.
 
 ## Before you open a pull request

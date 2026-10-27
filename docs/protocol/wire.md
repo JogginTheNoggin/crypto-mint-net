@@ -16,6 +16,12 @@ never reused, and a node ignores types it does not know. The reasons for
 the choices here are decisions D30 to D39, D40 to D49 and D50 to D62 in
 [../decisions.md](../decisions.md).
 
+Wire version 1 is stable as of release 0.1.0 (decision D76). Existing
+message types, headers and bodies keep their bytes and meaning. New
+behaviour comes as new message types, which older nodes ignore, or as a new
+wire version that the hello offers. Defaults such as reply limits and peer
+counts are node policy and may change between releases.
+
 ## Primitives
 
 Integers are big-endian, as in [encoding.md](encoding.md). `Bytes` is a
