@@ -41,7 +41,7 @@ so nothing breaks.
 
 ## Prototype
 
-On `claude/source-green`, after GREEN-004: `pkg/cli/table.go` and
+On `claude/source-green`, based on `claude/m10-watch` @ `5ea6828`: `pkg/cli/table.go` and
 `pkg/cli/table_test.go`; `-o` and `-wide` on `status`, `pools`, `ledger`,
 `pending`, `unspent`, `tx`, `address`, `holdings`, `peers`, `tracking` and
 `chases`; a usage line and a paragraph in `docs/modules/poo.md`.

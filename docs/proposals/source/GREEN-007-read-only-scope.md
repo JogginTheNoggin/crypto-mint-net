@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | proposed |
-| Based on | `claude/m10-watch` @ `454cd3d` |
+| Based on | `claude/m10-watch` @ `5ea6828` |
 | Area | `pkg/rpc` (view token, prototyped), `pkg/cli` (read-only mode, proposed) |
 | Effort | small for the token, medium for the CLI mode |
 | Decided by | |
