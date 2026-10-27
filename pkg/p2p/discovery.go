@@ -565,11 +565,9 @@ func (h *Host) verifyPeer(p *peer) error {
 	// Ask the new peer how heavy its ledgers are; a heavier one is chased.
 	for _, pi := range h.sortedPools() {
 		if p.covers(pi.section, false) {
-			h.wg.Add(1)
-			go func(pi *poolInfo) {
-				defer h.wg.Done()
+			h.spawn(func() {
 				h.askWeight(pi, p)
-			}(pi)
+			})
 		}
 	}
 	return nil
@@ -636,11 +634,9 @@ func (h *Host) pingLoop(ctx context.Context) {
 					default:
 						continue
 					}
-					h.wg.Add(1)
-					go func(p *peer, s wire.Section) {
-						defer h.wg.Done()
+					h.spawn(func() {
 						h.ping(p, s)
-					}(p, s)
+					})
 				}
 			}
 		}
@@ -802,19 +798,15 @@ func (h *Host) manage(ctx context.Context) {
 		}
 		h.mu.Unlock()
 		if p := h.askPeer(s, nil); askNow && p != nil {
-			h.wg.Add(1)
-			go func(s wire.Section, p *peer) {
-				defer h.wg.Done()
+			h.spawn(func() {
 				h.askPeerList(p, s)
 				h.Broadcast(s)
-			}(s, p)
+			})
 		}
 		if regNow {
-			h.wg.Add(1)
-			go func() {
-				defer h.wg.Done()
+			h.spawn(func() {
 				h.LoadRegistries(ctx)
-			}()
+			})
 		}
 	}
 }
@@ -867,9 +859,7 @@ func (h *Host) dialCandidate(ctx context.Context, addr string) {
 	}
 	h.dialing[addr] = true
 	h.mu.Unlock()
-	h.wg.Add(1)
-	go func() {
-		defer h.wg.Done()
+	h.spawn(func() {
 		defer func() {
 			h.mu.Lock()
 			delete(h.dialing, addr)
@@ -896,7 +886,7 @@ func (h *Host) dialCandidate(ctx context.Context, addr string) {
 			}
 		}()
 		h.runConnNotify(c, true, addr, ready)
-	}()
+	})
 }
 
 // Broadcast sends a follow request about s over every open connection,
