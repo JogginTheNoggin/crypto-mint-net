@@ -60,6 +60,15 @@ Node and client commands choose a data directory with `-dir`, or with
 node policy, else `default`). Client commands take `-series ID` when the
 node follows more than one series.
 
+The read commands (`status`, `pools`, `ledger`, `pending`, `unspent`, `tx`,
+`address`, `holdings`, `peers`, `tracking`, `chases`) print JSON, which
+scripts and the GUI read. `-o table` prints the same reply for reading
+instead: a list becomes aligned columns named after its JSON fields, and an
+object becomes one field per line followed by a table for each list in it.
+Hashes are shortened to their first 8 and last 4 hex digits unless `-wide`
+is given. The table is built from the JSON, so it never shows a field the
+JSON lacks.
+
 `[filter]` is the shared filter ([filter.md](filter.md)): `-series`,
 `-pool`, `-serial`, `-address`, `-address-policy` (hex of a policy's byte
 form), `-tid` and `-kind` (`tx`, `entry`, `layer`, `switch`, `selected`,

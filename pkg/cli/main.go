@@ -106,6 +106,7 @@ Usage:
 Node commands pick a data directory with -dir, or with -root (default
 $POO_HOME or ~/.poo) and -policy (default: the current node policy).
 Client commands take -series ID when the node follows more than one series.
+Read commands print JSON; -o table prints columns for reading (-wide: full hashes).
 `
 
 // Stdio is where a command reads and writes. In is read for passphrases
