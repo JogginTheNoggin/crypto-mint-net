@@ -137,3 +137,25 @@ func BenchmarkLayerOnOldEntry(b *testing.B) {
 		mustLayer(b, p, layer.Layer{Entry: h, Nonce: uint64(i) + 1<<40})
 	}
 }
+
+// BenchmarkExtendLong measures BenchmarkExtend's step (an entry on the tip,
+// then a layer that selects it) on a selected ledger that is already n
+// entries long. Its cost should not grow with n.
+func BenchmarkExtendLong(b *testing.B) {
+	for _, n := range []int{100, 1000, 10000} {
+		b.Run(fmt.Sprintf("len=%d", n), func(b *testing.B) {
+			s := testutil.ExampleSeries()
+			k := testutil.NewKeys(s)
+			p, e0, claim := base(b, s, k)
+			es := chain(b, s, k, e0.Hash(s), claim, 4, "alice", n+b.N)
+			for _, e := range es[:n] {
+				mustAdd(b, p, e)
+			}
+			b.ResetTimer()
+			for i, e := range es[n:] {
+				mustAdd(b, p, e)
+				mustLayer(b, p, layer.Layer{Entry: e.Hash(s), Nonce: uint64(i)})
+			}
+		})
+	}
+}
