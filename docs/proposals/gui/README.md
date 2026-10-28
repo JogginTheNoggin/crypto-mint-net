@@ -1,4 +1,4 @@
-# GUI proposals (Green)
+# GUI proposals (Green and Orange)
 
 ## Summary
 
@@ -24,6 +24,21 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-013](GREEN-013-lookup-links.md) | "Look up" links from tids and addresses to Explore | small | yes | adopted |
 | [GREEN-014](GREEN-014-watch-consistency.md) | Watch matches the rest: kind boxes, local times, one hash style | small | yes | adopted |
 | [GREEN-015](GREEN-015-watch-explore-loose-ends.md) | Loose ends: Watch in the background, paging, a flaky e2e, `-kind` on non-stream commands | small to medium | partly | 1 and 2 adopted; 3 and 4 with Source/Grey |
+
+## Orange (performance)
+
+GUI/Orange measures the GUI and proposes changes with before and after
+numbers. Every change is to how the page draws or streams what `poo`
+printed, never to what runs. Prototypes are on `claude/project-thread-f0df7u`.
+ORANGE-005 explains how to measure.
+
+| ID | Proposal | Effort | Prototype | Status |
+| --- | --- | --- | --- | --- |
+| [ORANGE-001](ORANGE-001-watch-table-rendering.md) | Watch draws once per frame and lays out only the newest 200 of 1000 rows (5 → 17 fps at full rate, 37 → 60 at 200/s) | small | yes | proposed |
+| [ORANGE-002](ORANGE-002-stream-joined-chunks-and-resume.md) | Join adjacent writes into one stream event; resume with `Last-Event-ID` instead of replaying everything | small | yes | proposed |
+| [ORANGE-003](ORANGE-003-bounded-scrollback.md) | Bounded scrollback for the terminal, node log and running commands (`poo watch` in the terminal: 126 s frozen → 1.1 s) | small | yes | proposed |
+| [ORANGE-004](ORANGE-004-refresh-timers-and-jobs-list.md) | No timed refreshes in a hidden tab; Jobs redraws only on change | small | yes | proposed |
+| [ORANGE-005](ORANGE-005-measuring-kit.md) | A measuring kit (`gui/perf`, benchmarks), and what measured fine | small | yes | proposed |
 
 ## How to try the prototypes
 

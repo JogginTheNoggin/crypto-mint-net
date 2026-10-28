@@ -6,6 +6,7 @@ import * as api from './api.js';
 import { render } from './render.js';
 import * as where from './where.js';
 import { hintFor } from './hints.js';
+import { scrollback } from './scroll.js';
 // The watch and explore views live in watch.js; views lists every view so
 // the order of the navigation is in one place.
 import { watchView, exploreView } from './watch.js';
@@ -30,6 +31,7 @@ export function runJob(args, area, { onStart, empty, refresh } = {}) {
   area.textContent = '';
   const status = el('div', { class: 'run-status live' }, 'running…');
   const live = el('pre', { class: 'live-out' });
+  const liveOut = scrollback(live);
   const ask = el('form', { class: 'ask', hidden: true });
   const askLabel = el('label', {});
   // A passphrase or seed is masked: the job's state says when poo reads
@@ -63,9 +65,7 @@ export function runJob(args, area, { onStart, empty, refresh } = {}) {
         chunk: c => {
           if (c.stream === 'err') err += c.data; else out += c.data;
           tail = (tail + c.data).slice(-80);
-          const s = el('span', { class: c.stream === 'err' ? 'err' : '' });
-          s.textContent = c.data;
-          live.append(s);
+          liveOut.write(c.data, c.stream === 'err' ? 'err' : '');
         },
         state: s => {
           ask.hidden = !s.waiting;
@@ -148,8 +148,13 @@ export function panel(ctx, { title, about, args, refresh, empty }) {
   };
   btn.onclick = () => go(false);
   go(true);
-  let t = refresh ? setInterval(() => go(true), refresh) : null;
-  return { el: sec, stop: () => t && clearInterval(t) };
+  // A hidden tab does not refresh: nobody sees the result, and each run
+  // is a job and a stream. Showing the tab again refreshes at once
+  // (ORANGE-004).
+  const visible = () => { if (!document.hidden) go(true); };
+  let t = refresh ? setInterval(visible, refresh) : null;
+  if (t) document.addEventListener('visibilitychange', visible);
+  return { el: sec, stop: () => { if (t) { clearInterval(t); document.removeEventListener('visibilitychange', visible); } } };
 }
 
 // NO_NODE is the error every command that needs a running node prints
@@ -259,17 +264,19 @@ const nodeView = {
       runLine, runArea);
     let following = null;
     const showRunning = async () => {
+      if (document.hidden && following) return;
       const j = await nodeJob().catch(() => null);
       startBtn.disabled = !!j;
       if (j && following !== j.id) {
         following = j.id;
         runArea.textContent = '';
         const log = el('pre', { class: 'live-out' });
+        const logOut = scrollback(log, { follow: true });
         const stop = el('button', { type: 'button', class: 'danger' }, 'Stop node');
         stop.onclick = () => api.cancel(j.id);
         runArea.append(el('div', { class: 'run-bar' }, el('span', { class: 'run-status live' }, `running: ${j.command}`), stop), log);
         api.follow(j.id, {
-          chunk: c => { const s = el('span', { class: c.stream === 'err' ? 'err' : '' }); s.textContent = c.data; log.append(s); log.scrollTop = log.scrollHeight; },
+          chunk: c => logOut.write(c.data, c.stream === 'err' ? 'err' : ''),
           exit: e => { following = null; startBtn.disabled = false; runArea.prepend(el('div', { class: 'run-status ' + (e.code ? 'bad' : 'ok') }, `node stopped (exit ${e.code})`)); stop.remove(); },
         });
       }
@@ -477,8 +484,14 @@ const jobsView = {
       tools, list, detail);
     let unfollow = null;
     let js = [];
+    // The list is drawn again only when it changed (ORANGE-004).
+    let last = '';
     async function refresh() {
-      try { js = await api.jobs(); } catch (e) { list.textContent = e.message; return; }
+      if (document.hidden) return;
+      try { js = await api.jobs(); } catch (e) { list.textContent = e.message; last = ''; return; }
+      const now = JSON.stringify(js);
+      if (now === last) return;
+      last = now;
       draw();
     }
     function draw() {
@@ -510,13 +523,10 @@ const jobsView = {
     }
     function showJob(j) {
       if (unfollow) unfollow();
-      detail.textContent = '';
+      const shown = scrollback(detail);
+      shown.clear();
       unfollow = api.follow(j.id, {
-        chunk: c => {
-          const s = el('span', { class: c.stream === 'err' ? 'err' : '' });
-          s.textContent = c.data;
-          detail.append(s);
-        },
+        chunk: c => shown.write(c.data, c.stream === 'err' ? 'err' : ''),
         exit: refresh,
       });
     }

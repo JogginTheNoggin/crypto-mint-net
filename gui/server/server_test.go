@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -505,4 +506,63 @@ func TestJobsHideSecretFlags(t *testing.T) {
 	if len(info.SecretFlags) == 0 {
 		t.Fatal("no secretFlags in /api/info")
 	}
+}
+
+// TestStreamJoinsAndResumes: adjacent writes of one stream arrive as one
+// chunk event, each event's id is the seq to read next, and a browser
+// that reconnects with Last-Event-ID gets only what follows (ORANGE-002).
+func TestStreamJoinsAndResumes(t *testing.T) {
+	release := make(chan struct{})
+	h := newHarness(t, jobs.Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		for i := 0; i < 5; i++ {
+			s.Out.Write([]byte(fmt.Sprintf("o%d\n", i)))
+		}
+		s.Err.Write([]byte("e\n"))
+		s.Out.Write([]byte("last\n"))
+		<-release
+		return 0
+	}})
+	var j struct{ ID string }
+	decode(t, h.do("POST", "/api/jobs", map[string]any{"args": []string{"x"}}, nil), &j)
+	// Wait for all seven writes, then read them at once.
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		jb, _ := h.s.runner.Get(j.ID)
+		if jb.Read(0).Next == 7 {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatal("writes did not arrive")
+		}
+	}
+	read := func(lastID string) (ids, datas []string) {
+		resp := h.do("GET", "/api/jobs/"+j.ID+"/events", nil, func(r *http.Request) {
+			if lastID != "" {
+				r.Header.Set("Last-Event-ID", lastID)
+			}
+		})
+		defer resp.Body.Close()
+		sc := bufio.NewScanner(resp.Body)
+		for sc.Scan() {
+			l := sc.Text()
+			if strings.HasPrefix(l, "id: ") {
+				ids = append(ids, l[4:])
+			}
+			if strings.HasPrefix(l, "data: {\"seq\"") {
+				datas = append(datas, l[6:])
+			}
+			if strings.HasPrefix(l, "data: {\"secret\"") {
+				return
+			}
+		}
+		return
+	}
+	ids, datas := read("")
+	want := []string{`{"seq":0,"stream":"out","data":"o0\no1\no2\no3\no4\n"}`, `{"seq":5,"stream":"err","data":"e\n"}`, `{"seq":6,"stream":"out","data":"last\n"}`}
+	if strings.Join(datas, "|") != strings.Join(want, "|") || strings.Join(ids, ",") != "5,6,7" {
+		t.Fatalf("ids %v, events:\n%s", ids, strings.Join(datas, "\n"))
+	}
+	if _, datas := read("6"); len(datas) != 1 || datas[0] != want[2] {
+		t.Fatalf("resumed from 6: %v", datas)
+	}
+	close(release)
 }

@@ -36,6 +36,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -403,7 +404,9 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 // events streams a job's output as server-sent events until the job ends
 // or the client goes away:
 //
-//	event: chunk    data: {seq, stream, data}
+//	event: chunk    data: {seq, stream, data}  one or more writes of one stream,
+//	                                         joined; seq is the first one's.
+//	                                         Its id is the seq to read next.
 //	event: dropped  data: {next}       output before next was dropped
 //	event: state    data: {waiting, secret}  the job started or stopped waiting for
 //	                                         input; secret: the input is a passphrase or seed
@@ -432,6 +435,11 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 	}()
 	from, _ := strconv.ParseInt(r.URL.Query().Get("from"), 10, 64)
+	// A browser that lost the stream asks again with the id of the last
+	// event it read, so it gets only what follows (ORANGE-002).
+	if id, err := strconv.ParseInt(r.Header.Get("Last-Event-ID"), 10, 64); err == nil && id > from {
+		from = id
+	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
 	beat := time.NewTicker(s.Heartbeat)
@@ -443,8 +451,9 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		if st.Dropped {
 			sse(w, "dropped", map[string]int64{"next": st.Chunks[0].Seq})
 		}
-		for _, c := range st.Chunks {
-			sse(w, "chunk", c)
+		for _, c := range coalesce(st.Chunks) {
+			fmt.Fprintf(w, "id: %d\n", c.Seq+1)
+			sse(w, "chunk", c.Chunk)
 		}
 		from = st.Next
 		if st.Waiting != waiting || st.Secret != secret || first {
@@ -466,6 +475,43 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// MaxEventData bounds the output one chunk event carries.
+const MaxEventData = 64 << 10
+
+// joined is a run of chunks sent as one chunk event: Chunk has the first
+// one's Seq, and Seq is the last one's.
+type joined struct {
+	jobs.Chunk
+	Seq int64
+}
+
+// coalesce joins adjacent chunks of the same stream, up to MaxEventData
+// each, so output written in many small writes (poo watch writes one per
+// event) is a few events for the browser to handle, not one per write
+// (ORANGE-002). The text is unchanged.
+func coalesce(cs []jobs.Chunk) []joined {
+	var out []joined
+	for i := 0; i < len(cs); {
+		k, n := i+1, len(cs[i].Data)
+		for k < len(cs) && cs[k].Stream == cs[i].Stream && n+len(cs[k].Data) <= MaxEventData {
+			n += len(cs[k].Data)
+			k++
+		}
+		c := cs[i]
+		if k > i+1 {
+			var b strings.Builder
+			b.Grow(n)
+			for _, d := range cs[i:k] {
+				b.WriteString(d.Data)
+			}
+			c.Data = b.String()
+		}
+		out = append(out, joined{c, cs[k-1].Seq})
+		i = k
+	}
+	return out
 }
 
 func sse(w http.ResponseWriter, event string, v any) {
