@@ -20,7 +20,12 @@ var errNotPublic = errors.New("p2p: address is not public")
 // multicast and unspecified addresses, that are not reachable on the
 // public internet: shared address space, IETF protocol assignments,
 // documentation and benchmarking ranges, the reserved 240/4 and
-// broadcast, and the IPv6 documentation and discard prefixes.
+// broadcast, the IPv6 documentation and discard prefixes, and the IPv6
+// ranges that carry an IPv4 address inside them: NAT64 (well-known and
+// local-use), 6to4, Teredo, IPv4-compatible and IPv4-translated. A host
+// may route one of those to the IPv4 address it carries, which can be
+// loopback or private, so they are refused whole (RED-007, decision
+// D102); a peer with one also has the IPv4 address itself to give.
 var notPublic = []netip.Prefix{
 	netip.MustParsePrefix("0.0.0.0/8"),
 	netip.MustParsePrefix("100.64.0.0/10"),
@@ -32,6 +37,12 @@ var notPublic = []netip.Prefix{
 	netip.MustParsePrefix("240.0.0.0/4"),
 	netip.MustParsePrefix("100::/64"),
 	netip.MustParsePrefix("2001:db8::/32"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("64:ff9b:1::/48"),
+	netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("2001::/32"),
+	netip.MustParsePrefix("::/96"),
+	netip.MustParsePrefix("::ffff:0:0:0/96"),
 }
 
 // publicIP reports whether ip is a unicast address on the public

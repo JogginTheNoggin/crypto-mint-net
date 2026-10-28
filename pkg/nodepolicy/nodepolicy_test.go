@@ -247,3 +247,20 @@ func TestWitnessHex(t *testing.T) {
 		t.Fatal("trailing bytes accepted")
 	}
 }
+
+func TestLogSection(t *testing.T) {
+	p := nodepolicy.Default()
+	if l, f := p.LogSettings(); l != "" || f != "" {
+		t.Fatal(l, f)
+	}
+	p.Log = &nodepolicy.Log{Level: "debug", Format: "json"}
+	if err := p.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []nodepolicy.Log{{Level: "loud"}, {Format: "xml"}} {
+		p.Log = &bad
+		if err := p.Validate(); !errors.Is(err, nodepolicy.ErrInvalid) {
+			t.Errorf("%+v: %v", bad, err)
+		}
+	}
+}

@@ -140,7 +140,7 @@ func (h *Host) runJob(j chase.Job) {
 		h.act(p, h.tr.Offend(p.key, tracking.FalseBranch, res.why, now))
 	}
 	if res.why != "" {
-		h.logf("chase of %s from %s: %s: %s", pi.key, p.short(), res.out, res.why)
+		h.log.Info("chase", "pool", pi.key.String(), "peer", p.short(), "result", res.out, "why", res.why)
 	}
 }
 

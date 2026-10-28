@@ -1455,3 +1455,52 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   the terminal hide typed passphrases, which `bufio` on standard input
   could not. `x/term` is the Go team's, beside `x/crypto` (D83).
 - **Tier:** Implementation. Supersedes nothing; GREEN-007 part 2.
+
+### D102. IPv6 addresses that carry an IPv4 address are not public
+
+- **Decision:** The public-address check of D96 also refuses NAT64
+  (`64:ff9b::/96` and the local-use `64:ff9b:1::/48`), 6to4 (`2002::/16`),
+  Teredo (`2001::/32`), IPv4-compatible (`::/96`) and IPv4-translated
+  (`::ffff:0:0:0/96`) addresses, whatever IPv4 address they carry. Listed
+  `peers` and `allow_local_peers` work as before.
+- **Why:** Red finding RED-007: on a host with NAT64, `64:ff9b::7f00:1`
+  reaches 127.0.0.1, so a peer could name loopback or a private host in
+  IPv6 form and get past D96. Refusing the ranges outright is simpler and
+  safer than decoding each form (Teredo obfuscates its address, and a
+  network may use its own NAT64 prefix, which no check can know): a peer
+  reachable through one of them has a native IPv4 address to give.
+- **Tier:** Node policy. Amends D96.
+
+### D103. The address view is bounded per request
+
+- **Decision:** `watch.AddressPage` (behind `GET /v1/address` and `poo
+  address`) looks at no more than 50×`limit` entries per request in all
+  followed pools, at most `limit` matching items per pool, from height
+  `below` down (0: the tips). The reply's `next` lists each pool it did
+  not finish with the `below` to ask for the rest. It checks the
+  request's context before each pool and while walking. `AddressOf` keeps
+  its signature, from the tips.
+- **Why:** Red finding RED-008: the view walked every followed pool's
+  ledger to height 1 under the engine's lock, and the read-only view
+  token (D100) could ask for it, so a reader could stall the node on a
+  tall ledger. `LedgerPage` already had this bound (D94).
+- **Tier:** Implementation.
+
+### D104. Node logs are structured, and a stopping interface always stops
+
+- **Decision:** The node logs through `log/slog` (`pkg/logging`, formats
+  `plain`, `text` and `json`, levels from the node policy's `log` section
+  or `poo node -log-level` and `-log-format`). Text from a peer goes only
+  into attributes, which are quoted, never into the message, and the
+  debug line for each received message is capped at 200 a second per
+  host, with the number dropped logged after. When the local interface
+  stops, the event hub refuses new subscribers once closed (a late one
+  gets a closed stream at once), and a request still running after
+  `rpc.ShutdownTimeout` (5 seconds) is cut off; neither makes the stop
+  fail.
+- **Why:** GREEN-006, with Red's review of the debug level: a peer must
+  not be able to forge log lines or fill a disk. The stop: GUI GREEN-015
+  item 3 saw `poo node` exit 1 with "context deadline exceeded"; a watch
+  that subscribed after the hub closed during a stop or reload waited
+  forever and held the shutdown past its deadline.
+- **Tier:** Implementation.

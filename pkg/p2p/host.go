@@ -41,6 +41,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sort"
 	"sync"
@@ -49,6 +50,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -186,6 +188,10 @@ type Config struct {
 
 	// Log receives connection events. Nil discards them.
 	Log io.Writer
+	// Logger, if set, is used instead of a plain logger on Log; the
+	// daemon passes the node's (node.Logger), which follows the node
+	// policy's log section.
+	Logger *slog.Logger
 }
 
 // DefaultConfig returns the provisional defaults.
@@ -345,6 +351,9 @@ type Host struct {
 	n   *node.Node
 	cfg Config
 	id  hash.Hash
+	log *slog.Logger
+	// recvLines caps the debug line for each received message.
+	recvLines lineCap
 
 	coverage []wire.Section
 	byPoolID map[hash.Hash]*poolInfo
@@ -408,6 +417,11 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 
 		configured: map[string]bool{},
 	}
+	h.log = cfg.Logger
+	if h.log == nil {
+		h.log, _ = logging.New(cfg.Log, "", "")
+	}
+	h.log = h.log.With(logging.Component, "p2p")
 	if h.book == nil {
 		h.book, _ = peers.Open("", peers.Limits{})
 	}
@@ -478,10 +492,6 @@ func (h *Host) sortedPools() []*poolInfo {
 	return out
 }
 
-func (h *Host) logf(format string, args ...any) {
-	fmt.Fprintf(h.cfg.Log, "p2p: "+format+"\n", args...)
-}
-
 // ID returns this run's random node id.
 func (h *Host) ID() hash.Hash { return h.id }
 
@@ -510,7 +520,7 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 		h.mu.Lock()
 		h.ln = ln
 		h.mu.Unlock()
-		h.logf("listening on %s", ln.Addr())
+		h.log.Info("listening", "addr", ln.Addr().String())
 		h.wg.Add(1)
 		go h.acceptLoop(ln)
 	}
@@ -632,7 +642,7 @@ func (h *Host) dialLoop(ctx context.Context, addr string) {
 		start := time.Now()
 		err := h.dial(ctx, addr)
 		if err != nil {
-			h.logf("peer %s: %v", addr, err)
+			h.log.Info("dial failed", "addr", addr, "err", err)
 		}
 		if time.Since(start) > h.cfg.MaxRedial {
 			wait = h.cfg.Redial // it was up for a good while; retry soon
@@ -811,4 +821,36 @@ func (c *idCache) add(id hash.Hash, now time.Time) bool {
 	}
 	c.seen[id] = now
 	return true
+}
+
+// lineCap bounds how many lines of one kind a host logs per second, so
+// a debug line written for every message a peer sends cannot let a flood
+// of messages, or a slow log sink, hold up every peer's read loop. Lines
+// over the cap are counted, and the count is logged when the next second
+// begins.
+type lineCap struct {
+	mu      sync.Mutex
+	second  int64
+	n       int
+	dropped int
+}
+
+// debugReceivedPerSecond caps the debug line for received messages.
+const debugReceivedPerSecond = 200
+
+// allow reports whether one more line may be logged now, and how many
+// were dropped in the second before, if this is the first line of a new
+// second.
+func (c *lineCap) allow(now time.Time, max int) (ok bool, dropped int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s := now.Unix(); s != c.second {
+		c.second, c.n, dropped, c.dropped = s, 0, c.dropped, 0
+	}
+	if c.n >= max {
+		c.dropped++
+		return false, dropped
+	}
+	c.n++
+	return true, dropped
 }

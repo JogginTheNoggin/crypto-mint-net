@@ -2,10 +2,12 @@ package p2p
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -320,7 +322,7 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 		notify(err)
 		return err
 	}
-	h.logf("connected to %s at %s (outbound %v)", p.short(), addr, outbound)
+	h.log.Info("connected", "peer", p.short(), "addr", addr, "outbound", outbound)
 	go p.writeLoop()
 	// The hello proves nothing about what the peer follows: ask it.
 	go func() {
@@ -355,7 +357,7 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 	p.mu.Unlock()
 	h.cq.Drop(p.id)
 	h.tr.Connection(p.key, "closed", time.Now())
-	h.logf("disconnected from %s: %v", p.short(), p.closeErr())
+	h.log.Info("disconnected", "peer", p.short(), "err", p.closeErr())
 	// A freed slot is filled at once from the peers waiting as candidates.
 	if len(freed) > 0 && h.ctx.Err() == nil {
 		for _, s := range freed {
@@ -462,6 +464,18 @@ func (h *Host) readLoop(p *peer) error {
 		}
 		p.received.Add(1)
 		p.active.Store(time.Now().UnixNano())
+		if h.log.Enabled(context.Background(), slog.LevelDebug) {
+			// Only the type and size: never a payload a peer chose. At
+			// most debugReceivedPerSecond lines a second, so a flood of
+			// messages cannot stall the read loops on the log.
+			ok, dropped := h.recvLines.allow(time.Now(), debugReceivedPerSecond)
+			if dropped > 0 {
+				h.log.Debug("received lines dropped", "lines", dropped)
+			}
+			if ok {
+				h.log.Debug("received", "peer", p.short(), "type", m.Type.String(), "bytes", n)
+			}
+		}
 		if err := h.dispatch(p, m, n); err != nil {
 			h.misbehave(p, err)
 			return p.closeErr()
@@ -552,7 +566,7 @@ func (h *Host) misbehave(p *peer, err error) {
 	var inv invalidItem
 	switch {
 	case errors.As(err, &inv):
-		h.logf("%s: %v", p.short(), err)
+		h.log.Warn("invalid item", "peer", p.short(), "err", err)
 		if e := h.act(p, h.tr.Offend(p.key, tracking.InvalidItem, err.Error(), now)); e != nil {
 			p.close(e)
 		}
@@ -597,7 +611,7 @@ func (h *Host) act(p *peer, a tracking.Action) error {
 		}
 		h.tr.Hold(p.key, held, time.Now())
 	}
-	h.logf("%s at %s: %v", p.short(), p.key, err)
+	h.log.Warn("peer offence", "peer", p.short(), "key", p.key, "err", err)
 	for _, o := range same {
 		o.close(err)
 	}

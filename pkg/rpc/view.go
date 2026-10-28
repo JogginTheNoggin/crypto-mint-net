@@ -88,11 +88,7 @@ func (h *Handler) pools(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	out := watch.Pools(h.n.Engine(), f)
-	if out == nil {
-		out = []watch.Pool{}
-	}
-	writeJSON(w, out)
+	writeJSON(w, h.poolList(f))
 }
 
 // The ledger view takes series (optional with one followed series), pool,
@@ -201,12 +197,19 @@ func (h *Handler) address(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
+	below, e := optInt(r, "below")
+	if e != nil {
+		writeError(w, e)
+		return
+	}
 	f, e := readFilter(r)
 	if e != nil {
 		writeError(w, e)
 		return
 	}
-	out, err := watch.AddressOf(h.n.Engine(), id, a, f, limit)
+	// Bounded per request and given up when the client goes away
+	// (RED-008, decision D103).
+	out, err := watch.AddressPage(r.Context(), h.n.Engine(), id, a, f, below, limit)
 	if err != nil {
 		writeError(w, classify(err))
 		return
@@ -302,8 +305,24 @@ func (h *Handler) follows(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, h.followReply(p, false))
 }
 
+// poolList is watch.Pools with each pool's store record count.
+func (h *Handler) poolList(f filter.Filter) []watch.Pool {
+	out := watch.Pools(h.n.Engine(), f)
+	if out == nil {
+		return []watch.Pool{}
+	}
+	stored := map[engine.PoolKey]int{}
+	for _, s := range h.n.Stores() {
+		stored[s.Key] = s.Records
+	}
+	for i := range out {
+		out[i].StoredRecords = stored[engine.PoolKey{Series: out[i].Series, Index: out[i].Pool}]
+	}
+	return out
+}
+
 func (h *Handler) followReply(p nodepolicy.Policy, reloading bool) FollowReply {
-	out := FollowReply{Follow: p.Follow, Pools: watch.Pools(h.n.Engine(), filter.Filter{}), Reloading: reloading}
+	out := FollowReply{Follow: p.Follow, Pools: h.poolList(filter.Filter{}), Reloading: reloading}
 	if out.Follow == nil {
 		out.Follow = []nodepolicy.Follow{}
 	}

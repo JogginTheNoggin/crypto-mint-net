@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 5ea6828 (after BLUE-002 / D96) |
 | Component | pkg/p2p/addr.go (publicIP, candidateDialer, learnable) |
 | Surface | peer |
-| Fixed by | — |
+| Fixed by | `claude/project-thread-ggo8dt` @ 78cea9c (BLUE-004) |
 
 ## Summary
 
@@ -93,3 +93,15 @@ Test: extend the `pkg/p2p` address test with the three forms above (each
 embedding a private/loopback v4) and assert `publicIP` and `learnable`
 reject them, while a genuine global v6 and a `configured` address still
 pass.
+
+## Resolution
+
+Fixed by BLUE-004 (decision D102), with the conservative option: the
+public-address check refuses `64:ff9b::/96`, `64:ff9b:1::/48`,
+`2002::/16`, `2001::/32`, `::/96` and `::ffff:0:0:0/96` outright, at
+learn time and at dial time. Decoding the embedded IPv4 was not done:
+Teredo obfuscates it, a network may use its own NAT64 prefix, and a peer
+reachable this way has a native IPv4 address to give. Listed `peers` and
+`allow_local_peers` still bypass it. Tests: new cases in `TestPublicIP`
+and `TestLearnable`, and `TestCandidateDialerRefusesEmbeddedIPv4`
+(`pkg/p2p`).

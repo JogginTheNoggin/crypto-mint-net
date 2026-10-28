@@ -13,7 +13,7 @@ a byte form without updating the test vectors on purpose.
 
 ## Teams (read first)
 
-The project's owner splits the work into two layers, each with four
+The project's owner splits the work into two layers, each with five
 teams. Every agent belongs to exactly one layer and one colour, given
 when its thread is created (for example "Source/Red"). Stay in your lane.
 
@@ -28,9 +28,10 @@ the source teams as a finding, not as a patch.
 
 | Colour | Does | Works on |
 | --- | --- | --- |
-| Grey | Builds features and general mitigation and hardening, owns the integration line, merges Blue's fixes, decides on Green's proposals | The integration line (below) |
+| Grey | Builds features and general mitigation and hardening, owns the integration line, merges Blue's fixes, decides on Green's and Orange's proposals | The integration line (below) |
 | Red | Breaks things: finds exploits from outside (peers, the wire, registries, anything a remote party sends) and inside (local RPC, files, wallet, CLI, resource limits), writes findings and suggested fixes. Never implements them | Reads the integration line; writes only findings, on its own branch |
 | Blue | Implements fixes for Red's findings, with tests | Its own branch, started from the integration line |
+| Orange | Performance and optimization: measures where time, memory, allocations, disk and network go, finds slow paths and waste, and proposes improvements backed by benchmarks or profiles, with an optional prototype. Grey decides whether to adopt each one | `claude/<layer>-orange` (or `claude/<layer>-orange-<topic>`), started from the integration line |
 | Green | Explores: quality-of-life improvements, nice-to-haves and new ideas, as written proposals with an optional prototype. Grey decides whether to adopt each one | `claude/<layer>-green` (or `claude/<layer>-green-<topic>`), started from the integration line |
 
 ### Rounds
@@ -41,8 +42,8 @@ previous one is finished:
 
 | Part | Who works | Does | Hands to |
 | --- | --- | --- | --- |
-| A | Grey | Changes the integration line: its own work (from the owner or itself), the adopted Green proposals and the Blue fixes from the last round. Updates `BASE.md` | Red and Green, by naming the new base |
-| B | Red and Green, side by side | Start from Grey's new base. Red explores security and writes findings; Green explores creative ideas, loose ends, mismatches and inconsistencies and writes proposals | Red's findings go to Blue; Green's proposals go to Grey for the next round |
+| A | Grey | Changes the integration line: its own work (from the owner or itself), the adopted Green and Orange proposals and the Blue fixes from the last round. Updates `BASE.md` | Red, Green and Orange, by naming the new base |
+| B | Red, Green and Orange, side by side | Start from Grey's new base. Red explores security and writes findings; Green explores creative ideas, loose ends, mismatches and inconsistencies and writes proposals; Orange measures performance and writes proposals with the measurements | Red's findings go to Blue; Green's and Orange's proposals go to Grey for a later round's Part A |
 | C | Blue | Fixes Red's findings on its branch | Grey, for the next round's Part A |
 
 The team working a part decides when that part is finished. When it is,
@@ -105,6 +106,20 @@ outcome in the proposal's Status and Decided by fields. Nothing reaches
 the integration line except through Grey, and Green never changes
 consensus rules or another team's files. A Green idea that is really a
 security problem goes to Red as a note, not into a proposal.
+
+### Orange proposals
+
+Orange works in Part B like Green, and its proposals go to Grey the same
+way, in the same format, as
+`docs/proposals/<layer>/ORANGE-<NNN>-<short-slug>.md`, listed in the same
+index. An Orange proposal adds a **Measurements** section after Problem:
+what was measured, how (the `go test -bench` or `pprof` command, the
+`poo sim` scenario, the machine), and the numbers before and, with a
+prototype, after. A claim without a measurement is not a proposal yet.
+Orange keeps every behaviour and every test result the same: a change
+that would alter what the node accepts, selects or sends is a design
+question for Grey, not an optimization. Orange benchmarks only against
+nodes and simulations it runs itself, like Red.
 
 Threads talk through these files and through thread messages that name
 a branch, a commit and finding ids. Decisions still go in

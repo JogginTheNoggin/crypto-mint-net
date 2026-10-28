@@ -17,6 +17,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/daemon"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -150,16 +151,21 @@ func initCmd(args []string, out io.Writer) error {
 func nodeCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("node", out)
 	w := addWhere(fs)
+	level := fs.String("log-level", "", "debug, info, warn or error (default: the node policy's log.level, else info)")
+	format := fs.String("log-format", "", "plain, text or json (default: the node policy's log.format, else plain)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return runNode(contextOf(out), w.resolve(), out, nil)
+	if err := logging.Check(*level, *format); err != nil {
+		return err
+	}
+	return runNode(contextOf(out), w.resolve(), out, nil, daemon.Options{LogLevel: *level, LogFormat: *format})
 }
 
 // runNode runs the node in dir with pkg/daemon until ctx is done,
 // reloading its node policy on SIGHUP. ready, if set, is called once the
 // RPC first accepts connections.
-func runNode(ctx context.Context, dir string, out io.Writer, ready func(string)) error {
+func runNode(ctx context.Context, dir string, out io.Writer, ready func(string), opt daemon.Options) error {
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
 	defer signal.Stop(hup)
@@ -181,11 +187,43 @@ func runNode(ctx context.Context, dir string, out io.Writer, ready func(string))
 		}
 	}()
 	var once sync.Once
-	return daemon.Run(ctx, dir, daemon.Options{Log: out, Reload: reload, Ready: func(addr string) {
+	opt.Log, opt.Reload = out, reload
+	opt.Ready = func(addr string) {
 		if ready != nil {
 			once.Do(func() { ready(addr) })
 		}
-	}})
+	}
+	return daemon.Run(ctx, dir, opt)
+}
+
+// poolFlags pick a pool by its index or by a mint in it, so commands
+// about pools take the -serial that claim and pay take (GREEN-009).
+type poolFlags struct {
+	pool, serial *uint64
+}
+
+func addPool(fs *flag.FlagSet) *poolFlags {
+	return &poolFlags{
+		pool:   fs.Uint64("pool", 0, "pool index"),
+		serial: fs.Uint64("serial", 0, "a mint's serial, for the pool holding it (instead of -pool)"),
+	}
+}
+
+// resolve returns the pool the flags name in s.
+func (p *poolFlags) resolve(fs *flag.FlagSet, s *series.Series) (uint64, error) {
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	if !set["serial"] {
+		return *p.pool, nil
+	}
+	if *p.serial >= s.Mints() {
+		return 0, fmt.Errorf("-serial %d: the series has %d mints", *p.serial, s.Mints())
+	}
+	k := s.PoolOf(*p.serial)
+	if set["pool"] && *p.pool != k {
+		return 0, fmt.Errorf("-serial %d is in pool %d, not -pool %d", *p.serial, k, *p.pool)
+	}
+	return k, nil
 }
 
 // clientFlags are the flags shared by commands that talk to a running node.
@@ -417,7 +455,7 @@ func payCmd(args []string, out io.Writer) error {
 func buildCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("build", out)
 	c := addClient(fs)
-	pool := fs.Uint64("pool", 0, "pool index")
+	pf := addPool(fs)
 	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: the node's limit, 16777216)")
 	work := fs.Uint64("work", 0, "then add the strongest layer found in this many nonces")
 	if err := fs.Parse(args); err != nil {
@@ -431,7 +469,11 @@ func buildCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	ref := rpc.PoolRef{Series: s.ID(), Pool: *pool}
+	pool, err := pf.resolve(fs, s)
+	if err != nil {
+		return err
+	}
+	ref := rpc.PoolRef{Series: s.ID(), Pool: pool}
 	r, err := cl.Build(ref, *tries)
 	if err != nil {
 		return err
@@ -455,7 +497,7 @@ func buildCmd(args []string, out io.Writer) error {
 func workCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("work", out)
 	c := addClient(fs)
-	pool := fs.Uint64("pool", 0, "pool index")
+	pf := addPool(fs)
 	entryHex := fs.String("entry", "", "entry hash (default: the pool's selected tip)")
 	start := fs.Uint64("start", 0, "first nonce")
 	tries := fs.Uint64("tries", 1<<16, "nonces to try")
@@ -470,6 +512,10 @@ func workCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	pool, err := pf.resolve(fs, s)
+	if err != nil {
+		return err
+	}
 	var target hash.Hash
 	if *entryHex != "" {
 		if target, err = hash.Parse(*entryHex); err != nil {
@@ -481,15 +527,15 @@ func workCmd(args []string, out io.Writer) error {
 			return err
 		}
 		for _, p := range st.Pools {
-			if p.Series == s.ID() && p.Pool == *pool {
+			if p.Series == s.ID() && p.Pool == pool {
 				target = p.Tip
 			}
 		}
-		if target == (hash.Hash{}) || target == s.PoolID(*pool) {
-			return fmt.Errorf("pool %d has no selected entry; name one with -entry (a new entry has no weight until a layer lands on it)", *pool)
+		if target == (hash.Hash{}) || target == s.PoolID(pool) {
+			return fmt.Errorf("pool %d has no selected entry; name one with -entry (a new entry has no weight until a layer lands on it)", pool)
 		}
 	}
-	r, err := cl.Work(rpc.PoolRef{Series: s.ID(), Pool: *pool}, target, *start, *tries)
+	r, err := cl.Work(rpc.PoolRef{Series: s.ID(), Pool: pool}, target, *start, *tries)
 	if err != nil {
 		return err
 	}

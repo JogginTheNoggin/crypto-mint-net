@@ -26,7 +26,8 @@ included, selects items the same way (decision D90).
 - **tid**: a transaction id. An entry matches when it holds the
   transaction.
 - **kind**: `tx`, `entry`, `layer`, `switch`, `selected`, `reverted`,
-  `dropped`. Views have no kind and ignore it.
+  `dropped`. Views have no kind: the RPC views ignore it, and the view
+  commands refuse `-kind`, which only `poo watch` takes.
 
 `MatchScope(series, pool, first, last)` answers whether anything in a
 pool holding serials `first..last` could match, so views skip whole pools

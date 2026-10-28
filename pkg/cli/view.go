@@ -63,7 +63,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	if name == "ledger" || name == "address" {
 		limit = fs.Int("limit", 0, fmt.Sprintf("at most this many items (default %d)", watch.DefaultLimit))
 	}
-	if name == "ledger" {
+	if name == "ledger" || name == "address" {
 		below = fs.Int("below", 0, "start at this height and go back (default: the tip)")
 	}
 	if name == "tx" {
@@ -75,6 +75,10 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	}
 	if err := o.check(); err != nil {
 		return err
+	}
+	if len(v.f.Kinds) > 0 {
+		// Views hold items, not events: a kind would select nothing.
+		return fmt.Errorf("-kind selects events and applies to poo watch only")
 	}
 	if name == "tx" || name == "address" {
 		if fs.NArg() != 1 {
@@ -146,7 +150,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("address: %w", err)
 		}
-		r, err := cl.Address(sid, a, *limit, v.f)
+		r, err := cl.AddressPage(sid, a, *below, *limit, v.f)
 		if err != nil {
 			return err
 		}

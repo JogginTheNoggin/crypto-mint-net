@@ -62,7 +62,8 @@ D25). Nothing here changes what is valid.
     "weights": {"pings": 2, "rtt": 1, "first_deliveries": 1, "requests": 2, "reply_timing": 1, "chases": 2, "denials": 2, "cost": 0.1, "large": 0.5},
     "starting_points": 0,
     "no_timeout_misses": false
-  }
+  },
+  "log": {"level": "info", "format": "plain"}
 }
 ```
 
@@ -84,7 +85,10 @@ Addresses in `peers` are always dialled. In
 be known, custom templates may not form a cycle, and groups must be
 priority, backup, candidate, unlisted, inbound or outbound (see
 [tracking.md](tracking.md)). `peers_per_policy`, from milestone 4, is ignored:
-the slots replace it.
+the slots replace it. `log.level` is `debug`, `info` (default), `warn` or
+`error`, and `log.format` is `plain` (default), `text` or `json`
+([logging.md](logging.md)); `poo node -log-level` and `-log-format` override
+them for one run.
 
 ## API
 

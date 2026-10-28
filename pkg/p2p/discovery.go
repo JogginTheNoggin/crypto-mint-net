@@ -781,7 +781,7 @@ func (h *Host) manage(ctx context.Context) {
 	}
 	defer func() {
 		if err := h.book.Save(); err != nil {
-			h.logf("saving the peer book: %v", err)
+			h.log.Error("saving the peer book", "err", err)
 		}
 	}()
 	now := time.Now()
@@ -1009,7 +1009,7 @@ func (h *Host) LoadRegistries(ctx context.Context) int {
 	for _, loc := range h.cfg.Registries {
 		es, err := registry.Fetch(ctx, client, loc)
 		if err != nil {
-			h.logf("registry %s: %v", loc, err)
+			h.log.Warn("registry failed", "location", loc, "err", err)
 			continue
 		}
 		for _, e := range es {
