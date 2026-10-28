@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | info |
-| Status | fixed (merged by GUI/Grey in Round 4 Part A; resume uses the chunk event's next with ORANGE-002) |
+| Status | fixed (verified by GUI/Red R4B @ 50a0edd; resume uses the chunk event's next with ORANGE-002) |
 | Found on | claude/gui-4-watch @ 9b4b19c |
 | Component | gui/web/static/watch.js (`watchView.mount`, the singleton `watchPanel`) |
 | Surface | local (browser tab + one node RPC connection) |
