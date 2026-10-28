@@ -404,9 +404,10 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 // events streams a job's output as server-sent events until the job ends
 // or the client goes away:
 //
-//	event: chunk    data: {seq, stream, data}  one or more writes of one stream,
-//	                                         joined; seq is the first one's.
-//	                                         Its id is the seq to read next.
+//	event: chunk    data: {seq, stream, data, next}  one or more writes of one
+//	                                         stream, joined; seq is the first one's,
+//	                                         next (also the event's id) the seq to
+//	                                         read next, for following again with ?from=
 //	event: dropped  data: {next}       output before next was dropped
 //	event: state    data: {waiting, secret}  the job started or stopped waiting for
 //	                                         input; secret: the input is a passphrase or seed
@@ -453,7 +454,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, c := range coalesce(st.Chunks) {
 			fmt.Fprintf(w, "id: %d\n", c.Seq+1)
-			sse(w, "chunk", c.Chunk)
+			sse(w, "chunk", chunkEvent{c.Chunk, c.Seq + 1})
 		}
 		from = st.Next
 		if st.Waiting != waiting || st.Secret != secret || first {
@@ -475,6 +476,14 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+// chunkEvent is a chunk event's data: the joined chunk, and the sequence
+// number after its last write, which a page that follows again later
+// passes as ?from= (seq+1 is only right for an unjoined chunk).
+type chunkEvent struct {
+	jobs.Chunk
+	Next int64 `json:"next"`
 }
 
 // MaxEventData bounds the output one chunk event carries.

@@ -209,7 +209,7 @@ function buildWatch(ctx) {
     const id = job.id;
     unfollow = api.follow(id, {
       chunk: c => {
-        next = c.seq + 1;
+        next = c.next ?? c.seq + 1; // a chunk may join several writes
         if (c.stream === 'err') { errAppend(c.data); return; }
         buf += c.data;
         const lines = buf.split('\n');

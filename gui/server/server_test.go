@@ -557,7 +557,8 @@ func TestStreamJoinsAndResumes(t *testing.T) {
 		return
 	}
 	ids, datas := read("")
-	want := []string{`{"seq":0,"stream":"out","data":"o0\no1\no2\no3\no4\n"}`, `{"seq":5,"stream":"err","data":"e\n"}`, `{"seq":6,"stream":"out","data":"last\n"}`}
+	// next is where to follow again from (?from=), past every joined write.
+	want := []string{`{"seq":0,"stream":"out","data":"o0\no1\no2\no3\no4\n","next":5}`, `{"seq":5,"stream":"err","data":"e\n","next":6}`, `{"seq":6,"stream":"out","data":"last\n","next":7}`}
 	if strings.Join(datas, "|") != strings.Join(want, "|") || strings.Join(ids, ",") != "5,6,7" {
 		t.Fatalf("ids %v, events:\n%s", ids, strings.Join(datas, "\n"))
 	}
