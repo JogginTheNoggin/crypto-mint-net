@@ -33,6 +33,29 @@ the source teams as a finding, not as a patch.
 | Blue | Implements fixes for Red's findings, with tests | Its own branch, started from the integration line |
 | Green | Explores: quality-of-life improvements, nice-to-haves and new ideas, as written proposals with an optional prototype. Grey decides whether to adopt each one | `claude/<layer>-green` (or `claude/<layer>-green-<topic>`), started from the integration line |
 
+### Rounds
+
+Each layer (Source, GUI) runs its own rounds, independently of the
+other. A round has three parts, in order, and no part starts before the
+previous one is finished:
+
+| Part | Who works | Does | Hands to |
+| --- | --- | --- | --- |
+| A | Grey | Changes the integration line: its own work (from the owner or itself), the adopted Green proposals and the Blue fixes from the last round. Updates `BASE.md` | Red and Green, by naming the new base |
+| B | Red and Green, side by side | Start from Grey's new base. Red explores security and writes findings; Green explores creative ideas, loose ends, mismatches and inconsistencies and writes proposals | Red's findings go to Blue; Green's proposals go to Grey for the next round |
+| C | Blue | Fixes Red's findings on its branch | Grey, for the next round's Part A |
+
+The team working a part decides when that part is finished. When it is,
+it stops making edits and reports it (for example "Source Round 2 Part
+A done"). Teams outside the current part do not edit until the round
+reaches them again. Within a round the parts follow on by themselves:
+once a part is reported done, the coordinator starts the next one. Only
+a new round waits for the owner, who is told when each round is complete
+and decides when the next one starts, for Source and GUI separately. The
+owner may also "stop at" a part, which means that part is not started
+until the owner says so; only an explicit "interrupt" or "stop now"
+interrupts work in progress.
+
 ### The integration line
 
 The owner calls it `main`. While the milestone pull requests wait for the

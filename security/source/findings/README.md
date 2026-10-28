@@ -14,3 +14,4 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-004](RED-004-wallet-kdf-memory-ceiling.md) | A crafted wallet file can still force a ~4 GiB allocation on open | low | fixed |
 | [RED-005](RED-005-seed-on-command-line.md) | `poo claim`/`pay`/`keygen` take the raw seed on the command line | medium | fixed |
 | [RED-006](RED-006-unbounded-build-pow-under-lock.md) | `/v1/build` runs unbounded entry proof-of-work while holding the global node lock | medium | fixed |
+| [RED-007](RED-007-ipv6-transition-address-bypass.md) | Public-address filter misses IPv4-embedding IPv6 transition ranges (NAT64 / 6to4 / Teredo) | low | open |
