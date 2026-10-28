@@ -38,9 +38,9 @@ the script alone, since releases are Grey's.
 
 ## Cost and risk
 
-\`poo version\` used to ignore its arguments, and now it parses flags. It
-still accepts \`-root\`, \`-policy\` and \`-dir\`, which scripts and
-\`TestViewOnly\` pass to every command, and ignores them. A flag it doesn't
+`poo version` used to ignore its arguments, and now it parses flags. It
+still accepts `-root`, `-policy` and `-dir`, which scripts and
+`TestViewOnly` pass to every command, and ignores them. A flag it doesn't
 know is now an error instead of being silently ignored.
 
 About 70 lines, standard library only. It reveals nothing a person

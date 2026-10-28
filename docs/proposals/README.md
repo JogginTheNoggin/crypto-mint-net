@@ -25,3 +25,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-011](source/GREEN-011-refuse-bad-reload.md) | Source | A reload onto a broken policy keeps the node running | proposed |
 | [GREEN-012](source/GREEN-012-o-on-every-read.md) | Source | `-o table` on the read commands that lacked it | proposed |
 | [GREEN-013](source/GREEN-013-version-build-info.md) | Source | `poo version -v` for bug reports | proposed |
+| [GREEN-014](source/GREEN-014-address-paging.md) | Source | Address history pages that skip nothing | proposed |

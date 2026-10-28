@@ -20,7 +20,7 @@ node. Decisions D90 (filter), D91 (stream) and D94 (bounded views).
 | `Pending(e, f)` | `[]PendingTx`: pending transactions, oldest first within each pool | all but kind |
 | `Holdings(e, f)` | `[]Holding`: unspent portions (input, serial, address, amount) | all but kind; tid selects by the transaction that made the portion |
 | `TxOfSeries(e, series, tid, serial)` | `TxStatus`: pool, pending, selected, entry, height, weight behind it (`from`), rivals, and the transaction with its `raw` bytes | none; `serial` (optional) limits the search to one pool. `ErrNotFound` when the node does not hold it |
-| `AddressOf(e, series, addr, f, limit)`, `AddressPage(ctx, e, series, addr, f, below, limit)` | `Address`: balance, holdings, selected history newest first (what each transaction received and how many portions it spent), pending, and `Next` per unfinished pool; looks at most 50×limit entries in all (D103) | series, pool, serial |
+| `AddressOf(e, series, addr, f, limit)`, `AddressPage(ctx, e, series, addr, f, below, limit)` | `Address`: balance, holdings, selected history newest first (what each transaction received and how many portions it spent), pending, and `Next` per unfinished pool; looks at most 50×limit entries in all (D103); a page keeps whole entries, and each pool's `Next` starts at its newest entry not on the page, so following `Next` reaches every item once (GREEN-014) | series, pool, serial |
 
 A page holds at most `limit` items (default `DefaultLimit` 50, at most
 `MaxLimit` 1000). A view walks only the pools the filter's scope covers
