@@ -2,9 +2,12 @@
 
 ## Summary
 
-Ideas from the Green teams: quality-of-life improvements, nice-to-haves
-and explorations. Each is a file `<layer>/GREEN-<NNN>-<short-slug>.md` in
-the format given in [AGENTS.md](../../AGENTS.md#green-proposals). Grey
+Ideas from the Green teams (quality-of-life improvements, nice-to-haves
+and explorations) and the Orange teams (performance and optimization,
+with measurements). Each is a file `<layer>/GREEN-<NNN>-<short-slug>.md`
+or `<layer>/ORANGE-<NNN>-<short-slug>.md` in the format given in
+[AGENTS.md](../../AGENTS.md#green-proposals)
+([Orange](../../AGENTS.md#orange-proposals)). Grey
 decides whether to adopt each one and records the outcome in the file.
 
 | Id | Layer | Title | Status |
