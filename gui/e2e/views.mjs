@@ -32,7 +32,7 @@ try {
 
   // Start the node and see its pools rendered as a table.
   await page.click('button:has-text("Start node")');
-  await page.locator('.live-out', { hasText: 'pools followed' }).waitFor();
+  await page.locator('.live-out', { hasText: 'rpc: listening' }).waitFor();
   const pools = section('Followed pools');
   for (let i = 0; !(await pools.locator('table.data, dl.kv').count()); i++) {
     assert.ok(i < 40, 'status never rendered');

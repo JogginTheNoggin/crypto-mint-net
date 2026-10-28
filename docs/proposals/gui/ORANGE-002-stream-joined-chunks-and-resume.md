@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted; chunk events also carry next, for ?from= resumes (GUI-008) |
 | Based on | claude/gui-4-watch @ 9b4b19c |
 | Area | gui/server (GET /api/jobs/{id}/events) |
 | Effort | small |

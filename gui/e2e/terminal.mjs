@@ -110,7 +110,7 @@ try {
   await type('init -example -listen 127.0.0.1:0 -p2p off');
   await idle();
   await type('node');
-  await out.filter({ hasText: 'pools followed' }).waitFor();
+  await out.filter({ hasText: 'rpc: listening' }).waitFor();
   if (shots) await page.screenshot({ path: join(shots, 'terminal.png') });
   await page.click('[data-act=detach]');
   await idle();

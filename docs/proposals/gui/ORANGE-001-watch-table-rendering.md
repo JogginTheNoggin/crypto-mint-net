@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-4-watch @ 9b4b19c |
 | Area | gui/web/static/watch.js (Watch view), style.css |
 | Effort | small |

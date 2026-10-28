@@ -204,11 +204,20 @@ and exit codes.
 
 ### Commands that stream
 
-Long-running commands, such as `poo node` and the coming `poo watch`,
-work the same way. A job streams their output while they run. Streaming
-commands print one JSON object per line, so a view can render each event
-as it arrives. The node thread's watch and filter commands follow this
-convention (docs/modules/watch.md, once it lands).
+Long-running commands, such as `poo node` and `poo watch`, work the same
+way. A job streams their output while they run. Streaming commands print
+one JSON object per line, so a view can render each event as it arrives
+(docs/modules/watch.md).
+
+The page reads a job's output as server-sent events. Adjacent writes of
+one stream are joined into one `chunk` event of at most 64 KiB, which
+keeps the bytes exactly as written (ORANGE-002). Each `chunk` carries
+`seq` (its first write) and `next` (the write after its last), and its
+event id is `next`. A browser that reconnects sends `Last-Event-ID`, and
+a view that left and comes back follows again with `?from=next`
+(GUI-008), so output is neither repeated nor lost. Long output is held in
+bounded scrollback (1 MiB) and drawn once per frame (ORANGE-001,
+ORANGE-003). `gui/perf` has the kit Orange measured with.
 
 ### Security
 

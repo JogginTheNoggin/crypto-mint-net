@@ -26,8 +26,9 @@ export function el(tag, attrs = {}, ...kids) {
 // runJob runs args as a job and shows it in area: output as it arrives,
 // an input field whenever the command reads input (masked when it is a
 // passphrase or seed), and the result rendered once it ends. It resolves to
-// {code, out, err}.
-export function runJob(args, area, { onStart, empty, refresh } = {}) {
+// {code, out, err}. secretOutput leaves out the Copy output button, for a
+// command whose output holds a secret (keygen prints its seed).
+export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {}) {
   area.textContent = '';
   const status = el('div', { class: 'run-status live' }, 'running…');
   const live = el('pre', { class: 'live-out' });
@@ -84,7 +85,7 @@ export function runJob(args, area, { onStart, empty, refresh } = {}) {
           status.className = 'run-status ' + (e.code === 0 ? 'ok' : 'bad');
           status.textContent = e.code === 0 ? 'done' : `exit ${e.code}`;
           live.remove();
-          area.append(showResult(out, err, { empty }));
+          area.append(showResult(out, err, { empty, secretOutput }));
           resolve({ code: e.code, out, err });
         },
         error: () => { status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err }); },
@@ -101,7 +102,7 @@ export function runJob(args, area, { onStart, empty, refresh } = {}) {
 // the text the command printed. Errors are shown as printed, with a next
 // step under them when one is known (hints.js). empty is what to say when
 // the command printed nothing.
-export function showResult(out, err, { empty } = {}) {
+export function showResult(out, err, { empty, secretOutput } = {}) {
   const box = el('div', { class: 'result' });
   if (out.trim()) {
     let v, ok = false;
@@ -114,7 +115,7 @@ export function showResult(out, err, { empty } = {}) {
       navigator.clipboard.writeText(out).then(() => { copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy output'; }, 1200); },
         () => { copy.textContent = 'Copy refused'; });
     };
-    box.append(copy);
+    if (!secretOutput) box.append(copy);
   }
   if (err.trim()) {
     box.append(el('pre', { class: 'text-out err' }, err));
@@ -193,7 +194,7 @@ function noNode(sec, area, r) {
 // onResult, if given, is called with the finished job's {code, out, err}
 // and the result area, so a view can act on the data rather than on the
 // rendered page.
-export function form(ctx, { title, about, fields, args, submit = 'Run', danger, onResult }) {
+export function form(ctx, { title, about, fields, args, submit = 'Run', danger, onResult, secretOutput }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
   const f = el('form', { class: 'fields', autocomplete: 'off' });
@@ -224,7 +225,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   f.addEventListener('submit', ev => {
     ev.preventDefault();
     if (danger && !confirm(`Run ${api.quote(args(values()))}?`)) return;
-    runJob(args(values()), area).then(r => { if (onResult) onResult(r, area); });
+    runJob(args(values()), area, { secretOutput }).then(r => { if (onResult) onResult(r, area); });
   });
   const sec = el('section', { class: 'panel' }, el('div', { class: 'panel-head' }, el('h2', {}, title)),
     about ? el('p', { class: 'hint' }, about) : null, f, line, area);
@@ -342,7 +343,7 @@ const poolsView = {
     const serial = { name: 'serial', label: 'Mint serial', type: 'number', required: true };
     const series = { name: 'series', label: 'Series id', placeholder: 'only if the node follows more than one' };
     return mountAll(root, 'Pools and payments', 'Look up mints and transactions, and build entries and layers.', [
-      panel(ctx, { title: 'Followed pools', args: () => ['status', ...where.flags()] }),
+      panel(ctx, { title: 'Followed pools', about: 'Each followed pool: tip, height, weight, waiting and stored records (poo pools).', args: () => ['pools', ...where.flags()] }),
       // poo unspent and poo tx replace the older holdings and payment
       // (Source GREEN-008): the same answers, with the pool, the height and
       // the decoded transaction, and no serial needed for a transaction.
@@ -458,7 +459,7 @@ const cryptoView = {
       panel(ctx, { title: 'Hashes, key algorithms and policy types', args: () => ['crypto'] }),
       form(ctx, { title: 'Make a key', about: 'A key and its 1-of-1 address. Leave the seed empty for a random one; the output includes the seed.',
         fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519' }, { name: 'hash', label: 'Hash', placeholder: 'sha256' }, { name: 'seed', label: 'Seed', placeholder: 'hex, optional', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }],
-        args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...flag('seed', v.seed)], submit: 'Make key' }),
+        args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...flag('seed', v.seed)], submit: 'Make key', secretOutput: true }),
       form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked. More options are in the terminal (poo series new -h).',
         fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list' }, { name: 'types', label: 'Policy types', placeholder: 'comma list' }, { name: 'mints', label: 'Mints', type: 'number' }],
         args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints)], submit: 'Make series' }),

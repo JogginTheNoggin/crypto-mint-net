@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-4-watch @ 9b4b19c |
 | Area | gui/perf (new), gui/jobs/bench_test.go, gui/server/bench_test.go |
 | Effort | small |

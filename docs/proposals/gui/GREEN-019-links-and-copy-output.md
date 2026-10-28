@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted; Copy output left out where output holds a seed (keygen) |
 | Based on | claude/gui-4-watch @ 9b4b19c |
 | Area | gui/web/static (views.js showResult, style.css) |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-28 (Round 4 Part A) |
 
 ## Summary
 

@@ -36,7 +36,7 @@ try {
   poo(['init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off']);
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Start node")');
-  await page.locator('.live-out', { hasText: 'pools followed' }).waitFor();
+  await page.locator('.live-out', { hasText: 'rpc: listening' }).waitFor();
 
   // Watch only transactions, then claim a mint from outside the GUI.
   await page.click('nav a[data-id=watch]');

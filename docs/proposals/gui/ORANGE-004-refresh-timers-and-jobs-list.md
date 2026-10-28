@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-4-watch @ 9b4b19c |
 | Area | gui/web/static/views.js (panel, Node view, Jobs view) |
 | Effort | small |

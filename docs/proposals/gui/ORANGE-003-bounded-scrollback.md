@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-4-watch @ 9b4b19c |
 | Area | gui/web/static/scroll.js (new), terminal.js, views.js (runJob, Node view log, Jobs output) |
 | Effort | small |
