@@ -5,7 +5,8 @@
 //   go -C gui build -o /tmp/perfgui ./perf/perfgui
 //   NODE_PATH=$(npm root -g) node gui/perf/measure.mjs /tmp/perfgui [scenario ...]
 //
-// Scenarios: load, watch, terminal, node, refresh, jobs, command. None
+// Scenarios: load, watch, terminal, node, refresh, jobs, command, render,
+// paused. None
 // given runs them all.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -195,6 +196,56 @@ if (want('command')) {
     const list = () => fetch('/api/jobs').then(r => r.json());
     return { run: await time(run), jobAndStream: await time(job), listJobs: await time(list) };
   });
+  await g.close();
+}
+
+if (want('render')) {
+  // A finished command's result drawn by runJob, as a panel or form shows
+  // it: a JSON list rendered as a table, or a long text result.
+  out.render = [];
+  for (const [cmd, n] of [['bigjson', 500], ['bigjson', 5000], ['big', 50000]]) {
+    const g = await launch(['-events', String(n)]);
+    const before = pick(await g.metrics());
+    const r = await g.page.evaluate(async cmd => {
+      const { runJob } = await import('./views.js');
+      const area = document.createElement('div');
+      document.querySelector('main').append(area);
+      const t0 = performance.now();
+      const res = await runJob([cmd], area);
+      const ran = performance.now() - t0;
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r)));
+      return { code: res.code, outBytes: res.out.length, ranMs: Math.round(ran), shownMs: Math.round(performance.now() - t0), nodes: area.querySelectorAll('*').length };
+    }, cmd);
+    out.render.push({ cmd, n, ...r, cost: diff(before, pick(await g.metrics())) });
+    await g.close();
+  }
+}
+
+if (want('paused')) {
+  // Watch paused before the stream starts, at full rate: every event is
+  // held, and the oldest let go past MAX_EVENTS.
+  const n = 20000;
+  const g = await launch(['-rate', '0', '-events', String(n)]);
+  await g.page.click('nav a[data-id=watch]');
+  const before = pick(await g.metrics());
+  const f0 = {};
+  const f = await frames(g.page, async () => {
+    await g.page.click('button:has-text("Start watching")');
+    await g.page.click('button:has-text("Pause")');
+    // Done when the dropped count has stopped moving for a second.
+    let last = '', since = Date.now();
+    await until(g.page, async () => {
+      const t = await g.page.locator('button', { hasText: 'Resume' }).innerText();
+      if (t !== last) { last = t; since = Date.now(); }
+      return t.includes('dropped') && Date.now() - since > 1000;
+    }, 120000);
+    f0.dropped = last;
+  });
+  const resume = await frames(g.page, async () => {
+    await g.page.click('button:has-text("Resume")');
+    await g.page.waitForTimeout(200);
+  });
+  out.paused = { events: n, ...f, ...f0, msIncludesOneSecondSettle: true, cost: diff(before, pick(await g.metrics())), resumeMaxFrameGapMs: resume.maxFrameGapMs };
   await g.close();
 }
 

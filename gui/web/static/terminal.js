@@ -66,7 +66,7 @@ export function mount(root) {
   // test or a script driving the page can tell when one is done.
   const section = root.querySelector('.terminal');
   section.dataset.runs = '0';
-  const finished = () => { section.dataset.runs = String(Number(section.dataset.runs) + 1); };
+  const finished = () => { sb.flush(); section.dataset.runs = String(Number(section.dataset.runs) + 1); };
 
   const sb = scrollback(out, { follow: true });
   const write = (text, cls) => sb.write(text, cls);

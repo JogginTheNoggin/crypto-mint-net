@@ -11,6 +11,7 @@
 //	       it can), in the shape poo watch prints, then waits until stopped
 //	node   prints -log log lines a second until stopped, like a busy node
 //	big    prints -events lines of output and exits (a large result)
+//	bigjson prints a JSON list of -events rows like poo unspent's and exits
 package main
 
 import (
@@ -64,6 +65,14 @@ func fakeMain(ctx context.Context, args []string, s cli.Stdio) int {
 			return fakeWatch(ctx, s)
 		case "node":
 			return fakeNode(ctx, s)
+		case "bigjson":
+			// A large JSON result, shaped like poo unspent's rows.
+			rows := make([]map[string]any, *events)
+			for i := range rows {
+				rows[i] = map[string]any{"pool": i % 4, "serial": i % 100, "address": hx(i, 32), "tid": hx(i+1, 32), "portion": i % 7, "amount": fmt.Sprint(i + 1), "height": i / 6, "entry": hx(i+2, 32), "spent": false}
+			}
+			json.NewEncoder(s.Out).Encode(rows)
+			return 0
 		case "big":
 			for i := 0; i < *events; i++ {
 				fmt.Fprintf(s.Out, "line %d of a large result %s\n", i, hx(i, 24))
