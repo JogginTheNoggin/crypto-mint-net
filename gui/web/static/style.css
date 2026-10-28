@@ -170,3 +170,10 @@ table.events tr.ev:hover, table.events tr.ev:focus { background: var(--bg); outl
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) { --muted: #c8c8c0; --line: #6a6b66; }
 }
+
+/* Watch kinds, and look-up links next to ids */
+fieldset.kinds { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px 6px; margin: 0; font-size: 12px; color: var(--muted); }
+fieldset.kinds legend { padding: 0 4px; }
+fieldset.kinds label.check { display: flex; flex-direction: row; align-items: center; gap: 4px; color: var(--ink); }
+.hex-wrap { white-space: nowrap; }
+a.lookup { font-size: 11px; color: var(--accent); margin-left: 2px; }

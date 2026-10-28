@@ -20,11 +20,16 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-009](GREEN-009-narrow-menu.md) | A view menu instead of scrolling tabs in narrow windows | small | yes | adopted |
 | [GREEN-010](GREEN-010-high-contrast.md) | Honour the system's high contrast setting | small | yes | adopted |
 | [GREEN-011](GREEN-011-node-banner-and-job-churn.md) | One node banner instead of an error per panel; stop refresh jobs evicting user jobs | medium | no | job churn done; banner later |
+| [GREEN-012](GREEN-012-pools-view-on-unspent-and-tx.md) | The Pools view's lookups on `poo unspent` and `poo tx` (Source GREEN-008 step 2) | small | yes | proposed |
+| [GREEN-013](GREEN-013-lookup-links.md) | "Look up" links from tids and addresses to Explore | small | yes | proposed |
+| [GREEN-014](GREEN-014-watch-consistency.md) | Watch matches the rest: kind boxes, local times, one hash style | small | yes | proposed |
+| [GREEN-015](GREEN-015-watch-explore-loose-ends.md) | Loose ends: Watch in the background, paging, a flaky e2e, `-kind` on non-stream commands | small to medium | no | proposed |
 
 ## How to try the prototypes
 
 ```sh
 git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
-node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003 and 007 to 009
+node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003 and 007 to 010
+node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014
 ```

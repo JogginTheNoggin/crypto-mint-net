@@ -28,7 +28,8 @@ try {
   // Watch only transactions, then claim a mint from outside the GUI.
   await page.click('nav a[data-id=watch]');
   const live = section('Live events');
-  await live.locator('label', { hasText: 'Kinds' }).locator('input').fill('tx, selected');
+  await live.locator('fieldset.kinds input[value=tx]').check();
+  await live.locator('fieldset.kinds input[value=selected]').check();
   assert.match(await live.locator('.cmd code').innerText(), /^poo watch -kind tx,selected$/);
   await live.locator('button:has-text("Start watching")').click();
   await live.locator('.run-status', { hasText: 'watching' }).waitFor();
@@ -46,6 +47,25 @@ try {
   if (shots) await page.screenshot({ path: join(shots, 'watch.png'), fullPage: true });
   await live.locator('button:has-text("Stop")').click();
   await live.locator('.run-status', { hasText: 'stopped' }).waitFor();
+
+  // The tid in a row links to Explore, which runs poo tx on it.
+  await live.locator('tr.ev-tx a.lookup').first().click();
+  const looked = section('A transaction');
+  await looked.locator('.run-status.ok').waitFor();
+  assert.equal(await looked.locator('.cmd code').innerText(), `poo tx ${tid}`);
+  // The Pools view's lookups run poo unspent and poo tx (Source GREEN-008).
+  await page.click('nav a[data-id=pools]');
+  const pay = section('Where a payment stands');
+  await pay.locator('label', { hasText: 'Transaction id' }).locator('input').fill(tid);
+  assert.equal(await pay.locator('.cmd code').innerText(), `poo tx ${tid}`);
+  const hold = section('Holdings of a mint');
+  await hold.locator('label', { hasText: 'Mint serial' }).locator('input').fill('5');
+  assert.equal(await hold.locator('.cmd code').innerText(), 'poo unspent -serial 5');
+  await hold.locator('button[type=submit]').click();
+  await hold.locator('.run-status.ok').waitFor();
+  // Its address links to Explore's address lookup.
+  await hold.locator('a.lookup[href^="#/explore?address="]').first().click();
+  await section('An address').locator('.run-status.ok').waitFor();
 
   // Explore: the ledger and the transaction, through the same filters.
   await page.click('nav a[data-id=explore]');

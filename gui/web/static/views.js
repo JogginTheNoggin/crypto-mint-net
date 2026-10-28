@@ -189,7 +189,15 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger }
   });
   const sec = el('section', { class: 'panel' }, el('div', { class: 'panel-head' }, el('h2', {}, title)),
     about ? el('p', { class: 'hint' }, about) : null, f, line, area);
-  return { el: sec, stop: () => {} };
+  // run fills fields from values and submits, as if the user had typed
+  // them and pressed the button (a link into a view uses it).
+  const run = vals => {
+    for (const [k, v] of Object.entries(vals)) if (inputs[k]) inputs[k].value = v;
+    line.set(args(values()));
+    f.requestSubmit();
+    sec.scrollIntoView({ block: 'start' });
+  };
+  return { el: sec, stop: () => {}, run };
 }
 
 // flag adds -name value when value is set.
@@ -290,11 +298,14 @@ const poolsView = {
     const series = { name: 'series', label: 'Series id', placeholder: 'only if the node follows more than one' };
     return mountAll(root, 'Pools and payments', 'Look up mints and transactions, and build entries and layers.', [
       panel(ctx, { title: 'Followed pools', args: () => ['status', ...where.flags()] }),
+      // poo unspent and poo tx replace the older holdings and payment
+      // (Source GREEN-008): the same answers, with the pool, the height and
+      // the decoded transaction, and no serial needed for a transaction.
       form(ctx, { title: 'Holdings of a mint', about: 'Unspent portions of a mint.', fields: [serial, series],
-        args: v => ['holdings', ...where.flags(), ...flag('serial', v.serial), ...flag('series', v.series)], submit: 'Look up' }),
+        args: v => ['unspent', ...where.flags(), ...flag('serial', v.serial), ...flag('series', v.series)], submit: 'Look up' }),
       form(ctx, { title: 'Where a payment stands', about: 'A transaction, the weight behind it, and known rivals.',
-        fields: [serial, { name: 'tid', label: 'Transaction id', placeholder: 'hex' }, series],
-        args: v => ['payment', ...where.flags(), ...flag('serial', v.serial), ...flag('tid', v.tid), ...flag('series', v.series)], submit: 'Look up' }),
+        fields: [{ name: 'tid', label: 'Transaction id', placeholder: 'hex' }, { ...serial, label: 'In mint serial', placeholder: 'optional: look only in its pool' }, series],
+        args: v => ['tx', ...where.flags(), ...flag('in-serial', v.serial), ...flag('series', v.series), ...(v.tid ? [v.tid] : [])], submit: 'Look up' }),
       form(ctx, { title: 'Build an entry', about: 'Builds an entry from the pending transactions of a pool.',
         fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, series],
         args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('work', v.work), ...flag('series', v.series)], submit: 'Build' }),

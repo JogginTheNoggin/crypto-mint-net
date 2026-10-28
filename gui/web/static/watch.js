@@ -14,16 +14,16 @@ const MAX_EVENTS = 1000;
 const MAX_ERR = 64 << 10;
 const MAX_LINE = 1 << 20;
 
-// filterFields are the form fields of a filter; filterFlags turns their
-// values into poo's filter flags (comma lists, as poo takes them).
-const filterFields = (withKind) => [
+// filterFields are the form fields of a filter (Watch adds the kinds as
+// boxes); filterFlags turns their values into poo's filter flags (comma
+// lists, as poo takes them).
+const filterFields = () => [
   { name: 'series', label: 'Series ids', placeholder: 'comma list' },
   { name: 'pool', label: 'Pools', placeholder: 'comma list' },
   { name: 'serial', label: 'Mint serials', placeholder: 'comma list' },
   { name: 'address', label: 'Addresses', placeholder: 'comma list' },
   { name: 'addressPolicy', label: 'Address policies', placeholder: 'hex, comma list' },
   { name: 'tid', label: 'Transaction ids', placeholder: 'comma list' },
-  ...(withKind ? [{ name: 'kind', label: 'Kinds', placeholder: KINDS.join(',') }] : []),
 ];
 const filterFlags = v => [
   ...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial),
@@ -31,7 +31,16 @@ const filterFlags = v => [
   ...flag('tid', v.tid), ...flag('kind', v.kind),
 ].map(a => a.replace(/\s+/g, ''));
 
-const short = h => (typeof h === 'string' && h.length > 16) ? `${h.slice(0, 8)}…${h.slice(-4)}` : (h ?? '');
+const short = h => (typeof h === 'string' && h.length > 16) ? `${h.slice(0, 10)}…${h.slice(-6)}` : (h ?? '');
+
+// clock shows poo's UTC time as local time to the millisecond, like the
+// Jobs view; the time exactly as printed is in the tooltip.
+function clock(t) {
+  const d = new Date(t);
+  if (!t || isNaN(d)) return el('span', {}, t || '');
+  const pad = (n, w = 2) => String(n).padStart(w, '0');
+  return el('time', { datetime: t, title: t }, `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`);
+}
 
 // eventRow is one line of the live table: what poo watch printed, laid out.
 function eventRow(ev) {
@@ -40,10 +49,11 @@ function eventRow(ev) {
     : ev.layer ? `layer s${ev.layer.strength} on ${short(ev.layer.entry)}` : '';
   const tr = el('tr', { class: `ev ev-${ev.kind}` },
     el('td', { class: 'num' }, String(ev.seq ?? '')),
-    el('td', {}, (ev.time || '').replace('T', ' ').replace('Z', '')),
+    el('td', {}, clock(ev.time)),
     el('td', {}, el('span', { class: `kind kind-${ev.kind}` }, ev.kind + (ev.void ? ' (void)' : ''))),
     el('td', { class: 'num' }, String(ev.pool ?? '')),
-    el('td', {}, el('code', { title: ev.tid || '' }, short(ev.tid))),
+    // The tid is shown, copied and linked the same way as in every other view.
+    el('td', {}, ev.tid ? render(ev.tid, 0, 'tid') : ''),
     el('td', {}, what),
     el('td', { class: 'num' }, ev.weight ?? ''),
     el('td', {}, ev.origin ? `${ev.origin}${ev.from ? ' ' + ev.from : ''}` : ''));
@@ -56,16 +66,22 @@ export const watchView = {
   id: 'watch',
   title: 'Watch',
   mount(root, ctx) {
-    const fields = filterFields(true);
+    const fields = filterFields();
     const inputs = {};
     const f = el('form', { class: 'fields', autocomplete: 'off' });
     for (const fd of fields) {
       inputs[fd.name] = el('input', { name: fd.name, placeholder: fd.placeholder, spellcheck: 'false' });
       f.append(el('label', {}, el('span', {}, fd.label), inputs[fd.name]));
     }
+    // Kinds are boxes to tick rather than words to remember. None ticked
+    // means every kind, as an empty -kind does.
+    const kindBoxes = KINDS.map(k => el('input', { type: 'checkbox', name: 'kind', value: k }));
+    f.append(el('fieldset', { class: 'kinds' }, el('legend', {}, 'Kinds (none ticked: all)'),
+      ...KINDS.map((k, i) => el('label', { class: 'check' }, kindBoxes[i], ` ${k}`))));
     const notices = el('input', { type: 'checkbox', name: 'notices' });
     f.append(el('label', { class: 'check' }, el('span', {}, 'Show stream notices (hello, ping, missed, end)'), notices));
-    const values = () => Object.fromEntries(fields.map(fd => [fd.name, inputs[fd.name].value.trim()]));
+    const values = () => ({ ...Object.fromEntries(fields.map(fd => [fd.name, inputs[fd.name].value.trim()])),
+      kind: kindBoxes.filter(b => b.checked).map(b => b.value).join(',') });
     const args = () => ['watch', ...where.flags(), ...flag('notices', notices.checked), ...filterFlags(values())];
     const line = cmdLine(args(), ctx);
     f.addEventListener('input', () => line.set(args()));
@@ -166,7 +182,7 @@ export const exploreView = {
   id: 'explore',
   title: 'Explore',
   mount(root, ctx) {
-    const filt = filterFields(false);
+    const filt = filterFields();
     const series = { name: 'series1', label: 'Series id', placeholder: 'only if the node follows more than one' };
     const ledger = form(ctx, {
       title: 'Selected ledger',
@@ -193,16 +209,23 @@ export const exploreView = {
       const next = nextDt && nextDt.nextElementSibling.textContent;
       if (next && next !== '0') res.append(el('button', { type: 'button', 'data-next': next }, `Older (below height ${next})`));
     }).observe(ledger.el, { childList: true, subtree: true });
+    const txForm = form(ctx, { title: 'A transaction', about: 'One transaction and where it stands.', fields: [{ name: 'tid1', label: 'Transaction id' }, series, { name: 'inSerial', label: 'In mint serial', type: 'number', placeholder: 'optional' }],
+      args: v => ['tx', ...where.flags(), ...flag('series', v.series1), ...flag('in-serial', v.inSerial), ...(v.tid1 ? [v.tid1] : [])], submit: 'Look up' });
+    const addrForm = form(ctx, { title: 'An address', about: 'Balance, holdings, history and pending.', fields: [{ name: 'addr', label: 'Address' }, series, { name: 'limit', label: 'History entries', type: 'number', placeholder: '50' }, ...filt.slice(1, 3)],
+      args: v => ['address', ...where.flags(), ...flag('series', v.series1), ...flag('limit', v.limit), ...flag('pool', v.pool), ...flag('serial', v.serial), ...(v.addr ? [v.addr] : [])], submit: 'Look up' });
+    // A "look up" link elsewhere opens Explore with #/explore?tid=… or
+    // ?address=…, and the form runs as if the user had filled it in.
+    const p = ctx.params || new URLSearchParams();
+    if (p.get('tid')) setTimeout(() => txForm.run({ tid1: p.get('tid') }));
+    else if (p.get('address')) setTimeout(() => addrForm.run({ addr: p.get('address') }));
     return mountAll(root, 'Explore', 'What the node holds, selected with the same filters as Watch. Each is one poo command.', [
       form(ctx, { title: 'Pools', about: 'Followed pools: tip, height, weight, pending.', fields: filt.slice(0, 3),
         args: v => ['pools', ...where.flags(), ...filterFlags(v)], submit: 'Show pools' }),
       ledger,
       form(ctx, { title: 'Pending transactions', fields: filt, args: v => ['pending', ...where.flags(), ...filterFlags(v)], submit: 'Show pending' }),
       form(ctx, { title: 'Unspent portions', fields: filt, args: v => ['unspent', ...where.flags(), ...filterFlags(v)], submit: 'Show unspent' }),
-      form(ctx, { title: 'A transaction', about: 'One transaction and where it stands.', fields: [{ name: 'tid1', label: 'Transaction id' }, series, { name: 'inSerial', label: 'In mint serial', type: 'number', placeholder: 'optional' }],
-        args: v => ['tx', ...where.flags(), ...flag('series', v.series1), ...flag('in-serial', v.inSerial), ...(v.tid1 ? [v.tid1] : [])], submit: 'Look up' }),
-      form(ctx, { title: 'An address', about: 'Balance, holdings, history and pending.', fields: [{ name: 'addr', label: 'Address' }, series, { name: 'limit', label: 'History entries', type: 'number', placeholder: '50' }, ...filt.slice(1, 3)],
-        args: v => ['address', ...where.flags(), ...flag('series', v.series1), ...flag('limit', v.limit), ...flag('pool', v.pool), ...flag('serial', v.serial), ...(v.addr ? [v.addr] : [])], submit: 'Look up' }),
+      txForm,
+      addrForm,
     ]);
   },
 };
