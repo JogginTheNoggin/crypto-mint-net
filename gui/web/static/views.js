@@ -429,8 +429,11 @@ const walletView = {
         args: v => ['wallet', 'watch', ...wf(v), ...flags('serial', v.serial), ...flags('pool', v.pool)], submit: 'Watch' }),
       form(ctx, { title: 'Claim a mint', fields: [{ name: 'serial', label: 'Mint serial', type: 'number' }, series],
         args: v => ['wallet', 'claim', ...wf(v), ...flag('serial', v.serial), ...flag('series', v.series)], submit: 'Claim', danger: true }),
-      form(ctx, { title: 'Create or restore a wallet', fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519 (see Crypto)' }, { name: 'restore', label: 'Restore from seed', placeholder: 'hex, to restore', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }, { name: 'gap', label: 'Gap', type: 'number' }],
-        args: v => ['wallet', 'create', ...wf(v), ...flag('alg', v.alg), ...flag('restore', v.restore), ...flag('gap', v.gap)], submit: 'Create' }),
+      // Restoring runs -restore -, so poo asks for the seed through its
+      // secret prompt (D106) and the seed is typed into a masked field,
+      // never onto the command line.
+      form(ctx, { title: 'Create or restore a wallet', fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519 (see Crypto)' }, { name: 'restore', label: 'Restore from a seed', type: 'check', help: 'poo asks for the seed in a masked field after you press Create.' }, { name: 'gap', label: 'Gap', type: 'number' }],
+        args: v => ['wallet', 'create', ...wf(v), ...flag('alg', v.alg), ...(v.restore ? ['-restore', '-'] : []), ...flag('gap', v.gap)], submit: 'Create' }),
     ]);
   },
 };

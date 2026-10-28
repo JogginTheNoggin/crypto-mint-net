@@ -44,6 +44,11 @@ try {
   // Wallet: create one; the passphrase prompt is a masked field.
   await page.click('nav a[data-id=wallet]');
   const create = section('Create or restore a wallet');
+  // Restoring never puts the seed on the command line: poo asks for it.
+  const restore = create.locator('label', { hasText: 'Restore from a seed' }).locator('input');
+  await restore.check();
+  assert.match(await create.locator('.cmd code').innerText(), / -restore -$/);
+  await restore.uncheck();
   await create.locator('button[type=submit]').click();
   const ask = create.locator('form.ask input');
   await ask.waitFor();

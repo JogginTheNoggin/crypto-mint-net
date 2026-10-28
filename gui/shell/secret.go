@@ -1,14 +1,18 @@
 package shell
 
-import "strings"
+import (
+	"strings"
 
-// SecretFlags are the poo flags whose value is a secret: wallet create
-// -restore and keygen -seed take a seed, which restores every key, and
-// node -seed is refused but would still carry one. The GUI keeps a line
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/cli"
+)
+
+// SecretFlags are the poo flags whose value is a secret, as the core
+// declares them (cli.SecretFlags, D106): wallet create -restore and keygen
+// -seed take a seed, which restores every key. The GUI keeps a line
 // holding one of them out of the terminal's saved history and hides the
 // value wherever it shows a job's command line (GUI-006 in
 // security/gui/findings). sim -seed is a random-number seed, not a secret.
-var SecretFlags = []string{"restore", "seed"}
+var SecretFlags = cli.SecretFlags()
 
 // Hidden replaces a secret flag's value in a redacted command line.
 const Hidden = "<hidden>"

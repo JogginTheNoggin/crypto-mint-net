@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fix-proposed |
+| Status | fixed (verified by GUI/Red R3B @ 9b4b19c) |
 | Found on | claude/gui-4-watch @ 93ed36a |
 | Component | gui/web/static/watch.js (`held`, `errOut`, `buf`) |
 | Surface | local (browser tab) |

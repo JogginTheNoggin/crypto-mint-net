@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fix-proposed |
+| Status | fixed (verified by GUI/Red R3B @ 9b4b19c); seed entry now via `-restore -` (D106) in Round 4 |
 | Found on | claude/gui-4-watch @ 93ed36a |
 | Component | gui/web/static/terminal.js (history), gui/server/server.go (`info`/`/api/jobs`), gui/jobs/jobs.go (`Args` retention) |
 | Surface | wallet / local |
