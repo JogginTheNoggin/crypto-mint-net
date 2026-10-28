@@ -1,7 +1,11 @@
 // Getting started: the first steps with poo as a list of command lines.
 // Each step only types its line into the terminal; the terminal runs it
-// exactly as poo would, so the guide teaches the headless tool too.
+// exactly as poo would, so the guide teaches the headless tool too. Steps
+// marked policy get the -root and -policy from Settings, so they act on
+// the same node policy as the views; with none set, the line is unchanged.
 import { el } from './views.js';
+import * as api from './api.js';
+import * as where from './where.js';
 
 const steps = [
   { title: 'Check the tool', line: 'version',
@@ -10,15 +14,15 @@ const steps = [
     text: 'Runs a few full nodes in this process through a payment, a double spend and its resolution. It touches no files.' },
   { title: 'See the cryptographic choices', line: 'crypto',
     text: 'Lists the hashes, key algorithms and policy types a series can choose from.' },
-  { title: 'Write a node policy', line: 'init -example',
+  { title: 'Write a node policy', line: 'init -example', policy: true,
     text: 'Writes a node policy that follows the worked example\'s series and makes it current. Add -p2p and -peer to join other nodes.' },
-  { title: 'Run the node', line: 'node',
+  { title: 'Run the node', line: 'node', policy: true,
     text: 'Starts the full node. Use "Run in background" in the terminal to keep it going while you do the next steps.' },
-  { title: 'Look at the node', line: 'status',
+  { title: 'Look at the node', line: 'status', policy: true,
     text: 'Every pool the running node follows. "peers" and "chases" show the rest of its view.' },
-  { title: 'Make a wallet', line: 'wallet create',
+  { title: 'Make a wallet', line: 'wallet create', policy: true,
     text: 'Makes a wallet from a new seed, sealed under a passphrase you type into the masked field.' },
-  { title: 'Get an address', line: 'wallet address',
+  { title: 'Get an address', line: 'wallet address', policy: true,
     text: 'Gives out a fresh address to be paid at.' },
 ];
 
@@ -27,7 +31,9 @@ export const startView = {
   title: 'Getting started',
   mount(root, ctx) {
     const list = el('ol', { class: 'steps' });
-    for (const s of steps) {
+    const flags = api.quote(where.flags()).replace(/^poo ?/, '');
+    for (const st of steps) {
+      const s = { ...st, line: st.policy && flags ? `${st.line} ${flags}` : st.line };
       list.append(el('li', {},
         el('h2', {}, s.title),
         el('p', {}, s.text),
