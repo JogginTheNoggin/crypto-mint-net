@@ -66,7 +66,15 @@ function eventRow(ev) {
 // running watch and its table survive switching views (GREEN-015): a
 // look-up link from an event to Explore does not lose the stream. Stop
 // stays explicit, and the Watch tab shows a dot while it runs.
+//
+// While the view is away the poo watch job keeps running on the server,
+// but the page closes its event stream and remembers the next output
+// sequence number; coming back follows again from there (?from=), so the
+// browser holds no stream and parses nothing in the background, and no
+// output is missed unless the server dropped it (GUI-008 in
+// security/gui/findings).
 let watchPanel = null;
+let panelHooks = null; // {detach, attach} of the built panel
 
 function buildWatch(ctx) {
   const fields = filterFields();
@@ -103,6 +111,7 @@ function buildWatch(ctx) {
   const errOut = el('pre', { class: 'text-out err', hidden: true });
 
   let job = null, unfollow = null, paused = false, held = [], heldDropped = 0, buf = '';
+  let next = 0; // the job's next output sequence number, to follow from
   // errAppend adds text to the error box, keeping its last MAX_ERR
   // characters.
   const errAppend = text => {
@@ -151,8 +160,16 @@ function buildWatch(ctx) {
     try { job = await api.start(a); } catch (err) { state.textContent = err.message; return; }
     setRunning(true);
     state.textContent = `watching: ${job.command}`;
-    unfollow = api.follow(job.id, {
+    next = 0;
+    buf = '';
+    follow();
+  });
+  // follow follows the job's output from next on.
+  const follow = () => {
+    const id = job.id;
+    unfollow = api.follow(id, {
       chunk: c => {
+        next = c.seq + 1;
         if (c.stream === 'err') { errAppend(c.data); return; }
         buf += c.data;
         const lines = buf.split('\n');
@@ -160,9 +177,22 @@ function buildWatch(ctx) {
         lines.forEach(lineIn);
         if (buf.length > MAX_LINE) { errAppend(`[dropped a line longer than ${MAX_LINE} bytes]\n`); buf = ''; }
       },
-      exit: x => { setRunning(false); state.textContent = `stopped (exit ${x.code})`; job = null; },
-    });
-  });
+      // The server keeps a bounded amount of a job's output; what it
+      // dropped while the view was away is gone, and so is any partial line.
+      dropped: d => {
+        next = d.next;
+        buf = '';
+        state.textContent = 'some events were dropped while the view was away (poo-gui keeps the newest 4 MiB of output)';
+        tally['dropped while away'] = (tally['dropped while away'] || 0) + 1;
+        showCounts();
+      },
+      exit: x => { unfollow = null; setRunning(false); state.textContent = `stopped (exit ${x.code})`; job = null; },
+    }, next);
+  };
+  panelHooks = {
+    detach: () => { if (unfollow) { unfollow(); unfollow = null; } },
+    attach: () => { if (job && !unfollow) follow(); },
+  };
   pauseBtn.onclick = () => {
     paused = !paused;
     pauseBtn.textContent = paused ? `Resume` : 'Pause';
@@ -188,8 +218,10 @@ export const watchView = {
   title: 'Watch',
   mount(root, ctx) {
     if (!watchPanel) watchPanel = buildWatch(ctx);
-    // Leaving the view only detaches the panel; the watch keeps running.
-    return mountAll(root, 'Watch', 'What the node does, live: transactions arriving, entries and layers kept, the selected ledger moving. The watch keeps running when you switch views; Stop ends it.', [{ el: watchPanel, stop: () => watchPanel.remove() }]);
+    else panelHooks.attach();
+    // Leaving the view detaches the panel and closes its stream; the
+    // watch keeps running on the server.
+    return mountAll(root, 'Watch', 'What the node does, live: transactions arriving, entries and layers kept, the selected ledger moving. The watch keeps running when you switch views; Stop ends it.', [{ el: watchPanel, stop: () => { panelHooks.detach(); watchPanel.remove(); } }]);
   },
 };
 

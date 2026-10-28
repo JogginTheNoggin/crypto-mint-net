@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | info |
-| Status | open |
+| Status | fix-proposed |
 | Found on | claude/gui-4-watch @ 9b4b19c |
 | Component | gui/web/static/watch.js (`watchView.mount`, the singleton `watchPanel`) |
 | Surface | local (browser tab + one node RPC connection) |
-| Fixed by | _(pending — GUI/Blue; may be "won't fix", by design)_ |
+| Fixed by | `claude/gui-blue` |
 
 ## Summary
 
@@ -86,3 +86,11 @@ This round re-attacked the Round 2 fixes and reviewed the new surface; all held:
   rendered through `textContent`/`render`, so node- and peer-controlled fields cannot
   inject HTML; the banner is a display-only collapse keyed on an exact stderr phrase
   with empty stdout.
+
+## Fix (GUI/Blue, branch `claude/gui-blue`)
+
+Took the second option. Leaving the Watch view now calls the panel's `detach`, which closes the `EventSource`. The `poo watch` job keeps running on the server, and the page remembers `next`, the job's next output sequence number (the server's chunk `seq`, not the event's own `seq`). Coming back calls `attach`, which follows again with `?from=next`, so nothing is shown twice and nothing is missed. The one exception is output the server dropped past its 4 MiB per-job buffer: the existing `dropped` event resets the partial line and says so in the status line and the counts. While away, the browser holds no stream slot and parses nothing. The job slot and the node connection are still held until Stop, as designed, and the tab dot still shows. If the job ends while away, the exit arrives on return.
+
+Resume uses only the server's existing `from` parameter and the `chunk.seq` and `dropped.next` it already sends, so the scheme stays compatible with any stream-resume id work (GUI/Orange) that keeps that contract.
+
+Regression test, in gui/e2e/watch.mjs: against a real node, it watches, switches to Jobs, and asserts the watch job's `EventSource` is closed while the tab dot stays. It then claims a mint while away, returns, and asserts the new transaction row appears exactly once over a single new stream with `from > 0`. The test times out against the unfixed watch.js.

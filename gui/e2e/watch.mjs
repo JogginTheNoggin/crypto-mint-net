@@ -19,6 +19,19 @@ const until = async (cond, what, ms = 20000) => {
   }
 };
 
+// Count the page's event streams, open and closed, and where each began.
+await page.addInitScript(() => {
+  const ES = window.EventSource;
+  window.__streams = [];
+  window.EventSource = class extends ES {
+    constructor(url, opts) { super(url, opts); window.__streams.push(this); }
+  };
+});
+await page.reload();
+const watchStreams = () => page.evaluate(() => window.__streams
+  .filter(s => /\/api\/jobs\/\d+\/events/.test(s.url))
+  .map(s => ({ url: s.url, open: s.readyState !== EventSource.CLOSED })));
+
 try {
   poo(['init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off']);
   await page.click('nav a[data-id=node]');
@@ -45,6 +58,24 @@ try {
   await live.locator('tr.ev-selected').first().click();
   await live.locator('.event-detail', { hasText: 'selected' }).waitFor();
   if (shots) await page.screenshot({ path: join(shots, 'watch.png'), fullPage: true });
+
+  // GUI-008: leaving the view closes the watch's event stream while the
+  // job runs on; an event that arrives meanwhile shows on return, once.
+  const txRows = await live.locator('tr.ev-tx').count();
+  const watchJob = await page.evaluate(async () => (await (await fetch('/api/jobs')).json()).find(j => !j.done && j.args[0] === 'watch').id);
+  assert.ok((await watchStreams()).some(s => s.open && s.url.includes(`/jobs/${watchJob}/`)), 'the watch has a stream');
+  await page.click('nav a[data-id=jobs]');
+  await until(async () => !(await watchStreams()).some(s => s.open && s.url.includes(`/jobs/${watchJob}/`)), 'the stream closed while away');
+  assert.equal(await page.locator('nav a[data-id=watch].busy').count(), 1, 'the watch still runs');
+  poo(['claim', '-serial', '6'], { POO_SEED: 'b2'.repeat(32) });
+  await page.waitForTimeout(500);
+  await page.click('nav a[data-id=watch]');
+  await until(async () => (await live.locator('tr.ev-tx').count()) === txRows + 1, 'the event from while away');
+  const resumed = (await watchStreams()).filter(s => s.open && s.url.includes(`/jobs/${watchJob}/`));
+  assert.equal(resumed.length, 1, 'one stream again');
+  assert.ok(Number(new URL(resumed[0].url, 'http://x').searchParams.get('from')) > 0, 'it resumes from where it left off');
+  await page.waitForTimeout(500);
+  assert.equal(await live.locator('tr.ev-tx').count(), txRows + 1, 'no event shown twice');
   // The watch keeps running while another view is shown (GREEN-015).
   await page.click('nav a[data-id=pools]');
   assert.ok(await page.locator('nav a[data-id=watch].busy').count(), 'the Watch tab shows the running watch');
@@ -56,7 +87,7 @@ try {
   await until(async () => (await page.locator('nav a[data-id=watch].busy').count()) === 0, 'the dot to go');
 
   // The tid in a row links to Explore, which runs poo tx on it.
-  await live.locator('tr.ev-tx a.lookup').first().click();
+  await live.locator(`tr.ev-tx a.lookup[href*="${tid}"]`).first().click();
   const looked = section('A transaction');
   await looked.locator('.run-status.ok').waitFor();
   assert.equal(await looked.locator('.cmd code').innerText(), `poo tx ${tid}`);
