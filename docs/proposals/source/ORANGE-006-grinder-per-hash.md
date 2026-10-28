@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `0ac8e4e` (base `deecc80`) |
 | Area | `pkg/hash` (`Grinder`), `pkg/layer` (`GrindHash`), `pkg/entry` (`BuildWorkers`), `pkg/engine` (`GrindLayer`) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey, Source Round 5: as prototyped; the `cpu-midstate` grinder of M11 (D109) |
 
 ## Summary
 

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -286,6 +287,13 @@ func BuildContext(ctx context.Context, s *series.Series, parent hash.Hash, txs [
 // and tids (a hash.Grinder, ORANGE-006), so its cost does not grow with the
 // number of transactions where the hash allows it.
 func BuildWorkers(ctx context.Context, s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64, workers int) (*Entry, hash.Hash, error) {
+	return BuildWith(ctx, hash.GrinderFor(s.Params().HashID), s, parent, txs, maxTries, workers, nil)
+}
+
+// BuildWith is BuildWorkers with any hasher for the series' hash (package
+// grind chooses one per device, decision D109), adding the nonces tried to
+// tried, if not nil, as it goes.
+func BuildWith(ctx context.Context, newHasher hash.NewHasher, s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64, workers int, tried *atomic.Uint64) (*Entry, hash.Hash, error) {
 	items := make([]Item, len(txs))
 	for i, t := range txs {
 		items[i] = Item{TID: t.TID(s.Hash()), Tx: t}
@@ -308,9 +316,9 @@ func BuildWorkers(ctx context.Context, s *series.Series, parent hash.Hash, txs [
 	if workers < 1 {
 		workers = 1
 	}
-	grinders := make([]*hash.Grinder, workers)
+	grinders := make([]hash.Hasher, workers)
 	for w := range grinders {
-		g, err := hash.NewGrinder(s.Params().HashID, prefix...)
+		g, err := newHasher(prefix...)
 		if err != nil {
 			return nil, hash.Zero, err
 		}
@@ -319,13 +327,19 @@ func BuildWorkers(ctx context.Context, s *series.Series, parent hash.Hash, txs [
 	min := s.MinEntryStrength()
 	// search tries the nonces [from, to) in order with grinder g and
 	// returns the first that reaches min.
-	search := func(g *hash.Grinder, from, to uint64) (uint64, hash.Hash, bool) {
+	search := func(g hash.Hasher, from, to uint64) (uint64, hash.Hash, bool) {
 		var buf [8]byte
 		for n := from; n < to; n++ {
 			binary.BigEndian.PutUint64(buf[:], n)
 			if h := g.Hash(buf[:]); h.Strength() >= min {
+				if tried != nil {
+					tried.Add(n - from + 1)
+				}
 				return n, h, true
 			}
+		}
+		if tried != nil {
+			tried.Add(to - from)
 		}
 		return 0, hash.Zero, false
 	}

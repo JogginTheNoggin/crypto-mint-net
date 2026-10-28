@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `0ac8e4e` (base `deecc80`) |
 | Area | `pkg/weight` (`Sum`), `pkg/ledger` (`fenwick`, `AddLayerHashed`), `pkg/engine` (`HandleLayer`) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey, Source Round 5: as prototyped |
 
 ## Summary
 

@@ -31,6 +31,15 @@ fails and says why (GREEN-011). Without this a mistake in the file would
 stop the node for good at the reload. The check and the reopen are not
 atomic: a file spoiled between them still stops the node, as before.
 
+## Grinding
+
+The daemon runs one [grind](grind.md) `Manager` per node (M11, D109). It
+takes its defaults from `node.json`'s `grind` section, sends its events
+to the watch hub as kind `grind`, and starts the section's jobs by
+itself. It is closed before the hub, on a reload and at a stop, so every
+job ends and says so before the stream does; the policy's jobs start
+again after a reload. `pkg/daemon/grind_test.go` covers it.
+
 ## What a reload does
 
 1. The watch hub closes, so every watch stream ends with an `end` line.

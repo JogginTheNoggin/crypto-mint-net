@@ -32,7 +32,7 @@ on whatever hardware it has, is the next priority (Source Round 5).
 | M8 | Hardening and open release | In progress (owner steps left) |
 | M9 | Cryptographic choice for mints | Done |
 | M10 | Viewing, watching and live following | Done |
-| M11 | Grinders: fast work on any hardware, for any hash | Planned: Source/Grey's priority in Round 5 |
+| M11 | Grinders: fast work on any hardware, for any hash | Done (GPU grinders to come) |
 
 ### M1: Consensus core and full-node engine (done)
 
@@ -215,7 +215,7 @@ transaction, an address; D94) and in a live event stream (`poo watch`,
 `GET /v1/watch`; D91). The GUI uses the same packages through `pkg/cli`
 and `pkg/rpc` (D84).
 
-### M11: Grinders (planned, Source Round 5 priority)
+### M11: Grinders (done)
 
 The owner asked (2026-10-28) that nodes do hash grinding work fast, and
 made it Source/Grey's priority for Round 5 Part A. What it must do:
@@ -237,7 +237,12 @@ made it Source/Grey's priority for Round 5 Part A. What it must do:
 - **Same code everywhere.** It lives in a library package that `poo`, the
   RPC and the GUI all use, as every other feature does.
 
-Today `poo build` and `poo work` grind on the CPU in one process
-(`node.Build`, `MaxBuildTries`, D99). Nothing about consensus changes:
-a grinder only finds nonces faster.
+Built in Source Round 5 (D109, [modules/grind.md](modules/grind.md)):
+`pkg/grind` with device probes, a grinder registry, plans and jobs;
+`poo grind` (devices, bench, start, run, jobs, stop), `/v1/grind/*`,
+`-device`, `-threads` and `-for` on `poo build` and `poo work`, the
+`grind` section of `node.json`, watch kind `grind` and metrics. The CPU
+has a fast grinder for every hash; GPUs are detected and listed, and
+get used once a GPU grinder is registered. Nothing about consensus
+changed: a grinder only finds nonces faster.
 

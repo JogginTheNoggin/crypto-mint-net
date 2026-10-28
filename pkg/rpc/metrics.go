@@ -111,6 +111,7 @@ func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
 		book.add("", float64(len(h.host.Book().Records())))
 		ms = append(ms, conn, cat, sent, recv, book)
 	}
+	ms = append(ms, h.grindMetrics()...)
 	w.Header().Set("Content-Type", metricsContentType)
 	writeMetrics(w, ms)
 }

@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `0ac8e4e` (base `deecc80`) |
 | Area | `pkg/layer` (`GrindHash`), `pkg/entry` (`BuildWorkers`); wiring in `pkg/engine`, node policy (M11) |
 | Effort | small (the functions); M11 decides the wiring |
-| Decided by | |
+| Decided by | Grey, Source Round 5: as prototyped; M11 jobs and requests use it with `-threads` (D109) |
 
 ## Summary
 

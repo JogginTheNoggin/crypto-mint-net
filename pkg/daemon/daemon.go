@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
@@ -87,6 +88,7 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 		return false, errors.Join(err, n.Close())
 	}
 	hub := watch.NewHub(n)
+	gm := newGrind(n, hub)
 
 	inner, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -126,16 +128,18 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	select {
 	case <-p2pUp: // the host logs its address
 	case err := <-herr:
+		gm.Close()
 		hub.Close()
 		return false, errors.Join(err, n.Close())
 	}
-	serr := rpc.ServeWith(inner, n, rpc.ServeConfig{Host: host, Hub: hub, Reload: ask}, func(addr string) {
+	serr := rpc.ServeWith(inner, n, rpc.ServeConfig{Host: host, Hub: hub, Reload: ask, Grind: gm}, func(addr string) {
 		n.Logger().With(logging.Component, "rpc").Info("listening", "addr", addr)
 		if o.Ready != nil {
 			o.Ready(addr)
 		}
 	})
 	cancel()
+	gm.Close()
 	hub.Close()
 	perr := <-herr
 	cerr := n.Close()
@@ -162,4 +166,27 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.w.Write(p)
+}
+
+// newGrind returns the node's grind manager, with its events on the
+// watch stream and the node policy's jobs started (package grind, M11).
+// A job the policy lists but that cannot start is logged; the node runs
+// on.
+func newGrind(n *node.Node, hub *watch.Hub) *grind.Manager {
+	glog := n.Logger().With(logging.Component, "grind")
+	var def grind.Defaults
+	pg := n.Policy().Grind
+	if pg != nil {
+		def = grind.Defaults{Device: pg.Device, Threads: pg.Threads}
+	}
+	gm := grind.NewManager(n, grind.Default, def, glog)
+	gm.OnEvent(hub.PublishGrind)
+	if pg != nil {
+		for i, j := range pg.Jobs {
+			if _, err := gm.Start(grind.SpecOf(j)); err != nil {
+				glog.Warn("grind job from the policy not started", "job", i, "err", err)
+			}
+		}
+	}
+	return gm
 }

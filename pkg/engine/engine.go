@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -508,6 +509,28 @@ func (e *Engine) Build(k PoolKey, maxTries uint64) (*entry.Entry, EntryResult, e
 // caller hands the entry to HandleEntry; if the tip moved meanwhile it is
 // kept as a branch like any other entry.
 func (e *Engine) BuildEntry(ctx context.Context, k PoolKey, maxTries uint64) (*entry.Entry, error) {
+	return e.BuildEntryWith(ctx, k, maxTries, Grind{})
+}
+
+// Grind says how a build or a layer searches: with which hasher, on how
+// many goroutines, counting tries where. Package grind fills it from a
+// device and the pool's hash (decision D109); the zero value is the CPU
+// grinder for the series' hash on one goroutine.
+type Grind struct {
+	New     hash.NewHasher
+	Workers int
+	Tried   *atomic.Uint64
+}
+
+func (g Grind) hasher(s *series.Series) hash.NewHasher {
+	if g.New != nil {
+		return g.New
+	}
+	return hash.GrinderFor(s.Params().HashID)
+}
+
+// BuildEntryWith is BuildEntry searching as g says.
+func (e *Engine) BuildEntryWith(ctx context.Context, k PoolKey, maxTries uint64, g Grind) (*entry.Entry, error) {
 	e.mu.Lock()
 	p, err := e.pool(k)
 	if err != nil {
@@ -526,7 +549,7 @@ func (e *Engine) BuildEntry(ctx context.Context, k PoolKey, maxTries uint64) (*e
 	parent, _, _ := p.ledger.Tip()
 	s := p.s
 	e.mu.Unlock()
-	en, h, err := entry.BuildContext(ctx, s, parent, txs, maxTries)
+	en, h, err := entry.BuildWith(ctx, g.hasher(s), s, parent, txs, maxTries, g.Workers, g.Tried)
 	if err != nil {
 		return nil, err
 	}
@@ -553,22 +576,32 @@ func (e *Engine) Work(k PoolKey, entryHash hash.Hash, start, tries uint64) (laye
 // GrindLayer finds the layer Work would add but does not take it in. The
 // grinding runs without the engine's lock.
 func (e *Engine) GrindLayer(k PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, error) {
+	if tries == 0 {
+		return layer.Layer{}, ErrNoStrongerLayer
+	}
+	return e.GrindLayerWith(context.Background(), k, entryHash, start, tries, Grind{})
+}
+
+// GrindLayerWith is GrindLayer searching as g says. tries 0 grinds until
+// ctx is done. When ctx ends the search early, the strongest layer found
+// so far is returned without error, so a search bounded by time (a
+// deadline on ctx) or stopped by its user keeps its work; only when no
+// nonce was tried is it ErrNoStrongerLayer.
+func (e *Engine) GrindLayerWith(ctx context.Context, k PoolKey, entryHash hash.Hash, start, tries uint64, g Grind) (layer.Layer, error) {
 	e.mu.Lock()
 	p, err := e.pool(k)
 	if err != nil {
 		e.mu.Unlock()
 		return layer.Layer{}, err
 	}
-	id := p.s.Params().HashID
+	s := p.s
 	held := p.ledger.Has(entryHash)
 	e.mu.Unlock()
 	if !held {
 		return layer.Layer{}, ledger.ErrUnknownEntry
 	}
-	// One worker, as before; M11 decides how many cores grinding takes
-	// (ORANGE-007).
-	l, strength, err := layer.GrindHash(id, entryHash, start, tries, 1)
-	if err != nil {
+	l, strength, err := layer.GrindWith(ctx, g.hasher(s), entryHash, start, tries, g.Workers, g.Tried)
+	if err != nil && ctx.Err() == nil {
 		return l, err
 	}
 	if strength < 0 {

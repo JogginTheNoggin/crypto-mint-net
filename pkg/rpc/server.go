@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/watch"
@@ -37,6 +38,8 @@ type ServeConfig struct {
 	Hub *watch.Hub
 	// Reload makes the node apply its node policy again.
 	Reload func()
+	// Grind runs the node's grind jobs (/v1/grind).
+	Grind *grind.Manager
 }
 
 // ShutdownTimeout is how long a stopping interface waits for requests
@@ -73,6 +76,7 @@ func ServeWith(ctx context.Context, n *node.Node, cfg ServeConfig, ready func(ad
 	handler.SetHost(cfg.Host)
 	handler.SetHub(cfg.Hub)
 	handler.SetReload(cfg.Reload)
+	handler.SetGrind(cfg.Grind)
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,

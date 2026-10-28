@@ -6,6 +6,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/filter"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
@@ -47,6 +48,8 @@ type Event struct {
 	// Missed: for missed, the stream's own notice that this many events
 	// were dropped because the reader fell behind.
 	Missed uint64 `json:"missed,omitempty"`
+	// Grind: for grind, what a grind job did.
+	Grind *grind.Event `json:"grind,omitempty"`
 }
 
 // EventEntry describes an entry in an event.
@@ -163,6 +166,19 @@ func (h *Hub) Close() {
 	for _, s := range subs {
 		s.Close()
 	}
+}
+
+// PublishGrind sends a grind job's event to the subscribers whose filter
+// selects it: by kind, and by series and pool when the event names a pool
+// (job-wide events, such as a job's end, name none and pass any series or
+// pool filter only when it is empty). It never blocks.
+func (h *Hub) PublishGrind(ev grind.Event) {
+	if !h.active() {
+		return
+	}
+	e := Event{Time: time.Now().UTC(), Kind: filter.KindGrind, Series: ev.Series, Pool: ev.Pool, Grind: &ev}
+	sub := filter.Subject{Kind: filter.KindGrind, Series: ev.Series, Pool: ev.Pool, HasPool: ev.Series != (hash.Hash{})}
+	h.deliver([]sized{{e, sub}})
 }
 
 func (h *Hub) active() bool {

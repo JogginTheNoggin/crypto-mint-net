@@ -46,6 +46,20 @@ func TestValidate(t *testing.T) {
 		{"p2p bad address", func(p *nodepolicy.Policy) { p.P2P.Listen = "nonsense" }, false},
 		{"p2p peers", func(p *nodepolicy.Policy) { p.P2P.Peers = []string{"example.org:8646", "[::1]:1"} }, true},
 		{"p2p bad peer", func(p *nodepolicy.Policy) { p.P2P.Peers = []string{"example.org"} }, false},
+		{"grind auto", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{Device: "auto", Jobs: []nodepolicy.GrindJob{{Target: "tip", Hours: "22-06"}, {Target: "pending", Series: &id}, {Target: id.String(), UntilFrom: "1000"}}}
+		}, true},
+		{"grind bad target", func(p *nodepolicy.Policy) { p.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tips"}}} }, false},
+		{"grind bad hours", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tip", Hours: "25-1"}}}
+		}, false},
+		{"grind until on tip", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tip", UntilFrom: "5"}}}
+		}, false},
+		{"grind threads", func(p *nodepolicy.Policy) { p.Grind = &nodepolicy.Grind{Threads: -1} }, false},
+		{"grind too many", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{Jobs: make([]nodepolicy.GrindJob, nodepolicy.MaxGrindJobs+1)}
+		}, false},
 		{"p2p negative", func(p *nodepolicy.Policy) { p.P2P.MaxPeers = -1 }, false},
 		{"p2p never check", func(p *nodepolicy.Policy) { p.P2P.CheckSeconds = -1 }, true},
 		{"p2p check too low", func(p *nodepolicy.Policy) { p.P2P.CheckSeconds = -2 }, false},

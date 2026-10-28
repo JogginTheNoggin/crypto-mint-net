@@ -43,10 +43,13 @@ const (
 	KindReverted Kind = "reverted"
 	// KindDropped: a pending transaction was dropped as no longer valid.
 	KindDropped Kind = "dropped"
+	// KindGrind: a grind job started, made progress, found a layer or an
+	// entry, waited or ended (package grind).
+	KindGrind Kind = "grind"
 )
 
 // Kinds lists every kind, in a fixed order.
-var Kinds = []Kind{KindTx, KindEntry, KindLayer, KindSwitch, KindSelected, KindReverted, KindDropped}
+var Kinds = []Kind{KindTx, KindEntry, KindLayer, KindSwitch, KindSelected, KindReverted, KindDropped, KindGrind}
 
 // ErrBad is returned for a filter that cannot be read.
 var ErrBad = errors.New("filter: bad filter")

@@ -11,9 +11,12 @@
 package layer
 
 import (
+	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -102,11 +105,33 @@ func GrindTo(h hash.Func, entry hash.Hash, start uint64, min int, maxTries uint6
 // (ORANGE-006), and splits the nonces between workers goroutines, each
 // on its own range, when workers is above 1 (ORANGE-007).
 func GrindHash(id hash.ID, entry hash.Hash, start, tries uint64, workers int) (Layer, int, error) {
+	if tries == 0 {
+		return Layer{Entry: entry, Nonce: start}, -1, nil
+	}
+	return GrindWith(context.Background(), hash.GrinderFor(id), entry, start, tries, workers, nil)
+}
+
+// checkEvery is how many nonces a worker tries between looks at its
+// context and additions to the try counter.
+const checkEvery = 1 << 12
+
+// GrindWith is GrindHash with any hasher (package grind chooses one per
+// device and hash, decision D109), a context and a counter. tries 0 means
+// no limit: the search runs until ctx is done. It adds the nonces tried
+// to tried, if not nil, as it goes, so a caller can report a rate. When
+// ctx ends the search early it returns the strongest layer found so far
+// (strength -1 if none) with ctx's error; with every nonce tried the
+// result is GrindHash's, whatever the number of workers.
+func GrindWith(ctx context.Context, newHasher hash.NewHasher, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64) (Layer, int, error) {
 	if workers < 1 {
 		workers = 1
 	}
-	if uint64(workers) > tries {
-		workers = int(max(tries, 1))
+	span := tries
+	if tries == 0 {
+		span = ^uint64(0) - start // as many as there are
+	}
+	if uint64(workers) > span {
+		workers = int(max(span, 1))
 	}
 	type result struct {
 		l   Layer
@@ -114,29 +139,40 @@ func GrindHash(id hash.ID, entry hash.Hash, start, tries uint64, workers int) (L
 		err error
 	}
 	res := make([]result, workers)
-	per := tries / uint64(workers)
+	per := span / uint64(workers)
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		from := start + uint64(w)*per
 		n := per
 		if w == workers-1 {
-			n = tries - uint64(w)*per
+			n = span - uint64(w)*per
 		}
 		wg.Add(1)
 		go func(w int, from, n uint64) {
 			defer wg.Done()
-			g, err := hash.NewGrinder(id, entry[:])
+			g, err := newHasher(entry[:])
 			if err != nil {
-				res[w].err = err
+				res[w] = result{err: err, s: -1}
 				return
 			}
 			best, bestStrength := Layer{Entry: entry, Nonce: from}, -1
 			var buf [8]byte
-			for i := uint64(0); i < n; i++ {
-				nonce := from + i
-				binary.BigEndian.PutUint64(buf[:], nonce)
-				if s := g.Hash(buf[:]).Strength(); s > bestStrength {
-					best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s
+			for done := uint64(0); done < n; {
+				chunk := min(n-done, checkEvery)
+				for i := uint64(0); i < chunk; i++ {
+					nonce := from + done + i
+					binary.BigEndian.PutUint64(buf[:], nonce)
+					if s := g.Hash(buf[:]).Strength(); s > bestStrength {
+						best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s
+					}
+				}
+				done += chunk
+				if tried != nil {
+					tried.Add(chunk)
+				}
+				if err := ctx.Err(); err != nil {
+					res[w] = result{best, bestStrength, err}
+					return
 				}
 			}
 			res[w] = result{best, bestStrength, nil}
@@ -145,14 +181,18 @@ func GrindHash(id hash.ID, entry hash.Hash, start, tries uint64, workers int) (L
 	wg.Wait()
 	// Ranges are in nonce order, so keeping the first of equal strengths
 	// keeps the lowest nonce, as Grind does.
-	best := res[0]
+	best := result{l: Layer{Entry: entry, Nonce: start}, s: -1}
+	var stopped error
 	for _, r := range res {
-		if r.err != nil {
+		if r.err != nil && !errors.Is(r.err, ctx.Err()) {
 			return Layer{}, -1, r.err
+		}
+		if r.err != nil {
+			stopped = r.err
 		}
 		if r.s > best.s {
 			best = r
 		}
 	}
-	return best.l, best.s, nil
+	return best.l, best.s, stopped
 }

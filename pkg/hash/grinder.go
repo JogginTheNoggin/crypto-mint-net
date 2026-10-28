@@ -84,3 +84,18 @@ func (g *Grinder) Hash(suffix []byte) Hash {
 	g.d.Sum(g.out[:0])
 	return Hash(g.out)
 }
+
+// Hasher hashes the prefix it was made with followed by a suffix, as a
+// Grinder does. A grinder for other hardware (package grind) provides
+// its own; the search loops in packages entry and layer take any.
+type Hasher interface {
+	Hash(suffix []byte) Hash
+}
+
+// NewHasher makes a Hasher for a prefix. Each search worker makes its own.
+type NewHasher func(prefix ...[]byte) (Hasher, error)
+
+// GrinderFor returns the NewHasher that makes Grinders for id.
+func GrinderFor(id ID) NewHasher {
+	return func(prefix ...[]byte) (Hasher, error) { return NewGrinder(id, prefix...) }
+}

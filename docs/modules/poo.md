@@ -26,11 +26,17 @@ without a wallet. See
 | `poo tracking [ADDR]` | Every tracked address's status and the blocked ranges, or one address's whole record |
 | `poo chases` | The chase queue: heavier stated weights waiting or being checked |
 | `poo status` | Every followed pool and the replay stats; `poo pools` shows the same per pool, with filters |
-| `poo doctor [-json]` | Checks the node's setup (policy, file permissions, series, the local RPC, peers) and prints ok, warn, fail or skip for each, with the fix; read-only and local only; exits 1 if a check fails |
+| `poo doctor [-json \| -o json\|table]` | Checks the node's setup (policy, file permissions, series, grinding devices, the local RPC, peers) and prints ok, warn, fail or skip for each, with the fix; `fix_args` gives the fix as a command line when it is one command (GREEN-022); read-only and local only; exits 1 if a check fails |
 | `poo claim -seed-file FILE -serial N` | Claims a whole mint for the key's 1-of-1 address; the seed comes from `POO_SEED` or the file (`-` for standard input), never an argument (D98) |
 | `poo pay -seed-file FILE -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |
-| `poo build -pool K \| -serial N [-work N] [-max-tries N]` | Builds an entry from the pending transactions, optionally adding a layer; `-serial` picks the pool holding that mint; `-max-tries` bounds the nonces tried when the series sets a minimum entry strength |
-| `poo work -pool K \| -serial N [-entry HASH] [-start S] [-tries N]` | Adds the strongest layer found (default target: the selected tip); `-serial` as for build |
+| `poo build -pool K \| -serial N [-work N] [-max-tries N] [-device D] [-threads N] [-for 30s]` | Builds an entry from the pending transactions, optionally adding a layer; `-serial` picks the pool holding that mint; `-max-tries` bounds the nonces tried when the series sets a minimum entry strength, `-for` bounds the time instead (up to 4m). The reply's `grind` says the device, grinder, threads, fallback and why, and the tries and rate ([grind.md](grind.md)) |
+| `poo work -pool K \| -serial N [-entry HASH] [-start S] [-tries N \| -for 30s] [-device D] [-threads N]` | Adds the strongest layer found (default target: the selected tip); `-serial` as for build; with `-for`, as many nonces as fit in that time |
+| `poo grind devices [-o FORMAT]` | The devices (asked of the running node, else detected here: `local`), their features, the hashes each grinds fast and those `auto` picks it for |
+| `poo grind bench [-series ID] [-device D] [-threads N] [-seconds S] [-o FORMAT]` | Tries a second on each device for the series' hash, or for every hash; local |
+| `poo grind start TARGET [JOB FLAGS]` | Starts a job in the running node and prints it. TARGET is `tip`, `pending` or an entry hash; JOB FLAGS: `-series` `-pool` `-serial` `-device` `-threads` `-for` `-until-from W` (an entry's from(e) goal) `-hours 22-06` |
+| `poo grind run TARGET [JOB FLAGS]` | Starts a job and follows it: one JSON line per event (`start` with the plan, `progress` with the rate, `found`, `waiting`, `end`) until it ends; an interrupt stops the job, prints an `end` line and exits 0 |
+| `poo grind jobs [-o FORMAT]` | The node's jobs, running and recently ended, with their plans, tries, rate, layers and entries |
+| `poo grind stop ID \| -all` | Stops a job, or every job, keeping what it found |
 | `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it. The older form of `poo tx -in-serial N TID`, kept for scripts |
 | `poo holdings -serial N` | Unspent portions of a mint. The older form of `poo unspent -serial N`, kept for scripts |
 | `poo pools [filter]` | The followed pools the filter covers |

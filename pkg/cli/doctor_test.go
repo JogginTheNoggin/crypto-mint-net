@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 )
 
 // results maps each check's name to its result.
@@ -31,6 +33,15 @@ func wantResults(t *testing.T, r DoctorReport, want map[string]string) {
 			t.Errorf("%s: %s, want %s\n%+v", n, got[n], w, r.Checks)
 		}
 	}
+}
+
+func checkNamed(r DoctorReport, name string) Check {
+	for _, c := range r.Checks {
+		if c.Name == name {
+			return c
+		}
+	}
+	return Check{}
 }
 
 func TestDoctorNoPolicy(t *testing.T) {
@@ -59,7 +70,10 @@ func TestDoctorStoppedNode(t *testing.T) {
 	if !r.OK {
 		t.Fatalf("a stopped node is a warning, not a failure: %+v", r.Checks)
 	}
-	wantResults(t, r, map[string]string{"policy": checkOK, "files": checkOK, "series": checkOK, "rpc": checkWarn, "p2p": checkSkip})
+	wantResults(t, r, map[string]string{"policy": checkOK, "files": checkOK, "series": checkOK, "grind": checkOK, "rpc": checkWarn, "p2p": checkSkip})
+	if c := checkNamed(r, "rpc"); len(c.FixArgs) != 1 || c.FixArgs[0] != "node" {
+		t.Errorf("rpc fix_args %+v", c)
+	}
 
 	// A leftover rpc.addr from a crash: nothing answers there.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -72,8 +86,8 @@ func TestDoctorStoppedNode(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "rpc.token"), []byte(strings.Repeat("ab", 32)+"\n"), 0o600)
 	r = doctor(io.Discard, dir)
 	wantResults(t, r, map[string]string{"rpc": checkFail})
-	if !strings.Contains(r.Checks[3].Detail, "left over") {
-		t.Errorf("stale rpc.addr: %+v", r.Checks[3])
+	if c := checkNamed(r, "rpc"); !strings.Contains(c.Detail, "left over") {
+		t.Errorf("stale rpc.addr: %+v", c)
 	}
 
 	if runtime.GOOS != "windows" {
@@ -110,7 +124,7 @@ func TestDoctorRunningNode(t *testing.T) {
 	}
 	// p2p listens, but no peers or registries are set: a warning.
 	wantResults(t, r, map[string]string{"policy": checkOK, "rpc": checkOK, "p2p": checkWarn})
-	if d := r.Checks[4].Detail; !strings.Contains(d, "accepting on") {
+	if d := checkNamed(r, "p2p").Detail; !strings.Contains(d, "accepting on") {
 		t.Errorf("p2p detail %q", d)
 	}
 
@@ -119,4 +133,48 @@ func TestDoctorRunningNode(t *testing.T) {
 	if err := run([]string{"doctor", "-dir", dir}, &b); err != nil || !strings.Contains(b.String(), "ok    rpc") {
 		t.Fatalf("doctor text: %v\n%s", err, b.String())
 	}
+}
+
+// TestDoctorOutputAndGrind: -o json is -json, -o table works, fix_args
+// names the fix's command, and a grind device that is not there fails.
+func TestDoctorOutputAndGrind(t *testing.T) {
+	var j1, j2 DoctorReport
+	dir := t.TempDir()
+	os.Chmod(dir, 0o700)
+	_ = run([]string{"doctor", "-json", "-dir", dir}, jsonInto(t, &j1))
+	_ = run([]string{"doctor", "-o", "json", "-dir", dir}, jsonInto(t, &j2))
+	if len(j1.Checks) == 0 || len(j1.Checks) != len(j2.Checks) || len(j1.Checks[0].FixArgs) != 1 || j1.Checks[0].FixArgs[0] != "init" {
+		t.Fatalf("-json %+v, -o json %+v", j1, j2)
+	}
+	var tb bytes.Buffer
+	_ = run([]string{"doctor", "-o", "table", "-dir", dir}, &tb)
+	if !strings.Contains(tb.String(), "policy") || strings.HasPrefix(strings.TrimSpace(tb.String()), "{") {
+		t.Fatalf("table:\n%s", tb.String())
+	}
+	if err := run([]string{"doctor", "-o", "yaml", "-dir", dir}, &tb); err == nil {
+		t.Fatal("-o yaml accepted")
+	}
+	cli(t, nil, "init", "-example", "-dir", dir, "-p2p", "off")
+	p, err := nodepolicy.Load(filepath.Join(dir, nodepolicy.FileName))
+	must(t, err)
+	p.Grind = &nodepolicy.Grind{Device: "gpu:42"}
+	must(t, nodepolicy.Save(filepath.Join(dir, nodepolicy.FileName), p))
+	if c := checkNamed(doctor(io.Discard, dir), "grind"); c.Result != checkFail || !strings.Contains(c.Fix, "cpu") {
+		t.Fatalf("grind check %+v", c)
+	}
+}
+
+// jsonInto is a writer that decodes what is written into v at the end.
+func jsonInto(t *testing.T, v any) *jsonWriter { return &jsonWriter{t: t, v: v} }
+
+type jsonWriter struct {
+	t *testing.T
+	v any
+}
+
+func (w *jsonWriter) Write(p []byte) (int, error) {
+	if err := json.Unmarshal(p, w.v); err != nil {
+		w.t.Fatalf("%v: %s", err, p)
+	}
+	return len(p), nil
 }

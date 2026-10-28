@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted with changes |
 | Based on | `claude/m10-watch` @ `0ac8e4e` |
 | Area | M11: a new `pkg/grind`, `poo grind`, `/v1/grind/*`, the node policy, `watch`, `metrics`, `doctor` |
 | Effort | medium (the commands; the grinders themselves are Grey's M11) |
-| Decided by | |
+| Decided by | Grey, Source Round 5: built as M11 (D109); `poo grind run` added (start and follow), `bench` runs locally, and `-for` on build and work is capped at 4 minutes (longer work is a job) |
 
 ## Summary
 

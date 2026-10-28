@@ -32,8 +32,14 @@ only watch the node (GREEN-007).
 | `POST /tx` | `{tx}` | `{series, pool, tid, forward}` |
 | `POST /entry` | `{series, pool, entry}` | `{hash, switched, pruned, dropped}` |
 | `POST /layer` | `{series, pool, layer}` | `{hash, strength, switched}` |
-| `POST /build` | `{series, pool, max_tries}` | the entry reply plus `entry` bytes; `max_tries` at most `MaxBuildTries` (2^24), 0 meaning that; the search holds no lock and stops if the client goes away (D99) |
-| `POST /work` | `{series, pool, entry, start, tries}` | the layer reply plus `layer` bytes |
+| `POST /build` | `{series, pool, max_tries, device, threads, for}` | the entry reply plus `entry` bytes and `grind` (the plan, tries, seconds, rate); `max_tries` at most `MaxBuildTries` (2^24), 0 meaning that unless `for` (up to `MaxGrindFor`, 4m) bounds the time; the search holds no lock and stops if the client goes away (D99) |
+| `POST /work` | `{series, pool, entry, start, tries, device, threads, for}` | the layer reply plus `layer` bytes and `grind`; `tries` 1 to 2^24, or 0 with `for` |
+| `GET /grind/devices` | | `{devices}`: what the node grinds on ([grind.md](grind.md)) |
+| `GET /grind` | | every grind job, running and recently ended |
+| `POST /grind` | a `grind.Spec`: `{target, series, pools, device, threads, for, until_from, hours}` | the job; 503 `full` at 16 jobs, 400 for a bad spec |
+| `GET /grind/{id}` | | one job |
+| `DELETE /grind/{id}` | | stops it; the job as it ended |
+| `DELETE /grind` | `?source=user` (optional) | stops every job (or only those made over the RPC) |
 | `GET /payment` | `series, serial, tid` | `{pending, selected, entry, from, tx, rivals: [{tip, fork, entry, conflict, after}]}`: `tx` is the transaction's bytes in hex when the node holds it; each rival is an entry on an inactive branch holding a transaction that spends one of its inputs, with the branch's weight after its fork |
 | `GET /holdings` | `series, serial` | `[{tid, index, address, amount}]` |
 | `GET /peers` | | `{node_id, listen, peers: [{id, addr, key, outbound, agent, listen, coverage, categories: {policy: {category, points, partial}}, since, sent, received}], book: [{addr, source, added, last_tried, failures, policies: [{section, state, last_heard}]}]}` |
@@ -64,7 +70,8 @@ when the node follows exactly one series. Reply shapes are in
 | `GET /metrics` | | What `/status` and `/peers` report, in Prometheus text format 0.0.4 (`poo_pool_height`, `poo_pool_weight` as a float, `poo_pool_pending`, `poo_peers_connected`, …); a scraper sends the token as a bearer token (GREEN-002) |
 
 A reload restarts the interface: `rpc.addr` is written again and the next
-call should `Dial` afresh. `/watch` replies `not_found` without a hub,
+call should `Dial` afresh. `/watch` replies `not_found` without a hub, the grind jobs without a
+grind manager (build and work still grind, and `/grind/devices` answers),
 and `/reload` and a reloading `/follow` without a reload function (an
 interface served by `Serve` rather than `pkg/daemon`).
 
@@ -87,20 +94,26 @@ strings. Errors are `{"error", "code"}` with codes `bad_request`,
   view token), and one method per
   endpoint (`Tracking`, `TrackingOf`, `Chases`, `Peer` for the new ones).
   Errors from the node are `*rpc.Error`.
-- `ServeWith(ctx, node, ServeConfig{Host, Hub, Reload}, ready)` is what
+- `ServeWith(ctx, node, ServeConfig{Host, Hub, Reload, Grind}, ready)` is what
   `pkg/daemon` uses; it closes the hub before shutting down so watch
   streams end cleanly. `SetHub` and `SetReload` do the same on a handler.
 - Client view methods: `Pools`, `Ledger`, `Pending`, `Unspent`, `Tx`,
   `Address`, `Follows`, `Follow`, `Reload`, and `Watch(ctx, f, fn)`,
   which calls fn for each line until the stream ends.
+- Grinding: `BuildWith`, `WorkWith` (with `GrindOptions{Device, Threads,
+  For}`), `GrindDevices`, `GrindJobs`, `GrindJob`, `GrindStart`,
+  `GrindStop`, `GrindStopAll`; `SetGrind(manager)` on a handler.
+  `ErrNotRunning` wraps a `Dial` with no node.
 - `manage.go` holds the tracking, chase and peer endpoints; `view.go`
-  the views, watch, follow and reload.
+  the views, watch, follow and reload; `grind.go` grinding.
 
 ## Notes
 
 Submitted items are taken in as `Pushed` (a wallet is an unlisted node);
-build and work are `Local`. A work request holds the node while it grinds,
-so it is capped at 2^24 nonces.
+build and work are `Local`. A work request holds its connection while it
+grinds, so it is capped at 2^24 nonces or 4 minutes; longer work is a
+grind job. `/metrics` adds `poo_grind_tries_total{device,hash}` and
+`poo_grind_jobs{state}` when the node runs jobs.
 
 ## Wallets
 

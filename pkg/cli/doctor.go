@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
@@ -35,6 +36,9 @@ type Check struct {
 	Result string `json:"result"`
 	Detail string `json:"detail"`
 	Fix    string `json:"fix,omitempty"`
+	// FixArgs is the fix as a poo command line, when the fix is one
+	// command, so a front end can offer to run exactly that (GREEN-022).
+	FixArgs []string `json:"fix_args,omitempty"`
 }
 
 // DoctorReport is what poo doctor -json prints.
@@ -47,13 +51,24 @@ type DoctorReport struct {
 func doctorCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("doctor", out)
 	w := addWhere(fs)
-	asJSON := fs.Bool("json", false, "print the report as JSON")
+	asJSON := fs.Bool("json", false, "print the report as JSON (the same as -o json)")
+	format := fs.String("o", "", "output: json, or table; default: the readable report")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	switch *format {
+	case "", "json", "table":
+	default:
+		return fmt.Errorf("-o must be json or table, not %q", *format)
+	}
 	rep := doctor(out, w.resolve())
-	if *asJSON {
-		if err := writeJSON(out, rep); err != nil {
+	if *asJSON || *format != "" {
+		f := *format
+		if *asJSON {
+			f = "json"
+		}
+		wide := false
+		if err := (&outputFlags{format: &f, wide: &wide}).write(out, rep); err != nil {
 			return err
 		}
 	} else {
@@ -93,12 +108,12 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		add(Check{Name: "policy", Result: checkFail, Detail: "no node policy at " + path,
-			Fix: "poo init (or poo init -example to try the worked example), or pick one with -policy or -dir"})
-		skipRest("files", "series", "rpc", "p2p")
+			Fix: "poo init (or poo init -example to try the worked example), or pick one with -policy or -dir", FixArgs: []string{"init"}})
+		skipRest("files", "series", "grind", "rpc", "p2p")
 		return rep
 	case err != nil:
 		add(Check{Name: "policy", Result: checkFail, Detail: err.Error(), Fix: "correct " + path + "; poo node refuses it as it is"})
-		skipRest("files", "series", "rpc", "p2p")
+		skipRest("files", "series", "grind", "rpc", "p2p")
 		return rep
 	}
 	add(Check{Name: "policy", Result: checkOK, Detail: fmt.Sprintf("%s parses and validates (series: %d, follow rules: %d)", path, len(p.Series), len(p.Follow))})
@@ -123,7 +138,10 @@ func doctor(out io.Writer, dir string) DoctorReport {
 		add(Check{Name: "series", Result: checkOK, Detail: fmt.Sprintf("%d accepted", len(accepted))})
 	}
 
-	// 4. The local RPC, and through it the running node.
+	// 4. Grinding: the devices, and the grind section's.
+	add(grindCheck(p, accepted))
+
+	// 5. The local RPC, and through it the running node.
 	if p.ListenAddr() == "" {
 		add(Check{Name: "rpc", Result: checkSkip, Detail: "rpc.listen is off in the policy, so no command can reach the node"})
 		skipRest("p2p")
@@ -136,9 +154,50 @@ func doctor(out io.Writer, dir string) DoctorReport {
 		return rep
 	}
 
-	// 5. Peers.
+	// 6. Peers.
 	add(p2pCheck(out, dir, p))
 	return rep
+}
+
+// grindCheck reports the devices this machine grinds on, a device the
+// grind section names that is not there, and a hash of the followed
+// series that only the generic grinder can grind (package grind, M11).
+func grindCheck(p nodepolicy.Policy, accepted []nodepolicy.Accepted) Check {
+	devs := grind.Default.Detect()
+	want := ""
+	if p.Grind != nil {
+		want = p.Grind.Device
+		for _, j := range p.Grind.Jobs {
+			if j.Device != "" && j.Device != grind.Auto && want == "" {
+				want = j.Device
+			}
+		}
+	}
+	ids := make([]string, len(devs))
+	for i, d := range devs {
+		ids[i] = d.ID
+	}
+	var slow []string
+	for _, a := range accepted {
+		id := a.Series.Params().HashID
+		pl, err := grind.Default.Choose(devs, id, want, 0)
+		if err != nil {
+			return Check{Name: "grind", Result: checkFail, Detail: err.Error(),
+				Fix: "set grind.device in the policy to auto or one of: " + strings.Join(ids, ", ")}
+		}
+		if pl.Fallback {
+			slow = append(slow, pl.Reason)
+		}
+	}
+	if len(slow) > 0 {
+		return Check{Name: "grind", Result: checkWarn, Detail: strings.Join(slow, "; "),
+			Fix: "grinding works but slower; poo grind bench shows how fast"}
+	}
+	jobs := 0
+	if p.Grind != nil {
+		jobs = len(p.Grind.Jobs)
+	}
+	return Check{Name: "grind", Result: checkOK, Detail: fmt.Sprintf("devices: %s; jobs in the policy: %d", strings.Join(ids, ", "), jobs)}
 }
 
 // filesCheck reports a data directory or token others can read.
@@ -167,7 +226,7 @@ func filesCheck(dir string) Check {
 func rpcCheck(out io.Writer, dir string) (Check, bool) {
 	addrPath := filepath.Join(dir, rpc.AddrFile)
 	if _, err := os.Stat(addrPath); errors.Is(err, fs.ErrNotExist) {
-		return Check{Name: "rpc", Result: checkWarn, Detail: "the node is not running (no " + rpc.AddrFile + ")", Fix: "poo node"}, false
+		return Check{Name: "rpc", Result: checkWarn, Detail: "the node is not running (no " + rpc.AddrFile + ")", Fix: "poo node", FixArgs: []string{"node"}}, false
 	}
 	cl, err := dialNode(out, dir)
 	if err != nil {

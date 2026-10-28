@@ -1517,3 +1517,51 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   node, keeps the other pools running; the lost tail is held by peers and
   fetched again.
 - **Tier:** Implementation.
+
+### D109. Grinders: devices, a registry per hash, plans and jobs
+
+- **Decision:** Hash work goes through `pkg/grind` (M11). A `Registry`
+  holds device probes and grinders keyed by kind of device and hash ID; a
+  grinder for hash 0 is generic and grinds any hash. `Choose` makes a
+  `Plan` for a hash on a named device, or on `auto`, which prefers a
+  device other than the CPU with a fast grinder for the hash, then the
+  CPU's fast grinder, then a generic one (`fallback`), and says why.
+  Threads default to every logical core but one and are capped at the
+  device's. The search loops of `pkg/entry` and `pkg/layer` take any
+  `hash.NewHasher`, a ctx and a tries counter through `engine.Grind`, and
+  find what the one-goroutine search finds. A `Manager` in the daemon runs
+  jobs on a target (`tip`, `pending` or an entry hash), never a hash: the
+  target's series gives the hash. `tip` uses the selected tip, or the
+  best branch while none is selected. Jobs work in 2-second slices from a
+  random nonce and may be limited by `for`, `hours` and `until_from`;
+  at most 16 run at once and the last 32 ended are kept. Jobs come from
+  `poo grind`, `/v1/grind` or `node.json`'s `grind` section. A build or
+  work request may grind for at most 4 minutes (`MaxGrindFor`, under the
+  client's timeout); longer work is a job. Starting and stopping jobs are
+  writes, which the view token cannot do.
+- **Why:** The owner asked (2026-10-28) for fast grinding that detects the
+  hardware, lets the user pick or leave it on auto, assigns work by hand,
+  on a schedule or automatically to specific pools and entries, picks up
+  the series' hash by itself, and has one modular grinder per hash type.
+  A registry keyed by kind and hash makes a GPU or a new hash one
+  `Register` call; the generic grinder means a hash added to `pkg/hash`
+  can be ground at once. Leaving one core free keeps the node responsive
+  to peers and the RPC. GREEN-016, ORANGE-006, ORANGE-007.
+- **Tier:** Implementation. No consensus change: a grinder only finds
+  nonces faster.
+
+### D110. Front ends get secret output, error codes and doctor fixes from pkg/cli
+
+- **Decision:** `cli.SecretOutput(args)` says whether a command line
+  prints a secret (`keygen`, `wallet seed`), beside `SecretFlags`.
+  `cli.ErrorCode(err)` maps an error to a stable code: the node's own
+  `rpc.Code*`, or `no_node` (wrapped `rpc.ErrNotRunning`, which `Dial` now
+  returns, or a refused dial), `view_only` (`cli.ErrViewOnly`), `no_input`
+  or `error`. `poo doctor` takes `-o json|table` (`-json` stays), and a
+  failed check carries `fix_args`, the `poo` arguments that fix it. An
+  interrupted `poo grind run` stops its job, prints an `end` line and
+  exits 0.
+- **Why:** The GUI must treat secrets and errors exactly as `poo` does
+  without copying lists or matching messages (GUI-009, GREEN-021,
+  GREEN-022, the owner's rule that the two never diverge).
+- **Tier:** Implementation.

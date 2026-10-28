@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
 
 // Format is the version of the node.json layout this code reads.
@@ -82,6 +84,98 @@ type Policy struct {
 	Tracking Tracking `json:"tracking,omitempty"`
 	// Log chooses how much the node logs and in which form (GREEN-006).
 	Log *Log `json:"log,omitempty"`
+	// Grind says how the node grinds and which jobs it runs by itself
+	// (package grind, M11).
+	Grind *Grind `json:"grind,omitempty"`
+}
+
+// Grind configures the node's grinding (package grind, decision D109).
+type Grind struct {
+	// Device is the device grinding uses unless a job names one: "auto"
+	// (the default) or an id from poo grind devices ("cpu", "gpu:0").
+	Device string `json:"device,omitempty"`
+	// Threads is how many threads a search takes (0: the device's
+	// default, every CPU core but one).
+	Threads int `json:"threads,omitempty"`
+	// Jobs start when the node starts and run until it stops: automatic
+	// work, or scheduled with hours.
+	Jobs []GrindJob `json:"jobs,omitempty"`
+}
+
+// GrindJob is a job the node runs by itself (grind.Spec).
+type GrindJob struct {
+	// Target is "tip" (layers on the selected tip), "pending" (entries
+	// from pending transactions) or an entry hash.
+	Target string     `json:"target"`
+	Series *hash.Hash `json:"series,omitempty"`
+	Pools  []uint64   `json:"pools,omitempty"`
+	Device string     `json:"device,omitempty"`
+	// Threads 0 takes the section's.
+	Threads int `json:"threads,omitempty"`
+	// Hours is a window of the node's local hours, "22-06".
+	Hours string `json:"hours,omitempty"`
+	// UntilFrom ends a job on one entry once from(e) reaches it.
+	UntilFrom string `json:"until_from,omitempty"`
+}
+
+// MaxGrindJobs bounds the jobs a node policy may list.
+const MaxGrindJobs = 16
+
+// MaxGrindThreads bounds the threads a grind setting may ask for.
+const MaxGrindThreads = 1024
+
+// ParseHours reads a window "FROM-TO" of whole local hours, 0 to 23; TO
+// may be below FROM, for a window across midnight. "" is every hour.
+func ParseHours(s string) (from, to int, err error) {
+	if s == "" {
+		return 0, 0, nil
+	}
+	a, b, ok := strings.Cut(s, "-")
+	from, e1 := strconv.Atoi(strings.TrimSpace(a))
+	to, e2 := strconv.Atoi(strings.TrimSpace(b))
+	if !ok || e1 != nil || e2 != nil || from < 0 || from > 23 || to < 0 || to > 23 || from == to {
+		return 0, 0, fmt.Errorf("hours %q: give FROM-TO in whole hours 0 to 23, such as 22-06", s)
+	}
+	return from, to, nil
+}
+
+func (g *Grind) validate() error {
+	if g == nil {
+		return nil
+	}
+	if g.Threads < 0 || g.Threads > MaxGrindThreads {
+		return fmt.Errorf("threads must be 0 to %d", MaxGrindThreads)
+	}
+	if len(g.Jobs) > MaxGrindJobs {
+		return fmt.Errorf("at most %d jobs", MaxGrindJobs)
+	}
+	for i, j := range g.Jobs {
+		entry := false
+		switch j.Target {
+		case "tip", "pending":
+		default:
+			if _, err := hash.Parse(j.Target); err != nil {
+				return fmt.Errorf("job %d: target is tip, pending or an entry hash", i)
+			}
+			entry = true
+		}
+		if j.Threads < 0 || j.Threads > MaxGrindThreads {
+			return fmt.Errorf("job %d: threads must be 0 to %d", i, MaxGrindThreads)
+		}
+		if _, _, err := ParseHours(j.Hours); err != nil {
+			return fmt.Errorf("job %d: %v", i, err)
+		}
+		if j.UntilFrom != "" {
+			if !entry {
+				return fmt.Errorf("job %d: until_from needs an entry as the target", i)
+			}
+			var w weight.Weight
+			if err := w.UnmarshalText([]byte(j.UntilFrom)); err != nil {
+				return fmt.Errorf("job %d: until_from: %v", i, err)
+			}
+		}
+	}
+	return nil
 }
 
 // Tracking is what a node records about its peers and how offences are
@@ -295,6 +389,9 @@ func (p Policy) Validate() error {
 	}
 	if err := logging.Check(p.LogSettings()); err != nil {
 		return fmt.Errorf("%w: log: %v", ErrInvalid, err)
+	}
+	if err := p.Grind.validate(); err != nil {
+		return fmt.Errorf("%w: grind: %v", ErrInvalid, err)
 	}
 	for i, f := range p.Follow {
 		if (f.Issuer == nil) == (f.Series == nil) {

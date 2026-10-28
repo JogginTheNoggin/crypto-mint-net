@@ -82,6 +82,11 @@ fields depend on the kind:
 | `reverted` | A transaction left the selected ledger on a switch | `tid`, `entry` (the entry it was in), `tx` when the node still has it, `void` (true: it can no longer apply; false: it is pending again) |
 | `switch` | The selected ledger moved to another branch | `switch` |
 | `dropped` | A pending transaction became invalid | `tid` |
+| `grind` | A grind job started, made progress, found a layer or entry, waited or ended ([grind.md](grind.md)) | `grind`: `{job, kind (start, progress, found, waiting, end), series, pool, state, reason, plan, tries, rate, layer, entry, strength}`; `weight` is not set |
+
+A `grind` event that names no pool (a job's own start, waiting and end)
+matches only filters without series or pool. `Hub.PublishGrind` sends
+them; the daemon wires the grind manager to it.
 
 A switch produces its `selected` and `reverted` events before the
 `switch` event. An `entry` or `layer` event matches a filter by the

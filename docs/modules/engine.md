@@ -25,7 +25,10 @@ or opens a socket. Calls are safe from multiple goroutines.
   tries)` grinds and adds a layer (`ErrNoStrongerLayer`). `BuildEntry(ctx,
   key, maxTries)` and `GrindLayer` do the search without taking the item
   in, and hold the engine's lock only to read the pool, never while
-  searching (D99).
+  searching (D99). `BuildEntryWith` and `GrindLayerWith(ctx, ...)` take a
+  `Grind{New, Workers, Tried}`: the hasher (package grind picks one per
+  device), the goroutines and a try counter; `GrindLayerWith` with tries
+  0 grinds until ctx ends and keeps the strongest layer found (D109).
 - Reading: `FollowedPools()`, `Pending(key)` (ready pending transactions,
   oldest first), `Status(key)`, `Payment(key, tid)` (pending, in which entry,
   weight added since, selected, the transaction itself, and its rivals on

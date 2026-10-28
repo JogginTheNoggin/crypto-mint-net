@@ -518,13 +518,18 @@ func (n *Node) Build(k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.En
 // done. The search for a nonce holds neither the node's lock nor the
 // engine's, so a long build never stalls peers or the RPC (RED-006).
 func (n *Node) BuildContext(ctx context.Context, k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.EntryResult, error) {
+	return n.BuildWith(ctx, k, maxTries, engine.Grind{})
+}
+
+// BuildWith is BuildContext searching as g says (package grind).
+func (n *Node) BuildWith(ctx context.Context, k engine.PoolKey, maxTries uint64, g engine.Grind) (*entry.Entry, engine.EntryResult, error) {
 	n.mu.Lock()
 	closed := n.closed
 	n.mu.Unlock()
 	if closed {
 		return nil, engine.EntryResult{}, ErrClosed
 	}
-	e, err := n.eng.BuildEntry(ctx, k, maxTries)
+	e, err := n.eng.BuildEntryWith(ctx, k, maxTries, g)
 	if err != nil {
 		return e, engine.EntryResult{Key: k}, err
 	}
@@ -535,6 +540,16 @@ func (n *Node) BuildContext(ctx context.Context, k engine.PoolKey, maxTries uint
 // Work grinds a layer on an entry of pool k (see engine.Engine.Work) and
 // stores it.
 func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, engine.LayerResult, error) {
+	if tries == 0 {
+		return layer.Layer{}, engine.LayerResult{Key: k}, engine.ErrNoStrongerLayer
+	}
+	return n.WorkWith(context.Background(), k, entryHash, start, tries, engine.Grind{})
+}
+
+// WorkWith is Work searching as g says (package grind); tries 0 grinds
+// until ctx is done, and the strongest layer found by then is kept (see
+// engine.Engine.GrindLayerWith).
+func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Hash, start, tries uint64, g engine.Grind) (layer.Layer, engine.LayerResult, error) {
 	n.mu.Lock()
 	closed := n.closed
 	n.mu.Unlock()
@@ -542,7 +557,7 @@ func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) 
 		return layer.Layer{}, engine.LayerResult{}, ErrClosed
 	}
 	// Grinding holds neither lock, so it never stalls peers or the RPC.
-	l, err := n.eng.GrindLayer(k, entryHash, start, tries)
+	l, err := n.eng.GrindLayerWith(ctx, k, entryHash, start, tries, g)
 	if err != nil {
 		return l, engine.LayerResult{Key: k}, err
 	}

@@ -55,6 +55,16 @@ built.
 - **Safer operation:** a reload onto a broken `node.json` is refused and
   the node keeps running (D106); `poo wallet create -restore -` reads
   the seed hidden.
+- **Grinding:** `pkg/grind` detects the CPU (and its hashing features)
+  and GPUs, picks a grinder for the series' hash on a chosen device or
+  auto, and runs jobs in the node on the tip, pending transactions or an
+  entry, by hand, within hours or from `node.json` (D109). `poo grind`
+  (devices, bench, start, run, jobs, stop), `/v1/grind`, watch kind
+  `grind`, and `-device`, `-threads`, `-for` on `poo build` and `poo work`
+  are new; grinding uses every core but one, with the same result.
+- **For front ends:** `poo doctor -o json|table` and a `fix_args` per
+  check, and `cli.ErrorCode` and `cli.SecretOutput` so the GUI handles
+  errors and secret output the way `poo` does (D110).
 - **Library:** the commands are package `pkg/cli`, so the GUI runs the
   same code as `poo` (D84).
 - **Fixed:** a node catching up a heavier ledger one entry at a time could
