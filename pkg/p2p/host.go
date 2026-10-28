@@ -41,6 +41,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sort"
 	"sync"
@@ -49,6 +50,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -186,6 +188,10 @@ type Config struct {
 
 	// Log receives connection events. Nil discards them.
 	Log io.Writer
+	// Logger, if set, is used instead of a plain logger on Log; the
+	// daemon passes the node's (node.Logger), which follows the node
+	// policy's log section.
+	Logger *slog.Logger
 }
 
 // DefaultConfig returns the provisional defaults.
@@ -345,6 +351,7 @@ type Host struct {
 	n   *node.Node
 	cfg Config
 	id  hash.Hash
+	log *slog.Logger
 
 	coverage []wire.Section
 	byPoolID map[hash.Hash]*poolInfo
@@ -408,6 +415,11 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 
 		configured: map[string]bool{},
 	}
+	h.log = cfg.Logger
+	if h.log == nil {
+		h.log, _ = logging.New(cfg.Log, "", "")
+	}
+	h.log = h.log.With(logging.Component, "p2p")
 	if h.book == nil {
 		h.book, _ = peers.Open("", peers.Limits{})
 	}
@@ -478,10 +490,6 @@ func (h *Host) sortedPools() []*poolInfo {
 	return out
 }
 
-func (h *Host) logf(format string, args ...any) {
-	fmt.Fprintf(h.cfg.Log, "p2p: "+format+"\n", args...)
-}
-
 // ID returns this run's random node id.
 func (h *Host) ID() hash.Hash { return h.id }
 
@@ -510,7 +518,7 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 		h.mu.Lock()
 		h.ln = ln
 		h.mu.Unlock()
-		h.logf("listening on %s", ln.Addr())
+		h.log.Info("listening", "addr", ln.Addr().String())
 		h.wg.Add(1)
 		go h.acceptLoop(ln)
 	}
@@ -632,7 +640,7 @@ func (h *Host) dialLoop(ctx context.Context, addr string) {
 		start := time.Now()
 		err := h.dial(ctx, addr)
 		if err != nil {
-			h.logf("peer %s: %v", addr, err)
+			h.log.Info("dial failed", "addr", addr, "err", err)
 		}
 		if time.Since(start) > h.cfg.MaxRedial {
 			wait = h.cfg.Redial // it was up for a good while; retry soon

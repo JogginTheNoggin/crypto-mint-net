@@ -41,7 +41,8 @@ const usage = `poo: Proof of Ownership full node tool
 Usage:
   poo init [-example] [-series FILE]... [-p2p ADDR] [-peer ADDR]...
                               write a node policy and make it current
-  poo node                    run the node until interrupted
+  poo node [-log-level L] [-log-format F]
+                              run the node until interrupted
   poo peers                   the running node's peers, their categories
                               and points, and its peer book
   poo peer timeout|block|unblock|clear|template|delete ADDR
@@ -75,8 +76,9 @@ Usage:
                               claim a whole mint for a key's address
   poo pay -seed-file FILE -serial N -to ADDR -amount A
                               pay from a key's address, change back to it
-  poo build -pool K           build an entry from the pending transactions
-  poo work -pool K [-entry HASH] [-tries N]
+  poo build -pool K | -serial N [-work N]
+                              build an entry from the pending transactions
+  poo work -pool K | -serial N [-entry HASH] [-tries N]
                               add a layer (default: on the selected tip)
   poo payment -serial N -tid HASH
                               where a transaction stands, and its weight

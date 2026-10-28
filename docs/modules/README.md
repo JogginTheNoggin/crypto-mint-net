@@ -23,6 +23,7 @@ together. When you change a package, update its page.
 | `pkg/mempool` | [mempool.md](mempool.md) | Node policy |
 | `pkg/engine` | [engine.md](engine.md) | Node |
 | `pkg/store` | [store.md](store.md) | Node (storage) |
+| `pkg/logging` | [logging.md](logging.md) | Node (logs) |
 | `pkg/nodepolicy` | [nodepolicy.md](nodepolicy.md) | Node policy |
 | `pkg/node` | [node.md](node.md) | Node |
 | `pkg/wire` | [wire.md](wire.md) | Node (network) |
