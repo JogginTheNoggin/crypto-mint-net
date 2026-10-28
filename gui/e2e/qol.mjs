@@ -121,6 +121,16 @@ try {
   assert.equal(await muted(), '#c8c8c0');
   await page.emulateMedia({ contrast: 'no-preference', colorScheme: 'light' });
 
+  // Node: poo doctor as a checklist. With no node policy the policy check
+  // fails with its fix as printed, and the raw output is kept.
+  await page.click('nav a[data-id=node]');
+  const health = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Health check' }) });
+  await health.locator('ul.doctor li.doctor-fail', { hasText: 'policy' }).waitFor();
+  assert.match(await health.locator('li.doctor-fail .doctor-fix').innerText(), /^fix: poo init/);
+  assert.equal(await health.locator('.cmd code').innerText(), 'poo doctor -json');
+  assert.equal(await health.locator('details.raw').count(), 1);
+  if (shots) await page.screenshot({ path: join(shots, 'doctor.png') });
+
   // Wallet: one wallet file for every form, shown in each preview.
   await page.click('nav a[data-id=wallet]');
   await page.fill('.wallet-pick input', 'w2.json');

@@ -28,6 +28,9 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-017](GREEN-017-guide-follows-settings.md) | Getting started uses the Settings -root and -policy, like the views | small | yes | adopted |
 | [GREEN-018](GREEN-018-ledger-picture.md) | A picture of the selected ledger in Explore (rest of GREEN-006) | small | yes | adopted |
 | [GREEN-019](GREEN-019-links-and-copy-output.md) | Themed links, and Copy output on every result | small | yes | adopted |
+| [GREEN-020](GREEN-020-health-check.md) | A Health check panel on `poo doctor`, with runnable fixes | small | yes | proposed |
+| [GREEN-021](GREEN-021-grinder-view-sketch.md) | GUI ideas for the grinders (M11), and what the commands should print | medium | no | proposed |
+| [GREEN-022](GREEN-022-output-conventions.md) | Output conventions: `-o` on doctor, fix as argv, stable error codes (Source) | small | no | proposed |
 
 ## Orange (performance)
 
@@ -49,6 +52,6 @@ ORANGE-005 explains how to measure.
 ```sh
 git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
-node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017 and 019
+node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019 and 020
 node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014 and 018
 ```
