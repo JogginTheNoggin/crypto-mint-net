@@ -11,6 +11,7 @@ const KINDS = ['tx', 'entry', 'layer', 'selected', 'reverted', 'switch', 'droppe
 // (GUI-007 in security/gui/findings): table rows and events held while
 // paused, the error text's tail, and one unfinished line.
 const MAX_EVENTS = 1000;
+const LIVE_ROWS = 200;
 const MAX_ERR = 64 << 10;
 const MAX_LINE = 1 << 20;
 
@@ -107,6 +108,14 @@ function buildWatch(ctx) {
   const body = el('tbody');
   const table = el('table', { class: 'data events' },
     el('thead', {}, el('tr', {}, ...['seq', 'time', 'kind', 'pool', 'tid', 'what', 'weight', 'origin'].map(h => el('th', {}, h)))), body);
+  // While events arrive, only the newest LIVE_ROWS rows are laid out: the
+  // browser lays out a whole table on every change, and 1000 rows cost
+  // most of a frame (ORANGE-001). All MAX_EVENTS rows stay in the table,
+  // and "Show all" or Pause shows them.
+  const allBox = el('input', { type: 'checkbox' });
+  const showAll = () => table.classList.toggle('all', allBox.checked || paused);
+  allBox.addEventListener('input', showAll);
+  const rowsNote = el('label', { class: 'check hint' }, allBox, ` Show all ${MAX_EVENTS} kept rows (while live, the newest ${LIVE_ROWS} show; Pause shows all)`);
   const detail = el('div', { class: 'event-detail' });
   const errOut = el('pre', { class: 'text-out err', hidden: true });
 
@@ -122,6 +131,31 @@ function buildWatch(ctx) {
   };
   const tally = {};
   const showCounts = () => { counts.textContent = Object.entries(tally).map(([k, n]) => `${k} ${n}`).join(' · '); };
+  // Events are counted as they arrive but drawn once per frame
+  // (ORANGE-001): a frame takes at most the newest MAX_EVENTS waiting,
+  // builds their rows in one fragment, and lays the table out once.
+  // Rows and events are kept in a WeakMap for the one click handler.
+  const evOf = new WeakMap();
+  let pending = [], drawn = 0, frame = 0;
+  const flush = () => {
+    frame = 0;
+    const evs = pending.length > MAX_EVENTS ? pending.slice(-MAX_EVENTS) : pending;
+    pending = [];
+    showCounts();
+    const frag = document.createDocumentFragment();
+    for (let i = evs.length - 1; i >= 0; i--) {
+      const tr = eventRow(evs[i]);
+      evOf.set(tr, evs[i]);
+      frag.append(tr);
+    }
+    if (evs.length >= MAX_EVENTS) body.replaceChildren(frag);
+    else {
+      body.prepend(frag);
+      for (let n = body.children.length; n > MAX_EVENTS; n--) body.lastChild.remove();
+    }
+    drawn += evs.length;
+    body.dataset.drawn = String(drawn);
+  };
   const add = ev => {
     if (ev.kind === 'hello' || ev.kind === 'ping' || ev.kind === 'missed' || ev.kind === 'end') {
       state.textContent = ev.kind === 'missed' ? `${ev.missed} events missed (the GUI read too slowly)` : `stream: ${ev.kind}`;
@@ -129,14 +163,20 @@ function buildWatch(ctx) {
       return;
     }
     tally[ev.kind] = (tally[ev.kind] || 0) + 1;
-    showCounts();
-    const tr = eventRow(ev);
-    const show = () => { detail.textContent = ''; detail.append(el('h2', {}, `Event ${ev.seq}: ${ev.kind}`), render(ev)); };
-    tr.addEventListener('click', show);
-    tr.addEventListener('keydown', e => { if (e.key === 'Enter') show(); });
-    body.prepend(tr);
-    while (body.children.length > MAX_EVENTS) body.lastChild.remove();
+    pending.push(ev);
+    // Only the newest MAX_EVENTS can be shown, so no more than twice
+    // that wait, even while the tab is hidden and frames do not run.
+    if (pending.length > 2 * MAX_EVENTS) pending = pending.slice(-MAX_EVENTS);
+    if (!frame) frame = requestAnimationFrame(flush);
   };
+  const show = tr => {
+    const ev = tr && evOf.get(tr);
+    if (!ev) return;
+    detail.textContent = '';
+    detail.append(el('h2', {}, `Event ${ev.seq}: ${ev.kind}`), render(ev));
+  };
+  body.addEventListener('click', e => show(e.target.closest('tr')));
+  body.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('tr')) show(e.target); });
   const lineIn = text => {
     if (!text.trim()) return;
     let ev;
@@ -196,20 +236,23 @@ function buildWatch(ctx) {
   pauseBtn.onclick = () => {
     paused = !paused;
     pauseBtn.textContent = paused ? `Resume` : 'Pause';
+    showAll();
     if (!paused) {
       if (heldDropped) { state.textContent = `${heldDropped} events dropped while paused (only the newest ${MAX_EVENTS} are held)`; tally['dropped while paused'] = (tally['dropped while paused'] || 0) + heldDropped; showCounts(); }
       held.forEach(add);
       held = [];
       heldDropped = 0;
+      // What was held shows at once, not on the next frame.
+      if (frame) { cancelAnimationFrame(frame); flush(); }
     }
   };
   stopBtn.onclick = () => { if (job) api.cancel(job.id).catch(() => {}); };
-  clearBtn.onclick = () => { body.textContent = ''; detail.textContent = ''; for (const k in tally) delete tally[k]; showCounts(); };
+  clearBtn.onclick = () => { pending = []; body.textContent = ''; detail.textContent = ''; for (const k in tally) delete tally[k]; showCounts(); };
 
   const sec = el('section', { class: 'panel' },
     el('div', { class: 'panel-head' }, el('h2', {}, 'Live events')),
     el('p', { class: 'hint' }, 'Runs poo watch with these filters and shows each event as it arrives, newest first. Empty fields match everything; within a field, any listed value matches. Click an event for all of it.'),
-    f, line, state, counts, errOut, el('div', { class: 'table-wrap' }, table), detail);
+    f, line, state, counts, errOut, rowsNote, el('div', { class: 'table-wrap events-wrap' }, table), detail);
   return sec;
 }
 

@@ -131,6 +131,10 @@ main:focus { outline: none; }
 
 /* Watch */
 table.events td { white-space: nowrap; }
+/* Only the newest rows are laid out while live (ORANGE-001), in a box of
+   their own so the page around them is not laid out again. */
+table.events:not(.all) tbody tr:nth-child(n+201) { display: none; }
+.events-wrap { max-height: 70vh; overflow: auto; contain: content; }
 table.events tr.ev { cursor: pointer; }
 table.events tr.ev:hover, table.events tr.ev:focus { background: var(--bg); outline: none; }
 .kind { padding: 0 6px; border-radius: 4px; border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; }

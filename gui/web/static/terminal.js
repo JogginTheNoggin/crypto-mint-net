@@ -3,6 +3,7 @@
 // "poo" in a shell. Nothing here changes the command line.
 import * as api from './api.js';
 import { complete } from './complete.js';
+import { scrollback } from './scroll.js';
 
 const HISTORY_KEY = 'poo-gui-history';
 
@@ -67,13 +68,8 @@ export function mount(root) {
   section.dataset.runs = '0';
   const finished = () => { section.dataset.runs = String(Number(section.dataset.runs) + 1); };
 
-  const write = (text, cls) => {
-    const span = document.createElement('span');
-    if (cls) span.className = cls;
-    span.textContent = text;
-    out.append(span);
-    out.scrollTop = out.scrollHeight;
-  };
+  const sb = scrollback(out, { follow: true });
+  const write = (text, cls) => sb.write(text, cls);
 
   // A passphrase or seed is masked and never echoed, exactly when poo
   // reads one: the core reads every secret through cli.Stdio.Secret
@@ -149,7 +145,7 @@ export function mount(root) {
       api.cancel(job.id).catch(() => {});
     } else if (ev.ctrlKey && ev.key === 'l') {
       ev.preventDefault();
-      out.textContent = '';
+      sb.clear();
     } else if (ev.key === 'Tab' && !job && !ev.shiftKey && line.selectionStart === line.value.length) {
       // Completion only reads poo's help; it never changes what runs.
       ev.preventDefault();
@@ -168,7 +164,7 @@ export function mount(root) {
       line.value = history[hpos] || '';
     }
   });
-  clearBtn.addEventListener('click', () => { out.textContent = ''; line.focus(); });
+  clearBtn.addEventListener('click', () => { sb.clear(); line.focus(); });
   showBtn.addEventListener('click', () => { showTyping = !showTyping; refreshInput(); line.focus(); });
   stopBtn.addEventListener('click', () => { if (job) { write('^C\n', 'note'); api.cancel(job.id).catch(() => {}); } });
   detachBtn.addEventListener('click', () => {
