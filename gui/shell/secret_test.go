@@ -55,3 +55,24 @@ func TestSecretFlagsExist(t *testing.T) {
 		}
 	}
 }
+
+// TestSecretOutput is GUI-009: the commands that print a seed.
+func TestSecretOutput(t *testing.T) {
+	for _, c := range []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"keygen"}, true},
+		{[]string{"keygen", "-alg", "ed25519"}, true},
+		{[]string{"wallet", "seed"}, true},
+		{[]string{"wallet", "-wallet", "w.json", "seed"}, false}, // -wallet's value reads as a word; poo takes flags after the subcommand
+		{[]string{"wallet", "seed", "-wallet", "w.json"}, true},
+		{[]string{"wallet", "balance"}, false},
+		{[]string{"status"}, false},
+		{nil, false},
+	} {
+		if got := SecretOutput(c.args); got != c.want {
+			t.Errorf("SecretOutput(%q) = %v, want %v", c.args, got, c.want)
+		}
+	}
+}

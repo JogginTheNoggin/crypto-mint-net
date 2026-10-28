@@ -72,6 +72,24 @@ try {
   await keyRow.waitFor();
   assert.ok((await keyRow.innerText()).includes('<hidden>') && !(await keyRow.innerText()).includes(seed), 'Jobs hides the seed');
   assert.equal(await keyRow.getByRole('button', { name: 'Run again in terminal' }).count(), 0, 'a hidden line is not offered to run again');
+  // GUI-009: keygen printed a seed; its output is not kept to show again.
+  assert.ok((await keyRow.innerText()).includes('output not kept'), 'Jobs says the output was not kept');
+  assert.equal(await keyRow.getByRole('button', { name: 'Output' }).count(), 0, 'no Output button for it');
+  const replay = await page.evaluate(async () => {
+    const id = (await (await fetch('/api/jobs')).json()).find(j => j.args[0] === 'keygen').id;
+    const r = await fetch(`/api/jobs/${id}/events?from=0`);
+    return r.text();
+  });
+  assert.ok(!replay.includes(seed) && replay.includes('"withheld":true'), 'the event stream does not replay the seed');
+  // The Make a key form shows a seed hidden until Show.
+  await page.click('nav a[data-id=crypto]');
+  const mk = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Make a key' }) }).first();
+  await mk.locator('button[type=submit]').click();
+  const hidden = mk.locator('.result .secret');
+  await hidden.waitFor();
+  assert.equal(await hidden.locator('.secret-text').innerText(), '••••••••', 'the seed is hidden');
+  await hidden.getByRole('button', { name: 'Show' }).click();
+  assert.match(await hidden.locator('.secret-text').innerText(), /^[0-9a-f]{64}$/, 'Show reveals it');
   await page.click('nav a[data-id=terminal]');
 
   // An error is shown with its exit code, as a shell would.

@@ -15,8 +15,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/gui/shell"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/cli"
 )
+
+// SecretKeep is how long a job whose output holds a secret (shell.
+// SecretOutput) keeps that output after it ends, when no one reads it to
+// the end sooner (GUI-009 in security/gui/findings).
+var SecretKeep = time.Minute
 
 // Limits on what a runner runs and keeps (GUI-004 in
 // security/gui/findings).
@@ -131,14 +137,15 @@ func (r *Runner) start(args []string, refresh bool) (*Job, error) {
 	r.next++
 	ctx, cancel := context.WithCancel(r.ctx)
 	j := &Job{
-		ID:      strconv.Itoa(r.next),
-		Args:    slices.Clone(args),
-		Started: time.Now(),
-		Refresh: refresh,
-		cancel:  cancel,
-		max:     r.maxOutput,
-		changed: make(chan struct{}),
-		done:    make(chan struct{}),
+		ID:           strconv.Itoa(r.next),
+		Args:         slices.Clone(args),
+		Started:      time.Now(),
+		Refresh:      refresh,
+		SecretOutput: shell.SecretOutput(args),
+		cancel:       cancel,
+		max:          r.maxOutput,
+		changed:      make(chan struct{}),
+		done:         make(chan struct{}),
 	}
 	j.in = newInput(ctx)
 	j.in.onWait = j.touch
@@ -241,6 +248,11 @@ type Job struct {
 	in     *input
 	max    int
 	secret bool // a passphrase or seed is being read (readSecret)
+	// SecretOutput is true for a command that prints a secret, such as
+	// wallet seed: once the job has ended, its output is given out once,
+	// to the first reader that reads it to the end, and then dropped.
+	SecretOutput bool
+	withheld     bool // that output was dropped
 
 	mu      sync.Mutex
 	chunks  []Chunk
@@ -292,6 +304,9 @@ type State struct {
 	// Secret is true while what it waits for is a passphrase or a seed,
 	// so the GUI masks that line and only that line.
 	Secret bool
+	// Withheld is true when the output was dropped because it held a
+	// secret; Dropped is then true for any read of it.
+	Withheld bool
 	// Changed is closed when anything above changes.
 	Changed <-chan struct{}
 }
@@ -301,6 +316,8 @@ func (j *Job) Read(from int64) State {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	s := State{Next: j.nextSeq, Changed: j.changed, Waiting: j.in.waiting(), Secret: j.secret}
+	// A read from past the end, such as a status check, reads no output.
+	reads := from <= j.nextSeq
 	if from < j.first {
 		s.Dropped, from = true, j.first
 	}
@@ -310,9 +327,46 @@ func (j *Job) Read(from int64) State {
 	select {
 	case <-j.done:
 		s.Done, s.Code = true, j.code
+		// This reader has the output to the end, so a secret in it is
+		// not given out again.
+		if j.SecretOutput && reads {
+			j.withhold()
+		}
 	default:
 	}
+	s.Withheld = j.withheld
 	return s
+}
+
+// withhold drops the output of a job whose output holds a secret.
+func (j *Job) withhold() {
+	if j.withheld {
+		return
+	}
+	j.withheld = true
+	j.first = j.nextSeq
+	j.chunks, j.size = nil, 0
+	j.notify()
+}
+
+// Withheld reports whether the job's output was dropped because it held a
+// secret.
+func (j *Job) Withheld() bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.withheld
+}
+
+// Outputs returns all kept output of both streams, as Output does, and
+// counts as reading it to the end.
+func (j *Job) Outputs() (out, errOut string) {
+	out, errOut = j.Output(Stdout), j.Output(Stderr)
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.SecretOutput && j.Done() {
+		j.withhold()
+	}
+	return out, errOut
 }
 
 // Output returns all kept output of one stream, joined.
@@ -360,6 +414,13 @@ func (j *Job) finish(code int) {
 	j.code = code
 	close(j.done)
 	j.notify()
+	if j.SecretOutput {
+		time.AfterFunc(SecretKeep, func() {
+			j.mu.Lock()
+			defer j.mu.Unlock()
+			j.withhold()
+		})
+	}
 }
 
 // readSecret is the job's cli.Stdio.Secret: the core calls it for every

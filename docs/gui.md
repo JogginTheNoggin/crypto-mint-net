@@ -270,6 +270,16 @@ server is locked down:
   and `GET /api/jobs` show the flag's value as `<hidden>` and do not offer
   the line to run again. The terminal still echoes the line as typed, as a
   shell does, and a form's preview shows it.
+- **Secrets in output.** `wallet seed` and `keygen` print a seed
+  (`shell.SecretOutput`, until the core declares it as
+  `cli.SecretOutput`). Once such a job ends, its output goes to the first
+  reader that reads it to the end, such as the terminal or the form that
+  ran it, and is then dropped. If no one reads it, it is dropped after a
+  minute. Jobs says "output not kept (it held a secret)", and the event
+  stream answers a later read, including `?from=0` and `Last-Event-ID`,
+  with `dropped` and `withheld: true`. A result box shows a `seed` field,
+  or the whole text output of such a command, hidden until Show, and it
+  never copies it on click (GUI-009).
 - **View-only mode.** `poo-gui -view-only` passes the core's view-only
   switch to every job, so commands dial the node with `rpc.view-token`
   and the core refuses every command not in its read table. The GUI has

@@ -287,12 +287,18 @@ type jobInfo struct {
 	// Redacted is true when a secret flag's value is hidden in Args and
 	// Command (GUI-006), so the line cannot be run again as shown.
 	Redacted bool `json:"redacted,omitempty"`
+	// SecretOutput is true for a command that prints a secret, whose
+	// output is given out once and then not kept (GUI-009); Withheld is
+	// true once it has been dropped.
+	SecretOutput bool `json:"secretOutput,omitempty"`
+	Withheld     bool `json:"withheld,omitempty"`
 }
 
 func info(j *jobs.Job) jobInfo {
 	st := j.Read(1 << 62)
 	args, redacted := shell.Redact(j.Args)
-	ji := jobInfo{ID: j.ID, Args: args, Command: shell.Quote(args), Started: j.Started, Done: st.Done, Refresh: j.Refresh, Redacted: redacted}
+	ji := jobInfo{ID: j.ID, Args: args, Command: shell.Quote(args), Started: j.Started, Done: st.Done, Refresh: j.Refresh, Redacted: redacted,
+		SecretOutput: j.SecretOutput, Withheld: st.Withheld}
 	if st.Done {
 		ji.Code = &st.Code
 	}
@@ -375,9 +381,10 @@ func (s *Server) run(w http.ResponseWriter, r *http.Request) {
 		j.Cancel()
 		return
 	}
+	out, errOut := j.Outputs()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": j.ID, "code": code, "command": shell.Quote(args),
-		"out": j.Output(jobs.Stdout), "err": j.Output(jobs.Stderr),
+		"out": out, "err": errOut,
 	})
 }
 
@@ -408,7 +415,8 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 //	                                         stream, joined; seq is the first one's,
 //	                                         next (also the event's id) the seq to
 //	                                         read next, for following again with ?from=
-//	event: dropped  data: {next}       output before next was dropped
+//	event: dropped  data: {next, withheld}   output before next was dropped;
+//	                                         withheld: it held a secret (GUI-009)
 //	event: state    data: {waiting, secret}  the job started or stopped waiting for
 //	                                         input; secret: the input is a passphrase or seed
 //	event: exit     data: {code}       the last event
@@ -450,7 +458,11 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	for {
 		st := j.Read(from)
 		if st.Dropped {
-			sse(w, "dropped", map[string]int64{"next": st.Chunks[0].Seq})
+			next := st.Next
+			if len(st.Chunks) > 0 {
+				next = st.Chunks[0].Seq
+			}
+			sse(w, "dropped", map[string]any{"next": next, "withheld": st.Withheld})
 		}
 		for _, c := range coalesce(st.Chunks) {
 			fmt.Fprintf(w, "id: %d\n", c.Seq+1)

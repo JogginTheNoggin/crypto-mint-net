@@ -71,3 +71,24 @@ func Redact(args []string) ([]string, bool) {
 	}
 	return out, true
 }
+
+// SecretOutput reports whether a command prints a secret: wallet seed
+// prints the wallet's seed, and keygen the seed of the key it makes. The
+// GUI does not keep such a job's output once it has been read (GUI-009 in
+// security/gui/findings). This list stands in until the core declares it
+// (cli.SecretOutput); it errs toward true.
+func SecretOutput(args []string) bool {
+	var words []string
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") {
+			words = append(words, a)
+		}
+	}
+	switch {
+	case len(words) > 0 && words[0] == "keygen":
+		return true
+	case len(words) > 1 && words[0] == "wallet" && words[1] == "seed":
+		return true
+	}
+	return false
+}

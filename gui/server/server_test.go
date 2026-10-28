@@ -567,3 +567,56 @@ func TestStreamJoinsAndResumes(t *testing.T) {
 	}
 	close(release)
 }
+
+// TestSecretOutputNotReplayed is GUI-009 through the API, with the real
+// keygen: the seed it prints is given out once and then cannot be read
+// again from the job's event stream, from ?from=0 or with Last-Event-ID.
+func TestSecretOutputNotReplayed(t *testing.T) {
+	seed := strings.Repeat("cd", 32)
+	h := newHarness(t, jobs.Options{})
+	var run struct {
+		ID  string
+		Out string
+	}
+	r := h.do("POST", "/api/jobs", map[string]any{"args": []string{"keygen", "-seed", seed}}, nil)
+	var j struct{ ID string }
+	decode(t, r, &j)
+	read := func(mod func(*http.Request)) string {
+		var b bytes.Buffer
+		b.ReadFrom(h.do("GET", "/api/jobs/"+j.ID+"/events?from=0", nil, mod).Body)
+		return b.String()
+	}
+	if first := read(nil); !strings.Contains(first, seed) || !strings.Contains(first, "event: exit") {
+		t.Fatalf("first read: %s", first)
+	}
+	for _, mod := range []func(*http.Request){nil, func(r *http.Request) { r.Header.Set("Last-Event-ID", "0") }} {
+		again := read(mod)
+		if strings.Contains(again, seed) || !strings.Contains(again, `"withheld":true`) {
+			t.Fatalf("read again: %s", again)
+		}
+	}
+	var list []struct {
+		ID                     string
+		SecretOutput, Withheld bool
+	}
+	decode(t, h.do("GET", "/api/jobs", nil, nil), &list)
+	found := false
+	for _, ji := range list {
+		if ji.ID == j.ID {
+			found = ji.SecretOutput && ji.Withheld
+		}
+	}
+	if !found {
+		t.Fatalf("jobs list does not mark it: %+v", list)
+	}
+
+	// /api/run gives the output once, too.
+	decode(t, h.do("POST", "/api/run", map[string]any{"args": []string{"keygen", "-seed", seed}}, nil), &run)
+	if !strings.Contains(run.Out, seed) {
+		t.Fatalf("run: %q", run.Out)
+	}
+	j.ID = run.ID
+	if again := read(nil); strings.Contains(again, seed) {
+		t.Fatalf("run output replayed: %s", again)
+	}
+}

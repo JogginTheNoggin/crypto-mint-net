@@ -107,7 +107,7 @@ export function mount(root) {
     setRunning(cur);
     cur.unfollow = api.follow(j.id, {
       chunk: c => write(c.data, c.stream === 'err' ? 'err' : ''),
-      dropped: () => write('[earlier output dropped]\n', 'note'),
+      dropped: d => write(d.withheld ? '[output not kept: it held a secret]\n' : '[earlier output dropped]\n', 'note'),
       state: st => { if (job === cur && st.secret !== secret) { secret = !!st.secret; showTyping = false; refreshInput(); } },
       exit: e => {
         if (e.code !== 0) write(`[exit ${e.code}]\n`, 'note');

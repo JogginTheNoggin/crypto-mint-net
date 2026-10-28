@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fix-proposed |
 | Found on | claude/gui-4-watch @ 50a0edd |
 | Component | gui/jobs/jobs.go (output retention), gui/server/server.go (`events`, `?from=` / `Last-Event-ID` replay), gui/web/static/views.js (Jobs view "Output") |
 | Surface | wallet / local |
-| Fixed by | _(pending — GUI/Blue)_ |
+| Fixed by | `claude/gui-blue` (GUI-side interim; core `cli.SecretOutput` queued for Source Grey, Round 5) |
 
 ## Summary
 
@@ -96,3 +96,12 @@ one inside the session.
 - **Single wallet-file field and Settings in Getting started.** These hold only
   paths and flags the user sets, kept in `localStorage`. Settings flags are quoted
   with the server's grammar before they are appended to a step's line.
+
+## Fix (GUI/Blue, branch `claude/gui-blue`): GUI-side interim
+
+- `shell.SecretOutput(args)` names the commands that print a secret: `keygen`, and `wallet seed`. It stands in until the core declares `cli.SecretOutput`, which is queued for Source Grey in Round 5. When that lands, it should replace this list the way `cli.SecretFlags` replaced the GUI's flag list.
+- **Runner (`gui/jobs`).** Such a job is marked `SecretOutput`. Once it has ended, the first `Read` that reaches the end (the live terminal, form or panel following it), or `Outputs` (`/api/run`), gets the output. The job then drops its chunks and sets `Withheld`. A status probe (`Read` from past the end, as `info()` does) does not count as a read. Output that nobody reads is dropped after `SecretKeep` (1 minute). Live followers still see the output while the job runs.
+- **Server.** A later `GET /api/jobs/{id}/events`, whether `?from=0` or with `Last-Event-ID`, gets `dropped` with `withheld: true` and then `exit`, with no chunks. The `dropped` event no longer indexes an empty chunk list. `GET /api/jobs` reports `secretOutput` and `withheld`.
+- **Page.** For a finished secret job, Jobs shows "output not kept (it held a secret)" instead of Output. The terminal and Jobs print "[output not kept: it held a secret]" on a withheld read. `render` shows any `seed` field hidden until Show, with no click-to-copy (`secretValue`), and a secret command's plain-text output is shown the same way. "Copy output" was already left out for keygen.
+- The terminal still prints the seed when it runs, as headless `poo` does.
+- Regression tests: `TestSecretOutput` (gui/shell); `TestSecretOutputGivenOnce`, `TestSecretOutputExpires` (gui/jobs); `TestSecretOutputNotReplayed` (gui/server, real keygen: `?from=0` and `Last-Event-ID` replay no seed, the jobs list marks it, `/api/run` gives it once). In gui/e2e/terminal.mjs: Jobs shows "output not kept" with no Output button, the stream replays no seed, and the Make a key result hides the seed until Show.

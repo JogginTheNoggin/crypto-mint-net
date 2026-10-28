@@ -26,8 +26,27 @@ export function lookupLink(key, v) {
   return a;
 }
 
+// secretValue shows a secret, such as a seed, hidden until Show is
+// pressed, and never copies it on click (GUI-009 in security/gui/findings).
+export function secretValue(v) {
+  const wrap = el('span', 'secret');
+  const text = el('code', 'secret-text', '••••••••');
+  const btn = el('button', 'small', 'Show');
+  btn.type = 'button';
+  btn.setAttribute('aria-pressed', 'false');
+  btn.addEventListener('click', () => {
+    const show = btn.getAttribute('aria-pressed') !== 'true';
+    text.textContent = show ? String(v) : '••••••••';
+    btn.textContent = show ? 'Hide' : 'Show';
+    btn.setAttribute('aria-pressed', String(show));
+  });
+  wrap.append(text, ' ', btn);
+  return wrap;
+}
+
 function scalar(v, key) {
   if (v === null) return el('span', 'nil', '—');
+  if (key === 'seed' && typeof v === 'string' && v) return secretValue(v);
   if (typeof v === 'boolean') return el('span', v ? 'yes' : 'no', v ? 'yes' : 'no');
   if (isHex(v)) {
     // Long hex (hashes, addresses, keys) is shortened on screen; the full

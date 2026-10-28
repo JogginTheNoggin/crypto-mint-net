@@ -3,7 +3,7 @@
 // here computes anything a command does not print, and every panel shows
 // its command line, which runs the same in the terminal (docs/gui.md).
 import * as api from './api.js';
-import { render } from './render.js';
+import { render, secretValue } from './render.js';
 import * as where from './where.js';
 import { hintFor } from './hints.js';
 import { scrollback } from './scroll.js';
@@ -107,7 +107,9 @@ export function showResult(out, err, { empty, secretOutput } = {}) {
   if (out.trim()) {
     let v, ok = false;
     try { v = JSON.parse(out); ok = true; } catch (_) { /* text output */ }
-    box.append(ok ? render(v) : el('pre', { class: 'text-out' }, out));
+    // A command that prints a secret shows plain text hidden; render
+    // hides a seed field in JSON (GUI-009).
+    box.append(ok ? render(v) : secretOutput ? secretValue(out.trim()) : el('pre', { class: 'text-out' }, out));
     // The output exactly as poo printed it, for a script or a bug report.
     const copy = el('button', { type: 'button', class: 'small copy-out' }, 'Copy output');
     copy.onclick = () => {
@@ -543,7 +545,11 @@ const jobsView = {
           el('time', { datetime: j.started, title: j.started }, new Date(j.started).toLocaleTimeString()),
           n > 1 ? el('span', { class: 'count', title: `${n} runs in a row; the newest is shown` }, `×${n}`) : null,
           el('span', { class: j.done ? (j.code === 0 ? 'ok' : 'bad') : 'live' }, state),
-          el('button', { type: 'button', onclick: () => showJob(j) }, 'Output'),
+          // A finished command that printed a secret keeps no output to
+          // show again (GUI-009).
+          j.done && j.secretOutput
+            ? el('span', { class: 'hint', title: 'Its output held a secret, such as a seed, so poo-gui gave it out once and did not keep it' }, 'output not kept (it held a secret)')
+            : el('button', { type: 'button', onclick: () => showJob(j) }, 'Output'),
           j.done ? null : el('button', { type: 'button', onclick: () => api.cancel(j.id).then(refresh) }, 'Stop'),
           // A line with a hidden secret cannot be run again as shown.
           j.redacted ? null : el('button', { type: 'button', onclick: () => ctx.openInTerminal(j.command.replace(/^poo /, '')) }, 'Run again in terminal')));
@@ -555,6 +561,7 @@ const jobsView = {
       shown.clear();
       unfollow = api.follow(j.id, {
         chunk: c => shown.write(c.data, c.stream === 'err' ? 'err' : ''),
+        dropped: d => shown.write(d.withheld ? '[output not kept: it held a secret]\n' : '[earlier output dropped]\n', 'note'),
         exit: refresh,
       });
     }

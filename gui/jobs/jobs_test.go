@@ -374,3 +374,69 @@ func TestViewOnly(t *testing.T) {
 		t.Fatalf("view-only init wrote %d files", len(entries))
 	}
 }
+
+// TestSecretOutputGivenOnce is GUI-009: once a command that prints a
+// secret has ended, its output goes to the first reader that reads it to
+// the end and is then dropped; a status check does not count as reading.
+func TestSecretOutputGivenOnce(t *testing.T) {
+	r := New(context.Background(), Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		fmt.Fprintln(s.Out, "SECRET-SEED")
+		return 0
+	}})
+	defer r.Close(5 * time.Second)
+	j := must(r.Start([]string{"wallet", "seed"}))
+	wait(t, j)
+	if st := j.Read(1 << 62); st.Withheld {
+		t.Fatal("a status check dropped the output")
+	}
+	st := j.Read(0)
+	if len(st.Chunks) != 1 || !strings.Contains(st.Chunks[0].Data, "SECRET-SEED") || !st.Done {
+		t.Fatalf("first read: %+v", st)
+	}
+	st = j.Read(0)
+	if len(st.Chunks) != 0 || !st.Dropped || !st.Withheld || !j.Withheld() {
+		t.Fatalf("second read gave the secret again: %+v", st)
+	}
+	if out, _ := j.Outputs(); out != "" {
+		t.Fatalf("Outputs after: %q", out)
+	}
+
+	// Outputs, as /api/run reads it, also counts as reading.
+	k := must(r.Start([]string{"keygen"}))
+	wait(t, k)
+	if out, _ := k.Outputs(); !strings.Contains(out, "SECRET-SEED") {
+		t.Fatalf("Outputs: %q", out)
+	}
+	if st := k.Read(0); len(st.Chunks) != 0 || !st.Withheld {
+		t.Fatalf("read after Outputs: %+v", st)
+	}
+
+	// Other commands keep their output.
+	o := must(r.Start([]string{"status"}))
+	wait(t, o)
+	o.Read(0)
+	if st := o.Read(0); len(st.Chunks) != 1 || st.Withheld {
+		t.Fatalf("an ordinary job lost its output: %+v", st)
+	}
+}
+
+// TestSecretOutputExpires checks a secret output no one reads is dropped
+// after SecretKeep.
+func TestSecretOutputExpires(t *testing.T) {
+	defer func(d time.Duration) { SecretKeep = d }(SecretKeep)
+	SecretKeep = 10 * time.Millisecond
+	r := New(context.Background(), Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		fmt.Fprintln(s.Out, "SECRET-SEED")
+		return 0
+	}})
+	defer r.Close(5 * time.Second)
+	j := must(r.Start([]string{"keygen"}))
+	wait(t, j)
+	deadline := time.Now().Add(5 * time.Second)
+	for !j.Withheld() {
+		if time.Now().After(deadline) {
+			t.Fatal("never dropped")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
