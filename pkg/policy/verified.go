@@ -69,6 +69,31 @@ func (v *Verified) add(k [sha256.Size]byte) {
 	v.set[k] = struct{}{}
 }
 
+// Preverify runs the satisfaction function of witness w for tid ahead of
+// a full check, and remembers a pass in v, so a later CheckCached of the
+// same witness skips it. It keeps nothing on a failure and returns
+// nothing: the full check decides, and gives the error. It runs the size
+// and allowed checks first, so a witness the rules refuse costs nothing.
+func (r *Registry) Preverify(rules Rules, w Witness, tid hash.Hash, v *Verified) {
+	if v == nil {
+		return
+	}
+	if max := rules.MaxWitnessSize(); max > 0 && w.Size() > max {
+		return
+	}
+	t, err := r.allowed(rules, w.Policy)
+	if err != nil {
+		return
+	}
+	k := verifiedKey(w, tid)
+	if v.has(k) {
+		return
+	}
+	if t.Satisfy(r, w.Policy.Params, w.Data, Message(tid)) == nil {
+		v.add(k)
+	}
+}
+
 // Len returns how many witnesses are remembered.
 func (v *Verified) Len() int {
 	v.mu.Lock()

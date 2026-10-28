@@ -253,6 +253,14 @@ func (s *Series) CheckWitness(w policy.Witness, addr, tid hash.Hash) error {
 	return s.reg.CheckCached(s.h, s, w, addr, tid, s.verified)
 }
 
+// Preverify verifies the signatures of a witness for tid ahead of a full
+// check and remembers a pass, so the full check, which may run under a
+// lock, does not verify them again. It never changes what CheckWitness
+// returns.
+func (s *Series) Preverify(w policy.Witness, tid hash.Hash) {
+	s.reg.Preverify(s, w, tid, s.verified)
+}
+
 // Address returns the address of a policy under this series' hash.
 func (s *Series) Address(p policy.Policy) hash.Hash { return policy.Address(s.h, p) }
 

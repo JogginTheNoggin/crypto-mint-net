@@ -397,6 +397,9 @@ func (n *Node) HandleTx(t *tx.Tx, origin engine.Origin) (engine.TxResult, error)
 
 // HandleTxFrom is HandleTx for an item sent by the named peer.
 func (n *Node) HandleTxFrom(t *tx.Tx, origin engine.Origin, from string) (engine.TxResult, error) {
+	if k, err := n.eng.KeyOf(t); err == nil {
+		n.eng.Preverify(k, t)
+	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {
@@ -420,6 +423,7 @@ func (n *Node) HandleEntry(k engine.PoolKey, e *entry.Entry, origin engine.Origi
 
 // HandleEntryFrom is HandleEntry for an item sent by the named peer.
 func (n *Node) HandleEntryFrom(k engine.PoolKey, e *entry.Entry, origin engine.Origin, from string) (engine.EntryResult, error) {
+	n.eng.Preverify(k, e.Txs...)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {

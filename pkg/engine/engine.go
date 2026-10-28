@@ -297,6 +297,26 @@ func (e *Engine) KeyOf(t *tx.Tx) (PoolKey, error) {
 	return PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}, nil
 }
 
+// Preverify verifies the witness signatures of transactions of pool k
+// ahead of HandleTx or HandleEntry, holding the engine's lock only to find
+// the pool. A caller that serializes items under its own lock calls it
+// first, so items from several peers are checked on several cores and the
+// checks under the lock find them remembered (ORANGE-004). Only
+// transactions of a followed pool are verified, so nothing is verified
+// that the engine would not verify anyway. It changes no result.
+func (e *Engine) Preverify(k PoolKey, txs ...*tx.Tx) {
+	e.mu.Lock()
+	p, err := e.pool(k)
+	e.mu.Unlock()
+	if err != nil {
+		return
+	}
+	h := p.s.Hash()
+	for _, t := range txs {
+		tx.Preverify(p.s, t, t.TID(h))
+	}
+}
+
 // TxResult reports what HandleTx did.
 type TxResult struct {
 	Key     PoolKey
