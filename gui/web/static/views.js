@@ -148,7 +148,8 @@ export function cmdLine(args, ctx) {
 }
 
 // panel runs args() when shown (and every refresh ms) and renders it.
-export function panel(ctx, { title, about, args, refresh, empty }) {
+// onResult, as for form, is called with the finished job and the area.
+export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
   const area = el('div', { class: 'area' });
   const line = cmdLine(args(), ctx);
   const btn = el('button', { type: 'button' }, 'Refresh');
@@ -164,6 +165,7 @@ export function panel(ctx, { title, about, args, refresh, empty }) {
     line.set(a);
     const r = await runJob(a, area, { empty, refresh: auto === true });
     noNode(sec, area, r);
+    if (onResult) onResult(r, area);
     busy = false;
   };
   btn.onclick = () => go(false);
@@ -271,6 +273,24 @@ async function nodeJob() {
   return js.reverse().find(j => !j.done && j.args[0] === 'node');
 }
 
+// doctorReport lays out poo doctor -json: one row per check, as printed.
+// A fix that is exactly one poo command line gets a button that types it
+// into the terminal; any other fix is shown as the text poo printed.
+const RUNNABLE_FIX = /^poo [a-z][\w./:=-]*( [\w./:=-]+)*$/;
+export function doctorReport(rep, ctx) {
+  const list = el('ul', { class: 'doctor' });
+  for (const c of rep.checks || []) {
+    const fix = c.fix ? (RUNNABLE_FIX.test(c.fix)
+      ? el('div', { class: 'doctor-fix' }, 'fix: ', el('code', {}, c.fix), ' ',
+        el('button', { type: 'button', class: 'small', onclick: () => ctx.openInTerminal(c.fix.replace(/^poo /, '')) }, 'Run in terminal'))
+      : el('div', { class: 'doctor-fix' }, `fix: ${c.fix}`)) : null;
+    list.append(el('li', { class: `doctor-${c.result}` },
+      el('span', { class: `pill pill-${c.result}` }, c.result),
+      el('strong', {}, c.name), ' ', el('span', {}, c.detail || ''), fix));
+  }
+  return el('div', { class: 'result' }, rep.dir ? el('p', { class: 'hint' }, `Data directory: ${rep.dir}`) : null, list);
+}
+
 const nodeView = {
   id: 'node',
   title: 'Node',
@@ -342,7 +362,18 @@ const nodeView = {
     const reload = form(ctx, { title: 'Reload the node policy', about: 'Makes the running node apply its node policy file as it now stands.', fields: [],
       args: () => ['reload', ...where.flags()], submit: 'Reload' });
     const t = setInterval(showRunning, 3000);
-    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [{ el: runSec, stop: () => clearInterval(t) }, status, follows, follow, unfollow, reload, init]);
+    // poo doctor checks the policy, files, series, RPC and P2P in one go.
+    // Its report is drawn as a checklist; the raw output stays one click away.
+    const health = panel(ctx, { title: 'Health check', about: 'What poo doctor finds for this node policy, with the fix it suggests.',
+      args: () => ['doctor', '-json', ...where.flags()],
+      onResult: (r, area) => {
+        let rep;
+        try { rep = JSON.parse(r.out); } catch (_) { return; }
+        const raw = area.querySelector('.result');
+        const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
+        if (raw) { raw.replaceWith(doctorReport(rep, ctx)); det.append(raw); area.append(det); }
+      } });
+    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => clearInterval(t) }, status, follows, follow, unfollow, reload, init]);
     return stop;
   },
 };

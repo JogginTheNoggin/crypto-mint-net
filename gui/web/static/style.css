@@ -209,3 +209,12 @@ button.copy-out { margin-top: 6px; }
 .ledger-pic text { fill: var(--ink); }
 .ledger-pic .lp-h, .ledger-pic .lp-tx { fill: var(--muted); }
 .ledger-pic .lp-link { stroke: var(--muted); stroke-width: 2; }
+
+/* Node: the poo doctor checklist */
+ul.doctor { list-style: none; margin: 4px 0; padding: 0; }
+ul.doctor li { padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+ul.doctor strong { margin-right: 4px; }
+.pill { display: inline-block; min-width: 40px; margin-right: 8px; padding: 0 6px; border-radius: 10px; font: 11px var(--mono); text-align: center; border: 1px solid currentColor; }
+.pill-ok { color: var(--ok); } .pill-warn { color: var(--live); } .pill-fail { color: var(--bad); } .pill-skip { color: var(--muted); }
+.doctor-fix { margin: 3px 0 0 56px; color: var(--muted); }
+details.raw { margin-top: 6px; font-size: 12px; }
