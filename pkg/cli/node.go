@@ -638,6 +638,11 @@ func peerCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
+	if err := flagsFor(fs, action, map[string][]string{
+		"seconds": {"timeout", "block"}, "range": {"block"}, "what": {"clear"}, "template": {"template"},
+	}); err != nil {
+		return err
+	}
 	if fs.NArg() != 1 {
 		return errors.New(use)
 	}
@@ -718,6 +723,9 @@ func policyCmd(args []string, out io.Writer) error {
 	}
 	sub := args[0]
 	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if err := flagsFor(fs, sub, map[string][]string{"fresh": {"unarchive"}}); err != nil {
 		return err
 	}
 	m := nodepolicy.Manager{Root: *root}
