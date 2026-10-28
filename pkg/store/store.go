@@ -31,6 +31,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // Kind is the type of a record.
@@ -74,13 +75,23 @@ var castagnoli = crc32.MakeTable(crc32.Castagnoli)
 var ErrNotLog = errors.New("store: not a PoO log file")
 
 // Log is an open log file. It is not safe for concurrent use; the node
-// serializes access.
+// serializes access. The one exception is Durable, which may run beside
+// the other methods, so a caller can wait for the disk without holding
+// its own lock (ORANGE-005).
 type Log struct {
 	path    string
 	f       *os.File
 	w       *bufio.Writer
 	sync    bool
 	records int
+
+	// fmu guards f against Durable, and the append counters.
+	fmu     sync.Mutex
+	written uint64 // appends so far
+	synced  uint64 // appends known to be on disk
+	// syncMu lets one Durable at a time sync; the others wait for it and
+	// usually find their append already covered.
+	syncMu sync.Mutex
 }
 
 // Options control how a log writes.
@@ -215,14 +226,11 @@ func frame(w io.Writer, rec Record) error {
 // Append writes one record and, unless NoSync is set, waits until it is on
 // disk.
 func (l *Log) Append(rec Record) error {
-	if err := frame(l.w, rec); err != nil {
+	t, err := l.AppendLater(rec)
+	if err != nil {
 		return err
 	}
-	if err := l.w.Flush(); err != nil {
-		return err
-	}
-	l.records++
-	return l.syncFile()
+	return l.Durable(t)
 }
 
 func (l *Log) syncFile() error {
@@ -230,6 +238,56 @@ func (l *Log) syncFile() error {
 		return nil
 	}
 	return l.f.Sync()
+}
+
+// AppendLater writes one record to the file, as Append does, but returns
+// before syncing it. The record survives a crash of the process at once;
+// pass the returned ticket to Durable to wait until it would also survive
+// a power loss.
+func (l *Log) AppendLater(rec Record) (uint64, error) {
+	if err := frame(l.w, rec); err != nil {
+		return 0, err
+	}
+	if err := l.w.Flush(); err != nil {
+		return 0, err
+	}
+	l.records++
+	l.fmu.Lock()
+	defer l.fmu.Unlock()
+	l.written++
+	return l.written, nil
+}
+
+// Durable waits until the append with this ticket is on disk, unless
+// NoSync is set. It may run while other goroutines append: callers waiting
+// together share one fsync (a group commit), so a node that takes items
+// from many peers syncs once for many of them.
+func (l *Log) Durable(ticket uint64) error {
+	if !l.sync {
+		return nil
+	}
+	l.syncMu.Lock()
+	defer l.syncMu.Unlock()
+	l.fmu.Lock()
+	if l.synced >= ticket {
+		l.fmu.Unlock()
+		return nil
+	}
+	f, upto := l.f, l.written
+	l.fmu.Unlock()
+	err := f.Sync()
+	l.fmu.Lock()
+	defer l.fmu.Unlock()
+	if l.synced >= ticket {
+		// Rewrite or Close synced everything while this sync ran (and may
+		// have closed f under it).
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	l.synced = upto
+	return nil
 }
 
 // Records returns how many records the log holds, including ones the node
@@ -281,7 +339,14 @@ func (l *Log) Rewrite(recs []Record) error {
 		if oerr != nil {
 			return errors.Join(err, oerr)
 		}
-		l.f, l.w = old, bufio.NewWriter(old)
+		serr := old.Sync()
+		l.fmu.Lock()
+		l.f = old
+		if serr == nil {
+			l.synced = l.written
+		}
+		l.fmu.Unlock()
+		l.w = bufio.NewWriter(old)
 		return err
 	}
 	syncDir(filepath.Dir(l.path))
@@ -289,7 +354,10 @@ func (l *Log) Rewrite(recs []Record) error {
 		f.Close()
 		return err
 	}
+	l.fmu.Lock()
 	l.f = f
+	l.synced = l.written // the new file holds every live record, synced
+	l.fmu.Unlock()
 	l.w = bufio.NewWriter(f)
 	l.records = len(recs)
 	return nil
@@ -307,6 +375,11 @@ func syncDir(dir string) {
 func (l *Log) Close() error {
 	ferr := l.w.Flush()
 	serr := l.f.Sync()
+	l.fmu.Lock()
+	if ferr == nil && serr == nil {
+		l.synced = l.written
+	}
 	cerr := l.f.Close()
+	l.fmu.Unlock()
 	return errors.Join(ferr, serr, cerr)
 }

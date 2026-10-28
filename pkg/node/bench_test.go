@@ -16,10 +16,15 @@ import (
 // BenchmarkHandleTxParallel takes in distinct, valid claims of one pool
 // from as many goroutines as -cpu says, the way a node takes them from its
 // peers: each is checked, stored and announced. With sync=true every kept
-// item waits for the store's fsync, the default.
+// item waits for the store's fsync, the default; peers=16x runs 16
+// goroutines per -cpu, as a node with many peers does.
 func BenchmarkHandleTxParallel(b *testing.B) {
-	for _, sync := range []bool{false, true} {
-		b.Run(fmt.Sprintf("sync=%v", sync), func(b *testing.B) {
+	for _, c := range []struct {
+		sync bool
+		par  int // goroutines per -cpu, standing for peers
+	}{{false, 1}, {true, 1}, {true, 16}} {
+		sync := c.sync
+		b.Run(fmt.Sprintf("sync=%v/peers=%dx", sync, c.par), func(b *testing.B) {
 			p := testutil.ExampleParams()
 			p.Mints, p.PoolSize = 1<<20, 1<<20
 			s := testutil.MustSeries(p)
@@ -45,6 +50,7 @@ func BenchmarkHandleTxParallel(b *testing.B) {
 			}
 			defer n.Close()
 			var next atomic.Int64
+			b.SetParallelism(c.par)
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
