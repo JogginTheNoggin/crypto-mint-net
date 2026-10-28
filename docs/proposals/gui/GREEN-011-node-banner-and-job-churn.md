@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | job churn done; banner later |
+| Status | adopted (job churn R2, banner R3) |
 | Based on | claude/gui-5-release @ 7209952 |
 | Area | gui/web/static (app.js, views.js); maybe gui/server |
 | Effort | medium |
-| Decided by | GUI/Grey, 2026-10-27 |
+| Decided by | GUI/Grey, 2026-10-28 (Round 3 Part A) |
 
 ## Summary
 

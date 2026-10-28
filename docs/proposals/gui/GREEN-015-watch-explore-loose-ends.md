@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted: 1 and 2; 3 and 4 with Source/Grey |
 | Based on | claude/gui-4-watch @ 93ed36a |
 | Area | gui/web/static (watch.js), gui/e2e, pkg/cli flags (Source) |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-28 (Round 3 Part A) |
 
 ## Summary
 

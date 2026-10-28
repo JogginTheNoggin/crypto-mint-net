@@ -142,7 +142,8 @@ export function panel(ctx, { title, about, args, refresh, empty }) {
     busy = true;
     const a = args();
     line.set(a);
-    await runJob(a, area, { empty, refresh: auto === true });
+    const r = await runJob(a, area, { empty, refresh: auto === true });
+    noNode(sec, area, r);
     busy = false;
   };
   btn.onclick = () => go(false);
@@ -151,10 +152,35 @@ export function panel(ctx, { title, about, args, refresh, empty }) {
   return { el: sec, stop: () => t && clearInterval(t) };
 }
 
+// NO_NODE is the error every command that needs a running node prints
+// when none answers.
+const NO_NODE = /is the node running\?/;
+
+// noNode collapses a panel whose command failed only because no node is
+// answering, and shows the view's one banner while any panel is in that
+// state (GREEN-011). It decides nothing: the panel's own result, error
+// text and next step stay, one click away, exactly as poo printed them.
+function noNode(sec, area, r) {
+  const down = r.code !== 0 && NO_NODE.test(r.err) && !r.out.trim();
+  if (down) sec.dataset.noNode = '1'; else delete sec.dataset.noNode;
+  const res = area.querySelector(':scope > .result');
+  if (down && res) {
+    const d = el('details', { class: 'no-node' }, el('summary', {}, 'Needs a running node (see the note above). Show the error'));
+    res.replaceWith(d);
+    d.append(res);
+  }
+  const view = sec.parentElement;
+  const banner = view && view.querySelector(':scope > .node-banner');
+  if (banner) banner.hidden = !view.querySelector(':scope > section.panel[data-no-node]');
+}
+
 // form builds a command line from fields and runs it on submit.
 //   fields: [{name, label, type: text|number|password|select|check|list, flag, options, placeholder, required, help}]
 //   args(values) returns the argv; the preview updates as fields change.
-export function form(ctx, { title, about, fields, args, submit = 'Run', danger }) {
+// onResult, if given, is called with the finished job's {code, out, err}
+// and the result area, so a view can act on the data rather than on the
+// rendered page.
+export function form(ctx, { title, about, fields, args, submit = 'Run', danger, onResult }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
   const f = el('form', { class: 'fields', autocomplete: 'off' });
@@ -185,7 +211,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger }
   f.addEventListener('submit', ev => {
     ev.preventDefault();
     if (danger && !confirm(`Run ${api.quote(args(values()))}?`)) return;
-    runJob(args(values()), area);
+    runJob(args(values()), area).then(r => { if (onResult) onResult(r, area); });
   });
   const sec = el('section', { class: 'panel' }, el('div', { class: 'panel-head' }, el('h2', {}, title)),
     about ? el('p', { class: 'hint' }, about) : null, f, line, area);
@@ -205,7 +231,11 @@ export const flag = (name, value) => (value === '' || value === undefined || val
 export const flags = (name, list) => list.flatMap(v => [`-${name}`, v]);
 
 export function mountAll(root, title, intro, parts) {
-  root.append(el('h1', {}, title), intro ? el('p', { class: 'hint' }, intro) : null);
+  // The banner shows when a panel below needs a node and none answers.
+  const banner = el('div', { class: 'node-banner', role: 'status', hidden: true },
+    'No node is answering for this node policy, so the panels that need one are waiting. ',
+    el('a', { href: '#/node' }, 'Start one on the Node view'), '.');
+  root.append(el('h1', {}, title), intro ? el('p', { class: 'hint' }, intro) : null, banner);
   for (const p of parts) root.append(p.el);
   return () => parts.forEach(p => p.stop());
 }

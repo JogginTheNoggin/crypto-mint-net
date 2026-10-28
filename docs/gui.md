@@ -113,7 +113,7 @@ with a button that runs it in the terminal.
 | --- | --- |
 | Getting started | First steps, each a command line run in the terminal |
 | Node | `node` (start and stop it in the GUI), `status`, `follow`, `unfollow`, `reload`, `init` |
-| Watch | `watch` with the filter flags: live events, newest first, with pause, counts and each event in full |
+| Watch | `watch` with the filter flags: live events, newest first, with pause, counts and each event in full. It keeps running when you switch views, and its tab shows a dot; Stop ends it |
 | Explore | `pools`, `ledger` (page by page), `pending`, `unspent`, `tx`, `address`, with the same filter flags |
 | Pools and payments | `status`, `holdings`, `payment`, `build`, `work` |
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
@@ -123,6 +123,13 @@ with a button that runs it in the terminal.
 | Jobs | Every command run, its output, stop, run again |
 | Settings | `-root` and `-policy`, which views add to their commands |
 | Terminal | Anything, typed |
+
+When a view's panels need a running node and none answers, the view shows
+one note saying so, with a link to the Node view, and each such panel
+folds its error behind "Show the error". The error and its next step are
+unchanged, and the note comes only from those commands' own results.
+Transaction ids and addresses in results link to Explore, which runs
+`poo tx` or `poo address` on them.
 
 When a running command reads input, such as a passphrase prompt, the view
 shows an input field next to it. The field is masked when, and only when,

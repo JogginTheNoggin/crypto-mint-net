@@ -62,9 +62,14 @@ try {
   // An error keeps its exact text and gains a next step that links a view.
   await page.click('nav a[data-id=pools]');
   const status = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Followed pools' }) });
+  // With no node, the view shows one banner and each panel that needs a
+  // node folds its error away, unchanged, behind "Show the error" (GREEN-011).
+  const banner = page.locator('.node-banner:not([hidden])');
+  await banner.waitFor();
+  await status.locator('details.no-node > summary').click();
   await status.locator('.next-step').waitFor();
   assert.match(await status.locator('pre.err').innerText(), /^poo: rpc: is the node running\?/);
-  await status.locator('.next-step a').click();
+  await banner.locator('a').click();
   await until(async () => (await page.locator('nav a[aria-current=page]').getAttribute('data-id')) === 'node', 'the Node view');
   if (shots) await page.screenshot({ path: join(shots, 'next-step.png') });
 

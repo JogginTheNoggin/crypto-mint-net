@@ -5,7 +5,7 @@
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
-import { launch } from './lib.mjs';
+import { launch, nodeStopped } from './lib.mjs';
 
 const bin = process.argv[2];
 const shots = process.argv[3];
@@ -45,8 +45,15 @@ try {
   await live.locator('tr.ev-selected').first().click();
   await live.locator('.event-detail', { hasText: 'selected' }).waitFor();
   if (shots) await page.screenshot({ path: join(shots, 'watch.png'), fullPage: true });
+  // The watch keeps running while another view is shown (GREEN-015).
+  await page.click('nav a[data-id=pools]');
+  assert.ok(await page.locator('nav a[data-id=watch].busy').count(), 'the Watch tab shows the running watch');
+  await page.click('nav a[data-id=watch]');
+  await live.locator('.run-status', { hasText: 'watching' }).waitFor();
+  assert.ok(await live.locator('tr.ev-selected').count() > 0, 'the table survived');
   await live.locator('button:has-text("Stop")').click();
   await live.locator('.run-status', { hasText: 'stopped' }).waitFor();
+  await until(async () => (await page.locator('nav a[data-id=watch].busy').count()) === 0, 'the dot to go');
 
   // The tid in a row links to Explore, which runs poo tx on it.
   await live.locator('tr.ev-tx a.lookup').first().click();
@@ -83,7 +90,7 @@ try {
 
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Stop node")');
-  await page.locator('.run-status', { hasText: 'node stopped (exit 0)' }).waitFor({ timeout: 20000 });
+  await nodeStopped(page);
   assert.deepEqual(errors, [], 'no page errors');
   console.log('gui watch e2e: ok');
 } finally {

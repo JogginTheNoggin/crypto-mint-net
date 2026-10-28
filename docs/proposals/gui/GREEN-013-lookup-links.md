@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-4-watch @ 93ed36a |
 | Area | gui/web/static (render.js, app.js router, watch.js Explore, views.js form) |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-28 (Round 3 Part A) |
 
 ## Summary
 

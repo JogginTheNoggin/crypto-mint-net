@@ -177,3 +177,8 @@ fieldset.kinds legend { padding: 0 4px; }
 fieldset.kinds label.check { display: flex; flex-direction: row; align-items: center; gap: 4px; color: var(--ink); }
 .hex-wrap { white-space: nowrap; }
 a.lookup { font-size: 11px; color: var(--accent); margin-left: 2px; }
+
+/* A view with a job running in the background (Watch). */
+nav a.busy::after { content: " \25CF"; color: var(--live); }
+.node-banner { border: 1px solid var(--live); border-radius: 6px; padding: 8px 12px; margin: 8px 0 12px; color: var(--live); }
+details.no-node > summary { cursor: pointer; color: var(--muted); }
