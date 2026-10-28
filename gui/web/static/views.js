@@ -6,7 +6,7 @@ import * as api from './api.js';
 import { render, secretValue } from './render.js';
 import * as where from './where.js';
 import { hintFor } from './hints.js';
-import { scrollback } from './scroll.js';
+import { scrollback, MAX_CHARS } from './scroll.js';
 // The watch and explore views live in watch.js; views lists every view so
 // the order of the navigation is in one place.
 import { watchView, exploreView } from './watch.js';
@@ -109,7 +109,16 @@ export function showResult(out, err, { empty, secretOutput } = {}) {
     try { v = JSON.parse(out); ok = true; } catch (_) { /* text output */ }
     // A command that prints a secret shows plain text hidden; render
     // hides a seed field in JSON (GUI-009).
-    box.append(ok ? render(v) : secretOutput ? secretValue(out.trim()) : el('pre', { class: 'text-out' }, out));
+    if (ok) box.append(render(v));
+    else if (secretOutput) box.append(secretValue(out.trim()));
+    else {
+      // A long text result shows its last MAX_CHARS characters, as the
+      // live pane and the terminal keep (ORANGE-008); Copy output still
+      // copies all of it.
+      const cut = out.length > MAX_CHARS ? out.length - MAX_CHARS : 0;
+      if (cut) box.append(el('p', { class: 'hint' }, `The first ${cut} characters are not shown; Copy output copies all of it.`));
+      box.append(el('pre', { class: 'text-out' }, cut ? out.slice(cut) : out));
+    }
     // The output exactly as poo printed it, for a script or a bug report.
     const copy = el('button', { type: 'button', class: 'small copy-out' }, 'Copy output');
     copy.onclick = () => {

@@ -12,6 +12,7 @@ const KINDS = ['tx', 'entry', 'layer', 'selected', 'reverted', 'switch', 'droppe
 // paused, the error text's tail, and one unfinished line.
 const MAX_EVENTS = 1000;
 const LIVE_ROWS = 200;
+const DRAW_EVERY = 100;
 const MAX_ERR = 64 << 10;
 const MAX_LINE = 1 << 20;
 
@@ -136,9 +137,20 @@ function buildWatch(ctx) {
   // builds their rows in one fragment, and lays the table out once.
   // Rows and events are kept in a WeakMap for the one click handler.
   const evOf = new WeakMap();
-  let pending = [], drawn = 0, frame = 0;
+  // A busy stream is drawn at most every DRAW_EVERY ms (ORANGE-006):
+  // each draw lays the table out again, so ten draws a second cost a
+  // sixth of sixty, and a table that changes ten times a second still
+  // reads as live.
+  let pending = [], drawn = 0, frame = 0, timer = 0, lastDraw = -Infinity;
+  const schedule = () => {
+    if (frame || timer) return;
+    const wait = lastDraw + DRAW_EVERY - performance.now();
+    if (wait <= 0) frame = requestAnimationFrame(flush);
+    else timer = setTimeout(() => { timer = 0; frame = requestAnimationFrame(flush); }, wait);
+  };
   const flush = () => {
     frame = 0;
+    lastDraw = performance.now();
     const evs = pending.length > MAX_EVENTS ? pending.slice(-MAX_EVENTS) : pending;
     pending = [];
     showCounts();
@@ -167,7 +179,7 @@ function buildWatch(ctx) {
     // Only the newest MAX_EVENTS can be shown, so no more than twice
     // that wait, even while the tab is hidden and frames do not run.
     if (pending.length > 2 * MAX_EVENTS) pending = pending.slice(-MAX_EVENTS);
-    if (!frame) frame = requestAnimationFrame(flush);
+    schedule();
   };
   const show = tr => {
     const ev = tr && evOf.get(tr);
@@ -243,7 +255,7 @@ function buildWatch(ctx) {
       held = [];
       heldDropped = 0;
       // What was held shows at once, not on the next frame.
-      if (frame) { cancelAnimationFrame(frame); flush(); }
+      if (frame || timer) { cancelAnimationFrame(frame); clearTimeout(timer); timer = 0; flush(); }
     }
   };
   stopBtn.onclick = () => { if (job) api.cancel(job.id).catch(() => {}); };
