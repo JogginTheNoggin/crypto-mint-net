@@ -29,7 +29,7 @@ without a wallet. See
 | `poo doctor [-json]` | Checks the node's setup (policy, file permissions, series, the local RPC, peers) and prints ok, warn, fail or skip for each, with the fix; read-only and local only; exits 1 if a check fails |
 | `poo claim -seed-file FILE -serial N` | Claims a whole mint for the key's 1-of-1 address; the seed comes from `POO_SEED` or the file (`-` for standard input), never an argument (D98) |
 | `poo pay -seed-file FILE -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |
-| `poo build -pool K \| -serial N [-work N]` | Builds an entry from the pending transactions, optionally adding a layer; `-serial` picks the pool holding that mint |
+| `poo build -pool K \| -serial N [-work N] [-max-tries N]` | Builds an entry from the pending transactions, optionally adding a layer; `-serial` picks the pool holding that mint; `-max-tries` bounds the nonces tried when the series sets a minimum entry strength |
 | `poo work -pool K \| -serial N [-entry HASH] [-start S] [-tries N]` | Adds the strongest layer found (default target: the selected tip); `-serial` as for build |
 | `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it. The older form of `poo tx -in-serial N TID`, kept for scripts |
 | `poo holdings -serial N` | Unspent portions of a mint. The older form of `poo unspent -serial N`, kept for scripts |
