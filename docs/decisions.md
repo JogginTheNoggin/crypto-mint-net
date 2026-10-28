@@ -1179,7 +1179,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   the GUI still builds on the same source.
 - **Tier:** Implementation.
 
-### D87. Every GUI action is a poo command line
+### D87. Every GUI action is a `poo` command line
 
 - **Decision:** The GUI does everything by running a command line through
   `cli.Main` as a job, with its own context, input and output. A view

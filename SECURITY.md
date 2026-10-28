@@ -21,7 +21,7 @@ about the same bytes.
 poo-gui serves its page only on a loopback address. A browser signs in
 once through a one-time sign-in address, which poo-gui opens or prints.
 Whoever holds that address before it is used, or the session cookie it
-sets, has full control of the node: they can run any poo command,
+sets, has full control of the node: they can run any `poo` command,
 including spending from the wallet. Treat both like the wallet passphrase.
 See the Security section of [docs/gui.md](docs/gui.md#security).
 [security/gui/findings/](security/gui/findings/) records the GUI Red

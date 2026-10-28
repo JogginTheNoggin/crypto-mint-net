@@ -181,14 +181,14 @@ grammars, and table tests pin them.
   too, because a shell would end the command there.
 - **Not modeled.** Some features belong to interactive shells and not to
   `sh`, such as bash's `!` history and `{a,b}` brace expansion and
-  PowerShell's own quoting. Those characters pass to poo literally.
+  PowerShell's own quoting. Those characters pass to `poo` literally.
 - **One convenience.** A leading `poo` word is dropped, because the prompt
-  already reads `poo`. `poo poo` would be an unknown command in a shell
-  anyway.
+  already reads `poo`. In a shell, `poo` followed by a second `poo` would
+  be an unknown command anyway.
 
 Clearing the screen is the Clear button and Ctrl-L, which are display
-controls. `clear` typed as a line goes to poo like any other line, as
-`poo clear` would in a shell. `GET /api/grammar` tells the page which
+controls. `clear` typed as a line goes to `poo` like any other line, as
+typing `clear` after `poo` would in a shell. `GET /api/grammar` tells the page which
 grammar the server uses, so the command lines that views show split back
 into the same argv. A test checks that the page's quoting matches
 `shell.Quote`.
@@ -260,7 +260,7 @@ server is locked down:
   sent to a running command was masked (GUI-003).
 - **Secrets on the command line.** A seed can also be passed as an
   argument: `wallet create -restore HEX`, `keygen -seed HEX`. The GUI runs
-  poo in its own process, so no other process sees that argument. It
+  `poo` in its own process, so no other process sees that argument. It
   keeps the seed out of two places that last (GUI-006). The terminal saves
   its history in the browser's storage, and it does not save a line that
   holds a secret flag (`shell.SecretFlags`: `-restore`, `-seed`, except
@@ -279,7 +279,7 @@ server is locked down:
   when the job ends.
 - **Authority.** The session cookie, like a sign-in address before it is
   spent, gives full control of the node. Whoever holds it can run any
-  poo command, including spending from the wallet and changing its
+  `poo` command, including spending from the wallet and changing its
   passphrase, just as a shell can. Treat a printed sign-in address like
   the wallet passphrase, and do not paste it into tickets or chats. View
   forms that move funds or delete something ask for confirmation, but
