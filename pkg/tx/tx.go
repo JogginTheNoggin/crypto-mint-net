@@ -290,6 +290,16 @@ func CheckAgainst(s *series.Series, v View, t *Tx, tid hash.Hash) error {
 	return nil
 }
 
+// Preverify verifies t's witness signatures ahead of Check, without any
+// state, and has the series remember those that pass (see
+// series.Preverify). It is safe to run outside a node's lock and never
+// changes what Check returns.
+func Preverify(s *series.Series, t *Tx, tid hash.Hash) {
+	for _, w := range t.Witnesses {
+		s.Preverify(w, tid)
+	}
+}
+
 // Check runs CheckStateless and then CheckAgainst.
 func Check(s *series.Series, v View, t *Tx, tid hash.Hash) error {
 	if err := CheckStateless(s, t, tid); err != nil {

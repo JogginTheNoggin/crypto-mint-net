@@ -26,3 +26,8 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-012](source/GREEN-012-o-on-every-read.md) | Source | `-o table` on the read commands that lacked it | proposed |
 | [GREEN-013](source/GREEN-013-version-build-info.md) | Source | `poo version -v` for bug reports | proposed |
 | [GREEN-014](source/GREEN-014-address-paging.md) | Source | Address history pages that skip nothing | proposed |
+| [ORANGE-001](source/ORANGE-001-prune-off-chain-set.md) | Source | Rank inactive branches without scanning every entry | proposed |
+| [ORANGE-002](source/ORANGE-002-remember-verified-witnesses.md) | Source | Remember witnesses already verified | proposed |
+| [ORANGE-003](source/ORANGE-003-reuse-hash-digests.md) | Source | Reuse hash digests | proposed |
+| [ORANGE-004](source/ORANGE-004-verify-before-the-lock.md) | Source | Verify signatures before the node's lock | proposed |
+| [ORANGE-005](source/ORANGE-005-store-group-commit.md) | Source | Group commit for the store | proposed |

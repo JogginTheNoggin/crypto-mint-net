@@ -294,6 +294,14 @@ func (r *Registry) HasAlg(id AlgID) bool { _, ok := r.algs[id]; return ok }
 // Check verifies witness w against address addr for transaction tid under
 // the series rules. A nil error means the witness is valid.
 func (r *Registry) Check(h hash.Func, rules Rules, w Witness, addr, tid hash.Hash) error {
+	return r.CheckCached(h, rules, w, addr, tid, nil)
+}
+
+// CheckCached is Check that skips the satisfaction function when v
+// remembers it passing for the same policy, data and tid, and remembers
+// each new pass. The size, address and allowed checks always run. A nil v
+// remembers nothing.
+func (r *Registry) CheckCached(h hash.Func, rules Rules, w Witness, addr, tid hash.Hash, v *Verified) error {
 	if max := rules.MaxWitnessSize(); max > 0 && w.Size() > max {
 		return ErrTooLarge
 	}
@@ -304,7 +312,18 @@ func (r *Registry) Check(h hash.Func, rules Rules, w Witness, addr, tid hash.Has
 	if err != nil {
 		return err
 	}
-	return t.Satisfy(r, w.Policy.Params, w.Data, Message(tid))
+	if v == nil {
+		return t.Satisfy(r, w.Policy.Params, w.Data, Message(tid))
+	}
+	k := verifiedKey(w, tid)
+	if v.has(k) {
+		return nil
+	}
+	if err := t.Satisfy(r, w.Policy.Params, w.Data, Message(tid)); err != nil {
+		return err
+	}
+	v.add(k)
+	return nil
 }
 
 // allowed checks that the series allows policy p's type and key
