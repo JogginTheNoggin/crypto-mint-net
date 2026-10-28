@@ -548,7 +548,11 @@ func paymentCmd(args []string, out io.Writer) error {
 	c := addClient(fs)
 	serial := fs.Uint64("serial", 0, "the mint's serial")
 	tidHex := fs.String("tid", "", "the transaction id")
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	tid, err := hash.Parse(*tidHex)
@@ -567,7 +571,7 @@ func paymentCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 func holdingsCmd(args []string, out io.Writer) error {

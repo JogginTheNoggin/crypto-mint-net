@@ -351,7 +351,11 @@ type ownerInfo struct {
 }
 
 func walletAddresses(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	s, err := f.series()
@@ -367,7 +371,7 @@ func walletAddresses(fs *flag.FlagSet, f *walletFlags, args []string, out io.Wri
 		rows = append(rows, ownerInfo{o.Address, o.Key, o.Shared, o.Label, o.Used})
 	}
 	sortOwners(rows)
-	return writeJSON(out, rows)
+	return o.write(out, rows)
 }
 
 // sortOwners orders keys by index, then shared policies by name.
@@ -466,7 +470,11 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 }
 
 func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	s, err := f.series()
@@ -491,7 +499,7 @@ func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 		mints[strconv.FormatUint(serial, 10)] = a
 		total += a
 	}
-	return writeJSON(out, map[string]any{"mints": mints, "total": total})
+	return o.write(out, map[string]any{"mints": mints, "total": total})
 }
 
 func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
@@ -690,7 +698,11 @@ type sentStatus struct {
 
 func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
 	threshold := fs.String("threshold", "", "from(e) needed for settled (default 0)")
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	th, err := parseThreshold(*threshold)
@@ -723,7 +735,7 @@ func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err := w.Save(); err != nil {
 		return err
 	}
-	return writeJSON(out, rows)
+	return o.write(out, rows)
 }
 
 func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {

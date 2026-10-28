@@ -90,7 +90,8 @@ Usage:
   poo wallet COMMAND          keys from one seed, payments, requests,
                               co-signing and light mode (poo wallet help)
 
-  poo version                 print the version
+  poo version [-v]            print the version (-v: Go, platform, commit
+                              and dependencies, for a bug report)
   poo crypto                  list the hashes, key algorithms and policy
                               types a series can choose from
   poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE]
@@ -222,8 +223,7 @@ func run(args []string, out io.Writer) error {
 	}
 	switch args[0] {
 	case "version":
-		fmt.Fprintln(out, Version)
-		return nil
+		return versionCmd(args[1:], out)
 	case "keygen":
 		return keygen(args[1:], out)
 	case "crypto":

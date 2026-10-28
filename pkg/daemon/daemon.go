@@ -20,6 +20,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -93,14 +94,25 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	asked := make(chan struct{})
 	ask := func() { once.Do(func() { close(asked) }) }
 	go func() {
-		select {
-		case <-asked:
-		case <-o.Reload:
-			ask()
-		case <-inner.Done():
+		for {
+			select {
+			case <-asked:
+			case <-o.Reload:
+				// A policy the new node could not open would stop the node
+				// for good, so a reload is refused until the file is
+				// right (GREEN-011). The local interface checks the same
+				// before it asks.
+				if _, err := nodepolicy.Load(filepath.Join(dir, nodepolicy.FileName)); err != nil {
+					nlog.Error("reload refused; still running on the policy it started with", "err", err)
+					continue
+				}
+				ask()
+			case <-inner.Done():
+				return
+			}
+			cancel()
 			return
 		}
-		cancel()
 	}()
 
 	// The node runs while both the host and the interface do.

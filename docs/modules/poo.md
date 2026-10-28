@@ -47,7 +47,7 @@ without a wallet. See
 | `poo wallet COMMAND` | The wallet; see below |
 | `poo completion bash\|zsh\|fish` | A shell completion script. It asks `poo __complete WORDS... CURRENT` (hidden) for candidates: commands and subcommands from the usage texts, each command's flags from its own flag set, and saved policy names after `-policy` |
 | `poo help [COMMAND]` | The usage, or one command's usage lines; a mistyped command gets the nearest names ("did you mean status?") |
-| `poo version` | Prints the version |
+| `poo version [-v]` | Prints the version; `-v` adds the Go version, platform, commit (when the build recorded it) and dependency versions, for a bug report |
 | `poo crypto` | Lists the hashes, key algorithms (with key and signature sizes) and policy types, with their numbers ([../cryptography.md](../cryptography.md)) |
 | `poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE]` | A new key (default Ed25519; `-seed HEX` is kept for test vectors only, since other users can read a command line) and its 1-of-1 address under a hash (default SHA-256; `address_sha256` is kept for SHA-256) |
 | `poo series example` | The example series parameters as JSON |
@@ -62,7 +62,7 @@ node policy, else `default`). Client commands take `-series ID` when the
 node follows more than one series.
 
 The read commands (`status`, `pools`, `ledger`, `pending`, `unspent`, `tx`,
-`address`, `holdings`, `peers`, `tracking`, `chases`) print JSON, which
+`address`, `holdings`, `payment`, `peers`, `tracking`, `chases`, `version -v`, and `wallet addresses`, `balance` and `status`) print JSON, which
 scripts and the GUI read. `-o table` prints the same reply for reading
 instead: a list becomes aligned columns named after its JSON fields, and an
 object becomes one field per line followed by a table for each list in it.

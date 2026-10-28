@@ -60,7 +60,7 @@ when the node follows exactly one series. Reply shapes are in
 | `GET /watch` | filter | A stream of newline-delimited JSON events with `hello`, `ping`, `missed` and `end` notices; it ends on a reload |
 | `GET /follow` | | `{follow, pools}`: the node policy's follow list and the pools followed now |
 | `POST /follow` | `{remove, issuer, series, pools, mints, no_reload}` | `{follow, pools, reloading}`; saves the changed node policy and, unless `no_reload`, reloads the node after replying |
-| `POST /reload` | `{}` | `{reloading: true}`; the node applies its node policy again |
+| `POST /reload` | `{}` | `{reloading: true}`; the node applies its node policy again. 422 `invalid` when `node.json` does not load, and the node keeps its current policy |
 | `GET /metrics` | | What `/status` and `/peers` report, in Prometheus text format 0.0.4 (`poo_pool_height`, `poo_pool_weight` as a float, `poo_pool_pending`, `poo_peers_connected`, …); a scraper sends the token as a bearer token (GREEN-002) |
 
 A reload restarts the interface: `rpc.addr` is written again and the next
