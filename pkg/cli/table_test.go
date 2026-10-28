@@ -104,3 +104,37 @@ func TestEveryReadCommandTakesO(t *testing.T) {
 		}
 	}
 }
+
+// A job row like poo grind jobs prints: a plan of six scalar fields and a
+// list of pools spread into columns, and a rate kept to two decimals
+// (GREEN-018).
+func TestTableNestedAndRates(t *testing.T) {
+	type plan struct {
+		Hash    string `json:"hash"`
+		Device  string `json:"device"`
+		Kind    string `json:"kind"`
+		Threads int    `json:"threads"`
+		Batch   int    `json:"batch"`
+		Auto    bool   `json:"auto"`
+	}
+	type job struct {
+		ID    int     `json:"id"`
+		Plan  plan    `json:"plan"`
+		Pools []int   `json:"pools"`
+		Rate  float64 `json:"rate"`
+		Tries uint64  `json:"tries"`
+	}
+	rows := []job{{ID: 1, Plan: plan{"sha256d", "cpu", "cpu", 4, 1024, true}, Pools: []int{1, 2}, Rate: 1234567.891234, Tries: 99}}
+	got := render(t, rows, "-o", "table")
+	for _, w := range []string{"PLAN.DEVICE", "PLAN.THREADS", "1,2", "1234567.89", "99"} {
+		if !strings.Contains(got, w) {
+			t.Errorf("table lacks %q:\n%s", w, got)
+		}
+	}
+	if strings.Contains(got, "{6}") || strings.Contains(got, "891234") {
+		t.Errorf("table still counts the plan or prints every digit:\n%s", got)
+	}
+	if wide := render(t, rows, "-o", "table", "-wide"); !strings.Contains(wide, "1234567.891234") {
+		t.Errorf("-wide rounds the rate:\n%s", wide)
+	}
+}
