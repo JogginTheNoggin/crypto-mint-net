@@ -79,9 +79,13 @@ func (c countHasher) Hash(s []byte) hash.Hash { c.uses.Add(1); return c.h.Hash(s
 // device make auto pick it for its hash, and only for its hash; a device
 // without a grinder is listed with a note and never picked.
 func TestAnotherDevice(t *testing.T) {
+	// Only the test's devices: the machine's own GPUs would take gpu:0.
+	old := sysClass
+	sysClass = t.TempDir()
+	defer func() { sysClass = old }()
 	r := newDefault()
 	r.RegisterProbe(func() []Device {
-		return []Device{{ID: "gpu:0", Kind: GPU, Name: "test"}, {ID: "npu:0", Kind: "npu", Name: "other"}}
+		return []Device{{ID: "gpu:0", Kind: GPU, Name: "test"}, {ID: "npu:0", Kind: "npu", Name: "other"}, {ID: "gpu:0", Kind: GPU, Name: "again"}}
 	})
 	var uses atomic.Int64
 	r.Register(Grinder{Name: "gpu-test", Kind: GPU, Hash: hash.SHA256, New: func(_ Device, id hash.ID) (hash.NewHasher, error) {
@@ -93,6 +97,9 @@ func TestAnotherDevice(t *testing.T) {
 	devs := r.Detect()
 	byID := map[string]Device{}
 	for _, d := range devs {
+		if _, dup := byID[d.ID]; dup {
+			t.Fatalf("two devices %s: %+v", d.ID, devs)
+		}
 		byID[d.ID] = d
 	}
 	if !slices.Equal(byID["gpu:0"].AutoFor, []string{"sha256"}) || byID["npu:0"].Note == "" || len(byID["npu:0"].AutoFor) != 0 {
