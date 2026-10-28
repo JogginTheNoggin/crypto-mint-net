@@ -38,7 +38,7 @@ without a wallet. See
 | `poo pending [filter]` | Pending transactions |
 | `poo unspent [filter]` | Unspent portions |
 | `poo tx [-in-serial N] TID` | One transaction: where it stands, the weight behind it, rivals, its contents |
-| `poo address [-limit N] [filter] ADDRESS` | An address's balance, holdings, history and pending transactions |
+| `poo address [-below H] [-limit N] [filter] ADDRESS` | An address's balance, holdings, history and pending transactions; `next` gives the `-below` for each pool's older history |
 | `poo watch [-notices] [-once] [filter]` | Prints events as they happen, one JSON line each, until interrupted; reconnects after a reload unless `-once` |
 | `poo follow [-issuer HEX] [-series ID] [-pool K]... [-mint N]... [-no-reload]` | Without flags, what is followed; with them, adds to the follow list and applies it to the running node (or edits `node.json` when the node is stopped) |
 | `poo unfollow (-issuer HEX \| -series ID) [-pool K]... [-mint N]... [-no-reload]` | Removes from the follow list, the same way |

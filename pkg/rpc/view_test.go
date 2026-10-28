@@ -52,6 +52,10 @@ func TestViews(t *testing.T) {
 	if a.Balance != 100 || len(a.History) != 1 || len(a.Pending) != 1 {
 		t.Fatalf("address %+v", a)
 	}
+	// RED-008: below pages the history; below the only entry there is none.
+	if a, err := f.c.AddressPage(nil, k.Addr("alice"), 1, 1, filter.Filter{}); err != nil || len(a.History) != 1 || len(a.Next) != 0 {
+		t.Fatalf("address from height 1: %+v %v", a, err)
+	}
 	un, err := f.c.Unspent(filter.Filter{})
 	must(t, err)
 	if len(un) != 1 || un[0].Amount != 100 {
