@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | deferred |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `c71f774` (first proposed on `4692b4e`) |
 | Area | `pkg/daemon`, `pkg/p2p`, `pkg/node`, node policy `log` section |
 | Effort | medium |
-| Decided by | Grey: wanted, but it touches every log line; build after M10 merges, with Red reviewing the debug level |
+| Decided by | Grey, Source Round 3: built as `pkg/logging`, with Red's two guards: remote text only in attributes, and the debug `received` line capped at 200 a second (D104) |
 
 ## Summary
 

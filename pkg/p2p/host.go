@@ -352,6 +352,8 @@ type Host struct {
 	cfg Config
 	id  hash.Hash
 	log *slog.Logger
+	// recvLines caps the debug line for each received message.
+	recvLines lineCap
 
 	coverage []wire.Section
 	byPoolID map[hash.Hash]*poolInfo
@@ -819,4 +821,36 @@ func (c *idCache) add(id hash.Hash, now time.Time) bool {
 	}
 	c.seen[id] = now
 	return true
+}
+
+// lineCap bounds how many lines of one kind a host logs per second, so
+// a debug line written for every message a peer sends cannot let a flood
+// of messages, or a slow log sink, hold up every peer's read loop. Lines
+// over the cap are counted, and the count is logged when the next second
+// begins.
+type lineCap struct {
+	mu      sync.Mutex
+	second  int64
+	n       int
+	dropped int
+}
+
+// debugReceivedPerSecond caps the debug line for received messages.
+const debugReceivedPerSecond = 200
+
+// allow reports whether one more line may be logged now, and how many
+// were dropped in the second before, if this is the first line of a new
+// second.
+func (c *lineCap) allow(now time.Time, max int) (ok bool, dropped int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s := now.Unix(); s != c.second {
+		c.second, c.n, dropped, c.dropped = s, 0, c.dropped, 0
+	}
+	if c.n >= max {
+		c.dropped++
+		return false, dropped
+	}
+	c.n++
+	return true, dropped
 }

@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted in part |
 | Based on | `claude/m10-watch` @ `c71f774` |
 | Area | `pkg/cli` (`status`, `holdings`, `payment`), `pkg/rpc`, docs; the GUI's "Pools and payments" view (GUI team) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey, Source Round 3: step 1 done (`pools` carries `waiting` and `stored_records`; `payment` and `holdings` marked as the older forms in usage and docs); step 2 done by GUI/Grey (GUI GREEN-012); step 3, serving them from `pkg/watch`, deferred. The `series_id`/`id` names stay as they are for scripts |
 
 ## Summary
 

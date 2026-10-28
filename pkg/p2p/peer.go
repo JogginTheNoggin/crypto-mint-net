@@ -465,8 +465,16 @@ func (h *Host) readLoop(p *peer) error {
 		p.received.Add(1)
 		p.active.Store(time.Now().UnixNano())
 		if h.log.Enabled(context.Background(), slog.LevelDebug) {
-			// Only the type and size: never a payload a peer chose.
-			h.log.Debug("received", "peer", p.short(), "type", m.Type.String(), "bytes", n)
+			// Only the type and size: never a payload a peer chose. At
+			// most debugReceivedPerSecond lines a second, so a flood of
+			// messages cannot stall the read loops on the log.
+			ok, dropped := h.recvLines.allow(time.Now(), debugReceivedPerSecond)
+			if dropped > 0 {
+				h.log.Debug("received lines dropped", "lines", dropped)
+			}
+			if ok {
+				h.log.Debug("received", "peer", p.short(), "type", m.Type.String(), "bytes", n)
+			}
 		}
 		if err := h.dispatch(p, m, n); err != nil {
 			h.misbehave(p, err)

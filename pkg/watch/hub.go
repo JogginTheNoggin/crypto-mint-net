@@ -86,6 +86,9 @@ type Hub struct {
 	mu   sync.Mutex
 	seq  uint64
 	subs map[*Sub]bool
+	// closed: Close ran, so a later subscriber is closed at once rather
+	// than left waiting for events that will never come.
+	closed bool
 }
 
 // Sub is one subscriber. Its events arrive on C until Close.
@@ -116,8 +119,13 @@ func (h *Hub) Subscribe(f filter.Filter, buffer int) *Sub {
 	c := make(chan Event, buffer)
 	s := &Sub{C: c, c: c, f: f, hub: h}
 	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		s.closed = true
+		close(c)
+		return s
+	}
 	h.subs[s] = true
-	h.mu.Unlock()
 	return s
 }
 
@@ -142,9 +150,11 @@ func (s *Sub) Close() {
 	}
 }
 
-// Close closes every subscriber, as when the node stops.
+// Close closes every subscriber, as when the node stops, and every one
+// that subscribes after.
 func (h *Hub) Close() {
 	h.mu.Lock()
+	h.closed = true
 	subs := make([]*Sub, 0, len(h.subs))
 	for s := range h.subs {
 		subs = append(subs, s)

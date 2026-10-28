@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `c71f774` |
 | Area | `pkg/cli` (`build`, `work`) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey, Source Round 3: `poo build -serial` and `poo work -serial` |
 
 ## Summary
 

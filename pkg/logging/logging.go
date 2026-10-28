@@ -8,6 +8,13 @@
 //   - text is slog's key=value form with time and level, for log files.
 //   - json is one JSON object per line, for log collectors.
 //
+// In plain, the message is the only field written as it is; every
+// attribute value is quoted when it holds a space, quote, equals sign or
+// newline, and text and json escape everything. So text that came from
+// another party (a peer, a registry, a request) must always go in an
+// attribute and never be formatted into the message, or it could forge a
+// line.
+//
 // The consensus packages never log; they return errors, and the node,
 // p2p and daemon packages that call them log what matters.
 package logging

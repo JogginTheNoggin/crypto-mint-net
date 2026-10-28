@@ -144,7 +144,7 @@ func TestViewFollowAndWatch(t *testing.T) {
 		t.Fatalf("watch: %v", err)
 	}
 	cli(t, nil, append([]string{"reload"}, r...)...)
-	for _, bad := range [][]string{{"ledger"}, {"tx"}, {"unfollow"}, {"pending", "-kind", "x"}, {"follow", "-series", "zz"}} {
+	for _, bad := range [][]string{{"ledger"}, {"tx"}, {"unfollow"}, {"pending", "-kind", "x"}, {"pending", "-kind", "tx"}, {"follow", "-series", "zz"}} {
 		if err := run(append(bad, r...), &b); err == nil {
 			t.Fatalf("%v accepted", bad)
 		}

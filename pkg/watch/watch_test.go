@@ -7,6 +7,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
@@ -304,4 +305,23 @@ func TestAddressPageIsBounded(t *testing.T) {
 	if _, err := watch.AddressPage(ctx, eng, s.ID(), k.Addr("zed"), scope, 0, 10); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled: %v", err)
 	}
+}
+
+// TestSubscribeAfterClose: a subscriber that arrives after the hub closed,
+// as a watch request racing a reload can, is closed at once instead of
+// waiting forever (and holding the interface's shutdown open).
+func TestSubscribeAfterClose(t *testing.T) {
+	f := newFixture(t)
+	hub := watch.NewHub(f.n)
+	hub.Close()
+	s := hub.Subscribe(filter.Filter{}, 0)
+	select {
+	case _, ok := <-s.C:
+		if ok {
+			t.Fatal("an event on a closed hub")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("a subscriber of a closed hub stays open")
+	}
+	s.Close() // and closing it again is fine
 }

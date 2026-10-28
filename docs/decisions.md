@@ -1407,3 +1407,22 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   token (D100) could ask for it, so a reader could stall the node on a
   tall ledger. `LedgerPage` already had this bound (D94).
 - **Tier:** Implementation.
+
+### D104. Node logs are structured, and a stopping interface always stops
+
+- **Decision:** The node logs through `log/slog` (`pkg/logging`, formats
+  `plain`, `text` and `json`, levels from the node policy's `log` section
+  or `poo node -log-level` and `-log-format`). Text from a peer goes only
+  into attributes, which are quoted, never into the message, and the
+  debug line for each received message is capped at 200 a second per
+  host, with the number dropped logged after. When the local interface
+  stops, the event hub refuses new subscribers once closed (a late one
+  gets a closed stream at once), and a request still running after
+  `rpc.ShutdownTimeout` (5 seconds) is cut off; neither makes the stop
+  fail.
+- **Why:** GREEN-006, with Red's review of the debug level: a peer must
+  not be able to forge log lines or fill a disk. The stop: GUI GREEN-015
+  item 3 saw `poo node` exit 1 with "context deadline exceeded"; a watch
+  that subscribed after the hub closed during a stop or reload waited
+  forever and held the shutdown past its deadline.
+- **Tier:** Implementation.

@@ -48,4 +48,9 @@ Log with fields, not with formatted strings: `h.log.Info("chase",
 "pool", k.String(), "peer", p.short(), "result", out)`. Keep messages short
 and stable, since people filter on them. Anything a peer sends goes in at
 `debug` level as a size or a type, never as a payload, so a peer cannot
-fill the disk or forge lines.
+fill the disk or forge lines. Never format remote text into the message:
+in `plain` the message is the only field not quoted. The `received`
+line is capped at 200 a second per host, and the number dropped is logged
+the next second, so `debug` on a busy public node costs a bounded amount
+of log, but it is still meant for finding a problem, not for running
+all day.

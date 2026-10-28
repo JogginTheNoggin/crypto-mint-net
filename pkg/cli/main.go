@@ -81,8 +81,10 @@ Usage:
   poo work -pool K | -serial N [-entry HASH] [-tries N]
                               add a layer (default: on the selected tip)
   poo payment -serial N -tid HASH
-                              where a transaction stands, and its weight
-  poo holdings -serial N      unspent portions of a mint
+                              where a transaction stands (older form of
+                              poo tx, kept for scripts)
+  poo holdings -serial N      unspent portions of a mint (older form of
+                              poo unspent -serial N, kept for scripts)
   poo policy list|use|archive|unarchive|delete [-root DIR] [NAME]
                               manage saved and archived node policies
   poo wallet COMMAND          keys from one seed, payments, requests,

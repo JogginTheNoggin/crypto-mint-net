@@ -25,14 +25,14 @@ without a wallet. See
 | `poo peer timeout\|block\|unblock\|clear\|template\|delete ADDR [-seconds N] [-range] [-what flags\|measures\|all] [-template NAME]` | Acts on one peer: pause it, block it (or its range; `-seconds -1` until unblocked), lift either, clear its records, choose its tracking template, or delete it from the book (flags before ADDR) |
 | `poo tracking [ADDR]` | Every tracked address's status and the blocked ranges, or one address's whole record |
 | `poo chases` | The chase queue: heavier stated weights waiting or being checked |
-| `poo status` | Every followed pool |
+| `poo status` | Every followed pool and the replay stats; `poo pools` shows the same per pool, with filters |
 | `poo doctor [-json]` | Checks the node's setup (policy, file permissions, series, the local RPC, peers) and prints ok, warn, fail or skip for each, with the fix; read-only and local only; exits 1 if a check fails |
 | `poo claim -seed-file FILE -serial N` | Claims a whole mint for the key's 1-of-1 address; the seed comes from `POO_SEED` or the file (`-` for standard input), never an argument (D98) |
 | `poo pay -seed-file FILE -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |
 | `poo build -pool K \| -serial N [-work N]` | Builds an entry from the pending transactions, optionally adding a layer; `-serial` picks the pool holding that mint |
 | `poo work -pool K \| -serial N [-entry HASH] [-start S] [-tries N]` | Adds the strongest layer found (default target: the selected tip); `-serial` as for build |
-| `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it |
-| `poo holdings -serial N` | Unspent portions of a mint |
+| `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it. The older form of `poo tx -in-serial N TID`, kept for scripts |
+| `poo holdings -serial N` | Unspent portions of a mint. The older form of `poo unspent -serial N`, kept for scripts |
 | `poo pools [filter]` | The followed pools the filter covers |
 | `poo ledger -pool K [-below H] [-limit N] [filter]` | A page of a pool's selected ledger, newest first, with each entry's transactions |
 | `poo pending [filter]` | Pending transactions |

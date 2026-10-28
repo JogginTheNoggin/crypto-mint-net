@@ -58,9 +58,9 @@ export POO_SEED=ALICE_SEED        # or -seed-file FILE; never on the command lin
 ./poo build -pool 1 -work 100000   # an entry, then a layer that selects it
 ./poo pay -serial 5 -to BOB_ADDRESS -amount 30
 ./poo build -pool 1 -work 100000
-./poo payment -serial 5 -tid TID_FROM_PAY
-./poo holdings -serial 5
-./poo status
+./poo tx -in-serial 5 TID_FROM_PAY  # where the payment stands
+./poo unspent -serial 5
+./poo pools
 ```
 
 `claim` and `pay` read the key's seed from `POO_SEED` or `-seed-file`

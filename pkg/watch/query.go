@@ -37,6 +37,11 @@ type Pool struct {
 	Entries     int           `json:"entries"`
 	Branches    int           `json:"branches"`
 	Pending     int           `json:"pending"`
+	// Waiting are transactions waiting on an unknown input.
+	Waiting int `json:"waiting"`
+	// StoredRecords is how many records the pool's store holds; the
+	// engine does not know, so the node's interface fills it in.
+	StoredRecords int `json:"stored_records"`
 }
 
 // Pools lists the followed pools that f's series, pool and serial fields
@@ -56,7 +61,7 @@ func Pools(e *engine.Engine, f filter.Filter) []Pool {
 		out = append(out, Pool{
 			Series: k.Series, Pool: k.Index, FirstSerial: first, LastSerial: last,
 			Tip: st.Tip, Height: st.Height, Weight: st.Weight, Entries: st.Entries,
-			Branches: len(st.Branches), Pending: st.Pending,
+			Branches: len(st.Branches), Pending: st.Pending, Waiting: st.Waiting,
 		})
 	}
 	return out

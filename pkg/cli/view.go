@@ -76,6 +76,10 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	if err := o.check(); err != nil {
 		return err
 	}
+	if len(v.f.Kinds) > 0 {
+		// Views hold items, not events: a kind would select nothing.
+		return fmt.Errorf("-kind selects events and applies to poo watch only")
+	}
 	if name == "tx" || name == "address" {
 		if fs.NArg() != 1 {
 			return fmt.Errorf("usage: poo %s [flags] %s", name, map[string]string{"tx": "TID", "address": "ADDRESS"}[name])

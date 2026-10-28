@@ -30,6 +30,14 @@ func TestViews(t *testing.T) {
 	if len(pools) != 1 || pools[0].Height != 1 || pools[0].Pending != 1 {
 		t.Fatalf("pools %+v", pools)
 	}
+	// pools carries what status does per pool (GREEN-008).
+	full, err := f.c.Status()
+	must(t, err)
+	for _, sp := range full.Pools {
+		if sp.Pool == 1 && (sp.Stored == 0 || sp.Stored != pools[0].StoredRecords || sp.Waiting != pools[0].Waiting) {
+			t.Fatalf("pools %+v, status %+v", pools[0], sp)
+		}
+	}
 	lp, err := f.c.Ledger(nil, 1, 0, 0, filter.Filter{})
 	must(t, err)
 	if len(lp.Entries) != 1 || lp.Entries[0].Txs[0].TID != c4.TID(s.Hash()) {

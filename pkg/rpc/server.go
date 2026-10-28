@@ -39,6 +39,10 @@ type ServeConfig struct {
 	Reload func()
 }
 
+// ShutdownTimeout is how long a stopping interface waits for requests
+// in progress before it closes their connections.
+var ShutdownTimeout = 5 * time.Second
+
 // ServeWith is Serve with a host, an event hub and a reload hook.
 func ServeWith(ctx context.Context, n *node.Node, cfg ServeConfig, ready func(addr string)) error {
 	addr := n.Policy().ListenAddr()
@@ -85,9 +89,15 @@ func ServeWith(ctx context.Context, n *node.Node, cfg ServeConfig, ready func(ad
 		if cfg.Hub != nil {
 			cfg.Hub.Close()
 		}
-		shut, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shut, cancel := context.WithTimeout(context.Background(), ShutdownTimeout)
 		defer cancel()
 		err := srv.Shutdown(shut)
+		if errors.Is(err, context.DeadlineExceeded) {
+			// A request still running after the grace period is cut
+			// off: the node is stopping either way, and that is not a
+			// failure of the stop.
+			err = srv.Close()
+		}
 		<-errc
 		return err
 	case err := <-errc:
