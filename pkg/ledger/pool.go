@@ -304,7 +304,7 @@ func (p *Pool) weightOf(n *node) weight.Weight {
 		return p.bit.prefix(n.height)
 	}
 	a := p.anchorHeight(n)
-	return p.bit.prefix(a).Add(n.rel)
+	return p.bit.prefixPlus(a, n.rel)
 }
 
 // anchorHeight returns the height of the nearest selected ancestor of an
@@ -424,11 +424,16 @@ func (p *Pool) viewAfter(n *node) *state.State {
 // AddLayer counts a layer on a held entry. It returns ErrUnknownEntry,
 // ErrWeakLayer or ErrKnownLayer when it does not count it.
 func (p *Pool) AddLayer(l layer.Layer) (AddResult, error) {
+	return p.AddLayerHashed(l, l.Hash(p.s.Hash()))
+}
+
+// AddLayerHashed is AddLayer for a caller that has already hashed the
+// layer: lh must be l.Hash under the series' hash (ORANGE-009).
+func (p *Pool) AddLayerHashed(l layer.Layer, lh hash.Hash) (AddResult, error) {
 	n, ok := p.nodes[l.Entry]
 	if !ok {
 		return AddResult{}, ErrUnknownEntry
 	}
-	lh := l.Hash(p.s.Hash())
 	if lh.Strength() < p.s.MinLayerStrength() {
 		return AddResult{Hash: lh}, ErrWeakLayer
 	}

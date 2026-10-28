@@ -450,7 +450,7 @@ func (e *Engine) HandleLayer(k PoolKey, l layer.Layer, origin Origin) (LayerResu
 	if origin.checksSeen() && e.seen.Has(lh) {
 		return res, ErrSeen
 	}
-	ar, err := p.ledger.AddLayer(l)
+	ar, err := p.ledger.AddLayerHashed(l, lh)
 	if err != nil {
 		return res, err
 	}
