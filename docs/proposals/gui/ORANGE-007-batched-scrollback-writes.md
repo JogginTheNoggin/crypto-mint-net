@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | claude/gui-4-watch @ 50a0edd |
 | Area | gui/web/static/scroll.js, terminal.js |
 | Effort | small |

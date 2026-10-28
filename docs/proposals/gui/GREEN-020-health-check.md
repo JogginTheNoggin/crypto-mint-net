@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted; the banner on the Node view points at the Health check |
 | Based on | claude/gui-4-watch @ 50a0edd |
 | Area | gui/web/static/views.js (doctorReport, panel onResult, nodeView), style.css |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-28 (Round 5 Part A) |
 
 ## Summary
 

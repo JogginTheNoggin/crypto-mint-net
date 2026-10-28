@@ -28,9 +28,9 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-017](GREEN-017-guide-follows-settings.md) | Getting started uses the Settings -root and -policy, like the views | small | yes | adopted |
 | [GREEN-018](GREEN-018-ledger-picture.md) | A picture of the selected ledger in Explore (rest of GREEN-006) | small | yes | adopted |
 | [GREEN-019](GREEN-019-links-and-copy-output.md) | Themed links, and Copy output on every result | small | yes | adopted |
-| [GREEN-020](GREEN-020-health-check.md) | A Health check panel on `poo doctor`, with runnable fixes | small | yes | proposed |
-| [GREEN-021](GREEN-021-grinder-view-sketch.md) | GUI ideas for the grinders (M11), and what the commands should print | medium | no | proposed |
-| [GREEN-022](GREEN-022-output-conventions.md) | Output conventions: `-o` on doctor, fix as argv, stable error codes (Source) | small | no | proposed |
+| [GREEN-020](GREEN-020-health-check.md) | A Health check panel on `poo doctor`, with runnable fixes | small | yes | adopted |
+| [GREEN-021](GREEN-021-grinder-view-sketch.md) | GUI ideas for the grinders (M11), and what the commands should print | medium | no | after M11 |
+| [GREEN-022](GREEN-022-output-conventions.md) | Output conventions: `-o` on doctor, fix as argv, stable error codes (Source) | small | no | with Source/Grey |
 
 ## Orange (performance)
 
@@ -46,9 +46,9 @@ ORANGE-005 explains how to measure.
 | [ORANGE-003](ORANGE-003-bounded-scrollback.md) | Bounded scrollback for the terminal, node log and running commands (`poo watch` in the terminal: 126 s frozen → 1.1 s) | small | yes | adopted |
 | [ORANGE-004](ORANGE-004-refresh-timers-and-jobs-list.md) | No timed refreshes in a hidden tab; Jobs redraws only on change | small | yes | adopted |
 | [ORANGE-005](ORANGE-005-measuring-kit.md) | A measuring kit (`gui/perf`, benchmarks), and what measured fine | small | yes | adopted |
-| [ORANGE-006](ORANGE-006-watch-draw-rate.md) | Draw a busy Watch table at most 10 times a second (61% → 18% busy at 200 events/s) | small | yes | proposed |
-| [ORANGE-007](ORANGE-007-batched-scrollback-writes.md) | Batch frequent writes in scrollback panes (node log 11% → 4% busy) | small | yes | proposed |
-| [ORANGE-008](ORANGE-008-long-text-results.md) | Show the last 1 MiB of a long text result (3.9 MB: 792 → 181 ms) | small | yes | proposed |
+| [ORANGE-006](ORANGE-006-watch-draw-rate.md) | Draw a busy Watch table at most 10 times a second (61% → 18% busy at 200 events/s) | small | yes | adopted |
+| [ORANGE-007](ORANGE-007-batched-scrollback-writes.md) | Batch frequent writes in scrollback panes (node log 11% → 4% busy) | small | yes | adopted |
+| [ORANGE-008](ORANGE-008-long-text-results.md) | Show the last 1 MiB of a long text result (3.9 MB: 792 → 181 ms) | small | yes | adopted |
 
 ## How to try the prototypes
 

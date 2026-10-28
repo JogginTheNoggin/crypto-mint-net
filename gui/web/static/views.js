@@ -85,7 +85,8 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
           status.className = 'run-status ' + (e.code === 0 ? 'ok' : 'bad');
           status.textContent = e.code === 0 ? 'done' : `exit ${e.code}`;
           live.remove();
-          area.append(showResult(out, err, { empty, secretOutput }));
+          // The server marks a command that prints a secret (GUI-009).
+          area.append(showResult(out, err, { empty, secretOutput: secretOutput || j.secretOutput }));
           resolve({ code: e.code, out, err });
         },
         error: () => { status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err }); },
@@ -259,9 +260,12 @@ export const flags = (name, list) => list.flatMap(v => [`-${name}`, v]);
 
 export function mountAll(root, title, intro, parts) {
   // The banner shows when a panel below needs a node and none answers.
+  // On the Node view itself it points at the Health check and the start
+  // button below rather than linking to the view it is on (GREEN-020).
   const banner = el('div', { class: 'node-banner', role: 'status', hidden: true },
     'No node is answering for this node policy, so the panels that need one are waiting. ',
-    el('a', { href: '#/node' }, 'Start one on the Node view'), '.');
+    ...(title === 'Node' ? ['The Health check below says what is missing, and Start node runs one.']
+      : [el('a', { href: '#/node' }, 'Start one on the Node view'), '.']));
   root.append(el('h1', {}, title), intro ? el('p', { class: 'hint' }, intro) : null, banner);
   for (const p of parts) root.append(p.el);
   return () => parts.forEach(p => p.stop());

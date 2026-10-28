@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | accepted for after M11; the output contract is with Source/Grey |
 | Based on | claude/gui-4-watch @ 50a0edd |
 | Area | a future Work view; asks for the M11 commands (Source/Grey) |
 | Effort | medium |
-| Decided by | (Grey) |
+| Decided by | GUI/Grey, 2026-10-28 (Round 5 Part A) |
 
 ## Summary
 
