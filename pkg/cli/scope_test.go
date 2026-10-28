@@ -134,3 +134,37 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+// TestRestoreSeedHidden: -restore - reads the seed through Stdio.Secret,
+// so it never shows on the command line or the screen (GUI-006).
+func TestRestoreSeedHidden(t *testing.T) {
+	root := t.TempDir()
+	r := []string{"-root", root}
+	cli(t, nil, append([]string{"init", "-example"}, r...)...)
+	createIterations = 1
+	defer func() { createIterations = 0 }()
+	t.Setenv("POO_PASSPHRASE", "pw")
+	cli(t, nil, append([]string{"wallet", "create"}, r...)...)
+	var seed bytes.Buffer
+	must(t, run(append([]string{"wallet", "seed"}, r...), &seed))
+	hexSeed := strings.TrimSpace(seed.String())
+	var prompts []string
+	secret := func(p string) (string, error) { prompts = append(prompts, p); return hexSeed, nil }
+	var out bytes.Buffer
+	copyArgs := append([]string{"-wallet", filepath.Join(root, "copy.json")}, r...)
+	io := Stdio{In: strings.NewReader(""), Out: &out, Err: &out, Secret: secret}
+	if err := Run(context.Background(), append(append([]string{"wallet", "create"}, copyArgs...), "-restore", "-"), io); err != nil {
+		t.Fatalf("restore: %v\n%s", err, out.String())
+	}
+	if len(prompts) != 1 || prompts[0] != "seed: " || strings.Contains(out.String(), hexSeed) {
+		t.Fatalf("prompts %q, out %q", prompts, out.String())
+	}
+	var again bytes.Buffer
+	must(t, run(append([]string{"wallet", "seed"}, copyArgs...), &again))
+	if strings.TrimSpace(again.String()) != hexSeed {
+		t.Fatal("the restored wallet has another seed")
+	}
+	if !slices.Contains(SecretFlags(), "restore") || !slices.Contains(SecretFlags(), "seed") {
+		t.Fatalf("SecretFlags %q", SecretFlags())
+	}
+}

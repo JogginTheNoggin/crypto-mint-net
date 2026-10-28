@@ -84,3 +84,23 @@ func TestTableOutputBadFormat(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// TestEveryReadCommandTakesO checks the read commands added in GREEN-012
+// take -o and refuse an unknown form before doing anything.
+func TestEveryReadCommandTakesO(t *testing.T) {
+	t.Setenv("POO_HOME", t.TempDir())
+	for _, p := range [][]string{
+		{"status"}, {"pools"}, {"ledger"}, {"pending"}, {"unspent"}, {"tx"}, {"address"},
+		{"holdings"}, {"peers"}, {"tracking"}, {"chases"}, {"payment"},
+		{"wallet", "addresses"}, {"wallet", "balance"}, {"wallet", "status"},
+	} {
+		if commandFlags(p)["o"] == nil {
+			t.Errorf("poo %s has no -o", strings.Join(p, " "))
+			continue
+		}
+		err := run(append(p, "-o", "yaml"), &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), "-o must be") {
+			t.Errorf("poo %s -o yaml: %v", strings.Join(p, " "), err)
+		}
+	}
+}

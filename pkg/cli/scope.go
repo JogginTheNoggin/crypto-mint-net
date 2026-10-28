@@ -115,3 +115,9 @@ func readSecret(out io.Writer, prompt string) (string, error) {
 }
 
 var errNoInput = errors.New("nothing on standard input")
+
+// SecretFlags returns the names of the flags, in any command, whose value
+// can be a secret (a seed), so a front end that keeps or shows command
+// lines, such as the GUI's terminal history, can mask their values
+// (GUI-006). Passphrases never come from a flag.
+func SecretFlags() []string { return []string{"seed", "restore"} }

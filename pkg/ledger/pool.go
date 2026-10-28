@@ -113,7 +113,10 @@ type Pool struct {
 	bit   *fenwick
 	st    *state.State // pool state at the selected tip
 	tids  map[hash.Hash]*node
-	seq   uint64
+	// off holds every node outside the selected ledger, so ranking the
+	// inactive branches looks only at them, not at every entry held.
+	off map[*node]struct{}
+	seq uint64
 	// newest is the entry added last. It is never pruned while it is a
 	// leaf, so a branch fetched parent first can take its layers and its
 	// next entry before it is ranked (decision D79).
@@ -134,6 +137,7 @@ func New(s *series.Series, index uint64, cfg Config) *Pool {
 		bit:   newFenwick(),
 		st:    state.New(),
 		tids:  map[hash.Hash]*node{},
+		off:   map[*node]struct{}{},
 	}
 }
 
@@ -370,6 +374,7 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 		}
 	}
 	p.nodes[h] = n
+	p.off[n] = struct{}{}
 	p.newest = n
 
 	res := AddResult{Hash: h}
@@ -538,6 +543,7 @@ func (p *Pool) switchTo(n *node) *Switch {
 		o := old[i]
 		p.st.Revert(o.items, o.undo)
 		o.onChain = false
+		p.off[o] = struct{}{}
 		for _, it := range o.items {
 			delete(p.tids, it.TID)
 		}
@@ -551,6 +557,7 @@ func (p *Pool) switchTo(n *node) *Switch {
 	for _, x := range seg {
 		x.undo = p.st.Apply(x.items)
 		x.onChain = true
+		delete(p.off, x)
 		p.chain = append(p.chain, x)
 		p.bit.push(x.own)
 		for _, it := range x.items {
@@ -620,8 +627,9 @@ type Branch struct {
 func (p *Pool) Branches() []Branch {
 	leaves := p.offChainLeaves()
 	out := make([]Branch, 0, len(leaves))
-	for _, l := range leaves {
-		b := Branch{Tip: l.hash, Height: l.height, Weight: p.weightOf(l), Fork: p.id}
+	for _, lf := range leaves {
+		l := lf.n
+		b := Branch{Tip: l.hash, Height: l.height, Weight: lf.w, Fork: p.id}
 		for x := l.parent; x != nil; x = x.parent {
 			if x.onChain {
 				b.Fork = x.hash
@@ -716,15 +724,31 @@ func (p *Pool) ReplayOrder() []hash.Hash {
 	return out
 }
 
-// offChainLeaves returns the off-chain nodes with no children, best first.
-func (p *Pool) offChainLeaves() []*node {
-	var leaves []*node
-	for _, n := range p.nodes {
-		if !n.onChain && len(n.children) == 0 {
-			leaves = append(leaves, n)
+// leaf is an off-chain node with no children and its ledger's weight.
+type leaf struct {
+	n *node
+	w weight.Weight
+}
+
+// offChainLeaves returns the off-chain nodes with no children, best first:
+// a greater weight, or an equal weight and seen first, as better ranks
+// them. Each weight is worked out once, not at every comparison.
+func (p *Pool) offChainLeaves() []leaf {
+	var leaves []leaf
+	for n := range p.off {
+		if len(n.children) == 0 {
+			leaves = append(leaves, leaf{n, p.weightOf(n)})
 		}
 	}
-	sort.Slice(leaves, func(i, j int) bool { return p.better(leaves[i], leaves[j]) })
+	sort.Slice(leaves, func(i, j int) bool {
+		switch leaves[i].w.Cmp(leaves[j].w) {
+		case 1:
+			return true
+		case -1:
+			return false
+		}
+		return leaves[i].n.seq < leaves[j].n.seq
+	})
 	return leaves
 }
 
@@ -741,10 +765,10 @@ func (p *Pool) prune() []hash.Hash {
 	top := p.Weight()
 	var ties, rest []*node
 	for _, l := range p.offChainLeaves() {
-		if p.weightOf(l).Cmp(top) >= 0 {
-			ties = append(ties, l)
+		if l.w.Cmp(top) >= 0 {
+			ties = append(ties, l.n)
 		} else {
-			rest = append(rest, l)
+			rest = append(rest, l.n)
 		}
 	}
 	var drop []*node
@@ -766,6 +790,7 @@ func (p *Pool) prune() []hash.Hash {
 		for x != nil && !x.onChain && len(x.children) == 0 {
 			parent := x.parent
 			delete(p.nodes, x.hash)
+			delete(p.off, x)
 			dropped = append(dropped, x.hash)
 			if parent == nil {
 				p.roots = removeNode(p.roots, x)

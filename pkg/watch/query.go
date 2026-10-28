@@ -397,7 +397,45 @@ func AddressPage(ctx context.Context, e *engine.Engine, id, a hash.Hash, f filte
 		return out.History[i].From.Cmp(out.History[j].From) < 0
 	})
 	if len(out.History) > limit {
-		out.History = out.History[:limit]
+		out.History, out.Next = truncateHistory(out.History, out.Next, limit)
 	}
 	return out, nil
+}
+
+// truncateHistory keeps the newest items of a page, whole entries at a
+// time, up to limit (or the first entry, if it alone holds more), and
+// moves each pool's Next up to the newest entry it did not keep, so that
+// following Next reaches every dropped item exactly once (GREEN-014).
+// Within one pool the items are newest first, so what a pool keeps is
+// always a run of its newest entries.
+func truncateHistory(hist []HistoryItem, next []PoolNext, limit int) ([]HistoryItem, []PoolNext) {
+	kept := 0
+	for i := 0; i < len(hist); {
+		j := i + 1
+		for j < len(hist) && hist[j].Pool == hist[i].Pool && hist[j].Height == hist[i].Height {
+			j++
+		}
+		if kept > 0 && kept+(j-i) > limit {
+			break
+		}
+		kept = j
+		i = j
+	}
+	resume := map[uint64]int{}
+	for _, h := range hist[kept:] {
+		if h.Height > resume[h.Pool] {
+			resume[h.Pool] = h.Height
+		}
+	}
+	out := make([]PoolNext, 0, len(next)+len(resume))
+	for _, n := range next {
+		if _, ok := resume[n.Pool]; !ok {
+			out = append(out, n)
+		}
+	}
+	for pool, h := range resume {
+		out = append(out, PoolNext{Pool: pool, Below: h})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Pool < out[j].Pool })
+	return hist[:kept], out
 }

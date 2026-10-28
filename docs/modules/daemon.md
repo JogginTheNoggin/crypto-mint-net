@@ -24,6 +24,13 @@ reload (the error). `poo node` maps SIGHUP to `Reload`. The local
 interface also reloads the node on `POST /v1/reload` and after
 `POST /v1/follow`.
 
+A reload is refused while `node.json` does not load and validate: the
+node logs an error and keeps running on the policy it has, and
+`POST /v1/reload` answers 422 `invalid` with the reason, so `poo reload`
+fails and says why (GREEN-011). Without this a mistake in the file would
+stop the node for good at the reload. The check and the reopen are not
+atomic: a file spoiled between them still stops the node, as before.
+
 ## What a reload does
 
 1. The watch hub closes, so every watch stream ends with an `end` line.

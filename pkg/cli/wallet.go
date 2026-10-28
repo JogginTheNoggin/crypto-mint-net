@@ -26,7 +26,8 @@ const walletUsage = `poo wallet: keys, payments and requests from one seed
 
 Usage: poo wallet COMMAND [flags]
 
-  create [-restore HEX] [-gap N]   make a wallet (or restore one from its seed)
+  create [-restore -|HEX] [-gap N] make a wallet (or restore one from its seed;
+                                  - reads it hidden)
   seed                             print the seed (keep it secret)
   passwd                           seal the seed under a new passphrase
   address [-label TEXT]            give out a fresh address
@@ -222,7 +223,7 @@ func walletCmd(args []string, out io.Writer) error {
 }
 
 func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
-	restore := fs.String("restore", "", "restore from this seed (64 hex digits)")
+	restore := fs.String("restore", "", "restore from a seed: - to type it hidden (or read a line of standard input), or 64 hex digits, which other users can read on the command line")
 	gap := fs.Int("gap", 0, fmt.Sprintf("unused keys to keep ahead (default %d)", wallet.DefaultGap))
 	algName := fs.String("alg", "ed25519", "key algorithm of every key, by name or number (poo crypto); fixed for the wallet's life")
 	if err := fs.Parse(args); err != nil {
@@ -234,7 +235,16 @@ func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	}
 	o := wallet.Options{Gap: *gap, Iterations: createIterations, Alg: alg}
 	if *restore != "" {
-		seed, err := hex.DecodeString(*restore)
+		text := *restore
+		if text == "-" {
+			// Read like a passphrase, so a terminal or the GUI hides it
+			// (GUI-006).
+			if text, err = readSecret(out, "seed: "); err != nil {
+				return err
+			}
+			text = strings.TrimSpace(text)
+		}
+		seed, err := hex.DecodeString(text)
 		if err != nil || len(seed) != wallet.SeedSize {
 			return fmt.Errorf("-restore must be %d hex digits", 2*wallet.SeedSize)
 		}
@@ -351,7 +361,11 @@ type ownerInfo struct {
 }
 
 func walletAddresses(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	s, err := f.series()
@@ -367,7 +381,7 @@ func walletAddresses(fs *flag.FlagSet, f *walletFlags, args []string, out io.Wri
 		rows = append(rows, ownerInfo{o.Address, o.Key, o.Shared, o.Label, o.Used})
 	}
 	sortOwners(rows)
-	return writeJSON(out, rows)
+	return o.write(out, rows)
 }
 
 // sortOwners orders keys by index, then shared policies by name.
@@ -466,7 +480,11 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 }
 
 func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	s, err := f.series()
@@ -491,7 +509,7 @@ func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 		mints[strconv.FormatUint(serial, 10)] = a
 		total += a
 	}
-	return writeJSON(out, map[string]any{"mints": mints, "total": total})
+	return o.write(out, map[string]any{"mints": mints, "total": total})
 }
 
 func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
@@ -690,7 +708,11 @@ type sentStatus struct {
 
 func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
 	threshold := fs.String("threshold", "", "from(e) needed for settled (default 0)")
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	th, err := parseThreshold(*threshold)
@@ -723,7 +745,7 @@ func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err := w.Save(); err != nil {
 		return err
 	}
-	return writeJSON(out, rows)
+	return o.write(out, rows)
 }
 
 func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {

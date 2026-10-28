@@ -22,6 +22,10 @@ Kinds: 1 entry, 2 layer, 3 transaction. Numbers are never reused.
 - `Open(path, Options{NoSync})` returns the log and `Opened{Records, Cut}`.
   It creates the file and directory if needed (modes 0600 and 0700).
 - `Append(Record)` writes and, unless `NoSync`, fsyncs.
+- `AppendLater(Record)` writes and returns a ticket; `Durable(ticket)`
+  waits until that record is on disk. `Durable` may run beside the other
+  methods, and callers waiting together share one fsync (group commit,
+  ORANGE-005, D105).
 - `Rewrite(records)` replaces the contents through a temporary file, fsync
   and rename, so a crash leaves the old log or the new one.
 - `Records`, `Path`, `Close`. `ErrNotLog` for a file without the header.

@@ -131,6 +131,9 @@ type Series struct {
 	types  map[policy.TypeID]bool
 	algs   map[policy.AlgID]bool
 	reg    *policy.Registry
+	// verified remembers witnesses already satisfied, a local cache that
+	// never changes a result (see policy.Verified).
+	verified *policy.Verified
 }
 
 // New validates params against the default policy registry and returns the
@@ -148,7 +151,7 @@ func NewWithRegistry(p Params, reg *policy.Registry) (*Series, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnreadable, err)
 	}
-	s := &Series{params: p, h: h, reg: reg, types: map[policy.TypeID]bool{}, algs: map[policy.AlgID]bool{}}
+	s := &Series{params: p, h: h, reg: reg, verified: policy.NewVerified(0), types: map[policy.TypeID]bool{}, algs: map[policy.AlgID]bool{}}
 	for _, t := range p.PolicyTypes {
 		if !reg.HasType(t) {
 			return nil, fmt.Errorf("%w: policy type %d", ErrUnreadable, t)
@@ -247,8 +250,20 @@ func (s *Series) MaxWitnessSize() int { return int(s.params.MaxWitness) }
 // CheckWitness checks a witness against an address for a tid under this
 // series' hash and rules.
 func (s *Series) CheckWitness(w policy.Witness, addr, tid hash.Hash) error {
-	return s.reg.Check(s.h, s, w, addr, tid)
+	return s.reg.CheckCached(s.h, s, w, addr, tid, s.verified)
 }
+
+// Preverify verifies the signatures of a witness for tid ahead of a full
+// check and remembers a pass, so the full check, which may run under a
+// lock, does not verify them again. It never changes what CheckWitness
+// returns.
+func (s *Series) Preverify(w policy.Witness, tid hash.Hash) {
+	s.reg.Preverify(s, w, tid, s.verified)
+}
+
+// Remembered returns how many satisfied witnesses the series remembers
+// (ORANGE-002), for tests and metrics.
+func (s *Series) Remembered() int { return s.verified.Len() }
 
 // Address returns the address of a policy under this series' hash.
 func (s *Series) Address(p policy.Policy) hash.Hash { return policy.Address(s.h, p) }

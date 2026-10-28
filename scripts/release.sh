@@ -15,6 +15,9 @@ platforms="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windo
 # Archive members get a fixed time so the archives are reproducible too.
 stamp=$(git log -1 --format=%ct 2>/dev/null || echo 0)
 out=$(cd "$out" && pwd)
+# The commit goes in by -X, since -buildvcs=false (for reproducible
+# builds) leaves it out of the build info; poo version -v prints it.
+commit=$(git rev-parse HEAD 2>/dev/null || echo "")
 # archive PROGRAM MODULE_DIR PACKAGE OS ARCH builds one archive.
 archive() {
 	prog=$1 mod=$2 pkg=$3 os=$4 arch=$5
@@ -25,7 +28,7 @@ archive() {
 	[ "$os" = windows ] && bin=$prog.exe
 	echo "== $name"
 	CGO_ENABLED=0 GOOS=$os GOARCH=$arch go -C "$mod" build -trimpath -buildvcs=false \
-		-ldflags "-s -w -buildid= -X github.com/JogginTheNoggin/crypto-mint-net/pkg/cli.Version=$v" -o "$dir/$bin" "$pkg"
+		-ldflags "-s -w -buildid= -X github.com/JogginTheNoggin/crypto-mint-net/pkg/cli.Version=$v -X github.com/JogginTheNoggin/crypto-mint-net/pkg/cli.Commit=$commit" -o "$dir/$bin" "$pkg"
 	cp README.md "$dir/"
 	[ -f LICENSE ] && cp LICENSE "$dir/"
 	find "$dir" -exec touch -d "@$stamp" {} +

@@ -376,8 +376,13 @@ func (h *Handler) reloadNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, &Error{Message: "this node cannot reload; restart it", Code: CodeNotFound, Status: http.StatusNotFound})
 		return
 	}
-	if _, err := os.Stat(h.policyPath()); err != nil {
-		writeError(w, classify(err))
+	if _, err := nodepolicy.Load(h.policyPath()); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeError(w, classify(err))
+			return
+		}
+		// Reloading would stop the node for good (GREEN-011).
+		writeError(w, &Error{Message: "not reloading, the node keeps its current policy: " + err.Error(), Code: CodeInvalid, Status: http.StatusUnprocessableEntity})
 		return
 	}
 	writeJSON(w, map[string]bool{"reloading": true})

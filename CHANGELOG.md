@@ -50,6 +50,16 @@ built.
   (D101). `poo help`, typo suggestions, `poo doctor`, `-o table`, shell
   completion (`poo completion`) and `GET /v1/metrics` are new. A
   passphrase typed at a terminal is no longer echoed.
+- **Logs and diagnostics:** levelled, structured node logs (`poo node
+  -log-level -log-format`, plain, text or JSON; D104), and `poo version -v`
+  with the Go version, platform, commit and dependencies.
+- **Performance:** signatures are verified once per witness and before
+  the node's lock, items share fsyncs, and branch ranking and hashing
+  are cheaper (D105): several times the transactions a second, with no
+  rule change.
+- **Safer operation:** a reload onto a broken `node.json` is refused and
+  the node keeps running (D106); `poo wallet create -restore -` reads
+  the seed hidden.
 - **Library:** the commands are package `pkg/cli`, so the GUI runs the
   same code as `poo` (D84).
 - **Fixed:** a node catching up a heavier ledger one entry at a time could
