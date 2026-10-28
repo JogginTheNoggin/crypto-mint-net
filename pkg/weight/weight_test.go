@@ -75,3 +75,26 @@ func TestText(t *testing.T) {
 		t.Fatal("negative must fail")
 	}
 }
+
+// TestSum checks that a Sum adds like Add and that a handed-over result
+// is not changed by later use of the sum.
+func TestSum(t *testing.T) {
+	var s Sum
+	if !s.Weight().IsZero() {
+		t.Fatal("empty sum is not zero")
+	}
+	want := Zero
+	for i := 0; i < 300; i += 7 {
+		s.Add(Credit(i))
+		want = want.Add(Credit(i))
+	}
+	s.Add(Zero)
+	got := s.Weight()
+	if got.Cmp(want) != 0 {
+		t.Fatalf("sum %s, want %s", got, want)
+	}
+	s.Add(Credit(5))
+	if got.Cmp(want) != 0 {
+		t.Fatal("a handed-over sum changed")
+	}
+}

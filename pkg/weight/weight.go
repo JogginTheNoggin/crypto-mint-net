@@ -45,6 +45,29 @@ func (w Weight) Add(o Weight) Weight {
 	return Weight{v: new(big.Int).Add(w.int(), o.int())}
 }
 
+// Sum adds up weights in one value that grows in place, so adding n
+// weights allocates once instead of n times (ORANGE-008). The zero value
+// is an empty sum. Weight hands the result over and empties the sum.
+type Sum struct{ v *big.Int }
+
+// Add adds w to the sum.
+func (s *Sum) Add(w Weight) {
+	if s.v == nil {
+		s.v = new(big.Int)
+	}
+	if w.v != nil {
+		s.v.Add(s.v, w.v)
+	}
+}
+
+// Weight returns the sum and empties s. The result is never changed by s
+// again, so it is as immutable as any Weight.
+func (s *Sum) Weight() Weight {
+	w := Weight{v: s.v}
+	s.v = nil
+	return w
+}
+
 // Sub returns w - o. It panics if the result would be negative, since a
 // weight is never negative; callers subtract only a part from its whole.
 func (w Weight) Sub(o Weight) Weight {

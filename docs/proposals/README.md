@@ -33,3 +33,6 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-005](source/ORANGE-005-store-group-commit.md) | Source | Group commit for the store | adopted |
 | [GREEN-015](source/GREEN-015-refuse-unused-flags.md) | Source | Refuse flags that do nothing for the subcommand given | proposed |
 | [GREEN-016](source/GREEN-016-grinder-commands.md) | Source | The grinder's commands (for M11) | proposed |
+| [ORANGE-006](source/ORANGE-006-grinder-per-hash.md) | Source | Grinding baseline, and an allocation-free grinder per hash | proposed |
+| [ORANGE-007](source/ORANGE-007-grind-on-all-cores.md) | Source | Grind on several cores, with the same result | proposed |
+| [ORANGE-008](source/ORANGE-008-fewer-weight-allocations.md) | Source | Fewer big-number allocations, and hash a layer once | proposed |
