@@ -1,0 +1,73 @@
+// End-to-end check of the Work view against a real node: the devices and
+// jobs poo grind lists, a job run and followed live with its plan and
+// rate, and Stop ending it as an interrupt does (exit 0).
+//
+//   node gui/e2e/work.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
+import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
+import assert from 'node:assert/strict';
+import { launch, nodeStopped } from './lib.mjs';
+
+const bin = process.argv[2];
+const shots = process.argv[3];
+const { env, page, errors, close } = await launch(bin);
+const poo = (args, extra = {}) => execFileSync(bin, ['poo', ...args], { env: { ...env, ...extra } }).toString();
+const section = title => page.locator('section.panel', { has: page.locator('h2', { hasText: title }) }).first();
+
+try {
+  poo(['init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off']);
+  await page.click('nav a[data-id=node]');
+  await page.click('button:has-text("Start node")');
+  await page.locator('.live-out', { hasText: 'rpc: listening' }).waitFor();
+
+  await page.click('nav a[data-id=work]');
+  // Devices: the table poo grind devices prints, with the CPU in it.
+  await section('Devices').locator('.result', { hasText: 'cpu' }).waitFor();
+
+  // A pending transaction, ground into an entry by a job on "pending".
+  poo(['claim', '-serial', '5'], { POO_SEED: 'a1'.repeat(32) });
+  const run = section('Run a job');
+  const target = run.locator('input[name=target]');
+  const forIn = run.locator('label', { hasText: /^For/ }).locator('input');
+  await target.fill('pending');
+  await forIn.fill('3s');
+  assert.match(await run.locator('.cmd code').innerText(), /^poo grind run -for 3s pending$/);
+  await run.locator('button:has-text("Run and follow")').click();
+  await run.locator('tbody tr', { hasText: 'entry' }).first().waitFor({ timeout: 20000 });
+  await run.locator('.run-status', { hasText: '(exit 0)' }).waitFor({ timeout: 30000 });
+
+  // Layers on the tip: the plan poo picked, a rate, then its end.
+  await target.fill('tip');
+  await forIn.fill('4s');
+  assert.match(await run.locator('.cmd code').innerText(), /^poo grind run -for 4s tip$/);
+  await run.locator('button:has-text("Run and follow")').click();
+  await run.locator('.grind-plan', { hasText: 'device' }).waitFor({ timeout: 20000 });
+  await run.locator('.rate-chart').waitFor({ timeout: 20000 });
+  assert.match(await run.locator('.counts').innerText(), /H\/s/);
+  // The run keeps going while another view is shown.
+  await page.click('nav a[data-id=pools]');
+  assert.ok(await page.locator('nav a[data-id=work].busy').count(), 'the Work tab shows the running job');
+  await page.click('nav a[data-id=work]');
+  await run.locator('.run-status', { hasText: '(exit 0)' }).waitFor({ timeout: 30000 });
+  if (shots) await page.screenshot({ path: join(shots, 'work.png'), fullPage: true });
+
+  // Without -for, Stop interrupts it: poo stops the node's job and exits 0.
+  await forIn.fill('');
+  await run.locator('button:has-text("Run and follow")').click();
+  await run.locator('.grind-plan', { hasText: 'device' }).waitFor({ timeout: 20000 });
+  await run.locator('button:has-text("Stop")').click();
+  await run.locator('.run-status', { hasText: '(exit 0)' }).waitFor({ timeout: 30000 });
+
+  // The node lists both jobs as ended.
+  const jobs = section('Jobs');
+  await jobs.locator('button:has-text("Refresh")').click();
+  await jobs.locator('.result', { hasText: 'stopped' }).waitFor();
+
+  await page.click('nav a[data-id=node]');
+  await page.click('button:has-text("Stop node")');
+  await nodeStopped(page);
+  assert.deepEqual(errors, [], 'no page errors');
+  console.log('gui work e2e: ok');
+} finally {
+  await close();
+}

@@ -38,8 +38,8 @@ try {
   // The health check finds the policy and no running node, and offers
   // its fix, "poo node", as a command to run.
   const health = section('Health check');
-  await health.locator('ul.doctor li.doctor-ok', { hasText: 'policy' }).waitFor();
-  assert.equal(await health.locator('li.doctor-warn', { hasText: 'rpc' }).locator('button', { hasText: 'Run in terminal' }).count(), 1);
+  await health.locator('ul.doctor li.doctor-ok', { has: page.locator('strong', { hasText: /^policy$/ }) }).waitFor();
+  assert.equal(await health.locator('li.doctor-warn', { has: page.locator('strong', { hasText: /^rpc$/ }) }).locator('button', { hasText: 'Run in terminal' }).count(), 1);
   await page.click('button:has-text("Start node")');
   await page.locator('.live-out', { hasText: 'rpc: listening' }).waitFor();
 

@@ -6,7 +6,7 @@ import { el, cmdLine, panel, form, flag, mountAll } from './views.js';
 import { render } from './render.js';
 import * as where from './where.js';
 
-const KINDS = ['tx', 'entry', 'layer', 'selected', 'reverted', 'switch', 'dropped'];
+const KINDS = ['tx', 'entry', 'layer', 'selected', 'reverted', 'switch', 'dropped', 'grind'];
 // Bounds on what the view keeps, so a busy node cannot exhaust the tab
 // (GUI-007 in security/gui/findings): table rows and events held while
 // paused, the error text's tail, and one unfinished line.

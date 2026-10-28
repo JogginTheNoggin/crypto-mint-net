@@ -125,9 +125,11 @@ try {
   // fails with its fix as printed, and the raw output is kept.
   await page.click('nav a[data-id=node]');
   const health = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Health check' }) });
-  await health.locator('ul.doctor li.doctor-fail', { hasText: 'policy' }).waitFor();
+  await health.locator('ul.doctor li.doctor-fail', { has: page.locator('strong', { hasText: /^policy$/ }) }).waitFor();
   assert.match(await health.locator('li.doctor-fail .doctor-fix').innerText(), /^fix: poo init/);
-  assert.equal(await health.locator('.cmd code').innerText(), 'poo doctor -json');
+  // Its fix is a command (fix_args), so it can be run from here.
+  assert.equal(await health.locator('li.doctor-fail .doctor-fix button', { hasText: 'Run in terminal' }).count(), 1);
+  assert.equal(await health.locator('.cmd code').innerText(), 'poo doctor -o json');
   assert.equal(await health.locator('details.raw').count(), 1);
   if (shots) await page.screenshot({ path: join(shots, 'doctor.png') });
 

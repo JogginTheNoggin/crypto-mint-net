@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | sent to Source/Grey |
+| Status | done by Source/Grey (D110): doctor -o, fix_args, error codes; the GUI uses fix_args |
 | Based on | claude/gui-4-watch @ 50a0edd |
 | Area | pkg/cli (Source/Grey); gui render and hints |
 | Effort | small |

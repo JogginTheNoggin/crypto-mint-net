@@ -10,6 +10,7 @@ import { scrollback, MAX_CHARS } from './scroll.js';
 // The watch and explore views live in watch.js; views lists every view so
 // the order of the navigation is in one place.
 import { watchView, exploreView } from './watch.js';
+import { workView } from './work.js';
 
 export function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
@@ -277,16 +278,20 @@ async function nodeJob() {
   return js.reverse().find(j => !j.done && j.args[0] === 'node');
 }
 
-// doctorReport lays out poo doctor -json: one row per check, as printed.
-// A fix that is exactly one poo command line gets a button that types it
-// into the terminal; any other fix is shown as the text poo printed.
+// doctorReport lays out poo doctor -o json: one row per check, as printed.
+// A check whose fix is a poo command line (fix_args, D110) gets a button
+// that types it into the terminal, with the Settings -root and -policy as
+// every view adds them; any other fix is shown as the text poo printed.
 const RUNNABLE_FIX = /^poo [a-z][\w./:=-]*( [\w./:=-]+)*$/;
 export function doctorReport(rep, ctx) {
   const list = el('ul', { class: 'doctor' });
   for (const c of rep.checks || []) {
-    const fix = c.fix ? (RUNNABLE_FIX.test(c.fix)
-      ? el('div', { class: 'doctor-fix' }, 'fix: ', el('code', {}, c.fix), ' ',
-        el('button', { type: 'button', class: 'small', onclick: () => ctx.openInTerminal(c.fix.replace(/^poo /, '')) }, 'Run in terminal'))
+    let run = null;
+    if (Array.isArray(c.fix_args) && c.fix_args.length) run = [c.fix_args[0], ...where.flags(), ...c.fix_args.slice(1)];
+    else if (c.fix && RUNNABLE_FIX.test(c.fix)) run = c.fix.replace(/^poo /, '').split(' ');
+    const fix = c.fix ? (run
+      ? el('div', { class: 'doctor-fix' }, 'fix: ', el('code', {}, api.quote(run)), ' ',
+        el('button', { type: 'button', class: 'small', onclick: () => ctx.openInTerminal(api.quote(run).replace(/^poo /, '')) }, 'Run in terminal'))
       : el('div', { class: 'doctor-fix' }, `fix: ${c.fix}`)) : null;
     list.append(el('li', { class: `doctor-${c.result}` },
       el('span', { class: `pill pill-${c.result}` }, c.result),
@@ -369,7 +374,7 @@ const nodeView = {
     // poo doctor checks the policy, files, series, RPC and P2P in one go.
     // Its report is drawn as a checklist; the raw output stays one click away.
     const health = panel(ctx, { title: 'Health check', about: 'What poo doctor finds for this node policy, with the fix it suggests.',
-      args: () => ['doctor', '-json', ...where.flags()],
+      args: () => ['doctor', '-o', 'json', ...where.flags()],
       onResult: (r, area) => {
         let rep;
         try { rep = JSON.parse(r.out); } catch (_) { return; }
@@ -615,4 +620,4 @@ const jobsView = {
   },
 };
 
-export const views = [nodeView, watchView, exploreView, poolsView, walletView, peersView, policiesView, cryptoView, jobsView, settingsView];
+export const views = [nodeView, watchView, exploreView, workView, poolsView, walletView, peersView, policiesView, cryptoView, jobsView, settingsView];

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | accepted for after M11; the output contract is with Source/Grey |
+| Status | adopted: the Work view on poo grind (M11) |
 | Based on | claude/gui-4-watch @ 50a0edd |
 | Area | a future Work view; asks for the M11 commands (Source/Grey) |
 | Effort | medium |

@@ -218,3 +218,7 @@ ul.doctor strong { margin-right: 4px; }
 .pill-ok { color: var(--ok); } .pill-warn { color: var(--live); } .pill-fail { color: var(--bad); } .pill-skip { color: var(--muted); }
 .doctor-fix { margin: 3px 0 0 56px; color: var(--muted); }
 details.raw { margin-top: 6px; font-size: 12px; }
+/* Work: the grind rate over the last progress lines. */
+.rate-chart { width: 100%; max-width: 600px; height: 80px; display: block; }
+.rate-chart polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.grind-plan h3 { font-size: 14px; margin: 8px 0 4px; }
