@@ -36,6 +36,10 @@ import (
 // Version is the tool's version, set at build time with -ldflags.
 var Version = "0.1.0-dev"
 
+// Commit is the source commit, set by scripts/release.sh with -X, where
+// the build info has none (GREEN-013).
+var Commit = ""
+
 const usage = `poo: Proof of Ownership full node tool
 
 Usage:

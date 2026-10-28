@@ -297,23 +297,56 @@ func (e *Engine) KeyOf(t *tx.Tx) (PoolKey, error) {
 	return PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}, nil
 }
 
-// Preverify verifies the witness signatures of transactions of pool k
-// ahead of HandleTx or HandleEntry, holding the engine's lock only to find
-// the pool. A caller that serializes items under its own lock calls it
-// first, so items from several peers are checked on several cores and the
-// checks under the lock find them remembered (ORANGE-004). Only
-// transactions of a followed pool are verified, so nothing is verified
-// that the engine would not verify anyway. It changes no result.
-func (e *Engine) Preverify(k PoolKey, txs ...*tx.Tx) {
-	e.mu.Lock()
-	p, err := e.pool(k)
-	e.mu.Unlock()
+// PreverifyTx verifies the witness signatures of t ahead of HandleTx,
+// holding the engine's lock only to find its pool and whether it was seen.
+// A caller that serializes items under its own lock calls it first, so
+// items from several peers are checked on several cores and the checks
+// under the lock find them remembered (ORANGE-004). Only a transaction
+// HandleTx would verify is verified: one of a followed pool, not seen
+// before. It changes no result.
+func (e *Engine) PreverifyTx(t *tx.Tx) {
+	k, err := e.KeyOf(t)
 	if err != nil {
 		return
 	}
-	h := p.s.Hash()
-	for _, t := range txs {
-		tx.Preverify(p.s, t, t.TID(h))
+	e.mu.Lock()
+	p, err := e.pool(k)
+	if err != nil {
+		e.mu.Unlock()
+		return
+	}
+	tid := t.TID(p.s.Hash())
+	seen := e.seen.Has(tid)
+	e.mu.Unlock()
+	if !seen {
+		tx.Preverify(p.s, t, tid)
+	}
+}
+
+// PreverifyEntry is PreverifyTx for the transactions of an entry of pool
+// k. As in HandleEntry, an entry already held or seen, or one that fails
+// the cheap structural checks (its strength above all), has none of its
+// signatures verified, so a peer cannot make a node verify signatures
+// without doing the entry's work (decision D105).
+func (e *Engine) PreverifyEntry(k PoolKey, en *entry.Entry, origin Origin) {
+	e.mu.Lock()
+	p, err := e.pool(k)
+	if err != nil {
+		e.mu.Unlock()
+		return
+	}
+	h := en.Hash(p.s)
+	skip := p.ledger.Has(h) || (origin.checksSeen() && e.seen.Has(h))
+	e.mu.Unlock()
+	if skip {
+		return
+	}
+	_, items, err := entry.CheckShape(p.s, k.Index, en)
+	if err != nil {
+		return
+	}
+	for _, it := range items {
+		tx.Preverify(p.s, it.Tx, it.TID)
 	}
 }
 

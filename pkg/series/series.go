@@ -261,6 +261,10 @@ func (s *Series) Preverify(w policy.Witness, tid hash.Hash) {
 	s.reg.Preverify(s, w, tid, s.verified)
 }
 
+// Remembered returns how many satisfied witnesses the series remembers
+// (ORANGE-002), for tests and metrics.
+func (s *Series) Remembered() int { return s.verified.Len() }
+
 // Address returns the address of a policy under this series' hash.
 func (s *Series) Address(p policy.Policy) hash.Hash { return policy.Address(s.h, p) }
 

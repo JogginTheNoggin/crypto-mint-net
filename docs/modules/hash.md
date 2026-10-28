@@ -15,7 +15,9 @@ no other package hard-codes SHA-256.
 - `ID` and `Lookup(id) (Func, error)`; `ErrUnknown` for a number this node
   does not implement, which makes a series unreadable here. `IDs()` lists
   the known numbers, `ID.Name` and `ByName` map to and from names.
-- `Func(parts ...[]byte) Hash` hashes the concatenation of its parts.
+- `Func(parts ...[]byte) Hash` hashes the concatenation of its parts. A
+  `Func` reuses its digests through a pool, which matters when grinding
+  (ORANGE-003).
 - Tags: `TagAddress`, `TagTx`, `TagEntry`, `TagPool`, `TagSeries`,
   `TagWitness`, `TagIssuer`.
 

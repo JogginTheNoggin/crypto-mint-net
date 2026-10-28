@@ -31,6 +31,13 @@ or opens a socket. Calls are safe from multiple goroutines.
   weight added since, selected, the transaction itself, and its rivals on
   inactive branches from `Ledger.Rivals`), `Holdings(series, serial)`,
   `Ledger(key, fn)` for read access under the lock.
+- Before the lock: `PreverifyTx(t)` and `PreverifyEntry(key, e, origin)`
+  verify witness signatures with the engine's lock held only to find the
+  pool, so a node checks items from several peers on several cores, and
+  the checks in `HandleTx`/`HandleEntry` find them remembered (ORANGE-004,
+  D105). Each skips what `Handle*` would skip without verifying: an item
+  seen or held, and an entry that fails `entry.CheckShape` (its strength
+  above all). They change no result.
 - `Seen`: a fixed-size ring of valid item hashes (decision D15: requested
   items bypass it).
 

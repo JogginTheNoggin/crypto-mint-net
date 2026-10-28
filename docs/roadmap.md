@@ -14,7 +14,9 @@ Milestone 8 has its security review, stable byte form, release builds and
 changelog in place. What is left of it is the owner's: choosing a license,
 tagging the first release, and making the repository public. Milestone 9
 lets each mint choose its own hash, signature algorithms and address
-policy types from a vetted list.
+policy types from a vetted list. Milestone 10 adds views, live watching
+and live following. Milestone 11, grinders that do a node's hash work fast
+on whatever hardware it has, is the next priority (Source Round 5).
 
 ## Milestones
 
@@ -29,6 +31,8 @@ policy types from a vetted list.
 | M7 | Network simulator, fuzzing, benchmarks | Done |
 | M8 | Hardening and open release | In progress (owner steps left) |
 | M9 | Cryptographic choice for mints | Done |
+| M10 | Viewing, watching and live following | Done |
+| M11 | Grinders: fast work on any hardware, for any hash | Planned: Source/Grey's priority in Round 5 |
 
 ### M1: Consensus core and full-node engine (done)
 
@@ -210,3 +214,30 @@ items in every view (pools, ledger pages, pending, unspent, a
 transaction, an address; D94) and in a live event stream (`poo watch`,
 `GET /v1/watch`; D91). The GUI uses the same packages through `pkg/cli`
 and `pkg/rpc` (D84).
+
+### M11: Grinders (planned, Source Round 5 priority)
+
+The owner asked (2026-10-28) that nodes do hash grinding work fast, and
+made it Source/Grey's priority for Round 5 Part A. What it must do:
+
+- **Fast.** Grinding is the work behind entries and layers, so a node
+  should use its hardware fully. Orange's ORANGE-003 (reused digests) is
+  a first step; Orange measures each grinder against the last.
+- **Hardware.** Detect what the machine has (CPU cores and instruction
+  sets, GPUs, and later other devices), let the user pick a device or
+  leave it on auto, and say what was picked.
+- **What to work on.** Work is assigned by hand (one entry or layer),
+  on a schedule, or automatically, and can target specific series,
+  pools, entries or layers. From the target, the grinder picks up the
+  series, its policy and its hash itself, so the user never names a hash.
+- **Modular.** One grinder per hash type behind one interface, found
+  through a registry like `pkg/hash`'s, so a new hash type (a new
+  `hash.ID`) gets a grinder by adding one, without touching the callers.
+  A hash with no fast grinder falls back to a generic CPU one.
+- **Same code everywhere.** It lives in a library package that `poo`, the
+  RPC and the GUI all use, as every other feature does.
+
+Today `poo build` and `poo work` grind on the CPU in one process
+(`node.Build`, `MaxBuildTries`, D99). Nothing about consensus changes:
+a grinder only finds nonces faster.
+

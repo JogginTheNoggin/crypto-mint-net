@@ -150,6 +150,23 @@ func SortItems(items []Item) {
 // hash meets the series' minimum entry strength. It returns the entry hash
 // and the bundle items so callers need not recompute them.
 func CheckStructure(s *series.Series, pool uint64, e *Entry) (hash.Hash, []Item, error) {
+	h, items, err := CheckShape(s, pool, e)
+	if err != nil {
+		return hash.Zero, nil, err
+	}
+	for _, it := range items {
+		if err := tx.CheckStateless(s, it.Tx, it.TID); err != nil {
+			return hash.Zero, nil, fmt.Errorf("%w %s: %v", ErrInvalidTx, it.TID.Short(), err)
+		}
+	}
+	return h, items, nil
+}
+
+// CheckShape is CheckStructure without the transactions' stateless checks:
+// the cheap rules, above all the entry's strength, that an entry must pass
+// before any of its signatures is verified, so an entry without the work
+// costs a node no signature checks (decision D105).
+func CheckShape(s *series.Series, pool uint64, e *Entry) (hash.Hash, []Item, error) {
 	if !s.EntriesHaveNonce() && e.Nonce != 0 {
 		return hash.Zero, nil, ErrNonce
 	}
@@ -172,11 +189,6 @@ func CheckStructure(s *series.Series, pool uint64, e *Entry) (hash.Hash, []Item,
 	h := HashOf(s, e.Parent, tids, e.Nonce)
 	if h.Strength() < s.MinEntryStrength() {
 		return hash.Zero, nil, ErrWeak
-	}
-	for _, it := range items {
-		if err := tx.CheckStateless(s, it.Tx, it.TID); err != nil {
-			return hash.Zero, nil, fmt.Errorf("%w %s: %v", ErrInvalidTx, it.TID.Short(), err)
-		}
 	}
 	return h, items, nil
 }

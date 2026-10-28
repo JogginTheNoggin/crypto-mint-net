@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `7e68fe0` (base `23e268f`) |
 | Area | `pkg/store` (`Log`), `pkg/node` (`record`, `Handle*From`) |
 | Effort | medium |
-| Decided by | |
+| Decided by | Grey, Source Round 4: the event fires after the write, before the fsync; the Handle call still returns after it (D105) |
 
 ## Summary
 

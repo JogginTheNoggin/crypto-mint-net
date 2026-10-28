@@ -20,7 +20,7 @@ type BuildInfo struct {
 }
 
 func buildInfo() BuildInfo {
-	b := BuildInfo{Version: Version, Go: runtime.Version(), Platform: runtime.GOOS + "/" + runtime.GOARCH}
+	b := BuildInfo{Version: Version, Go: runtime.Version(), Platform: runtime.GOOS + "/" + runtime.GOARCH, Commit: Commit}
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return b

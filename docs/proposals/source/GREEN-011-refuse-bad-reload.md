@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `7e68fe0` |
 | Area | `pkg/daemon`, `pkg/rpc` (`POST /v1/reload`) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey, Source Round 4: as prototyped (D106); the check and the reopen are not atomic, a known gap |
 
 ## Summary
 

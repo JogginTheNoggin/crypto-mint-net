@@ -107,7 +107,7 @@ stopped. Flags go before positional arguments.
 
 | Command | Does |
 | --- | --- |
-| `create [-restore HEX] [-gap N] [-alg NAME]` | Makes a wallet with a new random seed, or restores one from its seed; `-alg` fixes its key algorithm (default Ed25519) |
+| `create [-restore -\|HEX] [-gap N] [-alg NAME]` | Makes a wallet with a new random seed, or restores one from its seed: `-restore -` reads it hidden, like a passphrase; `-alg` fixes its key algorithm (default Ed25519) |
 | `seed` | Prints the seed: everything needed to restore the wallet |
 | `passwd [-new-passphrase-file FILE]` | Seals the seed under a new passphrase (`$POO_NEW_PASSPHRASE`) |
 | `address [-label TEXT]` | Gives out a fresh address, with its public key for co-signers |

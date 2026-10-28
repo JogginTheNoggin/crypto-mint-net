@@ -34,7 +34,8 @@ again picks up its history.
   the peer that sent the item.
 - `Observe(f)`: f receives an `Event{Key, Tx|Entry|Layer, Origin, From,
   Forward, Switch, Dropped, Weight}` for every item kept from then on, after it is
-  stored, in order. It runs under the node's lock: it must not block or
+  written to the store, in order. The fsync may still be running; the
+  `Handle` call returns only after it (D105). It runs under the node's lock: it must not block or
   call the node.
 - `Engine()` for reads (changes made directly on the engine are not
   stored), `Policy`, `Dir`, `Replayed` (`ReplayStats`), `Stores`,

@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `7e68fe0` |
 | Area | `pkg/cli` (`version`) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey, Source Round 4, and `scripts/release.sh` now sets `cli.Commit` with -X, since its builds have no VCS info |
 
 ## Summary
 

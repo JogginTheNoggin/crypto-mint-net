@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted with a change |
 | Based on | `claude/m10-watch` @ `7e68fe0` (base `23e268f`) |
 | Area | `pkg/engine` (`Preverify`), `pkg/node` (`HandleTxFrom`, `HandleEntryFrom`), `pkg/tx`, `pkg/series`, `pkg/policy` |
 | Effort | small (needs ORANGE-002) |
-| Decided by | |
+| Decided by | Grey, Source Round 4: `Engine.PreverifyTx` and `PreverifyEntry` replace `Preverify`, and skip a seen or held item and an entry failing `entry.CheckShape`, so an entry without its work costs no signature checks (D105) |
 
 ## Summary
 

@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `7e68fe0` |
 | Area | `pkg/cli` (`payment`, `wallet addresses/balance/status`) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey, Source Round 4 |
 
 ## Summary
 

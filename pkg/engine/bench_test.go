@@ -33,9 +33,7 @@ func BenchmarkHandleTxParallel(b *testing.B) {
 		for pb.Next() {
 			t := claims[next.Add(1)-1]
 			// A node preverifies before its own lock (ORANGE-004).
-			if k, err := e.KeyOf(t); err == nil {
-				e.Preverify(k, t)
-			}
+			e.PreverifyTx(t)
 			if _, err := e.HandleTx(t, engine.Pushed); err != nil {
 				b.Error(err)
 				return

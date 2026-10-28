@@ -1426,3 +1426,45 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   that subscribed after the hub closed during a stop or reload waited
   forever and held the shutdown past its deadline.
 - **Tier:** Implementation.
+
+### D105. Faster checks and stores that change no result
+
+- **Decision:** Four of Orange's Round 3 proposals are adopted, none of
+  them a rule change. Each series remembers up to 16384 witnesses that
+  satisfied their policy for a tid, under a key covering the policy, the
+  witness data and the tid, and skips only the satisfaction function for
+  them. A node verifies an item's signatures before taking its own lock
+  (`Engine.PreverifyTx`, `PreverifyEntry`), but only for what `Handle*`
+  would verify too: not for an item seen or held, and not for an entry
+  that fails `entry.CheckShape` (series, pool, order, nonce, strength).
+  The store's group commit lets items wait for one shared fsync after the
+  node's lock is released; a node event now fires after the write and
+  before the fsync, while the `Handle` call returns only after it. The
+  ledger keeps its off-chain set, and hash functions reuse digests.
+- **Why:** Orange measured each (ORANGE-001 to 005): a 64-node simulation
+  from 41 s to 16.7 s, a no-sync node from 12.9k to 35k transactions a
+  second on 4 cores, and a syncing node from 2.9k to 17.4k. The guard on
+  entries keeps `entry.CheckStructure`'s order, strength before signatures, so a
+  peer cannot make a node verify signatures without doing an entry's
+  work. An event before the fsync can show or forward an item that a
+  power loss then takes from this node's disk; peers still hold it and
+  the node fetches it again, as it would any item it missed, so nothing
+  depends on the event coming after the fsync.
+- **Tier:** Implementation.
+
+### D106. A reload onto a broken policy is refused, and seeds are read hidden
+
+- **Decision:** `POST /v1/reload` (and `poo reload`, and `poo follow`
+  through it) loads the node policy first, and answers 422 with the
+  reason if it does not load; SIGHUP does the same check, logs "reload
+  refused" and keeps running on the policy it started with. `poo wallet
+  create -restore -` reads the seed like a passphrase, through
+  `Stdio.Secret` when a front end gives one, and `cli.SecretFlags()` names
+  the flags whose values can be secrets (`seed`, `restore`) for front ends
+  that keep command lines.
+- **Why:** GREEN-011: a mistake in `node.json` followed by a reload
+  stopped the node for good while `poo reload` printed "reloaded". GUI-006:
+  a seed on the command line can be read by other users (as with D98),
+  and the GUI's terminal masks secrets in its history. The hex form of
+  `-restore` still works, for scripts.
+- **Tier:** Implementation.

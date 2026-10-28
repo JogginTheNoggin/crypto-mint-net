@@ -26,7 +26,8 @@ const walletUsage = `poo wallet: keys, payments and requests from one seed
 
 Usage: poo wallet COMMAND [flags]
 
-  create [-restore HEX] [-gap N]   make a wallet (or restore one from its seed)
+  create [-restore -|HEX] [-gap N] make a wallet (or restore one from its seed;
+                                  - reads it hidden)
   seed                             print the seed (keep it secret)
   passwd                           seal the seed under a new passphrase
   address [-label TEXT]            give out a fresh address
@@ -222,7 +223,7 @@ func walletCmd(args []string, out io.Writer) error {
 }
 
 func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
-	restore := fs.String("restore", "", "restore from this seed (64 hex digits)")
+	restore := fs.String("restore", "", "restore from a seed: - to type it hidden (or read a line of standard input), or 64 hex digits, which other users can read on the command line")
 	gap := fs.Int("gap", 0, fmt.Sprintf("unused keys to keep ahead (default %d)", wallet.DefaultGap))
 	algName := fs.String("alg", "ed25519", "key algorithm of every key, by name or number (poo crypto); fixed for the wallet's life")
 	if err := fs.Parse(args); err != nil {
@@ -234,7 +235,16 @@ func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	}
 	o := wallet.Options{Gap: *gap, Iterations: createIterations, Alg: alg}
 	if *restore != "" {
-		seed, err := hex.DecodeString(*restore)
+		text := *restore
+		if text == "-" {
+			// Read like a passphrase, so a terminal or the GUI hides it
+			// (GUI-006).
+			if text, err = readSecret(out, "seed: "); err != nil {
+				return err
+			}
+			text = strings.TrimSpace(text)
+		}
+		seed, err := hex.DecodeString(text)
 		if err != nil || len(seed) != wallet.SeedSize {
 			return fmt.Errorf("-restore must be %d hex digits", 2*wallet.SeedSize)
 		}
