@@ -94,3 +94,8 @@ On `claude/source-orange`, commit `4e2ff4e`:
   remembered witness still fails a wrong address, disallowed rules and the
   size ceiling, and the ring forgets its oldest key.
 - `pkg/tx/bench_test.go`: `BenchmarkCheck/first` and `/again`.
+
+## Round 4 check
+
+Re-measured by Orange on `claude/m10-watch` @ `0ac8e4e` (base `deecc80`),
+same machine and commands. `BenchmarkCheck/again` is 1.06 µs and `first` 63.8 µs, as in Round 3.

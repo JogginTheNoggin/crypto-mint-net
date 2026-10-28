@@ -104,3 +104,10 @@ After ORANGE-001 to 004, the same simulator profile is led by
 twice (in `Engine.HandleLayer` and again in `Pool.AddLayer`), and `prune`
 still runs on every off-chain layer (11%). Each is a candidate for a
 later round.
+
+## Round 4 check
+
+Re-measured by Orange on `claude/m10-watch` @ `0ac8e4e` (base `deecc80`),
+same machine and commands. `BenchmarkExtendLong/len=10000` is 89 µs (was 449 µs before ORANGE-001).
+The 64-node simulation, with all five adopted, takes 9.0 s (41.0 s at
+Round 3's base), and its report is still identical to the last digit.

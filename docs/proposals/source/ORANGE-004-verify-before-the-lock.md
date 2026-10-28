@@ -76,3 +76,10 @@ transaction across all goroutines.
 On `claude/source-orange`, commit `90e7b24`: the functions above,
 `pkg/engine/bench_test.go` and `pkg/node/bench_test.go`. The race test
 suite passes.
+
+## Round 4 check
+
+Re-measured by Orange on `claude/m10-watch` @ `0ac8e4e` (base `deecc80`),
+same machine and commands. With Grey's gate (D105): engine on 4 cores 23.7 µs per transaction
+(42,200/s); node `no_sync` on 4 cores 28.5 µs (35,100/s). Unchanged from
+the prototype.

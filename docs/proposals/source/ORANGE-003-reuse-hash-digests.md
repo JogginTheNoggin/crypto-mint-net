@@ -62,3 +62,9 @@ would touch every hash function's API and is left for later.
 On `claude/source-orange`, commit `869321a`: `pkg/hash/hash.go` and
 `BenchmarkGrind` in `pkg/layer/bench_test.go`. The hash package's known-
 answer tests pass unchanged.
+
+## Round 4 check
+
+Re-measured by Orange on `claude/m10-watch` @ `0ac8e4e` (base `deecc80`),
+same machine and commands. `BenchmarkGrind/sha256` is 161 ns per try (231 ns before). ORANGE-006
+takes it to 113 ns.

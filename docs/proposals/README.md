@@ -31,3 +31,6 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-003](source/ORANGE-003-reuse-hash-digests.md) | Source | Reuse hash digests | adopted |
 | [ORANGE-004](source/ORANGE-004-verify-before-the-lock.md) | Source | Verify signatures before the node's lock | adopted with a change |
 | [ORANGE-005](source/ORANGE-005-store-group-commit.md) | Source | Group commit for the store | adopted |
+| [ORANGE-006](source/ORANGE-006-grinder-per-hash.md) | Source | Grinding baseline, and an allocation-free grinder per hash | proposed |
+| [ORANGE-007](source/ORANGE-007-grind-on-all-cores.md) | Source | Grind on several cores, with the same result | proposed |
+| [ORANGE-008](source/ORANGE-008-fewer-weight-allocations.md) | Source | Fewer big-number allocations, and hash a layer once | proposed |
