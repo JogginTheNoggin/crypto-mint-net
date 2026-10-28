@@ -5,6 +5,12 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 3 Part B reviewed `claude/gui-4-watch @ 9b4b19c`: GUI/Blue's GUI-006 and
+GUI-007 fixes (re-attacked — both hold; see GUI-008's notes for details), and the
+new surface (background Watch across views, the Explore "look up" links, Pools
+lookups moved onto `tx`/`unspent`, and the single no-node banner). No new
+vulnerability; one Info-level trade-off recorded as GUI-008.
+
 Round 2 Part B reviewed `claude/gui-4-watch @ 93ed36a` (PR #18): the new
 `-view-only` mode, the D101/D89 secret masking (a re-check of GUI-003), and the
 Watch/Explore views. Verified as solid: `-view-only` is a process-wide flag the
@@ -56,5 +62,6 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-003](GUI-003-passphrase-mask-heuristic.md) | Low | Passphrase masking is an output-regex guess and can fail open | fixed (fca4369) |
 | [GUI-004](GUI-004-job-resource-exhaustion.md) | Low | No bound on running jobs or event streams (local DoS) | fixed (fca4369) |
 | [GUI-005](GUI-005-total-authority-no-confirm.md) | Info | A leaked secret is total node control; no confirmation on destructive commands | fixed (documented, fca4369) |
-| [GUI-006](GUI-006-secret-args-in-history.md) | Low | Secret-bearing command arguments (wallet seed) persist in terminal localStorage history and the Jobs list | fix-proposed (`claude/gui-blue`) |
-| [GUI-007](GUI-007-watch-unbounded-buffers.md) | Low | Watch view's paused-event and error buffers grow without bound (local tab DoS) | fix-proposed (`claude/gui-blue`) |
+| [GUI-006](GUI-006-secret-args-in-history.md) | Low | Secret-bearing command arguments (wallet seed) persist in terminal localStorage history and the Jobs list | fixed (verified R3B @ 9b4b19c) |
+| [GUI-007](GUI-007-watch-unbounded-buffers.md) | Low | Watch view's paused-event and error buffers grow without bound (local tab DoS) | fixed (verified R3B @ 9b4b19c) |
+| [GUI-008](GUI-008-background-watch-lifetime.md) | Info | Background Watch holds its event stream and node connection until Stop (by design; trade-off recorded) | open |
