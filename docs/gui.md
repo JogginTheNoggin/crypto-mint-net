@@ -289,6 +289,11 @@ server is locked down:
 - The Watch view shows at most 1000 events. While it is paused it holds
   at most the newest 1000 more and says how many it dropped. It keeps the
   last 64 KiB of error text and drops a line longer than 1 MiB (GUI-007).
+- A watch keeps running when you leave the Watch view, but the page
+  closes its event stream while the view is away and follows again from
+  the next output sequence number (`?from=`) on return. The browser holds
+  no stream for it in the background, and nothing is missed unless the
+  server dropped output past its 4 MiB, which the view reports (GUI-008).
 
 ## Technology choice (D85)
 
