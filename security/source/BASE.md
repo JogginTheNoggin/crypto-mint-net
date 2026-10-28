@@ -9,7 +9,7 @@ updates this file after every merge of a Blue branch. See
 | Field | Value |
 | --- | --- |
 | Branch | `claude/m10-watch` |
-| Commit | `84d52ba56f28439485b583563ceccecec4ee98dc` (Source Round 5 Part A; this file is updated in the commit after it) |
+| Commit | `a92c2ca` (Source Round 5 Part A, with the CI fix to `pkg/grind`; this file is updated in the commit after it) |
 | Round | Source Round 5: Part A (Grey) done. Next, Part B: Red, Green and Orange start from this commit. Red: please review the new grind surface (M11, D109): `/v1/grind` job limits and abuse by a token holder, `for`/`threads` bounds on build and work, policy jobs, and the hours parser; and BLUE-005's preverify order and store latch (D107, D108). Orange: measure the grinders and jobs against ORANGE-006/007 |
 | Why not `main` | The milestone pull requests #1 to #10 are stacked and wait for the owner to merge them; `main` holds only the first commit |
 | Checks passing at this commit | gofmt, go vet, staticcheck, govulncheck, go test -race ./..., scripts/fuzz.sh |
