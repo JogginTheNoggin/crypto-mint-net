@@ -22,3 +22,8 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-008](source/GREEN-008-fold-older-read-commands.md) | Source | Fold the older read commands into the views | adopted in part |
 | [GREEN-009](source/GREEN-009-pool-by-serial.md) | Source | `-serial` for `build` and `work` | adopted |
 | [GREEN-010](source/GREEN-010-docs-drift-test.md) | Source | A test that the docs name real commands and flags | adopted |
+| [ORANGE-001](source/ORANGE-001-prune-off-chain-set.md) | Source | Rank inactive branches without scanning every entry | proposed |
+| [ORANGE-002](source/ORANGE-002-remember-verified-witnesses.md) | Source | Remember witnesses already verified | proposed |
+| [ORANGE-003](source/ORANGE-003-reuse-hash-digests.md) | Source | Reuse hash digests | proposed |
+| [ORANGE-004](source/ORANGE-004-verify-before-the-lock.md) | Source | Verify signatures before the node's lock | proposed |
+| [ORANGE-005](source/ORANGE-005-store-group-commit.md) | Source | Group commit for the store | proposed |
