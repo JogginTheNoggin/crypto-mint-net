@@ -16,9 +16,11 @@ package entry
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -240,6 +242,15 @@ const cancelEvery = 1 << 12
 // BuildContext is Build that stops searching for a nonce, with ctx's
 // error, once ctx is done (RED-006).
 func BuildContext(ctx context.Context, s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64) (*Entry, hash.Hash, error) {
+	return BuildWorkers(ctx, s, parent, txs, maxTries, 1)
+}
+
+// BuildWorkers is BuildContext searching with workers goroutines, with the
+// same result: the lowest nonce whose hash reaches the minimum (ORANGE-007).
+// Each try hashes only the nonce after the saved state of the tag, parent
+// and tids (a hash.Grinder, ORANGE-006), so its cost does not grow with the
+// number of transactions where the hash allows it.
+func BuildWorkers(ctx context.Context, s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64, workers int) (*Entry, hash.Hash, error) {
 	items := make([]Item, len(txs))
 	for i, t := range txs {
 		items[i] = Item{TID: t.TID(s.Hash()), Tx: t}
@@ -254,21 +265,88 @@ func BuildContext(ctx context.Context, s *series.Series, parent hash.Hash, txs [
 	if !s.EntriesHaveNonce() {
 		return e, HashOf(s, parent, tids, 0), nil
 	}
+	prefix := make([][]byte, 0, len(tids)+2)
+	prefix = append(prefix, hash.TagEntry, parent[:])
+	for i := range tids {
+		prefix = append(prefix, tids[i][:])
+	}
+	if workers < 1 {
+		workers = 1
+	}
+	grinders := make([]*hash.Grinder, workers)
+	for w := range grinders {
+		g, err := hash.NewGrinder(s.Params().HashID, prefix...)
+		if err != nil {
+			return nil, hash.Zero, err
+		}
+		grinders[w] = g
+	}
 	min := s.MinEntryStrength()
-	for nonce := uint64(0); maxTries == 0 || nonce < maxTries; nonce++ {
-		h := HashOf(s, parent, tids, nonce)
-		if h.Strength() >= min {
-			e.Nonce = nonce
-			return e, h, nil
-		}
-		if nonce == ^uint64(0) {
-			break
-		}
-		if nonce%cancelEvery == cancelEvery-1 {
-			if err := ctx.Err(); err != nil {
-				return nil, hash.Zero, err
+	// search tries the nonces [from, to) in order with grinder g and
+	// returns the first that reaches min.
+	search := func(g *hash.Grinder, from, to uint64) (uint64, hash.Hash, bool) {
+		var buf [8]byte
+		for n := from; n < to; n++ {
+			binary.BigEndian.PutUint64(buf[:], n)
+			if h := g.Hash(buf[:]); h.Strength() >= min {
+				return n, h, true
 			}
+		}
+		return 0, hash.Zero, false
+	}
+	// The nonces go in rounds of cancelEvery per worker, worker w taking
+	// the w-th run of the round. A round's lowest find is the lowest
+	// overall, since every lower nonce was tried in this or an earlier
+	// round. Nonce 2^64-1 is never tried, a bound no search reaches.
+	limit := ^uint64(0)
+	if maxTries != 0 {
+		limit = maxTries
+	}
+	type found struct {
+		n  uint64
+		h  hash.Hash
+		ok bool
+	}
+	res := make([]found, workers)
+	for base := uint64(0); base < limit; {
+		if workers == 1 {
+			to := base + min64(cancelEvery, limit-base)
+			if n, h, ok := search(grinders[0], base, to); ok {
+				e.Nonce = n
+				return e, h, nil
+			}
+			base = to
+		} else {
+			var wg sync.WaitGroup
+			for w := 0; w < workers; w++ {
+				from := base + min64(uint64(w)*cancelEvery, limit-base)
+				to := from + min64(cancelEvery, limit-from)
+				wg.Add(1)
+				go func(w int, from, to uint64) {
+					defer wg.Done()
+					n, h, ok := search(grinders[w], from, to)
+					res[w] = found{n, h, ok}
+				}(w, from, to)
+			}
+			wg.Wait()
+			for _, r := range res {
+				if r.ok {
+					e.Nonce = r.n
+					return e, r.h, nil
+				}
+			}
+			base += min64(uint64(workers)*cancelEvery, limit-base)
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, hash.Zero, err
 		}
 	}
 	return nil, hash.Zero, ErrNotFound
+}
+
+func min64(a, b uint64) uint64 {
+	if a < b {
+		return a
+	}
+	return b
 }

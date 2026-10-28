@@ -551,13 +551,18 @@ func (e *Engine) GrindLayer(k PoolKey, entryHash hash.Hash, start, tries uint64)
 		e.mu.Unlock()
 		return layer.Layer{}, err
 	}
-	h := p.s.Hash()
+	id := p.s.Params().HashID
 	held := p.ledger.Has(entryHash)
 	e.mu.Unlock()
 	if !held {
 		return layer.Layer{}, ledger.ErrUnknownEntry
 	}
-	l, strength := layer.Grind(h, entryHash, start, tries)
+	// One worker, as before; M11 decides how many cores grinding takes
+	// (ORANGE-007).
+	l, strength, err := layer.GrindHash(id, entryHash, start, tries, 1)
+	if err != nil {
+		return l, err
+	}
 	if strength < 0 {
 		return l, ErrNoStrongerLayer
 	}
