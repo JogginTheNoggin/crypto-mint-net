@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0ac8e4e (Source Round 4 Part A) |
 | Component | pkg/store/store.go (Log.Durable, Log.AppendLater), pkg/node/node.go (record) |
 | Surface | node files / disk fault |
-| Fixed by | — |
+| Fixed by | `claude/project-thread-ggo8dt` @ dae570c (BLUE-005) |
 
 ## Summary
 
@@ -69,3 +69,15 @@ fatal for the pool (stop following it and say so in the log, or stop the node),
 so a restart replays what is really on disk.
 
 Test: as above, plus that after a failed sync no later `Durable` returns nil.
+
+## Resolution
+
+Fixed by BLUE-005 (decision D108). `store.Log` latches its first failed
+write or fsync as `ErrFailed` (`Log.Err`). After that `AppendLater`
+refuses, `Durable` returns the error for any record not synced before
+the failure and never runs the sync again, and `Rewrite` and `Close`
+return it. A sync seam (`fileSync`) lets the test fail one sync. The
+node logs one error per stopped pool, and every later item of that pool
+fails with the error and is neither stored nor forwarded, until a
+restart replays the disk. Other pools keep running. Test:
+`TestFailedSyncIsLatched` (`pkg/store`).

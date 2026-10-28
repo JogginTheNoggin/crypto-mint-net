@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0ac8e4e (Source Round 4 Part A) |
 | Component | pkg/engine/engine.go (PreverifyTx, PreverifyEntry), pkg/tx/tx.go (Preverify), pkg/policy/verified.go (Preverify, Verified), pkg/node/node.go (HandleTxFrom, HandleEntryFrom) |
 | Surface | peer |
-| Fixed by | — |
+| Fixed by | `claude/project-thread-ggo8dt` @ dae570c (BLUE-005) |
 
 ## Summary
 
@@ -177,3 +177,27 @@ satisfaction function (count calls with a registered counting policy type);
 an entry on an unknown parent must cause none; `Remembered()` must not grow
 for a transaction that spends no real input. An end-to-end `pkg/p2p` test
 that a peer sending transactions with bad signatures earns an offence.
+
+## Resolution
+
+Fixed by BLUE-005 (decision D107), every recommendation but the optional
+failure list. Under the brief engine lock `PreverifyTx` runs all the
+checks `HandleTx` runs before a signature (`mempool.Pool.Owners`: not
+seen, pending or selected, no conflict, `tx.CheckForm`, then `tx.Owners`:
+mint claimed, inputs unspent and of the mint, amounts) and
+`PreverifyEntry` those of `HandleEntry` (`ledger.Pool.EntryOwners`:
+shape, not held, parent held, `entry.Owners` against the parent's
+state). Outside the lock `tx.Preverify` checks witness *i* against the
+address it must satisfy with `CheckCached` and stops at the first
+failure. `AddEntry` checks the parent before claim witnesses. A pushed
+transaction whose error wraps `tx.ErrWitness` (the mempool now wraps
+with `%w`) is an invalid item. `Registry.Preverify` and
+`Series.Preverify` are removed, so nothing verifies a witness without
+its address. Since only witnesses for real unspent portions are
+verified, the witness list fills only with those. A list of recent
+failures was not added: a bad witness now costs one check and an
+offence. Tests: `TestPreverifyOnlyWhatHandleWouldVerify` (`pkg/engine`,
+counting satisfaction calls: 0 for 200 witnesses on missing inputs and
+none remembered, 1 ahead for a bad first witness, 0 for an entry on an
+unknown parent, a valid spend verified once) and
+`TestBadWitnessTxIsOffence` (`pkg/p2p`).
