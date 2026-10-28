@@ -24,6 +24,10 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-013](GREEN-013-lookup-links.md) | "Look up" links from tids and addresses to Explore | small | yes | adopted |
 | [GREEN-014](GREEN-014-watch-consistency.md) | Watch matches the rest: kind boxes, local times, one hash style | small | yes | adopted |
 | [GREEN-015](GREEN-015-watch-explore-loose-ends.md) | Loose ends: Watch in the background, paging, a flaky e2e, `-kind` on non-stream commands | small to medium | partly | 1 and 2 adopted; 3 and 4 with Source/Grey |
+| [GREEN-016](GREEN-016-one-wallet-file.md) | One wallet file for the whole Wallet view, not one per form | small | yes | proposed |
+| [GREEN-017](GREEN-017-guide-follows-settings.md) | Getting started uses the Settings -root and -policy, like the views | small | yes | proposed |
+| [GREEN-018](GREEN-018-ledger-picture.md) | A picture of the selected ledger in Explore (rest of GREEN-006) | small | yes | proposed |
+| [GREEN-019](GREEN-019-links-and-copy-output.md) | Themed links, and Copy output on every result | small | yes | proposed |
 
 ## Orange (performance)
 
@@ -45,6 +49,6 @@ ORANGE-005 explains how to measure.
 ```sh
 git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
-node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003 and 007 to 010
-node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014
+node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017 and 019
+node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014 and 018
 ```

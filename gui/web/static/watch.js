@@ -268,6 +268,47 @@ export const watchView = {
   },
 };
 
+// ledgerPicture draws one page of poo ledger: each entry a bar, oldest on
+// the left, linked to its parent, its height under it and its own weight
+// on it. Bar heights are scaled to the largest own weight on the page, and
+// every number shown is a field poo ledger printed (the tooltip has the
+// rest). It computes nothing about the ledger itself. fromTip marks the
+// newest bar as the tip.
+const SVG = 'http://www.w3.org/2000/svg';
+function svg(tag, attrs, text) {
+  const e = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+export function ledgerPicture(page, { fromTip = false } = {}) {
+  const entries = Array.isArray(page && page.entries) ? page.entries.slice().reverse() : [];
+  if (!entries.length) return null;
+  const W = 46, GAP = 18, H = 90, TOP = 16, BOTTOM = 34;
+  const own = e => Number(e.own) || 0;
+  const max = Math.max(1, ...entries.map(own));
+  const width = entries.length * (W + GAP) + GAP;
+  const s = svg('svg', { class: 'ledger-pic', viewBox: `0 0 ${width} ${TOP + H + BOTTOM}`, width, height: TOP + H + BOTTOM, role: 'img',
+    'aria-label': `Selected ledger of pool ${page.pool}: ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}, heights ${entries[0].height} to ${entries[entries.length - 1].height}` });
+  entries.forEach((e, i) => {
+    const x = GAP + i * (W + GAP);
+    const h = Math.max(3, Math.round(H * own(e) / max));
+    const g = svg('g', { class: i === entries.length - 1 && fromTip ? 'lp-entry lp-tip' : 'lp-entry' });
+    g.append(svg('title', {}, `entry ${e.hash}\nheight ${e.height}\nown ${e.own} · ledger ${e.ledger} · from ${e.from}\nlayers ${e.layers} · transactions ${e.tx_count}`));
+    g.append(svg('rect', { class: 'lp-slot', x, y: TOP, width: W, height: H, rx: 4 }));
+    g.append(svg('rect', { class: 'lp-bar', x, y: TOP + H - h, width: W, height: h, rx: 4 }));
+    g.append(svg('text', { class: 'lp-num', x: x + W / 2, y: TOP - 4, 'text-anchor': 'middle' }, String(e.own)));
+    g.append(svg('text', { class: 'lp-h', x: x + W / 2, y: TOP + H + 14, 'text-anchor': 'middle' }, `h${e.height}`));
+    g.append(svg('text', { class: 'lp-tx', x: x + W / 2, y: TOP + H + 28, 'text-anchor': 'middle' }, `${e.tx_count} tx`));
+    // The link to the parent, when the parent is the bar on the left.
+    if (i > 0 && entries[i - 1].hash === e.parent) g.append(svg('line', { class: 'lp-link', x1: x - GAP, y1: TOP + H / 2, x2: x, y2: TOP + H / 2 }));
+    s.append(g);
+  });
+  const wrap = el('figure', { class: 'ledger-fig' }, s,
+    el('figcaption', { class: 'hint' }, 'Oldest on the left. Bar: the entry\'s own weight, scaled to the largest on this page; the number above is exact. Hover for the rest.'));
+  return wrap;
+}
+
 export const exploreView = {
   id: 'explore',
   title: 'Explore',
@@ -285,8 +326,11 @@ export const exploreView = {
       // next, read from poo ledger's JSON rather than from the page.
       onResult: (r, area) => {
         if (r.code !== 0) return;
-        let next;
-        try { next = JSON.parse(r.out).next; } catch (_) { return; }
+        let page, next;
+        try { page = JSON.parse(r.out); next = page.next; } catch (_) { return; }
+        // A page asked for without -below starts at the tip, which is marked.
+        const pic = ledgerPicture(page, { fromTip: !area.closest('section').querySelector('input[name=below]').value.trim() });
+        if (pic) area.querySelector('.result')?.prepend(pic);
         if (!next || String(next) === '0') return;
         const b = el('button', { type: 'button' }, `Older (below height ${next})`);
         b.onclick = () => ledger.run({ below: String(next) });

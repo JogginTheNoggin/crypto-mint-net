@@ -107,6 +107,14 @@ export function showResult(out, err, { empty } = {}) {
     let v, ok = false;
     try { v = JSON.parse(out); ok = true; } catch (_) { /* text output */ }
     box.append(ok ? render(v) : el('pre', { class: 'text-out' }, out));
+    // The output exactly as poo printed it, for a script or a bug report.
+    const copy = el('button', { type: 'button', class: 'small copy-out' }, 'Copy output');
+    copy.onclick = () => {
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(out).then(() => { copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy output'; }, 1200); },
+        () => { copy.textContent = 'Copy refused'; });
+    };
+    box.append(copy);
   }
   if (err.trim()) {
     box.append(el('pre', { class: 'text-out err' }, err));
@@ -376,35 +384,51 @@ const peersView = {
   },
 };
 
+// The Wallet view's wallet file, kept per browser like the Settings flags.
+const WALLET_KEY = 'poo-gui-wallet';
+const walletFile = () => { try { return localStorage.getItem(WALLET_KEY) || ''; } catch (_) { return ''; } };
+const setWalletFile = v => { try { localStorage.setItem(WALLET_KEY, v); } catch (_) { /* storage off */ } };
+
 const walletView = {
   id: 'wallet',
   title: 'Wallet',
   mount(root, ctx) {
-    const w = { name: 'wallet', label: 'Wallet file', placeholder: 'default: wallet.json in the root' };
-    const wf = v => [...where.flags(), ...flag('wallet', v.wallet)];
+    // The wallet file is chosen once for the whole view, like -root and
+    // -policy in Settings, instead of in every form.
+    const pick = el('input', { name: 'wallet-file', value: walletFile(), placeholder: 'wallet.json in the root', spellcheck: 'false' });
+    const wf = () => [...where.flags(), ...flag('wallet', pick.value.trim())];
+    const picker = el('section', { class: 'panel wallet-pick' },
+      el('label', {}, el('span', {}, 'Wallet file (-wallet)'), pick),
+      el('small', { class: 'hint' }, 'Every form below uses this file. Empty means wallet.json in the root, as in a shell.'));
+    pick.addEventListener('input', () => {
+      setWalletFile(pick.value.trim());
+      // Each form's preview shows the new -wallet at once.
+      for (const f of root.querySelectorAll('form.fields')) f.dispatchEvent(new Event('input'));
+    });
     const series = { name: 'series', label: 'Series id', placeholder: 'only if the node follows more than one' };
     const pass = 'The command asks for the passphrase when it needs it.';
     return mountAll(root, 'Wallet', 'Keys from one seed, payments and requests, all through poo wallet. Passphrases go straight to the command and are never stored.', [
-      form(ctx, { title: 'Balance', about: 'Spendable units per watched mint. ' + pass, fields: [w, series], args: v => ['wallet', 'balance', ...wf(v), ...flag('series', v.series)], submit: 'Show balance' }),
-      form(ctx, { title: 'Addresses', about: 'Every address, used or not, and shared ones. ' + pass, fields: [w], args: v => ['wallet', 'addresses', ...wf(v)], submit: 'Show addresses' }),
-      form(ctx, { title: 'New address', fields: [w, { name: 'label', label: 'Label' }], args: v => ['wallet', 'address', ...wf(v), ...flag('label', v.label)], submit: 'Give out an address' }),
-      form(ctx, { title: 'Pay', about: 'Pays an address, or a payment request file.', fields: [w,
+      { el: picker, stop: () => {} },
+      form(ctx, { title: 'Balance', about: 'Spendable units per watched mint. ' + pass, fields: [series], args: v => ['wallet', 'balance', ...wf(v), ...flag('series', v.series)], submit: 'Show balance' }),
+      form(ctx, { title: 'Addresses', about: 'Every address, used or not, and shared ones. ' + pass, fields: [], args: v => ['wallet', 'addresses', ...wf(v)], submit: 'Show addresses' }),
+      form(ctx, { title: 'New address', fields: [{ name: 'label', label: 'Label' }], args: v => ['wallet', 'address', ...wf(v), ...flag('label', v.label)], submit: 'Give out an address' }),
+      form(ctx, { title: 'Pay', about: 'Pays an address, or a payment request file.', fields: [
         { name: 'to', label: 'To address' }, { name: 'amount', label: 'Amount', type: 'number' },
         { name: 'request', label: 'Or a request file' }, { name: 'mint', label: 'Only from mints', type: 'list', placeholder: 'serials …' },
         { name: 'memo', label: 'Memo' }, { name: 'out', label: 'Co-signing file', placeholder: 'for a shared policy' }, series],
       args: v => ['wallet', 'pay', ...wf(v), ...flag('to', v.to), ...flag('amount', v.amount), ...flag('request', v.request), ...flags('mint', v.mint), ...flag('memo', v.memo), ...flag('out', v.out), ...flag('series', v.series)],
       submit: 'Pay', danger: true }),
-      form(ctx, { title: 'Request a payment', about: 'Asks to be paid, to a fresh address.', fields: [w, { name: 'amount', label: 'Amount', type: 'number' }, { name: 'memo', label: 'What for' }, { name: 'out', label: 'Request file', placeholder: 'default: print it' }],
+      form(ctx, { title: 'Request a payment', about: 'Asks to be paid, to a fresh address.', fields: [{ name: 'amount', label: 'Amount', type: 'number' }, { name: 'memo', label: 'What for' }, { name: 'out', label: 'Request file', placeholder: 'default: print it' }],
         args: v => ['wallet', 'request', ...wf(v), ...flag('amount', v.amount), ...flag('memo', v.memo), ...flag('out', v.out)], submit: 'Make request' }),
-      form(ctx, { title: 'What has arrived', fields: [w, { name: 'address', label: 'Requested address' }, { name: 'request', label: 'Or the request file' }, { name: 'threshold', label: 'Threshold', placeholder: 'from(e) for settled' }],
+      form(ctx, { title: 'What has arrived', fields: [{ name: 'address', label: 'Requested address' }, { name: 'request', label: 'Or the request file' }, { name: 'threshold', label: 'Threshold', placeholder: 'from(e) for settled' }],
         args: v => ['wallet', 'receive', ...wf(v), ...flag('address', v.address), ...flag('request', v.request), ...flag('threshold', v.threshold)], submit: 'Check' }),
-      form(ctx, { title: 'Payments sent', about: 'Where every payment sent stands.', fields: [w, { name: 'threshold', label: 'Threshold', placeholder: 'from(e) for settled' }],
+      form(ctx, { title: 'Payments sent', about: 'Where every payment sent stands.', fields: [{ name: 'threshold', label: 'Threshold', placeholder: 'from(e) for settled' }],
         args: v => ['wallet', 'status', ...wf(v), ...flag('threshold', v.threshold)], submit: 'Show' }),
-      form(ctx, { title: 'Watch mints', about: 'Adds mints or pools to look for portions in.', fields: [w, { name: 'serial', label: 'Mint serials', type: 'list' }, { name: 'pool', label: 'Pools', type: 'list' }],
+      form(ctx, { title: 'Watch mints', about: 'Adds mints or pools to look for portions in.', fields: [{ name: 'serial', label: 'Mint serials', type: 'list' }, { name: 'pool', label: 'Pools', type: 'list' }],
         args: v => ['wallet', 'watch', ...wf(v), ...flags('serial', v.serial), ...flags('pool', v.pool)], submit: 'Watch' }),
-      form(ctx, { title: 'Claim a mint', fields: [w, { name: 'serial', label: 'Mint serial', type: 'number' }, series],
+      form(ctx, { title: 'Claim a mint', fields: [{ name: 'serial', label: 'Mint serial', type: 'number' }, series],
         args: v => ['wallet', 'claim', ...wf(v), ...flag('serial', v.serial), ...flag('series', v.series)], submit: 'Claim', danger: true }),
-      form(ctx, { title: 'Create or restore a wallet', fields: [w, { name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519 (see Crypto)' }, { name: 'restore', label: 'Restore from seed', placeholder: 'hex, to restore', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }, { name: 'gap', label: 'Gap', type: 'number' }],
+      form(ctx, { title: 'Create or restore a wallet', fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519 (see Crypto)' }, { name: 'restore', label: 'Restore from seed', placeholder: 'hex, to restore', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }, { name: 'gap', label: 'Gap', type: 'number' }],
         args: v => ['wallet', 'create', ...wf(v), ...flag('alg', v.alg), ...flag('restore', v.restore), ...flag('gap', v.gap)], submit: 'Create' }),
     ]);
   },

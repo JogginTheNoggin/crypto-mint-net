@@ -186,3 +186,26 @@ a.lookup { font-size: 11px; color: var(--accent); margin-left: 2px; }
 nav a.busy::after { content: " \25CF"; color: var(--live); }
 .node-banner { border: 1px solid var(--live); border-radius: 6px; padding: 8px 12px; margin: 8px 0 12px; color: var(--live); }
 details.no-node > summary { cursor: pointer; color: var(--muted); }
+
+/* Links follow the theme everywhere (the node banner used the browser's blue) */
+main a:not(.skip) { color: var(--accent); }
+.node-banner a { font-weight: 600; }
+
+/* The Wallet view's one wallet file */
+.wallet-pick { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.wallet-pick label { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.wallet-pick input { min-width: 280px; }
+.wallet-pick small { flex-basis: 100%; margin: 0; }
+button.copy-out { margin-top: 6px; }
+
+/* Explore: the picture of a ledger page */
+.ledger-fig { margin: 4px 0 10px; overflow-x: auto; }
+.ledger-fig figcaption { margin: 2px 0 0; font-size: 12px; }
+.ledger-pic { display: block; font: 11px var(--mono); }
+.ledger-pic .lp-slot { fill: var(--bg); stroke: var(--line); }
+.ledger-pic .lp-bar { fill: var(--accent); opacity: .75; }
+.ledger-pic .lp-tip .lp-bar { opacity: 1; }
+.ledger-pic .lp-tip .lp-slot { stroke: var(--accent); stroke-width: 2; }
+.ledger-pic text { fill: var(--ink); }
+.ledger-pic .lp-h, .ledger-pic .lp-tx { fill: var(--muted); }
+.ledger-pic .lp-link { stroke: var(--muted); stroke-width: 2; }

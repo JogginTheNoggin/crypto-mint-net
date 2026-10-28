@@ -86,6 +86,17 @@ try {
   await live.locator('.run-status', { hasText: 'stopped' }).waitFor();
   await until(async () => (await page.locator('nav a[data-id=watch].busy').count()) === 0, 'the dot to go');
 
+  // The ledger page is also drawn: one bar per entry, the tip marked.
+  await page.click('nav a[data-id=explore]');
+  const led = section('Selected ledger');
+  await led.locator('input[name=pool1]').fill('1');
+  await led.locator('button[type=submit]').click();
+  await led.locator('svg.ledger-pic .lp-tip').waitFor();
+  assert.equal(await led.locator('svg.ledger-pic .lp-entry').count(), 1);
+  assert.match(await led.locator('svg.ledger-pic').getAttribute('aria-label'), /pool 1: 1 entry,/);
+  if (shots) await page.screenshot({ path: join(shots, 'ledger-picture.png'), fullPage: true });
+  await page.click('nav a[data-id=watch]');
+
   // The tid in a row links to Explore, which runs poo tx on it.
   await live.locator(`tr.ev-tx a.lookup[href*="${tid}"]`).first().click();
   const looked = section('A transaction');

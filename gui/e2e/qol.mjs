@@ -121,6 +121,30 @@ try {
   assert.equal(await muted(), '#c8c8c0');
   await page.emulateMedia({ contrast: 'no-preference', colorScheme: 'light' });
 
+  // Wallet: one wallet file for every form, shown in each preview.
+  await page.click('nav a[data-id=wallet]');
+  await page.fill('.wallet-pick input', 'w2.json');
+  const bal = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Balance' }) });
+  assert.equal(await bal.locator('.cmd code').innerText(), 'poo wallet balance -wallet w2.json');
+  assert.equal(await page.locator('section.panel label', { hasText: 'Wallet file' }).count(), 1, 'one wallet field');
+  await page.fill('.wallet-pick input', '');
+
+  // A result has a Copy output button for poo's exact output.
+  await page.click('nav a[data-id=crypto]');
+  await page.locator('section.panel button.copy-out').first().waitFor();
+
+  // Getting started uses the -root from Settings, like the views.
+  await page.click('nav a[data-id=settings]');
+  await page.locator('label', { hasText: 'Root' }).locator('input').fill('/tmp/qol-root');
+  await page.click('button:has-text("Save")');
+  await page.click('nav a[data-id=start]');
+  const step = page.locator('.steps li', { hasText: 'Write a node policy' });
+  assert.equal(await step.locator('code').innerText(), 'poo init -example -root /tmp/qol-root');
+  assert.equal(await page.locator('.steps li', { hasText: 'Check the tool' }).locator('code').innerText(), 'poo version');
+  await page.click('nav a[data-id=settings]');
+  await page.locator('label', { hasText: 'Root' }).locator('input').fill('');
+  await page.click('button:has-text("Save")');
+
   assert.deepEqual(errors, [], 'no page errors');
   console.log('gui qol e2e: ok');
 } finally {
