@@ -18,6 +18,11 @@ no other package hard-codes SHA-256.
 - `Func(parts ...[]byte) Hash` hashes the concatenation of its parts. A
   `Func` reuses its digests through a pool, which matters when grinding
   (ORANGE-003).
+- Grinding (M11, ORANGE-006): `Grinder(id, prefix)` keeps a digest's
+  state after a fixed prefix, so each try hashes only the nonce. A
+  `Hasher` is anything with `Hash(suffix) Hash` after its prefix, and a
+  `NewHasher` makes one per search worker; `GrinderFor(id)` is the
+  default maker. [pkg/grind](grind.md) registers others per device.
 - Tags: `TagAddress`, `TagTx`, `TagEntry`, `TagPool`, `TagSeries`,
   `TagWitness`, `TagIssuer`.
 

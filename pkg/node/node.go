@@ -77,6 +77,7 @@ type Node struct {
 	eng    *engine.Engine
 	logs   map[engine.PoolKey]*store.Log
 	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
+	failed sync.Map     // pool keys whose store stopped, logged once
 	cmin   int
 	unlock func()
 	closed bool
@@ -347,14 +348,28 @@ func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte) (func() er
 	}
 	t, err := l.AppendLater(store.Record{Kind: kind, Data: data})
 	if err != nil {
-		return nil, fmt.Errorf("node: store %s: %w", k, err)
+		return nil, n.storeFailed(k, err)
 	}
 	return func() error {
 		if err := l.Durable(t); err != nil {
-			return fmt.Errorf("node: store %s: %w", k, err)
+			return n.storeFailed(k, err)
 		}
 		return nil
 	}, nil
+}
+
+// storeFailed wraps an error of pool k's store. A store stopped by a
+// failed write takes nothing more for the pool, so from then on every item
+// of the pool fails with this error and is neither stored nor forwarded.
+// The node says so once, as an error, since only a restart, which replays
+// what is really on disk, brings the pool back (RED-010, decision D108).
+func (n *Node) storeFailed(k engine.PoolKey, err error) error {
+	if errors.Is(err, store.ErrFailed) {
+		if _, told := n.failed.LoadOrStore(k, true); !told {
+			n.logger().Error("pool store stopped after a failed write; restart the node to replay what is on disk", "pool", k.String(), "err", err)
+		}
+	}
+	return fmt.Errorf("node: store %s: %w", k, err)
 }
 
 // Event reports an item the node kept, after it is written to the store.
@@ -503,13 +518,18 @@ func (n *Node) Build(k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.En
 // done. The search for a nonce holds neither the node's lock nor the
 // engine's, so a long build never stalls peers or the RPC (RED-006).
 func (n *Node) BuildContext(ctx context.Context, k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.EntryResult, error) {
+	return n.BuildWith(ctx, k, maxTries, engine.Grind{})
+}
+
+// BuildWith is BuildContext searching as g says (package grind).
+func (n *Node) BuildWith(ctx context.Context, k engine.PoolKey, maxTries uint64, g engine.Grind) (*entry.Entry, engine.EntryResult, error) {
 	n.mu.Lock()
 	closed := n.closed
 	n.mu.Unlock()
 	if closed {
 		return nil, engine.EntryResult{}, ErrClosed
 	}
-	e, err := n.eng.BuildEntry(ctx, k, maxTries)
+	e, err := n.eng.BuildEntryWith(ctx, k, maxTries, g)
 	if err != nil {
 		return e, engine.EntryResult{Key: k}, err
 	}
@@ -520,6 +540,16 @@ func (n *Node) BuildContext(ctx context.Context, k engine.PoolKey, maxTries uint
 // Work grinds a layer on an entry of pool k (see engine.Engine.Work) and
 // stores it.
 func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, engine.LayerResult, error) {
+	if tries == 0 {
+		return layer.Layer{}, engine.LayerResult{Key: k}, engine.ErrNoStrongerLayer
+	}
+	return n.WorkWith(context.Background(), k, entryHash, start, tries, engine.Grind{})
+}
+
+// WorkWith is Work searching as g says (package grind); tries 0 grinds
+// until ctx is done, and the strongest layer found by then is kept (see
+// engine.Engine.GrindLayerWith).
+func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Hash, start, tries uint64, g engine.Grind) (layer.Layer, engine.LayerResult, error) {
 	n.mu.Lock()
 	closed := n.closed
 	n.mu.Unlock()
@@ -527,7 +557,7 @@ func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) 
 		return layer.Layer{}, engine.LayerResult{}, ErrClosed
 	}
 	// Grinding holds neither lock, so it never stalls peers or the RPC.
-	l, err := n.eng.GrindLayer(k, entryHash, start, tries)
+	l, err := n.eng.GrindLayerWith(ctx, k, entryHash, start, tries, g)
 	if err != nil {
 		return l, engine.LayerResult{Key: k}, err
 	}

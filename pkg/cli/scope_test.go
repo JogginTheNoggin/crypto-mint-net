@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -166,5 +168,25 @@ func TestRestoreSeedHidden(t *testing.T) {
 	}
 	if !slices.Contains(SecretFlags(), "restore") || !slices.Contains(SecretFlags(), "seed") {
 		t.Fatalf("SecretFlags %q", SecretFlags())
+	}
+}
+
+func TestSecretOutputAndErrorCodes(t *testing.T) {
+	for args, want := range map[string]bool{"keygen": true, "keygen -alg ed25519": true, "wallet seed": true, "wallet seed -root x": true,
+		"wallet balance": false, "status": false, "": false, "grind run tip": false} {
+		if got := SecretOutput(strings.Fields(args)); got != want {
+			t.Errorf("SecretOutput(%q) = %v", args, got)
+		}
+	}
+	root := t.TempDir()
+	if err := run([]string{"status", "-root", root}, io.Discard); ErrorCode(err) != CodeNoNode {
+		t.Errorf("no node: %q %v", ErrorCode(err), err)
+	}
+	err := Run(context.Background(), []string{"claim", "-root", root}, Stdio{Out: io.Discard, Err: io.Discard, ViewOnly: true})
+	if ErrorCode(err) != CodeViewOnly || !strings.HasPrefix(err.Error(), "view-only: poo claim") {
+		t.Errorf("view-only: %q %v", ErrorCode(err), err)
+	}
+	if ErrorCode(&rpc.Error{Code: rpc.CodeNotFound}) != rpc.CodeNotFound || ErrorCode(errors.New("x")) != CodeError || ErrorCode(nil) != "" {
+		t.Error("codes")
 	}
 }

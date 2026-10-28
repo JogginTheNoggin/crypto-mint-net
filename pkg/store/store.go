@@ -92,6 +92,34 @@ type Log struct {
 	// syncMu lets one Durable at a time sync; the others wait for it and
 	// usually find their append already covered.
 	syncMu sync.Mutex
+	// err is the first failed write or sync, guarded by fmu. Once set the
+	// log takes no more appends and reports nothing durable past synced:
+	// after a failed fsync the system may drop the unwritten pages and let
+	// a later fsync succeed, so a retry proves nothing (RED-010, D108).
+	err error
+}
+
+// fileSync syncs a log's file; tests replace it to make a sync fail.
+var fileSync = (*os.File).Sync
+
+// ErrFailed wraps the error that stopped a log. The log takes no more
+// records until it is opened again, which replays what is on disk.
+var ErrFailed = errors.New("store: log stopped after a failed write")
+
+// failLocked latches err as the log's first failure and returns it
+// wrapped. The caller holds fmu.
+func (l *Log) failLocked(err error) error {
+	if l.err == nil {
+		l.err = fmt.Errorf("%w: %w", ErrFailed, err)
+	}
+	return l.err
+}
+
+// Err returns the failure that stopped the log, or nil.
+func (l *Log) Err() error {
+	l.fmu.Lock()
+	defer l.fmu.Unlock()
+	return l.err
 }
 
 // Options control how a log writes.
@@ -245,15 +273,19 @@ func (l *Log) syncFile() error {
 // pass the returned ticket to Durable to wait until it would also survive
 // a power loss.
 func (l *Log) AppendLater(rec Record) (uint64, error) {
-	if err := frame(l.w, rec); err != nil {
+	if err := l.Err(); err != nil {
 		return 0, err
 	}
-	if err := l.w.Flush(); err != nil {
-		return 0, err
+	err := frame(l.w, rec)
+	if err == nil {
+		err = l.w.Flush()
 	}
-	l.records++
 	l.fmu.Lock()
 	defer l.fmu.Unlock()
+	if err != nil {
+		return 0, l.failLocked(err)
+	}
+	l.records++
 	l.written++
 	return l.written, nil
 }
@@ -273,9 +305,14 @@ func (l *Log) Durable(ticket uint64) error {
 		l.fmu.Unlock()
 		return nil
 	}
+	if l.err != nil {
+		// A sync already failed: never retry it and call it durable.
+		defer l.fmu.Unlock()
+		return l.err
+	}
 	f, upto := l.f, l.written
 	l.fmu.Unlock()
-	err := f.Sync()
+	err := fileSync(f)
 	l.fmu.Lock()
 	defer l.fmu.Unlock()
 	if l.synced >= ticket {
@@ -284,7 +321,7 @@ func (l *Log) Durable(ticket uint64) error {
 		return nil
 	}
 	if err != nil {
-		return err
+		return l.failLocked(err)
 	}
 	l.synced = upto
 	return nil
@@ -301,6 +338,9 @@ func (l *Log) Path() string { return l.path }
 // beside the log, syncs it and renames it into place, then reopens the log
 // for appending.
 func (l *Log) Rewrite(recs []Record) error {
+	if err := l.Err(); err != nil {
+		return err
+	}
 	if err := l.w.Flush(); err != nil {
 		return err
 	}
@@ -374,12 +414,13 @@ func syncDir(dir string) {
 // Close flushes and closes the log.
 func (l *Log) Close() error {
 	ferr := l.w.Flush()
-	serr := l.f.Sync()
+	serr := fileSync(l.f)
 	l.fmu.Lock()
-	if ferr == nil && serr == nil {
+	if ferr == nil && serr == nil && l.err == nil {
 		l.synced = l.written
 	}
 	cerr := l.f.Close()
+	lerr := l.err
 	l.fmu.Unlock()
-	return errors.Join(ferr, serr, cerr)
+	return errors.Join(lerr, ferr, serr, cerr)
 }

@@ -3,6 +3,8 @@ package ledger
 import (
 	"fmt"
 	"sort"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
 
 // CheckOff checks that the pool's set of off-chain nodes holds exactly the
@@ -22,6 +24,13 @@ func CheckOff(p *Pool) error {
 				leaves = append(leaves, n)
 			}
 		}
+	}
+	var sum weight.Weight
+	for _, n := range p.chain {
+		sum = sum.Add(n.own)
+	}
+	if sum.Cmp(p.bit.total) != 0 || sum.Cmp(p.Weight()) != 0 {
+		return fmt.Errorf("selected weight %s, cached %s, want %s", p.Weight(), p.bit.total, sum)
 	}
 	if off != len(p.off) {
 		return fmt.Errorf("off set holds %d nodes, want %d", len(p.off), off)

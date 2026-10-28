@@ -91,3 +91,9 @@ by emitting outside the lock in a queue, which is a larger change.
 On `claude/source-orange`, commit `e4ce9e6`: `pkg/store/store.go`,
 `pkg/store/durable_test.go`, `pkg/node/node.go` and the `peers` cases of
 `pkg/node/bench_test.go`.
+
+## Round 4 check
+
+Re-measured by Orange on `claude/m10-watch` @ `0ac8e4e` (base `deecc80`),
+same machine and commands. Default sync, `peers=16x`, 4 cores: 48.3 µs per transaction (20,700/s,
+against 2,900/s before ORANGE-005); `peers=1x`, 4 cores: 180 µs.

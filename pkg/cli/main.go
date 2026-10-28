@@ -80,10 +80,13 @@ Usage:
                               claim a whole mint for a key's address
   poo pay -seed-file FILE -serial N -to ADDR -amount A
                               pay from a key's address, change back to it
-  poo build -pool K | -serial N [-work N]
+  poo build -pool K | -serial N [-work N] [-device D] [-threads N] [-for 30s]
                               build an entry from the pending transactions
-  poo work -pool K | -serial N [-entry HASH] [-tries N]
+  poo work -pool K | -serial N [-entry HASH] [-tries N | -for 30s] [-device D] [-threads N]
                               add a layer (default: on the selected tip)
+  poo grind devices|bench|start|run|jobs|stop
+                              the node's hash work: devices, speed, and jobs
+                              by hand, scheduled or automatic (poo grind help)
   poo payment -serial N -tid HASH
                               where a transaction stands (older form of
                               poo tx, kept for scripts)
@@ -273,6 +276,8 @@ func run(args []string, out io.Writer) error {
 		return peersCmd(args[1:], out)
 	case "peer":
 		return peerCmd(args[1:], out)
+	case "grind":
+		return grindCmd(args[1:], out)
 	case "tracking":
 		return trackingCmd(args[1:], out)
 	case "chases":

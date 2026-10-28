@@ -104,7 +104,8 @@ func FuzzComposite(f *testing.F) {
 }
 
 // FuzzVerify gives every algorithm arbitrary keys and signatures: none may
-// panic or accept one.
+// panic or accept one. The seeds sign another message, so a mutation that
+// undoes the flipped bit gives a real signature, but not over msg.
 func FuzzVerify(f *testing.F) {
 	msg := Message(hash.Hash{1})
 	for _, a := range Default().Algs() {
@@ -112,7 +113,7 @@ func FuzzVerify(f *testing.F) {
 		if err != nil {
 			f.Fatal(err)
 		}
-		sig := s.Sign(msg)
+		sig := s.Sign(Message(hash.Hash{2}))
 		sig[0] ^= 1
 		f.Add(uint8(a.ID()), s.Public(), sig)
 	}

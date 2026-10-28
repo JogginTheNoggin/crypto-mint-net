@@ -165,10 +165,41 @@ func (p *Pool) Add(l Ledger, t *tx.Tx, tid hash.Hash) error {
 		return ErrFull
 	}
 	if err := tx.Check(p.s, l, t, tid); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalid, err)
+		// Both wrapped, so a caller can tell a bad witness (tx.ErrWitness),
+		// which is never honest, from a race (RED-009).
+		return fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	p.insert(tid, t, false)
 	return nil
+}
+
+// Owners runs every check Add would run before a witness signature, and
+// returns the address each of t's witnesses must satisfy (tx.Owners), or
+// the error Add would give. It changes nothing.
+func (p *Pool) Owners(l Ledger, t *tx.Tx, tid hash.Hash) ([]hash.Hash, error) {
+	if _, ok := p.byTID[tid]; ok {
+		return nil, ErrKnown
+	}
+	if _, ok := l.Locate(tid); ok {
+		return nil, ErrInSelected
+	}
+	if p.conflicts(t) {
+		return nil, ErrConflict
+	}
+	if p.dependsOnPending(t) {
+		return nil, ErrDependsOnPending
+	}
+	if len(p.byTID) >= p.limit {
+		return nil, ErrFull
+	}
+	if err := tx.CheckForm(p.s, t); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	owners, err := tx.Owners(l, t)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	return owners, nil
 }
 
 // Item is a pending transaction and its tid.

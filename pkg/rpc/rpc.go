@@ -22,8 +22,8 @@
 //	POST /tx       {tx}                   submit a transaction
 //	POST /entry    {series, pool, entry}  submit an entry
 //	POST /layer    {series, pool, layer}  submit a layer
-//	POST /build    {series, pool, max_tries}
-//	POST /work     {series, pool, entry, start, tries}
+//	POST /build    {series, pool, max_tries, device, threads, for}
+//	POST /work     {series, pool, entry, start, tries, device, threads, for}
 //	GET  /payment?series=&serial=&tid=    where a transaction stands, the
 //	                                      transaction, and known rivals
 //	GET  /holdings?series=&serial=        unspent portions of a mint
@@ -66,9 +66,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
@@ -160,6 +163,7 @@ type Handler struct {
 	host   *p2p.Host
 	hub    *watch.Hub
 	reload func()
+	grind  *grind.Manager
 	token  []byte
 	view   []byte // the view token, or nil for none
 	mux    *http.ServeMux
@@ -183,6 +187,7 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("POST /v1/peer", h.peer)
 	h.mux.HandleFunc("GET /v1/metrics", h.metrics)
 	h.viewRoutes()
+	h.grindRoutes()
 	return h
 }
 
@@ -424,6 +429,8 @@ type EntryReply struct {
 	Switched bool      `json:"switched"`
 	Pruned   int       `json:"pruned"`
 	Dropped  int       `json:"dropped"`
+	// Grind, for a build: how it ground.
+	Grind *GrindStats `json:"grind,omitempty"`
 }
 
 func entryReply(res engine.EntryResult) EntryReply {
@@ -466,6 +473,8 @@ type LayerReply struct {
 	Layer    string    `json:"layer,omitempty"`
 	Strength int       `json:"strength"`
 	Switched bool      `json:"switched"`
+	// Grind, for work: how it ground.
+	Grind *GrindStats `json:"grind,omitempty"`
 }
 
 func (h *Handler) submitLayer(w http.ResponseWriter, r *http.Request) {
@@ -501,6 +510,7 @@ const MaxBuildTries = 1 << 24
 type BuildRequest struct {
 	PoolRef
 	MaxTries uint64 `json:"max_tries,omitempty"`
+	GrindOptions
 }
 
 func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
@@ -512,19 +522,29 @@ func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
 	// Bounded like work, and given up when the client goes away
 	// (RED-006, decision D99).
 	switch {
-	case req.MaxTries == 0:
-		req.MaxTries = MaxBuildTries
 	case req.MaxTries > MaxBuildTries:
 		writeError(w, badRequest("max_tries must be at most %d", MaxBuildTries))
 		return
+	case req.MaxTries == 0 && req.For == "":
+		req.MaxTries = MaxBuildTries
 	}
-	en, res, err := h.n.BuildContext(r.Context(), req.key(), req.MaxTries)
+	p, d, e := h.plan(req.key(), req.GrindOptions)
+	if e != nil {
+		writeError(w, e)
+		return
+	}
+	var tried atomic.Uint64
+	ctx, cancel, g := grindCtx(r, p, d, &tried)
+	defer cancel()
+	t0 := time.Now()
+	en, res, err := h.n.BuildWith(ctx, req.key(), req.MaxTries, g)
 	if err != nil {
 		writeError(w, classify(err))
 		return
 	}
 	rep := entryReply(res)
 	rep.Entry = hex.EncodeToString(en.Encode())
+	rep.Grind = stats(p, tried.Load(), t0)
 	writeJSON(w, rep)
 }
 
@@ -537,7 +557,10 @@ type WorkRequest struct {
 	PoolRef
 	Entry hash.Hash `json:"entry"`
 	Start uint64    `json:"start,omitempty"`
-	Tries uint64    `json:"tries"`
+	// Tries is how many nonces to try, 1 to MaxWorkTries; 0 with for
+	// tries as many as fit in that time.
+	Tries uint64 `json:"tries,omitempty"`
+	GrindOptions
 }
 
 func (h *Handler) work(w http.ResponseWriter, r *http.Request) {
@@ -546,16 +569,25 @@ func (h *Handler) work(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	if req.Tries == 0 || req.Tries > MaxWorkTries {
-		writeError(w, badRequest("tries must be 1 to %d", MaxWorkTries))
+	if req.Tries > MaxWorkTries || (req.Tries == 0 && req.For == "") {
+		writeError(w, badRequest("tries must be 1 to %d, or 0 with for", MaxWorkTries))
 		return
 	}
-	l, res, err := h.n.Work(req.key(), req.Entry, req.Start, req.Tries)
+	p, d, e := h.plan(req.key(), req.GrindOptions)
+	if e != nil {
+		writeError(w, e)
+		return
+	}
+	var tried atomic.Uint64
+	ctx, cancel, g := grindCtx(r, p, d, &tried)
+	defer cancel()
+	t0 := time.Now()
+	l, res, err := h.n.WorkWith(ctx, req.key(), req.Entry, req.Start, req.Tries, g)
 	if err != nil {
 		writeError(w, classify(err))
 		return
 	}
-	writeJSON(w, LayerReply{Hash: res.Hash, Layer: hex.EncodeToString(l.Encode()), Strength: res.Hash.Strength(), Switched: res.Switch != nil})
+	writeJSON(w, LayerReply{Hash: res.Hash, Layer: hex.EncodeToString(l.Encode()), Strength: res.Hash.Strength(), Switched: res.Switch != nil, Grind: stats(p, tried.Load(), t0)})
 }
 
 func queryHash(r *http.Request, name string) (hash.Hash, *Error) {

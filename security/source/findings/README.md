@@ -16,3 +16,5 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-006](RED-006-unbounded-build-pow-under-lock.md) | `/v1/build` runs unbounded entry proof-of-work while holding the global node lock | medium | fixed |
 | [RED-007](RED-007-ipv6-transition-address-bypass.md) | Public-address filter misses IPv4-embedding IPv6 transition ranges (NAT64 / 6to4 / Teredo) | low | fixed |
 | [RED-008](RED-008-address-view-unbounded-ledger-walk.md) | `/v1/address` walks the whole ledger per request under the engine lock, reachable with the read-only view token | medium | fixed |
+| [RED-009](RED-009-preverify-verifies-what-checks-would-reject.md) | Pre-lock signature verification runs on items the cheap checks would reject, does not stop at the first bad signature, and never remembers a failure | medium | fixed |
+| [RED-010](RED-010-failed-fsync-retried-then-reported-ok.md) | A failed fsync of the store is retried and a later waiter is told the record is on disk | low | fixed |

@@ -458,6 +458,7 @@ func buildCmd(args []string, out io.Writer) error {
 	pf := addPool(fs)
 	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: the node's limit, 16777216)")
 	work := fs.Uint64("work", 0, "then add the strongest layer found in this many nonces")
+	g := addGrindOptions(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -474,7 +475,7 @@ func buildCmd(args []string, out io.Writer) error {
 		return err
 	}
 	ref := rpc.PoolRef{Series: s.ID(), Pool: pool}
-	r, err := cl.Build(ref, *tries)
+	r, err := cl.BuildWith(ref, *tries, g.options())
 	if err != nil {
 		return err
 	}
@@ -484,7 +485,7 @@ func buildCmd(args []string, out io.Writer) error {
 		Layer *rpc.LayerReply `json:"layer,omitempty"`
 	}{EntryReply: r}
 	if *work > 0 {
-		l, err := cl.Work(ref, r.Hash, 0, *work)
+		l, err := cl.WorkWith(ref, r.Hash, 0, *work, rpc.GrindOptions{Device: *g.device, Threads: *g.threads})
 		if err != nil {
 			return err
 		}
@@ -500,9 +501,15 @@ func workCmd(args []string, out io.Writer) error {
 	pf := addPool(fs)
 	entryHex := fs.String("entry", "", "entry hash (default: the pool's selected tip)")
 	start := fs.Uint64("start", 0, "first nonce")
-	tries := fs.Uint64("tries", 1<<16, "nonces to try")
+	tries := fs.Uint64("tries", 1<<16, "nonces to try (with -for: 0, as many as fit)")
+	g := addGrindOptions(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	triesSet := false
+	fs.Visit(func(f *flag.Flag) { triesSet = triesSet || f.Name == "tries" })
+	if *g.dur != "" && !triesSet {
+		*tries = 0
 	}
 	cl, err := c.dial(out)
 	if err != nil {
@@ -535,7 +542,7 @@ func workCmd(args []string, out io.Writer) error {
 			return fmt.Errorf("pool %d has no selected entry; name one with -entry (a new entry has no weight until a layer lands on it)", pool)
 		}
 	}
-	r, err := cl.Work(rpc.PoolRef{Series: s.ID(), Pool: pool}, target, *start, *tries)
+	r, err := cl.WorkWith(rpc.PoolRef{Series: s.ID(), Pool: pool}, target, *start, *tries, g.options())
 	if err != nil {
 		return err
 	}
@@ -638,6 +645,11 @@ func peerCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
+	if err := flagsFor(fs, action, map[string][]string{
+		"seconds": {"timeout", "block"}, "range": {"block"}, "what": {"clear"}, "template": {"template"},
+	}); err != nil {
+		return err
+	}
 	if fs.NArg() != 1 {
 		return errors.New(use)
 	}
@@ -720,6 +732,9 @@ func policyCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
+	if err := flagsFor(fs, sub, map[string][]string{"fresh": {"unarchive"}}); err != nil {
+		return err
+	}
 	m := nodepolicy.Manager{Root: *root}
 	if sub == "list" {
 		list, err := m.List()
@@ -761,4 +776,24 @@ func policyCmd(args []string, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "%s: %s\n", sub, name)
 	return nil
+}
+
+// grindOptions are the flags that choose how build and work grind
+// (package grind, M11).
+type grindOptions struct {
+	device  *string
+	threads *int
+	dur     *string
+}
+
+func addGrindOptions(fs *flag.FlagSet) *grindOptions {
+	return &grindOptions{
+		device:  fs.String("device", "", "device: auto, cpu, gpu:0, ... (poo grind devices; default: node.json's grind section, else auto)"),
+		threads: fs.Int("threads", 0, "threads (default: every core but one)"),
+		dur:     fs.String("for", "", "grind for this long, up to 4m (30s), instead of a number of tries"),
+	}
+}
+
+func (g *grindOptions) options() rpc.GrindOptions {
+	return rpc.GrindOptions{Device: *g.device, Threads: *g.threads, For: *g.dur}
 }

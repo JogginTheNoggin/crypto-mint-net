@@ -12,6 +12,11 @@ credit to every ledger that contains its entry.
 `Layer{Entry, Nonce}`, `Hash`, `Strength`, `Credit`, `Encode`, `EncodeTo`,
 `Decode`, `DecodeFrom`, `Size` (40); `Grind(h, entry, start, tries)` returns
 the strongest layer in a nonce range; `GrindTo` stops at a target strength.
+`GrindHash` does the same with the hash's `hash.Grinder` (ORANGE-006), and
+`GrindWith(ctx, newHasher, entry, start, tries, workers, tried)` with any
+hasher on several workers (ORANGE-007): it finds what `Grind` finds, looks
+at ctx every 4096 tries, and returns the best layer so far with ctx's
+error. Tries 0 means until ctx ends.
 
 ## Notes
 

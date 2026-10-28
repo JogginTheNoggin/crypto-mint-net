@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
@@ -31,12 +33,16 @@ func NewClient(addr, token string) *Client {
 	return &Client{base: "http://" + addr, token: token, http: &http.Client{Timeout: 5 * time.Minute}}
 }
 
+// ErrNotRunning is what Dial returns, wrapped, when no node runs on the
+// data directory (no rpc.addr).
+var ErrNotRunning = errors.New("rpc: is the node running?")
+
 // Dial returns a client for the node running on dir, reading its address
 // and token from the data directory.
 func Dial(dir string) (*Client, error) {
 	a, err := os.ReadFile(filepath.Join(dir, AddrFile))
 	if err != nil {
-		return nil, fmt.Errorf("rpc: is the node running? %w", err)
+		return nil, fmt.Errorf("%w %w", ErrNotRunning, err)
 	}
 	t, err := os.ReadFile(filepath.Join(dir, TokenFile))
 	if err != nil {
@@ -50,7 +56,7 @@ func Dial(dir string) (*Client, error) {
 func DialView(dir string) (*Client, error) {
 	a, err := os.ReadFile(filepath.Join(dir, AddrFile))
 	if err != nil {
-		return nil, fmt.Errorf("rpc: is the node running? %w", err)
+		return nil, fmt.Errorf("%w %w", ErrNotRunning, err)
 	}
 	t, err := os.ReadFile(filepath.Join(dir, ViewTokenFile))
 	if err != nil {
@@ -139,6 +145,59 @@ func (c *Client) Build(p PoolRef, maxTries uint64) (EntryReply, error) {
 func (c *Client) Work(p PoolRef, e hash.Hash, start, tries uint64) (LayerReply, error) {
 	var r LayerReply
 	return r, c.do("POST", "/v1/work", WorkRequest{PoolRef: p, Entry: e, Start: start, Tries: tries}, &r)
+}
+
+// BuildWith is Build grinding as o says.
+func (c *Client) BuildWith(p PoolRef, maxTries uint64, o GrindOptions) (EntryReply, error) {
+	var r EntryReply
+	return r, c.do("POST", "/v1/build", BuildRequest{PoolRef: p, MaxTries: maxTries, GrindOptions: o}, &r)
+}
+
+// WorkWith is Work grinding as o says; tries 0 with o.For grinds for that
+// long.
+func (c *Client) WorkWith(p PoolRef, e hash.Hash, start, tries uint64, o GrindOptions) (LayerReply, error) {
+	var r LayerReply
+	return r, c.do("POST", "/v1/work", WorkRequest{PoolRef: p, Entry: e, Start: start, Tries: tries, GrindOptions: o}, &r)
+}
+
+// GrindDevices returns the node's devices.
+func (c *Client) GrindDevices() (DevicesReply, error) {
+	var r DevicesReply
+	return r, c.do("GET", "/v1/grind/devices", nil, &r)
+}
+
+// GrindJobs returns the node's grind jobs.
+func (c *Client) GrindJobs() ([]grind.Job, error) {
+	var r []grind.Job
+	return r, c.do("GET", "/v1/grind", nil, &r)
+}
+
+// GrindJob returns one grind job.
+func (c *Client) GrindJob(id int) (grind.Job, error) {
+	var r grind.Job
+	return r, c.do("GET", fmt.Sprintf("/v1/grind/%d", id), nil, &r)
+}
+
+// GrindStart starts a grind job.
+func (c *Client) GrindStart(s grind.Spec) (grind.Job, error) {
+	var r grind.Job
+	return r, c.do("POST", "/v1/grind", s, &r)
+}
+
+// GrindStop stops a grind job and returns how it ended.
+func (c *Client) GrindStop(id int) (grind.Job, error) {
+	var r grind.Job
+	return r, c.do("DELETE", fmt.Sprintf("/v1/grind/%d", id), nil, &r)
+}
+
+// GrindStopAll stops every grind job made by source ("" for all).
+func (c *Client) GrindStopAll(source string) ([]grind.Job, error) {
+	var r []grind.Job
+	path := "/v1/grind"
+	if source != "" {
+		path += "?source=" + url.QueryEscape(source)
+	}
+	return r, c.do("DELETE", path, nil, &r)
 }
 
 func mintQuery(series hash.Hash, serial uint64) url.Values {

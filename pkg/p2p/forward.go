@@ -10,6 +10,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
@@ -85,8 +86,13 @@ func (h *Host) handlePushed(p *peer, m wire.Message) error {
 			return fmt.Errorf("%w: transaction outside the section it was sent in", wire.ErrMalformed)
 		}
 		// A transaction can be refused for many honest reasons (a race
-		// with a spend, a full pool); none of them is the peer's fault.
+		// with a spend, a full pool); none of them is the peer's fault. A
+		// witness that does not satisfy its address is: no honest node
+		// forwards one (RED-009).
 		_, err = h.n.HandleTxFrom(t, engine.Pushed, p.id)
+		if errors.Is(err, tx.ErrWitness) {
+			return invalidItem{fmt.Errorf("sent a transaction with a bad witness: %w", err)}
+		}
 		h.credit(p, text, "tx", err, now)
 	case wire.TypeEntry:
 		e, err := wire.DecodeEntry(m.Body)

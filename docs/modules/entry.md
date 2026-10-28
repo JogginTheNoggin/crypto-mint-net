@@ -22,7 +22,10 @@ another in the same entry.
   same mint (`ErrConflict`). A dependency inside the entry shows up as a
   missing input.
 - `Build(s, parent, txs, maxTries)`: sorts and, if needed, grinds the nonce;
-  `ErrNotFound` if no nonce is strong enough.
+  `ErrNotFound` if no nonce is strong enough. `BuildWorkers` searches on
+  several workers, and `BuildWith(ctx, newHasher, s, parent, txs, maxTries,
+  workers, tried)` with any hasher, stopping when ctx ends and counting
+  tries (M11). Every one finds the same nonce as `Build`.
 
 ## Guarantees
 

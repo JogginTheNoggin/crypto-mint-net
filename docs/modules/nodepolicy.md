@@ -63,7 +63,14 @@ D25). Nothing here changes what is valid.
     "starting_points": 0,
     "no_timeout_misses": false
   },
-  "log": {"level": "info", "format": "plain"}
+  "log": {"level": "info", "format": "plain"},
+  "grind": {
+    "device": "auto", "threads": 0,
+    "jobs": [
+      {"target": "pending"},
+      {"target": "tip", "series": "…", "pools": [1], "hours": "22-06"}
+    ]
+  }
 }
 ```
 
@@ -88,7 +95,13 @@ priority, backup, candidate, unlisted, inbound or outbound (see
 the slots replace it. `log.level` is `debug`, `info` (default), `warn` or
 `error`, and `log.format` is `plain` (default), `text` or `json`
 ([logging.md](logging.md)); `poo node -log-level` and `-log-format` override
-them for one run.
+them for one run. `grind` ([grind.md](grind.md), D109) sets the device
+(`auto`, `cpu`, `gpu:0`, ...) and threads (0: every core but one) that
+grinding uses unless told otherwise, and up to 16 jobs the node runs by
+itself from start to stop: `target` is `tip`, `pending` or an entry hash,
+with optional `series`, `pools`, `device`, `threads`, `hours` (local, such
+as `22-06`) and, for an entry, `until_from`. `Validate` checks the
+section, so a reload onto a bad one is refused (D106).
 
 ## API
 

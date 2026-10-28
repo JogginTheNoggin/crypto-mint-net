@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 
@@ -36,6 +37,9 @@ var readCommands = map[string]map[string]bool{
 	"watch":  nil,
 	"follow": nil, // without flags it only shows; followCmd refuses a change
 	"policy": {"list": true},
+	// Grinding: devices, bench and jobs only look; start, run and stop
+	// change what the node does.
+	"grind": {"devices": true, "bench": true, "jobs": true, "help": true},
 	// The wallet reads only these: the others sign, give out addresses or
 	// record payment states in the wallet file, and seed reveals the seed.
 	"wallet": {"addresses": true, "balance": true, "help": true},
@@ -62,9 +66,13 @@ func viewOnlyEnv() bool {
 	return false
 }
 
+// ErrViewOnly is what a command refused in view-only mode returns,
+// wrapped.
+var ErrViewOnly = errors.New("view-only")
+
 // errViewOnly is the error for a command that would change something.
 func errViewOnly(what string) error {
-	return fmt.Errorf("view-only: poo %s changes things", what)
+	return fmt.Errorf("%w: poo %s changes things", ErrViewOnly, what)
 }
 
 // checkViewOnly refuses args unless they only read.
@@ -121,3 +129,57 @@ var errNoInput = errors.New("nothing on standard input")
 // lines, such as the GUI's terminal history, can mask their values
 // (GUI-006). Passphrases never come from a flag.
 func SecretFlags() []string { return []string{"seed", "restore"} }
+
+// secretOutputs are the commands that print a secret: keygen prints the
+// new key's seed, wallet seed the wallet's.
+var secretOutputs = map[string]map[string]bool{"keygen": nil, "wallet": {"seed": true}}
+
+// SecretOutput reports whether the command line args (without "poo")
+// prints a secret, so a front end that keeps output, such as the GUI's
+// terminal and job list, can hide it (GUI-009).
+func SecretOutput(args []string) bool {
+	var words []string
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") {
+			words = append(words, a)
+		}
+	}
+	if len(words) == 0 {
+		return false
+	}
+	subs, ok := secretOutputs[words[0]]
+	if !ok {
+		return false
+	}
+	return subs == nil || (len(words) > 1 && subs[words[1]])
+}
+
+// Error codes, stable whatever the wording of the error (GREEN-022).
+const (
+	CodeNoNode   = "no_node"   // no node runs where the command looked
+	CodeViewOnly = "view_only" // view-only mode refused the command
+	CodeNoInput  = "no_input"  // a passphrase or seed was needed and none came
+	CodeError    = "error"     // anything else
+)
+
+// ErrorCode returns a short code for an error a command returned, for a
+// front end to match instead of the message: the node's own code (the
+// rpc.Code* values, such as not_found or invalid), or one of the Code*
+// values above.
+func ErrorCode(err error) string {
+	var re *rpc.Error
+	var ne *net.OpError
+	switch {
+	case err == nil:
+		return ""
+	case errors.As(err, &re):
+		return re.Code
+	case errors.Is(err, rpc.ErrNotRunning), errors.As(err, &ne) && ne.Op == "dial":
+		return CodeNoNode
+	case errors.Is(err, ErrViewOnly):
+		return CodeViewOnly
+	case errors.Is(err, errNoInput):
+		return CodeNoInput
+	}
+	return CodeError
+}
