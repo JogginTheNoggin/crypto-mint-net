@@ -331,18 +331,22 @@ type AddResult struct {
 // keeps it. It returns ErrKnownEntry, ErrUnknownParent, or an error wrapping
 // ErrInvalidEntry when it does not keep it.
 func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
-	h, items, err := entry.CheckStructure(p.s, p.index, e)
+	// The cheap shape and the parent come before any signature: an entry
+	// on a parent not held costs no signature check (RED-009).
+	h, items, err := entry.CheckShape(p.s, p.index, e)
 	if err != nil {
 		return AddResult{}, fmt.Errorf("%w: %v", ErrInvalidEntry, err)
 	}
 	if _, ok := p.nodes[h]; ok {
 		return AddResult{Hash: h}, ErrKnownEntry
 	}
-	var parent *node
-	if e.Parent != p.id {
-		var ok bool
-		if parent, ok = p.nodes[e.Parent]; !ok {
-			return AddResult{Hash: h}, ErrUnknownParent
+	parent, ok := p.parentOf(e)
+	if !ok {
+		return AddResult{Hash: h}, ErrUnknownParent
+	}
+	for _, it := range items {
+		if err := tx.CheckStateless(p.s, it.Tx, it.TID); err != nil {
+			return AddResult{Hash: h}, fmt.Errorf("%w: %w %s: %v", ErrInvalidEntry, entry.ErrInvalidTx, it.TID.Short(), err)
 		}
 	}
 	view := p.viewAfter(parent)
@@ -383,6 +387,39 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 	}
 	res.Pruned = p.prune()
 	return res, nil
+}
+
+// parentOf returns the node of e's parent, nil for the pool's first
+// entry, and whether it is held.
+func (p *Pool) parentOf(e *entry.Entry) (*node, bool) {
+	if e.Parent == p.id {
+		return nil, true
+	}
+	n, ok := p.nodes[e.Parent]
+	return n, ok
+}
+
+// EntryOwners runs AddEntry's checks short of every witness signature and
+// returns e's items with, for each, the addresses its witnesses must
+// satisfy against the state after e's parent (entry.Owners), or the error
+// AddEntry would give. It changes nothing.
+func (p *Pool) EntryOwners(e *entry.Entry) ([]entry.Item, [][]hash.Hash, error) {
+	h, items, err := entry.CheckShape(p.s, p.index, e)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidEntry, err)
+	}
+	if _, ok := p.nodes[h]; ok {
+		return nil, nil, ErrKnownEntry
+	}
+	parent, ok := p.parentOf(e)
+	if !ok {
+		return nil, nil, ErrUnknownParent
+	}
+	owners, err := entry.Owners(p.s, p.viewAfter(parent), items)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidEntry, err)
+	}
+	return items, owners, nil
 }
 
 func toStateItems(items []entry.Item) []state.Item {

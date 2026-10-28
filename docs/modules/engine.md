@@ -35,9 +35,13 @@ or opens a socket. Calls are safe from multiple goroutines.
   verify witness signatures with the engine's lock held only to find the
   pool, so a node checks items from several peers on several cores, and
   the checks in `HandleTx`/`HandleEntry` find them remembered (ORANGE-004,
-  D105). Each skips what `Handle*` would skip without verifying: an item
-  seen or held, and an entry that fails `entry.CheckShape` (its strength
-  above all). They change no result.
+  D105). Under the lock they run every check `Handle*` runs before a
+  signature (`mempool.Pool.Owners`, `ledger.Pool.EntryOwners`: seen or
+  held, pending, conflicts, inputs unspent, amounts, an entry's shape and
+  parent), and verify each witness only against the address it must
+  satisfy, stopping at the first that fails (`tx.Preverify`; RED-009,
+  D107). They change no result. A bad witness wraps `tx.ErrWitness`,
+  which `pkg/p2p` charges as an offence.
 - `Seen`: a fixed-size ring of valid item hashes (decision D15: requested
   items bypass it).
 

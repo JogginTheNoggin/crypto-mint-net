@@ -298,12 +298,15 @@ func (e *Engine) KeyOf(t *tx.Tx) (PoolKey, error) {
 }
 
 // PreverifyTx verifies the witness signatures of t ahead of HandleTx,
-// holding the engine's lock only to find its pool and whether it was seen.
-// A caller that serializes items under its own lock calls it first, so
-// items from several peers are checked on several cores and the checks
-// under the lock find them remembered (ORANGE-004). Only a transaction
-// HandleTx would verify is verified: one of a followed pool, not seen
-// before. It changes no result.
+// holding the engine's lock only for the checks HandleTx runs before any
+// signature (a followed pool, not seen, not pending or in the selected
+// ledger, no conflict, every input unspent at the tip, the amounts) and to
+// find the address each witness must satisfy. A caller that serializes
+// items under its own lock calls it first, so items from several peers are
+// checked on several cores and the checks under the lock find them
+// remembered (ORANGE-004). A transaction HandleTx would refuse before its
+// signatures costs none here, and one with a bad witness costs one
+// (RED-009, decision D107). It changes no result.
 func (e *Engine) PreverifyTx(t *tx.Tx) {
 	k, err := e.KeyOf(t)
 	if err != nil {
@@ -316,18 +319,22 @@ func (e *Engine) PreverifyTx(t *tx.Tx) {
 		return
 	}
 	tid := t.TID(p.s.Hash())
-	seen := e.seen.Has(tid)
+	var owners []hash.Hash
+	if !e.seen.Has(tid) {
+		owners, err = p.pending.Owners(view{p.ledger}, t, tid)
+	}
 	e.mu.Unlock()
-	if !seen {
-		tx.Preverify(p.s, t, tid)
+	if owners != nil && err == nil {
+		tx.Preverify(p.s, t, tid, owners)
 	}
 }
 
 // PreverifyEntry is PreverifyTx for the transactions of an entry of pool
-// k. As in HandleEntry, an entry already held or seen, or one that fails
-// the cheap structural checks (its strength above all), has none of its
-// signatures verified, so a peer cannot make a node verify signatures
-// without doing the entry's work (decision D105).
+// k. It verifies signatures only for an entry that passes every check
+// HandleEntry runs before a signature: not held or seen, its shape and
+// strength, its parent held, and every transaction valid but for its
+// witnesses against the state after that parent. It stops at the first
+// transaction with a bad witness (RED-009, decisions D105, D107).
 func (e *Engine) PreverifyEntry(k PoolKey, en *entry.Entry, origin Origin) {
 	e.mu.Lock()
 	p, err := e.pool(k)
@@ -335,18 +342,19 @@ func (e *Engine) PreverifyEntry(k PoolKey, en *entry.Entry, origin Origin) {
 		e.mu.Unlock()
 		return
 	}
-	h := en.Hash(p.s)
-	skip := p.ledger.Has(h) || (origin.checksSeen() && e.seen.Has(h))
-	e.mu.Unlock()
-	if skip {
-		return
+	var items []entry.Item
+	var owners [][]hash.Hash
+	if !(origin.checksSeen() && e.seen.Has(en.Hash(p.s))) {
+		items, owners, err = p.ledger.EntryOwners(en)
 	}
-	_, items, err := entry.CheckShape(p.s, k.Index, en)
+	e.mu.Unlock()
 	if err != nil {
 		return
 	}
-	for _, it := range items {
-		tx.Preverify(p.s, it.Tx, it.TID)
+	for i, it := range items {
+		if tx.Preverify(p.s, it.Tx, it.TID, owners[i]) != nil {
+			return
+		}
 	}
 }
 

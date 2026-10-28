@@ -12,6 +12,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
@@ -363,4 +364,30 @@ func TestServedCostAndRepeats(t *testing.T) {
 	if st := tr.Status("127.0.0.1", time.Now()); st.FlagTotal == 0 {
 		t.Fatalf("repeats past the limit not flagged: %+v", st)
 	}
+}
+
+// RED-009: a transaction whose witness does not satisfy its input is an
+// offence, unlike the honest reasons a transaction is refused for.
+func TestBadWitnessTxIsOffence(t *testing.T) {
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true}, "")
+	must(t, err)
+	a := startNode(t, "a", func(c *p2p.Config) { c.Tracker = tr })
+	prev, owner := grow(t, a, nil, "alice", 1, 32)
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	push := func(t2 *tx.Tx) {
+		r.write(wire.Message{Header: wire.Header{Type: wire.TypeTx, Section: sec}, Body: t2.Encode()})
+	}
+	// A spend of a portion that does not exist is refused, honestly.
+	push(exKeys.Spend(4, []testutil.In{{Input: tx.Input{TID: hash.Hash{9}}, Owner: owner}}, P("bob", 100)))
+	time.Sleep(200 * time.Millisecond)
+	if st := tr.Status("127.0.0.1:1", time.Now()); st.FlagTotal != 0 {
+		t.Fatalf("a refused spend was an offence: %+v", st)
+	}
+	// A spend whose witness signs another transaction is an offence.
+	bad := exKeys.Spend(4, []testutil.In{exKeys.Out(prev, 0, owner)}, P("bob", 100))
+	other := exKeys.Spend(4, []testutil.In{exKeys.Out(prev, 0, owner)}, P("carol", 100))
+	bad.Witnesses[0] = other.Witnesses[0]
+	push(bad)
+	eventually(t, "a flag for a bad witness", func() bool { return tr.Status("127.0.0.1:1", time.Now()).FlagTotal > 0 })
 }

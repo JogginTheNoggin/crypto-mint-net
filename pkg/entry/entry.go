@@ -224,6 +224,41 @@ func CheckAgainst(s *series.Series, v tx.View, items []Item) error {
 	return nil
 }
 
+// Owners runs CheckStructure and CheckAgainst short of every witness
+// signature, against v, the pool state after the entry's parent, and
+// returns for each item the addresses its witnesses must satisfy
+// (tx.Owners). It verifies nothing.
+func Owners(s *series.Series, v tx.View, items []Item) ([][]hash.Hash, error) {
+	spent := map[tx.Input]struct{}{}
+	claims := map[uint64]struct{}{}
+	for _, it := range items {
+		if err := tx.CheckForm(s, it.Tx); err != nil {
+			return nil, fmt.Errorf("%w %s: %v", ErrInvalidTx, it.TID.Short(), err)
+		}
+		if it.Tx.IsClaim() {
+			if _, dup := claims[it.Tx.Mint.Serial]; dup {
+				return nil, ErrConflict
+			}
+			claims[it.Tx.Mint.Serial] = struct{}{}
+		}
+		for _, in := range it.Tx.Inputs {
+			if _, dup := spent[in]; dup {
+				return nil, ErrConflict
+			}
+			spent[in] = struct{}{}
+		}
+	}
+	out := make([][]hash.Hash, len(items))
+	for i, it := range items {
+		o, err := tx.Owners(v, it.Tx)
+		if err != nil {
+			return nil, fmt.Errorf("%w %s: %v", ErrInvalidTx, it.TID.Short(), err)
+		}
+		out[i] = o
+	}
+	return out, nil
+}
+
 // Build makes an entry from transactions that the caller has checked are
 // valid against the state after parent, do not conflict and do not depend on
 // one another. It sorts them into canonical order and, where the series sets

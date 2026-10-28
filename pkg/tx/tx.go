@@ -179,6 +179,18 @@ func (t *Tx) OutputSum() (uint64, error) {
 // claim it also checks the witnesses, one per output, against each output's
 // address. tid must be t.TID(s.Hash()).
 func CheckStateless(s *series.Series, t *Tx, tid hash.Hash) error {
+	if err := CheckForm(s, t); err != nil {
+		return err
+	}
+	if t.IsClaim() {
+		return checkWitnesses(s, t, tid, claimOwners(t), "output")
+	}
+	return nil
+}
+
+// CheckForm is CheckStateless without a claim's witnesses: only rules
+// that cost no signature check.
+func CheckForm(s *series.Series, t *Tx) error {
 	if t.Mint.Series != s.ID() {
 		return ErrWrongSeries
 	}
@@ -208,11 +220,6 @@ func CheckStateless(s *series.Series, t *Tx, tid hash.Hash) error {
 		}
 		if len(t.Witnesses) != len(t.Outputs) {
 			return ErrWitnessCount
-		}
-		for i, o := range t.Outputs {
-			if err := s.CheckWitness(t.Witnesses[i], o.Address, tid); err != nil {
-				return fmt.Errorf("%w: output %d: %v", ErrWitness, i, err)
-			}
 		}
 		return nil
 	}
@@ -249,55 +256,89 @@ type View interface {
 // CheckStateless has passed. Witness signatures are checked last, since they
 // are the most expensive step.
 func CheckAgainst(s *series.Series, v View, t *Tx, tid hash.Hash) error {
+	owners, err := Owners(v, t)
+	if err != nil || t.IsClaim() {
+		return err // a claim's witnesses are CheckStateless's
+	}
+	return checkWitnesses(s, t, tid, owners, "input")
+}
+
+// Owners runs CheckAgainst's rules short of the witnesses and returns the
+// address each witness must satisfy: each input's for a spend, each
+// output's for a claim. It assumes CheckForm has passed and verifies no
+// signature.
+func Owners(v View, t *Tx) ([]hash.Hash, error) {
 	if t.IsClaim() {
 		if v.Claimed(t.Mint.Serial) {
-			return ErrAlreadyClaimed
+			return nil, ErrAlreadyClaimed
 		}
-		return nil
+		return claimOwners(t), nil
 	}
 	if !v.Claimed(t.Mint.Serial) {
-		return ErrNotClaimed
+		return nil, ErrNotClaimed
 	}
-	portions := make([]Portion, len(t.Inputs))
+	owners := make([]hash.Hash, len(t.Inputs))
 	var in uint64
 	for i, input := range t.Inputs {
 		p, ok := v.Unspent(input)
 		if !ok {
-			return fmt.Errorf("%w: %s", ErrMissingInput, input)
+			return nil, fmt.Errorf("%w: %s", ErrMissingInput, input)
 		}
 		if p.Serial != t.Mint.Serial {
-			return ErrWrongMint
+			return nil, ErrWrongMint
 		}
 		var carry uint64
 		in, carry = bits.Add64(in, p.Amount, 0)
 		if carry != 0 {
-			return ErrOverflow
+			return nil, ErrOverflow
 		}
-		portions[i] = p
+		owners[i] = p.Address
 	}
 	out, err := t.OutputSum()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if in != out {
-		return ErrConservation
+		return nil, ErrConservation
 	}
-	for i, p := range portions {
-		if err := s.CheckWitness(t.Witnesses[i], p.Address, tid); err != nil {
-			return fmt.Errorf("%w: input %d: %v", ErrWitness, i, err)
+	return owners, nil
+}
+
+func claimOwners(t *Tx) []hash.Hash {
+	owners := make([]hash.Hash, len(t.Outputs))
+	for i, o := range t.Outputs {
+		owners[i] = o.Address
+	}
+	return owners
+}
+
+// checkWitnesses checks witness i against owners[i] in order and stops at
+// the first that fails.
+func checkWitnesses(s *series.Series, t *Tx, tid hash.Hash, owners []hash.Hash, what string) error {
+	if len(owners) != len(t.Witnesses) {
+		return ErrWitnessCount
+	}
+	for i, w := range t.Witnesses {
+		if err := s.CheckWitness(w, owners[i], tid); err != nil {
+			return fmt.Errorf("%w: %s %d: %v", ErrWitness, what, i, err)
 		}
 	}
 	return nil
 }
 
-// Preverify verifies t's witness signatures ahead of Check, without any
-// state, and has the series remember those that pass (see
-// series.Preverify). It is safe to run outside a node's lock and never
-// changes what Check returns.
-func Preverify(s *series.Series, t *Tx, tid hash.Hash) {
-	for _, w := range t.Witnesses {
-		s.Preverify(w, tid)
+// Preverify checks t's witnesses against owners, the addresses Owners
+// returned, ahead of Check, and has the series remember each that passes,
+// so Check, which may run under a node's lock, does not verify them again.
+// It stops at the first witness that fails and returns that error: a
+// witness never satisfies an address it does not match, so only items
+// that passed every cheaper rule cost signature checks, and a bad one
+// costs one (RED-009, decision D107). It never changes what Check returns.
+func Preverify(s *series.Series, t *Tx, tid hash.Hash, owners []hash.Hash) error {
+	what := "input"
+	if t.IsClaim() {
+		what = "output"
 	}
+	return checkWitnesses(s, t, tid, owners, what)
 }
 
 // Check runs CheckStateless and then CheckAgainst.

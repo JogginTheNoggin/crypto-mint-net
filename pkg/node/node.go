@@ -77,6 +77,7 @@ type Node struct {
 	eng    *engine.Engine
 	logs   map[engine.PoolKey]*store.Log
 	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
+	failed sync.Map     // pool keys whose store stopped, logged once
 	cmin   int
 	unlock func()
 	closed bool
@@ -347,14 +348,28 @@ func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte) (func() er
 	}
 	t, err := l.AppendLater(store.Record{Kind: kind, Data: data})
 	if err != nil {
-		return nil, fmt.Errorf("node: store %s: %w", k, err)
+		return nil, n.storeFailed(k, err)
 	}
 	return func() error {
 		if err := l.Durable(t); err != nil {
-			return fmt.Errorf("node: store %s: %w", k, err)
+			return n.storeFailed(k, err)
 		}
 		return nil
 	}, nil
+}
+
+// storeFailed wraps an error of pool k's store. A store stopped by a
+// failed write takes nothing more for the pool, so from then on every item
+// of the pool fails with this error and is neither stored nor forwarded.
+// The node says so once, as an error, since only a restart, which replays
+// what is really on disk, brings the pool back (RED-010, decision D108).
+func (n *Node) storeFailed(k engine.PoolKey, err error) error {
+	if errors.Is(err, store.ErrFailed) {
+		if _, told := n.failed.LoadOrStore(k, true); !told {
+			n.logger().Error("pool store stopped after a failed write; restart the node to replay what is on disk", "pool", k.String(), "err", err)
+		}
+	}
+	return fmt.Errorf("node: store %s: %w", k, err)
 }
 
 // Event reports an item the node kept, after it is written to the store.

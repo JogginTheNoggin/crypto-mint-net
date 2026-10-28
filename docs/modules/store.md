@@ -28,6 +28,10 @@ Kinds: 1 entry, 2 layer, 3 transaction. Numbers are never reused.
   ORANGE-005, D105).
 - `Rewrite(records)` replaces the contents through a temporary file, fsync
   and rename, so a crash leaves the old log or the new one.
+- A failed write or fsync stops the log (`ErrFailed`, `Err`): it takes no
+  more appends, `Durable` never reports a later record durable and never
+  retries the sync, and `Rewrite` and `Close` return the error. Only
+  reopening, which replays what is on disk, brings it back (RED-010, D108).
 - `Records`, `Path`, `Close`. `ErrNotLog` for a file without the header.
 
 ## Guarantees

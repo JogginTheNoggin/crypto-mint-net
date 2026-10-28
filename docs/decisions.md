@@ -1434,9 +1434,10 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   satisfied their policy for a tid, under a key covering the policy, the
   witness data and the tid, and skips only the satisfaction function for
   them. A node verifies an item's signatures before taking its own lock
-  (`Engine.PreverifyTx`, `PreverifyEntry`), but only for what `Handle*`
-  would verify too: not for an item seen or held, and not for an entry
-  that fails `entry.CheckShape` (series, pool, order, nonce, strength).
+  (`Engine.PreverifyTx`, `PreverifyEntry`), meant to be only for what
+  `Handle*` would verify too: not for an item seen or held, and not for an
+  entry that fails `entry.CheckShape` (series, pool, order, nonce,
+  strength). That fell short, and D107 corrects it.
   The store's group commit lets items wait for one shared fsync after the
   node's lock is released; a node event now fires after the write and
   before the fsync, while the `Handle` call returns only after it. The
@@ -1467,4 +1468,52 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   a seed on the command line can be read by other users (as with D98),
   and the GUI's terminal masks secrets in its history. The hex form of
   `-restore` still works, for scripts.
+- **Tier:** Implementation.
+
+### D107. Preverifying runs the cheap checks first and stops at a bad witness
+
+- **Decision:** `Engine.PreverifyTx` and `PreverifyEntry` hold the engine's
+  lock for every check `HandleTx` or `HandleEntry` runs before a
+  signature, and find the address each witness must satisfy:
+  `mempool.Pool.Owners` (not seen, pending or selected, no conflict or
+  pending dependency, room, `tx.CheckForm`, then `tx.Owners`: mint
+  claimed, inputs unspent at the tip and of the mint, amounts) and
+  `ledger.Pool.EntryOwners` (shape and strength, not held, parent held,
+  then `entry.Owners` against the state after the parent). Outside the
+  lock `tx.Preverify` checks witness *i* against its owner with
+  `CheckCached`, the same call `Check` makes, in order, and stops at the
+  first failure; an entry stops at its first bad transaction. An item
+  that fails a cheap check costs no signature check, and one with a bad
+  witness costs one ahead and one under the lock. `ledger.Pool.AddEntry`
+  now checks the parent before any claim's witness. The mempool wraps a
+  check's error with `%w`, so a bad witness shows as `tx.ErrWitness`, and
+  `pkg/p2p` charges a pushed transaction with one as an invalid item.
+  `policy.Registry.Preverify` and `series.Series.Preverify`, which ran a
+  witness without its address or any state, are removed.
+- **Why:** Red finding RED-009: D105's preverify verified every witness of
+  a peer's frame before the cheap checks, did not stop at a failure,
+  remembered passes for inputs that do not exist, and a refused
+  transaction was never an offence. A peer could make a node spend about
+  390 times the CPU of the old path per byte, repeatedly, and fill the
+  witness list with its own keys. With the order restored, a peer must
+  own real unspent portions to get a signature checked, and a bad one
+  costs it standing. No honest node forwards a transaction with a bad
+  witness, since it checks before forwarding.
+- **Tier:** Implementation. Corrects D105.
+
+### D108. A failed fsync stops the pool's store
+
+- **Decision:** A `store.Log` latches its first failed write or fsync
+  (`ErrFailed`). After it the log takes no appends, `Durable` returns the
+  error for every record not already synced and never runs the sync
+  again, and `Rewrite` and `Close` return it. The node logs one error per
+  pool and every later item of that pool fails with the error and is
+  neither stored nor forwarded; a restart replays what is on disk.
+- **Why:** Red finding RED-010: after a failed `fsync` Linux may drop the
+  unwritten pages and report success on the next one, so the group commit
+  (D105) let a waiter behind the failed sync retry it and report the same
+  records durable. Others (PostgreSQL among them) learned to treat a
+  failed fsync as fatal. Stopping the pool's store, rather than the whole
+  node, keeps the other pools running; the lost tail is held by peers and
+  fetched again.
 - **Tier:** Implementation.

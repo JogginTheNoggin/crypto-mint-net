@@ -253,14 +253,6 @@ func (s *Series) CheckWitness(w policy.Witness, addr, tid hash.Hash) error {
 	return s.reg.CheckCached(s.h, s, w, addr, tid, s.verified)
 }
 
-// Preverify verifies the signatures of a witness for tid ahead of a full
-// check and remembers a pass, so the full check, which may run under a
-// lock, does not verify them again. It never changes what CheckWitness
-// returns.
-func (s *Series) Preverify(w policy.Witness, tid hash.Hash) {
-	s.reg.Preverify(s, w, tid, s.verified)
-}
-
 // Remembered returns how many satisfied witnesses the series remembers
 // (ORANGE-002), for tests and metrics.
 func (s *Series) Remembered() int { return s.verified.Len() }
