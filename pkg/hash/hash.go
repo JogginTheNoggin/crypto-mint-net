@@ -17,6 +17,7 @@ import (
 	"fmt"
 	gohash "hash"
 	"math/bits"
+	"sync"
 
 	"github.com/zeebo/blake3"
 	"golang.org/x/crypto/blake2b"
@@ -151,13 +152,18 @@ func Lookup(id ID) (Func, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: %d", ErrUnknown, id)
 	}
+	// Digests are reused through a pool: a builder hashes once per nonce
+	// it tries, and some digests (BLAKE3's above all) are costly to make.
+	pool := &sync.Pool{New: func() any { return e.new() }}
 	return func(parts ...[]byte) Hash {
-		d := e.new()
+		d := pool.Get().(gohash.Hash)
+		d.Reset()
 		for _, p := range parts {
 			d.Write(p)
 		}
 		var h Hash
 		d.Sum(h[:0])
+		pool.Put(d)
 		return h
 	}, nil
 }
