@@ -58,6 +58,13 @@ function rateChart(points) {
 // its picture survive switching views, and its stream is closed while
 // the view is away and followed again from where it stopped (GUI-008).
 let livePanel = null;
+
+// liveJob finds the poo grind run this GUI is running, if any, the way the
+// Node view finds poo node.
+async function liveJob() {
+  const js = await api.jobs();
+  return js.reverse().find(j => !j.done && j.args[0] === 'grind' && j.args[1] === 'run');
+}
 let liveHooks = { attach: () => {}, detach: () => {} };
 
 function buildLive(ctx) {
@@ -152,6 +159,16 @@ function buildLive(ctx) {
   // Stop is the job's interrupt: poo grind run stops the node's job and
   // exits 0, as Ctrl-C does in a shell.
   stopBtn.onclick = () => { if (job) api.cancel(job.id).catch(() => {}); };
+  // A grind run this GUI is already running, started before the page was
+  // reloaded, is taken up again: shown from its start, with its Stop, so
+  // Run cannot start a second one beside it (GUI-010).
+  liveJob().then(j => {
+    if (!j || job) return;
+    job = j;
+    setRunning(true);
+    state.textContent = `running: ${job.command}`;
+    follow();
+  }).catch(() => {});
   liveHooks = {
     detach: () => { if (unfollow) { unfollow(); unfollow = null; } },
     attach: () => { if (job && !unfollow) follow(); },

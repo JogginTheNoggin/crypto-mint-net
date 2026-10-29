@@ -33,11 +33,17 @@ import (
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), stopSignals...)
 	code := run(ctx, os.Args[1:], cli.Stdio{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}, openURL)
 	stop()
 	os.Exit(code)
 }
+
+// stopSignals end poo-gui through its cancel path, so its jobs are
+// interrupted (a followed grind stops the node's job) before it exits.
+// SIGHUP is the terminal closing: left to Go's default it would exit at
+// once and skip that path (GUI-010). Windows never sends it.
+var stopSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
 
 // run is the program; open shows a URL to the user.
 func run(ctx context.Context, args []string, s cli.Stdio, open func(url string, app bool) error) int {

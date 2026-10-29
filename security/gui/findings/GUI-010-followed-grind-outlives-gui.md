@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | GUI part fixed (claude/gui-blue); core lease pending (Source, Round 6) |
 | Found on | claude/gui-4-watch @ 8b044ac |
 | Component | gui/web/static/work.js ("Run a job"), pkg/cli/grind.go (`grindStart`, follow mode), gui/cmd/poo-gui/main.go and cmd/poo/main.go (signals), pkg/grind/jobs.go (`Manager.Start`) |
 | Surface | local (host CPU and power), node |
-| Fixed by | _(pending — GUI/Blue, with a core part for Source)_ |
+| Fixed by | GUI/Blue on claude/gui-blue (SIGHUP in poo-gui, re-adopt on reload); core part queued for Source Grey Round 6 |
 
 ## Summary
 
@@ -125,3 +125,30 @@ within the lease.
   scrollback queue (bounded at `MAX_CHARS` even when the tab's timers are slow)
   and the last-1 MiB long-text result are all display-only, and still use
   `textContent` or `appendData`.
+
+## Fix (GUI/Blue, Round 5C)
+
+- **SIGHUP in poo-gui.** `gui/cmd/poo-gui/main.go` now stops on
+  `stopSignals` (Interrupt, SIGTERM and SIGHUP). Closing the terminal runs
+  the normal cancel path: the runner interrupts each job, and a followed
+  `grind run` sends `GrindStop` before poo-gui exits 0. `syscall.SIGHUP` is
+  defined on Windows too, where it is never sent, so one list builds
+  everywhere (checked with `GOOS=windows go build` and `go vet`).
+- **Re-adopting on reload.** `gui/web/static/work.js` adds `liveJob()`,
+  which finds an unfinished `grind run` in the GUI's job list, the same way
+  `nodeJob()` finds `poo node`. When the Run a job panel is built after a
+  reload, it takes that job up: it follows it from the start, so the plan,
+  rate and finds are drawn again, Stop is on, Run is off, and the Work tab
+  shows busy. A second grind can no longer start beside it by accident.
+- **Tests.** `gui/cmd/poo-gui/signal_test.go` (`TestHangupStopsCleanly`,
+  not on Windows) runs poo-gui's `main` in a child process, sends SIGHUP and
+  then SIGTERM, and requires a clean exit 0. Without the fix it fails with
+  "signal: hangup". `gui/e2e/work.mjs` reloads the page during an open-ended
+  run, then checks that Stop is on, Run is off, the plan is drawn again and
+  the tab is busy, and that Stop still ends the job with exit 0. Without the
+  fix this check times out.
+- **Left to the core (Source Grey, Round 6).** SIGKILL, a crash or a
+  `Runner.Close` timeout still leave the node's job running until a lease
+  for followed jobs exists. SIGHUP in `cmd/poo` is in the same core item.
+  Neither is a GUI change: the GUI runs the same `poo grind run`, so it gets
+  the lease when the core does.

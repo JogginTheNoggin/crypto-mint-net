@@ -1,6 +1,7 @@
 // End-to-end check of the Work view against a real node: the devices and
 // jobs poo grind lists, a job run and followed live with its plan and
-// rate, and Stop ending it as an interrupt does (exit 0).
+// rate, Stop ending it as an interrupt does (exit 0), and a reload taking
+// a running job up again.
 //
 //   node gui/e2e/work.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 import { execFileSync } from 'node:child_process';
@@ -55,6 +56,14 @@ try {
   await forIn.fill('');
   await run.locator('button:has-text("Run and follow")').click();
   await run.locator('.grind-plan', { hasText: 'device' }).waitFor({ timeout: 20000 });
+  // A reload takes the running job up again with its Stop (GUI-010): Run
+  // stays off, so a second grind cannot start beside it.
+  await page.reload();
+  await page.click('nav a[data-id=work]');
+  await run.locator('button:has-text("Stop"):enabled').waitFor({ timeout: 20000 });
+  await run.locator('.grind-plan', { hasText: 'device' }).waitFor({ timeout: 20000 });
+  assert.ok(await run.locator('button:has-text("Run and follow")').isDisabled(), 'Run is off while the job runs');
+  assert.ok(await page.locator('nav a[data-id=work].busy').count(), 'the Work tab shows the adopted job');
   await run.locator('button:has-text("Stop")').click();
   await run.locator('.run-status', { hasText: '(exit 0)' }).waitFor({ timeout: 30000 });
 
