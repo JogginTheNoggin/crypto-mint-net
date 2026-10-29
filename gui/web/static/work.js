@@ -5,7 +5,7 @@
 // prints, never a guess here.
 import * as api from './api.js';
 import { el, cmdLine, panel, form, flag, mountAll } from './views.js';
-import { render } from './render.js';
+import { render, rateText } from './render.js';
 import * as where from './where.js';
 
 // Bounds, as in Watch (GUI-007): events kept, rate points drawn, one line.
@@ -28,13 +28,48 @@ const jobFields = () => [
 const jobFlags = v => [...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial),
   ...flag('device', v.device), ...flag('threads', v.threads), ...flag('for', v.for),
   ...flag('until-from', v.untilFrom), ...flag('hours', v.hours)];
-const short = h => (typeof h === 'string' && h.length > 16) ? `${h.slice(0, 10)}…${h.slice(-6)}` : (h ?? '');
 
-// rateText shows tries a second the way people read them.
-function rateText(r) {
-  if (!r) return '';
-  for (const [n, u] of [[1e9, 'G'], [1e6, 'M'], [1e3, 'k']]) if (r >= n) return `${(r / n).toFixed(2)} ${u}H/s`;
-  return `${r.toFixed(0)} H/s`;
+// jobsTable lays out poo grind jobs as one row per job: what it works on,
+// its state and the reason poo gives, the device and grinder of its plans,
+// its counts and rate, and a Stop button for a job still going. Stop runs
+// poo grind stop ID, as the Stop a job form does. Every value is printed.
+function jobsTable(list, ctx, refresh) {
+  if (!Array.isArray(list) || !list.length) return el('p', { class: 'hint empty' }, 'No jobs yet. Run one below, or let node.json\'s grind section start them.');
+  const body = el('tbody');
+  for (const j of list.slice().reverse()) {
+    const s = j.spec || {};
+    const what = [s.target, s.pools && s.pools.length ? `pools ${s.pools.join(',')}` : '', s.hours ? `hours ${s.hours}` : '', s.for ? `for ${s.for}` : ''].filter(Boolean).join(' · ');
+    const plans = (j.plans || []).map(p => `${p.device} ${p.grinder} (${p.hash}, ${p.threads} threads)`).join('; ');
+    const going = j.state === 'running' || j.state === 'waiting';
+    const stop = going ? el('button', { type: 'button', class: 'small danger', onclick: async () => {
+      stop.disabled = true;
+      try { await api.run(['grind', 'stop', ...where.flags(), String(j.id)]); } finally { refresh(); }
+    } }, 'Stop') : null;
+    body.append(el('tr', {},
+      el('td', { class: 'num' }, String(j.id)),
+      el('td', {}, what, s.source ? el('div', { class: 'hint' }, `from ${s.source}`) : null),
+      el('td', {}, el('span', { class: `pill pill-${going ? (j.state === 'running' ? 'ok' : 'warn') : j.state === 'failed' ? 'fail' : 'skip'}` }, j.state), j.reason && j.reason !== j.state ? el('div', { class: 'hint' }, j.reason) : null),
+      el('td', {}, plans || el('span', { class: 'nil' }, '—')),
+      el('td', { class: 'num' }, String(j.tries ?? 0)),
+      el('td', {}, render(j.rate ?? 0, 0, 'rate')),
+      el('td', { class: 'num' }, `${j.layers ?? 0} / ${j.entries ?? 0}`),
+      el('td', {}, stop)));
+  }
+  return el('div', { class: 'table-wrap' }, el('table', { class: 'data grind-jobs' },
+    el('thead', {}, el('tr', {}, ...['id', 'works on', 'state', 'device and grinder', 'tries', 'rate', 'layers / entries', ''].map(h => el('th', {}, h)))), body));
+}
+
+// deviceChoices offers the device ids poo grind devices printed, plus
+// auto, to every Device field in the view. A field still takes any text:
+// poo decides what is valid.
+function deviceChoices(root, out) {
+  let devs;
+  try { devs = JSON.parse(out).devices || []; } catch (_) { return; }
+  let dl = document.getElementById('grind-devices');
+  if (!dl) { dl = el('datalist', { id: 'grind-devices' }); document.body.append(dl); }
+  dl.textContent = '';
+  for (const d of [{ id: 'auto', name: 'pick for each hash' }, ...devs]) dl.append(el('option', { value: d.id }, d.name || d.id));
+  for (const i of root.querySelectorAll('input[name=device]')) i.setAttribute('list', 'grind-devices');
 }
 
 // rateChart draws the last rates as a line, with no inline styles so the
@@ -109,7 +144,7 @@ function buildLive(ctx) {
       nFound++;
       const h = ev.layer || ev.entry;
       const tr = el('tr', {}, el('td', {}, ev.layer ? 'layer' : 'entry'),
-        el('td', { title: h || '' }, el('code', {}, short(h))), el('td', { class: 'num' }, String(ev.strength ?? '')), el('td', {}, ev.from ?? ''));
+        el('td', {}, h ? render(h) : ''), el('td', { class: 'num' }, String(ev.strength ?? '')), el('td', {}, ev.from ?? ''));
       found.prepend(tr);
       while (found.children.length > MAX_EVENTS) found.lastChild.remove();
     }
@@ -168,9 +203,24 @@ export const workView = {
   mount(root, ctx) {
     if (!livePanel) livePanel = buildLive(ctx);
     else liveHooks.attach();
+    // The jobs list is drawn as a table with a Stop for each job still
+    // going; the output as printed stays under a fold.
+    const jobsPanel = panel(ctx, { title: 'Jobs', about: 'The node\'s grind jobs, running and recently ended: yours and the ones node.json schedules.', args: () => ['grind', 'jobs', ...where.flags()], refresh: 5000,
+      onResult: (r, area) => {
+        if (r.code !== 0) return;
+        let list;
+        try { list = JSON.parse(r.out); } catch (_) { return; }
+        const raw = area.querySelector('.result');
+        if (!raw) return;
+        const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
+        raw.replaceWith(jobsTable(list, ctx, () => jobsPanel.el.querySelector('.panel-head button').click()));
+        det.append(raw);
+        area.append(det);
+      } });
     return mountAll(root, 'Work', 'The node\'s hash grinding: which devices it has, how fast each is, and the jobs it runs. Each part is a poo grind command; node.json\'s grind section sets the defaults and the jobs the node runs by itself.', [
-      panel(ctx, { title: 'Devices', about: 'Each device, what it grinds fast, and which one auto picks for each hash.', args: () => ['grind', 'devices', ...where.flags()] }),
-      panel(ctx, { title: 'Jobs', about: 'The node\'s grind jobs, running and recently ended: yours and the ones node.json schedules.', args: () => ['grind', 'jobs', ...where.flags()], refresh: 5000 }),
+      panel(ctx, { title: 'Devices', about: 'Each device, what it grinds fast, and which one auto picks for each hash.', args: () => ['grind', 'devices', ...where.flags()],
+        onResult: r => { if (r.code === 0) deviceChoices(root, r.out); } }),
+      jobsPanel,
       { el: livePanel, stop: () => { liveHooks.detach(); livePanel.remove(); } },
       form(ctx, { title: 'Start a job in the background', about: 'The same job, left to the node: it shows under Jobs.', fields: [{ name: 'target', label: 'Target', value: 'tip' }, ...jobFields()],
         args: v => ['grind', 'start', ...where.flags(), ...jobFlags(v), v.target || 'tip'], submit: 'Start' }),

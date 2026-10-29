@@ -222,3 +222,7 @@ details.raw { margin-top: 6px; font-size: 12px; }
 .rate-chart { width: 100%; max-width: 600px; height: 80px; display: block; }
 .rate-chart polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .grind-plan h3 { font-size: 14px; margin: 8px 0 4px; }
+
+/* Work: the jobs table */
+table.grind-jobs td { vertical-align: top; }
+table.grind-jobs .hint { margin: 2px 0 0; font-size: 11px; }

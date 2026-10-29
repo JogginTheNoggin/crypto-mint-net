@@ -44,8 +44,22 @@ export function secretValue(v) {
   return wrap;
 }
 
+// rateText shows tries a second the way people read them; the Work view's
+// live counter and every printed "rate" field use it, with the exact value
+// poo printed in the tooltip.
+export function rateText(r) {
+  if (!r) return '0 H/s';
+  for (const [n, u] of [[1e9, 'G'], [1e6, 'M'], [1e3, 'k']]) if (r >= n) return `${(r / n).toFixed(2)} ${u}H/s`;
+  return `${r.toFixed(0)} H/s`;
+}
+
 function scalar(v, key) {
   if (v === null) return el('span', 'nil', '—');
+  if (key === 'rate' && typeof v === 'number') {
+    const s = el('span', 'num', rateText(v));
+    s.title = `${v} tries a second, as printed`;
+    return s;
+  }
   if (key === 'seed' && typeof v === 'string' && v) return secretValue(v);
   if (typeof v === 'boolean') return el('span', v ? 'yes' : 'no', v ? 'yes' : 'no');
   if (isHex(v)) {

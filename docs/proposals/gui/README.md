@@ -31,6 +31,11 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-020](GREEN-020-health-check.md) | A Health check panel on `poo doctor`, with runnable fixes | small | yes | adopted |
 | [GREEN-021](GREEN-021-grinder-view-sketch.md) | GUI ideas for the grinders (M11), and what the commands should print | medium | no | adopted |
 | [GREEN-022](GREEN-022-output-conventions.md) | Output conventions: `-o` on doctor, fix as argv, stable error codes (Source) | small | no | done by Source (D110) |
+| [GREEN-023](GREEN-023-grind-jobs-table.md) | The grind jobs as a table, with Stop on each job | small | yes | proposed |
+| [GREEN-024](GREEN-024-device-choices.md) | Device fields offer the devices `poo grind devices` found, and auto | small | yes | proposed |
+| [GREEN-025](GREEN-025-rates-read-the-same.md) | Rates read as H/s everywhere, and found hashes render like all others | small | yes | proposed |
+| [GREEN-026](GREEN-026-grind-schedule-commands.md) | The grind schedule: `poo grind schedule` commands first, then GUI forms | medium | no | proposed |
+| [GREEN-027](GREEN-027-grind-loose-ends.md) | Grinding loose ends for Source: uncounted entry tries, two start lines, a waiting reason | small | no | proposed |
 
 ## Orange (performance)
 
@@ -57,4 +62,5 @@ git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
 node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019 and 020
 node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014 and 018
+node gui/e2e/work.mjs /tmp/poo-gui    # the checks for 023 to 025
 ```
