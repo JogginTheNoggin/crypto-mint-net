@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 29b08ce (code a92c2ca, Source Round 5 Part B) |
 | Component | pkg/ledger/pool.go (Pool.viewAfter, AddEntry, EntryOwners), pkg/engine/engine.go (PreverifyEntry, HandleEntry), pkg/p2p/forward.go (handlePushed) |
 | Surface | peer |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 38eb846 (BLUE-006) |
 
 ## Summary
 
@@ -124,3 +124,23 @@ grow with the height for the cached case, or the entry must be refused for
 the over-budget case); in `pkg/engine`, `PreverifyEntry` must not revert a
 chain deeper than the bound; an end-to-end `pkg/p2p` test that a peer
 sending many entries on the pool id is held to its budget.
+
+## Resolution
+
+Fixed by BLUE-006 (decision D111), taking the first two recommendations.
+`ledger.Pool.EntryOwners` refuses with `ErrDeepParent` when the state after
+the parent would cost more than `MaxPreviewCost` (64) entries of revert and
+apply, so `PreverifyEntry` does nothing for such an entry and the revert is
+paid once, in `AddEntry` (whose signatures are then verified under the
+lock, as before ORANGE-004). It is not an offence, and the entry is still
+taken. Every pushed entry now also spends `Engine.EntryCost` (the same
+count, `ledger.Pool.ViewCost`) from the sender's new `revert` budget
+(`tracking.Spend`, 200,000 entries a minute per address); over it the entry
+is dropped and the address flagged once per window. Requested entries (the
+chase, an honest deep reorg) are not charged. The cached view and the work
+gate on fork depth are left open (D111 says why). Red's grind note is also
+fixed: `POST /v1/grind` takes only the source `user`. Tests:
+`TestEntryOwnersRefusesDeepParent` (`pkg/ledger`),
+`TestPreverifySkipsDeepParent` (`pkg/engine`), `TestSpend`
+(`pkg/tracking`), `TestDeepForkSpendsRevertBudget` (`pkg/p2p`), and a
+custom source in `pkg/rpc`'s grind test.
