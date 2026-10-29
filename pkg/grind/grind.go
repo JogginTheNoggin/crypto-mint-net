@@ -311,6 +311,9 @@ func newDefault() *Registry {
 			return hash.GrinderFor(id), nil
 		}})
 	}
+	r.Register(Grinder{Name: "cpu-blake3-cv", Kind: CPU, Hash: hash.BLAKE3, New: func(Device, hash.ID) (hash.NewHasher, error) {
+		return newBLAKE3Best, nil
+	}})
 	r.Register(Grinder{Name: "cpu-generic", Kind: CPU, New: genericCPU})
 	return r
 }
