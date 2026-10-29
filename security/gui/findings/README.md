@@ -5,6 +5,14 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 5 Part B reviewed `claude/gui-4-watch @ 8b044ac`: the new Work view on
+`poo grind` (devices, jobs, live run, background jobs, stop -all, bench), the
+GUI-009 fix through the core's `cli.SecretOutput`, the Health check panel, and
+GUI/Orange's ORANGE-006..008. GUI-009's fix held and is now marked fixed. One
+new Low gap: GUI-010, where a followed grind outlives poo-gui if the GUI dies
+without stopping it (details and the other verifications are in GUI-010's
+notes).
+
 Round 4 Part B reviewed `claude/gui-4-watch @ 50a0edd`: GUI/Blue's GUI-008 fix
 together with GUI/Orange's stream resume ids (`Last-Event-ID` and the chunk's
 `next`), Watch frame batching and capped scrollback, the hidden seed on wallet
@@ -73,4 +81,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-006](GUI-006-secret-args-in-history.md) | Low | Secret-bearing command arguments (wallet seed) persist in terminal localStorage history and the Jobs list | fixed (verified R3B @ 9b4b19c) |
 | [GUI-007](GUI-007-watch-unbounded-buffers.md) | Low | Watch view's paused-event and error buffers grow without bound (local tab DoS) | fixed (verified R3B @ 9b4b19c) |
 | [GUI-008](GUI-008-background-watch-lifetime.md) | Info | Background Watch holds its event stream and node connection until Stop (by design; trade-off recorded) | fixed (verified R4B @ 50a0edd) |
-| [GUI-009](GUI-009-secret-output-retained.md) | Low | Output of seed-printing commands (`wallet seed`, `keygen`) is kept and replayable from Jobs and the event stream | fixed (interim, merged R5A; Red to verify) |
+| [GUI-009](GUI-009-secret-output-retained.md) | Low | Output of seed-printing commands (`wallet seed`, `keygen`) is kept and replayable from Jobs and the event stream | fixed (verified R5B @ 8b044ac, core `cli.SecretOutput`) |
+| [GUI-010](GUI-010-followed-grind-outlives-gui.md) | Low | A grind followed from Work keeps running in the node when poo-gui dies without its cancel path (SIGHUP, kill) | open |

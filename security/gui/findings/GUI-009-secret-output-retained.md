@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (interim, merged by GUI/Grey in Round 5 Part A); switch to cli.SecretOutput when Source adds it |
+| Status | fixed (verified by GUI/Red R5B @ 8b044ac; uses the core `cli.SecretOutput`, D110) |
 | Found on | claude/gui-4-watch @ 50a0edd |
 | Component | gui/jobs/jobs.go (output retention), gui/server/server.go (`events`, `?from=` / `Last-Event-ID` replay), gui/web/static/views.js (Jobs view "Output") |
 | Surface | wallet / local |
