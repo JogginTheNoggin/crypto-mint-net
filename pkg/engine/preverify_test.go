@@ -158,3 +158,50 @@ func TestPreverifyOnlyWhatHandleWouldVerify(t *testing.T) {
 		t.Fatalf("valid spend: %d ahead, %d in all, want 2 and 2", ahead, n.Load())
 	}
 }
+
+// RED-011: an entry on a parent deeper than ledger.MaxPreviewCost below
+// the selected tip is not preverified, so the revert to that parent is paid
+// once (in HandleEntry), and EntryCost reports what it costs.
+func TestPreverifySkipsDeepParent(t *testing.T) {
+	e, s, k, n := countingEngine(t)
+	key := engine.PoolKey{Series: s.ID(), Index: 1}
+	var id hash.Hash
+	if err := e.Ledger(key, func(p *ledger.Pool) { id = p.ID() }); err != nil {
+		t.Fatal(err)
+	}
+	depth := ledger.MaxPreviewCost + 2
+	parent := id
+	for i := 0; i < depth; i++ {
+		en, _, err := entry.Build(s, parent, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.HandleEntry(key, en, engine.Local); err != nil {
+			t.Fatal(err)
+		}
+		parent = en.Hash(s)
+		if _, _, err := e.Work(key, parent, 0, 50); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, _ := s.PoolRange(1)
+	claim := k.Claim(first, testutil.P("alice", 100))
+	for _, c := range []struct {
+		parent hash.Hash
+		cost   int
+		ahead  int64
+	}{{parent, 0, 1}, {id, depth, 0}} {
+		en, _, err := entry.Build(s, c.parent, []*tx.Tx{claim}, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := e.EntryCost(key, en); got != c.cost {
+			t.Errorf("parent %s: cost %d, want %d", c.parent.Short(), got, c.cost)
+		}
+		n.Store(0)
+		e.PreverifyEntry(key, en, engine.Pushed)
+		if got := n.Load(); got != c.ahead {
+			t.Errorf("parent %s: %d satisfy calls ahead, want %d", c.parent.Short(), got, c.ahead)
+		}
+	}
+}

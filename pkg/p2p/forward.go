@@ -103,6 +103,18 @@ func (h *Host) handlePushed(p *peer, m wire.Message) error {
 		if h.cq.IsBad(eh, now) || h.cq.IsBad(e.Parent, now) {
 			return nil // a branch shown to be false: dropped at once
 		}
+		// The selected entries the node reverts to check it are the
+		// sender's cost, drawn from its revert budget; over it the entry
+		// is dropped (RED-011, decision D111).
+		if c := h.n.Engine().EntryCost(pi.key, e); c > 0 {
+			ok, act := h.tr.Spend(p.key, tracking.KindRevert, uint64(c), now)
+			if err := h.act(p, act); err != nil {
+				return err
+			}
+			if !ok {
+				return nil
+			}
+		}
 		_, err = h.n.HandleEntryFrom(pi.key, e, engine.Pushed, p.id)
 		switch {
 		case errors.Is(err, ledger.ErrInvalidEntry):

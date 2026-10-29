@@ -83,7 +83,7 @@ func TestGrindEndpoints(t *testing.T) {
 	if _, err := c.GrindJob(99); code(err) != rpc.CodeNotFound {
 		t.Fatalf("no job: %v", err)
 	}
-	for _, bad := range []grind.Spec{{Target: "tips"}, {Target: grind.TargetTip, Source: "policy"}} {
+	for _, bad := range []grind.Spec{{Target: "tips"}, {Target: grind.TargetTip, Source: "policy"}, {Target: grind.TargetTip, Source: "mine"}} {
 		if _, err := c.GrindStart(bad); code(err) != rpc.CodeBadRequest {
 			t.Fatalf("start %+v: %v", bad, err)
 		}

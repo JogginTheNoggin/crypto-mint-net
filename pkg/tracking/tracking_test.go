@@ -224,6 +224,32 @@ func TestBudgetsAndRepeats(t *testing.T) {
 	}
 }
 
+// RED-011: Spend draws a cost of many units from one budget.
+func TestSpend(t *testing.T) {
+	cfg := tracking.DefaultConfig()
+	cfg.Budgets = map[string]int{tracking.KindRevert: 100}
+	tr := newTracker(t, cfg)
+	a := "10.0.0.1:1"
+	if ok, _ := tr.Spend(a, tracking.KindRevert, 0, t0); !ok {
+		t.Fatal("a free message was refused")
+	}
+	if ok, _ := tr.Spend(a, tracking.KindRevert, 60, t0); !ok {
+		t.Fatal("60 of 100 refused")
+	}
+	if ok, _ := tr.Spend(a, tracking.KindRevert, 60, t0); ok {
+		t.Fatal("120 of 100 allowed")
+	}
+	if st := tr.Status(a, t0); st.FlagTotal != 1 {
+		t.Fatalf("flag total %v, want one over-budget flag", st.FlagTotal)
+	}
+	if ok, _ := tr.Spend("10.1.0.1:1", tracking.KindRevert, 100, t0); !ok {
+		t.Fatal("another address shares the budget")
+	}
+	if ok, _ := tr.Spend(a, tracking.KindRevert, 60, t0.Add(2*time.Minute)); !ok {
+		t.Fatal("budget did not recover")
+	}
+}
+
 func TestPoints(t *testing.T) {
 	tr := newTracker(t, tracking.Config{})
 	good, bad := "10.0.0.1:1", "10.1.0.1:1"

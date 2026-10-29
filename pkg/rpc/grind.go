@@ -158,8 +158,10 @@ func (h *Handler) grindStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	if s.Source == "policy" {
-		writeError(w, badRequest("source policy is for jobs from node.json"))
+	// A job made here is the user's: any other label would escape
+	// DELETE /v1/grind?source=user (RED-011 notes, decision D111).
+	if s.Source != "" && s.Source != "user" {
+		writeError(w, badRequest("source %q: jobs made here are the user's (policy is for jobs from node.json)", s.Source))
 		return
 	}
 	j, err := h.grind.Start(s)

@@ -330,12 +330,31 @@ func (e *Engine) PreverifyTx(t *tx.Tx) {
 	}
 }
 
+// MaxCountedCost is the most EntryCost counts.
+const MaxCountedCost = 1 << 20
+
+// EntryCost is how many entries HandleEntry would revert and apply to
+// check en against the state after its parent (ledger.Pool.ViewCost), at
+// most about MaxCountedCost; 0 when pool k or the parent is not held. The
+// network charges it to the sender (RED-011, decision D111).
+func (e *Engine) EntryCost(k PoolKey, en *entry.Entry) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	p, err := e.pool(k)
+	if err != nil {
+		return 0
+	}
+	return p.ledger.ViewCost(en, MaxCountedCost)
+}
+
 // PreverifyEntry is PreverifyTx for the transactions of an entry of pool
 // k. It verifies signatures only for an entry that passes every check
 // HandleEntry runs before a signature: not held or seen, its shape and
 // strength, its parent held, and every transaction valid but for its
 // witnesses against the state after that parent. It stops at the first
-// transaction with a bad witness (RED-009, decisions D105, D107).
+// transaction with a bad witness (RED-009, decisions D105, D107). It does
+// nothing for a parent far from the selected tip (ledger.ErrDeepParent):
+// that state costs a revert, which HandleEntry pays once (RED-011, D111).
 func (e *Engine) PreverifyEntry(k PoolKey, en *entry.Entry, origin Origin) {
 	e.mu.Lock()
 	p, err := e.pool(k)

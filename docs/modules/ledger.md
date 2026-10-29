@@ -30,8 +30,15 @@ plus the top K other branches. It reproduces the design's worked example
 - `ReplayOrder()`: every held entry in an order that rebuilds the same tree
   and selected ledger in an empty pool (the selected ledger first, then the
   rest by first sighting). Stores use it to compact (decision D23).
+- `EntryOwners(e)`: `AddEntry`'s checks short of the witness signatures,
+  for the engine's preverify. It refuses with `ErrDeepParent` (not an
+  offence; `AddEntry` still takes the entry) when building the state after
+  e's parent would revert and apply more than `MaxPreviewCost` (64)
+  entries, so that revert is paid once, in `AddEntry` (RED-011, D111).
+  `ViewCost(e, limit)` is that number of entries.
 - Errors: `ErrKnownEntry`, `ErrUnknownParent`, `ErrInvalidEntry`,
-  `ErrUnknownEntry`, `ErrWeakLayer`, `ErrKnownLayer`, `ErrNotSelected`.
+  `ErrUnknownEntry`, `ErrWeakLayer`, `ErrKnownLayer`, `ErrNotSelected`,
+  `ErrDeepParent`.
 
 ## How it works
 
@@ -61,3 +68,6 @@ plus the top K other branches. It reproduces the design's worked example
   scratch, then rebuilds the pool from `ReplayOrder` and checks it selects
   the same ledger. Extend it when changing selection, switching or
   pruning.
+- `deep_test.go`: `ViewCost` on the tip, near it, at the pool id and past
+  an off-chain path, and `EntryOwners` refusing a deep parent while
+  `AddEntry` takes the entry (RED-011).

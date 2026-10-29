@@ -36,7 +36,7 @@ only watch the node (GREEN-007).
 | `POST /work` | `{series, pool, entry, start, tries, device, threads, for}` | the layer reply plus `layer` bytes and `grind`; `tries` 1 to 2^24, or 0 with `for` |
 | `GET /grind/devices` | | `{devices}`: what the node grinds on ([grind.md](grind.md)) |
 | `GET /grind` | | every grind job, running and recently ended |
-| `POST /grind` | a `grind.Spec`: `{target, series, pools, device, threads, for, until_from, hours}` | the job; 503 `full` at 16 jobs, 400 for a bad spec |
+| `POST /grind` | a `grind.Spec`: `{target, series, pools, device, threads, for, until_from, hours}` | the job; 503 `full` at 16 jobs, 400 for a bad spec or a `source` other than `user` (D111) |
 | `GET /grind/{id}` | | one job |
 | `DELETE /grind/{id}` | | stops it; the job as it ended |
 | `DELETE /grind` | `?source=user` (optional) | stops every job (or only those made over the RPC) |

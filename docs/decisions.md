@@ -1565,3 +1565,29 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   without copying lists or matching messages (GUI-009, GREEN-021,
   GREEN-022, the owner's rule that the two never diverge).
 - **Tier:** Implementation.
+
+### D111. A deep parent is checked once, and its revert is the sender's cost
+
+- **Decision:** `ledger.Pool.EntryOwners` (the engine's preverify) refuses
+  with `ErrDeepParent` when building the state after an entry's parent
+  would revert and apply more than `MaxPreviewCost` (64) entries;
+  `AddEntry` still takes the entry, under the lock, with its signatures
+  verified there as before ORANGE-004. `Engine.EntryCost` reports that
+  number of entries, and `pkg/p2p` draws it for every pushed entry from
+  the sender's new `revert` budget in `tracking` (`Spend`, 200,000 entries
+  a minute per address by default; requested entries are not charged).
+  Over it the entry is dropped and the address flagged once per window.
+  `POST /v1/grind` takes only the source `user` (or none), so
+  `DELETE /v1/grind?source=user` stops every job made over the RPC.
+- **Why:** RED-011: an entry on the pool id costs a revert of the whole
+  selected chain (about 60 ms at 40,000 entries with transactions), and
+  BLUE-005 had made the node pay it twice under the engine lock, for an
+  entry that needs no work or valid signature. An honest entry builds on
+  the tip or near it, so the bound costs it nothing; an honest deep reorg
+  arrives through the chase, as requested entries. At the default budget
+  one address may make the node revert about 0.3 s of chain a minute at
+  40,000 entries. A cached view and a work gate on the fork depth (Red's
+  other options) are left open: the cache costs memory as large as the
+  chain, and the gate is a consensus change for the owner.
+- **Tier:** Implementation. No consensus change: what is valid and what is
+  selected are unchanged.

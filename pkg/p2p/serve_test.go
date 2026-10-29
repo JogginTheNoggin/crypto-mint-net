@@ -3,6 +3,7 @@ package p2p_test
 import (
 	"bufio"
 	"crypto/rand"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -390,4 +391,33 @@ func TestBadWitnessTxIsOffence(t *testing.T) {
 	bad.Witnesses[0] = other.Witnesses[0]
 	push(bad)
 	eventually(t, "a flag for a bad witness", func() bool { return tr.Status("127.0.0.1:1", time.Now()).FlagTotal > 0 })
+}
+
+// RED-011: the selected entries a pushed entry makes the node revert are
+// drawn from the sender's revert budget; past it the entry is dropped and
+// flagged once, while an entry on the tip costs nothing.
+func TestDeepForkSpendsRevertBudget(t *testing.T) {
+	depth := 8
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, Budgets: map[string]int{tracking.KindRevert: 2*depth + 4}}, "")
+	must(t, err)
+	a := startNode(t, "a", func(c *p2p.Config) { c.Tracker = tr })
+	grow(t, a, nil, "alice", depth, 32)
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	held := func(h hash.Hash) (ok bool) {
+		a.n.Engine().Ledger(exKey, func(l *ledger.Pool) { _, ok = l.Entry(h) })
+		return ok
+	}
+	var forks []hash.Hash
+	for i := 0; i < 3; i++ {
+		claim := exKeys.Claim(4, P(fmt.Sprintf("mallory-%d", i), 100))
+		e, _, err := entry.Build(exSeries, exSeries.PoolID(exKey.Index), []*tx.Tx{claim}, 0)
+		must(t, err)
+		forks = append(forks, e.Hash(exSeries))
+		r.write(wire.Message{Header: wire.Header{Type: wire.TypeEntry, Section: sec}, Body: e.Encode()})
+	}
+	eventually(t, "an over-budget flag", func() bool { return tr.Status("127.0.0.1:1", time.Now()).FlagTotal == 1 })
+	if !held(forks[0]) || !held(forks[1]) || held(forks[2]) {
+		t.Fatalf("held %v %v %v, want the first two forks only", held(forks[0]), held(forks[1]), held(forks[2]))
+	}
 }
