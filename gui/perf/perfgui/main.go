@@ -10,6 +10,8 @@
 //	watch  prints -events watch events, -rate per second (0: as fast as
 //	       it can), in the shape poo watch prints, then waits until stopped
 //	node   prints -log log lines a second until stopped, like a busy node
+//	grind run  prints a plan, then -events progress lines, -rate per second,
+//	       with a found line before every -found'th, like poo grind run
 //	big    prints -events lines of output and exits (a large result)
 //	bigjson prints a JSON list of -events rows like poo unspent's and exits
 package main
@@ -31,10 +33,11 @@ import (
 )
 
 var (
-	rate    = flag.Int("rate", 2000, "watch events a second; 0 for as fast as possible")
-	events  = flag.Int("events", 20000, "watch events printed by one watch")
-	logRate = flag.Int("log", 50, "node log lines a second")
-	listen  = flag.String("listen", "", "address to listen on")
+	rate       = flag.Int("rate", 2000, "watch events a second; 0 for as fast as possible")
+	events     = flag.Int("events", 20000, "watch events printed by one watch")
+	logRate    = flag.Int("log", 50, "node log lines a second")
+	listen     = flag.String("listen", "", "address to listen on")
+	foundEvery = flag.Int("found", 4, "grind run: a found line before every n'th progress line")
 )
 
 func main() {
@@ -61,6 +64,10 @@ func main() {
 func fakeMain(ctx context.Context, args []string, s cli.Stdio) int {
 	if len(args) > 0 {
 		switch args[0] {
+		case "grind":
+			if len(args) > 1 && args[1] == "run" {
+				return fakeGrind(ctx, s)
+			}
 		case "watch":
 			return fakeWatch(ctx, s)
 		case "node":
@@ -142,4 +149,31 @@ func fakeNode(ctx context.Context, s cli.Stdio) int {
 			fmt.Fprintf(s.Err, "%s poo node: peer 127.0.0.1:%d sent entry %s at height %d\n", time.Now().Format(time.RFC3339), 7000+i%9, hx(i, 32), i)
 		}
 	}
+}
+
+// fakeGrind writes events in the shape poo grind run prints
+// (pkg/grind.Event), one per Write, then waits until stopped.
+func fakeGrind(ctx context.Context, s cli.Stdio) int {
+	enc := json.NewEncoder(s.Out)
+	enc.Encode(map[string]any{"job": 1, "kind": "start", "state": "running", "series": hx(1, 32),
+		"plan": map[string]any{"device": "cpu", "hash": "sha256", "threads": 3, "grinder": "cpu-sha256", "why": "auto: the fastest device for sha256 on this machine"}})
+	start := time.Now()
+	for i := 0; i < *events; i++ {
+		if ctx.Err() != nil {
+			return 0
+		}
+		if *rate > 0 {
+			if d := time.Until(start.Add(time.Duration(i) * time.Second / time.Duration(*rate))); d > 0 {
+				time.Sleep(d)
+			}
+		}
+		r := 2.5e6 + float64(i%37)*1e4
+		if *foundEvery > 0 && i%*foundEvery == 0 {
+			enc.Encode(map[string]any{"job": 1, "kind": "found", "series": hx(1, 32), "pool": i % 4, "tries": i * 1000, "rate": r,
+				"layer": hx(i, 32), "entry": hx(i+1, 32), "strength": 8 + i%5})
+		}
+		enc.Encode(map[string]any{"job": 1, "kind": "progress", "series": hx(1, 32), "pool": i % 4, "state": "running", "tries": i * 1000, "rate": r})
+	}
+	<-ctx.Done()
+	return 0
 }

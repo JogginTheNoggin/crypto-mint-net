@@ -7,11 +7,13 @@ import * as api from './api.js';
 import { el, cmdLine, panel, form, flag, mountAll } from './views.js';
 import { render } from './render.js';
 import * as where from './where.js';
+import { paced } from './scroll.js';
 
 // Bounds, as in Watch (GUI-007): events kept, rate points drawn, one line.
 const MAX_EVENTS = 500;
 const RATE_POINTS = 120;
 const MAX_LINE = 1 << 20;
+const MAX_ERR = 64 << 10;
 
 // jobFields are poo grind's JOB FLAGS; jobFlags turns their values into
 // the flags.
@@ -37,20 +39,24 @@ function rateText(r) {
   return `${r.toFixed(0)} H/s`;
 }
 
-// rateChart draws the last rates as a line, with no inline styles so the
-// page's CSP allows it, coloured by the theme (style.css).
-function rateChart(points) {
+// rateChart is the last rates as a line, with no inline styles so the
+// page's CSP allows it, coloured by the theme (style.css). It is built
+// once; set(points) moves the line (ORANGE-009).
+function rateChart() {
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 300 60');
   svg.setAttribute('class', 'rate-chart');
   svg.setAttribute('role', 'img');
-  const max = Math.max(...points, 1);
-  svg.setAttribute('aria-label', `Rate over the last ${points.length} progress lines; latest ${rateText(points[points.length - 1])}, highest ${rateText(max)}`);
   const line = document.createElementNS(NS, 'polyline');
-  const step = points.length > 1 ? 300 / (points.length - 1) : 0;
-  line.setAttribute('points', points.map((p, i) => `${(i * step).toFixed(1)},${(58 - (p / max) * 54).toFixed(1)}`).join(' '));
   svg.append(line);
+  svg.set = points => {
+    let max = 1;
+    for (const p of points) if (p > max) max = p;
+    svg.setAttribute('aria-label', `Rate over the last ${points.length} progress lines; latest ${rateText(points[points.length - 1])}, highest ${rateText(max)}`);
+    const step = points.length > 1 ? 300 / (points.length - 1) : 0;
+    line.setAttribute('points', points.map((p, i) => `${(i * step).toFixed(1)},${(58 - (p / max) * 54).toFixed(1)}`).join(' '));
+  };
   return svg;
 }
 
@@ -95,37 +101,58 @@ function buildLive(ctx) {
     const tab = document.querySelector('nav a[data-id=work]');
     if (tab) { tab.classList.toggle('busy', on); tab.title = on ? 'A grind is running' : ''; }
   };
+  // Lines are read as they arrive and drawn at most ten times a second
+  // (ORANGE-009): the newest plan and state, one move of the rate line,
+  // the found rows in one fragment, and the counts once.
+  const svg = rateChart();
+  let newFound = [], newPlan = null, newState = null, chartDirty = false;
+  const draw = paced(() => {
+    if (newState !== null) { state.textContent = newState; newState = null; }
+    if (newPlan) { plan.textContent = ''; plan.append(el('h3', {}, 'Plan'), render(newPlan)); newPlan = null; }
+    if (chartDirty) { if (!svg.isConnected) chart.append(svg); svg.set(rates); chartDirty = false; }
+    if (newFound.length) {
+      const frag = document.createDocumentFragment();
+      for (let i = newFound.length - 1; i >= 0; i--) {
+        const ev = newFound[i], h = ev.layer || ev.entry;
+        frag.append(el('tr', {}, el('td', {}, ev.layer ? 'layer' : 'entry'),
+          el('td', { title: h || '' }, el('code', {}, short(h))), el('td', { class: 'num' }, String(ev.strength ?? '')), el('td', {}, ev.from ?? '')));
+      }
+      newFound = [];
+      found.prepend(frag);
+      for (let n = found.children.length; n > MAX_EVENTS; n--) found.lastChild.remove();
+    }
+    stats.textContent = [tries ? `${tries} tries` : '', rates.length ? `rate ${rateText(rates[rates.length - 1])}` : '', `${nFound} found`].filter(Boolean).join(' · ');
+  });
   const add = ev => {
-    if (ev.state || ev.reason) state.textContent = [ev.kind, ev.state, ev.reason].filter(Boolean).join(': ');
-    if (ev.plan) { plan.textContent = ''; plan.append(el('h3', {}, 'Plan'), render(ev.plan)); }
+    if (ev.state || ev.reason) newState = [ev.kind, ev.state, ev.reason].filter(Boolean).join(': ');
+    if (ev.plan) newPlan = ev.plan;
     if (ev.tries) tries = ev.tries;
     if (ev.kind === 'progress' && ev.rate) {
       rates.push(ev.rate);
       if (rates.length > RATE_POINTS) rates.shift();
-      chart.textContent = '';
-      chart.append(rateChart(rates));
+      chartDirty = true;
     }
     if (ev.kind === 'found') {
       nFound++;
-      const h = ev.layer || ev.entry;
-      const tr = el('tr', {}, el('td', {}, ev.layer ? 'layer' : 'entry'),
-        el('td', { title: h || '' }, el('code', {}, short(h))), el('td', { class: 'num' }, String(ev.strength ?? '')), el('td', {}, ev.from ?? ''));
-      found.prepend(tr);
-      while (found.children.length > MAX_EVENTS) found.lastChild.remove();
+      newFound.push(ev);
+      if (newFound.length > 2 * MAX_EVENTS) newFound = newFound.slice(-MAX_EVENTS);
     }
-    stats.textContent = [tries ? `${tries} tries` : '', rates.length ? `rate ${rateText(rates[rates.length - 1])}` : '', `${nFound} found`].filter(Boolean).join(' · ');
+    draw.schedule();
   };
+  // errAppend keeps the error box's last MAX_ERR characters, for stderr
+  // and for stdout lines that are not JSON alike.
+  const errAppend = text => { errOut.hidden = false; errOut.textContent = (errOut.textContent + text).slice(-MAX_ERR); };
   const lineIn = text => {
     if (!text.trim()) return;
     let ev;
-    try { ev = JSON.parse(text); } catch (_) { errOut.hidden = false; errOut.textContent += text + '\n'; return; }
+    try { ev = JSON.parse(text); } catch (_) { errAppend(text + '\n'); return; }
     add(ev);
   };
   const follow = () => {
     unfollow = api.follow(job.id, {
       chunk: c => {
         next = c.next ?? c.seq + 1;
-        if (c.stream === 'err') { errOut.hidden = false; errOut.textContent = (errOut.textContent + c.data).slice(-(64 << 10)); return; }
+        if (c.stream === 'err') { errAppend(c.data); return; }
         buf += c.data;
         const lines = buf.split('\n');
         buf = lines.pop();
@@ -133,7 +160,7 @@ function buildLive(ctx) {
         if (buf.length > MAX_LINE) buf = '';
       },
       dropped: d => { next = d.next; buf = ''; },
-      exit: x => { unfollow = null; setRunning(false); state.textContent += ` (exit ${x.code})`; job = null; },
+      exit: x => { draw.now(); unfollow = null; setRunning(false); state.textContent += ` (exit ${x.code})`; job = null; },
     }, next);
   };
   f.addEventListener('submit', async e => {
@@ -144,6 +171,7 @@ function buildLive(ctx) {
     errOut.textContent = '';
     plan.textContent = chart.textContent = found.textContent = '';
     rates = []; tries = 0; nFound = 0; next = 0; buf = '';
+    newFound = []; newPlan = newState = null; chartDirty = false;
     try { job = await api.start(a); } catch (err) { state.textContent = err.message; return; }
     setRunning(true);
     state.textContent = `running: ${job.command}`;
