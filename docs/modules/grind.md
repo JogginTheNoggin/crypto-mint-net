@@ -39,7 +39,8 @@ The CPU probe uses `klauspost/cpuid`. The GPU probe reads
 `/sys/class/drm/card*/device` on Linux (vendor and driver). There is no
 GPU grinder yet, so GPUs are listed with a note and `auto` passes them
 over. Registering a grinder for kind `gpu` makes them used, with no other
-change.
+change. When two probes find the same id (the system's list and a grinder's
+own probe), the first one is kept.
 
 ## Grinders and plans
 

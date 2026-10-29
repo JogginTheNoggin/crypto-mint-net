@@ -141,9 +141,17 @@ func (r *Registry) Detect() []Device {
 	r.mu.RLock()
 	probes := slices.Clone(r.probes)
 	r.mu.RUnlock()
+	// Two probes may find the same device (the system's list and a
+	// grinder's own); an id names one device, so the first one found wins.
 	var devs []Device
+	seen := map[string]bool{}
 	for _, p := range probes {
-		devs = append(devs, p()...)
+		for _, d := range p() {
+			if !seen[d.ID] {
+				seen[d.ID] = true
+				devs = append(devs, d)
+			}
+		}
 	}
 	sort.SliceStable(devs, func(i, j int) bool { return devs[i].Kind == CPU && devs[j].Kind != CPU })
 	for i := range devs {
