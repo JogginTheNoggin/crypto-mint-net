@@ -212,6 +212,7 @@ function noNode(sec, area, r) {
 export function form(ctx, { title, about, fields, args, submit = 'Run', danger, onResult, secretOutput }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
+  const labels = {};
   const f = el('form', { class: 'fields', autocomplete: 'off' });
   for (const fd of fields) {
     let input;
@@ -223,17 +224,27 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
       input = el('input', { name: fd.name, type: fd.type === 'number' ? 'text' : (fd.type || 'text'), inputmode: fd.type === 'number' ? 'numeric' : undefined, placeholder: fd.placeholder || '', spellcheck: 'false' });
     }
     if (fd.value !== undefined) input.value = fd.value;
+    if (fd.list) input.setAttribute('list', fd.list);
     inputs[fd.name] = input;
-    f.append(el('label', { class: fd.type === 'check' ? 'check' : '' }, el('span', {}, fd.label), input, fd.help ? el('small', {}, fd.help) : null));
+    labels[fd.name] = el('label', { class: fd.type === 'check' ? 'check' : '' }, el('span', {}, fd.label), input, fd.help ? el('small', {}, fd.help) : null);
+    f.append(labels[fd.name]);
   }
+  // A field with only: {field, values} is shown, and sent, only while that
+  // other field (an action select) holds one of values: the same pairs poo
+  // checks with flagsFor, so a form never offers a flag poo would refuse.
+  const shown = fd => !fd.only || fd.only.values.includes(inputs[fd.only.field].value);
+  const showOnly = () => { for (const fd of fields) labels[fd.name].hidden = !shown(fd); };
   const values = () => {
     const v = {};
     for (const fd of fields) {
       const i = inputs[fd.name];
-      v[fd.name] = fd.type === 'check' ? i.checked : fd.type === 'list' ? i.value.split(/[\s,]+/).filter(Boolean) : i.value.trim();
+      const on = shown(fd);
+      v[fd.name] = fd.type === 'check' ? on && i.checked : fd.type === 'list' ? (on ? i.value.split(/[\s,]+/).filter(Boolean) : []) : on ? i.value.trim() : '';
     }
     return v;
   };
+  showOnly();
+  f.addEventListener('input', showOnly);
   const line = cmdLine(args(values()), ctx);
   f.addEventListener('input', () => line.set(args(values())));
   f.append(el('div', { class: 'actions' }, el('button', { type: 'submit', class: danger ? 'danger' : 'primary' }, submit)));
@@ -422,10 +433,11 @@ const peersView = {
       form(ctx, { title: 'Act on a peer', fields: [
         { name: 'action', label: 'Action', type: 'select', options: ['timeout', 'block', 'unblock', 'clear', 'template', 'delete'] },
         { name: 'addr', label: 'Peer address', placeholder: 'host:port' },
-        { name: 'seconds', label: 'Seconds', type: 'number', placeholder: 'timeout/block; -1 blocks until unblocked' },
-        { name: 'range', label: 'Whole range (block, unblock)', type: 'check' },
-        { name: 'what', label: 'Clear', type: 'select', options: ['', 'flags', 'measures', 'all'] },
-        { name: 'template', label: 'Tracking template', placeholder: 'template name' },
+        // Which action takes which flag is poo peer's own rule (pkg/cli/node.go).
+        { name: 'seconds', label: 'Seconds', type: 'number', placeholder: '-1 blocks until unblocked', only: { field: 'action', values: ['timeout', 'block'] } },
+        { name: 'range', label: 'Whole range', type: 'check', only: { field: 'action', values: ['block'] } },
+        { name: 'what', label: 'Clear', type: 'select', options: ['', 'flags', 'measures', 'all'], only: { field: 'action', values: ['clear'] } },
+        { name: 'template', label: 'Tracking template', placeholder: 'template name', only: { field: 'action', values: ['template'] } },
       ], args: v => ['peer', v.action, ...where.flags(), ...flag('seconds', v.seconds), ...flag('range', v.range), ...flag('what', v.what), ...flag('template', v.template), ...(v.addr ? [v.addr] : [])],
       submit: 'Apply', danger: true }),
       panel(ctx, { title: 'Tracking', about: "Every tracked address's status and the blocked ranges.", args: () => ['tracking', ...where.flags()] }),
@@ -483,7 +495,7 @@ const walletView = {
       // Restoring runs -restore -, so poo asks for the seed through its
       // secret prompt (D106) and the seed is typed into a masked field,
       // never onto the command line.
-      form(ctx, { title: 'Create or restore a wallet', fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519 (see Crypto)' }, { name: 'restore', label: 'Restore from a seed', type: 'check', help: 'poo asks for the seed in a masked field after you press Create.' }, { name: 'gap', label: 'Gap', type: 'number' }],
+      form(ctx, { title: 'Create or restore a wallet', fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519', list: 'crypto-algs' }, { name: 'restore', label: 'Restore from a seed', type: 'check', help: 'poo asks for the seed in a masked field after you press Create.' }, { name: 'gap', label: 'Gap', type: 'number' }],
         args: v => ['wallet', 'create', ...wf(v), ...flag('alg', v.alg), ...(v.restore ? ['-restore', '-'] : []), ...flag('gap', v.gap)], submit: 'Create' }),
     ]);
   },
@@ -499,23 +511,46 @@ const policiesView = {
       panel(ctx, { title: 'Policies', args: () => ['policy', 'list', ...rootFlag()], empty: 'No saved node policies yet. Write one on the Node view.' }),
       form(ctx, { title: 'Use, archive, unarchive or delete', fields: [
         { name: 'sub', label: 'Action', type: 'select', options: ['use', 'archive', 'unarchive', 'delete'] }, name,
-        { name: 'fresh', label: 'Unarchive fresh (drop stored data)', type: 'check' }],
+        { name: 'fresh', label: 'Fresh (drop stored data)', type: 'check', only: { field: 'sub', values: ['unarchive'] } }],
       args: v => ['policy', v.sub, ...rootFlag(), ...flag('fresh', v.fresh), ...(v.name ? [v.name] : [])], submit: 'Apply', danger: true }),
     ]);
   },
 };
+
+// cryptoChoices offers the hashes and key algorithms poo crypto printed as
+// suggestions in the fields that name one (a datalist suggests, poo still
+// decides). The lists stay in the page for the Wallet view's key field too.
+function cryptoChoices(out) {
+  let c;
+  try { c = JSON.parse(out); } catch (_) { return; }
+  for (const [id, list] of [['crypto-hashes', c.hashes], ['crypto-algs', c.key_algs]]) {
+    let dl = document.getElementById(id);
+    if (!dl) { dl = el('datalist', { id }); document.body.append(dl); }
+    dl.textContent = '';
+    for (const x of list || []) dl.append(el('option', { value: x.name }));
+  }
+}
+
+// A key field opened before Series and keys asks poo crypto once, the
+// first time it is focused, so its suggestions are poo's own.
+document.addEventListener('focusin', e => {
+  const l = e.target.getAttribute && e.target.getAttribute('list');
+  if ((l === 'crypto-algs' || l === 'crypto-hashes') && !document.getElementById(l)) {
+    api.run(['crypto']).then(r => { if (r.code === 0) cryptoChoices(r.out); }).catch(() => {});
+  }
+});
 
 const cryptoView = {
   id: 'crypto',
   title: 'Series and keys',
   mount(root, ctx) {
     return mountAll(root, 'Series and keys', 'Offline tools: the choices a series can make, keys, and series parameters.', [
-      panel(ctx, { title: 'Hashes, key algorithms and policy types', args: () => ['crypto'] }),
+      panel(ctx, { title: 'Hashes, key algorithms and policy types', args: () => ['crypto'], onResult: r => { if (r.code === 0) cryptoChoices(r.out); } }),
       form(ctx, { title: 'Make a key', about: 'A key and its 1-of-1 address. Leave the seed empty for a random one; the output includes the seed.',
-        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519' }, { name: 'hash', label: 'Hash', placeholder: 'sha256' }, { name: 'seed', label: 'Seed', placeholder: 'hex, optional', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }],
+        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs' }, { name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'seed', label: 'Seed', placeholder: 'hex, optional', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }],
         args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...flag('seed', v.seed)], submit: 'Make key', secretOutput: true }),
       form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked. More options are in the terminal (poo series new -h).',
-        fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list' }, { name: 'types', label: 'Policy types', placeholder: 'comma list' }, { name: 'mints', label: 'Mints', type: 'number' }],
+        fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list: ' + 'see the list above' }, { name: 'types', label: 'Policy types', placeholder: 'comma list: see the list above' }, { name: 'mints', label: 'Mints', type: 'number' }],
         args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints)], submit: 'Make series' }),
       form(ctx, { title: 'Series file info', fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json' }],
         args: v => ['series', 'info', ...(v.file ? [v.file] : [])], submit: 'Show' }),
