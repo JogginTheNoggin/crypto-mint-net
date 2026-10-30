@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 9972137 (code 84d3e69, Source Round 6 Part B) |
 | Component | pkg/ledger/pool.go (Pool.viewAfter, AddEntry), pkg/p2p/chase.go (fetchAll, takeItem), pkg/p2p/forward.go (handlePushed), pkg/engine/engine.go (EntryCost) |
 | Surface | peer |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 80ea33e (BLUE-007) |
 
 ## Summary
 
@@ -130,3 +130,29 @@ the length); in `pkg/p2p`, a peer that serves an endless branch of
 zero-weight entries to a node that holds nothing is cut off after a bounded
 number of entries, with a count of the revert budget spent; in `pkg/ledger`,
 `ViewCost` is larger for entries with more transactions.
+
+## Resolution
+
+Fixed by BLUE-007 (decision D114), taking the first, third and fourth
+recommendations, and a weight-free form of the second. `AddEntry` keeps
+the state after the entry it added (unless that entry switched the
+ledger), so the next entry on it starts there. Measuring showed two more
+walks of the branch on every `AddEntry`: `weightOf` walked up to the anchor
+and `prune` scanned every off-chain node for leaves. Off-chain nodes now
+keep their anchor height and the pool keeps a leaf set. A 64,000-entry
+branch with no layers costs 1.5 us per entry, the same as at 16,000. View
+cost now counts transactions as well as entries (a prefix sum along the
+selected chain keeps it O(1)), and `MaxPreviewCost` is 256 units. Entries a
+chase takes in spend the sender's `revert` budget like pushed ones; taken
+in order they cost only the first revert, so an honest catch-up or switch
+is unaffected. Both fetches end at more than `MaxBareRun` (4,096) entries
+in a row without layers. Tests: `TestEntryOwnersRefusesDeepParent`,
+`TestKeptViewIsTheParentsState`, `TestLongBranchIsLinear` and
+`BenchmarkOffChainBranch` (`pkg/ledger`), and `TestBareRunEndsFetch`,
+`TestChaseInOrderCostsLittleRevert` (passes at a budget of 20, fails at 5)
+and `TestDeepForkSpendsRevertBudget` (`pkg/p2p`).
+
+Open for Red: `AddLayer` on an off-chain entry still walks its subtree to
+update relative weights, so a layer on the root of a long branch costs
+O(branch). Layers have their own budget (6,000 a minute) and K bounds the
+branches kept, but this is the same shape and may be worth a look.

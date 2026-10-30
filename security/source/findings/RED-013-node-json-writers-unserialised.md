@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 9972137 (code 84d3e69, Source Round 6 Part B) |
 | Component | pkg/nodepolicy/nodepolicy.go (Save), pkg/rpc/grind.go (grindSetSchedule), pkg/rpc/view.go (follow), pkg/grind/jobs.go (Manager.Schedule) |
 | Surface | RPC / node files |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 80ea33e (BLUE-007) |
 
 ## Summary
 
@@ -73,3 +73,19 @@ the file a live API that more than one program (GUI, CLI, scripts) edits.
 Tests: concurrent `Save` calls always leave a loadable file (the test above);
 two concurrent PUTs of different schedules leave `node.json` equal to one of
 them and exactly that one's jobs running.
+
+## Resolution
+
+Fixed by BLUE-007 (decision D114). `nodepolicy.Save` writes to its own
+`os.CreateTemp` file next to `node.json`, syncs it, renames it and syncs the
+directory, removing the temporary file on any error. Concurrent writers, the
+offline `poo` commands included, can no longer tear the file. In the
+node, `rpc.Handler.policyMu` is held from `Load` to `Save` for follow,
+unfollow and `PUT /v1/grind/schedule`, which also applies the schedule
+under it. `grind.Manager.Schedule` takes its own mutex, so two calls never
+leave both policies' jobs running. A `poo` command editing `node.json`
+offline while the node edits it can still lose one of the two updates (no
+lock is shared across processes). Tests: `TestConcurrentSavesNeverTear`
+(`pkg/nodepolicy`, 200 rounds of four writers, no leftover files),
+`TestScheduleIsSerialised` (`pkg/grind`, which fails on the old code), and
+concurrent `PUT /v1/grind/schedule` in `TestGrindEndpoints` (`pkg/rpc`).

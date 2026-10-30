@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 9972137 (code 84d3e69, Source Round 6 Part B) |
 | Component | pkg/grind/jobs.go (Manager.Start), pkg/rpc/grind.go (grindStart) |
 | Surface | RPC |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 80ea33e (BLUE-007) |
 
 ## Summary
 
@@ -58,3 +58,13 @@ check fails; or count once more after the second `Lock` and return
 
 Test: the one above, asserting that no more than `MaxJobs` jobs are ever
 not-done, and that `Schedule` and `Start` together respect it.
+
+## Resolution
+
+Fixed by BLUE-007 (decision D114). `Manager.Start` counts `running +
+reserved` against `MaxJobs` and takes a reservation under `m.mu`. It gives
+the reservation back under the same lock after `checkPlans`, whether the
+check passed or failed, in the step that inserts the job, so no number of
+concurrent starts can pass the bound. Test: `TestJobLimitUnderConcurrency`
+(`pkg/grind`). It starts 300 jobs at once and asserts at most 16 are
+started and running. On the old code it saw 38 to 91.

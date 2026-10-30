@@ -1638,3 +1638,32 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   schedule by hand needs a reload, which would stop every user job.
   Applying the section in the manager keeps user jobs running.
 - **Tier:** Implementation.
+
+### D114. A branch costs what its entries hold, once, whoever sent it
+
+- **Decision:** `ledger.Pool.AddEntry` keeps the state after the entry it
+  added (unless that entry switched the ledger) and starts the next entry
+  on it from there; a switch or the prune of that entry drops it.
+  Off-chain nodes keep their anchor height and the pool its set of
+  off-chain leaves, so ranking and weighing a branch no longer walk it.
+  View cost (`ViewCost`, `EntryCost`, the `revert` budget, D111) is one
+  unit per entry reverted or applied plus one per transaction in it;
+  `MaxPreviewCost` is 256 units. `pkg/p2p` charges entries a chase takes in
+  to the sender's `revert` budget as it does pushed ones, and ends a fetch
+  at more than `MaxBareRun` (4,096) entries in a row without layers in a
+  series without entry hash credit. `nodepolicy.Save` writes a temporary
+  file of its own, syncs it and renames it; the RPC serialises its edits of
+  `node.json` (follow, unfollow, the grind schedule, which it applies under
+  the same lock), `grind.Manager.Schedule` runs one call at a time, and
+  `Manager.Start` holds its slot from the `MaxJobs` count to the insert.
+- **Why:** RED-012: a branch of L entries without layers cost O(L^2)
+  (32,000 entries took 32.5 s) in re-applied state, anchor walks and leaf
+  scans, and a chase took them in uncharged and without a work check; now
+  the cost per entry is flat (1.5 us at 16,000 and 64,000 entries). Entries
+  with transactions cost up to 45 times more to revert than empty ones, so
+  counting entries alone let a busy chain cost far more lock per budget.
+  An honest catch-up or switch taken in order costs only its first revert.
+  RED-013 and RED-014: concurrent writers of `node.json` tore the file
+  and lost updates, and concurrent starts passed `MaxJobs`.
+- **Tier:** Implementation. No consensus change: what is valid and what is
+  selected are unchanged.
