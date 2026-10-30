@@ -5,6 +5,14 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 6 Part B reviewed `claude/gui-4-watch @ e7df74b`: GUI/Blue's GUI-010 fix
+(SIGHUP in poo-gui, re-adopting a running grind on reload), GUI/Green's jobs table
+with a Stop for each job, device suggestions and H/s rates, and GUI/Orange's paced
+Work drawing and bounded error box. All of these held. One new Low gap: GUI-011.
+Catching SIGHUP overrides `nohup`, so a detached poo-gui and the node it hosts now
+stop when the session ends, and the node's documented SIGHUP reload now stops the
+GUI as well.
+
 Round 5 Part B reviewed `claude/gui-4-watch @ 8b044ac`: the new Work view on
 `poo grind` (devices, jobs, live run, background jobs, stop -all, bench), the
 GUI-009 fix through the core's `cli.SecretOutput`, the Health check panel, and
@@ -82,4 +90,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-007](GUI-007-watch-unbounded-buffers.md) | Low | Watch view's paused-event and error buffers grow without bound (local tab DoS) | fixed (verified R3B @ 9b4b19c) |
 | [GUI-008](GUI-008-background-watch-lifetime.md) | Info | Background Watch holds its event stream and node connection until Stop (by design; trade-off recorded) | fixed (verified R4B @ 50a0edd) |
 | [GUI-009](GUI-009-secret-output-retained.md) | Low | Output of seed-printing commands (`wallet seed`, `keygen`) is kept and replayable from Jobs and the event stream | fixed (verified R5B @ 8b044ac, core `cli.SecretOutput`) |
-| [GUI-010](GUI-010-followed-grind-outlives-gui.md) | Low | A grind followed from Work keeps running in the node when poo-gui dies without its cancel path (SIGHUP, kill) | GUI part fixed (SIGHUP, re-adopt on reload); core lease pending |
+| [GUI-010](GUI-010-followed-grind-outlives-gui.md) | Low | A grind followed from Work keeps running in the node when poo-gui dies without its cancel path (SIGHUP, kill) | GUI part fixed (verified R6B @ e7df74b; SIGHUP side effects in GUI-011); core lease pending |
+| [GUI-011](GUI-011-sighup-stops-nohup-gui.md) | Low | poo-gui now stops on SIGHUP even under nohup, and SIGHUP no longer only reloads a node it hosts | open |
