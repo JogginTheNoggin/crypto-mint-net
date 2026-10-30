@@ -19,3 +19,6 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-009](RED-009-preverify-verifies-what-checks-would-reject.md) | Pre-lock signature verification runs on items the cheap checks would reject, does not stop at the first bad signature, and never remembers a failure | medium | fixed |
 | [RED-010](RED-010-failed-fsync-retried-then-reported-ok.md) | A failed fsync of the store is retried and a later waiter is told the record is on disk | low | fixed |
 | [RED-011](RED-011-deep-parent-view-cost-doubled-under-lock.md) | An entry on a deep parent costs a revert of the whole selected chain, now twice, under the engine lock | medium | fixed |
+| [RED-012](RED-012-requested-entries-uncharged-quadratic-branch.md) | A branch of entries with no layers costs time quadratic in its length, and the entries a chase fetches are not charged for it | medium | open |
+| [RED-013](RED-013-node-json-writers-unserialised.md) | Concurrent writes of node.json share one temporary file and can leave it corrupt | low | open |
+| [RED-014](RED-014-maxjobs-not-atomic.md) | MaxJobs is checked and then used without holding the slot, so concurrent starts exceed it | low | open |
