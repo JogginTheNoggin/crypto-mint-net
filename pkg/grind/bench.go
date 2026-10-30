@@ -29,7 +29,12 @@ func RunBench(ctx context.Context, p Plan, d time.Duration) (Bench, error) {
 	defer cancel()
 	var tried atomic.Uint64
 	t0 := time.Now()
-	_, _, err := layer.GrindWith(ctx, p.newHasher, entry, 0, 0, p.Threads, &tried)
+	var err error
+	if p.search != nil {
+		_, _, err = layer.GrindSearch(ctx, p.search, entry, 0, 0, p.Threads, &tried)
+	} else {
+		_, _, err = layer.GrindWith(ctx, p.newHasher, entry, 0, 0, p.Threads, &tried)
+	}
 	secs := time.Since(t0).Seconds()
 	if err != nil && ctx.Err() == nil {
 		return Bench{}, err
