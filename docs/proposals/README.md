@@ -39,3 +39,6 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-017](source/GREEN-017-grind-usability.md) | Source | Four rough edges in `poo grind` | proposed |
 | [GREEN-018](source/GREEN-018-readable-grind-tables.md) | Source | Readable tables for nested objects and rates | proposed (prototyped) |
 | [GREEN-019](source/GREEN-019-grind-until-tx-safe.md) | Source | Grind until my payment is safe (`tx:TID` target) | proposed |
+| [ORANGE-009](source/ORANGE-009-m11-measured-and-blake3-cv.md) | Source | M11 measured, and a BLAKE3 grinder that keeps chaining values | proposed |
+| [ORANGE-010](source/ORANGE-010-keep-every-layer-above-a-floor.md) | Source | Keep every layer above a floor, not only the best per slice | proposed |
+| [ORANGE-011](source/ORANGE-011-simd-lanes-blake3.md) | Source | SIMD lanes, sixteen BLAKE3 layer tries at once | proposed |
