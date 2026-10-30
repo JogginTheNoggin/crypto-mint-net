@@ -51,6 +51,9 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
   area.append(el('div', { class: 'run-bar' }, status, stopBtn), ask, live);
   return new Promise(resolve => {
     api.start(args, { refresh }).then(j => {
+      // The view was left before the job started: its stream is not
+      // opened; the job runs on and is in Jobs (ORANGE-010).
+      if (area.gone) { resolve({ code: -1, out: '', err: '' }); return; }
       if (onStart) onStart(j);
       let out = '', err = '', tail = '';
       stopBtn.onclick = () => api.cancel(j.id).catch(() => {});
@@ -63,7 +66,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
         ask.hidden = true;
         api.input(j.id, v).catch(e => { err += `poo-gui: ${e.message}\n`; });
       };
-      api.follow(j.id, {
+      area.unfollow = api.follow(j.id, {
         chunk: c => {
           if (c.stream === 'err') err += c.data; else out += c.data;
           tail = (tail + c.data).slice(-80);
@@ -86,11 +89,12 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
           status.className = 'run-status ' + (e.code === 0 ? 'ok' : 'bad');
           status.textContent = e.code === 0 ? 'done' : `exit ${e.code}`;
           live.remove();
+          area.unfollow = null;
           // The server marks a command that prints a secret (GUI-009).
           area.append(showResult(out, err, { empty, secretOutput: secretOutput || j.secretOutput }));
           resolve({ code: e.code, out, err });
         },
-        error: () => { status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err }); },
+        error: () => { area.unfollow = null; status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err }); },
       });
     }).catch(e => {
       status.className = 'run-status bad';
@@ -98,6 +102,15 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
       resolve({ code: -1, out: '', err: e.message });
     });
   });
+}
+
+// leave closes the event stream of a job still running in area, when its
+// view is left (ORANGE-010). The page has six connections to poo-gui; a
+// stream left open on every visit would use them up and stall the GUI.
+// The job itself runs on, as a detached command does, and is in Jobs.
+function leave(area) {
+  area.gone = true;
+  if (area.unfollow) { area.unfollow(); area.unfollow = null; }
 }
 
 // showResult renders a command's output: JSON as tables, anything else as
@@ -178,7 +191,7 @@ export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
   const visible = () => { if (!document.hidden) go(true); };
   let t = refresh ? setInterval(visible, refresh) : null;
   if (t) document.addEventListener('visibilitychange', visible);
-  return { el: sec, stop: () => { if (t) { clearInterval(t); document.removeEventListener('visibilitychange', visible); } } };
+  return { el: sec, stop: () => { leave(area); if (t) { clearInterval(t); document.removeEventListener('visibilitychange', visible); } } };
 }
 
 // NO_NODE is the error every command that needs a running node prints
@@ -252,7 +265,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     f.requestSubmit();
     sec.scrollIntoView({ block: 'start' });
   };
-  return { el: sec, stop: () => {}, run };
+  return { el: sec, stop: () => leave(area), run };
 }
 
 // flag adds -name value when value is set.
@@ -311,10 +324,11 @@ const nodeView = {
       el('div', { class: 'panel-head' }, el('h2', {}, 'Run the node'), startBtn),
       el('p', { class: 'hint' }, 'Runs poo node inside the GUI until you stop it or close the GUI. A node already running elsewhere (for example as a service) is used as it is: the views below talk to whichever node serves this node policy.'),
       runLine, runArea);
-    let following = null;
+    let following = null, unfollowLog = null, gone = false;
     const showRunning = async () => {
       if (document.hidden && following) return;
       const j = await nodeJob().catch(() => null);
+      if (gone) return;
       startBtn.disabled = !!j;
       if (j && following !== j.id) {
         following = j.id;
@@ -324,9 +338,10 @@ const nodeView = {
         const stop = el('button', { type: 'button', class: 'danger' }, 'Stop node');
         stop.onclick = () => api.cancel(j.id);
         runArea.append(el('div', { class: 'run-bar' }, el('span', { class: 'run-status live' }, `running: ${j.command}`), stop), log);
-        api.follow(j.id, {
+        if (unfollowLog) unfollowLog();
+        unfollowLog = api.follow(j.id, {
           chunk: c => logOut.write(c.data, c.stream === 'err' ? 'err' : ''),
-          exit: e => { following = null; startBtn.disabled = false; runArea.prepend(el('div', { class: 'run-status ' + (e.code ? 'bad' : 'ok') }, `node stopped (exit ${e.code})`)); stop.remove(); },
+          exit: e => { following = null; unfollowLog = null; startBtn.disabled = false; runArea.prepend(el('div', { class: 'run-status ' + (e.code ? 'bad' : 'ok') }, `node stopped (exit ${e.code})`)); stop.remove(); },
         });
       }
     };
@@ -382,7 +397,7 @@ const nodeView = {
         const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
         if (raw) { raw.replaceWith(doctorReport(rep, ctx)); det.append(raw); area.append(det); }
       } });
-    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => clearInterval(t) }, status, follows, follow, unfollow, reload, init]);
+    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, status, follows, follow, unfollow, reload, init]);
     return stop;
   },
 };
