@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `29b08ce` (code `a92c2ca`) |
 | Area | `pkg/grind` (`blake3.go`, the `cpu-blake3-cv` grinder) |
 | Effort | small |
-| Decided by | |
+| Decided by | Grey, Source Round 6: `cpu-blake3-cv` is BLAKE3's CPU grinder (D112) |
 
 ## Summary
 

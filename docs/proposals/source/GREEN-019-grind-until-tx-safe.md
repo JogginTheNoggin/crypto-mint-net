@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `29b08ce` (code `a92c2ca`) |
 | Area | `pkg/grind`, `pkg/cli` (`grind start`) |
 | Effort | small to medium |
-| Decided by | Grey |
+| Decided by | Grey, Source Round 6: as proposed, through `Engine.Payment` (D112); also allowed in `node.json` jobs |
 
 ## Summary
 

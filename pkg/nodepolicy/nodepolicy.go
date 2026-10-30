@@ -105,7 +105,8 @@ type Grind struct {
 // GrindJob is a job the node runs by itself (grind.Spec).
 type GrindJob struct {
 	// Target is "tip" (layers on the selected tip), "pending" (entries
-	// from pending transactions) or an entry hash.
+	// from pending transactions), "tx:" and a TID (one payment, until
+	// UntilFrom), or an entry hash.
 	Target string     `json:"target"`
 	Series *hash.Hash `json:"series,omitempty"`
 	Pools  []uint64   `json:"pools,omitempty"`
@@ -114,7 +115,8 @@ type GrindJob struct {
 	Threads int `json:"threads,omitempty"`
 	// Hours is a window of the node's local hours, "22-06".
 	Hours string `json:"hours,omitempty"`
-	// UntilFrom ends a job on one entry once from(e) reaches it.
+	// UntilFrom ends a job on one entry or payment once from(e) reaches
+	// it.
 	UntilFrom string `json:"until_from,omitempty"`
 }
 
@@ -151,11 +153,19 @@ func (g *Grind) validate() error {
 	}
 	for i, j := range g.Jobs {
 		entry := false
-		switch j.Target {
-		case "tip", "pending":
+		switch {
+		case j.Target == "tip", j.Target == "pending":
+		case strings.HasPrefix(j.Target, "tx:"):
+			if _, err := hash.Parse(strings.TrimPrefix(j.Target, "tx:")); err != nil {
+				return fmt.Errorf("job %d: tx:TID: %v", i, err)
+			}
+			if j.UntilFrom == "" {
+				return fmt.Errorf("job %d: a tx:TID target needs until_from", i)
+			}
+			entry = true
 		default:
 			if _, err := hash.Parse(j.Target); err != nil {
-				return fmt.Errorf("job %d: target is tip, pending or an entry hash", i)
+				return fmt.Errorf("job %d: target is tip, pending, tx:TID or an entry hash", i)
 			}
 			entry = true
 		}

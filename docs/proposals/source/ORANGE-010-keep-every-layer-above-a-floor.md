@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (a design question: it changes what the node sends) |
+| Status | open: the owner's call |
 | Based on | `claude/m10-watch` @ `29b08ce` (code `a92c2ca`) |
 | Area | `pkg/grind` (`Manager.slice`), `pkg/layer` (`GrindWith`), node policy |
 | Effort | medium |
-| Decided by | |
+| Decided by | Grey, Source Round 6: left open, since it changes what a node sends (and so the layer rate peers see); jerry decides |
 
 ## Summary
 

@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `29b08ce` (code `a92c2ca`) |
 | Area | `pkg/grind`, `pkg/watch` |
 | Effort | small |
-| Decided by | Grey |
+| Decided by | Grey, Source Round 6: all four items (D112); job-wide events also pass series and pool filters by the job's spec, and the per-pool start is now `plan` |
 
 ## Summary
 

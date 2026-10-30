@@ -33,10 +33,14 @@ without a wallet. See
 | `poo work -pool K \| -serial N [-entry HASH] [-start S] [-tries N \| -for 30s] [-device D] [-threads N]` | Adds the strongest layer found (default target: the selected tip); `-serial` as for build; with `-for`, as many nonces as fit in that time |
 | `poo grind devices [-o FORMAT]` | The devices (asked of the running node, else detected here: `local`), their features, the hashes each grinds fast and those `auto` picks it for |
 | `poo grind bench [-series ID] [-device D] [-threads N] [-seconds S] [-o FORMAT]` | Tries a second on each device for the series' hash, or for every hash; local |
-| `poo grind start TARGET [JOB FLAGS]` | Starts a job in the running node and prints it. TARGET is `tip`, `pending` or an entry hash; JOB FLAGS: `-series` `-pool` `-serial` `-device` `-threads` `-for` `-until-from W` (an entry's from(e) goal) `-hours 22-06` |
-| `poo grind run TARGET [JOB FLAGS]` | Starts a job and follows it: one JSON line per event (`start` with the plan, `progress` with the rate, `found`, `waiting`, `end`) until it ends; an interrupt stops the job, prints an `end` line and exits 0 |
+| `poo grind start TARGET [JOB FLAGS] [-lease 30s]` | Starts a job in the running node and prints it; a device that cannot grind is refused at once unless the job has `-hours`. TARGET is `tip`, `pending`, `tx:TID` (one payment, until `-until-from`) or an entry hash; JOB FLAGS: `-series` `-pool` `-serial` `-device` `-threads` `-for` `-until-from W` (a from(e) goal) `-hours 22-06`; `-lease` stops the job unless it is renewed |
+| `poo grind run TARGET [JOB FLAGS]` | Starts a job and follows it: one JSON line per event (`start` with the spec, `plan` per pool, `progress` at most once a second, `found`, `waiting` with a hint, `end`) until it ends. The job has a lease the command renews, so it stops if the command dies; an interrupt or a hangup stops it, prints an `end` line and exits 0 |
 | `poo grind jobs [-o FORMAT]` | The node's jobs, running and recently ended, with their plans, tries, rate, layers and entries |
 | `poo grind stop ID \| -all` | Stops a job, or every job, keeping what it found |
+| `poo grind schedule [-o FORMAT]` | The jobs `node.json`'s `grind` section starts, and its defaults |
+| `poo grind schedule add TARGET [-series ID] [-pool K \| -serial N] [-device D] [-threads N] [-hours H] [-until-from W]` | Adds a job to the schedule; a running node saves it and starts it at once, with no reload, and says if it could not; otherwise `node.json` is edited (GREEN-026) |
+| `poo grind schedule remove N... \| -all` | Removes scheduled jobs, numbered from 1 as listed; a running node stops them |
+| `poo grind schedule set [-device D] [-threads N]` | Sets the defaults of every job, build and work; `-device auto` clears the device |
 | `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it. The older form of `poo tx -in-serial N TID`, kept for scripts |
 | `poo holdings -serial N` | Unspent portions of a mint. The older form of `poo unspent -serial N`, kept for scripts |
 | `poo pools [filter]` | The followed pools the filter covers |

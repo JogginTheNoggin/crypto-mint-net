@@ -38,8 +38,9 @@ var readCommands = map[string]map[string]bool{
 	"follow": nil, // without flags it only shows; followCmd refuses a change
 	"policy": {"list": true},
 	// Grinding: devices, bench and jobs only look; start, run and stop
-	// change what the node does.
-	"grind": {"devices": true, "bench": true, "jobs": true, "help": true},
+	// change what the node does. schedule only shows without add, remove
+	// or set, and refuses those itself.
+	"grind": {"devices": true, "bench": true, "jobs": true, "schedule": true, "help": true},
 	// The wallet reads only these: the others sign, give out addresses or
 	// record payment states in the wallet file, and seed reveals the seed.
 	"wallet": {"addresses": true, "balance": true, "help": true},
@@ -73,6 +74,19 @@ var ErrViewOnly = errors.New("view-only")
 // errViewOnly is the error for a command that would change something.
 func errViewOnly(what string) error {
 	return fmt.Errorf("%w: poo %s changes things", ErrViewOnly, what)
+}
+
+// ReloadsOnHangup reports whether the command line args (without "poo")
+// runs a node, which reloads its node policy on SIGHUP; every other
+// command should stop on it, as on an interrupt.
+func ReloadsOnHangup(args []string) bool {
+	for _, a := range args {
+		if a == "-view-only" || a == "--view-only" {
+			continue
+		}
+		return a == "node"
+	}
+	return false
 }
 
 // checkViewOnly refuses args unless they only read.

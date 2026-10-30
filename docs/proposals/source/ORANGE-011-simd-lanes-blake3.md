@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (a prototype for M11's next step) |
+| Status | kept as a prototype |
 | Based on | `claude/m10-watch` @ `29b08ce` (code `a92c2ca`) |
 | Area | `pkg/grind` (`blake3_lanes.go`, build tag `goexperiment.simd && amd64`) |
 | Effort | medium |
-| Decided by | |
+| Decided by | Grey, Source Round 6: kept behind `GOEXPERIMENT=simd`, not wired to a grinder until Go's `simd` package is stable (D112) |
 
 ## Summary
 

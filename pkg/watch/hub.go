@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -177,8 +178,32 @@ func (h *Hub) PublishGrind(ev grind.Event) {
 		return
 	}
 	e := Event{Time: time.Now().UTC(), Kind: filter.KindGrind, Series: ev.Series, Pool: ev.Pool, Grind: &ev}
-	sub := filter.Subject{Kind: filter.KindGrind, Series: ev.Series, Pool: ev.Pool, HasPool: ev.Series != (hash.Hash{})}
-	h.deliver([]sized{{e, sub}})
+	if !ev.JobWide() {
+		h.deliver([]sized{{e: e, sub: filter.Subject{Kind: filter.KindGrind, Series: ev.Series, Pool: ev.Pool, HasPool: true}}})
+		return
+	}
+	// A job-wide event (start, waiting, end) has no pool: it passes a
+	// filter on series or pools when the job can work on one of them, so
+	// a watcher of one series sees its jobs start and end (GREEN-017).
+	h.deliver([]sized{{e: e, match: func(f filter.Filter) bool { return jobMatches(f, ev.Scope) }}})
+}
+
+// jobMatches reports whether filter f selects a job-wide grind event of a
+// job with spec s.
+func jobMatches(f filter.Filter, s *grind.Spec) bool {
+	if !f.WantsKind(filter.KindGrind) || len(f.Serials) > 0 || len(f.Addresses) > 0 || len(f.Policies) > 0 || len(f.TIDs) > 0 {
+		return false
+	}
+	if s == nil {
+		return f.Empty() || (len(f.Series) == 0 && len(f.Pools) == 0)
+	}
+	if len(f.Series) > 0 && s.Series != nil && !slices.Contains(f.Series, *s.Series) {
+		return false
+	}
+	if len(f.Pools) > 0 && len(s.Pools) > 0 && !slices.ContainsFunc(f.Pools, func(p uint64) bool { return slices.Contains(s.Pools, p) }) {
+		return false
+	}
+	return true
 }
 
 func (h *Hub) active() bool {
@@ -204,7 +229,7 @@ func (h *Hub) observe(ev node.Event) {
 		v := TxOf(s, ev.Tx)
 		e := base
 		e.Kind, e.Tx, e.TID = filter.KindTx, &v, &v.TID
-		out = append(out, sized{e, v.Subject(s, filter.KindTx)})
+		out = append(out, sized{e: e, sub: v.Subject(s, filter.KindTx)})
 	case ev.Entry != nil:
 		txs := txsOf(s, ev.Entry)
 		e := base
@@ -215,7 +240,7 @@ func (h *Hub) observe(ev node.Event) {
 				e.Entry.Height, e.Entry.Selected = info.Height, info.Selected
 			}
 		})
-		out = append(out, sized{e, subjectOf(s, ev.Key.Index, filter.KindEntry, txs, nil)})
+		out = append(out, sized{e: e, sub: subjectOf(s, ev.Key.Index, filter.KindEntry, txs, nil)})
 	case ev.Layer != nil:
 		e := base
 		e.Kind = filter.KindLayer
@@ -228,7 +253,7 @@ func (h *Hub) observe(ev node.Event) {
 				txs = txsOf(s, en)
 			}
 		})
-		out = append(out, sized{e, subjectOf(s, ev.Key.Index, filter.KindLayer, txs, nil)})
+		out = append(out, sized{e: e, sub: subjectOf(s, ev.Key.Index, filter.KindLayer, txs, nil)})
 	}
 	if ev.Switch != nil {
 		out = append(out, h.switchEvents(s, ev.Key, base, ev.Switch)...)
@@ -237,7 +262,7 @@ func (h *Hub) observe(ev node.Event) {
 		e := base
 		t := tid
 		e.Kind, e.TID = filter.KindDropped, &t
-		out = append(out, sized{e, filter.Subject{Series: s.ID(), Hash: s.Hash(), Pool: ev.Key.Index, HasPool: true, TIDs: []hash.Hash{tid}, Kind: filter.KindDropped}})
+		out = append(out, sized{e: e, sub: filter.Subject{Series: s.ID(), Hash: s.Hash(), Pool: ev.Key.Index, HasPool: true, TIDs: []hash.Hash{tid}, Kind: filter.KindDropped}})
 	}
 	h.deliver(out)
 }
@@ -246,6 +271,8 @@ func (h *Hub) observe(ev node.Event) {
 type sized struct {
 	e   Event
 	sub filter.Subject
+	// match, when set, decides instead of matching sub.
+	match func(filter.Filter) bool
 }
 
 func (h *Hub) switchEvents(s *series.Series, k engine.PoolKey, base Event, sw *ledger.Switch) []sized {
@@ -263,7 +290,7 @@ func (h *Hub) switchEvents(s *series.Series, k engine.PoolKey, base Event, sw *l
 				v := t
 				e.Kind, e.Tx, e.TID = filter.KindSelected, &v, &v.TID
 				e.Entry = &EventEntry{Hash: eh, Height: height, Selected: true}
-				out = append(out, sized{e, v.Subject(s, filter.KindSelected)})
+				out = append(out, sized{e: e, sub: v.Subject(s, filter.KindSelected)})
 				applied = append(applied, t)
 			}
 		}
@@ -289,7 +316,7 @@ func (h *Hub) switchEvents(s *series.Series, k engine.PoolKey, base Event, sw *l
 		} else {
 			displacedTIDs = append(displacedTIDs, tid)
 		}
-		out = append(out, sized{e, sub})
+		out = append(out, sized{e: e, sub: sub})
 	}
 	for _, d := range sw.Carried {
 		es.Carried = append(es.Carried, d.TID)
@@ -302,7 +329,7 @@ func (h *Hub) switchEvents(s *series.Series, k engine.PoolKey, base Event, sw *l
 	e := base
 	e.Kind, e.Switch = filter.KindSwitch, es
 	all := append(append([]Tx(nil), applied...), displaced...)
-	out = append(out, sized{e, subjectOf(s, k.Index, filter.KindSwitch, all, displacedTIDs)})
+	out = append(out, sized{e: e, sub: subjectOf(s, k.Index, filter.KindSwitch, all, displacedTIDs)})
 	return out
 }
 
@@ -313,7 +340,7 @@ func (h *Hub) deliver(evs []sized) {
 		h.seq++
 		x.e.Seq = h.seq
 		for s := range h.subs {
-			if !s.f.Match(x.sub) {
+			if x.match != nil && !x.match(s.f) || x.match == nil && !s.f.Match(x.sub) {
 				continue
 			}
 			select {

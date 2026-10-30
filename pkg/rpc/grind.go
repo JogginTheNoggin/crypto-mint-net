@@ -13,6 +13,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 )
 
 // Grinding (milestone M11, decision D109):
@@ -23,6 +24,9 @@ import (
 //	GET    /v1/grind/{id}     one job
 //	DELETE /v1/grind/{id}     stop a job
 //	DELETE /v1/grind          stop every job (?source=user: only those)
+//	POST   /v1/grind/{id}/renew  renew a job's lease
+//	GET    /v1/grind/schedule    node.json's grind section
+//	PUT    /v1/grind/schedule    replace it: saved, and applied at once
 //
 // build and work take device, threads and for, and reply with the plan
 // and rate. Starting and stopping are writes: the view token cannot.
@@ -64,6 +68,87 @@ func (h *Handler) grindRoutes() {
 	h.mux.HandleFunc("GET /v1/grind/{id}", h.grindJob)
 	h.mux.HandleFunc("DELETE /v1/grind/{id}", h.grindStop)
 	h.mux.HandleFunc("DELETE /v1/grind", h.grindStopAll)
+	h.mux.HandleFunc("POST /v1/grind/{id}/renew", h.grindRenew)
+	h.mux.HandleFunc("GET /v1/grind/schedule", h.grindSchedule)
+	h.mux.HandleFunc("PUT /v1/grind/schedule", h.grindSetSchedule)
+}
+
+// ScheduleReply is the grind section of node.json and, after a change,
+// the jobs it started and why any did not start.
+type ScheduleReply struct {
+	Grind   nodepolicy.Grind `json:"grind"`
+	Started []grind.Job      `json:"started,omitempty"`
+	// Failed maps a job's index in Grind.Jobs to why it did not start.
+	Failed map[int]string `json:"failed,omitempty"`
+}
+
+func (h *Handler) grindRenew(w http.ResponseWriter, r *http.Request) {
+	if !h.needGrind(w) {
+		return
+	}
+	id, ok := h.jobID(w, r)
+	if !ok {
+		return
+	}
+	j, err := h.grind.Renew(id)
+	if err != nil {
+		writeError(w, &Error{Message: fmt.Sprintf("no job %d", id), Code: CodeNotFound, Status: http.StatusNotFound})
+		return
+	}
+	writeJSON(w, j)
+}
+
+func (h *Handler) grindSchedule(w http.ResponseWriter, r *http.Request) {
+	p, err := nodepolicy.Load(h.policyPath())
+	if err != nil {
+		writeError(w, classify(err))
+		return
+	}
+	var g nodepolicy.Grind
+	if p.Grind != nil {
+		g = *p.Grind
+	}
+	writeJSON(w, ScheduleReply{Grind: g})
+}
+
+// grindSetSchedule saves a new grind section and applies it without a
+// reload, so running user jobs go on.
+func (h *Handler) grindSetSchedule(w http.ResponseWriter, r *http.Request) {
+	var g nodepolicy.Grind
+	if e := decodeBody(r, &g); e != nil {
+		writeError(w, e)
+		return
+	}
+	path := h.policyPath()
+	p, err := nodepolicy.Load(path)
+	if err != nil {
+		writeError(w, classify(err))
+		return
+	}
+	p.Grind = &g
+	if g.Device == "" && g.Threads == 0 && len(g.Jobs) == 0 {
+		p.Grind = nil
+	}
+	if err := p.Validate(); err != nil {
+		writeError(w, &Error{Message: err.Error(), Code: CodeInvalid, Status: http.StatusUnprocessableEntity})
+		return
+	}
+	if err := nodepolicy.Save(path, p); err != nil {
+		writeError(w, classify(err))
+		return
+	}
+	reply := ScheduleReply{Grind: g}
+	if h.grind != nil {
+		started, failed := h.grind.Schedule(p.Grind)
+		reply.Started = started
+		for i, err := range failed {
+			if reply.Failed == nil {
+				reply.Failed = map[int]string{}
+			}
+			reply.Failed[i] = err.Error()
+		}
+	}
+	writeJSON(w, reply)
 }
 
 var (

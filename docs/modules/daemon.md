@@ -36,7 +36,8 @@ atomic: a file spoiled between them still stops the node, as before.
 The daemon runs one [grind](grind.md) `Manager` per node (M11, D109). It
 takes its defaults from `node.json`'s `grind` section, sends its events
 to the watch hub as kind `grind`, and starts the section's jobs by
-itself. It is closed before the hub, on a reload and at a stop, so every
+itself (`Manager.Schedule`, which `PUT /v1/grind/schedule` calls again
+when the section changes, with no reload). It is closed before the hub, on a reload and at a stop, so every
 job ends and says so before the stream does; the policy's jobs start
 again after a reload. `pkg/daemon/grind_test.go` covers it.
 

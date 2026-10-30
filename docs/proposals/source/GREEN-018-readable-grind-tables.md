@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted |
 | Based on | `claude/m10-watch` @ `29b08ce` (code `a92c2ca`) |
 | Area | `pkg/cli/table.go` |
 | Effort | small |
-| Decided by | Grey |
+| Decided by | Grey, Source Round 6: as prototyped |
 
 ## Summary
 
