@@ -36,3 +36,6 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-006](source/ORANGE-006-grinder-per-hash.md) | Source | Grinding baseline, and an allocation-free grinder per hash | adopted |
 | [ORANGE-007](source/ORANGE-007-grind-on-all-cores.md) | Source | Grind on several cores, with the same result | adopted |
 | [ORANGE-008](source/ORANGE-008-fewer-weight-allocations.md) | Source | Fewer big-number allocations, and hash a layer once | adopted |
+| [GREEN-017](source/GREEN-017-grind-usability.md) | Source | Four rough edges in `poo grind` | proposed |
+| [GREEN-018](source/GREEN-018-readable-grind-tables.md) | Source | Readable tables for nested objects and rates | proposed (prototyped) |
+| [GREEN-019](source/GREEN-019-grind-until-tx-safe.md) | Source | Grind until my payment is safe (`tx:TID` target) | proposed |
