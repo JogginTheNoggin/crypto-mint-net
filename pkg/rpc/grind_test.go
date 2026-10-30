@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -149,6 +150,39 @@ func TestGrindEndpoints(t *testing.T) {
 			t.Fatalf("metrics lack %s:\n%s", want, body)
 		}
 	}
+
+	// RED-013: two schedules set at once leave node.json and the running
+	// policy jobs on the same one.
+	one := nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tip"}}}
+	three := nodepolicy.Grind{Threads: 1, Jobs: []nodepolicy.GrindJob{{Target: "tip"}, {Target: "tip"}, {Target: "tip"}}}
+	for round := 0; round < 10; round++ {
+		var wg sync.WaitGroup
+		for _, g := range []nodepolicy.Grind{one, three} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if _, err := c.GrindSetSchedule(g); err != nil {
+					t.Error(err)
+				}
+			}()
+		}
+		wg.Wait()
+		sr, err := c.GrindSchedule()
+		must(t, err)
+		jobs, err := c.GrindJobs()
+		must(t, err)
+		running := 0
+		for _, j := range jobs {
+			if !j.Done() && j.Spec.Source == "policy" {
+				running++
+			}
+		}
+		if running != len(sr.Grind.Jobs) {
+			t.Fatalf("round %d: node.json has %d jobs, %d running", round, len(sr.Grind.Jobs), running)
+		}
+	}
+	c.GrindSetSchedule(nodepolicy.Grind{})
+	c.GrindStopAll("")
 }
 
 // TestGrindWithoutManager: an interface with no grind manager still

@@ -5,7 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
@@ -141,5 +146,66 @@ func TestFalseBranchIsFlagged(t *testing.T) {
 	}
 	if st := a.h.Tracker().Status(key, time.Now()); st.FlagTotal == 0 || st.Priority {
 		t.Fatalf("sender not flagged: %+v", st)
+	}
+}
+
+// RED-012: a node that holds nothing takes in a whole ledger only while
+// its entries bring layers: a run of more than MaxBareRun entries without
+// any ends the fetch.
+func TestBareRunEndsFetch(t *testing.T) {
+	for _, c := range []struct {
+		bare, held int
+		selected   bool
+	}{{6, 7, true}, {10, 6, false}} {
+		a := startNode(t, "a", nil)
+		parent := exSeries.PoolID(exKey.Index)
+		for i := 0; i <= c.bare; i++ {
+			e, _, err := entry.Build(exSeries, parent, nil, 0)
+			must(t, err)
+			_, err = a.n.HandleEntry(exKey, e, engine.Local)
+			must(t, err)
+			parent = e.Hash(exSeries)
+		}
+		_, _, err := a.n.Work(exKey, parent, 0, 32) // a layer on the last only
+		must(t, err)
+		if a.status().Height != c.bare+1 {
+			t.Fatalf("a's height %d", a.status().Height)
+		}
+		d := startNode(t, "d", func(c *p2p.Config) { c.Limits.EntryLimit = 4; c.MaxBareRun = 6 })
+		d.connect(a)
+		held := func() (n int) {
+			d.n.Engine().Ledger(exKey, func(l *ledger.Pool) { n = l.Len() })
+			return n
+		}
+		eventually(t, "d to take in entries", func() bool { return held() >= c.held })
+		time.Sleep(300 * time.Millisecond)
+		if got := held(); got != c.held {
+			t.Fatalf("%d bare entries: d holds %d, want %d", c.bare, got, c.held)
+		}
+		if got := d.status().Height > 0; got != c.selected {
+			t.Fatalf("%d bare entries: d selected %v", c.bare, got)
+		}
+	}
+}
+
+// RED-012: requested entries pay the revert budget too, but a catch-up
+// and a fork switch taken in order cost next to nothing: each entry
+// builds on the state the last one left. Here the fork costs 6 units (3
+// entries of one transaction reverted), within a budget of 20, and a
+// budget of 5 stops it.
+func TestChaseInOrderCostsLittleRevert(t *testing.T) {
+	small := func(c *p2p.Config) { c.Limits.HashLimit = 4; c.Limits.EntryLimit = 3 }
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, Budgets: map[string]int{tracking.KindRevert: 20}}, "")
+	must(t, err)
+	a := startNode(t, "a", small)
+	b := startNode(t, "b", func(c *p2p.Config) { small(c); c.Tracker = tr })
+	last, owner := grow(t, a, nil, "alice", 5, 32)
+	copyLedger(t, a, b)
+	growTagged(t, b, last, owner, "b", 3, 32)
+	growTagged(t, a, last, owner, "a", 14, 32) // heavier: b reverts 3 and takes 14
+	b.connect(a)
+	converged(t, a, b)
+	if st := tr.Status("127.0.0.1:1", time.Now()); st.FlagTotal != 0 {
+		t.Fatalf("an honest switch was flagged: %+v", st)
 	}
 }

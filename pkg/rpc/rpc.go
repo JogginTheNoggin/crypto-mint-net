@@ -66,6 +66,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -167,6 +168,9 @@ type Handler struct {
 	token  []byte
 	view   []byte // the view token, or nil for none
 	mux    *http.ServeMux
+	// policyMu serialises the edits of node.json (follow, unfollow, the
+	// grind schedule), each a read, a change and a write (RED-013).
+	policyMu sync.Mutex
 }
 
 // NewHandler returns the HTTP handler for n, accepting only token.

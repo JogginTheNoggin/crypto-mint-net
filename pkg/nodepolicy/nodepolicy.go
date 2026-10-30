@@ -605,9 +605,35 @@ func Save(path string, p Policy) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+	// Each writer has its own temporary file, synced before the rename,
+	// so concurrent writers never tear the file, and a crash leaves the old
+	// or the new one (RED-013, decision D114).
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmp := f.Name()
+	_, err = f.Write(append(b, '\n'))
+	if err == nil {
+		err = f.Chmod(0o600)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if d, err := os.Open(dir); err == nil {
+		d.Sync()
+		d.Close()
+	}
+	return nil
 }

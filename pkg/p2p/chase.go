@@ -8,6 +8,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
@@ -236,7 +237,7 @@ func (e falseErr) Error() string { return e.err.Error() }
 // Whatever entries it sends are taken in like any requested data.
 func (h *Host) confirm(pi *poolInfo, q *peer) (bool, weight.Weight) {
 	tip, _, _ := h.tip(pi)
-	f, err := h.fetch(pi, q, wire.ExtensionReq{RequestCommon: h.common(), From: tip, Beat: h.ownWeight(pi), Variant: wire.EntriesWithLayers}, nil, nil)
+	f, err := h.fetch(pi, q, wire.ExtensionReq{RequestCommon: h.common(), From: tip, Beat: h.ownWeight(pi), Variant: wire.EntriesWithLayers}, nil, nil, nil)
 	if err != nil {
 		return false, weight.Zero
 	}
@@ -426,10 +427,10 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, common hash.Hash, after []hash.H
 // fetchBranch is step 5: extensions from the common entry, each entry
 // checked against the hash the sender listed for it.
 func (h *Host) fetchBranch(pi *poolInfo, p *peer, common hash.Hash, after []hash.Hash) (result, bool) {
-	from, idx := common, 0
+	from, idx, bare := common, 0, 0
 	for round := 0; round < maxRounds; round++ {
 		q := wire.ExtensionReq{RequestCommon: h.common(), From: from, Beat: h.ownWeight(pi), Variant: wire.EntriesWithLayers}
-		f, err := h.fetch(pi, p, q, after, &idx)
+		f, err := h.fetch(pi, p, q, after, &idx, &bare)
 		if err != nil {
 			return chaseErr(err), true
 		}
@@ -456,8 +457,9 @@ func (h *Host) fetchBranch(pi *poolInfo, p *peer, common hash.Hash, after []hash
 // pool, or a fast catch-up.
 func (h *Host) fetchAll(pi *poolInfo, p *peer, before weight.Weight) result {
 	var q wire.Request = wire.FullLedgerReq{RequestCommon: h.common(), Variant: wire.EntriesWithLayers}
+	bare := 0
 	for round := 0; round < maxRounds; round++ {
-		f, err := h.fetch(pi, p, q, nil, nil)
+		f, err := h.fetch(pi, p, q, nil, nil, &bare)
 		if err != nil {
 			return chaseErr(err)
 		}
@@ -480,8 +482,10 @@ type fetched struct {
 
 // fetch sends an extension or full ledger request and takes in the
 // entries of the reply as they arrive, in chain order. With expect, entry
-// *idx onwards must match the hashes listed there, in order.
-func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, expect []hash.Hash, idx *int) (fetched, error) {
+// *idx onwards must match the hashes listed there, in order. With bare, a
+// run of more than Config.MaxBareRun entries without layers (counted in
+// *bare across calls) ends the fetch.
+func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, expect []hash.Hash, idx *int, bare *int) (fetched, error) {
 	var f fetched
 	parent := pi.s.PoolID(pi.key.Index)
 	if e, ok := q.(wire.ExtensionReq); ok {
@@ -508,6 +512,13 @@ func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, expect []hash.Hash, 
 				}
 				*idx++
 			}
+			if bare != nil && !pi.s.EntryHashCredit() {
+				if len(it.Nonces) > 0 {
+					*bare = 0
+				} else if *bare++; *bare > h.cfg.MaxBareRun {
+					return errBareRun
+				}
+			}
 			if err := h.takeItem(pi, p, it, eh); err != nil {
 				return err
 			}
@@ -523,8 +534,35 @@ func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, expect []hash.Hash, 
 	return f, err
 }
 
+// errBareRun ends a fetch at a long run of entries that add no weight.
+var errBareRun = errors.New("too many entries in a row without layers")
+
+// errRevertBudget ends a fetch when the sender's revert budget is spent.
+var errRevertBudget = errors.New("the revert budget is spent")
+
+// spendRevert draws what checking e costs (Engine.EntryCost) from the
+// sender's revert budget. Pushed and requested entries both pay it
+// (RED-011, RED-012, decisions D111, D114).
+func (h *Host) spendRevert(pi *poolInfo, p *peer, e *entry.Entry) error {
+	c := h.n.Engine().EntryCost(pi.key, e)
+	if c == 0 {
+		return nil
+	}
+	ok, act := h.tr.Spend(p.key, tracking.KindRevert, uint64(c), time.Now())
+	if err := h.act(p, act); err != nil {
+		return err
+	}
+	if !ok {
+		return errRevertBudget
+	}
+	return nil
+}
+
 // takeItem takes in one requested entry and its layers.
 func (h *Host) takeItem(pi *poolInfo, p *peer, it wire.EntryItem, eh hash.Hash) error {
+	if err := h.spendRevert(pi, p, it.Entry); err != nil {
+		return err
+	}
 	_, err := h.n.HandleEntryFrom(pi.key, it.Entry, engine.Requested, p.id)
 	switch {
 	case err == nil, errors.Is(err, engine.ErrSeen):

@@ -159,3 +159,24 @@ func BenchmarkExtendLong(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkOffChainBranch takes in a branch of b.N empty entries with no
+// layers, parent first: the time per entry must not grow with b.N
+// (RED-012).
+func BenchmarkOffChainBranch(b *testing.B) {
+	s := testutil.ExampleSeries()
+	p := ledger.New(s, 1, ledger.Config{K: ledger.DefaultK})
+	parent := p.ID()
+	es := make([]*entry.Entry, b.N)
+	for i := range es {
+		e, _, err := entry.Build(s, parent, nil, 0)
+		if err != nil {
+			b.Fatal(err)
+		}
+		es[i], parent = e, e.Hash(s)
+	}
+	b.ResetTimer()
+	for _, e := range es {
+		mustAdd(b, p, e)
+	}
+}
