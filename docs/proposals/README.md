@@ -42,3 +42,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-009](source/ORANGE-009-m11-measured-and-blake3-cv.md) | Source | M11 measured, and a BLAKE3 grinder that keeps chaining values | adopted |
 | [ORANGE-010](source/ORANGE-010-keep-every-layer-above-a-floor.md) | Source | Keep every layer above a floor, not only the best per slice | open: the owner's call |
 | [ORANGE-011](source/ORANGE-011-simd-lanes-blake3.md) | Source | SIMD lanes, sixteen BLAKE3 layer tries at once | kept as a prototype |
+| [GREEN-020](source/GREEN-020-grind-schedule-and-leases.md) | Source | Schedules, leases and tx targets, used as a person would | proposed (prototyped in part) |

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 )
 
 // Table output for the read commands (GREEN-003). JSON stays the default,
@@ -254,11 +255,22 @@ func (t tabler) cell(n *jnode) string {
 	if s == "" {
 		return `""`
 	}
-	if !t.wide && len(s) > 16 && isHex(s) {
+	if t.wide {
+		return s
+	}
+	if len(s) > 16 && isHex(s) {
 		return s[:8] + ".." + s[len(s)-4:]
 	}
-	if n.num && !t.wide {
+	// A prefixed hash, such as the grinder's tx:TID target (GREEN-020).
+	if i := strings.IndexByte(s, ':'); i > 0 && i <= 8 && len(s)-i-1 > 16 && isHex(s[i+1:]) {
+		return s[:i+1] + s[i+1:i+9] + ".." + s[len(s)-4:]
+	}
+	if n.num {
 		return roundNum(s)
+	}
+	// A time to the nanosecond reads as a second in a table (GREEN-020).
+	if ts, err := time.Parse(time.RFC3339Nano, s); err == nil && strings.Contains(s, ".") {
+		return ts.Truncate(time.Second).Format(time.RFC3339)
 	}
 	return s
 }

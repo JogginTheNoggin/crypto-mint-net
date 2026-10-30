@@ -3,6 +3,7 @@ package grind
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -489,5 +490,23 @@ func TestTxTarget(t *testing.T) {
 	w = f.waitFor(t, w.ID, func(j Job) bool { return j.State == StateWaiting })
 	if w.Reason != "the node does not hold the transaction yet" {
 		t.Fatalf("waiting tx job %+v", w)
+	}
+}
+
+// A job started outside its hours is waiting in the reply that starts it,
+// not "running" until its runner first looks (GREEN-020).
+func TestStartOutsideHours(t *testing.T) {
+	f := newFixture(t)
+	h := (time.Now().Hour() + 2) % 24
+	hours := fmt.Sprintf("%02d-%02d", h, (h+1)%24)
+	j, err := f.m.Start(Spec{Target: TargetTip, Hours: hours})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != StateWaiting || j.Reason != "outside its hours "+hours || j.Hint == "" {
+		t.Fatalf("started as %s (%q, %q)", j.State, j.Reason, j.Hint)
+	}
+	if _, _, ok := outsideHours("", time.Now()); ok {
+		t.Fatal("a job with no hours is outside them")
 	}
 }
