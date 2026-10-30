@@ -224,14 +224,17 @@ function buildLive(ctx) {
   stopBtn.onclick = () => { if (job) api.cancel(job.id).catch(() => {}); };
   // A grind run this GUI is already running, started before the page was
   // reloaded, is taken up again: shown from its start, with its Stop, so
-  // Run cannot start a second one beside it (GUI-010).
-  liveJob().then(j => {
-    if (!j || job) return;
+  // Run cannot start a second one beside it (GUI-010). Run is off until
+  // the job list has answered, so a Run pressed in that moment cannot
+  // start one either (GUI-011's notes).
+  runBtn.disabled = true;
+  liveJob().catch(() => null).then(j => {
+    if (!j) { runBtn.disabled = false; return; }
     job = j;
     setRunning(true);
     state.textContent = `running: ${job.command}`;
     follow();
-  }).catch(() => {});
+  });
   liveHooks = {
     detach: () => { if (unfollow) { unfollow(); unfollow = null; } },
     attach: () => { if (job && !unfollow) follow(); },

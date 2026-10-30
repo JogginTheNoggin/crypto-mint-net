@@ -96,10 +96,28 @@ Here is how a request flows:
 
 The node itself is a job too. "Start node" runs `poo node` in the GUI
 process, and closing the GUI (Ctrl-C, SIGTERM, or closing the terminal it
-was started from, SIGHUP) cancels it and every other job cleanly. If a node is already
+was started from; see Signals below) cancels it and every other job cleanly. If a node is already
 running, for example as a service, the client commands find it through
 its data directory, the same way they do from a shell. The GUI does not
 need to know which case it is in.
+
+### Signals
+
+Ctrl-C (SIGINT) and SIGTERM always stop poo-gui through its cancel path:
+every job is interrupted as Cancel would interrupt it, so a followed
+`grind run` stops the node's job and a hosted `poo node` shuts down,
+before poo-gui exits 0. SIGHUP depends on how poo-gui was started
+(GUI-010, GUI-011):
+
+| Started | SIGHUP |
+| --- | --- |
+| From a terminal (standard input is a terminal) | The terminal closed: poo-gui stops, as with SIGTERM |
+| With SIGHUP ignored, as `nohup poo-gui` does | Stays ignored: poo-gui outlives the session it was started from |
+| Without a terminal, for example by a service manager | A reload, as for `poo node`: poo-gui keeps running, and a node it hosts reloads its node policy |
+
+A GUI-hosted node can also be reloaded with `poo reload`, from the
+terminal or a shell, whichever way poo-gui was started. Windows sends no
+SIGHUP. Headless `poo node` also reloads on SIGHUP.
 
 ### Views
 

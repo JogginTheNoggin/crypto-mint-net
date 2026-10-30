@@ -1,7 +1,7 @@
 // End-to-end check of the Work view against a real node: the devices and
 // jobs poo grind lists, a job run and followed live with its plan and
 // rate, Stop ending it as an interrupt does (exit 0), and a reload taking
-// a running job up again.
+// a running job up again, and SIGHUP reloading the node it hosts.
 //
 //   node gui/e2e/work.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 import { execFileSync } from 'node:child_process';
@@ -11,7 +11,7 @@ import { launch, nodeStopped } from './lib.mjs';
 
 const bin = process.argv[2];
 const shots = process.argv[3];
-const { env, page, errors, close } = await launch(bin);
+const { env, pid, page, errors, close } = await launch(bin);
 const poo = (args, extra = {}) => execFileSync(bin, ['poo', ...args], { env: { ...env, ...extra } }).toString();
 const section = title => page.locator('section.panel', { has: page.locator('h2', { hasText: title }) }).first();
 
@@ -92,6 +92,14 @@ try {
   assert.ok(ids.includes('auto') && ids.includes('cpu'), `device choices ${ids}`);
   if (shots) await page.screenshot({ path: join(shots, 'work-jobs.png'), fullPage: true });
 
+  // Without a terminal SIGHUP is a reload (GUI-011): the node the GUI
+  // hosts reloads its node policy, and poo-gui keeps running.
+  await page.click('nav a[data-id=node]');
+  process.kill(pid, 'SIGHUP');
+  await page.locator('.live-out', { hasText: 'reloading its node policy' }).waitFor({ timeout: 20000 });
+  await page.locator('.run-status.live', { hasText: 'running: poo node' }).waitFor();
+  await page.click('nav a[data-id=work]');
+  await section('Devices').locator('.result', { hasText: 'cpu' }).waitFor();
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Stop node")');
   await nodeStopped(page);

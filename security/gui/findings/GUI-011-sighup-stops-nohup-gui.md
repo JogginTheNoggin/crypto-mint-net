@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (claude/gui-blue, pending Red's verification) |
 | Found on | claude/gui-4-watch @ e7df74b |
 | Component | gui/cmd/poo-gui/main.go (`stopSignals`), pkg/cli/node.go (`runNode`'s SIGHUP reload) |
 | Surface | local (availability of a node hosted in poo-gui) |
-| Fixed by | _(pending — GUI/Blue)_ |
+| Fixed by | GUI/Blue on claude/gui-blue (Round 6C) |
 
 ## Summary
 
@@ -96,3 +96,45 @@ SIGHUP reload becomes a shutdown in the headless node too.
   2×`MAX_EVENTS`, the rate line keeps 120 points, and the error box keeps the
   last 64 KiB for both stderr and non-JSON stdout lines (this was unbounded
   for stdout before). `draw.now()` on exit flushes what is waiting.
+
+## Fix (GUI/Blue, Round 6C)
+
+- **What SIGHUP means is now decided by `hangup(ignored, tty)`** in
+  `gui/cmd/poo-gui/main.go`. It replaces the fixed `stopSignals` list:
+  - Interrupt and SIGTERM always stop poo-gui through its cancel path.
+  - **Started from a terminal** (stdin is a terminal) and SIGHUP not ignored:
+    SIGHUP stops poo-gui, which is the GUI-010 case.
+  - **SIGHUP ignored at start** (`signal.Ignored`, which is what nohup does):
+    poo-gui never calls `Notify` for SIGHUP, so the signal stays ignored and
+    poo-gui outlives the session. A node it hosts still calls `Notify` for
+    its reload, as it did before GUI-010.
+  - **No terminal and SIGHUP not ignored** (a service manager, for example):
+    poo-gui catches SIGHUP into a channel no one reads, so neither its cancel
+    path nor Go's default exit runs. A hosted node gets the same signal on
+    its own channel and reloads its node policy.
+- **Terminal check.** `isTerminal` uses the standard library only, since the
+  GUI takes no outside dependencies (imports_test.go). It runs the `TCGETS`
+  ioctl on Linux (tty_linux.go) and `TIOCGETA` on darwin and the BSDs
+  (tty_bsd.go). Elsewhere it checks for a character device (tty_other.go),
+  which only matters where SIGHUP is never sent, such as Windows. `go vet`
+  passes for linux, darwin, freebsd, openbsd and windows.
+- **Double-follow race (from this finding's notes).** The Run a job panel
+  keeps Run off until the job list has answered. A Run pressed in that
+  moment can no longer start a job while the old one is being taken up.
+- **Docs.** docs/gui.md has a new Signals section with the table above.
+- **Tests.**
+  - `signal_test.go` pins the four cases in `TestHangupTable`, and checks
+    `isTerminal` on a pipe and on a pty.
+  - It runs poo-gui's `main` in a child process: on a pty, SIGHUP gives exit
+    0 (`TestHangupStopsCleanly`). With SIGHUP ignored through `sh -c 'trap ""
+    HUP; exec …'`, on a pty and on a pipe, SIGHUP leaves it running and
+    SIGTERM then gives exit 0 (`TestHangupNohup`). On a pipe, SIGHUP leaves
+    it running (`TestHangupNoTerminal`).
+  - With the GUI-010 list put back, the table, nohup and no-terminal tests
+    all fail.
+  - `e2e/work.mjs` sends SIGHUP to a poo-gui hosting a node (stdin is not a
+    terminal). It checks that the node logs "reloading its node policy",
+    still shows as running, and that the GUI keeps answering.
+- **For Source.** Do not put SIGHUP in `cmd/poo`'s global stop signals. The
+  coordinator reports that Source already handles it this way
+  (ReloadsOnHangup, with nohup respected).

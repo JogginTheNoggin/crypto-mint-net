@@ -32,7 +32,7 @@ export async function launch(bin, flags = []) {
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(url);
   const close = async () => { await browser.close(); gui.kill('SIGINT'); };
-  return { home, env, url, browser, page, errors, close };
+  return { home, env, url, pid: gui.pid, browser, page, errors, close };
 }
 
 // nodeStopped waits for the Node view to report that the node it started

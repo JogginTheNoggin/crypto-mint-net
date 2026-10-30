@@ -33,17 +33,40 @@ import (
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), stopSignals...)
+	stopOn, absorb := hangup(signal.Ignored(syscall.SIGHUP), isTerminal(os.Stdin))
+	if absorb {
+		signal.Notify(make(chan os.Signal, 1), syscall.SIGHUP)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), stopOn...)
 	code := run(ctx, os.Args[1:], cli.Stdio{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}, openURL)
 	stop()
 	os.Exit(code)
 }
 
-// stopSignals end poo-gui through its cancel path, so its jobs are
-// interrupted (a followed grind stops the node's job) before it exits.
-// SIGHUP is the terminal closing: left to Go's default it would exit at
-// once and skip that path (GUI-010). Windows never sends it.
-var stopSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
+// hangup says which signals end poo-gui through its cancel path, so its
+// jobs are interrupted (a followed grind stops the node's job) before it
+// exits, given whether SIGHUP was ignored at start and whether standard
+// input is a terminal (docs/gui.md, Signals).
+//
+// Interrupt and SIGTERM always stop it. SIGHUP stops it only when it was
+// started from a terminal, where SIGHUP means the terminal closed
+// (GUI-010). Started with SIGHUP ignored, as nohup does, poo-gui leaves it
+// ignored, so it outlives the session it was started from; catching it
+// would un-ignore it (GUI-011). Without a terminal, SIGHUP is a daemon's
+// reload: it does not stop poo-gui (absorb is true, so Go's default exit
+// does not run either), and a node the GUI hosts reloads its node policy
+// on it, as poo node does. Windows never sends SIGHUP.
+func hangup(ignored, tty bool) (stopOn []os.Signal, absorb bool) {
+	stopOn = []os.Signal{os.Interrupt, syscall.SIGTERM}
+	switch {
+	case ignored:
+	case tty:
+		stopOn = append(stopOn, syscall.SIGHUP)
+	default:
+		absorb = true
+	}
+	return stopOn, absorb
+}
 
 // run is the program; open shows a URL to the user.
 func run(ctx context.Context, args []string, s cli.Stdio, open func(url string, app bool) error) int {
