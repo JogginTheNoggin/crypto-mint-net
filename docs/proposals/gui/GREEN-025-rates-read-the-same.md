@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 6) |
 | Based on | claude/gui-4-watch @ 8b044ac |
 | Area | gui/web/static (render.js rateText; work.js found table) |
 | Effort | small |

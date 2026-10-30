@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 6) |
 | Based on | claude/gui-4-watch @ 8b044ac |
 | Area | gui/web/static/work.js (Work view, live run), scroll.js (`paced`) |
 | Effort | small |

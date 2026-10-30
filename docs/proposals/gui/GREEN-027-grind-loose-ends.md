@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | with Source (core output changes) |
 | Based on | claude/gui-4-watch @ 8b044ac |
 | Area | pkg/grind, pkg/cli grind (Source/Grey) |
 | Effort | small |

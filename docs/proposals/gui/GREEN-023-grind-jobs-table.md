@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 6) |
 | Based on | claude/gui-4-watch @ 8b044ac |
 | Area | gui/web/static/work.js (jobsTable, the Jobs panel's onResult), style.css |
 | Effort | small |
