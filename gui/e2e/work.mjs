@@ -70,7 +70,27 @@ try {
   // The node lists both jobs as ended.
   const jobs = section('Jobs');
   await jobs.locator('button:has-text("Refresh")').click();
-  await jobs.locator('.result', { hasText: 'stopped' }).waitFor();
+  await jobs.locator('table.grind-jobs tr', { hasText: 'stopped' }).first().waitFor();
+
+  // A job left to the node shows as a row with Stop, which runs
+  // poo grind stop ID; the rates read as H/s, as in the live counter.
+  const bg = section('Start a job in the background');
+  await bg.locator('button[type=submit]').click();
+  await bg.locator('.run-status.ok').waitFor();
+  await jobs.locator('button:has-text("Refresh")').click();
+  const going = jobs.locator('table.grind-jobs tr', { has: page.locator('button', { hasText: 'Stop' }) });
+  await going.first().waitFor();
+  assert.match(await jobs.locator('table.grind-jobs').innerText(), /H\/s/);
+  await going.first().locator('button', { hasText: 'Stop' }).click();
+  for (const end = Date.now() + 20000; await going.count();) {
+    assert.ok(Date.now() < end, 'the stopped job lost its Stop button');
+    await page.waitForTimeout(100);
+  }
+  // Device fields offer the ids poo grind devices printed, and auto.
+  assert.equal(await run.locator('input[name=device]').getAttribute('list'), 'grind-devices');
+  const ids = await page.locator('#grind-devices option').evaluateAll(os => os.map(o => o.value));
+  assert.ok(ids.includes('auto') && ids.includes('cpu'), `device choices ${ids}`);
+  if (shots) await page.screenshot({ path: join(shots, 'work-jobs.png'), fullPage: true });
 
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Stop node")');
