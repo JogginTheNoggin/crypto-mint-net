@@ -6,7 +6,7 @@
 //   NODE_PATH=$(npm root -g) node gui/perf/measure.mjs /tmp/perfgui [scenario ...]
 //
 // Scenarios: load, watch, terminal, node, refresh, jobs, command, render,
-// paused. None
+// paused, work. None
 // given runs them all.
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -247,6 +247,26 @@ if (want('paused')) {
   });
   out.paused = { events: n, ...f, ...f0, msIncludesOneSecondSettle: true, cost: diff(before, pick(await g.metrics())), resumeMaxFrameGapMs: resume.maxFrameGapMs };
   await g.close();
+}
+
+if (want('work')) {
+  // The Work view's live run of poo grind run, at rising rates of
+  // progress lines (a found line before every 4th).
+  out.work = [];
+  for (const [rate, n] of (process.env.WORK_RATES ? JSON.parse(process.env.WORK_RATES) : [[2, 120], [200, 4000], [2000, 20000], [0, 20000]])) {
+    const g = await launch(['-rate', String(rate), '-events', String(n)]);
+    await g.page.click('nav a[data-id=work]');
+    const before = pick(await g.metrics());
+    const doneAt = () => g.page.evaluate(n => (document.querySelector('.chart-wrap svg')?.getAttribute('aria-label') || '').length > 0 &&
+      !!document.querySelector('.counts') && document.querySelector('.counts').textContent.includes(`${(n - 1) * 1000} tries`), n);
+    let done = false;
+    const f = await frames(g.page, async () => {
+      await g.page.click('button:has-text("Run and follow")');
+      done = await until(g.page, doneAt, 180000);
+    });
+    out.work.push({ rate: rate || 'max', events: n, allShown: done, ...f, cost: diff(before, pick(await g.metrics())), foundRows: await g.page.evaluate(() => [...document.querySelectorAll('section.panel')].find(p => p.querySelector('h2')?.textContent === 'Run a job')?.querySelector('tbody')?.children.length) });
+    await g.close();
+  }
 }
 
 console.log(JSON.stringify(out, null, 2));

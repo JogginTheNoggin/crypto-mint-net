@@ -72,3 +72,21 @@ export function scrollback(pre, { max = MAX_CHARS, follow = false } = {}) {
     clear() { clearTimeout(timer); timer = 0; queue = []; queued = 0; pre.textContent = ''; blocks = []; size = 0; },
   };
 }
+
+// paced calls draw on an animation frame, at most once every `every` ms,
+// however often schedule is called (ORANGE-009): a view fed by a fast
+// stream keeps what arrives and draws it ten times a second. The first
+// schedule after a quiet spell draws on the next frame. now draws at once.
+export function paced(draw, every = DRAW_EVERY) {
+  let frame = 0, timer = 0, last = -Infinity;
+  const run = () => { frame = 0; last = performance.now(); draw(); };
+  return {
+    schedule() {
+      if (frame || timer) return;
+      const wait = last + every - performance.now();
+      if (wait <= 0) frame = requestAnimationFrame(run);
+      else timer = setTimeout(() => { timer = 0; frame = requestAnimationFrame(run); }, wait);
+    },
+    now() { cancelAnimationFrame(frame); clearTimeout(timer); frame = timer = 0; run(); },
+  };
+}
