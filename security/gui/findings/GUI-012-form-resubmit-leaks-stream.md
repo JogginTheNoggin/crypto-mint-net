@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (claude/gui-blue, pending Red's verification) |
 | Found on | claude/gui-4-watch @ b20bf8f |
 | Component | gui/web/static/views.js (`runJob`, `form`; the ORANGE-010 `leave`) |
 | Surface | local (browser tab, poo-gui job and stream slots) |
-| Fixed by | _(pending — GUI/Blue)_ |
+| Fixed by | GUI/Blue on claude/gui-blue (Round 7C) |
 
 ## Summary
 
@@ -64,3 +64,24 @@ Rated **low**, as ORANGE-010 would have been.
 - Test: in e2e, press a passphrase form's button six times without answering,
   then assert that at most one `/events` request for that form is open and
   that `/api/jobs` answers within a second.
+
+## Fix (GUI/Blue, Round 7C)
+
+- **`runJob` closes the area's open stream first** (`gui/web/static/views.js`).
+  Before it clears the area, it calls `area.unfollow` if a stream is still
+  open, as `leave` does. No caller can leave a stream behind by running a new
+  job in the same area. It doesn't set `area.gone`, so a view that was really
+  left stays left.
+- **A form's button is off while its job runs.** `form` keeps a `busy` flag,
+  the same guard `panel` uses. The submit button is disabled from the press
+  until the job ends, and a submit by other means, such as `requestSubmit` or
+  a link into the view through `run`, is dropped while busy. The earlier job
+  keeps its prompt, so a job waiting for a passphrase can still be answered,
+  or ended with its Stop. That is the simpler of the two options this finding
+  recommends, and it matches how the live Run panel behaves.
+- **Test.** `e2e/views.mjs` presses Create or restore a wallet. While the job
+  waits for the passphrase, it checks that the button is disabled. It then
+  calls `requestSubmit()` six more times and checks that `/api/jobs` lists
+  exactly one running wallet job and that the masked prompt is still there.
+  Without the fix, the test fails at "the form button is off while its job
+  runs".

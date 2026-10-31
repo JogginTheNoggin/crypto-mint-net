@@ -112,7 +112,25 @@ try {
   await defs.locator('input[name=threads]').fill('1');
   await defs.locator('button[type=submit]').click();
   await sched.locator('.counts', { hasText: 'device auto, 1 thread.' }).waitFor({ timeout: 10000 });
-  await row.locator('button', { hasText: 'Remove' }).click();
+  // Two quick Removes (GUI-013): the first turns every Remove off until
+  // the table is drawn again, so the second cannot go by a shifted number.
+  for (const t of ['pending', 'tip']) {
+    await add.locator('input[name=target]').fill(t);
+    await add.locator('input[name=hours]').fill(t === 'pending' ? '1-2' : '3-4');
+    await add.locator('button[type=submit]').click();
+    await add.locator('.run-status.ok').waitFor();
+    await sched.locator('table.grind-schedule tbody tr', { hasText: t === 'pending' ? '1-2' : '3-4' }).waitFor({ timeout: 10000 });
+  }
+  const removes = sched.locator('table.grind-schedule tbody button', { hasText: 'Remove' });
+  await sched.locator('table.grind-schedule tbody tr').nth(2).waitFor();
+  await removes.nth(0).click();
+  assert.ok(await removes.nth(1).isDisabled(), 'every Remove is off while one runs');
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '0-23' }).waitFor({ state: 'detached', timeout: 10000 });
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '1-2' }).locator('button', { hasText: 'Remove' }).click();
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '1-2' }).waitFor({ state: 'detached', timeout: 10000 });
+  assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 1, 'one job left');
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).waitFor();
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).locator('button', { hasText: 'Remove' }).click();
   await sched.locator('.empty', { hasText: 'No scheduled jobs' }).waitFor({ timeout: 10000 });
   for (const end = Date.now() + 20000; ;) {
     await jobs.locator('button:has-text("Refresh")').click();

@@ -53,6 +53,13 @@ try {
   const ask = create.locator('form.ask input');
   await ask.waitFor();
   assert.equal(await ask.getAttribute('type'), 'password');
+  // While it waits, the form runs no second job (GUI-012): the button is
+  // off, a submit by other means is dropped, and the prompt stays.
+  assert.ok(await create.locator('.actions button[type=submit]').isDisabled(), 'the form button is off while its job runs');
+  for (let i = 0; i < 6; i++) await create.locator('form.fields').evaluate(f => f.requestSubmit());
+  const waiting = await page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => !j.done && j.args[0] === 'wallet').length);
+  assert.equal(waiting, 1, 'one wallet job, not one per press');
+  await ask.waitFor();
   await ask.fill('views-secret');
   await ask.press('Enter');
   await create.locator('.run-status.ok').waitFor();

@@ -30,6 +30,9 @@ export function el(tag, attrs = {}, ...kids) {
 // {code, out, err}. secretOutput leaves out the Copy output button, for a
 // command whose output holds a secret (keygen prints its seed).
 export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {}) {
+  // A job still followed in this area gives up its stream before its
+  // output is cleared away, as leaving the view does (GUI-012).
+  if (area.unfollow) { area.unfollow(); area.unfollow = null; }
   area.textContent = '';
   const status = el('div', { class: 'run-status live' }, 'running…');
   const live = el('pre', { class: 'live-out' });
@@ -260,11 +263,21 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   f.addEventListener('input', showOnly);
   const line = cmdLine(args(values()), ctx);
   f.addEventListener('input', () => line.set(args(values())));
-  f.append(el('div', { class: 'actions' }, el('button', { type: 'submit', class: danger ? 'danger' : 'primary' }, submit)));
+  const submitBtn = el('button', { type: 'submit', class: danger ? 'danger' : 'primary' }, submit);
+  f.append(el('div', { class: 'actions' }, submitBtn));
+  // The button is off while the form's job runs, as a panel is busy: a
+  // second press would hide the first job's prompt and leave it waiting
+  // for input no one can give (GUI-012). Stop ends it.
+  let busy = false;
   f.addEventListener('submit', ev => {
     ev.preventDefault();
+    if (busy) return;
     if (danger && !confirm(`Run ${api.quote(args(values()))}?`)) return;
-    runJob(args(values()), area, { secretOutput }).then(r => { if (onResult) onResult(r, area); });
+    busy = submitBtn.disabled = true;
+    runJob(args(values()), area, { secretOutput }).then(r => {
+      busy = submitBtn.disabled = false;
+      if (onResult) onResult(r, area);
+    });
   });
   const sec = el('section', { class: 'panel' }, el('div', { class: 'panel-head' }, el('h2', {}, title)),
     about ? el('p', { class: 'hint' }, about) : null, f, line, area);

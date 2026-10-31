@@ -73,8 +73,11 @@ function scheduleTable(reply, refresh) {
   if (!jobs.length) return el('div', {}, defaults, ...failed, el('p', { class: 'hint empty' }, 'No scheduled jobs. Add one below.'));
   const body = el('tbody');
   jobs.forEach((j, i) => {
+    // A Remove turns every Remove off until the table is drawn again from
+    // the schedule poo then reads, so no click goes by a number the
+    // removal has already shifted (GUI-013).
     const remove = el('button', { type: 'button', class: 'small danger', onclick: async () => {
-      remove.disabled = true;
+      for (const b of body.querySelectorAll('button')) b.disabled = true;
       try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), String(i + 1)]); } finally { refresh(); }
     } }, 'Remove');
     body.append(el('tr', {},

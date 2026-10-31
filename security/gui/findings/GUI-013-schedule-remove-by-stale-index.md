@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | GUI part fixed (claude/gui-blue); core identity check pending (Source) |
 | Found on | claude/gui-4-watch @ b20bf8f |
 | Component | gui/web/static/work.js (`scheduleTable`, Remove), pkg/cli/grind.go (`grindSchedule remove N`) |
 | Surface | node (node.json's grind section, applied at once by a running node) |
-| Fixed by | _(pending — GUI/Blue; optional core part for Source)_ |
+| Fixed by | GUI/Blue on claude/gui-blue (Round 7C); core part to Source via GUI/Grey |
 
 ## Summary
 
@@ -106,3 +106,25 @@ configuration, and it needs no attacker. Rated **low**.
   chosen action does not take, which matches the core's `flagsFor`. The crypto
   `<datalist>`s are filled from `poo crypto` with `el`, and the one-time
   `focusin` lookup runs only the read-only `poo crypto`.
+
+## Fix (GUI/Blue, Round 7C)
+
+- **Every Remove is off while one runs** (`gui/web/static/work.js`,
+  `scheduleTable`). A Remove click disables every Remove button in the table.
+  The table is then drawn again from a fresh `poo grind schedule` (the
+  existing `refresh`), which gives new buttons with the new numbering. So two
+  quick clicks can't both use numbers from the same drawing. The view also
+  reads the schedule again each time it is shown, and the Add and Set forms
+  already redraw it through `afterSchedule`.
+- **Test.** `e2e/work.mjs` schedules three jobs (hours `0-23`, `1-2` and
+  `3-4`) and clicks Remove on row 1. It checks that row 2's Remove is
+  disabled at once. When the table is redrawn it removes the `1-2` row by its
+  content, then checks that only the `3-4` job is left. Without the fix, the
+  test fails at "every Remove is off while one runs".
+- **Left to the core.** A change made somewhere else (the terminal, another
+  tab, a script) between the drawing and a click can still shift the
+  numbers. Only an identity check in `poo grind schedule remove` closes that,
+  for example `remove N -target T` as GREEN-031 proposes. Once the core takes
+  it, the GUI will pass each row's target. As of this fix, no pushed branch
+  has that flag, so the GUI doesn't send it yet. It goes to Source through
+  GUI/Grey.

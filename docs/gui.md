@@ -125,7 +125,8 @@ Each view is a set of panels and forms. A panel runs one command when it
 opens (some refresh on a timer) and renders its output. JSON becomes
 tables and lists, and any other output is shown exactly as printed. A form
 builds one command line from its fields. Its preview updates as you type,
-and Run starts that exact line. Every panel and form shows its command,
+and Run starts that exact line. Run stays off while that job runs, so a
+prompt it shows is never replaced by a second job. Every panel and form shows its command,
 with a button that runs it in the terminal.
 
 | View | Commands |
@@ -133,7 +134,7 @@ with a button that runs it in the terminal.
 | Getting started | First steps, each a command line run in the terminal |
 | Node | `node` (start and stop it in the GUI), `status`, `follow`, `unfollow`, `reload`, `init` |
 | Watch | `watch` with the filter flags: live events, newest first, with pause, counts and each event in full. It keeps running when you switch views, and its tab shows a dot; Stop ends it |
-| Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poo` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job, `grind schedule add` and `grind schedule set`. It keeps running when you switch views, and a reload takes a running job up again with its Stop |
+| Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poo` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job (one Remove at a time, then the table is read again), `grind schedule add` and `grind schedule set`. It keeps running when you switch views, and a reload takes a running job up again with its Stop |
 | Explore | `pools`, `ledger` (page by page), `pending`, `unspent`, `tx`, `address`, with the same filter flags |
 | Pools and payments | `status`, `holdings`, `payment`, `build`, `work` |
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
