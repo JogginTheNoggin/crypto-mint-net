@@ -45,3 +45,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-020](source/GREEN-020-grind-schedule-and-leases.md) | Source | Schedules, leases and tx targets, used as a person would | items 1 and 2 adopted (D119) |
 | [ORANGE-012](source/ORANGE-012-sha256-lanes-and-lane-grinders.md) | Source | SHA-256 lanes, and lane searches wired as grinders (opt-in build) | adopted (D119) |
 | [ORANGE-013](source/ORANGE-013-job-stop-and-progress.md) | Source | Round 6 jobs measured; stop without polling, progress each second | adopted (D119) |
+| [GREEN-032](source/GREEN-032-layer-floor-and-help.md) | Source | `layer_floor` that stays set, and `-h` that succeeds | proposed (prototyped) |

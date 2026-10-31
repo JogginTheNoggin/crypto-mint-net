@@ -164,3 +164,15 @@ func (s *syncBuffer) String() string {
 	defer s.mu.Unlock()
 	return s.b.String()
 }
+
+// -h prints the usage and exits 0, with no "flag: help requested", for a
+// command, a subcommand and a grouped command (GREEN-032).
+func TestHelpFlagExitsZero(t *testing.T) {
+	for _, args := range [][]string{{"pools", "-h"}, {"grind", "schedule", "set", "-h"}, {"peer", "block", "--help"}} {
+		var out, errOut bytes.Buffer
+		code := Main(context.Background(), args, Stdio{Out: &out, Err: &errOut})
+		if code != 0 || strings.Contains(errOut.String(), "help requested") || !strings.Contains(errOut.String()+out.String(), "Usage") {
+			t.Errorf("%v: exit %d, %q", args, code, errOut.String())
+		}
+	}
+}

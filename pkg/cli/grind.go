@@ -392,7 +392,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	var c *clientFlags
 	var pf *poolFlags
 	var device, until, hours, target *string
-	var threads *int
+	var threads, floor *int
 	var all *bool
 	var expect *string
 	switch op {
@@ -415,6 +415,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	case "set":
 		device = fs.String("device", "", "the default device: auto, cpu, gpu:0, ... (auto clears it)")
 		threads = fs.Int("threads", 0, "the default threads (0: every core but one)")
+		floor = fs.Int("layer-floor", 0, "keep every layer the node's grinding finds at or above this strength, 0 to 256 (0: only the strongest of each search)")
 	default:
 		return fmt.Errorf("poo grind schedule %s: unknown; it is add, remove or set", op)
 	}
@@ -534,6 +535,8 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 				}
 			case "threads":
 				next.Threads = *threads
+			case "layer-floor":
+				next.LayerFloor = *floor
 			}
 		})
 	}
@@ -545,7 +548,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		return writeJSON(out, r)
 	}
 	p.Grind = &next
-	if next.Device == "" && next.Threads == 0 && len(next.Jobs) == 0 {
+	if next.IsZero() {
 		p.Grind = nil
 	}
 	if err := p.Validate(); err != nil {
