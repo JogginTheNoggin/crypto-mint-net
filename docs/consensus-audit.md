@@ -32,7 +32,146 @@ node from reaching a heavier valid ledger or make it refuse valid data
 works as a depth limit on switching, which the main document forbids. G4
 looks like a security gap and is worth a Red check.
 
-Nothing was changed or removed. The owner decides each item.
+The audit changed no code. On 2026-10-31 the owner decided every item
+(below): C1, C2, G1, G2 and G3 are refused and are to be replaced by node
+policy that can never make a heavier ledger unacceptable. The plan for
+Source Round 7 Part A is in [Plan](#plan-for-source-round-7-part-a).
+
+## The owner's decisions (2026-10-31)
+
+The rule, in the owner's words: "no new consensus rules without approval.
+You should target node policy primarily, with the one condition that the
+node policy cannot lead to a heavier ledger being unacceptable, ie hard
+forks should not be possible under any condition, regardless of node
+policies." It is now a standing rule in [AGENTS.md](../AGENTS.md#rules).
+
+| Item | Decision |
+|---|---|
+| C1, entry size cap | Refused. Find another way. |
+| C2, transaction input and output cap | Refused. Find another way. |
+| G1, revert budget as a depth limit | Refused: hard forks must not be possible in any scenario. |
+| G2, `MaxBareRun` | Refused. Find another way, probably with no setting at all. |
+| G3, chase depth limit | Refused: no hard forks and no depth limits, not even as node policy. The main document wins over the chasing document here. |
+| G4, known-bad list | Explained to the owner; a fix is proposed below as P5, pending the owner's word. |
+
+What "unacceptable" means for node policy, so every setting can be tested
+against it: **if a valid ledger heavier than a node's selected ledger is
+served by any peer the node can reach, the node takes it in and selects it
+in the end, whatever its settings.** Node policy may decide when, how fast,
+from whom and in what order, and may ask for proof of work before it
+spends anything. It may never refuse such a ledger for good, and no limit
+may be one that every peer would hit.
+
+## Plan for Source Round 7 Part A
+
+For Source Grey. Every item removes a rule or limit and puts node policy
+that delays, paces or asks for work in its place. None changes a byte
+form, so no test vectors change. Each needs a decision entry (D115
+onwards) and a test that fails on today's code.
+
+### P0. A test for the rule
+
+Add a `pkg/sim` scenario, and a `pkg/p2p` test over real connections,
+where a node must end up on a heavier valid ledger that is: forked
+deeper than today's revert budget, longer than 4,096 entries without
+layers, split deeper than 16 hash chain pages, holds one entry larger than
+16 MiB, and holds a transaction with more than 65,536 outputs. Run it with
+the default policy and with the tightest values every limit allows. It
+fails today on each item and must pass after P1 to P4. Keep it in CI as
+the guard for the rule.
+
+### P1. C1 and C2: no size caps; large items travel in parts
+
+- Drop `entry.MaxTxs`, `tx.MaxInputs`, `tx.MaxOutputs` and the witness
+  count cap from decoding. `encoding.Reader.Count` already refuses a count
+  larger than the bytes left could hold, so memory stays in proportion to
+  the bytes actually received. The byte form is unchanged.
+- A new pair of wire message types (D76 allows new types in wire
+  version 1) carries an entry, or a transaction, larger than one frame in
+  parts: first its header (parent, nonce, count, total size, and its
+  hash), then its transactions in order. The receiver checks each part as
+  it arrives and builds the entry on disk, not in memory. Large items are
+  only ever sent on request, never pushed; a pushed notice with the hash
+  and stated weight starts a chase as usual.
+- Node policy may limit how many bytes are being put together at once
+  from one peer, and how fast. Over the limit the node waits and asks
+  again, from that peer or another one. It never refuses.
+- The store writes a record larger than `MaxRecordSize` as several
+  records (a store format change, which is local).
+- The pending pool may still refuse a huge pending transaction (it never
+  refuses a ledger), but the same transaction inside an entry is always
+  taken.
+
+### P2. G1: charge only unproven work, and never refuse for good
+
+- Keep charging the revert budget for pushed entries that would make the
+  node undo its ledger, so free deep pushes stay cheap to ignore. Over
+  budget, the entry is not dropped for good: its hash and stated weight go
+  to the chase queue, as an entry with an unknown parent does today.
+- A chase whose work check has passed (its provisional layers add up to
+  more than the weight to beat) takes its entries without the budget. The
+  sender has already shown real work greater than the node's own ledger
+  after the fork, which is the design's own price for a switch. If such
+  reverts need pacing, at most one runs at a time per pool, queued, never
+  refused.
+- A chase that skipped the work check (fast catch-up) is charged, but over
+  budget it waits for the next window instead of failing.
+- Remove the case where one entry that costs more than a whole window can
+  never be taken.
+- Later, for Orange: make the revert itself cheaper (building the state
+  after a deep parent without holding the engine's lock).
+
+### P3. G2: remove `MaxBareRun`
+
+- Remove the setting and `errBareRun`.
+- Entries are already fetched only after the work check passes. During a
+  fetch, recheck the branch's provisional work against the node's current
+  selected weight: once a heavier ledger has been selected meanwhile, the
+  chase ends as "not heavier", which is an honest outcome, and is retried
+  only on new evidence. A long branch of empty entries can then cost a
+  node only while it is really the heaviest ledger the node has seen.
+- Fetching is paced per sender (entries a second), which delays and never
+  refuses.
+
+### P4. G3: no depth limit; find the split in a few requests
+
+- Remove `DepthLimit` and the `FastCatchUp` gate on deep splits.
+- Find the common entry by halving over the node's own selected ledger:
+  an extension request from an entry the node holds is answered with an
+  extension (the sender's ledger holds it) or "heavier, not from this
+  entry". This uses only requests the ledger data document already has,
+  anchored on entries the node holds, so a sender cannot make the search
+  longer with made-up hashes: it takes about log2(height) requests at any
+  depth (about 20 at a million entries). A lie only moves the split to an
+  older entry, which costs more fetching and still ends at a correct
+  ledger, or fails the link check and is provably false.
+- Hash chain paging is kept only after the common entry, where the work
+  check covers it: made-up hashes carry no real layers.
+- A chase that runs long is never dropped for its length. It yields its
+  chase slot after a time slice and goes back to the queue with its
+  progress kept, so a slow or lying sender cannot hold the slots that an
+  honest heavier ledger needs.
+
+### P5. G4: list only what was shown false (pending the owner)
+
+Put on the known-bad list only the hash that is itself shown false: the
+sender's listed hash that did not match, or the hash of an entry that is
+invalid. Never the hash of an entry that is valid. A weak layer flags the
+sender but lists nothing, since a layer is not an entry. This removes the
+case where one peer makes a node ignore new data on a valid entry for a
+day.
+
+### Also to check against the rule
+
+- **Source ORANGE-010** (keep only layers above a minimum strength, which
+  the owner would leave to node policy): a node that drops layers counts
+  less weight than its peers and could read a heavier ledger as lighter,
+  which the rule forbids. It is allowed only if the node keeps each
+  entry's counted credit and drops only the stored layer bytes.
+- **Pruning to the top K** stays allowed: a pruned ledger is fetched again
+  through a chase when a peer states that it is heavier.
+- **The chasing document** still describes a depth limit. Changing that
+  document is the owner's call.
 
 ## Items for the owner
 

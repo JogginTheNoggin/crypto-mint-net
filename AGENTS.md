@@ -173,6 +173,18 @@ fixes, what changed, the tests added, and how Grey can check it.
 
 ## Rules
 
+- **No new consensus rules, and no hard forks through node policy**
+  (the owner, 2026-10-31). Do not add a rule that decides whether a
+  ledger, entry, layer or transaction is valid or selected unless it is in
+  the design documents or the owner has approved it; record any you
+  propose in `docs/consensus-audit.md` and ask. Prefer node policy, but
+  node policy must never make a heavier valid ledger unacceptable: if any
+  reachable peer serves a valid ledger heavier than the selected one, the
+  node takes it in and selects it in the end, whatever its settings. A
+  setting may delay, pace, order, choose peers or ask for work first. It
+  may never refuse such a ledger for good, and it may never be a depth
+  limit or a size limit that every peer would hit. The `pkg/sim` scenario
+  for this (consensus-audit P0) must keep passing.
 - Do not import anything outside the Go standard library without recording
   the reason in `docs/decisions.md`.
 - Do not add network, disk or clock access to `tx`, `entry`, `layer`,
