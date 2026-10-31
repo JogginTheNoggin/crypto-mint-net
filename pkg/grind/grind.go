@@ -40,6 +40,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 )
 
@@ -88,6 +89,10 @@ type Grinder struct {
 	Hash hash.ID
 	// New returns the hasher maker for device d and hash id.
 	New func(d Device, id hash.ID) (hash.NewHasher, error)
+	// Search, if set, returns a layer search for device d and hash id
+	// that tries many nonces at once, such as with SIMD lanes; layers are
+	// searched with it and entries still with New (ORANGE-012).
+	Search func(d Device, id hash.ID) (layer.Search, error)
 }
 
 // Registry holds the grinders and device probes. The zero value is empty;
@@ -221,6 +226,7 @@ type Plan struct {
 	Reason   string `json:"reason"`
 
 	newHasher hash.NewHasher
+	search    layer.Search
 }
 
 // ErrNoDevice is returned for a device that is not there or cannot grind
@@ -270,6 +276,12 @@ func (r *Registry) Choose(devs []Device, id hash.ID, want string, threads int) (
 	if err != nil {
 		return Plan{}, err
 	}
+	var search layer.Search
+	if g.Search != nil {
+		if search, err = g.Search(d, id); err != nil {
+			return Plan{}, err
+		}
+	}
 	switch {
 	case fallback:
 		why += fmt.Sprintf("%s has no fast grinder for %s, so the generic one runs", d.ID, id.Name())
@@ -284,7 +296,7 @@ func (r *Registry) Choose(devs []Device, id hash.ID, want string, threads int) (
 	if d.Threads > 0 && threads > d.Threads {
 		threads = d.Threads
 	}
-	return Plan{Device: d.ID, Kind: d.Kind, Grinder: g.Name, Hash: id.Name(), Threads: threads, Fallback: fallback, Reason: why, newHasher: nh}, nil
+	return Plan{Device: d.ID, Kind: d.Kind, Grinder: g.Name, Hash: id.Name(), Threads: threads, Fallback: fallback, Reason: why, newHasher: nh, search: search}, nil
 }
 
 func defaultThreads(d Device) int {
@@ -297,7 +309,7 @@ func defaultThreads(d Device) int {
 // Engine returns the engine.Grind for this plan, counting tries in tried
 // if not nil.
 func (p Plan) Engine(tried *atomic.Uint64) engine.Grind {
-	return engine.Grind{New: p.newHasher, Workers: p.Threads, Tried: tried}
+	return engine.Grind{New: p.newHasher, Workers: p.Threads, Tried: tried, Search: p.search}
 }
 
 // newDefault returns a registry with the CPU probe, the GPU probe, a fast

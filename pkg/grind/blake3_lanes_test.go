@@ -17,7 +17,7 @@ func TestBLAKE3LanesMatchGrind(t *testing.T) {
 	f, _ := hash.Lookup(hash.BLAKE3)
 	for _, c := range []struct{ from, n uint64 }{{0, 16}, {0, 4096}, {1 << 40, 1 << 16}, {12345, 160}} {
 		for e := byte(0); e < 3; e++ {
-			entry := hash.Hash{e, 7}
+			entry := fullEntry(e)
 			want, ws := layer.Grind(f, entry, c.from, c.n)
 			n, s := blake3LayerLanes(entry, c.from, c.n)
 			if n != want.Nonce || s != ws {

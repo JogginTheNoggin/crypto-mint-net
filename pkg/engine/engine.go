@@ -539,6 +539,9 @@ type Grind struct {
 	New     hash.NewHasher
 	Workers int
 	Tried   *atomic.Uint64
+	// Search, when set, searches layers a range of nonces at a time
+	// instead of hashing each with New (ORANGE-012).
+	Search layer.Search
 }
 
 func (g Grind) hasher(s *series.Series) hash.NewHasher {
@@ -619,7 +622,13 @@ func (e *Engine) GrindLayerWith(ctx context.Context, k PoolKey, entryHash hash.H
 	if !held {
 		return layer.Layer{}, ledger.ErrUnknownEntry
 	}
-	l, strength, err := layer.GrindWith(ctx, g.hasher(s), entryHash, start, tries, g.Workers, g.Tried)
+	var l layer.Layer
+	var strength int
+	if g.Search != nil {
+		l, strength, err = layer.GrindSearch(ctx, g.Search, entryHash, start, tries, g.Workers, g.Tried)
+	} else {
+		l, strength, err = layer.GrindWith(ctx, g.hasher(s), entryHash, start, tries, g.Workers, g.Tried)
+	}
 	if err != nil && ctx.Err() == nil {
 		return l, err
 	}

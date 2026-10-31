@@ -575,3 +575,42 @@ func TestStartOutsideHours(t *testing.T) {
 		t.Fatal("a job with no hours is outside them")
 	}
 }
+
+// TestProgressEachSecond: a job reports progress each second, within a
+// slice and not only at its end, and Stop returns once the job has ended,
+// without polling (ORANGE-013).
+func TestProgressEachSecond(t *testing.T) {
+	f := newFixture(t)
+	first, _ := f.s.PoolRange(1)
+	if _, err := f.n.HandleTx(f.k.Claim(first, testutil.P("alice", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	progress := 0
+	f.m.OnEvent(func(e Event) {
+		if e.Kind == "progress" {
+			mu.Lock()
+			progress++
+			mu.Unlock()
+		}
+	})
+	pj, _ := f.m.Start(Spec{Target: TargetPending})
+	f.waitFor(t, pj.ID, func(j Job) bool { return j.Entries == 1 })
+	f.m.Stop(pj.ID)
+	mu.Lock()
+	progress = 0
+	mu.Unlock()
+	tj, _ := f.m.Start(Spec{Target: TargetTip})
+	time.Sleep(4500 * time.Millisecond)
+	t0 := time.Now()
+	j, _ := f.m.Stop(tj.ID)
+	if d := time.Since(t0); !j.Done() || d > 200*time.Millisecond {
+		t.Fatalf("stop took %s: %+v", d, j)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	// Slices of 2 s would give two; a report each second gives four.
+	if progress < 3 {
+		t.Fatalf("%d progress events in 4.5 s", progress)
+	}
+}

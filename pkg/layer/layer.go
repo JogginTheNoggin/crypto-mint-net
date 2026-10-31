@@ -123,6 +123,40 @@ const checkEvery = 1 << 12
 // (strength -1 if none) with ctx's error; with every nonce tried the
 // result is GrindHash's, whatever the number of workers.
 func GrindWith(ctx context.Context, newHasher hash.NewHasher, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64) (Layer, int, error) {
+	return grind(ctx, entry, start, tries, workers, tried, func() (Search, error) {
+		g, err := newHasher(entry[:])
+		if err != nil {
+			return nil, err
+		}
+		var buf [8]byte
+		return func(_ hash.Hash, from, n uint64) (uint64, int) {
+			bestNonce, best := from, -1
+			for nonce := from; nonce < from+n; nonce++ {
+				binary.BigEndian.PutUint64(buf[:], nonce)
+				if s := g.Hash(buf[:]).Strength(); s > best {
+					bestNonce, best = nonce, s
+				}
+			}
+			return bestNonce, best
+		}, nil
+	})
+}
+
+// Search tries the layers on entry of nonces [from, from+n) and returns
+// the strongest, the lowest nonce among equals, with its strength (-1
+// when n is 0). A grinder that hashes many nonces at once, such as with
+// SIMD lanes (ORANGE-012), searches a range rather than hashing one try.
+type Search func(entry hash.Hash, from, n uint64) (nonce uint64, strength int)
+
+// GrindSearch is GrindWith with a Search, which each worker calls on
+// ranges of checkEvery nonces.
+func GrindSearch(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64) (Layer, int, error) {
+	return grind(ctx, entry, start, tries, workers, tried, func() (Search, error) { return search, nil })
+}
+
+// grind splits the nonces between workers, each searching its own range
+// with the Search newSearch makes for it.
+func grind(ctx context.Context, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, newSearch func() (Search, error)) (Layer, int, error) {
 	if workers < 1 {
 		workers = 1
 	}
@@ -150,21 +184,16 @@ func GrindWith(ctx context.Context, newHasher hash.NewHasher, entry hash.Hash, s
 		wg.Add(1)
 		go func(w int, from, n uint64) {
 			defer wg.Done()
-			g, err := newHasher(entry[:])
+			search, err := newSearch()
 			if err != nil {
 				res[w] = result{err: err, s: -1}
 				return
 			}
 			best, bestStrength := Layer{Entry: entry, Nonce: from}, -1
-			var buf [8]byte
 			for done := uint64(0); done < n; {
 				chunk := min(n-done, checkEvery)
-				for i := uint64(0); i < chunk; i++ {
-					nonce := from + done + i
-					binary.BigEndian.PutUint64(buf[:], nonce)
-					if s := g.Hash(buf[:]).Strength(); s > bestStrength {
-						best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s
-					}
+				if nonce, s := search(entry, from+done, chunk); s > bestStrength {
+					best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s
 				}
 				done += chunk
 				if tried != nil {

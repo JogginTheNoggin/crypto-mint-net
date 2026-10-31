@@ -201,6 +201,8 @@ type job struct {
 	// The last progress event: when, and the tries then.
 	progAt    time.Time
 	progTries uint64
+	// ended is closed when the job ends (ORANGE-013).
+	ended chan struct{}
 }
 
 // NewManager returns a manager for n, grinding with reg's grinders on the
@@ -396,7 +398,7 @@ func (m *Manager) Start(s Spec) (Job, error) {
 		parent := cancel
 		cancel = func() { stop(); parent() }
 	}
-	j := &job{Job: Job{ID: m.next, Spec: s, State: StateRunning, Started: time.Now().UTC(), Plans: []Plan{}}, cancel: cancel}
+	j := &job{Job: Job{ID: m.next, Spec: s, State: StateRunning, Started: time.Now().UTC(), Plans: []Plan{}}, cancel: cancel, ended: make(chan struct{})}
 	// A job outside its hours says so in the reply that starts it, not only
 	// once its runner first looks (GREEN-020).
 	if reason, hint, ok := outsideHours(s.Hours, time.Now()); ok {
@@ -509,14 +511,19 @@ func (m *Manager) Stop(id int) (Job, error) {
 
 // wait waits a moment for job id to end, and returns its state.
 func (m *Manager) wait(id int) Job {
-	for i := 0; i < 200; i++ {
-		if j, _ := m.Get(id); j.Done() {
-			return j
+	m.mu.Lock()
+	j, ok := m.jobs[id]
+	m.mu.Unlock()
+	if ok {
+		t := time.NewTimer(2 * time.Second)
+		defer t.Stop()
+		select {
+		case <-j.ended:
+		case <-t.C:
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
-	j, _ := m.Get(id)
-	return j
+	j2, _ := m.Get(id)
+	return j2
 }
 
 // StopAll stops every running job made by source ("" for all).
@@ -584,6 +591,11 @@ func (m *Manager) end(j *job, state, reason string) {
 	}
 	j.State, j.Reason, j.Hint, j.Ended = state, reason, "", time.Now().UTC()
 	j.cancel()
+	select {
+	case <-j.ended:
+	default:
+		close(j.ended)
+	}
 	if j.timer != nil {
 		j.timer.Stop()
 	}
@@ -876,6 +888,7 @@ func (m *Manager) build(ctx context.Context, j *job, k engine.PoolKey, p Plan) (
 	sctx, cancel := context.WithTimeout(ctx, Slice)
 	defer cancel()
 	t0 := time.Now()
+	defer m.progress(j, k, t0, &tried)()
 	_, res, err := m.n.BuildWith(sctx, k, 0, p.Engine(&tried))
 	var found *hash.Hash
 	did := false
@@ -929,6 +942,7 @@ func (m *Manager) work(ctx context.Context, j *job, k engine.PoolKey, p Plan, ta
 	defer cancel()
 	t0 := time.Now()
 	ev := Event{Job: j.ID, Series: k.Series, Pool: k.Index}
+	stop := m.progress(j, k, t0, &tried)
 	l, res, err := m.n.WorkWith(sctx, k, target, randomNonce(), 0, p.Engine(&tried))
 	switch {
 	case err == nil:
@@ -941,6 +955,7 @@ func (m *Manager) work(ctx context.Context, j *job, k engine.PoolKey, p Plan, ta
 	default:
 		m.log.Warn("work failed", "job", j.ID, "pool", k.String(), "err", err)
 	}
+	stop()
 	m.count(j, k, p, tried.Load(), t0, ev)
 	return true, nil
 }
@@ -972,6 +987,41 @@ func (m *Manager) count(j *job, k engine.PoolKey, p Plan, n uint64, t0 time.Time
 	if prog != nil {
 		m.emit(*prog)
 	}
+}
+
+// progress reports job j's progress every ProgressEvery while a search on
+// pool k, started at t0, runs, counting the tries the search has made so far, so that a
+// job reports each second and not only at the end of each Slice
+// (ORANGE-013). The function it returns stops it.
+func (m *Manager) progress(j *job, k engine.PoolKey, t0 time.Time, tried *atomic.Uint64) func() {
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(ProgressEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case now := <-t.C:
+				m.mu.Lock()
+				total := j.Tries + tried.Load()
+				if j.progAt.IsZero() {
+					j.progAt, j.progTries = t0, j.Tries
+				}
+				var prog *Event
+				if now.Sub(j.progAt) >= ProgressEvery {
+					j.Rate = float64(total-j.progTries) / now.Sub(j.progAt).Seconds()
+					j.progAt, j.progTries = now, total
+					prog = &Event{Job: j.ID, Kind: "progress", Series: k.Series, Pool: k.Index, State: StateRunning, Tries: total, Rate: j.Rate}
+				}
+				m.mu.Unlock()
+				if prog != nil {
+					m.emit(*prog)
+				}
+			}
+		}
+	}()
+	return func() { close(done) }
 }
 
 // randomNonce is where a layer search starts, so slices and jobs on the
