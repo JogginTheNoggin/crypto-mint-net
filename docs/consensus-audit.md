@@ -52,7 +52,7 @@ policies." It is now a standing rule in [AGENTS.md](../AGENTS.md#rules).
 | G1, revert budget as a depth limit | Refused: hard forks must not be possible in any scenario. |
 | G2, `MaxBareRun` | Refused. Find another way, probably with no setting at all. |
 | G3, chase depth limit | Refused: no hard forks and no depth limits, not even as node policy. The main document wins over the chasing document here. |
-| G4, known-bad list | Explained to the owner; a fix is proposed below as P5, pending the owner's word. |
+| G4, known-bad list | Node policy. It stays, with P5 below so it can never make the node refuse a valid entry. |
 
 What "unacceptable" means for node policy, so every setting can be tested
 against it: **if a valid ledger heavier than a node's selected ledger is
@@ -152,7 +152,7 @@ the guard for the rule.
   progress kept, so a slow or lying sender cannot hold the slots that an
   honest heavier ledger needs.
 
-### P5. G4: list only what was shown false (pending the owner)
+### P5. G4: list only what was shown false
 
 Put on the known-bad list only the hash that is itself shown false: the
 sender's listed hash that did not match, or the hash of an entry that is
@@ -163,11 +163,10 @@ day.
 
 ### Also to check against the rule
 
-- **Source ORANGE-010** (keep only layers above a minimum strength, which
-  the owner would leave to node policy): a node that drops layers counts
-  less weight than its peers and could read a heavier ledger as lighter,
-  which the rule forbids. It is allowed only if the node keeps each
-  entry's counted credit and drops only the stored layer bytes.
+- **Source ORANGE-010** (a grinder keeps every layer it finds above a
+  floor, instead of only the best one per slice) only changes which layers
+  this node makes and sends. It never changes what the node accepts or
+  how it counts weight, so it is ordinary node policy and fits the rule.
 - **Pruning to the top K** stays allowed: a pruned ledger is fetched again
   through a chase when a peer states that it is heavier.
 - **The chasing document** still describes a depth limit. Changing that
