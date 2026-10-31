@@ -223,6 +223,15 @@ func contextOf(out io.Writer) context.Context {
 	return context.Background()
 }
 
+// errOf returns where the invocation writing to out sends warnings: its
+// Err, as a shell's stderr, or os.Stderr.
+func errOf(out io.Writer) io.Writer {
+	if s, ok := out.(*stdio); ok && s.err != nil {
+		return s.err
+	}
+	return os.Stderr
+}
+
 func run(args []string, out io.Writer) error {
 	if len(args) == 0 {
 		fmt.Fprint(out, usage)

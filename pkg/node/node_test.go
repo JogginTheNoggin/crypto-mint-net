@@ -477,3 +477,50 @@ func layersOn(n *node.Node, f *fixture, eh hash.Hash) (out []layer.Layer) {
 	n.Engine().Ledger(f.key, func(l *ledger.Pool) { out = l.Layers(eh) })
 	return out
 }
+
+// RED-018: a search with a low floor over many ranges sends at most
+// MaxKeptLayers besides its strongest, the strongest first, and searches
+// together no more than about KeptPerSecond a second.
+func TestWorkWithFloorIsCapped(t *testing.T) {
+	f := newFixture(t)
+	n := f.open()
+	defer n.Close()
+	_, err := n.HandleTx(f.k.Claim(4, P("alice", 100)), engine.Local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _, err := n.Build(f.key, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eh := e.Hash(f.s)
+	var kept atomic.Uint64
+	// 256 ranges of 4,096 nonces, each reaching a floor of 1.
+	if _, _, err := n.WorkWith(context.Background(), f.key, eh, 0, 1<<20, engine.Grind{Floor: 1, KeptCount: &kept}); err != nil {
+		t.Fatal(err)
+	}
+	if kept.Load() != node.MaxKeptLayers {
+		t.Fatalf("kept %d, want %d", kept.Load(), node.MaxKeptLayers)
+	}
+	ls := layersOn(n, f, eh)
+	fn := f.s.Hash()
+	weakest := 256
+	for _, l := range ls {
+		weakest = min(weakest, l.Hash(fn).Strength())
+	}
+	// The 17 strongest of 256 ranges are all well above the floor.
+	if weakest < 8 {
+		t.Fatalf("a layer of strength %d was sent", weakest)
+	}
+	// More searches at once: the bucket holds a second's worth.
+	start := time.Now()
+	for i := 1; i <= 6; i++ {
+		if _, _, err := n.WorkWith(context.Background(), f.key, eh, uint64(i)<<20, 1<<20, engine.Grind{Floor: 1, KeptCount: &kept}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	limit := uint64(node.KeptPerSecond) + uint64(time.Since(start).Seconds()*node.KeptPerSecond) + 1
+	if got := kept.Load(); got > limit {
+		t.Fatalf("kept %d in %v, want at most %d", got, time.Since(start), limit)
+	}
+}

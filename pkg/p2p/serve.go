@@ -3,6 +3,7 @@ package p2p
 import (
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -260,17 +261,24 @@ func (r replier) tooLarge(h hash.Hash, size int) func() {
 }
 
 // parts replies with the encoded item of an entry of the active ledger
-// from the asked offset, in chunks, up to partsReply bytes (D117).
+// from the asked offset, in chunks, up to partsReply bytes (D117). Under
+// the engine's lock it only copies the item (the entry is immutable, the
+// nonces are copied); the encoding happens when the reply is sent, once
+// per item for a while (partsCache), so a fetch in many requests encodes
+// it once and sees one total (RED-017, decision D120).
 func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
 	if !l.InSelected(q.Entry) {
 		return func() { r.empty(wire.TypeNotHeld, r.stated) }
 	}
-	b := wire.EncodeItem(item(l, q.Entry, q.Variant == wire.EntriesWithLayers))
-	total := uint64(len(b))
-	if q.Offset >= total {
-		return func() { r.empty(wire.TypeRefused, r.stated) }
-	}
+	key := partsKey{q.Entry, q.Variant}
+	it := item(l, q.Entry, q.Variant == wire.EntriesWithLayers)
 	return func() {
+		b := r.h.encoded.get(key, it)
+		total := uint64(len(b))
+		if q.Offset >= total {
+			r.empty(wire.TypeRefused, r.stated)
+			return
+		}
 		per := r.lim.chunk - chunkRoom
 		if per < minPart {
 			per = minPart
@@ -287,6 +295,73 @@ func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
 		}
 		r.chunks(wire.TypePart, bodies, off < total)
 	}
+}
+
+// partsKey names one encoded item.
+type partsKey struct {
+	entry   hash.Hash
+	variant wire.Variant
+}
+
+// partsCache keeps the encoded items parts requests were last answered
+// from: up to partsCacheBytes in all (always the newest one), each for
+// partsCacheFor after its last use.
+type partsCache struct {
+	mu    sync.Mutex
+	items map[partsKey]*encodedItem
+}
+
+type encodedItem struct {
+	b    []byte
+	used time.Time
+}
+
+const (
+	partsCacheBytes = 256 << 20
+	partsCacheFor   = time.Minute
+)
+
+// get returns the encoding of it, cached under k: a fetch in many parts
+// requests encodes the item once.
+func (c *partsCache) get(k partsKey, it wire.EntryItem) []byte {
+	now := time.Now()
+	c.mu.Lock()
+	if e, ok := c.items[k]; ok {
+		e.used = now
+		c.mu.Unlock()
+		return e.b
+	}
+	c.mu.Unlock()
+	b := wire.EncodeItem(it)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.items == nil {
+		c.items = map[partsKey]*encodedItem{}
+	}
+	c.items[k] = &encodedItem{b: b, used: now}
+	size := 0
+	for kk, e := range c.items {
+		if kk != k && now.Sub(e.used) > partsCacheFor {
+			delete(c.items, kk)
+			continue
+		}
+		size += len(e.b)
+	}
+	for size > partsCacheBytes {
+		var old partsKey
+		var oldest *encodedItem
+		for kk, e := range c.items {
+			if kk != k && (oldest == nil || e.used.Before(oldest.used)) {
+				old, oldest = kk, e
+			}
+		}
+		if oldest == nil {
+			break
+		}
+		size -= len(oldest.b)
+		delete(c.items, old)
+	}
+	return b
 }
 
 func (r replier) hashChain(l *ledger.Pool, q wire.HashChainReq) func() {
