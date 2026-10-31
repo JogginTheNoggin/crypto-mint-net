@@ -20,6 +20,7 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -408,8 +410,8 @@ func (n *Node) emit(ev Event) {
 	if len(n.observers) == 0 {
 		return
 	}
-	if st, err := n.eng.Status(ev.Key); err == nil {
-		ev.Weight = st.Weight
+	if _, _, w, err := n.eng.Tip(ev.Key); err == nil {
+		ev.Weight = w
 	}
 	for _, f := range n.observers {
 		f(ev)
@@ -557,12 +559,16 @@ func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Ha
 		return layer.Layer{}, engine.LayerResult{}, ErrClosed
 	}
 	// Grinding holds neither lock, so it never stalls peers or the RPC.
+	type found struct {
+		l layer.Layer
+		s int
+	}
 	var mu sync.Mutex
-	var kept []layer.Layer
+	var kept []found
 	if g.Floor > 0 {
-		g.Keep = func(l layer.Layer) {
+		g.Keep = func(l layer.Layer, s int) {
 			mu.Lock()
-			kept = append(kept, l)
+			kept = append(kept, found{l, s})
 			mu.Unlock()
 		}
 	}
@@ -572,12 +578,25 @@ func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Ha
 	}
 	res, err := n.HandleLayer(k, l, engine.Local)
 	// With a floor, the other layers found above it go in too: each adds
-	// its own credit, and none takes any away (ORANGE-010, D118).
+	// its own credit, and none takes any away (ORANGE-010, D118). The
+	// strongest go first, and at most KeepMax, so peers' layer budgets
+	// take them all (ORANGE-016).
+	slices.SortFunc(kept, func(a, b found) int {
+		if a.s != b.s {
+			return b.s - a.s
+		}
+		return cmp.Compare(a.l.Nonce, b.l.Nonce)
+	})
+	took := 0
 	for _, o := range kept {
-		if o.Nonce == l.Nonce {
+		if g.KeepMax > 0 && took >= g.KeepMax {
+			break
+		}
+		if o.l.Nonce == l.Nonce {
 			continue
 		}
-		if _, kerr := n.HandleLayer(k, o, engine.Local); kerr == nil && g.KeptCount != nil {
+		took++
+		if _, kerr := n.HandleLayer(k, o.l, engine.Local); kerr == nil && g.KeptCount != nil {
 			g.KeptCount.Add(1)
 		}
 	}

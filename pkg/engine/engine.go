@@ -546,7 +546,10 @@ type Grind struct {
 	// above it, and at or above the series' minimum layer strength
 	// (ORANGE-010, D118). Keep runs on the search's workers at once.
 	Floor int
-	Keep  func(layer.Layer)
+	Keep  func(layer.Layer, int)
+	// KeepMax, when above 0, is how many of those layers the node takes
+	// in after a search, strongest first (ORANGE-016).
+	KeepMax int
 	// KeptCount, if not nil, counts the layers besides the strongest that
 	// the node took in (node.Node.WorkWith).
 	KeptCount *atomic.Uint64
@@ -632,7 +635,7 @@ func (e *Engine) GrindLayerWith(ctx context.Context, k PoolKey, entryHash hash.H
 	}
 	var keep *layer.Keep
 	if g.Floor > 0 && g.Keep != nil {
-		keep = &layer.Keep{Floor: max(g.Floor, s.MinLayerStrength()), Func: func(l layer.Layer, _ int) { g.Keep(l) }}
+		keep = &layer.Keep{Floor: max(g.Floor, s.MinLayerStrength()), Func: g.Keep}
 	}
 	var l layer.Layer
 	var strength int
@@ -675,6 +678,20 @@ func (e *Engine) Status(k PoolKey) (PoolStatus, error) {
 		Key: k, Tip: tip, Height: h, Weight: w, Entries: p.ledger.Len(),
 		Branches: p.ledger.Branches(), Pending: p.pending.Len(), Waiting: p.pending.Waiting(),
 	}, nil
+}
+
+// Tip returns pool k's selected tip, height and weight: Status without
+// the inactive branches, whose listing walks every off-chain branch back
+// to the selected ledger (ORANGE-015).
+func (e *Engine) Tip(k PoolKey) (hash.Hash, int, weight.Weight, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	p, err := e.pool(k)
+	if err != nil {
+		return hash.Hash{}, 0, weight.Zero, err
+	}
+	tip, h, w := p.ledger.Tip()
+	return tip, h, w, nil
 }
 
 // Payment is what a receiver reads about one transaction.

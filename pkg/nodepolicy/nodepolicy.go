@@ -104,6 +104,11 @@ type Grind struct {
 	// higher. 0, the default, keeps only the strongest. It changes what
 	// this node sends, never what any node accepts.
 	LayerFloor int `json:"layer_floor,omitempty"`
+	// LayerRate bounds the layers a second that layer_floor adds, the
+	// strongest of each search kept first, so peers' layer budgets (6,000
+	// a minute by default) take every one; 0 means DefaultLayerRate
+	// (ORANGE-016).
+	LayerRate int `json:"layer_rate,omitempty"`
 	// Jobs start when the node starts and run until it stops: automatic
 	// work, or scheduled with hours.
 	Jobs []GrindJob `json:"jobs,omitempty"`
@@ -133,6 +138,15 @@ const MaxGrindJobs = 16
 // MaxGrindThreads bounds the threads a grind setting may ask for.
 const MaxGrindThreads = 1024
 
+// The layers a second layer_floor adds by default, and at most. Peers
+// take 6,000 layers a minute from one node by default (tracking), 100 a
+// second, and drop the rest, the strongest too, while it sends more
+// (ORANGE-016).
+const (
+	DefaultLayerRate = 10
+	MaxLayerRate     = 1000
+)
+
 // ParseHours reads a window "FROM-TO" of whole local hours, 0 to 23; TO
 // may be below FROM, for a window across midnight. "" is every hour.
 func ParseHours(s string) (from, to int, err error) {
@@ -157,6 +171,9 @@ func (g *Grind) validate() error {
 	}
 	if g.LayerFloor < 0 || g.LayerFloor > 256 {
 		return errors.New("layer_floor must be 0 (off) to 256")
+	}
+	if g.LayerRate < 0 || g.LayerRate > MaxLayerRate {
+		return fmt.Errorf("layer_rate must be 0 (the default, %d) to %d", DefaultLayerRate, MaxLayerRate)
 	}
 	if len(g.Jobs) > MaxGrindJobs {
 		return fmt.Errorf("at most %d jobs", MaxGrindJobs)
