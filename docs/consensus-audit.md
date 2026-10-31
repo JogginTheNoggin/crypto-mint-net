@@ -325,10 +325,11 @@ changes how a node selects from what it holds:
   wins, a spend of a pending output is refused, at most 10,000 pending per
   pool (D12, D13, D72), as the forwarding document says.
 - Accepting any issuer until a project issuer exists (D24).
-- A minimum strength for keeping layers, if one is added as node policy
-  (Source ORANGE-010). Section 17.4 allows it. A node that drops weak
-  layers computes a lower weight than its peers and can select a
-  different ledger, so it belongs in this list.
+- A minimum strength for keeping layers received from peers, if one is
+  ever added (section 17.4 allows it). A node that dropped weak layers
+  would count less weight than its peers, so it must keep each entry's
+  counted credit. Source ORANGE-010 is not this: it is a floor for the
+  node's own grinder.
 
 #### Checked and clean
 
