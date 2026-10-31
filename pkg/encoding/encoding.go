@@ -40,6 +40,9 @@ func NewWriter(capacity int) *Writer {
 // Bytes returns the encoded bytes. The slice aliases the Writer's buffer.
 func (w *Writer) Bytes() []byte { return w.buf }
 
+// Reset empties the Writer, keeping its buffer.
+func (w *Writer) Reset() { w.buf = w.buf[:0] }
+
 // Len returns the number of bytes written so far.
 func (w *Writer) Len() int { return len(w.buf) }
 
