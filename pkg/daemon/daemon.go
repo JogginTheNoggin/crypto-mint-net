@@ -174,19 +174,8 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 // on.
 func newGrind(n *node.Node, hub *watch.Hub) *grind.Manager {
 	glog := n.Logger().With(logging.Component, "grind")
-	var def grind.Defaults
-	pg := n.Policy().Grind
-	if pg != nil {
-		def = grind.Defaults{Device: pg.Device, Threads: pg.Threads}
-	}
-	gm := grind.NewManager(n, grind.Default, def, glog)
+	gm := grind.NewManager(n, grind.Default, grind.Defaults{}, glog)
 	gm.OnEvent(hub.PublishGrind)
-	if pg != nil {
-		for i, j := range pg.Jobs {
-			if _, err := gm.Start(grind.SpecOf(j)); err != nil {
-				glog.Warn("grind job from the policy not started", "job", i, "err", err)
-			}
-		}
-	}
+	gm.Schedule(n.Policy().Grind)
 	return gm
 }

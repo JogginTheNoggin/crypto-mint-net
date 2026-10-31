@@ -98,10 +98,12 @@ the slots replace it. `log.level` is `debug`, `info` (default), `warn` or
 them for one run. `grind` ([grind.md](grind.md), D109) sets the device
 (`auto`, `cpu`, `gpu:0`, ...) and threads (0: every core but one) that
 grinding uses unless told otherwise, and up to 16 jobs the node runs by
-itself from start to stop: `target` is `tip`, `pending` or an entry hash,
-with optional `series`, `pools`, `device`, `threads`, `hours` (local, such
-as `22-06`) and, for an entry, `until_from`. `Validate` checks the
-section, so a reload onto a bad one is refused (D106).
+itself from start to stop: `target` is `tip`, `pending`, `tx:TID` or an
+entry hash, with optional `series`, `pools`, `device`, `threads`, `hours`
+(local, such as `22-06`) and, for an entry or `tx:`, `until_from` (which
+`tx:` needs). `Validate` checks the section, so a reload onto a bad one
+is refused (D106). `poo grind schedule` edits it, and a running node
+applies the change at once without a reload (D113).
 
 ## API
 

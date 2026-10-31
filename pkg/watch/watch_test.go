@@ -12,6 +12,8 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/filter"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -324,4 +326,36 @@ func TestSubscribeAfterClose(t *testing.T) {
 		t.Fatal("a subscriber of a closed hub stays open")
 	}
 	s.Close() // and closing it again is fine
+}
+
+// TestGrindJobEvents: job-wide grind events (start, end) have no pool and
+// still reach a watcher of a series or pool the job works on, and not one
+// of another series (GREEN-017).
+func TestGrindJobEvents(t *testing.T) {
+	f := newFixture(t)
+	hub := watch.NewHub(f.n)
+	sid, other := f.s.ID(), hash.Hash{7}
+	mine := hub.Subscribe(parse(t, "series", sid.String(), "kind", "grind"), 0)
+	pool1 := hub.Subscribe(parse(t, "pool", "1"), 0)
+	elsewhere := hub.Subscribe(parse(t, "series", other.String()), 0)
+	addr := hub.Subscribe(parse(t, "address", f.k.Addr("alice").String()), 0)
+	any := grind.Spec{Target: grind.TargetTip}
+	pool2 := grind.Spec{Target: grind.TargetTip, Pools: []uint64{2}}
+	hub.PublishGrind(grind.Event{Job: 1, Kind: "start", Scope: &any})
+	hub.PublishGrind(grind.Event{Job: 1, Kind: "progress", Series: sid, Pool: 1})
+	hub.PublishGrind(grind.Event{Job: 1, Kind: "end", Scope: &any})
+	hub.PublishGrind(grind.Event{Job: 2, Kind: "end", Scope: &pool2})
+	count := func(s *watch.Sub) int { return len(drain(s)) }
+	if n := count(mine); n != 4 {
+		t.Fatalf("series watcher got %d", n)
+	}
+	if n := count(pool1); n != 3 {
+		t.Fatalf("pool 1 watcher got %d", n)
+	}
+	if n := count(elsewhere); n != 3 {
+		t.Fatalf("other series watcher got %d (job-wide events of any series pass)", n)
+	}
+	if n := count(addr); n != 0 {
+		t.Fatalf("address watcher got %d", n)
+	}
 }

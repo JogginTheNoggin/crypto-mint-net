@@ -47,6 +47,14 @@ own probe), the first one is kept.
 - The CPU has a `cpu-midstate` grinder for every hash `pkg/hash` knows. It
   is a `hash.Grinder`, which keeps the digest's state after the fixed
   prefix (ORANGE-006).
+- `cpu-blake3-cv` grinds BLAKE3 keeping BLAKE3's chaining values after the
+  prefix, which `hash.Grinder` cannot (ORANGE-009): an entry try of a
+  256-transaction entry goes from about 811 ns to 152 ns. It is
+  registered ahead of the midstate one, so it is BLAKE3's CPU grinder.
+- `blake3LayerLanes` tries sixteen BLAKE3 layer nonces at once on
+  AVX-512, about 5 times faster (ORANGE-011). It builds only with
+  `GOEXPERIMENT=simd`, which is experimental in Go 1.27, and no grinder
+  uses it yet: it waits for the `simd` package to be stable.
 - `cpu-generic` grinds any hash through `hash.Lookup`, so a hash added to
   `pkg/hash` can be ground at once. It gets a fast grinder by
   registering one.
@@ -74,28 +82,54 @@ A `Spec`:
 
 | Field | Meaning |
 | --- | --- |
-| `target` | `tip` (the selected tip, or the best branch while none is selected, such as an entry just built), `pending`, or an entry hash |
+| `target` | `tip` (the selected tip, or the best branch while none is selected, such as an entry just built), `pending`, `tx:TID` (one payment, below), or an entry hash |
 | `series`, `pools` | Narrow the pools; empty: every followed pool (for an entry, the pool that holds it) |
 | `device`, `threads` | As for `Choose`; empty: the node policy's `grind` section, then auto |
 | `for` | Stop after this long (`30s`, `2h`) |
-| `until_from` | With an entry: stop once its from(e) reaches this weight, "until my payment is safe" |
+| `until_from` | With an entry or `tx:`: stop once from(e) reaches this weight, "until my payment is safe"; a `tx:` target needs it |
 | `hours` | Work only within these local hours, `22-06` (across midnight is fine) |
+| `lease` | Stop unless renewed (`Renew`, `POST /v1/grind/{id}/renew`) within this long, 1s to 10m: a job its follower started ends when the follower is gone |
+
+A **`tx:TID` job** (GREEN-019) follows one payment with the node's own
+`Engine.Payment`, the call `poo tx` reads, so the two always agree. While
+the payment is pending the job builds an entry for it, then adds layers
+to that entry (or to the best branch, if the entry was built before).
+Once it is selected the job adds layers to its entry until from(e)
+reaches `until_from` and ends `done`. It ends `failed` if the payment
+was held and then is neither pending nor in an entry (dropped, or spent
+twice), and waits while the node has not seen it.
+
+A job that would work now is refused at `Start` when no device can grind
+one of its hashes (`ErrNoDevice`), as build and work are. A job with
+`hours` is accepted, since its device may be there by then; it fails
+then if not (GREEN-017).
 
 Each job works in slices of 2 seconds (`Slice`). After each slice it looks
 again at its target, its hours and its goal. A layer search starts at a
 random nonce, so slices and jobs never repeat each other.
 
 - **States:** `running`, `waiting` (outside its hours, or nothing to work
-  on, with the reason), `done`, `stopped` and `failed`.
-- **Events:** `start` (with the plan per hash), `progress` (tries and
-  rate), `found` (the layer or entry), `waiting` and `end`. They go to
-  `OnEvent` listeners, which the daemon sends to the watch stream as kind
-  `grind`.
+  on, with the reason and a `hint` of what would help, such as building
+  an entry first for a tip job), `done`, `stopped` and `failed`. A
+  stopped job's reason says why: `stopped`, its lease ran out, or the
+  node stopped.
+- **Events:** `start` (once, with the spec), `plan` (the device and
+  grinder for a pool's hash), `progress` (tries, and the rate since the
+  last one, at most once a second: `ProgressEvery`), `found` (the layer or
+  entry), `waiting` (with the hint) and `end`. `start`, `waiting` and
+  `end` are job-wide: they have no series or pool, and a watch filter on
+  series or pools passes them when the job's spec can work on one of
+  them. They go to `OnEvent` listeners, which the daemon sends to the
+  watch stream as kind `grind`.
 - **Limits:**
   - At most 16 jobs at once (`MaxJobs`).
   - The last 32 ended jobs are kept (`MaxDone`).
   - Threads are capped at the device's.
   - Stopping a job keeps what it found.
+- **Schedule:** `Schedule(section)` applies a node policy's `grind`
+  section while the node runs: it stops the jobs the policy started, takes
+  the new defaults and starts the new jobs, so `PUT /v1/grind/schedule`
+  and `poo grind schedule` need no reload and leave user jobs running.
 - **Totals:** these feed the `poo_grind_tries_total{device,hash}` and
   `poo_grind_jobs{state}` metrics.
 
@@ -125,9 +159,18 @@ random nonce, so slices and jobs never repeat each other.
   - Every kind of job on a real node: pending builds an entry, tip selects
     it, an entry job stops at its from(e), waiting, stop and `for`, along
     with the events, totals, limits and bench.
+  - `TestJobEvents`: one start per job, progress at most once a second,
+    hints, and a build's try counted. `TestLease`: a lapsed lease stops
+    a job, a renewed one runs on. `TestTxTarget`: a payment from pending
+    to safe.
+- `blake3_test.go`, `blake3_lanes_test.go` (with `GOEXPERIMENT=simd`):
+  both BLAKE3 grinders agree with the plain search.
 - `pkg/rpc/grind_test.go`: the endpoints, the plan and rate in build and
   work replies, bad options, the view token, and the metrics.
 - `pkg/daemon/grind_test.go`: policy jobs run by themselves, put events on
   the watch stream, and wait outside their hours.
 - `pkg/cli/grind_test.go`: every `poo grind` command, `poo work -for`
-  with a device, and an interrupted `run` that stops its job and exits 0.
+  with a device, an interrupted `run` that stops its job and exits 0, a
+  lapsed lease, and the schedule with and without a running node.
+- `pkg/watch`'s `TestGrindJobEvents`: job-wide events reach a watcher of
+  the job's series and pools.

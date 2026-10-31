@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -27,26 +29,38 @@ const grindUsage = `poo grind: the node's hash work (package grind, M11)
   bench [-series ID] [-device D] [-threads N] [-seconds S] [-o FORMAT]
                             how fast each device grinds the series' hash
                             (every hash without -series), here
-  start TARGET [JOB FLAGS]  start a job in the running node; prints it
+  start TARGET [JOB FLAGS] [-lease 30s]
+                            start a job in the running node; prints it
   run TARGET [JOB FLAGS]    start a job and follow it: one JSON line per
-                            event (start, progress, found, waiting, end)
-                            until it ends; an interrupt stops the job and
-                            exits 0
+                            event (start, plan, progress, found, waiting,
+                            end) until it ends; the job stops if this
+                            command goes away, and an interrupt stops it
+                            and exits 0
   jobs [-o FORMAT]          the node's jobs, running and recently ended
   stop ID | -all            stop a job, or every job
+  schedule [-o FORMAT]      the jobs node.json starts, and its defaults
+  schedule add TARGET [SCHEDULE FLAGS]
+                            add a job to node.json; a running node starts
+                            it at once
+  schedule remove N... | -all
+                            remove jobs, numbered from 1 as listed
+  schedule set [-device D] [-threads N]
+                            the defaults for every job, build and work
 
 TARGET is tip (layers on each pool's selected tip), pending (entries from
-pending transactions as they arrive) or an entry hash (layers on it). The
-series of the target says which hash to grind: no command names a hash.
+pending transactions as they arrive), tx:TID (one payment: entries while
+it is pending, then layers on its entry, until -until-from W) or an entry
+hash (layers on it). The series of the target says which hash to grind:
+no command names a hash.
 
 JOB FLAGS: -series ID, -pool K or -serial N (default: every followed
 pool), -device D (auto, cpu, gpu:0; default: node.json's grind section,
 else auto), -threads N (default: every core but one), -for 30s,
--until-from W (with an entry: stop once from(e) reaches W), -hours 22-06
-(only within those local hours).
+-until-from W (with an entry or tx: stop once from(e) reaches W), -hours
+22-06 (only within those local hours). SCHEDULE FLAGS are the same but
+-for: a scheduled job runs whenever its hours allow.
 
-poo build and poo work take -device, -threads and -for too. node.json's
-"grind" section sets the defaults and jobs the node runs by itself.
+poo build and poo work take -device, -threads and -for too.
 `
 
 func grindCmd(args []string, out io.Writer) error {
@@ -63,6 +77,8 @@ func grindCmd(args []string, out io.Writer) error {
 		return grindBench(fs, rest, out)
 	case "start", "run":
 		return grindStart(fs, sub == "run", rest, out)
+	case "schedule":
+		return grindSchedule(fs, rest, out)
 	case "jobs":
 		w, o := addWhere(fs), addOutput(fs)
 		if err := parseOutput(fs, o, rest, 0); err != nil {
@@ -219,6 +235,7 @@ type jobFlags struct {
 	dur     *string
 	until   *string
 	hours   *string
+	lease   *string
 }
 
 func addJob(fs *flag.FlagSet) *jobFlags {
@@ -230,13 +247,14 @@ func addJob(fs *flag.FlagSet) *jobFlags {
 		dur:     fs.String("for", "", "stop after this long: 30s, 2h (default: until stopped)"),
 		until:   fs.String("until-from", "", "with an entry target: stop once from(e) reaches this weight"),
 		hours:   fs.String("hours", "", "work only within these local hours: 22-06"),
+		lease:   fs.String("lease", "", "start: stop the job unless it is renewed within this long (POST /v1/grind/ID/renew)"),
 	}
 }
 
 // spec reads the job's spec, resolving -series, -pool and -serial with
 // the node.
 func (j *jobFlags) spec(fs *flag.FlagSet, cl *rpc.Client, target string) (grind.Spec, error) {
-	s := grind.Spec{Target: target, Device: *j.device, Threads: *j.threads, For: *j.dur, UntilFrom: *j.until, Hours: *j.hours}
+	s := grind.Spec{Target: target, Device: *j.device, Threads: *j.threads, For: *j.dur, UntilFrom: *j.until, Hours: *j.hours, Lease: *j.lease}
 	set := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
 	if set["series"] || set["pool"] || set["serial"] {
@@ -255,6 +273,26 @@ func (j *jobFlags) spec(fs *flag.FlagSet, cl *rpc.Client, target string) (grind.
 		}
 	}
 	return s, grind.Check(s)
+}
+
+// runLease is the lease of a job poo grind run follows; it renews it three
+// times as often.
+const runLease = 15 * time.Second
+
+// renew renews job id's lease until ctx ends or the job is gone.
+func renew(ctx context.Context, cl *rpc.Client, id int) {
+	t := time.NewTicker(runLease / 3)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if j, err := cl.GrindRenew(id); err != nil || j.Done() {
+				return
+			}
+		}
+	}
 }
 
 // errJobEnded stops following a job.
@@ -276,7 +314,10 @@ func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) err
 		target = ""
 	}
 	if target == "" {
-		return fmt.Errorf("usage: poo %s TARGET [flags]; TARGET is tip, pending or an entry hash", fs.Name())
+		return fmt.Errorf("usage: poo %s TARGET [flags]; TARGET is tip, pending, tx:TID or an entry hash", fs.Name())
+	}
+	if follow && *j.lease != "" {
+		return errors.New("-lease is for poo grind start; run keeps its job's lease itself")
 	}
 	cl, err := j.c.dial(out)
 	if err != nil {
@@ -294,6 +335,9 @@ func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) err
 		return writeJSON(out, job)
 	}
 	// Follow: listen first, start once listening, so no event is missed.
+	// The job has a lease this command renews, so it ends if this command
+	// dies without stopping it (GUI-010).
+	s.Lease = runLease.String()
 	ctx := contextOf(out)
 	enc := json.NewEncoder(out)
 	id := 0
@@ -305,6 +349,7 @@ func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) err
 				return err
 			}
 			id = job.ID
+			go renew(ctx, cl, id)
 		case ev.Kind == "end":
 			return errors.New("the node stopped its interface (a reload or a stop), and with it the job")
 		case ev.Kind == filter.KindGrind && ev.Grind != nil && ev.Grind.Job == id:
@@ -331,4 +376,223 @@ func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) err
 		return nil
 	}
 	return err
+}
+
+// grindSchedule shows or changes node.json's grind section. With a running
+// node the change goes through it and applies at once, without a reload,
+// so running jobs go on; otherwise node.json is edited and the node
+// applies it when it starts (GREEN-026).
+func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
+	op := ""
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		op, args = args[0], args[1:]
+	}
+	w := addWhere(fs)
+	var o *outputFlags
+	var c *clientFlags
+	var pf *poolFlags
+	var device, until, hours, target *string
+	var threads *int
+	var all *bool
+	switch op {
+	case "":
+		o = addOutput(fs)
+	case "add":
+		c = &clientFlags{w: w, series: fs.String("series", "", "series id (default: every followed series)")}
+		pf = addPool(fs)
+		device = fs.String("device", "", "device: auto, cpu, gpu:0, ...")
+		threads = fs.Int("threads", 0, "threads (default: the section's)")
+		until = fs.String("until-from", "", "with an entry or tx target: stop once from(e) reaches this weight")
+		hours = fs.String("hours", "", "work only within these local hours: 22-06")
+		target = new(string)
+		if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+			*target, args = args[0], args[1:]
+		}
+	case "remove":
+		all = fs.Bool("all", false, "remove every job")
+	case "set":
+		device = fs.String("device", "", "the default device: auto, cpu, gpu:0, ... (auto clears it)")
+		threads = fs.Int("threads", 0, "the default threads (0: every core but one)")
+	default:
+		return fmt.Errorf("poo grind schedule %s: unknown; it is add, remove or set", op)
+	}
+	pos, err := parseMixed(fs, args)
+	if err != nil {
+		return err
+	}
+	if o != nil {
+		if err := o.check(); err != nil {
+			return err
+		}
+	}
+	dir := w.resolve()
+	cl, dialErr := dialNode(out, dir)
+	var cur nodepolicy.Grind
+	var p nodepolicy.Policy
+	path := filepath.Join(dir, nodepolicy.FileName)
+	online := false
+	if dialErr == nil {
+		if r, err := cl.GrindSchedule(); err == nil {
+			cur, online = r.Grind, true
+		}
+	}
+	if !online {
+		var err error
+		if p, err = nodepolicy.Load(path); err != nil {
+			return err
+		}
+		if p.Grind != nil {
+			cur = *p.Grind
+		}
+	}
+	if op == "" {
+		if len(pos) != 0 {
+			return errors.New("usage: poo grind schedule [add|remove|set]")
+		}
+		return o.write(out, rpc.ScheduleReply{Grind: cur})
+	}
+	if viewOnlyOf(out) {
+		return errViewOnly("grind schedule " + op)
+	}
+	next := cur
+	next.Jobs = slices.Clone(cur.Jobs)
+	switch op {
+	case "add":
+		if *target == "" && len(pos) == 1 {
+			*target = pos[0]
+		} else if len(pos) != 0 {
+			*target = ""
+		}
+		if *target == "" {
+			return errors.New("usage: poo grind schedule add TARGET [flags]")
+		}
+		j := nodepolicy.GrindJob{Target: *target, Device: *device, Threads: *threads, Hours: *hours, UntilFrom: *until}
+		set := map[string]bool{}
+		fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+		if set["series"] || set["pool"] || set["serial"] {
+			var sr *series.Series
+			var err error
+			if online {
+				sr, err = c.seriesOf(cl)
+			} else {
+				sr, err = policySeries(p, *c.series)
+			}
+			if err != nil {
+				return err
+			}
+			id := sr.ID()
+			j.Series = &id
+			if set["pool"] || set["serial"] {
+				k, err := pf.resolve(fs, sr)
+				if err != nil {
+					return err
+				}
+				j.Pools = []uint64{k}
+			}
+		}
+		if err := grind.Check(grind.SpecOf(j)); err != nil {
+			return err
+		}
+		next.Jobs = append(next.Jobs, j)
+	case "remove":
+		if *all == (len(pos) > 0) {
+			return errors.New("usage: poo grind schedule remove N... | -all")
+		}
+		if *all {
+			next.Jobs = nil
+			break
+		}
+		drop := map[int]bool{}
+		for _, a := range pos {
+			n, err := strconv.Atoi(a)
+			if err != nil || n < 1 || n > len(cur.Jobs) {
+				return fmt.Errorf("no scheduled job %s: they are numbered 1 to %d", a, len(cur.Jobs))
+			}
+			drop[n-1] = true
+		}
+		next.Jobs = nil
+		for i, j := range cur.Jobs {
+			if !drop[i] {
+				next.Jobs = append(next.Jobs, j)
+			}
+		}
+	case "set":
+		if len(pos) != 0 {
+			return errors.New("poo grind schedule set takes flags only")
+		}
+		fs.Visit(func(f *flag.Flag) {
+			switch f.Name {
+			case "device":
+				next.Device = *device
+				if next.Device == grind.Auto {
+					next.Device = ""
+				}
+			case "threads":
+				next.Threads = *threads
+			}
+		})
+	}
+	if online {
+		r, err := cl.GrindSetSchedule(next)
+		if err != nil {
+			return err
+		}
+		return writeJSON(out, r)
+	}
+	p.Grind = &next
+	if next.Device == "" && next.Threads == 0 && len(next.Jobs) == 0 {
+		p.Grind = nil
+	}
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	if err := nodepolicy.Save(path, p); err != nil {
+		return err
+	}
+	return writeJSON(out, rpc.ScheduleReply{Grind: next})
+}
+
+// policySeries returns the series id of the node policy p, or its only
+// series when id is empty, for commands that run without a node.
+func policySeries(p nodepolicy.Policy, id string) (*series.Series, error) {
+	var want hash.Hash
+	if id != "" {
+		var err error
+		if want, err = hash.Parse(id); err != nil {
+			return nil, fmt.Errorf("-series: %w", err)
+		}
+	}
+	var found []*series.Series
+	for _, si := range p.Series {
+		sr, err := series.New(si.Params)
+		if err != nil {
+			continue
+		}
+		if id == "" || sr.ID() == want {
+			found = append(found, sr)
+		}
+	}
+	switch {
+	case len(found) == 1:
+		return found[0], nil
+	case len(found) == 0 && id != "":
+		return nil, fmt.Errorf("the node policy does not list series %s", want.Short())
+	}
+	return nil, errors.New("give -series: the node policy lists several series")
+}
+
+// parseMixed parses args with flags before, between and after the
+// arguments, and returns the arguments.
+func parseMixed(fs *flag.FlagSet, args []string) ([]string, error) {
+	var pos []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		if fs.NArg() == 0 {
+			return pos, nil
+		}
+		pos = append(pos, fs.Arg(0))
+		args = fs.Args()[1:]
+	}
 }

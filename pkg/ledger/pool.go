@@ -415,11 +415,59 @@ func (p *Pool) EntryOwners(e *entry.Entry) ([]entry.Item, [][]hash.Hash, error) 
 	if !ok {
 		return nil, nil, ErrUnknownParent
 	}
+	// The state after a deep parent costs a revert of the selected chain
+	// down to it; AddEntry pays that under the lock anyway, so it is not
+	// paid twice here (RED-011, decision D111).
+	if p.viewCost(parent, MaxPreviewCost) > MaxPreviewCost {
+		return nil, nil, ErrDeepParent
+	}
 	owners, err := entry.Owners(p.s, p.viewAfter(parent), items)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidEntry, err)
 	}
 	return items, owners, nil
+}
+
+// MaxPreviewCost is the most entries EntryOwners reverts or applies to
+// build the state after an entry's parent. An honest entry builds on the
+// tip or close to it.
+const MaxPreviewCost = 64
+
+// ErrDeepParent: EntryOwners will not build the state after a parent that
+// far from the selected tip. Not an offence, and AddEntry still takes the
+// entry.
+var ErrDeepParent = errors.New("ledger: parent too far from the selected tip to preview")
+
+// ViewCost is how many entries checking e against the state after its
+// parent reverts and applies, counting no further than limit + 1; 0 for a
+// parent this pool does not hold. It changes nothing.
+func (p *Pool) ViewCost(e *entry.Entry, limit int) int {
+	parent, ok := p.parentOf(e)
+	if !ok {
+		return 0
+	}
+	return p.viewCost(parent, limit)
+}
+
+// viewCost is how many entries viewAfter(n) reverts and applies, counting
+// no further than limit + 1.
+func (p *Pool) viewCost(n *node, limit int) int {
+	if n != nil && n.onChain && n.height == len(p.chain) {
+		return 0
+	}
+	cost := 0
+	x := n
+	for x != nil && !x.onChain {
+		if cost++; cost > limit {
+			return cost
+		}
+		x = x.parent
+	}
+	anchor := 0
+	if x != nil {
+		anchor = x.height
+	}
+	return cost + len(p.chain) - anchor
 }
 
 func toStateItems(items []entry.Item) []state.Item {

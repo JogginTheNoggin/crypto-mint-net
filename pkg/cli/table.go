@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 )
@@ -61,6 +62,7 @@ type jnode struct {
 	isArr bool
 	isObj bool
 	text  string // a scalar, as printed
+	num   bool   // the scalar is a JSON number
 }
 
 func decodeOrdered(d *json.Decoder) (*jnode, error) {
@@ -100,6 +102,8 @@ func decodeOrdered(d *json.Decoder) (*jnode, error) {
 		return n, err
 	case nil:
 		return &jnode{text: "-"}, nil
+	case json.Number:
+		return &jnode{text: t.String(), num: true}, nil
 	default:
 		return &jnode{text: fmt.Sprint(t)}, nil
 	}
@@ -155,16 +159,23 @@ func (t tabler) top(out io.Writer, n *jnode) error {
 	}
 }
 
-// flat reports whether an object has only scalar fields, so it fits on
-// one line.
+// flat reports whether an object has only scalar fields, or arrays of
+// scalars, so each field fits in one cell (GREEN-018).
 func (t tabler) flat(n *jnode) bool {
 	for _, v := range n.vals {
-		if v.isObj || v.isArr {
+		if v.isObj {
+			return false
+		}
+		if v.isArr && len(v.items) > 0 && (v.items[0].isObj || v.items[0].isArr) {
 			return false
 		}
 	}
 	return true
 }
+
+// maxFlatKeys is the widest nested object a table spreads into dotted
+// columns (plan.device, plan.threads, ...); a wider one is counted.
+const maxFlatKeys = 8
 
 // table prints rows of objects under the union of their keys, first seen
 // first. An object field becomes dotted columns (input.tid); an array
@@ -208,7 +219,7 @@ func (t tabler) flatten(prefix string, n *jnode, m map[string]string, cols *[]st
 	for i, k := range n.keys {
 		name := prefix + k
 		v := n.vals[i]
-		if v.isObj && t.flat(v) && len(v.keys) <= 4 {
+		if v.isObj && t.flat(v) && len(v.keys) <= maxFlatKeys {
 			t.flatten(name+".", v, m, cols, seen)
 			continue
 		}
@@ -246,7 +257,26 @@ func (t tabler) cell(n *jnode) string {
 	if !t.wide && len(s) > 16 && isHex(s) {
 		return s[:8] + ".." + s[len(s)-4:]
 	}
+	if n.num && !t.wide {
+		return roundNum(s)
+	}
 	return s
+}
+
+// roundNum keeps at most two decimals of a JSON number with a fraction,
+// such as a hash rate, so a column of rates stays readable; -wide and the
+// JSON form keep every digit. Whole numbers, such as amounts, are never
+// touched.
+func roundNum(s string) string {
+	dot := strings.IndexByte(s, '.')
+	if dot < 0 || strings.ContainsAny(s, "eE") || len(s)-dot-1 <= 2 {
+		return s
+	}
+	var f float64
+	if _, err := fmt.Sscan(s, &f); err != nil {
+		return s
+	}
+	return strconv.FormatFloat(f, 'f', 2, 64)
 }
 
 func isHex(s string) bool {

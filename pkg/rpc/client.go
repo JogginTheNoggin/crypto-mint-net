@@ -18,6 +18,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
 
@@ -198,6 +199,25 @@ func (c *Client) GrindStopAll(source string) ([]grind.Job, error) {
 		path += "?source=" + url.QueryEscape(source)
 	}
 	return r, c.do("DELETE", path, nil, &r)
+}
+
+// GrindRenew renews job id's lease.
+func (c *Client) GrindRenew(id int) (grind.Job, error) {
+	var r grind.Job
+	return r, c.do("POST", "/v1/grind/"+strconv.Itoa(id)+"/renew", nil, &r)
+}
+
+// GrindSchedule returns node.json's grind section.
+func (c *Client) GrindSchedule() (ScheduleReply, error) {
+	var r ScheduleReply
+	return r, c.do("GET", "/v1/grind/schedule", nil, &r)
+}
+
+// GrindSetSchedule replaces node.json's grind section; the node applies
+// it at once.
+func (c *Client) GrindSetSchedule(g nodepolicy.Grind) (ScheduleReply, error) {
+	var r ScheduleReply
+	return r, c.do("PUT", "/v1/grind/schedule", g, &r)
 }
 
 func mintQuery(series hash.Hash, serial uint64) url.Values {

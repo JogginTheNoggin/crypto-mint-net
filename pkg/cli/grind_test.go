@@ -140,6 +140,65 @@ func TestGrindCommands(t *testing.T) {
 	if err := Run(context.Background(), append([]string{"grind", "start", "tip"}, r...), view); err == nil {
 		t.Fatal("view-only start accepted")
 	}
+	// A job with a lease nobody renews stops by itself.
+	var leased grind.Job
+	cli(t, &leased, append([]string{"grind", "start", "tip", "-serial", "5", "-lease", "1s"}, r...)...)
+	deadline = time.Now().Add(10 * time.Second)
+	for !leased.Done() && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+		cli(t, &jobs, append([]string{"grind", "jobs"}, r...)...)
+		for _, j := range jobs {
+			if j.ID == leased.ID {
+				leased = j
+			}
+		}
+	}
+	if leased.State != grind.StateStopped || !strings.Contains(leased.Reason, "lease") {
+		t.Fatalf("leased job %+v", leased)
+	}
+	if err := run(append([]string{"grind", "run", "tip", "-lease", "5s"}, r...), &out); err == nil {
+		t.Fatal("run -lease accepted")
+	}
+	if err := run(append([]string{"grind", "start", "tip", "-device", "gpu:9"}, r...), &out); err == nil || !strings.Contains(err.Error(), "gpu:9") {
+		t.Fatalf("start on no device: %v", err)
+	}
+
+	// The schedule: add jobs and defaults through the running node, which
+	// starts the jobs at once; remove them again.
+	var sr rpc.ScheduleReply
+	cli(t, &sr, append([]string{"grind", "schedule"}, r...)...)
+	if len(sr.Grind.Jobs) != 0 {
+		t.Fatalf("schedule %+v", sr)
+	}
+	cli(t, &sr, append([]string{"grind", "schedule", "add", "tip", "-serial", "5", "-hours", "0-23"}, r...)...)
+	if len(sr.Grind.Jobs) != 1 || len(sr.Grind.Jobs[0].Pools) != 1 || len(sr.Started) != 1 || sr.Started[0].Spec.Source != "policy" {
+		t.Fatalf("schedule add %+v", sr)
+	}
+	sr = rpc.ScheduleReply{}
+	cli(t, &sr, append([]string{"grind", "schedule", "set", "-threads", "1"}, r...)...)
+	if sr.Grind.Threads != 1 || len(sr.Started) != 1 {
+		t.Fatalf("schedule set %+v", sr)
+	}
+	for _, bad := range [][]string{{"grind", "schedule", "add", "tip", "-for", "1m"}, {"grind", "schedule", "add"}, {"grind", "schedule", "remove", "2"}, {"grind", "schedule", "remove"}, {"grind", "schedule", "nope"}, {"grind", "schedule", "add", "tx:00"}} {
+		if err := run(append(bad, r...), &out); err == nil {
+			t.Fatalf("%v accepted", bad)
+		}
+	}
+	if err := Run(context.Background(), append([]string{"grind", "schedule", "remove", "-all"}, r...), view); err == nil {
+		t.Fatal("view-only schedule remove accepted")
+	}
+	sr = rpc.ScheduleReply{}
+	cli(t, &sr, append([]string{"grind", "schedule", "remove", "1"}, r...)...)
+	if len(sr.Grind.Jobs) != 0 || sr.Grind.Threads != 1 {
+		t.Fatalf("schedule remove %+v", sr)
+	}
+	cli(t, &jobs, append([]string{"grind", "jobs"}, r...)...)
+	for _, j := range jobs {
+		if !j.Done() {
+			t.Fatalf("a job still runs after its schedule went: %+v", j)
+		}
+	}
+
 	var rows []grind.Bench
 	cli(t, &rows, append([]string{"grind", "bench", "-seconds", "0.05"}, r...)...)
 	if len(rows) < 5 || rows[0].Rate == 0 || rows[0].Plan.Device != "cpu" {
@@ -148,3 +207,27 @@ func TestGrindCommands(t *testing.T) {
 }
 
 func itoa(n int) string { b, _ := json.Marshal(n); return string(b) }
+
+// TestGrindScheduleOffline: without a running node, poo grind schedule
+// edits node.json, which the node applies when it starts.
+func TestGrindScheduleOffline(t *testing.T) {
+	root := t.TempDir()
+	r := []string{"-root", root}
+	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "127.0.0.1:0"}, r...)...)
+	var sr rpc.ScheduleReply
+	cli(t, &sr, append([]string{"grind", "schedule", "add", "pending", "-serial", "5"}, r...)...)
+	cli(t, &sr, append([]string{"grind", "schedule", "set", "-device", "cpu"}, r...)...)
+	sr = rpc.ScheduleReply{}
+	cli(t, &sr, append([]string{"grind", "schedule"}, r...)...)
+	if sr.Grind.Device != "cpu" || len(sr.Grind.Jobs) != 1 || sr.Grind.Jobs[0].Target != "pending" || len(sr.Grind.Jobs[0].Pools) != 1 {
+		t.Fatalf("schedule %+v", sr)
+	}
+	sr = rpc.ScheduleReply{}
+	cli(t, &sr, append([]string{"grind", "schedule", "remove", "-all"}, r...)...)
+	cli(t, &sr, append([]string{"grind", "schedule", "set", "-device", "auto"}, r...)...)
+	sr = rpc.ScheduleReply{}
+	cli(t, &sr, append([]string{"grind", "schedule"}, r...)...)
+	if sr.Grind.Device != "" || len(sr.Grind.Jobs) != 0 {
+		t.Fatalf("schedule after remove %+v", sr)
+	}
+}

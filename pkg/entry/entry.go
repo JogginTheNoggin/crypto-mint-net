@@ -306,6 +306,9 @@ func BuildWith(ctx context.Context, newHasher hash.NewHasher, s *series.Series, 
 		tids[i] = it.TID
 	}
 	if !s.EntriesHaveNonce() {
+		if tried != nil {
+			tried.Add(1) // the one hash, so a rate shows work was done
+		}
 		return e, HashOf(s, parent, tids, 0), nil
 	}
 	prefix := make([][]byte, 0, len(tids)+2)

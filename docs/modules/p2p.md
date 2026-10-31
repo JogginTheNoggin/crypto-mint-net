@@ -85,7 +85,11 @@ sequenceDiagram
 Every message passes cheap checks first, in `dispatch`: replies go to the
 waiting request; everything else is counted against the sender's
 **budget** for its kind (dropped and flagged when over), then queued by
-the sender's best category. The **inbox** worker takes each round 8 from
+the sender's best category. A pushed entry also spends, before it is
+handled, the entries the node must revert to check it against the state
+after its parent (`Engine.EntryCost`) from the sender's `revert` budget;
+over it the entry is dropped (RED-011, D111). Entries the node asked for
+are not charged. The **inbox** worker takes each round 8 from
 the priority queue, 4 from backup, 2 from candidate and 1 from unlisted,
 so busy unlisted senders cannot starve peers and nothing waits forever.
 Each queue holds 1024; beyond that new messages are dropped.

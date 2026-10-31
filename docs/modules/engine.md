@@ -44,7 +44,12 @@ or opens a socket. Calls are safe from multiple goroutines.
   parent), and verify each witness only against the address it must
   satisfy, stopping at the first that fails (`tx.Preverify`; RED-009,
   D107). They change no result. A bad witness wraps `tx.ErrWitness`,
-  which `pkg/p2p` charges as an offence.
+  which `pkg/p2p` charges as an offence. `PreverifyEntry` does nothing for
+  a parent more than `ledger.MaxPreviewCost` entries of revert away: that
+  state is built once, in `HandleEntry` (RED-011, D111).
+- `EntryCost(key, e)`: how many entries `HandleEntry` would revert and
+  apply to check e (at most about `MaxCountedCost`), which `pkg/p2p`
+  charges to the sender's revert budget.
 - `Seen`: a fixed-size ring of valid item hashes (decision D15: requested
   items bypass it).
 

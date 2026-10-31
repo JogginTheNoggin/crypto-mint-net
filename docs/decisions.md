@@ -1643,3 +1643,76 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   without copying lists or matching messages (GUI-009, GREEN-021,
   GREEN-022, the owner's rule that the two never diverge).
 - **Tier:** Implementation.
+
+### D111. A deep parent is checked once, and its revert is the sender's cost
+
+- **Decision:** `ledger.Pool.EntryOwners` (the engine's preverify) refuses
+  with `ErrDeepParent` when building the state after an entry's parent
+  would revert and apply more than `MaxPreviewCost` (64) entries;
+  `AddEntry` still takes the entry, under the lock, with its signatures
+  verified there as before ORANGE-004. `Engine.EntryCost` reports that
+  number of entries, and `pkg/p2p` draws it for every pushed entry from
+  the sender's new `revert` budget in `tracking` (`Spend`, 200,000 entries
+  a minute per address by default; requested entries are not charged).
+  Over it the entry is dropped and the address flagged once per window.
+  `POST /v1/grind` takes only the source `user` (or none), so
+  `DELETE /v1/grind?source=user` stops every job made over the RPC.
+- **Why:** RED-011: an entry on the pool id costs a revert of the whole
+  selected chain (about 60 ms at 40,000 entries with transactions), and
+  BLUE-005 had made the node pay it twice under the engine lock, for an
+  entry that needs no work or valid signature. An honest entry builds on
+  the tip or near it, so the bound costs it nothing; an honest deep reorg
+  arrives through the chase, as requested entries. At the default budget
+  one address may make the node revert about 0.3 s of chain a minute at
+  40,000 entries. A cached view and a work gate on the fork depth (Red's
+  other options) are left open: the cache costs memory as large as the
+  chain, and the gate is a consensus change for the owner.
+- **Tier:** Implementation. No consensus change: what is valid and what is
+  selected are unchanged.
+
+### D112. Grind jobs: leases, payment targets, refusals at start, steady events
+
+- **Decision:** A `grind.Spec` may carry a `lease` (1s to 10m). The job
+  stops, with that reason, unless it is renewed (`Manager.Renew`,
+  `POST /v1/grind/{id}/renew`) within it. `poo grind run` asks for a
+  15-second lease and renews it every 5 seconds, and `poo` (but not
+  `poo node`, which reloads) stops on SIGHUP as on an interrupt,
+  unless SIGHUP is ignored already, as under `nohup` (GUI-011). A target
+  `tx:TID`, with `until_from`, follows one payment through
+  `Engine.Payment`, the call `poo tx` reads: entries while it is pending,
+  then layers on its entry until from(e) reaches the goal; it fails if
+  the payment was held and is gone. A job that would work now is refused
+  at `Start` if a device cannot grind one of its hashes; one with `hours`
+  is not. Events: one job-wide `start` with the spec, a per-pool `plan`,
+  `progress` at most once a second with the rate over that second, and a
+  `hint` on `waiting`. Job-wide events pass a watch filter on series or
+  pools when the job's spec can work on one of them. A job's own context
+  and its `for` timer are both cancelled when it ends. `cpu-blake3-cv`
+  becomes BLAKE3's CPU grinder; the SIMD lanes grinder stays a prototype
+  behind `GOEXPERIMENT=simd` until Go's `simd` package is stable.
+- **Why:** GUI-010: a followed job outlived a dead follower and ground on
+  for nobody. The `for` timeout replaced the job's cancel, so each such
+  job left a context on the manager's until the node closed. GREEN-017:
+  a start that succeeded on a missing device failed only later; a
+  series watcher never saw a job end; `run` printed two starts. GREEN-019:
+  people grind to make a payment safe and hold a TID, not an entry hash.
+  GUI/Orange: thousands of progress lines a second on easy targets, with
+  a rate measured over a few milliseconds. GREEN-027: a waiting job gave
+  no next step. ORANGE-009 and ORANGE-011 measured the grinders.
+- **Tier:** Implementation. No consensus change.
+
+### D113. The grind schedule changes live, without a reload
+
+- **Decision:** `GET /v1/grind/schedule` returns `node.json`'s `grind`
+  section, and `PUT /v1/grind/schedule` replaces it: the node validates
+  and saves it, then `Manager.Schedule` stops the jobs the policy started,
+  takes the new defaults and starts the new jobs, reporting any that did
+  not start. `poo grind schedule` lists, adds (the job flags without
+  `-for`, which a job that runs within its hours has no use for), removes
+  (by number from 1, or `-all`) and sets the defaults, through the node
+  when it runs and in `node.json` when it does not. Without `add`,
+  `remove` or `set` it only reads, so it runs in view-only mode.
+- **Why:** GREEN-026: the GUI may not write `node.json`, and editing the
+  schedule by hand needs a reload, which would stop every user job.
+  Applying the section in the manager keeps user jobs running.
+- **Tier:** Implementation.

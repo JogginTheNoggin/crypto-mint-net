@@ -190,3 +190,11 @@ func TestSecretOutputAndErrorCodes(t *testing.T) {
 		t.Error("codes")
 	}
 }
+
+func TestReloadsOnHangup(t *testing.T) {
+	for args, want := range map[string]bool{"node": true, "-view-only node": true, "grind run tip": false, "": false, "watch": false} {
+		if got := ReloadsOnHangup(strings.Fields(args)); got != want {
+			t.Errorf("%q: %v", args, got)
+		}
+	}
+}

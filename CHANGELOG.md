@@ -68,6 +68,17 @@ built.
   (devices, bench, start, run, jobs, stop), `/v1/grind`, watch kind
   `grind`, and `-device`, `-threads`, `-for` on `poo build` and `poo work`
   are new; grinding uses every core but one, with the same result.
+- **Grind jobs, refined (D112, D113):** a `tx:TID` target grinds for one
+  payment until it is safe; a job can carry a lease, and `poo grind run`
+  keeps one, so a job whose follower dies stops; a hangup stops a `poo`
+  command as an interrupt does (but reloads `poo node`); a device that
+  cannot grind is refused at start; progress comes at most once a second
+  with a steadier rate; one `start` per job, then a `plan` per pool;
+  waiting jobs say what would help; job-wide events reach watchers of
+  their series. `poo grind schedule` (list, add, remove, set) and
+  `/v1/grind/schedule` change the jobs `node.json` starts, applied at once
+  with no reload. A native BLAKE3 grinder keeps chaining values (5 times
+  faster entry tries), and `-o table` spreads nested objects into columns.
 - **For front ends:** `poo doctor -o json|table` and a `fix_args` per
   check, and `cli.ErrorCode` and `cli.SecretOutput` so the GUI handles
   errors and secret output the way `poo` does (D110).

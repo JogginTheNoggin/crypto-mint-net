@@ -10,6 +10,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 )
@@ -83,7 +84,7 @@ func TestGrindEndpoints(t *testing.T) {
 	if _, err := c.GrindJob(99); code(err) != rpc.CodeNotFound {
 		t.Fatalf("no job: %v", err)
 	}
-	for _, bad := range []grind.Spec{{Target: "tips"}, {Target: grind.TargetTip, Source: "policy"}} {
+	for _, bad := range []grind.Spec{{Target: "tips"}, {Target: grind.TargetTip, Source: "policy"}, {Target: grind.TargetTip, Source: "mine"}} {
 		if _, err := c.GrindStart(bad); code(err) != rpc.CodeBadRequest {
 			t.Fatalf("start %+v: %v", bad, err)
 		}
@@ -104,13 +105,46 @@ func TestGrindEndpoints(t *testing.T) {
 		t.Fatalf("view token stop: %v", err)
 	}
 
+	// Leases and the schedule.
+	lj, err := c.GrindStart(grind.Spec{Target: grind.TargetTip, Lease: "1s"})
+	must(t, err)
+	if lj, err = c.GrindRenew(lj.ID); err != nil || lj.Done() {
+		t.Fatalf("renew %+v %v", lj, err)
+	}
+	if _, err := c.GrindRenew(99); code(err) != rpc.CodeNotFound {
+		t.Fatalf("renew of no job: %v", err)
+	}
+	if _, err := vc.GrindRenew(lj.ID); code(err) != rpc.CodeForbidden {
+		t.Fatalf("view token renew: %v", err)
+	}
+	if sr, err := vc.GrindSchedule(); err != nil || len(sr.Grind.Jobs) != 0 {
+		t.Fatalf("schedule %+v %v", sr, err)
+	}
+	sr, err := c.GrindSetSchedule(nodepolicy.Grind{Threads: 1, Jobs: []nodepolicy.GrindJob{{Target: "tip", Hours: "0-23"}, {Target: "pending", Device: "gpu:9"}}})
+	if err != nil || len(sr.Started) != 1 || sr.Failed[1] == "" || sr.Started[0].Spec.Source != "policy" {
+		t.Fatalf("set schedule %+v %v", sr, err)
+	}
+	if sr, err = c.GrindSchedule(); err != nil || len(sr.Grind.Jobs) != 2 || sr.Grind.Threads != 1 {
+		t.Fatalf("schedule after set %+v %v", sr, err)
+	}
+	if _, err := c.GrindSetSchedule(nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tips"}}}); code(err) != rpc.CodeInvalid {
+		t.Fatalf("bad schedule: %v", err)
+	}
+	if _, err := vc.GrindSetSchedule(nodepolicy.Grind{}); code(err) != rpc.CodeForbidden {
+		t.Fatalf("view token schedule: %v", err)
+	}
+	if sr, err = c.GrindSetSchedule(nodepolicy.Grind{}); err != nil || len(sr.Started) != 0 {
+		t.Fatalf("clear schedule %+v %v", sr, err)
+	}
+	c.GrindStopAll("")
+
 	req, _ := http.NewRequest("GET", srv.URL+"/v1/metrics", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	resp, err := http.DefaultClient.Do(req)
 	must(t, err)
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	for _, want := range []string{`poo_grind_tries_total{device="cpu",hash="sha256"}`, `poo_grind_jobs{state="done"} 1`, `poo_grind_jobs{state="stopped"} 1`} {
+	for _, want := range []string{`poo_grind_tries_total{device="cpu",hash="sha256"}`, `poo_grind_jobs{state="done"} 1`, `poo_grind_jobs{state="stopped"}`} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("metrics lack %s:\n%s", want, body)
 		}

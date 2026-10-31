@@ -1,7 +1,7 @@
 // Command poo is the command-line tool for the Proof of Ownership full node.
 // Every command lives in package cli, which the GUI runs too; this is only
 // the process around it: arguments, standard streams, the interrupt that
-// stops a long-running command, and reading secrets from a terminal with
+// stops a long-running command (an interrupt, a stop, or a hangup), and reading secrets from a terminal with
 // echo off.
 package main
 
@@ -18,7 +18,15 @@ import (
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// A hangup (a closed terminal or a GUI's terminal tab) stops a command
+	// like an interrupt does, so a followed job is stopped, not left
+	// running (GUI-010); poo node takes it as a reload instead. Under
+	// nohup, which ignores hangups, it is left ignored (GUI-011).
+	sigs := []os.Signal{os.Interrupt, syscall.SIGTERM}
+	if !cli.ReloadsOnHangup(os.Args[1:]) && !signal.Ignored(syscall.SIGHUP) {
+		sigs = append(sigs, syscall.SIGHUP)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), sigs...)
 	s := cli.Stdio{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}
 	if term.IsTerminal(int(os.Stdin.Fd())) {
 		s.Secret = readHidden

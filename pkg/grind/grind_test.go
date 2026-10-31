@@ -2,10 +2,12 @@ package grind
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -168,12 +170,17 @@ func TestHours(t *testing.T) {
 }
 
 func TestCheck(t *testing.T) {
-	for _, bad := range []Spec{{}, {Target: "tips"}, {Target: TargetTip, UntilFrom: "5"}, {Target: TargetTip, For: "soon"}, {Target: TargetTip, Hours: "1"}, {Target: TargetPending, Threads: -1}} {
+	tx1 := TargetTx + hash.Hash{1}.String()
+	for _, bad := range []Spec{{}, {Target: "tips"}, {Target: TargetTip, UntilFrom: "5"}, {Target: TargetTip, For: "soon"}, {Target: TargetTip, Hours: "1"}, {Target: TargetPending, Threads: -1},
+		{Target: tx1}, {Target: "tx:zz", UntilFrom: "5"}, {Target: TargetTip, Lease: "1ms"}, {Target: TargetTip, Lease: "1h"}} {
 		if Check(bad) == nil {
 			t.Fatalf("spec %+v accepted", bad)
 		}
 	}
 	if err := Check(Spec{Target: hash.Hash{1}.String(), UntilFrom: "1000", For: "1m", Hours: "22-06"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Check(Spec{Target: tx1, UntilFrom: "3", Lease: "15s"}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -295,7 +302,7 @@ func TestJobs(t *testing.T) {
 	for _, e := range events {
 		kinds[e.Kind] = true
 	}
-	for _, k := range []string{"start", "progress", "found", "waiting", "end"} {
+	for _, k := range []string{"start", "plan", "progress", "found", "waiting", "end"} {
 		if !kinds[k] {
 			t.Fatalf("no %s event in %+v", k, events)
 		}
@@ -319,8 +326,13 @@ func TestJobLimits(t *testing.T) {
 	if got := f.m.StopAll(""); len(got) != MaxJobs {
 		t.Fatalf("stopped %d", len(got))
 	}
-	if _, err := f.m.Start(Spec{Target: TargetTip, Device: "gpu:42"}); err != nil {
-		t.Fatal(err) // a missing device fails the job, not the start
+	// A missing device is refused at once, unless the job works within
+	// hours, when the device may be there.
+	if _, err := f.m.Start(Spec{Target: TargetTip, Device: "gpu:42"}); !errors.Is(err, ErrNoDevice) {
+		t.Fatalf("start on no device: %v", err)
+	}
+	if _, err := f.m.Start(Spec{Target: TargetTip, Device: "gpu:42", Hours: "0-23"}); err != nil {
+		t.Fatal(err)
 	}
 	f.m.Close()
 	if _, err := f.m.Start(Spec{Target: TargetTip}); err != ErrClosed {
@@ -336,5 +348,146 @@ func TestBench(t *testing.T) {
 	b, err := RunBench(context.Background(), p, 100*time.Millisecond)
 	if err != nil || b.Tries == 0 || b.Rate == 0 || b.Seconds < 0.09 {
 		t.Fatalf("bench %+v %v", b, err)
+	}
+}
+
+// TestJobEvents: one start per job, with its spec; progress at most once
+// a second; waiting with a hint; a pending build counts its try.
+func TestJobEvents(t *testing.T) {
+	f := newFixture(t)
+	var mu sync.Mutex
+	var evs []Event
+	var at []time.Time
+	f.m.OnEvent(func(e Event) { mu.Lock(); evs = append(evs, e); at = append(at, time.Now()); mu.Unlock() })
+	tj, err := f.m.Start(Spec{Target: TargetTip})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tj = f.waitFor(t, tj.ID, func(j Job) bool { return j.State == StateWaiting })
+	if tj.Reason != "no entry to add layers to yet" || tj.Hint == "" {
+		t.Fatalf("waiting tip job %+v", tj)
+	}
+	first, _ := f.s.PoolRange(1)
+	if _, err := f.n.HandleTx(f.k.Claim(first, testutil.P("alice", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	pj, _ := f.m.Start(Spec{Target: TargetPending})
+	pj = f.waitFor(t, pj.ID, func(j Job) bool { return j.Entries == 1 })
+	if pj.Tries == 0 {
+		t.Fatalf("a build counted no tries: %+v", pj)
+	}
+	f.waitFor(t, tj.ID, func(j Job) bool { return j.Layers > 1 && j.Tries > 0 && j.State == StateRunning && j.Hint == "" })
+	time.Sleep(2500 * time.Millisecond)
+	f.m.StopAll("")
+	mu.Lock()
+	defer mu.Unlock()
+	starts, plans := 0, 0
+	var progress []time.Time
+	var t0 time.Time
+	for i, e := range evs {
+		if e.Job != tj.ID {
+			continue
+		}
+		switch e.Kind {
+		case "start":
+			starts++
+			if e.Spec == nil || e.Spec.Target != TargetTip || !e.JobWide() {
+				t.Fatalf("start %+v", e)
+			}
+		case "plan":
+			plans++
+			t0 = at[i]
+		case "progress":
+			progress = append(progress, at[i])
+		case "waiting":
+			if e.Hint == "" {
+				t.Fatalf("waiting without a hint %+v", e)
+			}
+		}
+	}
+	if starts != 1 || plans != 1 {
+		t.Fatalf("%d starts and %d plans", starts, plans)
+	}
+	// One progress event a second at most, however many layers are found.
+	if len(progress) == 0 {
+		t.Fatal("no progress")
+	}
+	ran := progress[len(progress)-1].Sub(t0)
+	if float64(len(progress)) > ran.Seconds()+1 {
+		t.Fatalf("%d progress events in %s", len(progress), ran)
+	}
+	for i := 1; i < len(progress); i++ {
+		if d := progress[i].Sub(progress[i-1]); d < 900*time.Millisecond {
+			t.Fatalf("progress %s apart", d)
+		}
+	}
+}
+
+// TestLease: a job with a lease stops when it is not renewed, and runs on
+// while it is; a -for job stopped early ends stopped.
+func TestLease(t *testing.T) {
+	f := newFixture(t)
+	lj, err := f.m.Start(Spec{Target: TargetTip, Lease: "1s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept, _ := f.m.Start(Spec{Target: TargetTip, Lease: "1s"})
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case <-time.After(200 * time.Millisecond):
+				f.m.Renew(kept.ID)
+			}
+		}
+	}()
+	lj = f.waitFor(t, lj.ID, func(j Job) bool { return j.Done() })
+	if lj.State != StateStopped || !strings.Contains(lj.Reason, "lease") {
+		t.Fatalf("job with a lapsed lease %+v", lj)
+	}
+	if j, _ := f.m.Get(kept.ID); j.Done() {
+		t.Fatalf("a renewed job ended: %+v", j)
+	}
+	close(stop)
+	f.waitFor(t, kept.ID, func(j Job) bool { return j.Done() })
+	if _, err := f.m.Renew(999); err != ErrNoJob {
+		t.Fatalf("renew of no job: %v", err)
+	}
+	fj, _ := f.m.Start(Spec{Target: TargetTip, For: "1h"})
+	if j, _ := f.m.Stop(fj.ID); j.State != StateStopped || j.Reason != "stopped" {
+		t.Fatalf("for job stopped %+v", j)
+	}
+}
+
+// TestTxTarget: a tx job builds an entry for a pending payment, adds
+// layers to it until from(e) reaches the goal, and ends done; one for a
+// transaction the node never sees waits.
+func TestTxTarget(t *testing.T) {
+	f := newFixture(t)
+	first, _ := f.s.PoolRange(1)
+	c := f.k.Claim(first, testutil.P("alice", 100))
+	res, err := f.n.HandleTx(c, engine.Local)
+	tid := res.TID
+	if err != nil {
+		t.Fatal(err)
+	}
+	j, err := f.m.Start(Spec{Target: TargetTx + tid.String(), UntilFrom: "3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	j = f.waitFor(t, j.ID, func(j Job) bool { return j.Done() })
+	if j.State != StateDone || j.Entries != 1 || j.Layers == 0 || j.Entry == nil {
+		t.Fatalf("tx job %+v", j)
+	}
+	pay, _ := f.n.Engine().Payment(engine.PoolKey{Series: f.s.ID(), Index: 1}, tid)
+	if !pay.Selected || pay.Entry != *j.Entry || pay.From.String() != j.From {
+		t.Fatalf("payment %+v, job %+v", pay, j)
+	}
+	w, _ := f.m.Start(Spec{Target: TargetTx + hash.Hash{7}.String(), UntilFrom: "3"})
+	w = f.waitFor(t, w.ID, func(j Job) bool { return j.State == StateWaiting })
+	if w.Reason != "the node does not hold the transaction yet" {
+		t.Fatalf("waiting tx job %+v", w)
 	}
 }
