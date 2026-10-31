@@ -5,6 +5,17 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 7 Part B reviewed `claude/gui-4-watch @ b20bf8f`: the GUI-011 fix, Source's
+schedule commands and leases (9972137), the new Schedule panel, GREEN-028/029, and
+ORANGE-010's event-stream leak fix. The leak fix holds when you switch views, and
+GUI-010 (core lease) and GUI-011 are now verified. Two new Low gaps:
+- GUI-012: running a form again in the same area still leaks the earlier job's
+  stream, and orphans that job if it was waiting for input.
+- GUI-013: the Schedule panel removes jobs by their position when the table was
+  drawn, so a stale table can remove the wrong job.
+
+Details and notes are in GUI-013.
+
 Round 6 Part B reviewed `claude/gui-4-watch @ e7df74b`: GUI/Blue's GUI-010 fix
 (SIGHUP in poo-gui, re-adopting a running grind on reload), GUI/Green's jobs table
 with a Stop for each job, device suggestions and H/s rates, and GUI/Orange's paced
@@ -90,5 +101,7 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-007](GUI-007-watch-unbounded-buffers.md) | Low | Watch view's paused-event and error buffers grow without bound (local tab DoS) | fixed (verified R3B @ 9b4b19c) |
 | [GUI-008](GUI-008-background-watch-lifetime.md) | Info | Background Watch holds its event stream and node connection until Stop (by design; trade-off recorded) | fixed (verified R4B @ 50a0edd) |
 | [GUI-009](GUI-009-secret-output-retained.md) | Low | Output of seed-printing commands (`wallet seed`, `keygen`) is kept and replayable from Jobs and the event stream | fixed (verified R5B @ 8b044ac, core `cli.SecretOutput`) |
-| [GUI-010](GUI-010-followed-grind-outlives-gui.md) | Low | A grind followed from Work keeps running in the node when poo-gui dies without its cancel path (SIGHUP, kill) | fixed: GUI part verified R6B @ e7df74b; core lease by Source (D112, `grind run` holds a 15s lease) |
-| [GUI-011](GUI-011-sighup-stops-nohup-gui.md) | Low | poo-gui now stops on SIGHUP even under nohup, and SIGHUP no longer only reloads a node it hosts | fixed (PR #33, merged Round 7) |
+| [GUI-010](GUI-010-followed-grind-outlives-gui.md) | Low | A grind followed from Work keeps running in the node when poo-gui dies without its cancel path (SIGHUP, kill) | fixed (GUI part verified R6B; core lease verified R7B @ b20bf8f) |
+| [GUI-011](GUI-011-sighup-stops-nohup-gui.md) | Low | poo-gui now stops on SIGHUP even under nohup, and SIGHUP no longer only reloads a node it hosts | fixed (verified R7B @ b20bf8f) |
+| [GUI-012](GUI-012-form-resubmit-leaks-stream.md) | Low | Pressing a form's button again leaks the previous job's event stream and orphans a job waiting for input | open |
+| [GUI-013](GUI-013-schedule-remove-by-stale-index.md) | Low | The Schedule panel's Remove goes by position, so a stale table can remove a different scheduled job | open |

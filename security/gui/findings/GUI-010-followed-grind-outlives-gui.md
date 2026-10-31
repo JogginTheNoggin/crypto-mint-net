@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed: GUI part (PR #30, Round 6); core lease by Source (D112), `grind run` holds a 15s lease |
+| Status | fixed: GUI part (PR #30, Round 6); core lease by Source (D112), `grind run` holds a 15s lease; verified by GUI/Red R7B @ b20bf8f |
 | Found on | claude/gui-4-watch @ 8b044ac |
 | Component | gui/web/static/work.js ("Run a job"), pkg/cli/grind.go (`grindStart`, follow mode), gui/cmd/poo-gui/main.go and cmd/poo/main.go (signals), pkg/grind/jobs.go (`Manager.Start`) |
 | Surface | local (host CPU and power), node |

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (PR #33, merged Round 7; pending Red's verification) |
+| Status | fixed (PR #33, merged Round 7; verified by GUI/Red R7B @ b20bf8f) |
 | Found on | claude/gui-4-watch @ e7df74b |
 | Component | gui/cmd/poo-gui/main.go (`stopSignals`), pkg/cli/node.go (`runNode`'s SIGHUP reload) |
 | Surface | local (availability of a node hosted in poo-gui) |
