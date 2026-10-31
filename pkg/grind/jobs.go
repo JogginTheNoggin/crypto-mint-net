@@ -162,6 +162,8 @@ var (
 type Defaults struct {
 	Device  string
 	Threads int
+	// Floor is the node policy's layer_floor (ORANGE-010).
+	Floor int
 }
 
 // Manager runs the jobs of one node.
@@ -244,7 +246,7 @@ func (m *Manager) Schedule(g *nodepolicy.Grind) ([]Job, map[int]error) {
 	var def Defaults
 	var jobs []nodepolicy.GrindJob
 	if g != nil {
-		def, jobs = Defaults{Device: g.Device, Threads: g.Threads}, g.Jobs
+		def, jobs = Defaults{Device: g.Device, Threads: g.Threads, Floor: g.LayerFloor}, g.Jobs
 	}
 	m.mu.Lock()
 	m.def = def
@@ -943,7 +945,15 @@ func (m *Manager) work(ctx context.Context, j *job, k engine.PoolKey, p Plan, ta
 	t0 := time.Now()
 	ev := Event{Job: j.ID, Series: k.Series, Pool: k.Index}
 	stop := m.progress(j, k, t0, &tried)
-	l, res, err := m.n.WorkWith(sctx, k, target, randomNonce(), 0, p.Engine(&tried))
+	g := p.Engine(&tried)
+	var kept atomic.Uint64
+	m.mu.Lock()
+	g.Floor, g.KeptCount = m.def.Floor, &kept
+	m.mu.Unlock()
+	l, res, err := m.n.WorkWith(sctx, k, target, randomNonce(), 0, g)
+	if n := kept.Load(); n > 0 {
+		m.update(j, func(jj *Job) { jj.Layers += int(n) })
+	}
 	switch {
 	case err == nil:
 		lh, eh := res.Hash, l.Entry

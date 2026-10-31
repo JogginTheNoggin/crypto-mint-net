@@ -12,6 +12,11 @@
 //	header : "PoO-log" 0x01                   (8 bytes)
 //	record : U8 kind ∥ U32 length ∥ data ∥ U32 CRC-32C(kind ∥ length ∥ data)
 //
+// An item larger than MaxRecordSize is written as several records: parts
+// of kind KindPart, then a last record of the item's own kind, whose data
+// is the rest. The parts and the last record together make one record when
+// read back (consensus audit P1, decision D117).
+//
 // A crash can leave the last record half written. Open keeps every record
 // up to the first one that is incomplete or fails its checksum, and cuts the
 // file there. What is lost can be fetched from peers again.
@@ -42,6 +47,9 @@ const (
 	KindEntry Kind = 1
 	KindLayer Kind = 2
 	KindTx    Kind = 3
+	// KindPart holds part of a larger record; the next record that is not
+	// a part ends it.
+	KindPart Kind = 4
 )
 
 // String names the kind.
@@ -53,6 +61,8 @@ func (k Kind) String() string {
 		return "layer"
 	case KindTx:
 		return "tx"
+	case KindPart:
+		return "part"
 	}
 	return fmt.Sprintf("kind(%d)", uint8(k))
 }
@@ -63,9 +73,12 @@ type Record struct {
 	Data []byte
 }
 
-// MaxRecordSize bounds one record's data, so a corrupt length cannot make
-// Open allocate without limit.
+// MaxRecordSize bounds the data of one record on disk, so a corrupt length
+// cannot make Open allocate without limit. A larger item is split.
 const MaxRecordSize = 64 << 20
+
+// pieceSize is the most data written in one record; a test lowers it.
+var pieceSize = MaxRecordSize
 
 var magic = []byte("PoO-log\x01")
 
@@ -204,28 +217,39 @@ func read(f *os.File, size int64) ([]Record, int64, error) {
 	}
 	var recs []Record
 	off := int64(len(magic))
+	good := off // just after the last whole item
+	var parts []byte
 	var hdr [5]byte
 	for {
 		if _, err := io.ReadFull(r, hdr[:]); err != nil {
-			return recs, off, nil
+			return recs, good, nil
 		}
 		n := binary.BigEndian.Uint32(hdr[1:])
 		if n > MaxRecordSize || int64(n) > size-off-9 {
-			return recs, off, nil
+			return recs, good, nil
 		}
 		data := make([]byte, n)
 		if _, err := io.ReadFull(r, data); err != nil {
-			return recs, off, nil
+			return recs, good, nil
 		}
 		var sum [4]byte
 		if _, err := io.ReadFull(r, sum[:]); err != nil {
-			return recs, off, nil
+			return recs, good, nil
 		}
 		if binary.BigEndian.Uint32(sum[:]) != checksum(hdr[:], data) {
-			return recs, off, nil
+			return recs, good, nil
+		}
+		off += 9 + int64(n)
+		if Kind(hdr[0]) == KindPart {
+			parts = append(parts, data...)
+			continue
+		}
+		if parts != nil {
+			data = append(parts, data...)
+			parts = nil
 		}
 		recs = append(recs, Record{Kind: Kind(hdr[0]), Data: data})
-		off += 9 + int64(n)
+		good = off
 	}
 }
 
@@ -234,16 +258,26 @@ func checksum(hdr, data []byte) uint32 {
 	return crc32.Update(c, castagnoli, data)
 }
 
+// frame writes rec, split into parts when it is larger than one record
+// may be.
 func frame(w io.Writer, rec Record) error {
-	if len(rec.Data) > MaxRecordSize {
-		return fmt.Errorf("store: record of %d bytes is too large", len(rec.Data))
+	data := rec.Data
+	for len(data) > pieceSize {
+		if err := framePiece(w, KindPart, data[:pieceSize]); err != nil {
+			return err
+		}
+		data = data[pieceSize:]
 	}
+	return framePiece(w, rec.Kind, data)
+}
+
+func framePiece(w io.Writer, k Kind, data []byte) error {
 	var hdr [5]byte
-	hdr[0] = byte(rec.Kind)
-	binary.BigEndian.PutUint32(hdr[1:], uint32(len(rec.Data)))
+	hdr[0] = byte(k)
+	binary.BigEndian.PutUint32(hdr[1:], uint32(len(data)))
 	var sum [4]byte
-	binary.BigEndian.PutUint32(sum[:], checksum(hdr[:], rec.Data))
-	for _, b := range [][]byte{hdr[:], rec.Data, sum[:]} {
+	binary.BigEndian.PutUint32(sum[:], checksum(hdr[:], data))
+	for _, b := range [][]byte{hdr[:], data, sum[:]} {
 		if _, err := w.Write(b); err != nil {
 			return err
 		}

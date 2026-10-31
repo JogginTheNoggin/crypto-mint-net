@@ -123,7 +123,22 @@ const checkEvery = 1 << 12
 // (strength -1 if none) with ctx's error; with every nonce tried the
 // result is GrindHash's, whatever the number of workers.
 func GrindWith(ctx context.Context, newHasher hash.NewHasher, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64) (Layer, int, error) {
-	return grind(ctx, entry, start, tries, workers, tried, func() (Search, error) {
+	return GrindWithKeep(ctx, newHasher, entry, start, tries, workers, tried, nil)
+}
+
+// Keep receives layers a search found besides its strongest (ORANGE-010,
+// decision D118): every range of checkEvery nonces whose strongest layer
+// reaches Floor hands that layer to Func, so a node can send more of the
+// work it did. Func is called from the search's workers at once and must
+// be safe for that. The layer returned at the end is passed too.
+type Keep struct {
+	Floor int
+	Func  func(Layer, int)
+}
+
+// GrindWithKeep is GrindWith that also hands layers to keep, if not nil.
+func GrindWithKeep(ctx context.Context, newHasher hash.NewHasher, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep) (Layer, int, error) {
+	return grind(ctx, entry, start, tries, workers, tried, keep, func() (Search, error) {
 		g, err := newHasher(entry[:])
 		if err != nil {
 			return nil, err
@@ -151,12 +166,17 @@ type Search func(entry hash.Hash, from, n uint64) (nonce uint64, strength int)
 // GrindSearch is GrindWith with a Search, which each worker calls on
 // ranges of checkEvery nonces.
 func GrindSearch(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64) (Layer, int, error) {
-	return grind(ctx, entry, start, tries, workers, tried, func() (Search, error) { return search, nil })
+	return GrindSearchKeep(ctx, search, entry, start, tries, workers, tried, nil)
+}
+
+// GrindSearchKeep is GrindSearch that also hands layers to keep, if not nil.
+func GrindSearchKeep(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep) (Layer, int, error) {
+	return grind(ctx, entry, start, tries, workers, tried, keep, func() (Search, error) { return search, nil })
 }
 
 // grind splits the nonces between workers, each searching its own range
 // with the Search newSearch makes for it.
-func grind(ctx context.Context, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, newSearch func() (Search, error)) (Layer, int, error) {
+func grind(ctx context.Context, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, newSearch func() (Search, error)) (Layer, int, error) {
 	if workers < 1 {
 		workers = 1
 	}
@@ -192,8 +212,12 @@ func grind(ctx context.Context, entry hash.Hash, start, tries uint64, workers in
 			best, bestStrength := Layer{Entry: entry, Nonce: from}, -1
 			for done := uint64(0); done < n; {
 				chunk := min(n-done, checkEvery)
-				if nonce, s := search(entry, from+done, chunk); s > bestStrength {
+				nonce, s := search(entry, from+done, chunk)
+				if s > bestStrength {
 					best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s
+				}
+				if keep != nil && s >= keep.Floor && s >= 0 {
+					keep.Func(Layer{Entry: entry, Nonce: nonce}, s)
 				}
 				done += chunk
 				if tried != nil {

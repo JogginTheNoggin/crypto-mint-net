@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Source Round 7, D119) |
 | Based on | `claude/m10-watch` @ `9972137` |
 | Area | `pkg/grind/jobs.go` |
 | Effort | small |

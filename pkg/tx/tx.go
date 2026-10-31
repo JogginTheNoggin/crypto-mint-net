@@ -31,13 +31,6 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 )
 
-// Decoding bounds. They protect a node from huge allocations; they are not
-// consensus limits on what a valid transaction may hold.
-const (
-	MaxInputs  = 1 << 16
-	MaxOutputs = 1 << 16
-)
-
 // Errors returned by transaction checks. If any check fails the whole
 // transaction is invalid; there is no partial credit.
 var (
@@ -136,11 +129,16 @@ func Decode(b []byte) (*Tx, error) {
 }
 
 // DecodeFrom reads one full transaction from r. Check r.Err afterwards.
+//
+// No count is capped: a valid transaction may hold any number of inputs,
+// outputs and witnesses (consensus audit C2, D117). Reader.Count refuses a
+// count the bytes left could not hold, so what is allocated stays in
+// proportion to the bytes received.
 func DecodeFrom(r *encoding.Reader) *Tx {
 	t := &Tx{}
 	r.Into(t.Mint.Series[:])
 	t.Mint.Serial = r.U64()
-	n := r.Count(MaxInputs, 36)
+	n := r.Count(0, 36)
 	if n > 0 {
 		t.Inputs = make([]Input, n)
 		for i := range t.Inputs {
@@ -148,13 +146,13 @@ func DecodeFrom(r *encoding.Reader) *Tx {
 			t.Inputs[i].Index = r.U32()
 		}
 	}
-	n = r.Count(MaxOutputs, 40)
+	n = r.Count(0, 40)
 	t.Outputs = make([]Output, n)
 	for i := range t.Outputs {
 		r.Into(t.Outputs[i].Address[:])
 		t.Outputs[i].Amount = r.U64()
 	}
-	n = r.Count(MaxInputs+MaxOutputs, 20)
+	n = r.Count(0, 20)
 	t.Witnesses = make([]policy.Witness, 0, n)
 	for i := 0; i < n && r.Err() == nil; i++ {
 		t.Witnesses = append(t.Witnesses, policy.DecodeWitness(r))

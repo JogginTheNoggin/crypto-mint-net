@@ -65,6 +65,9 @@ const (
 	TypeFullLedgerReq Type = 23
 	TypeLayersReq     Type = 24
 	TypeWeightReq     Type = 25
+	// TypePartsReq asks for an entry too large for one frame, in parts
+	// (consensus audit P1, decision D117).
+	TypePartsReq Type = 26
 
 	TypeExtension      Type = 40
 	TypeNothingHeavier Type = 41
@@ -76,6 +79,11 @@ const (
 	TypeWeight         Type = 47
 	TypeNotHeld        Type = 48
 	TypeRefused        Type = 49
+	// TypeLarge says the next entry of a reply is too large for one
+	// chunk: the asker fetches it with a parts request and goes on after
+	// it. TypePart carries one part (D117).
+	TypeLarge Type = 50
+	TypePart  Type = 51
 )
 
 var typeNames = map[Type]string{
@@ -85,6 +93,7 @@ var typeNames = map[Type]string{
 	TypeExtension: "extension", TypeNothingHeavier: "nothing-heavier", TypeNotFromHere: "heavier-not-from-here",
 	TypeHashChain: "hash-chain", TypeAnchorNotHeld: "anchor-not-held", TypeEntries: "entries", TypeLayers: "layers",
 	TypeWeight: "weight", TypeNotHeld: "not-held", TypeRefused: "refused",
+	TypePartsReq: "parts-request", TypeLarge: "large", TypePart: "part",
 }
 
 func (t Type) String() string {
@@ -95,10 +104,10 @@ func (t Type) String() string {
 }
 
 // IsRequest reports whether t is a ledger data request.
-func (t Type) IsRequest() bool { return t >= TypeExtensionReq && t <= TypeWeightReq }
+func (t Type) IsRequest() bool { return t >= TypeExtensionReq && t <= TypePartsReq }
 
 // IsReply reports whether t is a reply to a ledger data request.
-func (t Type) IsReply() bool { return t >= TypeExtension && t <= TypeRefused }
+func (t Type) IsReply() bool { return t >= TypeExtension && t <= TypePart }
 
 // Header flags.
 const (

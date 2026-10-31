@@ -147,3 +147,23 @@ func TestEncodeDecode(t *testing.T) {
 		t.Fatal("short input must be refused")
 	}
 }
+
+// No count is capped in decoding (consensus audit C2, D117): a
+// transaction of more than 65,536 inputs and outputs round-trips, and a
+// count larger than the bytes could hold is still refused.
+func TestNoCountCap(t *testing.T) {
+	big := &tx.Tx{}
+	for i := 0; i < 1<<16+1; i++ {
+		big.Inputs = append(big.Inputs, tx.Input{Index: uint32(i)})
+		big.Outputs = append(big.Outputs, tx.Output{Amount: 1})
+	}
+	got, err := tx.Decode(big.Encode())
+	if err != nil || len(got.Inputs) != 1<<16+1 || len(got.Outputs) != 1<<16+1 {
+		t.Fatalf("decoded %v", err)
+	}
+	b := big.Encode()
+	b = b[:len(b)-100]
+	if _, err := tx.Decode(b); err == nil {
+		t.Fatal("a cut transaction decoded")
+	}
+}

@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
@@ -17,7 +18,6 @@ const (
 	maxCoverage = 4096
 	maxHashes   = 1 << 16
 	maxItems    = 1 << 16
-	maxLayers   = 1 << 20
 	maxString   = 256
 )
 
@@ -173,6 +173,9 @@ func (q EntriesReq) Common() RequestCommon    { return q.RequestCommon }
 func (q FullLedgerReq) Common() RequestCommon { return q.RequestCommon }
 func (q LayersReq) Common() RequestCommon     { return q.RequestCommon }
 func (q WeightReq) Common() RequestCommon     { return q.RequestCommon }
+func (q PartsReq) Common() RequestCommon      { return q.RequestCommon }
+func (PartsReq) Type() Type                   { return TypePartsReq }
+func (q PartsReq) Encode() []byte             { return enc(func(w *encoding.Writer) { q.encode(w) }) }
 func (HashChainReq) Type() Type               { return TypeHashChainReq }
 func (EntriesReq) Type() Type                 { return TypeEntriesReq }
 func (FullLedgerReq) Type() Type              { return TypeFullLedgerReq }
@@ -259,6 +262,23 @@ func (q LayersReq) encode(w *encoding.Writer) {
 	}
 }
 
+// PartsReq asks for the encoded entry item (the entry, then its layers'
+// nonces when the variant asks for them) of an entry of the peer's active
+// ledger that is too large for one chunk, from byte Offset on. The reply
+// is TypePart chunks; More is set when the item goes on past them, and the
+// asker asks again from where they stopped (consensus audit P1, D117).
+type PartsReq struct {
+	RequestCommon
+	Entry   hash.Hash
+	Variant Variant
+	Offset  uint64
+}
+
+func (q PartsReq) encode(w *encoding.Writer) {
+	q.RequestCommon.encode(w)
+	w.Raw(q.Entry[:]).U8(uint8(q.Variant)).U64(q.Offset)
+}
+
 // WeightReq asks only for the peer's stated weight.
 type WeightReq struct {
 	RequestCommon
@@ -317,6 +337,12 @@ func DecodeRequest(t Type, b []byte) (Request, error) {
 		q = LayersReq{RequestCommon: c, Hashes: readHashes(r)}
 	case TypeWeightReq:
 		q = WeightReq{RequestCommon: c}
+	case TypePartsReq:
+		x := PartsReq{RequestCommon: c}
+		r.Into(x.Entry[:])
+		x.Variant = decodeVariant(r)
+		x.Offset = r.U64()
+		q = x
 	default:
 		return nil, fmt.Errorf("%w: %s is not a request", ErrMalformed, t)
 	}
@@ -348,7 +374,7 @@ func decodeEntryItem(r *encoding.Reader) EntryItem {
 	it.Entry = entry.DecodeFrom(r)
 	it.HasLayers = r.Bool()
 	if it.HasLayers {
-		n := r.Count(maxLayers, 8)
+		n := r.Count(0, 8) // an entry may hold any number of layers
 		it.Nonces = make([]uint64, 0, n)
 		for i := 0; i < n && r.Err() == nil; i++ {
 			it.Nonces = append(it.Nonces, r.U64())
@@ -500,7 +526,7 @@ func DecodeLayersChunk(b []byte) (LayersChunk, error) {
 		r.Into(it.Entry[:])
 		it.Held = r.Bool()
 		if it.Held {
-			m := r.Count(maxLayers, 8)
+			m := r.Count(0, 8) // an entry may hold any number of layers
 			it.Nonces = make([]uint64, 0, m)
 			for j := 0; j < m && r.Err() == nil; j++ {
 				it.Nonces = append(it.Nonces, r.U64())
@@ -517,4 +543,70 @@ func DecodeEmpty(t Type, b []byte) error {
 		return fmt.Errorf("%w: %s carries a body", ErrMalformed, t)
 	}
 	return nil
+}
+
+// Large is the body of a TypeLarge reply: the next entry the reply would
+// hold, by hash, and the size of its encoded item, which is larger than
+// one chunk. It is the only chunk of its reply.
+type Large struct {
+	Entry hash.Hash
+	Size  uint64
+}
+
+// Encode returns the body.
+func (l Large) Encode() []byte {
+	w := encoding.NewWriter(hash.Size + 8)
+	w.Raw(l.Entry[:]).U64(l.Size)
+	return w.Bytes()
+}
+
+// DecodeLarge reads a TypeLarge body.
+func DecodeLarge(b []byte) (Large, error) {
+	r := encoding.NewReader(b)
+	var l Large
+	r.Into(l.Entry[:])
+	l.Size = r.U64()
+	return l, finish(r, "large")
+}
+
+// Part is the body of a TypePart chunk: bytes of an encoded entry item
+// starting at Offset, out of Total.
+type Part struct {
+	Total  uint64
+	Offset uint64
+	Data   []byte
+}
+
+// Encode returns the body.
+func (p Part) Encode() []byte {
+	w := encoding.NewWriter(16 + len(p.Data))
+	w.U64(p.Total).U64(p.Offset).Raw(p.Data)
+	return w.Bytes()
+}
+
+// DecodePart reads a TypePart body. The data is the rest of the body.
+func DecodePart(b []byte) (Part, error) {
+	if len(b) < 16 {
+		return Part{}, fmt.Errorf("%w: part of %d bytes", ErrMalformed, len(b))
+	}
+	p := Part{Total: binary.BigEndian.Uint64(b), Offset: binary.BigEndian.Uint64(b[8:]), Data: b[16:]}
+	if p.Offset > p.Total || uint64(len(p.Data)) > p.Total-p.Offset {
+		return Part{}, fmt.Errorf("%w: part %d+%d past its total %d", ErrMalformed, p.Offset, len(p.Data), p.Total)
+	}
+	return p, nil
+}
+
+// EncodeItem returns the byte form of one entry item, as a parts reply
+// carries it.
+func EncodeItem(it EntryItem) []byte {
+	w := encoding.NewWriter(it.Size())
+	it.encode(w)
+	return w.Bytes()
+}
+
+// DecodeItem reads an entry item put together from parts.
+func DecodeItem(b []byte) (EntryItem, error) {
+	r := encoding.NewReader(b)
+	it := decodeEntryItem(r)
+	return it, finish(r, "entry item")
 }

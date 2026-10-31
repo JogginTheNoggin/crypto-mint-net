@@ -113,22 +113,38 @@ naming a known-bad hash are ignored. Each chase, from cheap to costly:
    sees something heavier, the group is corroborated and requeued; if
    not, that is noted as a denial (counted against the priority peer if
    the branch later proves real).
-3. Holding nothing of the pool, fetch the sender's whole ledger. Here and
-   in step 6, more than `MaxBareRun` (4,096) entries in a row without
-   layers end the fetch, in a series without entry hash credit (RED-012,
-   D114).
-4. Find the common entry: page the sender's hash chain back from its tip,
-   at most 16 pages; past that, a priority peer's whole ledger is fetched
-   only with `FastCatchUp`. A hash listed twice is a false branch.
-5. **Check the work** before any entry: ask for the layers on the hashes
-   after the common entry and add their credit, provisionally, until it
-   beats the weight of this node's ledger after the common entry
-   (`ledger.Pool.WeightTo`). Layers below the minimum strength make the
-   branch false; too little work ends the chase with a backoff. The
-   provisional layers are never kept, counted or forwarded.
+3. Holding nothing of the pool, fetch the sender's whole ledger, charged
+   to its `revert` budget, which waits for room rather than refusing.
+4. Find the common entry: ask for the sender's newest hashes; if none is
+   held, halve over this node's own selected ledger, asking whether the
+   sender holds the entry at a height (about log₂(height) requests at any
+   depth). There is no depth limit (D116). A hash listed twice is a false
+   branch.
+5. **Check the work** before any entry: page the sender's hashes on from
+   the common entry and ask for the layers on them, adding their credit
+   provisionally until it beats the weight of this node's ledger after the
+   common entry (`ledger.Pool.WeightTo`). Layers below the minimum strength
+   make the branch false; too little work ends the chase with a backoff.
+   The provisional layers are never kept, counted or forwarded. There is
+   no cap on how many are looked at.
 6. Fetch the entries in chain order with extension requests, each checked
-   against the hash the sender listed. The engine then decides, on weight
-   it computed itself.
+   against the hash the sender listed, not charged to the revert budget
+   (the work was checked). An entry larger than `PartsOver` comes in parts
+   (`fetchParts`, D117). Before each request the chase checks no ledger
+   off the branch and heavier than its work was selected meanwhile. The
+   engine then decides, on weight it computed itself.
+
+A chase runs for at most `ChaseSlice` (2 minutes) and then **yields**
+(`chase.Yield`): its sender waits `chase.Config.YieldWait` with no
+backoff, and what the chase learned (the common entry, the listed hashes,
+the work counted, the last entry fetched) is kept, so the next chase of
+the same group and sender goes on from there. Each slice makes at least
+one request, so a chase always moves forward. An entry pushed over the
+sender's revert budget is not dropped for good: its branch goes to the
+chase queue (D116). Only hashes shown false go on the known-bad list: an
+entry hash below the minimum strength, an invalid entry, or a listed hash
+another entry was sent for. A sender that lies about order or sends weak
+layers is flagged, but the hashes it named are not (P5).
 
 Outcomes feed the tracker (chase outcomes, denials, the false-branch
 offence) and the queue (backoff, known-bad list). Regular checks

@@ -53,8 +53,12 @@ own probe), the first one is kept.
   registered ahead of the midstate one, so it is BLAKE3's CPU grinder.
 - `blake3LayerLanes` tries sixteen BLAKE3 layer nonces at once on
   AVX-512, about 5 times faster (ORANGE-011). It builds only with
-  `GOEXPERIMENT=simd`, which is experimental in Go 1.27, and no grinder
-  uses it yet: it waits for the `simd` package to be stable.
+  `GOEXPERIMENT=simd`, which is experimental in Go 1.27; the opt-in
+  build wires it as `cpu-blake3-avx512` (below).
+- With `GOEXPERIMENT=simd` on an AVX-512 CPU, `cpu-sha256-avx512` and
+  `cpu-blake3-avx512` search sixteen layer nonces at once through
+  `Grinder.Search`, which gives a `layer.Search` (ORANGE-012): about 3.6
+  times the SHA-256 layer rate. A default build has neither.
 - `cpu-generic` grinds any hash through `hash.Lookup`, so a hash added to
   `pkg/hash` can be ground at once. It gets a fast grinder by
   registering one.
@@ -72,6 +76,10 @@ own probe), the first one is kept.
   and `WorkWith` take. It searches on `threads` goroutines and counts
   tries for a rate (ORANGE-007: the same result whatever the number of
   workers).
+- With the node policy's `grind.layer_floor` above 0, each search also
+  hands the node the strongest layer of every 4,096 nonces at or above the
+  floor (`engine.Grind.Floor`, `layer.Keep`), and `Job.Layers` counts them
+  (ORANGE-010, D118). The strongest of the search still goes in first.
 - `RunBench(ctx, plan, d)` grinds layers on a random entry for `d` and
   reports tries a second. With the prefix saved, an entry try costs the
   same as a layer try.

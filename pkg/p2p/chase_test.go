@@ -8,7 +8,6 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
-	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
@@ -111,8 +110,10 @@ func TestEmptyBranchIsCheckedBeforeEntries(t *testing.T) {
 }
 
 // A branch that contradicts itself is provably false: the sender is
-// flagged and the hash goes on the known-bad list, so the same claim from
-// anyone is ignored.
+// flagged and backed off. The repeated hash itself does not go on the
+// known-bad list: a repeat shows the sender lied, not that the entry is
+// invalid, and an honest peer may later send the same entry in a heavier
+// ledger (audit item G4, D116).
 func TestFalseBranchIsFlagged(t *testing.T) {
 	a := startNode(t, "a", nil)
 	grow(t, a, nil, "alice", 1, 32)
@@ -129,9 +130,9 @@ func TestFalseBranchIsFlagged(t *testing.T) {
 		key = p.Key
 	}
 	deadline := time.Now().Add(10 * time.Second)
-	for !a.h.ChaseQueue().IsBad(x, time.Now()) {
+	for a.h.Tracker().Status(key, time.Now()).FlagTotal == 0 {
 		if time.Now().After(deadline) {
-			t.Fatal("the false branch was not marked")
+			t.Fatal("the false branch was not flagged")
 		}
 		m, _, err := r.readUntil(time.Now().Add(50 * time.Millisecond))
 		if err != nil {
@@ -144,55 +145,93 @@ func TestFalseBranchIsFlagged(t *testing.T) {
 			r.reply(m, wire.TypeWeight, nil, huge)
 		}
 	}
-	if st := a.h.Tracker().Status(key, time.Now()); st.FlagTotal == 0 || st.Priority {
-		t.Fatalf("sender not flagged: %+v", st)
+	if st := a.h.Tracker().Status(key, time.Now()); st.Priority {
+		t.Fatalf("a flagged sender is a priority peer: %+v", st)
+	}
+	if a.h.ChaseQueue().IsBad(x, time.Now()) {
+		t.Fatal("a hash not shown invalid went on the known-bad list")
 	}
 }
 
-// RED-012: a node that holds nothing takes in a whole ledger only while
-// its entries bring layers: a run of more than MaxBareRun entries without
-// any ends the fetch.
-func TestBareRunEndsFetch(t *testing.T) {
-	for _, c := range []struct {
-		bare, held int
-		selected   bool
-	}{{6, 7, true}, {10, 6, false}} {
-		a := startNode(t, "a", nil)
-		parent := exSeries.PoolID(exKey.Index)
-		for i := 0; i <= c.bare; i++ {
-			e, _, err := entry.Build(exSeries, parent, nil, 0)
-			must(t, err)
-			_, err = a.n.HandleEntry(exKey, e, engine.Local)
-			must(t, err)
-			parent = e.Hash(exSeries)
-		}
-		_, _, err := a.n.Work(exKey, parent, 0, 32) // a layer on the last only
+// A node that holds nothing takes in a whole ledger however long its run
+// of entries without layers: they add no weight, but the ledger is
+// heavier, and no limit may stop a node reaching it (audit item G2,
+// D116; this replaces RED-012's bare-run limit).
+func TestLongBareRunIsTaken(t *testing.T) {
+	a := startNode(t, "a", nil)
+	parent := exSeries.PoolID(exKey.Index)
+	const bare = 40
+	for i := 0; i <= bare; i++ {
+		e, _, err := entry.Build(exSeries, parent, nil, 0)
 		must(t, err)
-		if a.status().Height != c.bare+1 {
-			t.Fatalf("a's height %d", a.status().Height)
-		}
-		d := startNode(t, "d", func(c *p2p.Config) { c.Limits.EntryLimit = 4; c.MaxBareRun = 6 })
-		d.connect(a)
-		held := func() (n int) {
-			d.n.Engine().Ledger(exKey, func(l *ledger.Pool) { n = l.Len() })
-			return n
-		}
-		eventually(t, "d to take in entries", func() bool { return held() >= c.held })
-		time.Sleep(300 * time.Millisecond)
-		if got := held(); got != c.held {
-			t.Fatalf("%d bare entries: d holds %d, want %d", c.bare, got, c.held)
-		}
-		if got := d.status().Height > 0; got != c.selected {
-			t.Fatalf("%d bare entries: d selected %v", c.bare, got)
-		}
+		_, err = a.n.HandleEntry(exKey, e, engine.Local)
+		must(t, err)
+		parent = e.Hash(exSeries)
+	}
+	_, _, err := a.n.Work(exKey, parent, 0, 32) // a layer on the last only
+	must(t, err)
+	d := startNode(t, "d", func(c *p2p.Config) { c.Limits.EntryLimit = 4 })
+	d.connect(a)
+	converged(t, a, d)
+	if h := d.status().Height; h != bare+1 {
+		t.Fatalf("d's height %d", h)
 	}
 }
 
-// RED-012: requested entries pay the revert budget too, but a catch-up
-// and a fork switch taken in order cost next to nothing: each entry
-// builds on the state the last one left. Here the fork costs 6 units (3
-// entries of one transaction reverted), within a budget of 20, and a
-// budget of 5 stops it.
+// A split deeper than the old limit of 16 hash chain pages is still
+// found, by halving over the node's own chain, and the node switches
+// (audit item G3, D116).
+func TestDeepSplitIsFound(t *testing.T) {
+	small := func(c *p2p.Config) { c.Limits.HashLimit = 2; c.Limits.EntryLimit = 4 }
+	a := startNode(t, "a", small)
+	b := startNode(t, "b", small)
+	last, owner := grow(t, a, nil, "alice", 3, 32)
+	copyLedger(t, a, b)
+	growTagged(t, b, last, owner, "b", 40, 8) // 20 pages of 2 past the split
+	growTagged(t, a, last, owner, "a", 44, 32)
+	b.connect(a)
+	converged(t, a, b)
+}
+
+// A fork switch deeper than the sender's revert budget is not refused: a
+// chase whose work was checked first is not charged, and an entry over
+// the budget waits instead of being dropped (audit item G1, D116).
+func TestForkPastRevertBudget(t *testing.T) {
+	small := func(c *p2p.Config) { c.Limits.HashLimit = 4; c.Limits.EntryLimit = 3 }
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, Budgets: map[string]int{tracking.KindRevert: 1}}, "")
+	must(t, err)
+	a := startNode(t, "a", small)
+	b := startNode(t, "b", func(c *p2p.Config) { small(c); c.Tracker = tr })
+	last, owner := grow(t, a, nil, "alice", 5, 32)
+	copyLedger(t, a, b)
+	growTagged(t, b, last, owner, "b", 8, 32)
+	growTagged(t, a, last, owner, "a", 20, 32)
+	b.connect(a)
+	converged(t, a, b)
+}
+
+// A chase that runs past its time slice yields and goes on later with
+// what it took in kept, until the node reaches the heavier ledger (audit
+// items P2 to P4, D116).
+func TestChaseYieldsAndGoesOn(t *testing.T) {
+	small := func(c *p2p.Config) {
+		c.Limits.HashLimit = 2
+		c.Limits.EntryLimit = 2
+		c.ChaseSlice = time.Millisecond
+		c.Chase.YieldWait = 10 * time.Millisecond
+	}
+	a := startNode(t, "a", small)
+	b := startNode(t, "b", small)
+	last, owner := grow(t, a, nil, "alice", 3, 32)
+	copyLedger(t, a, b)
+	growTagged(t, b, last, owner, "b", 6, 8)
+	growTagged(t, a, last, owner, "a", 24, 32)
+	b.connect(a)
+	converged(t, a, b)
+}
+
+// RED-012: an honest fork switch taken in order is never flagged, even
+// with a revert budget set.
 func TestChaseInOrderCostsLittleRevert(t *testing.T) {
 	small := func(c *p2p.Config) { c.Limits.HashLimit = 4; c.Limits.EntryLimit = 3 }
 	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, Budgets: map[string]int{tracking.KindRevert: 20}}, "")

@@ -49,7 +49,11 @@ second can at least be detected.
 ### Untrusted bytes
 
 - **Frames** are capped at 16 MiB before anything is allocated
-  (`wire.ReadFrame`), and the hello must arrive within its timeout.
+  (`wire.ReadFrame`), and the hello must arrive within its timeout. An
+  entry larger than a frame comes in parts on request; what is held grows
+  only with the bytes that arrive, and the item is decoded and its hash
+  checked once whole (D117). No item count is capped (C1, C2): memory
+  stays in proportion to the bytes received.
 - **Lengths and counts** inside every object go through
   `encoding.Reader.Count` and `VarBytes`, which refuse a count larger than
   the remaining bytes could hold. A small message cannot make the node

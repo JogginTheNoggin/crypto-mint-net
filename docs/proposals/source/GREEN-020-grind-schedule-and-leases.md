@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (items 1 and 2 prototyped) |
+| Status | items 1 and 2 adopted (Source Round 7, D119); the rest open |
 | Based on | `claude/m10-watch` @ `9972137` |
 | Area | `pkg/grind`, `pkg/cli` (`grind`, `table.go`) |
 | Effort | small |

@@ -557,11 +557,30 @@ func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Ha
 		return layer.Layer{}, engine.LayerResult{}, ErrClosed
 	}
 	// Grinding holds neither lock, so it never stalls peers or the RPC.
+	var mu sync.Mutex
+	var kept []layer.Layer
+	if g.Floor > 0 {
+		g.Keep = func(l layer.Layer) {
+			mu.Lock()
+			kept = append(kept, l)
+			mu.Unlock()
+		}
+	}
 	l, err := n.eng.GrindLayerWith(ctx, k, entryHash, start, tries, g)
 	if err != nil {
 		return l, engine.LayerResult{Key: k}, err
 	}
 	res, err := n.HandleLayer(k, l, engine.Local)
+	// With a floor, the other layers found above it go in too: each adds
+	// its own credit, and none takes any away (ORANGE-010, D118).
+	for _, o := range kept {
+		if o.Nonce == l.Nonce {
+			continue
+		}
+		if _, kerr := n.HandleLayer(k, o, engine.Local); kerr == nil && g.KeptCount != nil {
+			g.KeptCount.Add(1)
+		}
+	}
 	return l, res, err
 }
 

@@ -708,13 +708,15 @@ func replyFits(q, r wire.Type) bool {
 	}
 	switch q {
 	case wire.TypeExtensionReq:
-		return r == wire.TypeExtension || r == wire.TypeNothingHeavier || r == wire.TypeNotFromHere
+		return r == wire.TypeExtension || r == wire.TypeNothingHeavier || r == wire.TypeNotFromHere || r == wire.TypeLarge
 	case wire.TypeFullLedgerReq:
-		return r == wire.TypeExtension
+		return r == wire.TypeExtension || r == wire.TypeLarge
+	case wire.TypePartsReq:
+		return r == wire.TypePart
 	case wire.TypeHashChainReq:
 		return r == wire.TypeHashChain || r == wire.TypeAnchorNotHeld
 	case wire.TypeEntriesReq:
-		return r == wire.TypeEntries
+		return r == wire.TypeEntries || r == wire.TypeLarge
 	case wire.TypeLayersReq:
 		return r == wire.TypeLayers
 	case wire.TypeWeightReq:

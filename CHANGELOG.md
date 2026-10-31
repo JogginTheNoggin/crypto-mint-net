@@ -80,3 +80,16 @@ built.
   same code as `poo` (D84).
 - **Fixed:** a node catching up a heavier ledger one entry at a time could
   prune each entry before its work arrived and never switch (D79).
+- **A heavier ledger is always reachable (D115 to D117):** no node policy
+  can stop a node reaching a heavier valid ledger. A chase finds a split
+  at any depth by halving, takes in any run of entries without layers,
+  and yields and resumes past its time slice instead of giving up; only
+  hashes shown false are bad-listed. Entries and transactions have no
+  size or count cap: an entry larger than a frame travels in parts (new
+  wire types: parts request, large, part), and the store splits large
+  records. `p2p.depth_limit` and `fast_catch_up` are ignored.
+- **Grinding (D118, D119):** `grind.layer_floor` keeps every layer above a
+  floor (off by default; several times the credit for the same work);
+  SIMD lane grinders in a `GOEXPERIMENT=simd` build; jobs stop at once
+  and report progress each second; `poo grind schedule remove -target`
+  guards against a stale row number.

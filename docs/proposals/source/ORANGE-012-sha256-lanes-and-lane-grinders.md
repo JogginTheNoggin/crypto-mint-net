@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Source Round 7, D119) |
 | Based on | `claude/m10-watch` @ `9972137` |
 | Area | `pkg/layer` (`Search`, `GrindSearch`), `pkg/engine` (`Grind.Search`), `pkg/grind` (`Grinder.Search`, `lanes.go`, `sha256_lanes.go`, `sha256_lanes8.go`) |
 | Effort | medium |

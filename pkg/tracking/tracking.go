@@ -895,8 +895,12 @@ func (t *Tracker) Spend(addr, kind string, n uint64, now time.Time) (bool, Actio
 		r.Budget[kind] = c
 	}
 	w := t.cfg.Windows.Budget
+	// One spend larger than the whole budget passes when nothing else was
+	// spent in the window, so no single item is too costly to take from
+	// any peer at all (consensus audit P2, D116).
+	empty := c.Sum(now, w) == 0
 	c.Add(now, w, n)
-	if c.Sum(now, w) <= uint64(limit) {
+	if empty || c.Sum(now, w) <= uint64(limit) {
 		return true, None
 	}
 	e := epoch(now, w) / slots

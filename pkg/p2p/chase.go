@@ -18,10 +18,6 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
-// maxRounds bounds the requests of one fetch, so a peer cannot keep a node
-// asking forever.
-const maxRounds = 4096
-
 // offer is step 0 of a chase: a stated weight above the node's own goes to
 // the chase queue, grouped with others that name the same branch. A sender
 // has one open stated weight per pool, and the ones that start something
@@ -139,6 +135,8 @@ func (h *Host) runJob(j chase.Job) {
 	case chase.False:
 		h.tr.ChaseOutcome(p.key, text, false, now)
 		h.act(p, h.tr.Offend(p.key, tracking.FalseBranch, res.why, now))
+	case chase.Yield:
+		// Not an outcome: the chase goes on later with what it took in.
 	}
 	if res.why != "" {
 		h.log.Info("chase", "pool", pi.key.String(), "peer", p.short(), "result", res.out, "why", res.why)
@@ -146,15 +144,19 @@ func (h *Host) runJob(j chase.Job) {
 }
 
 // runChase runs the steps of one chase with one sender, from cheap to
-// costly: confirming with a priority peer, finding the common entry from
-// the sender's newest hashes, checking the work after it with provisional
-// layers, and only then fetching the entries in chain order. The node
-// switches only through the engine, on weight it computed itself.
+// costly: confirming with a priority peer, finding the common entry,
+// checking the work after it with provisional layers, and only then
+// fetching the entries in chain order. The node switches only through the
+// engine, on weight it computed itself. Nothing here refuses a heavier
+// ledger for good: there is no depth limit and no limit on its length,
+// and a chase that runs past its time slice yields and goes on later with
+// what it took in kept (consensus audit P2 to P4, D116).
 func (h *Host) runChase(pi *poolInfo, p *peer, j chase.Job) result {
 	before := h.ownWeight(pi)
 	if !j.Sender.Stated.Greater(before) {
 		return result{out: chase.Caught}
 	}
+	deadline := time.Now().Add(h.cfg.ChaseSlice)
 	// Step 1: a group whose best sender is not a priority peer is put to
 	// one priority peer first.
 	if !h.cfg.NoConfirm && j.Sender.Cat != peers.CatPriority && !j.Group.Asked {
@@ -172,36 +174,72 @@ func (h *Host) runChase(pi *poolInfo, p *peer, j chase.Job) result {
 	if _, height, _ := h.tip(pi); height == 0 {
 		// Nothing held: there is nothing to beat, and the whole ledger is
 		// the branch.
-		return h.fetchAll(pi, p, before)
-	}
-	// Step 3: the common entry.
-	common, after, res, done := h.findCommon(pi, p)
-	if done {
-		if res.why == "depth limit" && h.cfg.FastCatchUp && p.catFor(pi.section) == peers.CatPriority {
-			return h.fetchAll(pi, p, before)
+		k := progressKey{j.Group.ID, p.id}
+		st := h.takeProgress(k)
+		if st == nil {
+			st = newProgress(pi.s.PoolID(pi.key.Index), nil, false)
+		}
+		res := h.fetchAll(pi, p, st, before, deadline)
+		if res.out == chase.Yield {
+			h.saveProgress(k, st)
 		}
 		return res
 	}
-	h.cq.AddHashes(j.Group.ID, after)
-	if len(after) == 0 {
-		// The sender's ledger ends where this node's does: it holds more
-		// layers on entries both hold.
-		if err := h.topUpLayers(pi, p); err != nil {
-			return chaseErr(err)
-		}
-		return h.outcome(pi, before)
+	// Step 3: the common entry, unless a chase that yielded found it.
+	k := progressKey{j.Group.ID, p.id}
+	st := h.takeProgress(k)
+	if st != nil && !h.holdsSelected(pi, st.common) {
+		st = nil // this node moved off it meanwhile: start again
 	}
+	if st == nil {
+		common, after, complete, res, done := h.findCommon(pi, p)
+		if done {
+			return res
+		}
+		h.cq.AddHashes(j.Group.ID, after)
+		if complete && len(after) == 0 {
+			// The sender's ledger ends where this node's does: it holds
+			// more layers on entries both hold.
+			if err := h.topUpLayers(pi, p); err != nil {
+				return chaseErr(err)
+			}
+			return h.outcome(pi, before)
+		}
+		st = newProgress(common, after, complete)
+	}
+	res := h.stepsFrom(pi, p, j, st, before, deadline)
+	if res.out == chase.Yield {
+		h.saveProgress(k, st)
+	}
+	return res
+}
+
+// stepsFrom runs steps 4 and 5 from what st holds.
+func (h *Host) stepsFrom(pi *poolInfo, p *peer, j chase.Job, st *progress, before weight.Weight, deadline time.Time) result {
 	// Step 4: the work behind the branch, before any entry.
-	if res, done := h.checkWork(pi, p, common, after); done {
-		return res
+	if !st.worked {
+		if res, done := h.checkWork(pi, p, st, deadline); done {
+			return res
+		}
+		h.cq.WorkChecked(j.Group.ID)
 	}
-	h.cq.WorkChecked(j.Group.ID)
 	// Step 5: the entries, checked in chain order against the hashes the
 	// sender listed.
-	if res, done := h.fetchBranch(pi, p, common, after); done {
+	if res, done := h.fetchBranch(pi, p, st, deadline); done {
 		return res
 	}
 	return h.outcome(pi, before)
+}
+
+// holdsSelected reports whether eh is the pool_id or an entry of the
+// node's selected ledger.
+func (h *Host) holdsSelected(pi *poolInfo, eh hash.Hash) bool {
+	if eh == pi.s.PoolID(pi.key.Index) {
+		return true
+	}
+	ok := false
+	h.n.Engine().Ledger(pi.key, func(l *ledger.Pool) { _, ok = l.HeightOf(eh) })
+	return ok
 }
 
 // outcome reports a switch if the node's computed weight grew.
@@ -220,6 +258,9 @@ func chaseErr(err error) result {
 		return falseBranch(f.bad, "%v", f.err)
 	case errors.Is(err, errClosed):
 		return result{out: chase.Gone}
+	case errors.Is(err, errRevertBudget):
+		// Not refused: it goes on once the budget has room again (P2).
+		return result{out: chase.Yield, why: "the revert budget is spent for now"}
 	}
 	return nowhere("%v", err)
 }
@@ -237,7 +278,7 @@ func (e falseErr) Error() string { return e.err.Error() }
 // Whatever entries it sends are taken in like any requested data.
 func (h *Host) confirm(pi *poolInfo, q *peer) (bool, weight.Weight) {
 	tip, _, _ := h.tip(pi)
-	f, err := h.fetch(pi, q, wire.ExtensionReq{RequestCommon: h.common(), From: tip, Beat: h.ownWeight(pi), Variant: wire.EntriesWithLayers}, nil, nil, nil)
+	f, err := h.fetch(pi, q, wire.ExtensionReq{RequestCommon: h.common(), From: tip, Beat: h.ownWeight(pi), Variant: wire.EntriesWithLayers}, nil, nil, true)
 	if err != nil {
 		return false, weight.Zero
 	}
@@ -274,109 +315,268 @@ func (h *Host) tip(pi *poolInfo) (hash.Hash, int, weight.Weight) {
 	return t, ht, w
 }
 
-// findCommon is step 3: it asks p for its newest hashes, and pages back
-// until it reaches one this node holds, up to the depth limit. It returns
-// the common entry (the pool_id when the ledgers share none) and the
-// sender's hashes after it, oldest first; done is set when the chase ends
-// here.
-func (h *Host) findCommon(pi *poolInfo, p *peer) (common hash.Hash, after []hash.Hash, res result, done bool) {
-	limit := h.cfg.Limits.HashLimit
-	q := wire.HashChainReq{RequestCommon: h.common(), Count: limit}
-	var list []hash.Hash
-	seen := map[hash.Hash]bool{}
-	for page := 0; page < h.cfg.DepthLimit; page++ {
-		var hs []hash.Hash
-		fromStart := false
-		kind := wire.TypeHashChain
-		err := h.ask(p, pi, q, func(m wire.Message) error {
-			kind = m.Type
-			if m.Type != wire.TypeHashChain {
-				return wire.DecodeEmpty(m.Type, m.Body)
-			}
-			c, err := wire.DecodeHashChainChunk(m.Body)
-			if err != nil {
-				return err
-			}
-			if m.Chunk == 1 {
-				fromStart = c.FromStart
-			}
-			hs = append(hs, c.Hashes...)
-			return nil
-		})
+// hashPage asks p for one page of hash chain.
+func (h *Host) hashPage(pi *poolInfo, p *peer, q wire.HashChainReq) (hs []hash.Hash, fromStart, more bool, kind wire.Type, err error) {
+	kind = wire.TypeHashChain
+	err = h.ask(p, pi, q, func(m wire.Message) error {
+		kind = m.Type
+		if m.Type != wire.TypeHashChain {
+			return wire.DecodeEmpty(m.Type, m.Body)
+		}
+		c, err := wire.DecodeHashChainChunk(m.Body)
 		if err != nil {
-			if errors.Is(err, wire.ErrMalformed) {
-				h.misbehave(p, err)
+			return err
+		}
+		if m.Chunk == 1 {
+			fromStart = c.FromStart
+		}
+		more = m.More()
+		hs = append(hs, c.Hashes...)
+		return nil
+	})
+	if errors.Is(err, wire.ErrMalformed) {
+		h.misbehave(p, err)
+	}
+	return hs, fromStart, more, kind, err
+}
+
+// findCommon is step 3. It asks p for its newest hashes; if one is held
+// here, that is the common entry and the hashes after it are the whole
+// branch (complete). Otherwise the split is deeper, and it finds the
+// common entry by halving over this node's selected ledger: p is asked
+// whether it holds the entry at a height, which takes about log2(height)
+// requests at any depth, anchored only on entries this node holds, so a
+// sender cannot make the search longer with made-up hashes (P4). The
+// hashes after the common entry are then paged by checkWork. There is no
+// depth limit (the owner, G3; D116).
+func (h *Host) findCommon(pi *poolInfo, p *peer) (common hash.Hash, after []hash.Hash, complete bool, res result, done bool) {
+	poolID := pi.s.PoolID(pi.key.Index)
+	hs, fromStart, _, kind, err := h.hashPage(pi, p, wire.HashChainReq{RequestCommon: h.common(), Count: h.cfg.Limits.HashLimit})
+	if err != nil {
+		return common, nil, false, chaseErr(err), true
+	}
+	if kind != wire.TypeHashChain {
+		return common, nil, false, nowhere("hash chain answered %s", kind), true
+	}
+	if len(hs) == 0 {
+		return common, nil, false, nowhere("the sender holds no ledger"), true
+	}
+	if dup := firstRepeat(hs, nil); dup != nil {
+		// A lie about the order, which says nothing against the entry with
+		// that hash: nothing goes on the known-bad list (P5).
+		return common, nil, false, falseBranch(nil, "hash %s listed twice", dup.Short()), true
+	}
+	found := -1
+	h.n.Engine().Ledger(pi.key, func(l *ledger.Pool) {
+		for i := len(hs) - 1; i >= 0; i-- {
+			if l.Has(hs[i]) {
+				found = i
+				return
 			}
-			return common, nil, chaseErr(err), true
 		}
-		if kind != wire.TypeHashChain {
-			return common, nil, nowhere("hash chain answered %s", kind), true
-		}
-		if len(hs) == 0 {
-			return common, nil, nowhere("the sender holds no ledger"), true
-		}
-		for _, x := range hs {
-			if seen[x] {
-				return common, nil, falseBranch([]hash.Hash{x}, "hash %s listed twice", x.Short()), true
-			}
-			seen[x] = true
-		}
-		list = append(append([]hash.Hash(nil), hs...), list...)
-		found := -1
+	})
+	if found >= 0 {
+		return hs[found], hs[found+1:], true, result{}, false
+	}
+	if fromStart {
+		return poolID, hs, true, result{}, false
+	}
+	// Halve: lo is a height p holds (0, the pool_id, always), hi one it
+	// does not or that is past this node's tip.
+	_, height, _ := h.tip(pi)
+	lo, hi := 0, height+1
+	for hi-lo > 1 {
+		mid := lo + (hi-lo)/2
+		var at hash.Hash
+		ok := false
 		h.n.Engine().Ledger(pi.key, func(l *ledger.Pool) {
-			for i := len(hs) - 1; i >= 0; i-- {
-				if l.Has(hs[i]) {
-					found = i
-					return
-				}
+			if mid <= l.Height() {
+				at, ok = l.Chain(mid, mid)[0], true
 			}
 		})
-		if found >= 0 {
-			return hs[found], list[found+1:], result{}, false
+		if !ok {
+			hi = mid
+			continue
 		}
-		if fromStart {
-			return pi.s.PoolID(pi.key.Index), list, result{}, false
+		_, _, _, kind, err := h.hashPage(pi, p, wire.HashChainReq{RequestCommon: h.common(), HasAnchor: true, Anchor: at, Dir: wire.After, Count: 1})
+		switch {
+		case err != nil:
+			return common, nil, false, chaseErr(err), true
+		case kind == wire.TypeHashChain:
+			lo, common = mid, at
+		case kind == wire.TypeAnchorNotHeld:
+			hi = mid
+		default:
+			return common, nil, false, nowhere("hash chain answered %s", kind), true
 		}
-		q = wire.HashChainReq{RequestCommon: h.common(), HasAnchor: true, Anchor: hs[0], Dir: wire.Before, Count: limit}
 	}
-	return common, nil, result{out: chase.Nowhere, why: "depth limit"}, true
+	if lo == 0 {
+		common = poolID
+	}
+	return common, nil, false, result{}, false
+}
+
+// firstRepeat returns a hash of hs listed twice, or listed in seen.
+func firstRepeat(hs []hash.Hash, seen map[hash.Hash]bool) *hash.Hash {
+	if seen == nil {
+		seen = map[hash.Hash]bool{}
+	}
+	for i, x := range hs {
+		if seen[x] {
+			return &hs[i]
+		}
+		seen[x] = true
+	}
+	return nil
+}
+
+// progress is what a chase has learned about one sender's branch. A
+// chase that yields leaves it with the host, and the next chase of the
+// same group with the same sender goes on from it, so a long branch is
+// reached over several time slices instead of starting again each time
+// (consensus audit P2 to P4, D116).
+type progress struct {
+	common   hash.Hash
+	after    []hash.Hash // the sender's hashes after common, as listed
+	complete bool        // after reaches the sender's tip
+	listed   map[hash.Hash]bool
+
+	// Step 4.
+	total   weight.Weight // provisional work counted so far
+	checked int           // after[:checked] have had their layers counted
+	counted map[hash.Hash]bool
+	worked  bool // total beat the node's own weight after common
+
+	// Step 5.
+	from   hash.Hash
+	idx    int
+	branch map[hash.Hash]bool // listed and fetched hashes
+}
+
+func newProgress(common hash.Hash, after []hash.Hash, complete bool) *progress {
+	return &progress{common: common, after: after, complete: complete, from: common,
+		listed: map[hash.Hash]bool{}, counted: map[hash.Hash]bool{}, branch: map[hash.Hash]bool{}}
+}
+
+// progressKey names a chase of one group with one sender.
+type progressKey struct {
+	group  uint64
+	sender string
+}
+
+// maxProgress is how many yielded chases the host remembers; past it the
+// oldest is forgotten and starts again when its turn comes.
+const maxProgress = 256
+
+func (h *Host) saveProgress(k progressKey, st *progress) {
+	h.progMu.Lock()
+	defer h.progMu.Unlock()
+	if h.prog == nil {
+		h.prog = map[progressKey]*progress{}
+	}
+	if _, ok := h.prog[k]; !ok {
+		h.progOrder = append(h.progOrder, k)
+	}
+	h.prog[k] = st
+	for len(h.progOrder) > maxProgress {
+		delete(h.prog, h.progOrder[0])
+		h.progOrder = h.progOrder[1:]
+	}
+}
+
+// takeProgress returns and forgets what a yielded chase left, or nil.
+func (h *Host) takeProgress(k progressKey) *progress {
+	h.progMu.Lock()
+	defer h.progMu.Unlock()
+	st := h.prog[k]
+	if st != nil {
+		delete(h.prog, k)
+		for i, o := range h.progOrder {
+			if o == k {
+				h.progOrder = append(h.progOrder[:i], h.progOrder[i+1:]...)
+				break
+			}
+		}
+	}
+	return st
 }
 
 // checkWork is step 4: it asks p for the layers on the hashes after the
 // common entry and checks them provisionally, until they add up to more
-// than the weight to beat. The layers are never kept, counted towards a
-// ledger or forwarded; done is set when the chase ends here.
-func (h *Host) checkWork(pi *poolInfo, p *peer, common hash.Hash, after []hash.Hash) (result, bool) {
+// than the weight to beat. When after is not complete it pages p's hashes
+// on from the common entry as it goes. The layers are never kept,
+// counted towards a ledger or forwarded. done is set when the chase ends
+// here. There is no cap on the layers looked at: real work is what a
+// heavier ledger is made of. Past the deadline it yields, but only once it
+// has made one request, so every slice makes progress.
+func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time) (result, bool) {
 	var beat weight.Weight
 	h.n.Engine().Ledger(pi.key, func(l *ledger.Pool) {
-		to, _ := l.WeightTo(common)
+		to, _ := l.WeightTo(st.common)
 		beat = l.Weight().Sub(to)
 	})
 	fn := pi.s.Hash()
 	minLayer, minEntry := pi.s.MinLayerStrength(), pi.s.MinEntryStrength()
-	total := weight.Zero
-	for _, eh := range after {
-		if eh.Strength() < minEntry {
-			return falseBranch([]hash.Hash{eh}, "entry hash %s below the minimum strength", eh.Short()), true
+	// list takes in listed hashes: each must be able to be an entry's.
+	list := func(hs []hash.Hash) (result, bool) {
+		if dup := firstRepeat(hs, st.listed); dup != nil {
+			return falseBranch(nil, "hash %s listed twice", dup.Short()), true
 		}
-		if pi.s.EntryHashCredit() {
-			total = total.Add(weight.Credit(eh.Strength()))
+		for _, eh := range hs {
+			if eh.Strength() < minEntry {
+				// No valid entry has this hash: it is shown false itself.
+				return falseBranch([]hash.Hash{eh}, "entry hash %s below the minimum strength", eh.Short()), true
+			}
+			if pi.s.EntryHashCredit() {
+				st.total = st.total.Add(weight.Credit(eh.Strength()))
+			}
+			st.branch[eh] = true
+		}
+		return result{}, false
+	}
+	if len(st.listed) == 0 && len(st.after) > 0 {
+		if res, done := list(st.after); done {
+			return res, true
 		}
 	}
-	listed := map[hash.Hash]bool{}
-	for _, eh := range after {
-		listed[eh] = true
-	}
-	counted := map[hash.Hash]bool{}
-	fetched := 0
 	batch := int(h.cfg.Limits.HashLimit)
-	for i := 0; i < len(after) && !total.Greater(beat) && fetched < h.cfg.ProvisionalLayers; {
-		end := i + batch
-		if end > len(after) {
-			end = len(after)
+	asked := false
+	for !st.total.Greater(beat) {
+		if asked && time.Now().After(deadline) {
+			return result{out: chase.Yield, why: "time slice used up checking the work"}, true
 		}
+		asked = true
+		if st.checked == len(st.after) {
+			if st.complete {
+				break
+			}
+			q := wire.HashChainReq{RequestCommon: h.common(), Count: h.cfg.Limits.HashLimit}
+			if len(st.after) > 0 || st.common != pi.s.PoolID(pi.key.Index) {
+				anchor := st.common
+				if len(st.after) > 0 {
+					anchor = st.after[len(st.after)-1]
+				}
+				q.HasAnchor, q.Anchor, q.Dir = true, anchor, wire.After
+			}
+			hs, _, more, kind, err := h.hashPage(pi, p, q)
+			switch {
+			case err != nil:
+				return chaseErr(err), true
+			case kind == wire.TypeAnchorNotHeld:
+				return nowhere("the sender no longer holds %s", q.Anchor.Short()), true
+			case kind != wire.TypeHashChain:
+				return nowhere("hash chain answered %s", kind), true
+			}
+			if res, done := list(hs); done {
+				return res, true
+			}
+			st.after = append(st.after, hs...)
+			st.complete = !more || len(hs) == 0
+			continue
+		}
+		end := min(st.checked+batch, len(st.after))
 		var items []wire.HeldLayers
-		err := h.ask(p, pi, wire.LayersReq{RequestCommon: h.common(), Hashes: after[i:end]}, func(m wire.Message) error {
+		err := h.ask(p, pi, wire.LayersReq{RequestCommon: h.common(), Hashes: st.after[st.checked:end]}, func(m wire.Message) error {
 			if m.Type != wire.TypeLayers {
 				return wire.DecodeEmpty(m.Type, m.Body)
 			}
@@ -397,7 +597,7 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, common hash.Hash, after []hash.H
 			return nowhere("no layers sent"), true
 		}
 		for _, it := range items {
-			if !listed[it.Entry] {
+			if !st.listed[it.Entry] {
 				continue
 			}
 			if !it.Held {
@@ -406,41 +606,66 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, common hash.Hash, after []hash.H
 			for _, n := range it.Nonces {
 				lh := layer.Layer{Entry: it.Entry, Nonce: n}.Hash(fn)
 				if lh.Strength() < minLayer {
-					return falseBranch([]hash.Hash{it.Entry}, "layer on %s below the minimum strength", it.Entry.Short()), true
+					// The layer is false, not the entry under it (P5).
+					return falseBranch(nil, "layer on %s below the minimum strength", it.Entry.Short()), true
 				}
-				if counted[lh] {
+				if st.counted[lh] {
 					continue
 				}
-				counted[lh] = true
-				fetched++
-				total = total.Add(weight.Credit(lh.Strength()))
+				st.counted[lh] = true
+				st.total = st.total.Add(weight.Credit(lh.Strength()))
 			}
 		}
-		i += len(items)
+		st.checked += len(items)
 	}
-	if !total.Greater(beat) {
-		return nowhere("provisional work %s does not beat %s", total, beat), true
+	if !st.total.Greater(beat) {
+		return nowhere("provisional work %s does not beat %s", st.total, beat), true
 	}
+	st.worked = true
+	st.counted = nil // not needed past step 4
 	return result{}, false
 }
 
 // fetchBranch is step 5: extensions from the common entry, each entry
-// checked against the hash the sender listed for it.
-func (h *Host) fetchBranch(pi *poolInfo, p *peer, common hash.Hash, after []hash.Hash) (result, bool) {
-	from, idx, bare := common, 0, 0
-	for round := 0; round < maxRounds; round++ {
-		q := wire.ExtensionReq{RequestCommon: h.common(), From: from, Beat: h.ownWeight(pi), Variant: wire.EntriesWithLayers}
-		f, err := h.fetch(pi, p, q, after, &idx, &bare)
+// checked against the hash the sender listed for it. Its entries are not
+// charged to the revert budget, since the sender has shown real work
+// greater than this node's ledger after the fork (P2). Before each
+// request it checks the branch is still worth it: once a ledger off the
+// branch and heavier than its provisional work has been selected
+// meanwhile, the chase ends as not heavier (P3). Like checkWork it
+// yields past the deadline once it has made a request.
+func (h *Host) fetchBranch(pi *poolInfo, p *peer, st *progress, deadline time.Time) (result, bool) {
+	asked := false
+	for {
+		if asked && time.Now().After(deadline) {
+			return result{out: chase.Yield, why: "time slice used up fetching"}, true
+		}
+		asked = true
+		var beat weight.Weight
+		onBranch := false
+		h.n.Engine().Ledger(pi.key, func(l *ledger.Pool) {
+			tip, _, w := l.Tip()
+			onBranch = st.branch[tip]
+			to, _ := l.WeightTo(st.common)
+			beat = w.Sub(to)
+		})
+		if !onBranch && !st.total.Greater(beat) {
+			return nowhere("a ledger heavier than the branch was selected meanwhile"), true
+		}
+		q := wire.ExtensionReq{RequestCommon: h.common(), From: st.from, Beat: h.ownWeight(pi), Variant: wire.EntriesWithLayers}
+		f, err := h.fetch(pi, p, q, st.after, &st.idx, false)
+		for _, eh := range f.hashes {
+			st.branch[eh] = true
+		}
+		if f.count > 0 {
+			st.from = f.last
+		}
 		if err != nil {
 			return chaseErr(err), true
 		}
 		switch f.kind {
 		case wire.TypeExtension:
-			if f.count == 0 {
-				return result{}, false
-			}
-			from = f.last
-			if f.more {
+			if f.count > 0 && f.more {
 				continue
 			}
 			return result{}, false
@@ -450,23 +675,33 @@ func (h *Host) fetchBranch(pi *poolInfo, p *peer, common hash.Hash, after []hash
 			return nowhere("extension answered %s", f.kind), true
 		}
 	}
-	return nowhere("too many requests"), true
 }
 
-// fetchAll fetches p's whole ledger: for a node that holds nothing of the
-// pool, or a fast catch-up.
-func (h *Host) fetchAll(pi *poolInfo, p *peer, before weight.Weight) result {
-	var q wire.Request = wire.FullLedgerReq{RequestCommon: h.common(), Variant: wire.EntriesWithLayers}
-	bare := 0
-	for round := 0; round < maxRounds; round++ {
-		f, err := h.fetch(pi, p, q, nil, nil, &bare)
+// fetchAll fetches p's whole ledger, for a node that holds nothing of the
+// pool. Its entries are charged to the revert budget, which waits for room
+// rather than refusing (P2). Past the time slice it yields, once it has
+// made a request, and the next chase goes on from st.from.
+func (h *Host) fetchAll(pi *poolInfo, p *peer, st *progress, before weight.Weight, deadline time.Time) result {
+	asked := false
+	for {
+		if asked && time.Now().After(deadline) {
+			return result{out: chase.Yield, why: "time slice used up fetching the ledger"}
+		}
+		asked = true
+		var q wire.Request = wire.FullLedgerReq{RequestCommon: h.common(), Variant: wire.EntriesWithLayers}
+		if st.from != st.common {
+			q = wire.ExtensionReq{RequestCommon: h.common(), From: st.from, Beat: weight.Zero, Variant: wire.EntriesWithLayers}
+		}
+		f, err := h.fetch(pi, p, q, nil, nil, true)
+		if f.count > 0 {
+			st.from = f.last
+		}
 		if err != nil {
 			return chaseErr(err)
 		}
 		if f.kind != wire.TypeExtension || !f.more || f.count == 0 {
 			break
 		}
-		q = wire.ExtensionReq{RequestCommon: h.common(), From: f.last, Beat: weight.Zero, Variant: wire.EntriesWithLayers}
 	}
 	return h.outcome(pi, before)
 }
@@ -476,24 +711,56 @@ type fetched struct {
 	kind   wire.Type
 	more   bool
 	last   hash.Hash
+	hashes []hash.Hash // of the entries taken in, in order
 	count  int
 	stated weight.Weight
 }
 
 // fetch sends an extension or full ledger request and takes in the
 // entries of the reply as they arrive, in chain order. With expect, entry
-// *idx onwards must match the hashes listed there, in order. With bare, a
-// run of more than Config.MaxBareRun entries without layers (counted in
-// *bare across calls) ends the fetch.
-func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, expect []hash.Hash, idx *int, bare *int) (fetched, error) {
+// *idx onwards must match the hashes listed there, in order. charge says
+// whether its entries draw on the sender's revert budget.
+func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, expect []hash.Hash, idx *int, charge bool) (fetched, error) {
 	var f fetched
 	parent := pi.s.PoolID(pi.key.Index)
 	if e, ok := q.(wire.ExtensionReq); ok {
 		parent = e.From
 	}
+	take := func(it wire.EntryItem) error {
+		eh := it.Entry.Hash(pi.s)
+		if it.Entry.Parent != parent {
+			// Out of order: the reply is false, the entry may well be
+			// valid, so nothing goes on the known-bad list (P5).
+			return falseErr{err: fmt.Errorf("entry %s does not link", eh.Short())}
+		}
+		if idx != nil && *idx < len(expect) {
+			if eh != expect[*idx] {
+				// The listed hash is shown false, not the entry sent.
+				return falseErr{bad: []hash.Hash{expect[*idx]}, err: fmt.Errorf("entry %s is not the hash %s listed", eh.Short(), expect[*idx].Short())}
+			}
+			*idx++
+		}
+		if err := h.takeItem(pi, p, it, eh, charge); err != nil {
+			return err
+		}
+		parent = eh
+		f.last = eh
+		f.hashes = append(f.hashes, eh)
+		f.count++
+		return nil
+	}
+	var large *wire.Large
 	err := h.ask(p, pi, q, func(m wire.Message) error {
 		f.kind, f.stated = m.Type, m.Stated
 		f.more = m.More()
+		if m.Type == wire.TypeLarge {
+			l, err := wire.DecodeLarge(m.Body)
+			if err != nil {
+				return err
+			}
+			large = &l
+			return nil
+		}
 		if m.Type != wire.TypeExtension {
 			return wire.DecodeEmpty(m.Type, m.Body)
 		}
@@ -502,47 +769,84 @@ func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, expect []hash.Hash, 
 			return err
 		}
 		for _, it := range c.Items {
-			eh := it.Entry.Hash(pi.s)
-			if it.Entry.Parent != parent {
-				return falseErr{bad: []hash.Hash{eh}, err: fmt.Errorf("entry %s does not link", eh.Short())}
-			}
-			if idx != nil && *idx < len(expect) {
-				if eh != expect[*idx] {
-					return falseErr{bad: []hash.Hash{expect[*idx], eh}, err: fmt.Errorf("entry %s is not the hash %s listed", eh.Short(), expect[*idx].Short())}
-				}
-				*idx++
-			}
-			if bare != nil && !pi.s.EntryHashCredit() {
-				if len(it.Nonces) > 0 {
-					*bare = 0
-				} else if *bare++; *bare > h.cfg.MaxBareRun {
-					return errBareRun
-				}
-			}
-			if err := h.takeItem(pi, p, it, eh); err != nil {
+			if err := take(it); err != nil {
 				return err
 			}
-			parent = eh
-			f.last = eh
-			f.count++
 		}
 		return nil
 	})
+	if err == nil && large != nil {
+		// The next entry is too large for one chunk: it comes in parts,
+		// and the reply goes on after it (P1, D117).
+		var it wire.EntryItem
+		it, err = h.fetchParts(pi, p, *large)
+		if err == nil {
+			err = take(it)
+		}
+		f.kind, f.more = wire.TypeExtension, true
+	}
 	if errors.Is(err, wire.ErrMalformed) {
 		h.misbehave(p, err)
 	}
 	return f, err
 }
 
-// errBareRun ends a fetch at a long run of entries that add no weight.
-var errBareRun = errors.New("too many entries in a row without layers")
+// fetchParts fetches the encoded item of an entry too large for one
+// chunk, part by part, and decodes it once whole. Each part must start
+// where the last ended and name the size the sender stated; what is held
+// grows only with the bytes that arrive (consensus audit P1, D117).
+func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large) (wire.EntryItem, error) {
+	var buf []byte
+	for {
+		q := wire.PartsReq{RequestCommon: h.common(), Entry: l.Entry, Variant: wire.EntriesWithLayers, Offset: uint64(len(buf))}
+		var kind wire.Type
+		more := false
+		err := h.ask(p, pi, q, func(m wire.Message) error {
+			kind, more = m.Type, m.More()
+			if m.Type != wire.TypePart {
+				return wire.DecodeEmpty(m.Type, m.Body)
+			}
+			pt, err := wire.DecodePart(m.Body)
+			if err != nil {
+				return err
+			}
+			if pt.Total != l.Size || pt.Offset != uint64(len(buf)) {
+				return falseErr{err: fmt.Errorf("part %d of %d for entry %s, want %d of %d", pt.Offset, pt.Total, l.Entry.Short(), len(buf), l.Size)}
+			}
+			buf = append(buf, pt.Data...)
+			return nil
+		})
+		if err != nil {
+			return wire.EntryItem{}, err
+		}
+		if kind != wire.TypePart {
+			return wire.EntryItem{}, fmt.Errorf("parts of entry %s answered %s", l.Entry.Short(), kind)
+		}
+		if uint64(len(buf)) == l.Size {
+			break
+		}
+		if !more {
+			return wire.EntryItem{}, falseErr{err: fmt.Errorf("entry %s ended at %d of %d bytes", l.Entry.Short(), len(buf), l.Size)}
+		}
+	}
+	it, err := wire.DecodeItem(buf)
+	if err != nil {
+		return wire.EntryItem{}, err
+	}
+	if eh := it.Entry.Hash(pi.s); eh != l.Entry {
+		// The sender named one hash and sent another entry.
+		return wire.EntryItem{}, falseErr{err: fmt.Errorf("parts of %s make entry %s", l.Entry.Short(), eh.Short())}
+	}
+	return it, nil
+}
 
 // errRevertBudget ends a fetch when the sender's revert budget is spent.
 var errRevertBudget = errors.New("the revert budget is spent")
 
 // spendRevert draws what checking e costs (Engine.EntryCost) from the
-// sender's revert budget. Pushed and requested entries both pay it
-// (RED-011, RED-012, decisions D111, D114).
+// sender's revert budget: pushed entries, and requested ones whose work
+// was not checked first (RED-011, RED-012, D111, D114, D116). Over it the
+// entry waits; it is never refused for good.
 func (h *Host) spendRevert(pi *poolInfo, p *peer, e *entry.Entry) error {
 	c := h.n.Engine().EntryCost(pi.key, e)
 	if c == 0 {
@@ -558,10 +862,13 @@ func (h *Host) spendRevert(pi *poolInfo, p *peer, e *entry.Entry) error {
 	return nil
 }
 
-// takeItem takes in one requested entry and its layers.
-func (h *Host) takeItem(pi *poolInfo, p *peer, it wire.EntryItem, eh hash.Hash) error {
-	if err := h.spendRevert(pi, p, it.Entry); err != nil {
-		return err
+// takeItem takes in one requested entry and its layers, charging the
+// revert budget when charge is set.
+func (h *Host) takeItem(pi *poolInfo, p *peer, it wire.EntryItem, eh hash.Hash, charge bool) error {
+	if charge {
+		if err := h.spendRevert(pi, p, it.Entry); err != nil {
+			return err
+		}
 	}
 	_, err := h.n.HandleEntryFrom(pi.key, it.Entry, engine.Requested, p.id)
 	switch {
@@ -580,7 +887,9 @@ func (h *Host) takeLayers(pi *poolInfo, p *peer, eh hash.Hash, nonces []uint64) 
 	for _, n := range nonces {
 		_, err := h.n.HandleLayerFrom(pi.key, layer.Layer{Entry: eh, Nonce: n}, engine.Requested, p.id)
 		if errors.Is(err, ledger.ErrWeakLayer) {
-			return falseErr{bad: []hash.Hash{eh}, err: fmt.Errorf("layer below the minimum strength: %w", err)}
+			// A layer is not an entry: the sender is flagged, and nothing
+			// goes on the known-bad list (P5).
+			return falseErr{err: fmt.Errorf("layer below the minimum strength: %w", err)}
 		}
 	}
 	return nil

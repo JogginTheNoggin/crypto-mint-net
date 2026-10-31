@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -189,9 +190,11 @@ func (r replier) build(pi *poolInfo, l *ledger.Pool, q wire.Request) func() {
 	case wire.EntriesReq:
 		return r.byHash(l, q)
 	case wire.LayersReq:
-		return r.layers(l, q)
+		return r.layers(pi, l, q)
 	case wire.WeightReq:
 		return func() { r.empty(wire.TypeWeight, r.stated) }
+	case wire.PartsReq:
+		return r.parts(l, q)
 	}
 	return func() { r.empty(wire.TypeRefused, r.stated) }
 }
@@ -201,6 +204,7 @@ func (r replier) entries(l *ledger.Pool, from int, layers bool) func() {
 	hs := l.Chain(from+1, from+r.lim.entries)
 	more := from+len(hs) < l.Height()
 	items := make([]wire.EntryItem, 0, len(hs))
+	var sizes []int
 	total := 0
 	for _, h := range hs {
 		it := item(l, h, layers)
@@ -208,19 +212,80 @@ func (r replier) entries(l *ledger.Pool, from int, layers bool) func() {
 			more = true
 			break
 		}
+		size := it.Size()
+		if size > r.h.cfg.PartsOver {
+			// Too large for one chunk: the reply ends before it, and the
+			// asker fetches it in parts (D117).
+			if len(items) == 0 {
+				return r.tooLarge(h, size)
+			}
+			more = true
+			break
+		}
 		total += len(it.Nonces)
 		items = append(items, it)
+		sizes = append(sizes, size)
 	}
 	return func() {
-		sizes := make([]int, len(items))
-		for i, it := range items {
-			sizes[i] = it.Size()
-		}
 		var bodies [][]byte
 		for _, run := range split(sizes, r.lim.chunk) {
 			bodies = append(bodies, wire.EntriesChunk{Items: items[run[0]:run[1]]}.Encode())
 		}
 		r.chunks(wire.TypeExtension, bodies, more)
+	}
+}
+
+// chunkRoom is what an entries chunk takes besides its items.
+const chunkRoom = 16
+
+// maxWhole is the largest entry item one frame can carry.
+const maxWhole = wire.MaxFrame - frameRoom - chunkRoom - hash.Size - 1
+
+// maxNonces is the most layer nonces of one entry a layers chunk holds.
+const maxNonces = (wire.MaxFrame - frameRoom - chunkRoom - hash.Size - 5) / 8
+
+// minPart is the least data a part carries, whatever chunk size the
+// asker set.
+const minPart = 1 << 10
+
+// partsReply is the most bytes of an item one parts reply carries; the
+// asker asks again for the rest.
+const partsReply = 64 << 20
+
+// tooLarge replies that the next entry, h, is larger than PartsOver.
+func (r replier) tooLarge(h hash.Hash, size int) func() {
+	return func() {
+		r.chunks(wire.TypeLarge, [][]byte{wire.Large{Entry: h, Size: uint64(size)}.Encode()}, false)
+	}
+}
+
+// parts replies with the encoded item of an entry of the active ledger
+// from the asked offset, in chunks, up to partsReply bytes (D117).
+func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
+	if !l.InSelected(q.Entry) {
+		return func() { r.empty(wire.TypeNotHeld, r.stated) }
+	}
+	b := wire.EncodeItem(item(l, q.Entry, q.Variant == wire.EntriesWithLayers))
+	total := uint64(len(b))
+	if q.Offset >= total {
+		return func() { r.empty(wire.TypeRefused, r.stated) }
+	}
+	return func() {
+		per := r.lim.chunk - chunkRoom
+		if per < minPart {
+			per = minPart
+		}
+		var bodies [][]byte
+		off := q.Offset
+		for off < total && off-q.Offset < partsReply {
+			end := off + uint64(per)
+			if end > total {
+				end = total
+			}
+			bodies = append(bodies, wire.Part{Total: total, Offset: off, Data: b[off:end]}.Encode())
+			off = end
+		}
+		r.chunks(wire.TypePart, bodies, off < total)
 	}
 }
 
@@ -295,6 +360,13 @@ func (r replier) byHash(l *ledger.Pool, q wire.EntriesReq) func() {
 			more = true
 			break
 		}
+		if size := it.Size(); size > r.h.cfg.PartsOver {
+			if len(items) == 0 {
+				return r.tooLarge(h, size)
+			}
+			more = true
+			break
+		}
 		sent++
 		nl += len(it.Nonces)
 		items = append(items, wire.HeldEntry{Hash: h, Held: true, Item: it})
@@ -315,7 +387,7 @@ func (r replier) byHash(l *ledger.Pool, q wire.EntriesReq) func() {
 	}
 }
 
-func (r replier) layers(l *ledger.Pool, q wire.LayersReq) func() {
+func (r replier) layers(pi *poolInfo, l *ledger.Pool, q wire.LayersReq) func() {
 	var items []wire.HeldLayers
 	total := 0
 	more := false
@@ -324,8 +396,20 @@ func (r replier) layers(l *ledger.Pool, q wire.LayersReq) func() {
 			items = append(items, wire.HeldLayers{Entry: h})
 			continue
 		}
+		lys := l.Layers(h)
+		if len(lys) > maxNonces {
+			// More layers than one chunk holds: the strongest that fit go,
+			// which is the most work this reply can show (D117).
+			fn := pi.s.Hash()
+			st := make(map[uint64]int, len(lys))
+			for _, ly := range lys {
+				st[ly.Nonce] = ly.Strength(fn)
+			}
+			sort.SliceStable(lys, func(i, j int) bool { return st[lys[i].Nonce] > st[lys[j].Nonce] })
+			lys = lys[:maxNonces]
+		}
 		var ns []uint64
-		for _, ly := range l.Layers(h) {
+		for _, ly := range lys {
 			ns = append(ns, ly.Nonce)
 		}
 		if total > 0 && total+len(ns) > r.lim.layers {

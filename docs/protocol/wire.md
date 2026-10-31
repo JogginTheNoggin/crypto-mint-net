@@ -104,6 +104,7 @@ the clock skew (2 minutes) ahead.
 | 23 | full ledger request | Common ∥ `U8` variant |
 | 24 | layers request | Common ∥ `List<Hash>` entries |
 | 25 | weight check request | Common |
+| 26 | parts request | Common ∥ `Hash` entry ∥ `U8` variant ∥ `U64` offset |
 | 30 | follow request | Follow request |
 | 31 | peer list request | `U64` nonce ∥ `U64` time ∥ `U8` peer variant (1 or 2) ∥ discovery limits |
 | 32 | missing chunks request | `List<U32>` positions (header: the original request id) |
@@ -117,6 +118,8 @@ the clock skew (2 minutes) ahead.
 | 47 | weight | empty (the answer is the header's stated weight) |
 | 48 | not held | empty |
 | 49 | refused | empty |
+| 50 | large | `Hash` entry ∥ `U64` size of its entry item |
+| 51 | part | `U64` total ∥ `U64` offset ∥ the bytes to the end of the body |
 | 60 | pong | Contact ∥ `List<Section>` (empty) |
 | 61 | partial pong | Contact ∥ `List<Section>` followed within the one asked about |
 | 62 | yes | Follow reply |
@@ -177,7 +180,17 @@ last flag on the final one, including one-message replies such as "nothing
 heavier". Chunks hold whole items: a chunk is cut only between entries,
 hashes or the layers of one entry, and an item larger than the chunk size
 is sent alone. The more marker on the last chunk says the server holds
-more than the limits let it send. Every reply carries the server's own
+more than the limits let it send.
+
+An entry item larger than one frame can carry is sent **in parts** (D117):
+an extension, full ledger or entries reply stops before it, and when it is
+the first item the reply is a single **large** chunk naming its hash and
+size instead. The asker sends **parts requests** for that entry from
+offset 0, each answered by **part** chunks of the encoded entry item in
+order (the more marker says it goes on past them), puts the bytes
+together, decodes the item and checks its hash is the one named, then
+asks on from that entry. Large items are never pushed: a node announces
+one with a notice. There is no size at which a valid entry cannot travel. Every reply carries the server's own
 stated weight. Replies come from the active ledger only.
 
 | Request | Answer |
@@ -209,10 +222,11 @@ chase then asks, from cheap to costly:
    whether it sees something heavier too (skipped when the sender is a
    priority peer);
 2. a **full ledger** request, when the node holds nothing for the pool;
-3. **hash chains**: the latest hashes first, then pages back with the
-   oldest hash as anchor, until the newest hash it holds (if the chain
-   reaches the first entry with no shared hash, the split is the pool_id),
-   at most 16 pages;
+3. **hash chains**: the latest hashes first; when none is held, the split
+   is found by halving over the node's own ledger, asking for one hash
+   after an entry it holds (anchor not held means the sender does not
+   hold it), about log₂(height) requests at any depth (D116). There is no
+   depth limit;
 4. **layers** on the hashes after the split, as provisional work: their
    credit must beat the weight of the node's own ledger after the split
    before anything else is asked; they are not kept;
@@ -222,7 +236,9 @@ chase then asks, from cheap to costly:
    latest entries instead.
 
 It continues after a more marker with an extension from the last entry it
-received. Received entries are checked in chain order, each must name the
+received. A chase that runs past its time slice yields its turn and goes
+on later from where it stopped; nothing about a branch's length or depth
+ends it (D116). Received entries are checked in chain order, each must name the
 one before it (or the request's starting point) as parent, and they are
 taken in through the engine as requested data: checked exactly like
 pushed data, switched to only on computed weight, never forwarded.

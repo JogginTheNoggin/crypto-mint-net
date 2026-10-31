@@ -542,6 +542,14 @@ type Grind struct {
 	// Search, when set, searches layers a range of nonces at a time
 	// instead of hashing each with New (ORANGE-012).
 	Search layer.Search
+	// Floor, when above 0, also hands Keep the other layers found at or
+	// above it, and at or above the series' minimum layer strength
+	// (ORANGE-010, D118). Keep runs on the search's workers at once.
+	Floor int
+	Keep  func(layer.Layer)
+	// KeptCount, if not nil, counts the layers besides the strongest that
+	// the node took in (node.Node.WorkWith).
+	KeptCount *atomic.Uint64
 }
 
 func (g Grind) hasher(s *series.Series) hash.NewHasher {
@@ -622,12 +630,16 @@ func (e *Engine) GrindLayerWith(ctx context.Context, k PoolKey, entryHash hash.H
 	if !held {
 		return layer.Layer{}, ledger.ErrUnknownEntry
 	}
+	var keep *layer.Keep
+	if g.Floor > 0 && g.Keep != nil {
+		keep = &layer.Keep{Floor: max(g.Floor, s.MinLayerStrength()), Func: func(l layer.Layer, _ int) { g.Keep(l) }}
+	}
 	var l layer.Layer
 	var strength int
 	if g.Search != nil {
-		l, strength, err = layer.GrindSearch(ctx, g.Search, entryHash, start, tries, g.Workers, g.Tried)
+		l, strength, err = layer.GrindSearchKeep(ctx, g.Search, entryHash, start, tries, g.Workers, g.Tried, keep)
 	} else {
-		l, strength, err = layer.GrindWith(ctx, g.hasher(s), entryHash, start, tries, g.Workers, g.Tried)
+		l, strength, err = layer.GrindWithKeep(ctx, g.hasher(s), entryHash, start, tries, g.Workers, g.Tried, keep)
 	}
 	if err != nil && ctx.Err() == nil {
 		return l, err

@@ -64,6 +64,12 @@ may be one that every peer would hit.
 
 ## Plan for Source Round 7 Part A
 
+**Status (end of Source Round 7 Part A):** P0 to P5 are built. P0 is
+`pkg/p2p/heavier_test.go` (`TestHeavierLedgerAlwaysReached`, default and
+tightest settings, under `-race`; `TestHeavierLedgerHuge`, an entry over
+16 MiB with a 150,000-output claim, in its own CI step). P1 is D117; P2 to
+P5 are D116; the rule is D115. Black reviews in Part D.
+
 For Source Grey. Every item removes a rule or limit and puts node policy
 that delays, paces or asks for work in its place. None changes a byte
 form, so no test vectors change. Each needs a decision entry (D115

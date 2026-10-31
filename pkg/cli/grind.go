@@ -394,6 +394,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	var device, until, hours, target *string
 	var threads *int
 	var all *bool
+	var expect *string
 	switch op {
 	case "":
 		o = addOutput(fs)
@@ -410,6 +411,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		}
 	case "remove":
 		all = fs.Bool("all", false, "remove every job")
+		expect = fs.String("target", "", "remove only if each numbered job has this target, so a stale number cannot remove another job")
 	case "set":
 		device = fs.String("device", "", "the default device: auto, cpu, gpu:0, ... (auto clears it)")
 		threads = fs.Int("threads", 0, "the default threads (0: every core but one)")
@@ -507,6 +509,9 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 			n, err := strconv.Atoi(a)
 			if err != nil || n < 1 || n > len(cur.Jobs) {
 				return fmt.Errorf("no scheduled job %s: they are numbered 1 to %d", a, len(cur.Jobs))
+			}
+			if *expect != "" && cur.Jobs[n-1].Target != *expect {
+				return fmt.Errorf("scheduled job %d grinds %s, not %s: list the schedule again", n, cur.Jobs[n-1].Target, *expect)
 			}
 			drop[n-1] = true
 		}
