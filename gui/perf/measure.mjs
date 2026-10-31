@@ -6,9 +6,10 @@
 //   NODE_PATH=$(npm root -g) node gui/perf/measure.mjs /tmp/perfgui [scenario ...]
 //
 // Scenarios: load, watch, terminal, node, refresh, jobs, command, render,
-// paused, work. None
+// paused, work, reload, soak. None
 // given runs them all.
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -31,11 +32,16 @@ async function launch(flags = []) {
   await cdp.send('Performance.enable');
   const requests = [];
   page.on('request', r => requests.push({ url: r.url(), method: r.method(), t: Date.now() }));
+  // Event streams the page has open: the browser allows six connections
+  // to poo-gui, and each open stream holds one.
+  const streams = new Set();
+  page.on('request', r => { if (r.url().includes('/events')) streams.add(r); });
+  for (const ev of ['requestfinished', 'requestfailed']) page.on(ev, r => streams.delete(r));
   await page.goto(url);
   await page.locator('main h1').first().waitFor();
   const metrics = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(m => [m.name, m.value]));
   const close = async () => { await browser.close(); p.kill('SIGINT'); };
-  return { page, cdp, metrics, requests, close, home: new URL(url).origin + '/' };
+  return { page, cdp, metrics, requests, streams, close, pid: p.pid, home: new URL(url).origin + '/' };
 }
 
 const mb = b => Math.round(b / 1048576 * 10) / 10;
@@ -267,6 +273,70 @@ if (want('work')) {
     out.work.push({ rate: rate || 'max', events: n, allShown: done, ...f, cost: diff(before, pick(await g.metrics())), foundRows: await g.page.evaluate(() => [...document.querySelectorAll('section.panel')].find(p => p.querySelector('h2')?.textContent === 'Run a job')?.querySelector('tbody')?.children.length) });
     await g.close();
   }
+}
+
+if (want('reload')) {
+  // A long poo grind run already going when the page is reloaded: the
+  // Work view takes it up again and reads its kept output from the start.
+  const n = Number(process.env.RELOAD_EVENTS || 40000);
+  const g = await launch(['-rate', '0', '-events', String(n)]);
+  await g.page.click('nav a[data-id=work]');
+  const tries = `${(n - 1) * 1000} tries`;
+  const caught = () => g.page.evaluate(t => (document.querySelector('.counts')?.textContent || '').includes(t), tries);
+  await g.page.click('button:has-text("Run and follow")');
+  await until(g.page, caught, 180000);
+  const kept = await g.page.evaluate(async () => { const js = await (await fetch('/api/jobs')).json(); return js.length; });
+  await g.page.goto(g.home);
+  await g.page.locator('main h1').first().waitFor();
+  const before = pick(await g.metrics());
+  let done = false;
+  const f = await frames(g.page, async () => {
+    await g.page.click('nav a[data-id=work]');
+    done = await until(g.page, caught, 180000);
+  });
+  out.reload = { events: n, kept, caughtUp: done, ...f, cost: diff(before, pick(await g.metrics())) };
+  await g.close();
+}
+
+if (want('soak')) {
+  // A long session: a node logging, a watch streaming and a grind run
+  // going, while the user moves through every view every two seconds.
+  // Each sample is taken after a garbage collection, so growth is what
+  // the page and the server keep, not garbage.
+  const secs = Number(process.env.SOAK_S || 300);
+  const g = await launch(['-rate', '50', '-events', String(1e9), '-log', '20']);
+  const rss = () => { try { return Math.round(Number(/VmRSS:\s+(\d+)/.exec(readFileSync(`/proc/${g.pid}/status`, 'utf8'))[1]) / 1024); } catch (_) { return null; } };
+  const sample = async t => {
+    await g.cdp.send('HeapProfiler.collectGarbage');
+    const m = pick(await g.metrics());
+    const jobs = await g.page.evaluate(async () => {
+      const ctl = new AbortController();
+      setTimeout(() => ctl.abort(), 5000);
+      try { return (await (await fetch('/api/jobs', { signal: ctl.signal })).json()).length; } catch (_) { return 'no answer in 5 s'; }
+    });
+    const listeners = (await g.cdp.send('Memory.getDOMCounters').catch(() => ({}))).jsEventListeners;
+    return { s: t, heapMB: m.heapMB, nodes: m.nodes, listeners, openStreams: g.streams.size, jobsKept: jobs, serverRssMB: rss() };
+  };
+  await g.page.click('nav a[data-id=node]');
+  await g.page.click('button:has-text("Start node")');
+  await g.page.click('nav a[data-id=watch]');
+  await g.page.click('button:has-text("Start watching")');
+  await g.page.click('nav a[data-id=work]');
+  await g.page.click('button:has-text("Run and follow")');
+  const ids = await g.page.evaluate(() => [...document.querySelectorAll('nav a')].map(a => a.dataset.id));
+  const samples = [await sample(0)];
+  const t0 = Date.now();
+  let i = 0, next = 30;
+  const clickMs = [];
+  while (Date.now() - t0 < secs * 1000) {
+    const c0 = Date.now();
+    await g.page.click(`nav a[data-id=${ids[i++ % ids.length]}]`, { timeout: 5000 }).catch(e => console.error(`soak: click ${ids[(i - 1) % ids.length]}: ${e.message.split('\n')[0]}`));
+    clickMs.push(Date.now() - c0);
+    await g.page.waitForTimeout(2000);
+    if ((Date.now() - t0) / 1000 >= next) { const sm = await sample(next); sm.slowestClickMs = Math.max(...clickMs); clickMs.length = 0; samples.push(sm); console.error('soak: ' + JSON.stringify(sm)); next += 30; }
+  }
+  out.soak = { seconds: secs, viewSwitches: i, samples };
+  await g.close();
 }
 
 console.log(JSON.stringify(out, null, 2));

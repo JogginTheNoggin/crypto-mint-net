@@ -233,7 +233,9 @@ function buildLive(ctx) {
     job = j;
     setRunning(true);
     state.textContent = `running: ${job.command}`;
-    follow();
+    // Followed only while the view shows; otherwise attach follows it
+    // when the view is opened (ORANGE-010).
+    if (stats.isConnected) follow();
   });
   liveHooks = {
     detach: () => { if (unfollow) { unfollow(); unfollow = null; } },
