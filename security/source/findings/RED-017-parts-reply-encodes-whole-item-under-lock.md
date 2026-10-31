@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0fd59fa (code e99e3e4, Source Round 7 Part B) |
 | Component | pkg/p2p/serve.go (replier.parts, replier.build), pkg/wire/messages.go (EncodeItem) |
 | Surface | peer |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 58e4e42 (BLUE-008) |
 
 ## Summary
 
@@ -67,3 +67,15 @@ which stalls every other peer, the RPC and the chase (the RED-006/008 class).
 
 Tests: a benchmark of `parts` on a 32 MB item must not hold the engine lock
 for more than a copy; two parts requests of one item encode it once.
+
+## Resolution
+
+Fixed by BLUE-008 (decision D120). `replier.parts` copies the item under
+the engine lock: the entry pointer, since entries are immutable, and the
+nonces. It encodes the item in the returned function, outside the lock,
+through a cache keyed by entry and variant. An item stays cached for one
+minute after its last use, up to 256 MiB in all, and the newest is always
+kept. A fetch in many requests therefore encodes the item once, and sees
+one total even if the entry gains layers meanwhile. Test:
+`TestPartsCacheEncodesOnce` (`pkg/p2p`). Charging parts requests by
+bytes encoded was not needed once the encoding was cached.

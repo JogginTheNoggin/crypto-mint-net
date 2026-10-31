@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0fd59fa (code e99e3e4, Source Round 7 Part B) |
 | Component | pkg/node/node.go (WorkWith), pkg/layer/layer.go (GrindWithKeep), pkg/nodepolicy/nodepolicy.go (Grind.LayerFloor) |
 | Surface | node policy / peers |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 58e4e42 (BLUE-008) |
 
 ## Summary
 
@@ -56,3 +56,15 @@ below what one range of 4,096 reaches (about 12) keeps a layer per range.
 
 Test: with a floor of 4 and a fast fake grinder, a job sends no more than the
 cap a second and the rest are dropped.
+
+## Resolution
+
+Fixed by BLUE-008 (decision D120). `WorkWith` sends at most
+`node.MaxKeptLayers` (16) kept layers besides the strongest per search, the
+strongest first, and at most `node.KeptPerSecond` (50) a second across
+searches, using a token bucket that holds one second's worth. That is half
+the 100 a second a peer accepts from one address. The rest are dropped,
+which loses only credit the node chose not to send. Test:
+`TestWorkWithFloorIsCapped` (`pkg/node`). With a floor of 1 over 256
+ranges it sends exactly 16, all of strength 8 or more. Six more searches
+together stay under the rate.

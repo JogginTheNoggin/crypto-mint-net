@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0fd59fa (code e99e3e4, Source Round 7 Part B; reported first by GUI Red) |
 | Component | pkg/cli/grind.go (renew, grindStart) |
 | Surface | CLI / RPC |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 58e4e42 (BLUE-008) |
 
 ## Summary
 
@@ -52,3 +52,13 @@ done. Log the first failure. Also have the follower print the end reason it
 receives, so "its lease ran out" is not shown as a normal end.
 
 Test: `GrindRenew` failing once then succeeding keeps the job alive.
+
+## Resolution
+
+Fixed by BLUE-008 (decision D120). `renew` stops only for a job that is
+done or that the node no longer knows (`rpc.CodeNotFound`), or once the
+lease would have run out since the last success. Any other failure is
+tried again at the next tick. The first failure in a row is written to the
+invocation's error output (`errOf`), so it shows in the GUI terminal as in
+a shell. The end event already carries the job's reason, which
+`poo grind run` prints. Test: `TestRenewSurvivesAFailure` (`pkg/cli`).

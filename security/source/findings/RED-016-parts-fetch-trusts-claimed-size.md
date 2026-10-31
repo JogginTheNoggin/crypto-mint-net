@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | high |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0fd59fa (code e99e3e4, Source Round 7 Part B) |
 | Component | pkg/p2p/chase.go (fetchParts, fetchAll, fetch), pkg/wire/messages.go (Large, DecodePart) |
 | Surface | peer |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 58e4e42 (BLUE-008) |
 
 ## Summary
 
@@ -86,3 +86,27 @@ Tests: a raw peer that claims a size above the cap is refused and flagged; a
 raw peer that streams parts for ever against a legal claim is cut off by the
 time or request bound, with the node's heap growth bounded; a real large entry
 (in parts) is still taken in.
+
+## Resolution
+
+Fixed by BLUE-008 (decision D120), without a size cap (D115, D117):
+
+- **Work gate on `fetchAll`.** A node that holds nothing runs the work
+  check from the pool_id before a whole-ledger fetch. Any heavier ledger
+  shows some work against this node's none.
+- **Checks as it arrives.** Each part must hold at least a byte and stay
+  within the stated size, and the first must start with the expected
+  parent. Otherwise the reply is false at once, and the sender is flagged.
+- **Disk, not memory.** Parts go to a temporary file
+  (`p2p.Config.PartsDir`, by default the system's), so a claimed size
+  costs the node disk only as the sender sends the bytes.
+- **Time.** A fetch past its slice yields, keeping the file and its
+  offset, and the next slice goes on from there. The file is removed when
+  the fetch ends, when its progress is forgotten, or when the host stops.
+
+Still open, as D117 notes: decoding the entry needs it whole in memory,
+as the pool will hold it, so a sender that really sends a 1 TiB entry
+still costs that memory at the end. It also costs the sender 1 TiB of
+sending, and the hash is checked then. Tests:
+`TestLargeClaimIsPacedOnDisk` and `TestLargeClaimWithWrongParentIsFalse`
+(`pkg/p2p`).

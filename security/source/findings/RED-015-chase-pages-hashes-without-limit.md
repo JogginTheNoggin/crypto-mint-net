@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | high |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0fd59fa (code e99e3e4, Source Round 7 Part B) |
 | Component | pkg/p2p/chase.go (checkWork, findCommon, progress, saveProgress), pkg/p2p/host.go (Config.ChaseSlice) |
 | Surface | peer |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 58e4e42 (BLUE-008) |
 
 ## Summary
 
@@ -108,3 +108,31 @@ node hold.
 Tests: a raw peer that serves unbounded weightless hash pages must be ended
 (back-off) within a bounded number of pages and bytes, with the node's heap
 growth bounded; `TestHeavierLedgerHuge` (a real long ledger) must still pass.
+
+## Resolution
+
+Fixed by BLUE-008 (decision D120), in the form the recommendation gives,
+without a cap that a heavier ledger could hit:
+
+- **One map, not three, and only for work.** A chase's progress now holds
+  the page of hashes being checked, the listed hashes that carried layers
+  (`marks`, by index, so step 5 still checks that each is the entry sent at
+  its place), and the entries fetched. A hash with no layers is let go once
+  its layers are counted.
+- **Pacing, not an allowance.** After `p2p.Config.WeightlessPages` (64)
+  pages in a row that bring no work, the chase yields and goes on later
+  from its progress. A real heavier ledger whose work sits on its last
+  entries is reached, slowly; a weightless listing costs a page of memory
+  and a paced share of chase time.
+- **The bound on a yielded chase** follows from the above: what it keeps
+  grows only with the layers and entries the sender has really shown.
+- The first page after the pool_id is now the sender's first hashes (no
+  anchor, no count). Before, it was its newest hashes.
+
+Ending as `Nowhere` after weightless pages was not taken, because work may
+sit on any entry of a heavier ledger (D115). Test:
+`TestWeightlessListingIsPaced` (`pkg/p2p`). It serves endless pages of
+random hashes with no layers and checks four things: the chase yields every
+4 pages, goes on from its progress (one first page in 60 pages), never
+holds more than 16 hashes, and never asks for an entry.
+`TestHeavierLedgerHuge` and every catch-up test still pass.

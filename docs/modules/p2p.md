@@ -113,8 +113,10 @@ naming a known-bad hash are ignored. Each chase, from cheap to costly:
    sees something heavier, the group is corroborated and requeued; if
    not, that is noted as a denial (counted against the priority peer if
    the branch later proves real).
-3. Holding nothing of the pool, fetch the sender's whole ledger, charged
-   to its `revert` budget, which waits for room rather than refusing.
+3. Holding nothing of the pool, first check the work as in step 5 from
+   the pool_id (any heavier ledger shows some against this node's none),
+   then fetch the sender's whole ledger, charged to its `revert` budget,
+   which waits for room rather than refusing (RED-016, D120).
 4. Find the common entry: ask for the sender's newest hashes; if none is
    held, halve over this node's own selected ledger, asking whether the
    sender holds the entry at a height (about log₂(height) requests at any
@@ -126,17 +128,30 @@ naming a known-bad hash are ignored. Each chase, from cheap to costly:
    common entry (`ledger.Pool.WeightTo`). Layers below the minimum strength
    make the branch false; too little work ends the chase with a backoff.
    The provisional layers are never kept, counted or forwarded. There is
-   no cap on how many are looked at.
+   no cap on how many are looked at, nor on the hashes paged. Only work is
+   held: the page being checked, the hashes that carried layers and the
+   entries fetched; a hash with no layers is let go once checked. After
+   `WeightlessPages` (64) pages in a row that bring no work the chase
+   yields and goes on later from where it stopped, so a listing with no
+   work is paced, never refused (RED-015, D120).
 6. Fetch the entries in chain order with extension requests, each checked
    against the hash the sender listed, not charged to the revert budget
-   (the work was checked). An entry larger than `PartsOver` comes in parts
-   (`fetchParts`, D117). Before each request the chase checks no ledger
+   (the work was checked); a hash that carried layers in step 5 must be
+   the entry sent at its place. An entry larger than `PartsOver` comes in
+   parts (`fetchParts`, D117): each part holds at least a byte, the first
+   starts with the expected parent, and the parts go to a temporary file in
+   `PartsDir`, not memory, until the entry is whole; past its slice the
+   fetch yields and the next slice goes on from the offset it reached
+   (RED-016, D120). The node answers parts requests from the item copied
+   under the engine lock and encoded outside it, kept for a minute after
+   its last use (up to 256 MiB in all), so a fetch in many requests encodes
+   it once (RED-017). Before each request the chase checks no ledger
    off the branch and heavier than its work was selected meanwhile. The
    engine then decides, on weight it computed itself.
 
 A chase runs for at most `ChaseSlice` (2 minutes) and then **yields**
 (`chase.Yield`): its sender waits `chase.Config.YieldWait` with no
-backoff, and what the chase learned (the common entry, the listed hashes,
+backoff, and what the chase learned (the common entry, the hashes with work,
 the work counted, the last entry fetched) is kept, so the next chase of
 the same group and sender goes on from there. Each slice makes at least
 one request, so a chase always moves forward. An entry pushed over the

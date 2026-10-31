@@ -1783,3 +1783,44 @@ a chase takes in after checking their work are not charged.
   stops a stale row number from removing another job.
 - **Tier:** Implementation.
 
+### D120. Work is asked for and listings are paced; large parts go to disk
+
+- **Decision:**
+  - **RED-015.** A chase's progress holds only what work backs: the page of
+    hashes being checked, the listed hashes that carried layers (by index,
+    so step 5 still checks that each is the entry sent there), and the
+    entries fetched. A hash with no layers is let go once its layers are
+    counted. After `p2p.Config.WeightlessPages` (64) pages in a row that
+    bring no work, the chase yields and goes on later from its progress.
+    The first page after the pool_id is the sender's first hashes.
+  - **RED-016.** A node that holds nothing checks the work from the
+    pool_id before a whole-ledger fetch. Every part of a large entry must
+    hold at least a byte and stay within the stated size, and the first
+    must start with the expected parent. Parts go to a temporary file
+    (`p2p.Config.PartsDir`). A fetch past its slice yields, keeping the
+    file and its offset, and the file is removed when the fetch ends, its
+    progress is forgotten, or the host stops.
+  - **RED-017.** A parts reply copies the item under the engine lock and
+    encodes it outside, in a cache of items (one minute after last use,
+    256 MiB in all).
+  - **RED-018.** A layer floor sends at most 16 extra layers per search,
+    the strongest first, and 50 a second across searches.
+  - **RED-019.** `poo grind run` retries a failed renewal while the lease
+    may still hold, and stops renewing only for a job the node does not
+    know or that is done.
+- **Why:** Red's Round 7 findings. Under D115, nothing here refuses a
+  heavier ledger for good. A real heavier ledger has work, and the node
+  waits for it. A listing with no work costs the node a page of memory
+  and a paced share of its time, not 948 MB in 15 s. A claimed size costs
+  disk only as the sender sends the bytes, and no size is refused. Work
+  on a heavier ledger may sit on any of its entries, so weightless pages
+  are paced, not ended. The extra layers a floor keeps add credit and
+  remove none, so dropping some changes only how much of its own work a
+  node sends (D118's condition holds).
+- **Tier:** Implementation (node policy and the CLI). No consensus change:
+  what is valid and what is selected are unchanged.
+- **For Black:** the RED-015 and RED-016 changes touch G3. Pacing is by
+  pages in a row without work and by the time slice. The only new gate is
+  the work check before a whole-ledger fetch, which any heavier ledger
+  passes. Decoding a large entry still needs it whole in memory (D117's
+  "not yet").
