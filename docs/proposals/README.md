@@ -45,3 +45,6 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-020](source/GREEN-020-grind-schedule-and-leases.md) | Source | Schedules, leases and tx targets, used as a person would | items 1 and 2 adopted (D119) |
 | [ORANGE-012](source/ORANGE-012-sha256-lanes-and-lane-grinders.md) | Source | SHA-256 lanes, and lane searches wired as grinders (opt-in build) | adopted (D119) |
 | [ORANGE-013](source/ORANGE-013-job-stop-and-progress.md) | Source | Round 6 jobs measured; stop without polling, progress each second | adopted (D119) |
+| [ORANGE-014](source/ORANGE-014-large-items-witnesses.md) | Source | Large entries measured; check many witnesses once, on every core | proposed |
+| [ORANGE-015](source/ORANGE-015-chase-measured-no-branch-walk.md) | Source | The new chase measured; no branch walk on every event | proposed |
+| [ORANGE-016](source/ORANGE-016-layer-floor-traffic.md) | Source | layer_floor traffic measured; bound it with layer_rate | proposed |
