@@ -22,3 +22,8 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-012](RED-012-requested-entries-uncharged-quadratic-branch.md) | A branch of entries with no layers costs time quadratic in its length, and the entries a chase fetches are not charged for it | medium | fixed |
 | [RED-013](RED-013-node-json-writers-unserialised.md) | Concurrent writes of node.json share one temporary file and can leave it corrupt | low | fixed |
 | [RED-014](RED-014-maxjobs-not-atomic.md) | MaxJobs is checked and then used without holding the slot, so concurrent starts exceed it | low | fixed |
+| [RED-015](RED-015-chase-pages-hashes-without-limit.md) | A chase pages the sender's hashes for ever, keeping them all, with no work shown | high | open |
+| [RED-016](RED-016-parts-fetch-trusts-claimed-size.md) | A part fetch buffers whatever the sender sends against a size it claimed, and a node holding nothing fetches it with no work check | high | open |
+| [RED-017](RED-017-parts-reply-encodes-whole-item-under-lock.md) | Every parts request re-encodes the whole entry item while the engine lock is held | medium | open |
+| [RED-018](RED-018-layer-floor-has-no-rate-cap.md) | `grind.layer_floor` sends a layer for every 4,096 tries, far above what peers accept | low | open |
+| [RED-019](RED-019-lease-renew-stops-at-first-error.md) | `poo grind run` stops renewing its lease after one failed request | low | open |
