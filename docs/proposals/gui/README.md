@@ -36,6 +36,8 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-025](GREEN-025-rates-read-the-same.md) | Rates read as H/s everywhere, and found hashes render like all others | small | yes | adopted |
 | [GREEN-026](GREEN-026-grind-schedule-commands.md) | The grind schedule: `poo grind schedule` commands first, then GUI forms | medium | no | with Source (GUI forms wait for the commands) |
 | [GREEN-027](GREEN-027-grind-loose-ends.md) | Grinding loose ends for Source: uncounted entry tries, two start lines, a waiting reason | small | no | with Source |
+| [GREEN-028](GREEN-028-flags-per-action.md) | Forms show only the flags the chosen action takes (Peers, Node policies), as `poo` checks them | small | yes | proposed |
+| [GREEN-029](GREEN-029-crypto-suggestions.md) | Key and hash fields suggest what `poo crypto` lists | small | yes | proposed |
 
 ## Orange (performance)
 
@@ -61,7 +63,7 @@ ORANGE-005 explains how to measure.
 ```sh
 git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
-node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019 and 020
+node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019, 020, 028 and 029
 node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014 and 018
 node gui/e2e/work.mjs /tmp/poo-gui    # the checks for 023 to 025
 ```

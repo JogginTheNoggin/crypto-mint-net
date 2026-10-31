@@ -133,6 +133,27 @@ try {
   assert.equal(await health.locator('details.raw').count(), 1);
   if (shots) await page.screenshot({ path: join(shots, 'doctor.png') });
 
+  // Peers: the action form shows only the flags poo peer takes for the
+  // chosen action, and never sends a hidden one.
+  await page.click('nav a[data-id=peers]');
+  const act = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Act on a peer' }) });
+  const visible = async () => (await act.locator('form.fields > label:not([hidden]) > span').allInnerTexts());
+  await act.locator('select[name=action]').selectOption('block');
+  assert.deepEqual(await visible(), ['Action', 'Peer address', 'Seconds', 'Whole range']);
+  await act.locator('input[name=range]').check();
+  await act.locator('input[name=addr]').fill('203.0.113.5:8646');
+  assert.equal(await act.locator('.cmd code').innerText(), 'poo peer block -range 203.0.113.5:8646');
+  await act.locator('select[name=action]').selectOption('unblock');
+  assert.deepEqual(await visible(), ['Action', 'Peer address']);
+  assert.equal(await act.locator('.cmd code').innerText(), 'poo peer unblock 203.0.113.5:8646');
+  await act.locator('select[name=action]').selectOption('clear');
+  assert.deepEqual(await visible(), ['Action', 'Peer address', 'Clear']);
+
+  // Series and keys: key and hash fields suggest what poo crypto printed.
+  await page.click('nav a[data-id=crypto]');
+  await page.locator('#crypto-hashes option[value=blake3]').waitFor({ state: 'attached' });
+  assert.ok(await page.locator('#crypto-algs option[value=ed25519]').count(), 'key algorithms suggested');
+
   // Wallet: one wallet file for every form, shown in each preview.
   await page.click('nav a[data-id=wallet]');
   await page.fill('.wallet-pick input', 'w2.json');
