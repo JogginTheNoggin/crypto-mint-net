@@ -138,3 +138,19 @@ func TestTableNestedAndRates(t *testing.T) {
 		t.Errorf("-wide rounds the rate:\n%s", wide)
 	}
 }
+
+// A tx:TID target is shortened like a hash, and a time to the nanosecond
+// is printed to the second, unless -wide (GREEN-020).
+func TestTablePrefixedHashAndTime(t *testing.T) {
+	tid := strings.Repeat("ab", 32)
+	row := []map[string]string{{"target": "tx:" + tid, "started": "2026-10-30T10:24:40.112586194Z"}}
+	got := render(t, row, "-o", "table")
+	for _, w := range []string{"tx:abababab..abab", "2026-10-30T10:24:40Z"} {
+		if !strings.Contains(got, w) {
+			t.Errorf("table lacks %q:\n%s", w, got)
+		}
+	}
+	if wide := render(t, row, "-o", "table", "-wide"); !strings.Contains(wide, tid) || !strings.Contains(wide, ".112586194Z") {
+		t.Errorf("-wide shortens:\n%s", wide)
+	}
+}

@@ -397,6 +397,11 @@ func (m *Manager) Start(s Spec) (Job, error) {
 		cancel = func() { stop(); parent() }
 	}
 	j := &job{Job: Job{ID: m.next, Spec: s, State: StateRunning, Started: time.Now().UTC(), Plans: []Plan{}}, cancel: cancel}
+	// A job outside its hours says so in the reply that starts it, not only
+	// once its runner first looks (GREEN-020).
+	if reason, hint, ok := outsideHours(s.Hours, time.Now()); ok {
+		j.State, j.Reason, j.Hint = StateWaiting, reason, hint
+	}
 	if s.Lease != "" {
 		j.lease, _ = time.ParseDuration(s.Lease)
 		id := m.next
@@ -408,7 +413,7 @@ func (m *Manager) Start(s Spec) (Job, error) {
 	m.mu.Unlock()
 	m.log.Info("job started", "job", j.ID, "target", s.Target, "source", s.Source)
 	sp := s
-	m.emit(Event{Job: j.ID, Kind: "start", State: StateRunning, Spec: &sp, Scope: &sp})
+	m.emit(Event{Job: j.ID, Kind: "start", State: snap.State, Spec: &sp, Scope: &sp})
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
@@ -611,11 +616,10 @@ func (m *Manager) run(ctx context.Context, j *job) {
 		_ = w.UnmarshalText([]byte(s.UntilFrom))
 		until = &w
 	}
-	from, to, _ := ParseHours(s.Hours)
 	r := &runner{m: m, j: j, plans: map[hash.ID]Plan{}}
 	for ctx.Err() == nil {
-		if s.Hours != "" && !inHours(time.Now(), from, to) {
-			r.wait(ctx, "outside its hours "+s.Hours, "it works again at "+fmt.Sprintf("%02d:00", from), time.Minute)
+		if reason, hint, ok := outsideHours(s.Hours, time.Now()); ok {
+			r.wait(ctx, reason, hint, time.Minute)
 			continue
 		}
 		var worked bool
@@ -981,4 +985,17 @@ func randomNonce() uint64 {
 // SpecOf is the spec of a job from the node policy.
 func SpecOf(j nodepolicy.GrindJob) Spec {
 	return Spec{Target: j.Target, Series: j.Series, Pools: j.Pools, Device: j.Device, Threads: j.Threads, Hours: j.Hours, UntilFrom: j.UntilFrom, Source: "policy"}
+}
+
+// outsideHours reports whether now is outside a job's hours, with the
+// reason and hint a waiting job shows.
+func outsideHours(hours string, now time.Time) (reason, hint string, ok bool) {
+	if hours == "" {
+		return "", "", false
+	}
+	from, to, err := ParseHours(hours)
+	if err != nil || inHours(now, from, to) {
+		return "", "", false
+	}
+	return "outside its hours " + hours, fmt.Sprintf("it works again at %02d:00", from), true
 }
