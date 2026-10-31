@@ -81,6 +81,7 @@ type node struct {
 	seen     time.Time
 	onChain  bool
 	rel      weight.Weight // off chain: own weight from the anchor (exclusive) to here
+	anchor   int           // off chain: the anchor's height, 0 for the pool_id
 }
 
 // Config holds a pool's node policy settings.
@@ -110,17 +111,30 @@ type Pool struct {
 	nodes map[hash.Hash]*node
 	roots []*node
 	chain []*node // the selected ledger, chain[h-1] at height h
+	// units[h] is the view cost (unitsOf) of chain[:h], so the cost of a
+	// revert to any height is one subtraction (RED-012).
+	units []int
 	bit   *fenwick
 	st    *state.State // pool state at the selected tip
 	tids  map[hash.Hash]*node
 	// off holds every node outside the selected ledger, so ranking the
 	// inactive branches looks only at them, not at every entry held.
 	off map[*node]struct{}
-	seq uint64
+	// leaves holds the nodes of off with no children, so ranking the
+	// branches looks only at the branch tips, not at every entry of a long
+	// branch (RED-012).
+	leaves map[*node]struct{}
+	seq    uint64
 	// newest is the entry added last. It is never pruned while it is a
 	// leaf, so a branch fetched parent first can take its layers and its
 	// next entry before it is ranked (decision D79).
 	newest *node
+	// view is the state after viewOf, kept from the last AddEntry so the
+	// next entry on it (every entry of a branch taken in order) starts
+	// there instead of re-applying the branch (RED-012, decision D114).
+	// Any change to the selected chain or to viewOf drops it.
+	view   *state.State
+	viewOf *node
 }
 
 // New returns an empty pool: no entries, weight 0, nothing claimed.
@@ -133,11 +147,13 @@ func New(s *series.Series, index uint64, cfg Config) *Pool {
 	}
 	return &Pool{
 		s: s, index: index, id: s.PoolID(index), cfg: cfg,
-		nodes: map[hash.Hash]*node{},
-		bit:   newFenwick(),
-		st:    state.New(),
-		tids:  map[hash.Hash]*node{},
-		off:   map[*node]struct{}{},
+		nodes:  map[hash.Hash]*node{},
+		bit:    newFenwick(),
+		units:  []int{0},
+		st:     state.New(),
+		tids:   map[hash.Hash]*node{},
+		off:    map[*node]struct{}{},
+		leaves: map[*node]struct{}{},
 	}
 }
 
@@ -309,14 +325,7 @@ func (p *Pool) weightOf(n *node) weight.Weight {
 
 // anchorHeight returns the height of the nearest selected ancestor of an
 // off-chain node, or 0 when it is the pool_id.
-func (p *Pool) anchorHeight(n *node) int {
-	for x := n.parent; x != nil; x = x.parent {
-		if x.onChain {
-			return x.height
-		}
-	}
-	return 0
-}
+func (p *Pool) anchorHeight(n *node) int { return n.anchor }
 
 // AddResult reports what adding an entry or a layer did.
 type AddResult struct {
@@ -355,6 +364,7 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 	}
 	stItems := toStateItems(items)
 	undo := view.Apply(stItems)
+	p.view, p.viewOf = nil, nil
 
 	p.seq++
 	n := &node{
@@ -371,19 +381,23 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 	} else {
 		n.height = parent.height + 1
 		parent.children = append(parent.children, n)
+		delete(p.leaves, parent)
 		if parent.onChain {
-			n.rel = n.own
+			n.rel, n.anchor = n.own, parent.height
 		} else {
-			n.rel = parent.rel.Add(n.own)
+			n.rel, n.anchor = parent.rel.Add(n.own), parent.anchor
 		}
 	}
 	p.nodes[h] = n
 	p.off[n] = struct{}{}
+	p.leaves[n] = struct{}{}
 	p.newest = n
 
 	res := AddResult{Hash: h}
 	if p.weightOf(n).Greater(p.Weight()) {
 		res.Switch = p.switchTo(n)
+	} else {
+		p.view, p.viewOf = view, n
 	}
 	res.Pruned = p.prune()
 	return res, nil
@@ -428,19 +442,21 @@ func (p *Pool) EntryOwners(e *entry.Entry) ([]entry.Item, [][]hash.Hash, error) 
 	return items, owners, nil
 }
 
-// MaxPreviewCost is the most entries EntryOwners reverts or applies to
-// build the state after an entry's parent. An honest entry builds on the
-// tip or close to it.
-const MaxPreviewCost = 64
+// MaxPreviewCost is the most EntryOwners spends, in view cost units
+// (ViewCost), to build the state after an entry's parent. An honest entry
+// builds on the tip or close to it.
+const MaxPreviewCost = 256
 
 // ErrDeepParent: EntryOwners will not build the state after a parent that
 // far from the selected tip. Not an offence, and AddEntry still takes the
 // entry.
 var ErrDeepParent = errors.New("ledger: parent too far from the selected tip to preview")
 
-// ViewCost is how many entries checking e against the state after its
-// parent reverts and applies, counting no further than limit + 1; 0 for a
-// parent this pool does not hold. It changes nothing.
+// ViewCost is what checking e against the state after its parent costs:
+// one unit for each entry reverted or applied and one for each of its
+// transactions, counting no further than about limit; 0 for a parent this
+// pool does not hold, the tip, or the entry the last AddEntry kept the
+// state after. It changes nothing (RED-011, RED-012).
 func (p *Pool) ViewCost(e *entry.Entry, limit int) int {
 	parent, ok := p.parentOf(e)
 	if !ok {
@@ -449,16 +465,16 @@ func (p *Pool) ViewCost(e *entry.Entry, limit int) int {
 	return p.viewCost(parent, limit)
 }
 
-// viewCost is how many entries viewAfter(n) reverts and applies, counting
-// no further than limit + 1.
+// viewCost is the cost of viewAfter(n), counting no further than about
+// limit.
 func (p *Pool) viewCost(n *node, limit int) int {
-	if n != nil && n.onChain && n.height == len(p.chain) {
+	if n != nil && (n == p.viewOf || n.onChain && n.height == len(p.chain)) {
 		return 0
 	}
 	cost := 0
 	x := n
 	for x != nil && !x.onChain {
-		if cost++; cost > limit {
+		if cost += unitsOf(x); cost > limit {
 			return cost
 		}
 		x = x.parent
@@ -467,8 +483,11 @@ func (p *Pool) viewCost(n *node, limit int) int {
 	if x != nil {
 		anchor = x.height
 	}
-	return cost + len(p.chain) - anchor
+	return cost + p.units[len(p.chain)] - p.units[anchor]
 }
+
+// unitsOf is the view cost of reverting or applying one entry.
+func unitsOf(n *node) int { return 1 + len(n.items) }
 
 func toStateItems(items []entry.Item) []state.Item {
 	out := make([]state.Item, len(items))
@@ -479,8 +498,12 @@ func toStateItems(items []entry.Item) []state.Item {
 }
 
 // viewAfter returns a scratch state equal to the pool state after entry n
-// (nil for the pool_id), as an overlay on the tip state.
+// (nil for the pool_id), as an overlay on the tip state. The caller may
+// change it only after it has dropped the kept view (AddEntry).
 func (p *Pool) viewAfter(n *node) *state.State {
+	if n != nil && n == p.viewOf {
+		return p.view
+	}
 	v := p.st.Overlay()
 	if n != nil && n.onChain && n.height == len(p.chain) {
 		return v
@@ -634,13 +657,18 @@ func (p *Pool) switchTo(n *node) *Switch {
 		p.st.Revert(o.items, o.undo)
 		o.onChain = false
 		p.off[o] = struct{}{}
+		if len(o.children) == 0 {
+			p.leaves[o] = struct{}{}
+		}
 		for _, it := range o.items {
 			delete(p.tids, it.TID)
 		}
 		sw.Reverted = append(sw.Reverted, o.hash)
 	}
 	p.chain = p.chain[:forkHeight]
+	p.units = p.units[:forkHeight+1]
 	p.bit.truncate(forkHeight)
+	p.view, p.viewOf = nil, nil
 
 	// Apply the new segment, oldest first.
 	newTIDs := map[hash.Hash]struct{}{}
@@ -648,7 +676,9 @@ func (p *Pool) switchTo(n *node) *Switch {
 		x.undo = p.st.Apply(x.items)
 		x.onChain = true
 		delete(p.off, x)
+		delete(p.leaves, x)
 		p.chain = append(p.chain, x)
+		p.units = append(p.units, p.units[len(p.units)-1]+unitsOf(x))
 		p.bit.push(x.own)
 		for _, it := range x.items {
 			p.tids[it.TID] = x
@@ -661,10 +691,13 @@ func (p *Pool) switchTo(n *node) *Switch {
 	var reanchor func(x *node)
 	reanchor = func(x *node) {
 		if !x.onChain {
-			if x.parent == nil || x.parent.onChain {
-				x.rel = x.own
-			} else {
-				x.rel = x.parent.rel.Add(x.own)
+			switch {
+			case x.parent == nil:
+				x.rel, x.anchor = x.own, 0
+			case x.parent.onChain:
+				x.rel, x.anchor = x.own, x.parent.height
+			default:
+				x.rel, x.anchor = x.parent.rel.Add(x.own), x.parent.anchor
 			}
 		}
 		for _, c := range x.children {
@@ -825,10 +858,8 @@ type leaf struct {
 // them. Each weight is worked out once, not at every comparison.
 func (p *Pool) offChainLeaves() []leaf {
 	var leaves []leaf
-	for n := range p.off {
-		if len(n.children) == 0 {
-			leaves = append(leaves, leaf{n, p.weightOf(n)})
-		}
+	for n := range p.leaves {
+		leaves = append(leaves, leaf{n, p.weightOf(n)})
 	}
 	sort.Slice(leaves, func(i, j int) bool {
 		switch leaves[i].w.Cmp(leaves[j].w) {
@@ -881,6 +912,10 @@ func (p *Pool) prune() []hash.Hash {
 			parent := x.parent
 			delete(p.nodes, x.hash)
 			delete(p.off, x)
+			delete(p.leaves, x)
+			if x == p.viewOf {
+				p.view, p.viewOf = nil, nil
+			}
 			dropped = append(dropped, x.hash)
 			if parent == nil {
 				p.roots = removeNode(p.roots, x)

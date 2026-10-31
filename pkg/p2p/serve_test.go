@@ -397,8 +397,8 @@ func TestBadWitnessTxIsOffence(t *testing.T) {
 // drawn from the sender's revert budget; past it the entry is dropped and
 // flagged once, while an entry on the tip costs nothing.
 func TestDeepForkSpendsRevertBudget(t *testing.T) {
-	depth := 8
-	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, Budgets: map[string]int{tracking.KindRevert: 2*depth + 4}}, "")
+	depth := 8 // entries of one claim or spend: two units each to revert
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, Budgets: map[string]int{tracking.KindRevert: 2*2*depth + 4}}, "")
 	must(t, err)
 	a := startNode(t, "a", func(c *p2p.Config) { c.Tracker = tr })
 	grow(t, a, nil, "alice", depth, 32)

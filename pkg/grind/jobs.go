@@ -176,8 +176,15 @@ type Manager struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	mu        sync.Mutex
-	jobs      map[int]*job
+	// sched serialises Schedule, so two policies never run together
+	// (RED-013).
+	sched sync.Mutex
+
+	mu   sync.Mutex
+	jobs map[int]*job
+	// reserved counts starts past the MaxJobs check that have not yet
+	// inserted their job (RED-014).
+	reserved  int
 	done      []int // ended jobs, oldest first
 	next      int
 	listeners []func(Event)
@@ -229,6 +236,8 @@ func (m *Manager) Choose(id hash.ID, device string, threads int) (Plan, error) {
 // starts its jobs. It returns the jobs started and, by job, why any was
 // not (GREEN-026). g may be nil: no defaults and no jobs.
 func (m *Manager) Schedule(g *nodepolicy.Grind) ([]Job, map[int]error) {
+	m.sched.Lock()
+	defer m.sched.Unlock()
 	m.StopAll("policy")
 	var def Defaults
 	var jobs []nodepolicy.GrindJob
@@ -354,20 +363,27 @@ func (m *Manager) Start(s Spec) (Job, error) {
 			running++
 		}
 	}
-	if running >= MaxJobs {
+	// The slot is held from the count to the insert, so concurrent starts
+	// cannot pass MaxJobs together (RED-014, decision D114).
+	if running+m.reserved >= MaxJobs {
 		m.mu.Unlock()
 		return Job{}, ErrTooManyJobs
 	}
+	m.reserved++
 	m.mu.Unlock()
 	// A job that would work now and has no device for one of its hashes
 	// is refused at once, as build and work are (GREEN-017). One within
 	// hours may find its device by then, and fails then if not.
+	var err error
 	if s.Hours == "" {
-		if err := m.checkPlans(s); err != nil {
-			return Job{}, err
-		}
+		err = m.checkPlans(s)
 	}
 	m.mu.Lock()
+	m.reserved--
+	if err != nil {
+		m.mu.Unlock()
+		return Job{}, err
+	}
 	if m.ctx.Err() != nil {
 		m.mu.Unlock()
 		return Job{}, ErrClosed

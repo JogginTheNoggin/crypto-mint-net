@@ -491,3 +491,68 @@ func TestTxTarget(t *testing.T) {
 		t.Fatalf("waiting tx job %+v", w)
 	}
 }
+
+// RED-014: concurrent starts never pass MaxJobs.
+func TestJobLimitUnderConcurrency(t *testing.T) {
+	f := newFixture(t)
+	var wg sync.WaitGroup
+	var ok atomic.Int64
+	start := make(chan struct{})
+	for i := 0; i < 300; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if _, err := f.m.Start(Spec{Target: hash.Hash{byte(i%250 + 1), byte(i / 250)}.String()}); err == nil {
+				ok.Add(1)
+			} else if err != ErrTooManyJobs {
+				t.Error(err)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	running := 0
+	for _, j := range f.m.Jobs() {
+		if !j.Done() {
+			running++
+		}
+	}
+	if ok.Load() > MaxJobs || running > MaxJobs {
+		t.Fatalf("%d started, %d running, MaxJobs %d", ok.Load(), running, MaxJobs)
+	}
+}
+
+// RED-013: two policies scheduled at once leave exactly one of them
+// running.
+func TestScheduleIsSerialised(t *testing.T) {
+	f := newFixture(t)
+	policy := func(b byte) *nodepolicy.Grind {
+		g := &nodepolicy.Grind{}
+		for i := 0; i < 3; i++ {
+			g.Jobs = append(g.Jobs, nodepolicy.GrindJob{Target: hash.Hash{b, byte(i + 1)}.String()})
+		}
+		return g
+	}
+	for round := 0; round < 20; round++ {
+		var wg sync.WaitGroup
+		for _, b := range []byte{1, 2} {
+			wg.Add(1)
+			go func() { defer wg.Done(); f.m.Schedule(policy(b)) }()
+		}
+		wg.Wait()
+		owners := map[byte]int{}
+		for _, j := range f.m.Jobs() {
+			if !j.Done() && j.Spec.Source == "policy" {
+				h, err := hash.Parse(j.Spec.Target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				owners[h[0]]++
+			}
+		}
+		if len(owners) != 1 || owners[1]+owners[2] != 3 {
+			t.Fatalf("round %d: policy jobs running %v, want three of one policy", round, owners)
+		}
+	}
+}

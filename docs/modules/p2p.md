@@ -86,10 +86,10 @@ Every message passes cheap checks first, in `dispatch`: replies go to the
 waiting request; everything else is counted against the sender's
 **budget** for its kind (dropped and flagged when over), then queued by
 the sender's best category. A pushed entry also spends, before it is
-handled, the entries the node must revert to check it against the state
+handled, what the node must revert and apply to check it against the state
 after its parent (`Engine.EntryCost`) from the sender's `revert` budget;
-over it the entry is dropped (RED-011, D111). Entries the node asked for
-are not charged. The **inbox** worker takes each round 8 from
+over it the entry is dropped (RED-011, D111). Entries a chase takes in
+pay the same, and an empty budget ends the fetch (RED-012, D114). The **inbox** worker takes each round 8 from
 the priority queue, 4 from backup, 2 from candidate and 1 from unlisted,
 so busy unlisted senders cannot starve peers and nothing waits forever.
 Each queue holds 1024; beyond that new messages are dropped.
@@ -113,7 +113,10 @@ naming a known-bad hash are ignored. Each chase, from cheap to costly:
    sees something heavier, the group is corroborated and requeued; if
    not, that is noted as a denial (counted against the priority peer if
    the branch later proves real).
-3. Holding nothing of the pool, fetch the sender's whole ledger.
+3. Holding nothing of the pool, fetch the sender's whole ledger. Here and
+   in step 6, more than `MaxBareRun` (4,096) entries in a row without
+   layers end the fetch, in a series without entry hash credit (RED-012,
+   D114).
 4. Find the common entry: page the sender's hash chain back from its tip,
    at most 16 pages; past that, a priority peer's whole ledger is fetched
    only with `FastCatchUp`. A hash listed twice is a false branch.

@@ -122,7 +122,8 @@ random nonce, so slices and jobs never repeat each other.
   them. They go to `OnEvent` listeners, which the daemon sends to the
   watch stream as kind `grind`.
 - **Limits:**
-  - At most 16 jobs at once (`MaxJobs`).
+  - At most 16 jobs at once (`MaxJobs`). A start holds its slot from the
+    count to the insert, so concurrent starts cannot pass it (RED-014).
   - The last 32 ended jobs are kept (`MaxDone`).
   - Threads are capped at the device's.
   - Stopping a job keeps what it found.
@@ -130,6 +131,8 @@ random nonce, so slices and jobs never repeat each other.
   section while the node runs: it stops the jobs the policy started, takes
   the new defaults and starts the new jobs, so `PUT /v1/grind/schedule`
   and `poo grind schedule` need no reload and leave user jobs running.
+  Calls run one at a time, so two never leave both policies' jobs
+  running (RED-013).
 - **Totals:** these feed the `poo_grind_tries_total{device,hash}` and
   `poo_grind_jobs{state}` metrics.
 

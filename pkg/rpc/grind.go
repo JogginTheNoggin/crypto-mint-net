@@ -120,6 +120,10 @@ func (h *Handler) grindSetSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := h.policyPath()
+	// The file and the running policy jobs change together, so two PUTs
+	// leave the same one in both (RED-013).
+	h.policyMu.Lock()
+	defer h.policyMu.Unlock()
 	p, err := nodepolicy.Load(path)
 	if err != nil {
 		writeError(w, classify(err))

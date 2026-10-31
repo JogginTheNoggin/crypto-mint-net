@@ -23,6 +23,19 @@ func CheckOff(p *Pool) error {
 			if len(n.children) == 0 {
 				leaves = append(leaves, n)
 			}
+			if _, in := p.leaves[n]; in != (len(n.children) == 0) {
+				return fmt.Errorf("entry %s: %d children, in leaf set %v", n.hash.Short(), len(n.children), in)
+			}
+			anchor := 0
+			for x := n.parent; x != nil; x = x.parent {
+				if x.onChain {
+					anchor = x.height
+					break
+				}
+			}
+			if n.anchor != anchor {
+				return fmt.Errorf("entry %s: anchor %d, want %d", n.hash.Short(), n.anchor, anchor)
+			}
 		}
 	}
 	var sum weight.Weight
@@ -31,6 +44,9 @@ func CheckOff(p *Pool) error {
 	}
 	if sum.Cmp(p.bit.total) != 0 || sum.Cmp(p.Weight()) != 0 {
 		return fmt.Errorf("selected weight %s, cached %s, want %s", p.Weight(), p.bit.total, sum)
+	}
+	if len(leaves) != len(p.leaves) {
+		return fmt.Errorf("leaf set holds %d nodes, want %d", len(p.leaves), len(leaves))
 	}
 	if off != len(p.off) {
 		return fmt.Errorf("off set holds %d nodes, want %d", len(p.off), off)

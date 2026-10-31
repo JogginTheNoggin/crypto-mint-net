@@ -106,14 +106,10 @@ func (h *Host) handlePushed(p *peer, m wire.Message) error {
 		// The selected entries the node reverts to check it are the
 		// sender's cost, drawn from its revert budget; over it the entry
 		// is dropped (RED-011, decision D111).
-		if c := h.n.Engine().EntryCost(pi.key, e); c > 0 {
-			ok, act := h.tr.Spend(p.key, tracking.KindRevert, uint64(c), now)
-			if err := h.act(p, act); err != nil {
-				return err
-			}
-			if !ok {
-				return nil
-			}
+		if err := h.spendRevert(pi, p, e); errors.Is(err, errRevertBudget) {
+			return nil
+		} else if err != nil {
+			return err
 		}
 		_, err = h.n.HandleEntryFrom(pi.key, e, engine.Pushed, p.id)
 		switch {

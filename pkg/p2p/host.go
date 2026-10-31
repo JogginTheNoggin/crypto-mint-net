@@ -178,6 +178,12 @@ type Config struct {
 	// ProvisionalLayers is the most layers a chase fetches before deciding
 	// whether a branch's work is enough.
 	ProvisionalLayers int
+	// MaxBareRun is the most entries in a row without layers a fetch
+	// takes in, in a series without entry hash credit: they add no
+	// weight, so a peer could otherwise feed a node that holds nothing a
+	// branch as long as the fetch allows, for nothing (RED-012, decision
+	// D114).
+	MaxBareRun int
 	// NoConfirm stops asking a priority peer to confirm a stated weight
 	// from another sender.
 	NoConfirm bool
@@ -230,6 +236,7 @@ func DefaultConfig() Config {
 		QueueLimit:        1024,
 		DepthLimit:        16,
 		ProvisionalLayers: 1 << 16,
+		MaxBareRun:        4096,
 	}
 }
 
@@ -333,6 +340,9 @@ func (c *Config) fill() {
 	}
 	if c.DepthLimit == 0 {
 		c.DepthLimit = d.DepthLimit
+	}
+	if c.MaxBareRun == 0 {
+		c.MaxBareRun = d.MaxBareRun
 	}
 	if c.ProvisionalLayers == 0 {
 		c.ProvisionalLayers = d.ProvisionalLayers
