@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | with Source: needs `poo grind schedule` first; GUI forms follow |
+| Status | done: commands by Source (D113), Schedule panel and forms in Work (Round 7) |
 | Based on | claude/gui-4-watch @ 8b044ac |
 | Area | pkg/cli (new poo grind schedule), then gui/web/static/work.js |
 | Effort | medium |

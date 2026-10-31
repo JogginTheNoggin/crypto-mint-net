@@ -34,10 +34,10 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-023](GREEN-023-grind-jobs-table.md) | The grind jobs as a table, with Stop on each job | small | yes | adopted |
 | [GREEN-024](GREEN-024-device-choices.md) | Device fields offer the devices `poo grind devices` found, and auto | small | yes | adopted |
 | [GREEN-025](GREEN-025-rates-read-the-same.md) | Rates read as H/s everywhere, and found hashes render like all others | small | yes | adopted |
-| [GREEN-026](GREEN-026-grind-schedule-commands.md) | The grind schedule: `poo grind schedule` commands first, then GUI forms | medium | no | with Source (GUI forms wait for the commands) |
-| [GREEN-027](GREEN-027-grind-loose-ends.md) | Grinding loose ends for Source: uncounted entry tries, two start lines, a waiting reason | small | no | with Source |
-| [GREEN-028](GREEN-028-flags-per-action.md) | Forms show only the flags the chosen action takes (Peers, Node policies), as `poo` checks them | small | yes | proposed |
-| [GREEN-029](GREEN-029-crypto-suggestions.md) | Key and hash fields suggest what `poo crypto` lists | small | yes | proposed |
+| [GREEN-026](GREEN-026-grind-schedule-commands.md) | The grind schedule: `poo grind schedule` commands first, then GUI forms | medium | no | done: `poo grind schedule` by Source (D113); Schedule panel and forms in Work (Round 7) |
+| [GREEN-027](GREEN-027-grind-loose-ends.md) | Grinding loose ends for Source: uncounted entry tries, two start lines, a waiting reason | small | no | done by Source (D112) |
+| [GREEN-028](GREEN-028-flags-per-action.md) | Forms show only the flags the chosen action takes (Peers, Node policies), as `poo` checks them | small | yes | adopted |
+| [GREEN-029](GREEN-029-crypto-suggestions.md) | Key and hash fields suggest what `poo crypto` lists | small | yes | adopted |
 
 ## Orange (performance)
 
@@ -57,7 +57,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-007](ORANGE-007-batched-scrollback-writes.md) | Batch frequent writes in scrollback panes (node log 11% → 4% busy) | small | yes | adopted |
 | [ORANGE-008](ORANGE-008-long-text-results.md) | Show the last 1 MiB of a long text result (3.9 MB: 792 → 181 ms) | small | yes | adopted |
 | [ORANGE-009](ORANGE-009-work-view-paced-drawing.md) | Work view draws at most 10 times a second and reuses its chart (46% → 12% busy at 200 lines/s; full rate 9 → 46 fps) | small | yes | adopted |
-| [ORANGE-010](ORANGE-010-close-streams-on-leave.md) | Close a view's event streams when it is left: the Node view leaked one per visit and the GUI stopped answering after about 2 minutes | small | yes | proposed |
+| [ORANGE-010](ORANGE-010-close-streams-on-leave.md) | Close a view's event streams when it is left: the Node view leaked one per visit and the GUI stopped answering after about 2 minutes | small | yes | adopted |
 
 ## How to try the prototypes
 

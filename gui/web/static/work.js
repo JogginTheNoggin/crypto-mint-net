@@ -24,7 +24,7 @@ const jobFields = () => [
   { name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0 (default: node.json, else auto)' },
   { name: 'threads', label: 'Threads', type: 'number', placeholder: 'default: every core but one' },
   { name: 'for', label: 'For', placeholder: 'for example 30s or 10m' },
-  { name: 'untilFrom', label: 'Until from reaches', placeholder: 'with an entry hash target' },
+  { name: 'untilFrom', label: 'Until from reaches', placeholder: 'with an entry hash or tx:TID target' },
   { name: 'hours', label: 'Only in hours', placeholder: 'for example 22-06 (local time)' },
 ];
 const jobFlags = v => [...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial),
@@ -50,7 +50,7 @@ function jobsTable(list, ctx, refresh) {
     body.append(el('tr', {},
       el('td', { class: 'num' }, String(j.id)),
       el('td', {}, what, s.source ? el('div', { class: 'hint' }, `from ${s.source}`) : null),
-      el('td', {}, el('span', { class: `pill pill-${going ? (j.state === 'running' ? 'ok' : 'warn') : j.state === 'failed' ? 'fail' : 'skip'}` }, j.state), j.reason && j.reason !== j.state ? el('div', { class: 'hint' }, j.reason) : null),
+      el('td', {}, el('span', { class: `pill pill-${going ? (j.state === 'running' ? 'ok' : 'warn') : j.state === 'failed' ? 'fail' : 'skip'}` }, j.state), j.reason && j.reason !== j.state ? el('div', { class: 'hint' }, j.reason) : null, j.hint ? el('div', { class: 'hint' }, j.hint) : null),
       el('td', {}, plans || el('span', { class: 'nil' }, '—')),
       el('td', { class: 'num' }, String(j.tries ?? 0)),
       el('td', {}, render(j.rate ?? 0, 0, 'rate')),
@@ -59,6 +59,50 @@ function jobsTable(list, ctx, refresh) {
   }
   return el('div', { class: 'table-wrap' }, el('table', { class: 'data grind-jobs' },
     el('thead', {}, el('tr', {}, ...['id', 'works on', 'state', 'device and grinder', 'tries', 'rate', 'layers / entries', ''].map(h => el('th', {}, h)))), body));
+}
+
+// scheduleTable lays out poo grind schedule's reply: the defaults, and
+// one row per job node.json starts, numbered as poo numbers them, each
+// with a Remove that runs poo grind schedule remove N. A running node
+// applies the change at once; without one poo edits node.json.
+function scheduleTable(reply, refresh) {
+  const g = (reply && reply.grind) || {};
+  const defaults = el('p', { class: 'counts hint' }, `Defaults: device ${g.device || 'auto'}, ${g.threads ? `${g.threads} thread${g.threads === 1 ? '' : 's'}` : 'every core but one'}.`);
+  const failed = reply && reply.failed ? Object.entries(reply.failed).map(([i, why]) => el('p', { class: 'hint err' }, `Job ${Number(i) + 1} did not start: ${why}`)) : [];
+  const jobs = g.jobs || [];
+  if (!jobs.length) return el('div', {}, defaults, ...failed, el('p', { class: 'hint empty' }, 'No scheduled jobs. Add one below.'));
+  const body = el('tbody');
+  jobs.forEach((j, i) => {
+    const remove = el('button', { type: 'button', class: 'small danger', onclick: async () => {
+      remove.disabled = true;
+      try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), String(i + 1)]); } finally { refresh(); }
+    } }, 'Remove');
+    body.append(el('tr', {},
+      el('td', { class: 'num' }, String(i + 1)),
+      el('td', {}, j.target, j.until_from ? el('div', { class: 'hint' }, `until from reaches ${j.until_from}`) : null),
+      el('td', {}, j.series ? render(j.series) : el('span', { class: 'nil' }, 'every followed')),
+      el('td', {}, j.pools && j.pools.length ? j.pools.join(', ') : el('span', { class: 'nil' }, 'every followed')),
+      el('td', {}, j.device || el('span', { class: 'nil' }, 'default')),
+      el('td', { class: 'num' }, j.threads ? String(j.threads) : el('span', { class: 'nil' }, 'default')),
+      el('td', {}, j.hours || el('span', { class: 'nil' }, 'always')),
+      el('td', {}, remove)));
+  });
+  return el('div', {}, defaults, ...failed, el('div', { class: 'table-wrap' }, el('table', { class: 'data grind-schedule' },
+    el('thead', {}, el('tr', {}, ...['#', 'target', 'series', 'pools', 'device', 'threads', 'hours', ''].map(h => el('th', {}, h)))), body)));
+}
+
+// tableResult swaps a panel's printed JSON for the table draw makes of
+// it, keeping the output as printed under a fold.
+function tableResult(r, area, draw) {
+  if (r.code !== 0) return;
+  let v;
+  try { v = JSON.parse(r.out); } catch (_) { return; }
+  const raw = area.querySelector('.result');
+  if (!raw) return;
+  const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
+  raw.replaceWith(draw(v));
+  det.append(raw);
+  area.append(det);
 }
 
 // deviceChoices offers the device ids poo grind devices printed, plus
@@ -147,10 +191,17 @@ function buildLive(ctx) {
   // (ORANGE-009): the newest plan and state, one move of the rate line,
   // the found rows in one fragment, and the counts once.
   const svg = rateChart();
-  let newFound = [], newPlan = null, newState = null, chartDirty = false;
+  // A job prints one start (its spec) and a plan for each pool's hash;
+  // the view keeps the newest plan of each pool.
+  let newFound = [], newPlan = false, newState = null, chartDirty = false, spec = null, plans = new Map();
   const draw = paced(() => {
     if (newState !== null) { state.textContent = newState; newState = null; }
-    if (newPlan) { plan.textContent = ''; plan.append(el('h3', {}, 'Plan'), render(newPlan)); newPlan = null; }
+    if (newPlan) {
+      plan.textContent = '';
+      if (spec) plan.append(el('h3', {}, 'Job'), render(spec));
+      if (plans.size) plan.append(el('h3', {}, 'Plan'), render([...plans.values()]));
+      newPlan = false;
+    }
     if (chartDirty) { if (!svg.isConnected) chart.append(svg); svg.set(rates); chartDirty = false; }
     if (newFound.length) {
       const frag = document.createDocumentFragment();
@@ -166,8 +217,13 @@ function buildLive(ctx) {
     stats.textContent = [tries ? `${tries} tries` : '', rates.length ? `rate ${rateText(rates[rates.length - 1])}` : '', `${nFound} found`].filter(Boolean).join(' · ');
   });
   const add = ev => {
-    if (ev.state || ev.reason) newState = [ev.kind, ev.state, ev.reason].filter(Boolean).join(': ');
-    if (ev.plan) newPlan = ev.plan;
+    if (ev.state || ev.reason || ev.hint) newState = [ev.kind, ev.state, ev.reason, ev.hint].filter(Boolean).join(': ');
+    if (ev.kind === 'start' && ev.spec) { spec = ev.spec; newPlan = true; }
+    if (ev.plan) {
+      plans.set(`${ev.series ?? ''}/${ev.pool ?? ''}`, { series: ev.series, pool: ev.pool, ...ev.plan });
+      if (plans.size > MAX_EVENTS) plans.delete(plans.keys().next().value);
+      newPlan = true;
+    }
     if (ev.tries) tries = ev.tries;
     if (ev.kind === 'progress' && ev.rate) {
       rates.push(ev.rate);
@@ -213,7 +269,7 @@ function buildLive(ctx) {
     errOut.textContent = '';
     plan.textContent = chart.textContent = found.textContent = '';
     rates = []; tries = 0; nFound = 0; next = 0; buf = '';
-    newFound = []; newPlan = newState = null; chartDirty = false;
+    newFound = []; newPlan = false; newState = null; chartDirty = false; spec = null; plans = new Map();
     try { job = await api.start(a); } catch (err) { state.textContent = err.message; return; }
     setRunning(true);
     state.textContent = `running: ${job.command}`;
@@ -256,21 +312,22 @@ export const workView = {
     // The jobs list is drawn as a table with a Stop for each job still
     // going; the output as printed stays under a fold.
     const jobsPanel = panel(ctx, { title: 'Jobs', about: 'The node\'s grind jobs, running and recently ended: yours and the ones node.json schedules.', args: () => ['grind', 'jobs', ...where.flags()], refresh: 5000,
-      onResult: (r, area) => {
-        if (r.code !== 0) return;
-        let list;
-        try { list = JSON.parse(r.out); } catch (_) { return; }
-        const raw = area.querySelector('.result');
-        if (!raw) return;
-        const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
-        raw.replaceWith(jobsTable(list, ctx, () => jobsPanel.el.querySelector('.panel-head button').click()));
-        det.append(raw);
-        area.append(det);
-      } });
+      onResult: (r, area) => tableResult(r, area, list => jobsTable(list, ctx, () => jobsPanel.el.querySelector('.panel-head button').click())) });
+    // The schedule is node.json's grind section, edited only through poo
+    // grind schedule (GREEN-026): the GUI never writes node.json itself.
+    const refreshSchedule = () => schedulePanel.el.querySelector('.panel-head button').click();
+    const schedulePanel = panel(ctx, { title: 'Schedule', about: 'The jobs the node runs by itself, from node.json\'s grind section, and the defaults every job, build and work takes. A running node applies a change at once and keeps your own jobs running.', args: () => ['grind', 'schedule', ...where.flags()],
+      onResult: (r, area) => tableResult(r, area, v => scheduleTable(v, refreshSchedule)) });
+    const afterSchedule = r => { if (r.code === 0) refreshSchedule(); };
     return mountAll(root, 'Work', 'The node\'s hash grinding: which devices it has, how fast each is, and the jobs it runs. Each part is a poo grind command; node.json\'s grind section sets the defaults and the jobs the node runs by itself.', [
       panel(ctx, { title: 'Devices', about: 'Each device, what it grinds fast, and which one auto picks for each hash.', args: () => ['grind', 'devices', ...where.flags()],
         onResult: r => { if (r.code === 0) deviceChoices(root, r.out); } }),
       jobsPanel,
+      schedulePanel,
+      form(ctx, { title: 'Schedule a job', about: 'Adds a job to node.json\'s grind section with poo grind schedule add. It has no For: it runs whenever its hours allow.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields().filter(fd => fd.name !== 'for')],
+        args: v => ['grind', 'schedule', 'add', ...where.flags(), v.target || 'tip', ...jobFlags(v)], submit: 'Add', onResult: afterSchedule }),
+      form(ctx, { title: 'Schedule defaults', about: 'The device and threads every job takes unless it names its own: poo grind schedule set.', fields: [{ name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0' }, { name: 'threads', label: 'Threads', type: 'number', placeholder: '0: every core but one' }],
+        args: v => ['grind', 'schedule', 'set', ...where.flags(), ...flag('device', v.device), ...flag('threads', v.threads)], submit: 'Set', onResult: afterSchedule }),
       { el: livePanel, stop: () => { liveHooks.detach(); livePanel.remove(); } },
       form(ctx, { title: 'Start a job in the background', about: 'The same job, left to the node: it shows under Jobs.', fields: [{ name: 'target', label: 'Target', value: 'tip' }, ...jobFields()],
         args: v => ['grind', 'start', ...where.flags(), ...jobFlags(v), v.target || 'tip'], submit: 'Start' }),

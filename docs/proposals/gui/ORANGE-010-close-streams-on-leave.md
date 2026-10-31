@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 7) |
 | Based on | claude/gui-4-watch @ e7df74b |
 | Area | gui/web/static/views.js (runJob, panel, form, Node view), work.js |
 | Effort | small |

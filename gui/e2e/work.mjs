@@ -44,6 +44,8 @@ try {
   await run.locator('button:has-text("Run and follow")').click();
   await run.locator('.grind-plan', { hasText: 'device' }).waitFor({ timeout: 20000 });
   await run.locator('.rate-chart').waitFor({ timeout: 20000 });
+  // The job's one start shows its spec beside the plans (D112).
+  await run.locator('.grind-plan h3', { hasText: /^Job$/ }).waitFor();
   assert.match(await run.locator('.counts').innerText(), /H\/s/);
   // The run keeps going while another view is shown.
   await page.click('nav a[data-id=pools]');
@@ -91,6 +93,34 @@ try {
   const ids = await page.locator('#grind-devices option').evaluateAll(os => os.map(o => o.value));
   assert.ok(ids.includes('auto') && ids.includes('cpu'), `device choices ${ids}`);
   if (shots) await page.screenshot({ path: join(shots, 'work-jobs.png'), fullPage: true });
+
+  // The schedule (GREEN-026): a job added through poo grind schedule add
+  // shows as a row, the running node starts it at once, and Remove drops
+  // it again with its job.
+  const sched = section('Schedule');
+  const add = section('Schedule a job');
+  assert.ok(!(await add.locator('label', { hasText: /^For/ }).count()), 'a scheduled job has no For');
+  await add.locator('input[name=hours]').fill('0-23');
+  assert.match(await add.locator('.cmd code').innerText(), /^poo grind schedule add tip -hours 0-23$/);
+  await add.locator('button[type=submit]').click();
+  await add.locator('.run-status.ok').waitFor();
+  const row = sched.locator('table.grind-schedule tbody tr', { hasText: '0-23' });
+  await row.waitFor({ timeout: 10000 });
+  await jobs.locator('button:has-text("Refresh")').click();
+  await going.first().waitFor({ timeout: 10000 });
+  const defs = section('Schedule defaults');
+  await defs.locator('input[name=threads]').fill('1');
+  await defs.locator('button[type=submit]').click();
+  await sched.locator('.counts', { hasText: 'device auto, 1 thread.' }).waitFor({ timeout: 10000 });
+  await row.locator('button', { hasText: 'Remove' }).click();
+  await sched.locator('.empty', { hasText: 'No scheduled jobs' }).waitFor({ timeout: 10000 });
+  for (const end = Date.now() + 20000; ;) {
+    await jobs.locator('button:has-text("Refresh")').click();
+    await page.waitForTimeout(300);
+    if (!(await going.count())) break;
+    assert.ok(Date.now() < end, 'the removed schedule\'s job stopped');
+  }
+  if (shots) await page.screenshot({ path: join(shots, 'work-schedule.png'), fullPage: true });
 
   // Without a terminal SIGHUP is a reload (GUI-011): the node the GUI
   // hosts reloads its node policy, and poo-gui keeps running.
