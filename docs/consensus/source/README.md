@@ -12,8 +12,10 @@ questions for each item:
    whether a ledger, entry, layer, transaction, pool, claim or weight is
    valid or selected, or fixes a byte form. Only the design documents
    (the project's knowledge files) and the owner's explicit approvals may
-   do that. Anything else is filtered out as *blocked: consensus* and goes
-   to the owner.
+   do that. Anything else is *blocked: consensus*. Every suggested
+   consensus change from any team comes to Black first: Black either
+   pre-approves it and passes it to the owner for final approval, or
+   filters it out (see [The consensus gate](#the-consensus-gate)).
 2. **Can it make a hard fork possible?** Under any setting, input or
    peer behaviour, could a node end up unable to take in and select a
    heavier valid ledger that a reachable peer serves? If so it is
@@ -43,6 +45,33 @@ the node takes it in and selects it in the end, whatever its settings.**
 A setting may decide when, how fast, from whom and in what order, and may
 ask for proof of work before spending anything. It may never refuse such
 a ledger for good.
+
+## The consensus gate
+
+The owner's rule (2026-10-31): all suggestions for consensus changes go
+to Black first, and Black decides whether the owner should see them.
+Black pre-approves; the owner gives final approval.
+
+For each suggestion, Black answers in its review:
+
+- [ ] What rule does it add or change, in the words of the design
+      documents? Which document section, if any, supports it?
+- [ ] Can node policy that only delays, paces, orders, chooses peers or
+      asks for work first get the same result? If yes, filter it out and
+      describe that shape.
+- [ ] Does it keep hard forks impossible under every setting (checklist
+      section 3)? If not, filter it out.
+- [ ] Does it bring back something the owner already refused (standing
+      rulings below)? If yes, filter it out.
+- [ ] Is the gain worth a rule every node must follow forever?
+
+**Pre-approved** suggestions go under "Items for the owner" in the
+round's review, written plainly: the problem, the rule, why node policy
+is not enough, the hard-fork check, and what happens if the owner says
+no. **Filtered** suggestions are listed with the reason, and the sending
+team is told. Pre-approval is not approval: nothing is built until the
+owner says yes, and the owner's decision is recorded in
+`docs/consensus-audit.md`.
 
 ## Standing rulings (baseline)
 
@@ -161,6 +190,7 @@ with a Summary, then this table:
 | Field | Value |
 | --- | --- |
 | Round | Source Round N |
+| Consensus suggestions | ids, each pre-approved or filtered |
 | Base reviewed | branch @ commit (from `security/source/BASE.md`) |
 | Previous base | branch @ commit |
 | Blue branches | branch @ commit, one per line |

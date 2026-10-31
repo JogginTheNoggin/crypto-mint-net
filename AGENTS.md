@@ -77,8 +77,28 @@ verdicts:
 | --- | --- | --- |
 | clear | Changes no validity, weight, selection or byte-form rule, and no setting can make a heavier valid ledger unacceptable | May adopt or merge as usual |
 | clear with conditions | Clear only if the stated conditions hold (for example, "keep each entry's counted credit") | Adopts only with the conditions, and records them in the decision |
-| blocked: consensus | Adds or changes a consensus rule that is not in the design documents or the owner's approvals | Must not adopt it. Black lists it for the owner, who decides |
+| blocked: consensus | Adds or changes a consensus rule that is not in the design documents or the owner's approvals | Must not adopt it. If Black pre-approved the suggestion it waits for the owner's decision; if Black filtered it out it is dropped |
 | blocked: hard fork | Some setting or input could leave a node unable to take in and select a heavier valid ledger for good (a depth limit, a size limit every peer would hit, a permanent refusal) | Must not adopt it as is. Black names the failing case and the rule it breaks |
+
+**Consensus suggestions go to Black first** (the owner, 2026-10-31).
+Any team that wants to add or change a consensus rule, in a finding, a
+fix, a proposal or a decision, writes the suggestion and sends it to
+Black, never straight to the owner. Black decides whether it is worth the
+owner's time:
+
+- **Pre-approved**: the change is needed (no node-policy way gets the
+  same result), it keeps hard forks impossible, and it fits the design
+  documents' core ideas. Black passes it to the owner in plain words,
+  with the case for it and the alternatives it ruled out. Only the owner
+  gives final approval.
+- **Filtered out**: a node-policy shape would do, it risks a hard fork,
+  it repeats something the owner already refused, or it is not worth it.
+  Black records why in its review and tells the sending team; it does
+  not reach the owner.
+
+Black's pre-approval is never the owner's approval: nothing is built
+until the owner says yes. Black runs this gate in Part D for the round's
+suggestions; a suggestion made outside a round waits for the next Part D.
 
 A blocked item stays blocked until the owner approves it or a later
 change removes the problem and Black clears it. Black never edits code or
@@ -209,8 +229,10 @@ fixes, what changed, the tests added, and how Grey can check it.
 - **No new consensus rules, and no hard forks through node policy**
   (the owner, 2026-10-31). Do not add a rule that decides whether a
   ledger, entry, layer or transaction is valid or selected unless it is in
-  the design documents or the owner has approved it; record any you
-  propose in `docs/consensus-audit.md` and ask. Prefer node policy, but
+  the design documents or the owner has approved it. Send any you
+  propose to Black, who pre-approves it for the owner or filters it out
+  ([Black reviews](#black-reviews-part-d)); do not ask the owner
+  directly. Prefer node policy, but
   node policy must never make a heavier valid ledger unacceptable: if any
   reachable peer serves a valid ledger heavier than the selected one, the
   node takes it in and selects it in the end, whatever its settings. A
