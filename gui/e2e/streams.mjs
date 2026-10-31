@@ -1,7 +1,8 @@
 // End-to-end check that leaving a view closes its event streams
 // (ORANGE-010). A browser opens at most six connections to poo-gui; a
 // view that left one stream open per visit stalled the whole GUI after a
-// few visits to the Node view while a node ran.
+// few visits to the Node view while a node ran. It also checks that
+// focus moving through key fields asks poo crypto once (ORANGE-011).
 //
 //   node gui/e2e/streams.mjs PATH/TO/poo-gui
 import assert from 'node:assert/strict';
@@ -11,10 +12,24 @@ import { launch, nodeStopped } from './lib.mjs';
 const bin = process.argv[2];
 const { env, page, errors, close } = await launch(bin);
 const open = new Set();
-page.on('request', r => { if (r.url().includes('/events')) open.add(r); });
+let cryptoRuns = 0;
+page.on('request', r => {
+  if (r.url().includes('/events')) open.add(r);
+  if (r.url().endsWith('/api/run') && (r.postData() || '').includes('"crypto"')) cryptoRuns++;
+});
 for (const ev of ['requestfinished', 'requestfailed']) page.on(ev, r => open.delete(r));
 
 try {
+  // Focus in and out of a key field eight times before poo answers.
+  await page.click('nav a[data-id=wallet]');
+  await page.locator('input[list=crypto-algs]').first().waitFor();
+  await page.evaluate(() => {
+    const key = document.querySelector('input[list=crypto-algs]'), nav = document.querySelector('nav a');
+    for (let i = 0; i < 8; i++) { key.focus(); nav.focus(); }
+  });
+  await page.waitForTimeout(1000);
+  assert.equal(cryptoRuns, 1, `poo crypto ran ${cryptoRuns} times for eight focuses`);
+
   execFileSync(bin, ['poo', 'init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off'], { env });
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Start node")');
