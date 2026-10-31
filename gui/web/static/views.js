@@ -283,6 +283,19 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
 export const flag = (name, value) => (value === '' || value === undefined || value === false) ? [] : value === true ? [`-${name}`] : [`-${name}`, value];
 export const flags = (name, list) => list.flatMap(v => [`-${name}`, v]);
 
+// A long view gets a row of its panel titles at the top. Each one scrolls
+// to its panel and focuses it; the hash is the router, so it stays as is.
+function jumpList(els) {
+  const heads = els.map(e => [e, e.querySelector('h2')]).filter(([, h]) => h);
+  if (heads.length < 5) return null;
+  return el('nav', { class: 'jump', 'aria-label': 'Panels on this view' }, 'Jump to: ',
+    ...heads.map(([sec, h]) => el('button', { type: 'button', onclick: () => {
+      sec.scrollIntoView({ block: 'start' });
+      h.tabIndex = -1;
+      h.focus({ preventScroll: true });
+    } }, h.textContent)));
+}
+
 export function mountAll(root, title, intro, parts) {
   // The banner shows when a panel below needs a node and none answers.
   // On the Node view itself it points at the Health check and the start
@@ -292,6 +305,8 @@ export function mountAll(root, title, intro, parts) {
     ...(title === 'Node' ? ['The Health check below says what is missing, and Start node runs one.']
       : [el('a', { href: '#/node' }, 'Start one on the Node view'), '.']));
   root.append(el('h1', {}, title), intro ? el('p', { class: 'hint' }, intro) : null, banner);
+  const jump = jumpList(parts.map(p => p.el));
+  if (jump) root.append(jump);
   for (const p of parts) root.append(p.el);
   return () => parts.forEach(p => p.stop());
 }
