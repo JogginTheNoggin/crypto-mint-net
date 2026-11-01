@@ -1298,6 +1298,15 @@ func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, st *progress, expect
 		if err != nil {
 			return err
 		}
+		if len(c.Items) > 1 && c.Items[0].Entry.Parent == parent {
+			// The chunk's witnesses on every core first, so each entry
+			// taken in order finds them verified (ORANGE-020).
+			es := make([]*entry.Entry, len(c.Items))
+			for i, it := range c.Items {
+				es[i] = it.Entry
+			}
+			h.n.Engine().PreverifyPage(pi.key, es)
+		}
 		for _, it := range c.Items {
 			if err := take(it); err != nil {
 				return err
