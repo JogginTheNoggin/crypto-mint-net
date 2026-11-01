@@ -76,3 +76,21 @@ best layer alone. Five entries, same machine as ORANGE-009:
 
 None beyond the measurement harness (not committed). It is a question for
 Grey before any code.
+
+## Round 7 check
+
+ORANGE-016 measured `layer_floor` on two nodes and corrects two points
+here:
+
+- **The gain.** The ratios above are medians per slice. Credit is
+  2^strength, so the long-run total is set by the rare strongest layers.
+  Over 2,000 simulated slices, the total gain is:
+  - 1.9× for every layer at or above 16;
+  - 2.2× at 12;
+  - 1.5× for the strongest 20 of each slice.
+
+  The weight is steadier, but the long-run gain is smaller than 3 to 9×.
+- **The message rate.** Peers take 100 layers a second from one node and
+  drop the rest, the strongest too. At floor 16 a 30 M/s grinder sends
+  450 a second, and over 90 s its peer saw 6× less weight than with no
+  floor. ORANGE-016 bounds the floor with `grind.layer_rate`.

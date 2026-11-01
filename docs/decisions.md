@@ -53,7 +53,9 @@ k-of-policies address types (D82), and the few maintained dependencies
 that needs (D83). Round 7 records the owner's rule that no node policy may
 make a heavier ledger unacceptable (D115) and removes every limit the
 consensus audit found against it: depth, length and budget limits in the
-chase (D116) and size and count caps on items (D117).
+chase (D116) and size and count caps on items (D117). Round 8 closes the
+hard fork Black found, a held branch without its layers, and the narrow
+cases around it (D121).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -1783,3 +1785,102 @@ a chase takes in after checking their work are not charged.
   stops a stale row number from removing another job.
 - **Tier:** Implementation.
 
+### D120. Work is asked for and listings are paced; large parts go to disk
+
+- **Decision:**
+  - **RED-015.** A chase's progress holds only what work backs: the page of
+    hashes being checked, the listed hashes that carried layers (by index,
+    so step 5 still checks that each is the entry sent there), and the
+    entries fetched. A hash with no layers is let go once its layers are
+    counted. After `p2p.Config.WeightlessPages` (64) pages in a row that
+    bring no work, the chase yields and goes on later from its progress.
+    The first page after the pool_id is the sender's first hashes.
+  - **RED-016.** A node that holds nothing checks the work from the
+    pool_id before a whole-ledger fetch. Every part of a large entry must
+    hold at least a byte and stay within the stated size, and the first
+    must start with the expected parent. Parts go to a temporary file
+    (`p2p.Config.PartsDir`). A fetch past its slice yields, keeping the
+    file and its offset, and the file is removed when the fetch ends, its
+    progress is forgotten, or the host stops.
+  - **RED-017.** A parts reply copies the item under the engine lock and
+    encodes it outside, in a cache of items (one minute after last use,
+    256 MiB in all).
+  - **RED-018.** A layer floor sends at most 16 extra layers per search,
+    the strongest first, and 50 a second across searches.
+  - **RED-019.** `poo grind run` retries a failed renewal while the lease
+    may still hold, and stops renewing only for a job the node does not
+    know or that is done.
+- **Why:** Red's Round 7 findings. Under D115, nothing here refuses a
+  heavier ledger for good. A real heavier ledger has work, and the node
+  waits for it. A listing with no work costs the node a page of memory
+  and a paced share of its time, not 948 MB in 15 s. A claimed size costs
+  disk only as the sender sends the bytes, and no size is refused. Work
+  on a heavier ledger may sit on any of its entries, so weightless pages
+  are paced, not ended. The extra layers a floor keeps add credit and
+  remove none, so dropping some changes only how much of its own work a
+  node sends (D118's condition holds).
+- **Tier:** Implementation (node policy and the CLI). No consensus change:
+  what is valid and what is selected are unchanged.
+- **For Black:** the RED-015 and RED-016 changes touch G3. Pacing is by
+  pages in a row without work and by the time slice. The only new gate is
+  the work check before a whole-ledger fetch, which any heavier ledger
+  passes. Decoding a large entry still needs it whole in memory (D117's
+  "not yet").
+
+### D121. Held branches, deep layers and many layers are always reachable (Black's Round 7 review)
+
+- **Decision:** Fixes for Black's B1 and conditions C-1 to C-3 in
+  `docs/consensus/source/ROUND-7.md`, all node policy.
+  - **B1.** When the sender's newest held hash is off the selected
+    ledger, `findCommon` walks back through entries held locally (no
+    request, no limit) to where that branch leaves the selected ledger;
+    the walked hashes go first in the listing, and steps 4 and 5 run as
+    for any branch. When the newest held hash is on the selected ledger,
+    `topUpLayers` asks for the layers on the sender's own hashes, page by
+    page back from its tip, until the node is as heavy as the sender
+    stated or the sender's chain ends; it yields past its slice and goes
+    on from saved progress. It used to ask about this node's latest
+    entries, which a sender on another branch does not hold.
+  - **C-1.** When the node's own ledger outgrows the work counted so far,
+    `fetchBranch` hands back to step 4 to count more of the listing; only
+    a branch counted to its end ends as not heavier.
+  - **C-2.** Past 256 remembered chases the one with the least shown is
+    forgotten: not worked before worked, then less work, then oldest. A
+    worked chase is never forgotten for one that is not.
+  - **C-3.** Wire types 27 (layers-from request), 52 (many layers) and 53
+    (layers from), as D76 allows. A layers reply ends before an entry with
+    more than `p2p.Config.LayersWhole` layers (by default what one frame
+    holds) and names it in a many-layers reply when it comes first; the
+    asker pages its nonces strongest first from any index until all have
+    come (`askLayers`, `layersFrom`). The strongest-first order means
+    layers that arrive meanwhile can only move ones already read later,
+    so paging misses none. The old truncation to the strongest that fit
+    is gone.
+  - **G4 note.** A sender that sends another entry where it listed hash W
+    is flagged; W is no longer bad-listed, since it may be a valid
+    entry's hash the sender copied.
+  - **Budgets.** `tracking.Spend` counts only what it lets through, so a
+    message dropped over a budget adds nothing and a steady sender gets
+    the budget's rate (ORANGE-016's point; Black's B1 note).
+  - **C-4** (ORANGE-014): the set key's coverage is recorded at `setKey`.
+  - `encoding.Reader.Count` refuses a count past `int` on a 32-bit build.
+- **Why:** B1 was a reproduced hard fork: a node holding a heavier
+  branch's entries without their layers never switched (D115). C-1 to C-3
+  could, by reading, keep a heavier ledger out of reach in narrow cases.
+- **Tier:** Implementation and wire (new message types; no byte form of
+  an entry, transaction or layer changes, and no rule of validity or
+  selection).
+
+### D122. Round 8 adoptions: GREEN-032, ORANGE-014, ORANGE-015, ORANGE-016
+
+- **Decision:** GREEN-032 (`nodepolicy.Grind.IsZero` counts every field,
+  so a section of only `layer_floor` or `layer_rate` is saved and
+  checked; the `-layer-floor` flag of the schedule's `set`, and `-layer-rate`
+  added here; `poo CMD -h` exits 0). ORANGE-014 (`policy.Registry.CheckAll`
+  checks many witnesses on every core and remembers the set as one key,
+  on Black's conditions C-4). ORANGE-015 (`Engine.Tip` for events and
+  stated weight, no branch walk). ORANGE-016 (`grind.layer_rate`, 10 a
+  second by default, strongest first), combined with BLUE-008's per-search
+  and per-second caps (D120): the stricter of the two applies.
+- **Why:** Measured in Round 7 Part B and cleared by Black.
+- **Tier:** Implementation (node policy).

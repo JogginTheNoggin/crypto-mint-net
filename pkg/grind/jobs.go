@@ -162,8 +162,10 @@ var (
 type Defaults struct {
 	Device  string
 	Threads int
-	// Floor is the node policy's layer_floor (ORANGE-010).
+	// Floor is the node policy's layer_floor (ORANGE-010), and Rate its
+	// layer_rate (ORANGE-016).
 	Floor int
+	Rate  int
 }
 
 // Manager runs the jobs of one node.
@@ -246,7 +248,7 @@ func (m *Manager) Schedule(g *nodepolicy.Grind) ([]Job, map[int]error) {
 	var def Defaults
 	var jobs []nodepolicy.GrindJob
 	if g != nil {
-		def, jobs = Defaults{Device: g.Device, Threads: g.Threads, Floor: g.LayerFloor}, g.Jobs
+		def, jobs = Defaults{Device: g.Device, Threads: g.Threads, Floor: g.LayerFloor, Rate: g.LayerRate}, g.Jobs
 	}
 	m.mu.Lock()
 	m.def = def
@@ -949,6 +951,7 @@ func (m *Manager) work(ctx context.Context, j *job, k engine.PoolKey, p Plan, ta
 	var kept atomic.Uint64
 	m.mu.Lock()
 	g.Floor, g.KeptCount = m.def.Floor, &kept
+	g.KeepMax = keepMax(m.def.Rate)
 	m.mu.Unlock()
 	l, res, err := m.n.WorkWith(sctx, k, target, randomNonce(), 0, g)
 	if n := kept.Load(); n > 0 {
@@ -1032,6 +1035,15 @@ func (m *Manager) progress(j *job, k engine.PoolKey, t0 time.Time, tried *atomic
 		}
 	}()
 	return func() { close(done) }
+}
+
+// keepMax is how many layers besides the strongest one search of a Slice
+// keeps at rate layers a second (0: nodepolicy.DefaultLayerRate).
+func keepMax(rate int) int {
+	if rate == 0 {
+		rate = nodepolicy.DefaultLayerRate
+	}
+	return max(1, int(float64(rate)*Slice.Seconds()))
 }
 
 // randomNonce is where a layer search starts, so slices and jobs on the

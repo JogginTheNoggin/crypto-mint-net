@@ -105,6 +105,7 @@ the clock skew (2 minutes) ahead.
 | 24 | layers request | Common ∥ `List<Hash>` entries |
 | 25 | weight check request | Common |
 | 26 | parts request | Common ∥ `Hash` entry ∥ `U8` variant ∥ `U64` offset |
+| 27 | layers-from request | Common ∥ `Hash` entry ∥ `U32` from |
 | 30 | follow request | Follow request |
 | 31 | peer list request | `U64` nonce ∥ `U64` time ∥ `U8` peer variant (1 or 2) ∥ discovery limits |
 | 32 | missing chunks request | `List<U32>` positions (header: the original request id) |
@@ -120,6 +121,8 @@ the clock skew (2 minutes) ahead.
 | 49 | refused | empty |
 | 50 | large | `Hash` entry ∥ `U64` size of its entry item |
 | 51 | part | `U64` total ∥ `U64` offset ∥ the bytes to the end of the body |
+| 52 | many layers | `Hash` entry ∥ `U32` count of its layers |
+| 53 | layers from | `U32` total ∥ `U32` from ∥ `List<U64>` nonces |
 | 60 | pong | Contact ∥ `List<Section>` (empty) |
 | 61 | partial pong | Contact ∥ `List<Section>` followed within the one asked about |
 | 62 | yes | Follow reply |
@@ -190,7 +193,15 @@ offset 0, each answered by **part** chunks of the encoded entry item in
 order (the more marker says it goes on past them), puts the bytes
 together, decodes the item and checks its hash is the one named, then
 asks on from that entry. Large items are never pushed: a node announces
-one with a notice. There is no size at which a valid entry cannot travel. Every reply carries the server's own
+one with a notice. There is no size at which a valid entry cannot travel.
+
+An entry with more layers than one layers reply carries whole is treated
+the same way (D121): a layers reply stops before it, and when it is the
+first entry asked about the reply is a single **many layers** chunk with
+its count. The asker sends **layers-from requests** from index 0, answered
+by **layers from** chunks holding the nonces strongest first (the lower
+nonce first among equals), with the more marker when more remain, and
+asks again from where they stopped. Every reply carries the server's own
 stated weight. Replies come from the active ledger only.
 
 | Request | Answer |

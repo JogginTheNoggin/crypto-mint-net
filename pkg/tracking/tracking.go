@@ -898,9 +898,11 @@ func (t *Tracker) Spend(addr, kind string, n uint64, now time.Time) (bool, Actio
 	// One spend larger than the whole budget passes when nothing else was
 	// spent in the window, so no single item is too costly to take from
 	// any peer at all (consensus audit P2, D116).
-	empty := c.Sum(now, w) == 0
-	c.Add(now, w, n)
-	if empty || c.Sum(now, w) <= uint64(limit) {
+	// Only what is taken is counted: a message dropped over the budget
+	// adds nothing, so a steady sender gets through at the budget's rate
+	// and is never starved for good (ORANGE-016, Black's B1 note; D121).
+	if sum := c.Sum(now, w); sum == 0 || sum+n <= uint64(limit) {
+		c.Add(now, w, n)
 		return true, None
 	}
 	e := epoch(now, w) / slots

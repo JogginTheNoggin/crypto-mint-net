@@ -15,14 +15,16 @@ specification is [../protocol/wire.md](../protocol/wire.md).
   Stated, Hops}` with `Last()` and `More()`; `Encode`, `Decode`.
 - `WriteFrame(w, m)`, `ReadFrame(r, max)`; `MaxFrame` is 16 MiB. A frame
   bounds a message, not an item: an entry larger than a frame travels in
-  parts (`PartsReq`, `Large`, `Part`, `EncodeItem`, `DecodeItem`, D117).
+  parts (`PartsReq`, `Large`, `Part`, `EncodeItem`, `DecodeItem`, D117),
+  and an entry's layers past what one reply holds are paged
+  (`LayersFromReq`, `ManyLayers`, `LayersFrom`, D121).
 - `Type` and its constants, with `IsRequest`, `IsReply`, `String`.
 - `Section` with `All`, `IssuerSection`, `SeriesSection`, `PoolSection`,
   `MintSection`; `Covers` (None, Partial, Full) and `Contains`.
 - `RequestID(type, section, body)`.
 - Bodies: `Hello`, `Notice`, `DecodeTx` / `DecodeEntry` / `DecodeLayer`;
   requests `ExtensionReq`, `HashChainReq`, `EntriesReq`, `FullLedgerReq`,
-  `LayersReq`, `WeightReq`, `PartsReq` (all with `RequestCommon{Nonce, Time, Limits}`)
+  `LayersReq`, `WeightReq`, `PartsReq`, `LayersFromReq` (all with `RequestCommon{Nonce, Time, Limits}`)
   and `DecodeRequest`; reply chunks `EntriesChunk`, `HashChainChunk`,
   `HeldEntriesChunk`, `LayersChunk` with their `Decode*`, and
   `DecodeEmpty` for replies without a body.

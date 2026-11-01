@@ -713,12 +713,14 @@ func replyFits(q, r wire.Type) bool {
 		return r == wire.TypeExtension || r == wire.TypeLarge
 	case wire.TypePartsReq:
 		return r == wire.TypePart
+	case wire.TypeLayersFromReq:
+		return r == wire.TypeLayersFrom
 	case wire.TypeHashChainReq:
 		return r == wire.TypeHashChain || r == wire.TypeAnchorNotHeld
 	case wire.TypeEntriesReq:
 		return r == wire.TypeEntries || r == wire.TypeLarge
 	case wire.TypeLayersReq:
-		return r == wire.TypeLayers
+		return r == wire.TypeLayers || r == wire.TypeManyLayers
 	case wire.TypeWeightReq:
 		return r == wire.TypeWeight
 	}
@@ -732,11 +734,11 @@ func (h *Host) common() wire.RequestCommon {
 
 // ownWeight is the node's computed weight of its active ledger for pi.
 func (h *Host) ownWeight(pi *poolInfo) weight.Weight {
-	st, err := h.n.Engine().Status(pi.key)
+	_, _, w, err := h.n.Engine().Tip(pi.key)
 	if err != nil {
 		return weight.Zero
 	}
-	return st.Weight
+	return w
 }
 
 // bucket is a token bucket: rate requests a minute, bursting to rate.

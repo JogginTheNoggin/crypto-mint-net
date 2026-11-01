@@ -316,10 +316,8 @@ func checkWitnesses(s *series.Series, t *Tx, tid hash.Hash, owners []hash.Hash, 
 	if len(owners) != len(t.Witnesses) {
 		return ErrWitnessCount
 	}
-	for i, w := range t.Witnesses {
-		if err := s.CheckWitness(w, owners[i], tid); err != nil {
-			return fmt.Errorf("%w: %s %d: %v", ErrWitness, what, i, err)
-		}
+	if i, err := s.CheckWitnesses(t.Witnesses, owners, tid); err != nil {
+		return fmt.Errorf("%w: %s %d: %v", ErrWitness, what, i, err)
 	}
 	return nil
 }

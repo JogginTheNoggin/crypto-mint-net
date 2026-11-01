@@ -168,7 +168,13 @@ func Run(ctx context.Context, args []string, s Stdio) error {
 			return err
 		}
 	}
-	return run(args, &stdio{Writer: s.Out, err: s.Err, in: bufio.NewReader(in), ctx: ctx, secret: s.Secret, viewOnly: view})
+	err := run(args, &stdio{Writer: s.Out, err: s.Err, in: bufio.NewReader(in), ctx: ctx, secret: s.Secret, viewOnly: view})
+	if errors.Is(err, flag.ErrHelp) {
+		// -h printed the usage the person asked for: that is not a failure,
+		// so it neither exits 1 nor adds "flag: help requested" (GREEN-032).
+		return nil
+	}
+	return err
 }
 
 // stdio is the out of one invocation: commands write to it, and the few
@@ -221,6 +227,15 @@ func contextOf(out io.Writer) context.Context {
 		return s.ctx
 	}
 	return context.Background()
+}
+
+// errOf returns where the invocation writing to out sends warnings: its
+// Err, as a shell's stderr, or os.Stderr.
+func errOf(out io.Writer) io.Writer {
+	if s, ok := out.(*stdio); ok && s.err != nil {
+		return s.err
+	}
+	return os.Stderr
 }
 
 func run(args []string, out io.Writer) error {

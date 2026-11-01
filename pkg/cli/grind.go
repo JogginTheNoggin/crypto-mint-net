@@ -279,17 +279,40 @@ func (j *jobFlags) spec(fs *flag.FlagSet, cl *rpc.Client, target string) (grind.
 // times as often.
 const runLease = 15 * time.Second
 
-// renew renews job id's lease until ctx ends or the job is gone.
-func renew(ctx context.Context, cl *rpc.Client, id int) {
-	t := time.NewTicker(runLease / 3)
+// renewer is what renew needs of a client.
+type renewer interface {
+	GrindRenew(id int) (grind.Job, error)
+}
+
+// renew renews job id's lease until ctx ends or the job is gone: done, or
+// unknown to the node. A failed request (a timeout, a dropped connection,
+// a node busy reloading) is tried again at the next tick while the lease
+// may still hold, so one failure does not stop a job whose follower is
+// alive (RED-019, decision D120). The first failure is written to warn.
+func renew(ctx context.Context, cl renewer, id int, every time.Duration, warn io.Writer) {
+	t := time.NewTicker(every)
 	defer t.Stop()
+	last := time.Now()
+	warned := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
-			if j, err := cl.GrindRenew(id); err != nil || j.Done() {
+		case now := <-t.C:
+			j, err := cl.GrindRenew(id)
+			var re *rpc.Error
+			switch {
+			case err == nil && j.Done():
 				return
+			case err == nil:
+				last, warned = now, false
+			case errors.As(err, &re) && re.Code == rpc.CodeNotFound:
+				return
+			case now.Sub(last) > runLease:
+				return // the lease has run out on the node anyway
+			case !warned:
+				warned = true
+				fmt.Fprintf(warn, "poo: renewing job %d failed, trying again: %v\n", id, err)
 			}
 		}
 	}
@@ -349,7 +372,7 @@ func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) err
 				return err
 			}
 			id = job.ID
-			go renew(ctx, cl, id)
+			go renew(ctx, cl, id, runLease/3, errOf(out))
 		case ev.Kind == "end":
 			return errors.New("the node stopped its interface (a reload or a stop), and with it the job")
 		case ev.Kind == filter.KindGrind && ev.Grind != nil && ev.Grind.Job == id:
@@ -392,7 +415,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	var c *clientFlags
 	var pf *poolFlags
 	var device, until, hours, target *string
-	var threads *int
+	var threads, floor, rate *int
 	var all *bool
 	var expect *string
 	switch op {
@@ -415,6 +438,8 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	case "set":
 		device = fs.String("device", "", "the default device: auto, cpu, gpu:0, ... (auto clears it)")
 		threads = fs.Int("threads", 0, "the default threads (0: every core but one)")
+		floor = fs.Int("layer-floor", 0, "keep every layer the node's grinding finds at or above this strength, 0 to 256 (0: only the strongest of each search)")
+		rate = fs.Int("layer-rate", 0, "the most layers a second layer-floor adds, strongest first (0: the default, 10)")
 	default:
 		return fmt.Errorf("poo grind schedule %s: unknown; it is add, remove or set", op)
 	}
@@ -534,6 +559,10 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 				}
 			case "threads":
 				next.Threads = *threads
+			case "layer-floor":
+				next.LayerFloor = *floor
+			case "layer-rate":
+				next.LayerRate = *rate
 			}
 		})
 	}
@@ -545,7 +574,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		return writeJSON(out, r)
 	}
 	p.Grind = &next
-	if next.Device == "" && next.Threads == 0 && len(next.Jobs) == 0 {
+	if next.IsZero() {
 		p.Grind = nil
 	}
 	if err := p.Validate(); err != nil {

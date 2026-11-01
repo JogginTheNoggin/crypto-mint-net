@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -229,5 +231,53 @@ func TestGrindScheduleOffline(t *testing.T) {
 	cli(t, &sr, append([]string{"grind", "schedule"}, r...)...)
 	if sr.Grind.Device != "" || len(sr.Grind.Jobs) != 0 {
 		t.Fatalf("schedule after remove %+v", sr)
+	}
+}
+
+// flakyRenewer fails the calls listed in fail, answers 404 from gone on,
+// and counts calls.
+type flakyRenewer struct {
+	mu    sync.Mutex
+	calls int
+	fail  map[int]bool
+	gone  int
+}
+
+func (f *flakyRenewer) GrindRenew(id int) (grind.Job, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	switch {
+	case f.gone > 0 && f.calls >= f.gone:
+		return grind.Job{}, &rpc.Error{Message: "no job", Code: rpc.CodeNotFound}
+	case f.fail[f.calls]:
+		return grind.Job{}, errors.New("connection reset")
+	}
+	return grind.Job{ID: id, State: grind.StateRunning}, nil
+}
+
+func (f *flakyRenewer) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+// RED-019: a failed renewal is tried again, once warned; a job the node
+// no longer knows ends the renewals.
+func TestRenewSurvivesAFailure(t *testing.T) {
+	f := &flakyRenewer{fail: map[int]bool{2: true, 3: true}, gone: 6}
+	var warn strings.Builder
+	done := make(chan struct{})
+	go func() { renew(context.Background(), f, 7, time.Millisecond, &warn); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("renew did not stop at a gone job")
+	}
+	if f.count() != 6 {
+		t.Fatalf("%d renewals, want 6 (two failures retried, then gone)", f.count())
+	}
+	if n := strings.Count(warn.String(), "trying again"); n != 1 {
+		t.Fatalf("warned %d times: %q", n, warn.String())
 	}
 }
