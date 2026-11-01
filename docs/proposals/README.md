@@ -49,3 +49,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-014](source/ORANGE-014-large-items-witnesses.md) | Source | Large entries measured; check many witnesses once, on every core | adopted (D122) |
 | [ORANGE-015](source/ORANGE-015-chase-measured-no-branch-walk.md) | Source | The new chase measured; no branch walk on every event | adopted (D122) |
 | [ORANGE-016](source/ORANGE-016-layer-floor-traffic.md) | Source | layer_floor traffic measured; bound it with layer_rate | adopted (D122) |
+| [GREEN-033](source/GREEN-033-parts-in-data-dir.md) | Source | Put large-entry parts in the data directory, and document `layer_rate` | proposed (prototyped) |

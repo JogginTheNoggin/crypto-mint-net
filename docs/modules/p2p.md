@@ -140,7 +140,8 @@ naming a known-bad hash are ignored. Each chase, from cheap to costly:
    the entry sent at its place. An entry larger than `PartsOver` comes in
    parts (`fetchParts`, D117): each part holds at least a byte, the first
    starts with the expected parent, and the parts go to a temporary file in
-   `PartsDir`, not memory, until the entry is whole; past its slice the
+   `PartsDir` (`poo node` sets it to `parts/` in the data directory and
+   empties it of a crash's leftovers on start, GREEN-033), not memory, until the entry is whole; past its slice the
    fetch yields and the next slice goes on from the offset it reached
    (RED-016, D120). The node answers parts requests from the item copied
    under the engine lock and encoded outside it, kept for a minute after
