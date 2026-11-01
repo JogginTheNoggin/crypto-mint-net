@@ -96,9 +96,14 @@ type Policy struct {
 // Encode returns encode(policy), the bytes an address hashes.
 func (p Policy) Encode() []byte {
 	w := encoding.NewWriter(12 + len(p.Params))
+	p.EncodeTo(w)
+	return w.Bytes()
+}
+
+// EncodeTo writes Encode's bytes to w, without a slice of its own.
+func (p Policy) EncodeTo(w *encoding.Writer) {
 	w.U32(4).U32(uint32(p.Type))
 	w.VarBytes(p.Params)
-	return w.Bytes()
 }
 
 // Address returns H("PoO-address" ∥ encode(policy)).
@@ -126,7 +131,7 @@ type Witness struct {
 // Encode writes the witness: the encoded policy followed by the data as
 // variable-length bytes.
 func (w Witness) Encode(enc *encoding.Writer) {
-	enc.Raw(w.Policy.Encode())
+	w.Policy.EncodeTo(enc)
 	enc.VarBytes(w.Data)
 }
 

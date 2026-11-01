@@ -673,6 +673,9 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 		if bare >= h.cfg.WeightlessPages {
 			return result{out: chase.Yield, why: fmt.Sprintf("%d pages of hashes with no work: paced", bare)}, true
 		}
+		if h.paced(p) {
+			return result{out: chase.Yield, why: "requests to the sender paced"}, true
+		}
 		asked = true
 		if len(st.pending) == 0 {
 			if st.complete {
@@ -897,6 +900,9 @@ func (h *Host) fetchBranch(pi *poolInfo, p *peer, st *progress, deadline time.Ti
 		if asked && time.Now().After(deadline) {
 			return result{out: chase.Yield, why: "time slice used up fetching"}, true
 		}
+		if h.paced(p) {
+			return result{out: chase.Yield, why: "requests to the sender paced"}, true
+		}
 		asked = true
 		var beat weight.Weight
 		onBranch := false
@@ -951,6 +957,9 @@ func (h *Host) fetchAll(pi *poolInfo, p *peer, st *progress, before weight.Weigh
 	for {
 		if asked && time.Now().After(deadline) {
 			return result{out: chase.Yield, why: "time slice used up fetching the ledger"}
+		}
+		if h.paced(p) {
+			return result{out: chase.Yield, why: "requests to the sender paced"}
 		}
 		asked = true
 		var q wire.Request = wire.FullLedgerReq{RequestCommon: h.common(), Variant: wire.EntriesWithLayers}
@@ -1265,6 +1274,9 @@ func (h *Host) topUpLayers(pi *poolInfo, p *peer, st *progress, stated weight.We
 	for len(st.top) > 0 {
 		if asked && time.Now().After(deadline) {
 			return result{out: chase.Yield, why: "time slice used up taking layers"}, true
+		}
+		if h.paced(p) {
+			return result{out: chase.Yield, why: "requests to the sender paced"}, true
 		}
 		asked = true
 		for len(st.top) > 0 {

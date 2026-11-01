@@ -81,9 +81,17 @@ func (e *Entry) Hash(s *series.Series) hash.Hash {
 // Encode returns the wire form: parent, nonce (always written; it must be 0
 // in a series with no minimum entry strength), and the full transactions.
 func (e *Entry) Encode() []byte {
-	w := encoding.NewWriter(64 + 256*len(e.Txs))
+	w := encoding.NewWriter(e.Size())
 	e.EncodeTo(w)
 	return w.Bytes()
+}
+
+// Size returns len(e.Encode()) without building it, so a large entry's
+// size is known without copying it (ORANGE-017).
+func (e *Entry) Size() int {
+	c := encoding.NewCounter()
+	e.EncodeTo(c)
+	return c.Len()
 }
 
 // EncodeTo writes the wire form to w.

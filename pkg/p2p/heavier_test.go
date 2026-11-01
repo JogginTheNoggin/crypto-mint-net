@@ -35,6 +35,10 @@ func TestHeavierLedgerAlwaysReached(t *testing.T) {
 			c.Limits.ChunkSize = 1
 			c.ChaseSlice = 20 * time.Millisecond
 			c.Chase.YieldWait = time.Millisecond
+			// One hash a page takes thousands of requests, which a serves
+			// without a budget: pacing them to a's budget is tested in
+			// TestLongChaseIsPaced (ORANGE-018).
+			c.RequestPace = -1
 			tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, Budgets: map[string]int{tracking.KindRevert: 1}}, "")
 			must(t, err)
 			c.Tracker = tr
