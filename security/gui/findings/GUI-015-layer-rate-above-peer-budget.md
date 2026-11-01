@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (core cap D127 on claude/m10-watch; GUI form on claude/gui-blue, Round 9C), pending Red's verification |
 | Found on | claude/gui-4-watch @ 6fae281 |
 | Component | gui/web/static/work.js (Schedule defaults: Layer floor, Layer rate), pkg/nodepolicy/nodepolicy.go (`MaxLayerRate`), pkg/tracking/tracking.go (layer budget, over-budget flags) |
 | Surface | p2p (this node's standing with its peers) |
-| Fixed by | _(pending — GUI/Blue for the form; the limit itself is Source's call)_ |
+| Fixed by | Source Grey (D127: `MaxLayerRate` 50, claude/m10-watch @ 1ae4d46); GUI/Blue on claude/gui-blue (the form) |
 
 ## Summary
 
@@ -89,3 +89,30 @@ Rated **low**.
   before it submits.
 - **`IsZero`, safe.** A grind section with only `layer_floor` or `layer_rate`
   set is no longer dropped when it is saved.
+
+## Fix (GUI/Blue, Round 9C)
+
+- **The limit is the core's.** Source Grey took this finding in its Round 9
+  Part A. D127 lowers `nodepolicy.MaxLayerRate` from 1000 to 50, half of the
+  100 a second that default peers take from one node. A section asking for
+  more doesn't validate, so `poo grind schedule set -layer-rate`, the RPC
+  and the GUI form all refuse it. Since the most poo allows is now under
+  the peer budget, the warning or confirm above 100 that this finding
+  recommended can no longer trigger, so the GUI doesn't add one.
+- **The form says why there is a limit and leaves the number to poo**
+  (`gui/web/static/work.js`). The Layer rate field's help now explains that
+  peers take only so many layers a second from one node, time out and then
+  block a node that keeps sending more, and that poo keeps the rate well
+  inside that and refuses a higher one, naming the range. The GUI may import
+  only `pkg/cli`, and `pkg/cli` doesn't export `MaxLayerRate`, so the GUI
+  doesn't copy the number. That way it can't drift from the core.
+- **Test.** `e2e/work.mjs` checks the help text. It submits a Layer rate of
+  100000, then checks that the form shows poo's refusal ("layer_rate must be
+  0 (the default, N) to M") and that the schedule keeps the rate it had. It
+  passes on this branch (core cap 1000), and also on this branch with
+  claude/m10-watch @ 1ae4d46 merged in (core cap 50).
+- **Asked of Source (via GUI/Grey).** Make the limit visible through poo, so
+  the GUI can show the exact range up front and so can a script. For
+  example, put `layer_rate_max` in `poo grind schedule`'s reply, or export
+  it from `pkg/cli` the way `cli.SecretFlags` is. The GUI would then set
+  the field's range from it.

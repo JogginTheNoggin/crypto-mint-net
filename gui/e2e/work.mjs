@@ -138,6 +138,15 @@ try {
   assert.match(await defs.locator('.cmd code').innerText(), /-layer-floor 200 -layer-rate 5$/);
   await defs.locator('button[type=submit]').click();
   await sched.locator('.counts', { hasText: 'strength 200 or more, at most 5 a second' }).waitFor({ timeout: 10000 });
+  // A rate past what peers take is poo's to refuse (GUI-015, D127): the
+  // field says why, the form shows poo's error with the range, and the
+  // schedule keeps the rate it had.
+  assert.match(await defs.locator('label', { hasText: 'Layer rate' }).locator('small').innerText(), /time out and then block/);
+  await defs.locator('input[name=rate]').fill('100000');
+  await defs.locator('button[type=submit]').click();
+  await defs.locator('.run-status.bad').waitFor({ timeout: 10000 });
+  assert.match(await defs.locator('.area').innerText(), /layer_rate must be 0 \(the default, \d+\) to \d+/);
+  await sched.locator('.counts', { hasText: 'strength 200 or more, at most 5 a second' }).waitFor({ timeout: 10000 });
   await defs.locator('input[name=floor]').fill('0');
   await defs.locator('input[name=rate]').fill('');
   await defs.locator('button[type=submit]').click();
