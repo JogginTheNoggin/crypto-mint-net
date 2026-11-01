@@ -379,14 +379,16 @@ async function nodeJob() {
 
 // doctorReport lays out poo doctor -o json: one row per check, as printed.
 // A check whose fix is a poo command line (fix_args, D110) gets a button
-// that types it into the terminal, with the Settings -root and -policy as
-// every view adds them; any other fix is shown as the text poo printed.
+// that types it into the terminal exactly as poo printed it: poo already
+// names the checked policy's -dir when Settings chose -root or -policy
+// (GREEN-036), so the view adds nothing. Any other fix is shown as the
+// text poo printed.
 const RUNNABLE_FIX = /^poo [a-z][\w./:=-]*( [\w./:=-]+)*$/;
 export function doctorReport(rep, ctx) {
   const list = el('ul', { class: 'doctor' });
   for (const c of rep.checks || []) {
     let run = null;
-    if (Array.isArray(c.fix_args) && c.fix_args.length) run = [c.fix_args[0], ...where.flags(), ...c.fix_args.slice(1)];
+    if (Array.isArray(c.fix_args) && c.fix_args.length) run = c.fix_args;
     else if (c.fix && RUNNABLE_FIX.test(c.fix)) run = c.fix.replace(/^poo /, '').split(' ');
     const fix = c.fix ? (run
       ? el('div', { class: 'doctor-fix' }, 'fix: ', el('code', {}, api.quote(run)), ' ',
