@@ -142,10 +142,15 @@ naming a known-bad hash are ignored. Each chase, from cheap to costly:
    starts with the expected parent, and the parts go to a temporary file in
    `PartsDir`, not memory, until the entry is whole; past its slice the
    fetch yields and the next slice goes on from the offset it reached
-   (RED-016, D120). The node answers parts requests from the item copied
-   under the engine lock and encoded outside it, kept for a minute after
+   (RED-016, D120). Before each part the free space of that disk is
+   read; when the part would go into the reserve (the larger of
+   `PartsReserve`, 1 GiB by default, and 2% of the disk) the chase yields
+   with its parts and goes on from their offset once there is room. It is
+   never refused (RED-022, D123). The node answers parts requests from the
+   entry and its unsorted layer nonces copied under the engine lock, and
+   sorts and encodes them outside it; the item is kept for a minute after
    its last use (up to 256 MiB in all), so a fetch in many requests encodes
-   it once (RED-017). Before each request the chase checks no ledger
+   it once (RED-017, RED-020). Before each request the chase checks no ledger
    off the branch and heavier than its work was selected meanwhile. The
    engine then decides, on weight it computed itself.
 
@@ -156,7 +161,13 @@ ledger and runs steps 5 and 6 on it. When the newest hash is on the
 selected ledger, the sender holds the same entries with more layers, and
 the chase asks for the layers on the sender's hashes page by page back
 from its tip (`topUpLayers`, Black's B1, D121). An entry with more than
-`LayersWhole` layers has them paged (`askLayers`, D121). When the node's
+`LayersWhole` layers has them paged (`askLayers`, D121); each page is
+counted as it arrives and the paging stops once the work beats the
+node's, so no entry's layers are held whole (RED-021, D123). The node
+answers layers-from requests by counting the layers under the engine
+lock and, unless the order for that count is cached, copying the nonces
+unsorted; it hashes and sorts them strongest first outside the lock, and
+caches the order under the entry and its layer count (RED-020). When the node's
 own ledger outgrows the work counted so far during step 6, the chase goes
 back to step 5 and counts more; only a branch counted to its end is not
 heavier (C-1).

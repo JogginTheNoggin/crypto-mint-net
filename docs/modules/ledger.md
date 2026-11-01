@@ -19,8 +19,9 @@ plus the top K other branches. It reproduces the design's worked example
 - `Switch{From, To, Fork, ForkHeight, Reverted, Applied, Unchanged, Carried,
   Void}` and `Extension()` (true when the new tip simply extends the old).
 - Queries: `Tip`, `Weight`, `Height`, `Len`, `State`, `Has`, `Entry`,
-  `Info`, `Layers`, `InSelected`, `From(h)` (weight added since entry h),
-  `Locate(tid)`, `Chain`, `HeightOf`, `Branches`, `SetK`.
+  `Info`, `Layers`, `LayerCount`, `LayerNonces` (unsorted, for sorting
+  outside the engine lock, RED-020), `InSelected`, `From(h)` (weight added
+  since entry h), `Locate(tid)`, `Chain`, `HeightOf`, `Branches`, `SetK`.
 - `Rivals(t, tid)`: for each inactive branch, the first entry from its tip
   down to its fork that holds a transaction other than `tid` spending one
   of `t`'s inputs, as `Rival{Branch, Conflict, Entry, After}`; `After` is

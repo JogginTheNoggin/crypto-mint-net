@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ ae8a103 (Source Round 8 Part B) |
 | Component | pkg/p2p/serve.go (`layersFrom`, `parts`, `item`, `strongestFirst`), pkg/ledger/pool.go (`Layers`) |
 | Surface | peers (any peer that can send a request) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 69aaf8a (BLUE-009) |
 
 ## Summary
 
@@ -88,4 +88,15 @@ index. The worst wait is a few milliseconds, not 200.
 
 ## Resolution
 
-(Blue fills in.)
+Fixed by BLUE-009 (decision D123). Under the engine's lock a
+layers-from reply now only counts the entry's layers (`Pool.LayerCount`)
+and, unless the order for that count is cached, copies the nonces
+unsorted (`Pool.LayerNonces`, a map walk). The hashing and the
+strongest-first sort (`strongestNonces`) run in the reply closure, outside
+the lock. The order is cached in the host's `partsCache` for a minute
+under the entry and its layer count, so the pages of one fetch sort once
+and a new layer makes a new order. A parts reply copies the entry and its
+unsorted nonces under the lock (or nothing, when the item is cached) and
+sorts and encodes outside it. A layers reply counts the layers before it
+copies any. Test: `TestLayerOrderIsCachedByCount` (`pkg/p2p`, internal);
+`TestServeManyLayers` and `TestManyLayersOnOneEntryAreCounted` still pass.

@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ ae8a103 (Source Round 8 Part B) |
 | Component | pkg/p2p/chase.go (`fetchParts`, `partial`, `progress.part`), pkg/p2p/host.go (`Config.PartsDir`) |
 | Surface | peers (a sender the node chases) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 69aaf8a (BLUE-009) |
 
 ## Summary
 
@@ -75,4 +75,19 @@ can still be written, and when room is made it goes on from its offset.
 
 ## Resolution
 
-(Blue fills in.)
+Fixed by BLUE-009 (decision D123). Before each part is asked for,
+`partsRoom` reads the free space of the parts file's disk (`statDisk`:
+`statfs` on Unix, `GetDiskFreeSpaceEx` on Windows). When the part would go
+into the reserve, the larger of the new `p2p.Config.PartsReserve` (1 GiB
+by default) and 2% of the disk, the chase yields with `errPartsSpace`
+("waiting for disk space for a large entry"), keeps its parts and goes on
+from their offset once there is room. Nothing is refused and no size is
+capped; when the space cannot be read the fetch goes on as before. The
+default directory inside the data directory, and clearing `poo-parts-*` at
+start, are Green's GREEN-033 (`pkg/daemon`), so they are not repeated here.
+Not done: charging the bytes written to the sender's budget (the reserve
+already keeps the store's room, whatever the number of senders), and the
+streaming decode (still open, as in D117). Test:
+`TestLargeEntryWaitsForDiskSpace` (`pkg/p2p`): with a fake free-space
+reading at the reserve no part is asked for, and once room is made the
+fetch goes on from its offset.

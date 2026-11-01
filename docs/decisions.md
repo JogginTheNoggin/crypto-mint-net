@@ -1884,3 +1884,35 @@ a chase takes in after checking their work are not charged.
   and per-second caps (D120): the stricter of the two applies.
 - **Why:** Measured in Round 7 Part B and cleared by Black.
 - **Tier:** Implementation (node policy).
+
+### D123. Round 8 fixes: RED-020, RED-021, RED-022 (BLUE-009)
+
+- **Decision:**
+  - **RED-021.** `askLayers` gives each answer, and each page of an
+    entry's many layers, to the caller as it arrives. `checkWork` counts
+    every layer as it comes and stops paging once the work counted beats
+    the node's; `topUpLayers` takes each page in as it comes. Only the
+    count of nonces read is kept between pages. Nothing caps the layers:
+    an entry whose work needs every page gets every page (D115, D121).
+  - **RED-020.** Under the engine's lock a layers-from or parts reply
+    only counts the entry's layers (`Pool.LayerCount`) or copies its
+    nonces unsorted (`Pool.LayerNonces`). The hashing and the
+    strongest-first sort run in the reply closure, outside the lock, and
+    the order is cached for one minute under the entry and its layer
+    count, so the pages of one fetch sort once and a new layer makes a
+    new order. A layers reply counts before it copies.
+  - **RED-022.** Before each part of a large entry is asked for, the free
+    space of the parts directory's disk is read. When the part would go
+    into the reserve, the larger of `p2p.Config.PartsReserve` (1 GiB by
+    default) and 2% of the disk, the chase yields with the parts it has
+    and goes on from their offset once there is room. It is never
+    refused, and no size is capped. When the space cannot be read, the
+    fetch goes on as before.
+- **Why:** RED-021: a sender's claimed layer count could make a node hold
+  every nonce of one entry before it counted any. RED-020: sorting
+  millions of layers under the engine's lock stalled every peer. RED-022:
+  a claimed size could fill the disk the store needs.
+- **Tier:** Implementation (node policy). No consensus change: no rule
+  of validity or selection, and no byte form, changes. For Black: every
+  change paces or stops reading once the answer is known; none refuses a
+  heavier ledger, and a fetch at the disk reserve waits rather than fails.

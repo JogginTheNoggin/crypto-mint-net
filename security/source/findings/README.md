@@ -27,6 +27,6 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-017](RED-017-parts-reply-encodes-whole-item-under-lock.md) | Every parts request re-encodes the whole entry item while the engine lock is held | medium | fixed |
 | [RED-018](RED-018-layer-floor-has-no-rate-cap.md) | `grind.layer_floor` sends a layer for every 4,096 tries, far above what peers accept | low | fixed |
 | [RED-019](RED-019-lease-renew-stops-at-first-error.md) | `poo grind run` stops renewing its lease after one failed request | low | fixed |
-| [RED-020](RED-020-layers-from-and-parts-copy-and-sort-all-layers-under-lock.md) | A layers-from or parts request copies, sorts and hashes all of an entry's layers under the engine lock, for a reply of a few bytes | medium | open |
-| [RED-021](RED-021-many-layers-paged-whole-into-memory.md) | A sender's many-layers entry is paged and counted whole, with no stop once the work beats the node's, at 15 times the memory it sends | high | open |
-| [RED-022](RED-022-parts-written-to-disk-without-free-space-check.md) | Parts of a claimed large entry are written to disk with no check of the free space, at the speed of the link | medium | open |
+| [RED-020](RED-020-layers-from-and-parts-copy-and-sort-all-layers-under-lock.md) | A layers-from or parts request copies, sorts and hashes all of an entry's layers under the engine lock, for a reply of a few bytes | medium | fixed |
+| [RED-021](RED-021-many-layers-paged-whole-into-memory.md) | A sender's many-layers entry is paged and counted whole, with no stop once the work beats the node's, at 15 times the memory it sends | high | fixed |
+| [RED-022](RED-022-parts-written-to-disk-without-free-space-check.md) | Parts of a claimed large entry are written to disk with no check of the free space, at the speed of the link | medium | fixed |

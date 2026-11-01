@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | high |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ ae8a103 (Source Round 8 Part B) |
 | Component | pkg/p2p/chase.go (`askLayers`, `layersFrom`, `checkWork`), pkg/wire/messages.go (`LayersFrom`) |
 | Surface | peers (a sender the node chases) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 69aaf8a (BLUE-009) |
 
 ## Summary
 
@@ -85,4 +85,14 @@ within a few MB of its base and the chase moves on to fetching or ends as
 
 ## Resolution
 
-(Blue fills in.)
+Fixed by BLUE-009 (decision D123), as recommended. `askLayers` gives
+each answer, and each page of an entry's many layers, to a callback as it
+arrives, and `layersFrom` keeps only the count of nonces read between
+pages. `checkWork` hashes, checks and counts each layer as it comes and
+stops paging once `st.total` beats `beat`; `topUpLayers` takes each page
+in as it comes. The nonces of an entry are never held whole, and
+`st.counted` grows only until the work beats the node's. Nothing caps the
+layers or the pages: an entry whose work needs every page gets every page
+(D115, D121). Test: `TestManyLayersArePagedOnlyUntilEnough` (`pkg/p2p`): a
+sender claims 2^32-1 layers on one entry and pages them forever; the node
+asks one page and moves on to the ledger.
