@@ -25,7 +25,17 @@ func (h *Host) onKept(ev node.Event) {
 	hdr := wire.Header{Section: pi.section, Stated: ev.Weight}
 	if ev.Forward {
 		m := wire.Message{Header: hdr}
+		// The size first, so an item too large to push is never encoded
+		// here (ORANGE-017).
 		switch {
+		case ev.Tx != nil && ev.Tx.Size() > h.cfg.PartsOver:
+			// A pending transaction this large travels only inside an
+			// entry (D117).
+			return
+		case ev.Entry != nil && ev.Entry.Size() > h.cfg.PartsOver:
+			// Too large to push whole: an entry is announced by a notice,
+			// and peers fetch it in parts when they chase it (D117).
+			m.Type, m.Body = wire.TypeNotice, wire.Notice{Tip: ev.Entry.Hash(pi.s)}.Encode()
 		case ev.Tx != nil:
 			m.Type, m.Body = wire.TypeTx, ev.Tx.Encode()
 		case ev.Entry != nil:
@@ -34,15 +44,6 @@ func (h *Host) onKept(ev node.Event) {
 			m.Type, m.Body = wire.TypeLayer, ev.Layer.Encode()
 		default:
 			return
-		}
-		if len(m.Body) > h.cfg.PartsOver {
-			// Too large to push whole: an entry is announced by a notice, and
-			// peers fetch it in parts when they chase it; a pending
-			// transaction this large travels only inside an entry (D117).
-			if ev.Entry == nil {
-				return
-			}
-			m.Type, m.Body = wire.TypeNotice, wire.Notice{Tip: ev.Entry.Hash(pi.s)}.Encode()
 		}
 		for _, p := range h.peersFor(pi.section, ev.From) {
 			p.send(m)
