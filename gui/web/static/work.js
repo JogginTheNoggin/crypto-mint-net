@@ -72,7 +72,10 @@ function jobsTable(list, ctx, refresh) {
 // edits node.json.
 function scheduleTable(reply, edits, reload, say) {
   const g = (reply && reply.grind) || {};
-  const layers = g.layer_floor ? `, keep layers of strength ${g.layer_floor} or more, at most ${g.layer_rate || 'the default'} a second` : '';
+  // A rate set while the floor is 0 is kept and comes back with the next
+  // floor, so the line says so rather than hiding it (GREEN-035).
+  const layers = g.layer_floor ? `, keep layers of strength ${g.layer_floor} or more, at most ${g.layer_rate || 'the default'} a second`
+    : g.layer_rate ? `, no layer floor (layer rate ${g.layer_rate} kept for when one is set)` : '';
   const defaults = el('p', { class: 'counts hint' }, `Defaults: device ${g.device || 'auto'}, ${g.threads ? `${g.threads} thread${g.threads === 1 ? '' : 's'}` : 'every core but one'}${layers}.`);
   const failed = reply && reply.failed ? Object.entries(reply.failed).map(([i, why]) => el('p', { class: 'hint err' }, `Job ${Number(i) + 1} did not start: ${why}`)) : [];
   const jobs = g.jobs || [];
