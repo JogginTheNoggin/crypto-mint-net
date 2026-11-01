@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ bc2e4bc (Source Round 12 Part B) |
 | Component | pkg/p2p/pace.go (`reqWindow.dropped`, `probing`, `known`) |
 | Surface | peers (a sender the node chases; an honest sender with two short outages) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 56633dc (BLUE-013) |
 
 ## Summary
 
@@ -58,4 +58,12 @@ Test: as above; after the second outage the requests per window rise again.
 
 ## Resolution
 
-Open.
+Fixed (D139). Drops while probing hold the pace only when at least seven
+eighths of what was sent at the first drops (`reqWindow.peak`) is sent
+again. With less, the probe halves (not below where it began,
+`reqWindow.start`) and keeps rising. Red's case (7 sent at the first
+outage, 2 at the second) now halves and rises again. Two outages at the
+same low load still hold at about three quarters of that load, as D133
+says of a real budget. Not taken: the `RequestPace/4` floor, since a
+peer whose budget is below it would time this node out (D133). Test:
+`TestSecondOutageWhileProbingKeepsProbing`.

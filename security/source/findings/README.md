@@ -38,3 +38,7 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-028](RED-028-learned-pace-pins-an-idle-asker-to-one-request-a-window.md) | Two unanswered requests at low load teach the asker a pace of one request a window for half an hour | medium | fixed |
 | [RED-029](RED-029-trickler-claims-just-under-the-honest-size-and-keeps-the-reserve.md) | A sender that claims a large entry a little smaller than the honest one, and trickles it, still holds the disk reserve | medium | fixed |
 | [RED-030](RED-030-follow-and-wallet-follow-write-node-json-behind-a-running-node.md) | `poo follow`, `poo unfollow` and `poo wallet follow` still write node.json without the data directory lock | low | fixed |
+| [RED-031](RED-031-trickler-that-takes-one-mib-a-chase-holds-the-reserve.md) | A trickler that takes 1 MiB a chase and claims a little less than the honest entry is "moving", and no turn ever reaches it | medium | fixed |
+| [RED-032](RED-032-fresh-senders-take-the-room-from-a-slow-file.md) | Each fresh sender ranks as moving and drops a slow file, so a stream of them restarts a slow link's fetch for good | medium | fixed |
+| [RED-033](RED-033-slow-trickler-sending-a-little-more-starves-a-slow-honest-link.md) | A slow trickler that takes one part more than the honest link each chase wins every turn | low | fixed |
+| [RED-034](RED-034-second-outage-while-probing-pins-the-pace-again.md) | A second pair of lost requests while the pace is being probed pins the asker to one request a window again | medium | fixed |

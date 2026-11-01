@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ bc2e4bc (Source Round 12 Part B) |
 | Component | pkg/p2p/chase.go (`partsRank.below`, `partsMoving`, `saveProgress`, `reclaimParts`) |
 | Surface | peers (a sender the node chases) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 56633dc (BLUE-013) |
 
 ## Summary
 
@@ -79,4 +79,14 @@ Test: as above; the honest sender is asked for parts within a few seconds.
 
 ## Resolution
 
-Open.
+Fixed (D139). Room at the disk reserve no longer goes by rank. A waiting
+fetch takes room only for the bytes it actually receives, cut off the end
+of a file that would finish later at the rate its last chase measured. A
+trickler that claims just under the honest size and takes 1 MiB a chase
+has a low rate in bytes a second, so the honest fetch, receiving faster,
+cuts its file a part at a time and finishes. Test:
+`TestTakeFrom` ("RED-031: a trickler just under") covers the
+rule. `TestMovingTricklerJustUnderCannotHoldTheReserve`
+is an integration test of the same shape. To be honest about it: it
+passes on the old code too, so it guards the shape but does not
+reproduce the finding; the unit case does.

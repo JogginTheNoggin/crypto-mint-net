@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ bc2e4bc (Source Round 12 Part B) |
 | Component | pkg/p2p/chase.go (`partsRank.below`, `reclaimParts`, `progress.partsSlow`) |
 | Surface | peers (many senders the node chases one after another) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 56633dc (BLUE-013) |
 
 ## Summary
 
@@ -66,4 +66,9 @@ Test: as above; the honest offset never goes down.
 
 ## Resolution
 
-Open.
+Fixed (D139). A fresh sender has no rank to win with. It is judged by the
+rate it is delivering at, and takes only as many bytes from the slow file
+as it has delivered, so a stream of fresh senders costs the slow file at
+most what they send, and the slow file resumes where it was cut rather
+than from 0. A fresh sender slower than the holder takes nothing. Test:
+`TestTakeFrom` ("RED-032: a fresh sender slower than the holder").

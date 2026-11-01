@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ bc2e4bc (Source Round 12 Part B) |
 | Component | pkg/p2p/chase.go (`partsRank.below` with `turn`, `progress.partsLast`) |
 | Surface | peers (a sender the node chases) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 56633dc (BLUE-013) |
 
 ## Summary
 
@@ -59,4 +59,9 @@ Test: as above.
 
 ## Resolution
 
-Open.
+Fixed (D139). Turns are gone. The comparison is time to finish: bytes
+still to come over measured rate. A slow honest link that is nearer its
+end or faster than the trickler keeps or takes the room, whatever the
+trickler sends a chase, and the trickler can hold it back only by
+delivering faster than the honest fetch would finish (a bandwidth
+contest). Test: `TestTakeFrom` ("RED-033").
