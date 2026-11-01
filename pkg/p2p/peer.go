@@ -713,12 +713,14 @@ func replyFits(q, r wire.Type) bool {
 		return r == wire.TypeExtension || r == wire.TypeLarge
 	case wire.TypePartsReq:
 		return r == wire.TypePart
+	case wire.TypeLayersFromReq:
+		return r == wire.TypeLayersFrom
 	case wire.TypeHashChainReq:
 		return r == wire.TypeHashChain || r == wire.TypeAnchorNotHeld
 	case wire.TypeEntriesReq:
 		return r == wire.TypeEntries || r == wire.TypeLarge
 	case wire.TypeLayersReq:
-		return r == wire.TypeLayers
+		return r == wire.TypeLayers || r == wire.TypeManyLayers
 	case wire.TypeWeightReq:
 		return r == wire.TypeWeight
 	}

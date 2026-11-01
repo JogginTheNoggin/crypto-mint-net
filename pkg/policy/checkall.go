@@ -106,7 +106,11 @@ func (r *Registry) CheckAll(h hash.Func, rules Rules, ws []Witness, addrs []hash
 }
 
 // setKey is the key under which a Verified list remembers that every
-// witness of ws satisfied its policy for tid.
+// witness of ws satisfied its policy for tid. It covers tid, which commits
+// to the series and so to its hash, and every witness's encoding. Black's
+// condition (C-4, D121): if a satisfaction function ever reads anything
+// tid does not bind, that must be added to the key. The cheap checks are
+// not remembered: they run on every witness every time.
 func setKey(ws []Witness, tid hash.Hash) [sha256.Size]byte {
 	d := sha256.New()
 	d.Write([]byte("PoO-verified-set-v1"))

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Source Round 8, D122) |
 | Based on | `claude/m10-watch` @ `0fd59fa` |
 | Area | `pkg/nodepolicy` (`grind.layer_rate`), `pkg/grind` (`keepMax`), `pkg/engine` (`Grind.KeepMax`, `Keep` takes the strength), `pkg/node` (`WorkWith`) |
 | Effort | small |

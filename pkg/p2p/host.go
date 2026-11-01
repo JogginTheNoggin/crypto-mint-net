@@ -186,6 +186,10 @@ type Config struct {
 	// PartsDir is where large entries are put together from their parts
 	// ("": the system's temporary directory; RED-016).
 	PartsDir string
+	// LayersWhole is the most layers of one entry a layers reply carries;
+	// an entry with more has them paged (D121). It is at most, and by
+	// default, what one frame can hold.
+	LayersWhole int
 	// PartsOver is the largest entry item a reply carries whole; a larger
 	// one is sent in parts on request (consensus audit P1, D117). It is at
 	// most, and by default, what one frame can hold.
@@ -344,6 +348,9 @@ func (c *Config) fill() {
 	}
 	if c.WeightlessPages <= 0 {
 		c.WeightlessPages = d.WeightlessPages
+	}
+	if c.LayersWhole <= 0 || c.LayersWhole > maxNonces {
+		c.LayersWhole = maxNonces
 	}
 	if c.PartsOver <= 0 || c.PartsOver > maxWhole {
 		c.PartsOver = maxWhole

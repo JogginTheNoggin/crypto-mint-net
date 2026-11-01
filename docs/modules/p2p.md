@@ -149,6 +149,18 @@ naming a known-bad hash are ignored. Each chase, from cheap to costly:
    off the branch and heavier than its work was selected meanwhile. The
    engine then decides, on weight it computed itself.
 
+When the sender's newest hash is held but off the selected ledger, the
+node already holds that branch, perhaps without its layers: the chase
+walks back through local entries to where the branch leaves the selected
+ledger and runs steps 5 and 6 on it. When the newest hash is on the
+selected ledger, the sender holds the same entries with more layers, and
+the chase asks for the layers on the sender's hashes page by page back
+from its tip (`topUpLayers`, Black's B1, D121). An entry with more than
+`LayersWhole` layers has them paged (`askLayers`, D121). When the node's
+own ledger outgrows the work counted so far during step 6, the chase goes
+back to step 5 and counts more; only a branch counted to its end is not
+heavier (C-1).
+
 A chase runs for at most `ChaseSlice` (2 minutes) and then **yields**
 (`chase.Yield`): its sender waits `chase.Config.YieldWait` with no
 backoff, and what the chase learned (the common entry, the hashes with work,

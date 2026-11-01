@@ -118,7 +118,7 @@ type Grind struct {
 // leave it out. Every field counts: a section of only layer_floor was
 // dropped when it was saved (GREEN-032).
 func (g Grind) IsZero() bool {
-	return g.Device == "" && g.Threads == 0 && g.LayerFloor == 0 && len(g.Jobs) == 0
+	return g.Device == "" && g.Threads == 0 && g.LayerFloor == 0 && g.LayerRate == 0 && len(g.Jobs) == 0
 }
 
 // GrindJob is a job the node runs by itself (grind.Spec).

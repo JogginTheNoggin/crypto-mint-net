@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted (Source Round 8, D122) |
 | Based on | `claude/m10-watch` @ `0fd59fa` |
 | Area | `pkg/nodepolicy`, `pkg/rpc` (grind schedule), `pkg/cli` (`grind schedule set`, `Run`) |
 | Effort | small |

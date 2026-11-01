@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Source Round 8, D122) |
 | Based on | `claude/m10-watch` @ `0fd59fa` |
 | Area | `pkg/engine` (`Engine.Tip`), `pkg/node` (`emit`), `pkg/p2p` (`ownWeight`) |
 | Effort | small |
