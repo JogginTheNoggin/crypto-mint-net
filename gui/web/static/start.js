@@ -18,13 +18,24 @@ const steps = [
     text: 'Writes a node policy that follows the worked example\'s series and makes it current. Add -p2p and -peer to join other nodes.' },
   { title: 'Run the node', line: 'node', policy: true,
     text: 'Starts the full node. Use "Run in background" in the terminal to keep it going while you do the next steps.' },
-  { title: 'Look at the node', line: 'status', policy: true,
+  { title: 'Look at the node', line: 'status', policy: true, view: 'node',
     text: 'Every pool the running node follows. "peers" and "chases" show the rest of its view.' },
-  { title: 'Make a wallet', line: 'wallet create', policy: true,
+  { title: 'Check its health', line: 'doctor', policy: true, view: 'node',
+    text: 'Checks the node policy, files, series, RPC and P2P, and says what to fix. The Node view\'s Health check is the same command.' },
+  { title: 'Watch it work', line: 'watch', policy: true, view: 'watch',
+    text: 'What the running node is doing, one line per event: transactions arriving, entries and layers kept. It keeps going until you stop it; the Watch view shows the same events as they come.' },
+  { title: 'See what can grind', line: 'grind devices', policy: true, view: 'work',
+    text: 'Each device on this machine, what it grinds fast, and which one auto picks for each hash.' },
+  { title: 'Help secure the ledger', line: 'grind start tip', policy: true, view: 'work',
+    text: 'Starts a job in the running node that adds layers on each pool\'s selected tip. "grind jobs" lists it and "grind stop -all" ends it; the Work view does both, and schedules jobs the node runs by itself.' },
+  { title: 'Make a wallet', line: 'wallet create', policy: true, view: 'wallet',
     text: 'Makes a wallet from a new seed, sealed under a passphrase you type into the masked field.' },
-  { title: 'Get an address', line: 'wallet address', policy: true,
+  { title: 'Get an address', line: 'wallet address', policy: true, view: 'wallet',
     text: 'Gives out a fresh address to be paid at.' },
 ];
+
+const TITLES = { node: 'Node', watch: 'Watch', work: 'Work', wallet: 'Wallet' };
+const viewTitle = id => TITLES[id] || id;
 
 export const startView = {
   id: 'start',
@@ -39,7 +50,9 @@ export const startView = {
         el('p', {}, s.text),
         el('div', { class: 'step-cmd' },
           el('code', {}, `poo ${s.line}`),
-          el('button', { type: 'button', class: 'primary', onclick: () => ctx.openInTerminal(s.line) }, 'Run in terminal'))));
+          el('button', { type: 'button', class: 'primary', onclick: () => ctx.openInTerminal(s.line) }, 'Run in terminal'),
+          // The view that runs the same command with forms (GREEN-036).
+          s.view ? el('a', { href: `#/${s.view}`, class: 'step-view' }, `Open the ${viewTitle(s.view)} view`) : null)));
     }
     root.append(el('h1', {}, 'Getting started'),
       el('p', { class: 'hint' }, 'Each step is one poo command. Running it here is the same as typing it after poo in a shell.'),
