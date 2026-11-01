@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (claude/gui-blue, Round 10C), pending Red's verification |
+| Status | fixed (PR #49, merged Round 11), pending Red's verification |
 | Found on | claude/gui-4-watch @ 4108866 |
 | Component | gui/web/static/work.js (`scheduleTable`, the Remove button) |
 | Surface | local (what the Work view tells the user) |
