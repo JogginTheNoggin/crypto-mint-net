@@ -221,15 +221,23 @@ try {
   poo(['grind', 'schedule', 'add', 'tip', '-hours', '7-8']);
   const failRead = route => {
     const body = route.request().postDataJSON() || {};
-    if (route.request().method() === 'POST' && (body.args || []).includes('schedule')) return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"test: schedule read refused"}' });
+    const args = body.args || [];
+    // Only the read: grind schedule with no subcommand, so the Remove itself
+    // reaches poo and is refused there.
+    const read = args[0] === 'grind' && args[1] === 'schedule' && !['remove', 'add', 'set'].includes(args[2]);
+    if (route.request().method() === 'POST' && read) return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"test: schedule read refused"}' });
     return route.continue();
   };
   const errorsBefore = errors.length;
   await page.route('**/api/jobs', failRead);
+  // The last refusal is still on show; wait for the new one, not that one.
+  await refused.evaluateAll(ps => ps.forEach(p => { p.dataset.old = '1'; }));
+  const fresh = sched.locator('.remove-refused:not([data-old])');
   await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).locator('button', { hasText: 'Remove' }).click();
-  await refused.waitFor();
-  assert.match(await refused.innerText(), /^Not removed: .+[.!?]$/s);
-  assert.doesNotMatch(await refused.innerText(), /current now/, 'no claim the table is current when it could not be read');
+  await fresh.waitFor({ timeout: 10000 });
+  assert.match(await fresh.innerText(), /^Not removed: .+[.!?]$/s);
+  assert.doesNotMatch(await fresh.innerText(), /current now/, 'no claim the table is current when it could not be read');
+  assert.doesNotMatch(await fresh.innerText(), /test: schedule read refused/, 'the refusal is poo\'s, not the failed read');
   await page.unroute('**/api/jobs', failRead);
   // The browser logs the refused read it was made to see.
   errors.splice(errorsBefore, errors.length - errorsBefore, ...errors.slice(errorsBefore).filter(e => !/status of 503/.test(e)));
