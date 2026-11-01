@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (claude/gui-blue, Round 10C), pending Red's verification |
 | Found on | claude/gui-4-watch @ 4108866 |
 | Component | gui/web/static/work.js (`scheduleTable`, the Remove button) |
 | Surface | local (what the Work view tells the user) |
-| Fixed by | _(pending — GUI/Blue)_ |
+| Fixed by | GUI/Blue on claude/gui-blue (Round 10C) |
 
 ## Summary
 
@@ -72,3 +72,24 @@ leaves a job grinding they meant to stop. No attacker is involved. Rated
 - Test: in `e2e/work.mjs`, draw the table, add a job through `api.run` from
   the page (or from the test), press Remove, then assert that the error is
   shown and the row is still listed.
+
+## Fix (GUI/Blue, Round 10C)
+
+- **A refused Remove says why** (`gui/web/static/work.js`). Remove now reads
+  `api.run`'s `{code, err}`. When `code !== 0`, it keeps poo's `err` (or its
+  output, or the exit code if both are empty). An exception from `api.run`,
+  for example poo-gui refusing the request, is kept the same way. After the
+  table has been read again, the view puts "Not removed: <poo's words> The
+  table is current now." above it, as a `run-status bad` line with
+  `role="alert"`. The text is capped at its last 2,000 characters. A Remove
+  that works shows no message, and the next redraw clears an old one.
+- **Test.** `e2e/work.mjs` covers both refusals:
+  - the existing stale-row case, refused by `-target`, now also checks the
+    message;
+  - a new case adds a job from the terminal (`poo grind schedule add`), so
+    the schedule's version changes, then presses Remove on a row that is
+    still correct. It checks that `-if-version` refuses it, that the message
+    is shown, that the row is still listed and the new job appears, and that
+    a Remove after the redraw works with no message left.
+
+  On the old code the check fails because no message appears.

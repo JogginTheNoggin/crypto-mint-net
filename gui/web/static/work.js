@@ -70,7 +70,7 @@ function jobsTable(list, ctx, refresh) {
 // with a Remove that runs poo grind schedule remove -if-version V
 // -target T N. A running node applies the change at once; without one poo
 // edits node.json.
-function scheduleTable(reply, edits, reload) {
+function scheduleTable(reply, edits, reload, say) {
   const g = (reply && reply.grind) || {};
   const layers = g.layer_floor ? `, keep layers of strength ${g.layer_floor} or more, at most ${g.layer_rate || 'the default'} a second` : '';
   const defaults = el('p', { class: 'counts hint' }, `Defaults: device ${g.device || 'auto'}, ${g.threads ? `${g.threads} thread${g.threads === 1 ? '' : 's'}` : 'every core but one'}${layers}.`);
@@ -86,11 +86,19 @@ function scheduleTable(reply, edits, reload) {
     // replace (GUI-014). -target makes poo refuse a number that no longer
     // names this row's job, and -if-version one that changed at all since
     // this table was read (GREEN-031, GREEN-034); the table is read again
-    // either way.
+    // either way. A refusal is shown above the table drawn again, with
+    // poo's own words, so the row still listed is explained (GUI-016).
     const remove = edits.add(el('button', { type: 'button', class: 'small danger', onclick: async () => {
       if (!edits.take()) return;
-      try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), ...flag('if-version', reply.version), '-target', j.target, String(i + 1)]); } finally {
+      let why = '';
+      try {
+        const r = await api.run(['grind', 'schedule', 'remove', ...where.flags(), ...flag('if-version', reply.version), '-target', j.target, String(i + 1)]);
+        if (r.code !== 0) why = (r.err || r.out || `exit ${r.code}`).trim();
+      } catch (e) {
+        why = e.message;
+      } finally {
         await reload();
+        if (why) say(`Not removed: ${why.slice(-2000)} The table is current now.`);
         edits.release();
       }
     } }, 'Remove'));
@@ -343,8 +351,10 @@ export const workView = {
     // it and writes it whole, so two at once would lose one (GUI-014).
     const edits = gate();
     const reloadSchedule = () => schedulePanel.reload();
+    // sayRemove shows why a Remove was refused, above the table.
+    const sayRemove = text => schedulePanel.el.querySelector('.area').prepend(el('p', { class: 'run-status bad remove-refused', role: 'alert' }, text));
     const schedulePanel = panel(ctx, { title: 'Schedule', about: 'The jobs the node runs by itself, from node.json\'s grind section, and the defaults every job, build and work takes. A running node applies a change at once and keeps your own jobs running.', args: () => ['grind', 'schedule', ...where.flags()],
-      onResult: (r, area) => tableResult(r, area, v => { nowDefaults(v); return scheduleTable(v, edits, reloadSchedule); }) });
+      onResult: (r, area) => tableResult(r, area, v => { nowDefaults(v); return scheduleTable(v, edits, reloadSchedule, sayRemove); }) });
     // The defaults form shows what is set now, as each field's placeholder:
     // a field left empty keeps it (GREEN-033).
     const nowDefaults = v => {

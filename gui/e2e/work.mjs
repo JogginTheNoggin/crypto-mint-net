@@ -206,6 +206,22 @@ try {
   await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).locator('button', { hasText: 'Remove' }).click();
   await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).waitFor({ timeout: 10000 });
   assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 1, 'the stale Remove removed nothing');
+  // ... and says so, in poo's words, above the table drawn again (GUI-016).
+  const refused = sched.locator('.remove-refused');
+  await refused.waitFor();
+  assert.match(await refused.innerText(), /^Not removed: .+ The table is current now\.$/s);
+  // A job added elsewhere changes the schedule's version: Remove on a row
+  // that is still right is refused by -if-version, shown, and the row stays.
+  poo(['grind', 'schedule', 'add', 'tip', '-hours', '7-8']);
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).locator('button', { hasText: 'Remove' }).click();
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '7-8' }).waitFor({ timeout: 10000 });
+  await refused.waitFor();
+  assert.match(await refused.innerText(), /^Not removed: /);
+  assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 2, 'the refused Remove kept its row');
+  // A Remove that works leaves no refusal on show.
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '7-8' }).locator('button', { hasText: 'Remove' }).click();
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '7-8' }).waitFor({ state: 'detached', timeout: 10000 });
+  assert.equal(await refused.count(), 0, 'no refusal after a Remove that worked');
   await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).locator('button', { hasText: 'Remove' }).click();
   await sched.locator('.empty', { hasText: 'No scheduled jobs' }).waitFor({ timeout: 10000 });
   for (const end = Date.now() + 20000; ;) {
