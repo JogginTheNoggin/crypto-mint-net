@@ -349,6 +349,9 @@ type largeSender struct {
 	full    bool      // a whole ledger was asked for
 	layers  bool      // layers were asked for before it
 	eh      hash.Hash // the large entry, the same over every serve
+	// skip, if set, is asked of each parts request by its number from 0;
+	// true leaves it unanswered.
+	skip func(n int) bool
 }
 
 func (ls *largeSender) serve(t *testing.T, until time.Time, stop func() bool) {
@@ -385,6 +388,9 @@ func (ls *largeSender) serve(t *testing.T, until time.Time, stop func() bool) {
 			must(t, err)
 			q := req.(wire.PartsReq)
 			ls.offsets = append(ls.offsets, q.Offset)
+			if ls.skip != nil && ls.skip(len(ls.offsets)-1) {
+				continue
+			}
 			data := make([]byte, 64<<10)
 			if q.Offset == 0 {
 				copy(data, ls.first)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -321,5 +322,39 @@ func TestConcurrentSavesNeverTear(t *testing.T) {
 	}
 	if len(es) != 1 {
 		t.Fatalf("%d files left in the directory", len(es))
+	}
+}
+
+// RED-025: a node.json written while a bound was higher still opens; the
+// value is brought down to the bound and noted, and a write of it is
+// still refused.
+func TestLoadLowersAValueOverALoweredBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), nodepolicy.FileName)
+	p := nodepolicy.Default()
+	p.Grind = &nodepolicy.Grind{LayerFloor: 8, LayerRate: 10}
+	if err := nodepolicy.Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = []byte(strings.Replace(string(b), `"layer_rate": 10`, `"layer_rate": 200`, 1))
+	if !strings.Contains(string(b), `"layer_rate": 200`) {
+		t.Fatalf("setup: %s", b)
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	q, err := nodepolicy.Load(path)
+	if err != nil {
+		t.Fatalf("an older valid node.json is refused: %v", err)
+	}
+	if q.Grind.LayerRate != nodepolicy.MaxLayerRate || len(q.Lowered) != 1 {
+		t.Fatalf("layer_rate %d, notes %q", q.Grind.LayerRate, q.Lowered)
+	}
+	q.Grind.LayerRate = 200
+	if err := nodepolicy.Save(path, q); err == nil {
+		t.Fatal("a layer_rate over the most was written")
 	}
 }
