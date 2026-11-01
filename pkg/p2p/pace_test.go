@@ -45,7 +45,7 @@ func TestReqWindowLearnsThePace(t *testing.T) {
 	}
 	early := t0.Add(-time.Second)
 	w.dropped(early, t0, time.Minute)
-	w.answered(t0)
+	w.answered(t0, 0, time.Minute)
 	w.dropped(early, t0, time.Minute) // sent before the reply
 	if got := w.learned(t0); got != 0 {
 		t.Fatalf("learned %d from a drop sent before a reply", got)
@@ -69,5 +69,81 @@ func TestReqWindowLearnsThePace(t *testing.T) {
 	w.dropped(later, later, time.Minute) // nothing sent in the window: at least 1
 	if got := w.learned(later); got != 1 {
 		t.Fatalf("learned %d from an empty window, want 1", got)
+	}
+}
+
+// RED-028 (D136): two requests lost while little was sent teach a pace to
+// probe up from, not one to hold: it doubles each window the peer
+// replies in and ends at the configured pace. Drops again while probing
+// show the budget, which then holds, is not lowered by drops with little
+// sent, and is known for later.
+func TestLearnedPaceRisesUnlessShown(t *testing.T) {
+	const pace = 480
+	win := time.Minute
+	var w reqWindow
+	t0 := time.Unix(2_000_000, 0)
+	w.add(t0, win)
+	w.add(t0, win)
+	w.dropped(t0, t0, win)
+	w.dropped(t0, t0, win)
+	if got := w.learned(t0); got != 1 {
+		t.Fatalf("learned %d, want 1", got)
+	}
+	w.answered(t0, pace, win)
+	if got := w.learned(t0); got != 1 {
+		t.Fatalf("rose to %d within the window", got)
+	}
+	now, windows := t0, 0
+	for w.learned(now) != 0 {
+		now = now.Add(win)
+		w.answered(now, pace, win)
+		if windows++; windows > 12 {
+			t.Fatalf("the pace is still %d after %d windows", w.learned(now), windows)
+		}
+	}
+	if windows > 9 {
+		t.Fatalf("%d windows to get back to the pace", windows)
+	}
+
+	// A peer whose budget is 100 a window: learned at 75 (probing), it
+	// drops again, which shows the budget.
+	w = reqWindow{}
+	for i := 0; i < 100; i++ {
+		w.add(t0, win)
+	}
+	w.dropped(t0, t0, win)
+	w.dropped(t0, t0, win)
+	t1 := t0.Add(win)
+	w.answered(t1, pace, win) // probing: 150
+	for i := 0; i < 150; i++ {
+		w.add(t1, win)
+	}
+	w.dropped(t1, t1, win)
+	w.dropped(t1, t1, win)
+	if got := w.learned(t1); got != 112 {
+		t.Fatalf("learned %d once shown, want 112", got)
+	}
+	w.answered(t1.Add(2*win), pace, win)
+	if got := w.learned(t1.Add(2 * win)); got != 112 {
+		t.Fatalf("a shown budget rose to %d", got)
+	}
+	// Two requests lost with little sent do not lower it.
+	t2 := t1.Add(5 * win)
+	w.add(t2, win)
+	w.dropped(t2, t2, win)
+	w.dropped(t2, t2, win)
+	if got := w.learned(t2); got != 112 {
+		t.Fatalf("lowered to %d by drops with one request sent", got)
+	}
+	// After it lapses, a drop with as much sent holds at once.
+	later := t2.Add(paceLearn*win + time.Second)
+	for i := 0; i < 150; i++ {
+		w.add(later, win)
+	}
+	w.dropped(later, later, win)
+	w.dropped(later, later, win)
+	w.answered(later.Add(2*win), pace, win)
+	if got := w.learned(later.Add(2 * win)); got != 112 {
+		t.Fatalf("learned %d after the lapse, want 112 held", got)
 	}
 }

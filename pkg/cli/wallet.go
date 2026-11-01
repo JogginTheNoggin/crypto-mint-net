@@ -453,12 +453,38 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if len(pools) == 0 {
 		return errors.New("the wallet watches no mints of this series (poo wallet watch)")
 	}
-	path := filepath.Join(f.c.w.resolve(), nodepolicy.FileName)
+	dir := f.c.w.resolve()
+	path := filepath.Join(dir, nodepolicy.FileName)
+	id := s.ID()
+	// A running node changes its own node.json: the series' rule is
+	// replaced by the wallet's pools, then applied. Only with no node
+	// answering is the file written here, under the lock a running node
+	// holds (RED-030, D136).
+	var nodeErr error
+	if cl, err := dialNode(out, dir); err == nil {
+		if _, err = cl.Follow(rpc.FollowRequest{Remove: true, Series: &id, NoReload: true}); err == nil {
+			_, err = cl.Follow(rpc.FollowRequest{Series: &id, Pools: pools})
+		}
+		if err == nil {
+			waitBack(out, dir)
+			fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applied it\n", path, id.Short(), pools)
+			return nil
+		}
+		var re *rpc.Error
+		if errors.As(err, &re) {
+			return err
+		}
+		nodeErr = err
+	}
+	unlock, err := lockPolicy(dir, "follow list", nodeErr)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	p, err := nodepolicy.Load(path)
 	if err != nil {
 		return err
 	}
-	id := s.ID()
 	var follow []nodepolicy.Follow
 	for _, fl := range p.Follow {
 		if fl.Series == nil || *fl.Series != id {
@@ -468,12 +494,6 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	p.Follow = append(follow, nodepolicy.Follow{Series: &id, Pools: pools})
 	if err := nodepolicy.Save(path, p); err != nil {
 		return err
-	}
-	dir := f.c.w.resolve()
-	if cl, err := dialNode(out, dir); err == nil && cl.Reload() == nil {
-		waitBack(out, dir)
-		fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applied it\n", path, id.Short(), pools)
-		return nil
 	}
 	fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applies it when it starts\n", path, id.Short(), pools)
 	return nil
