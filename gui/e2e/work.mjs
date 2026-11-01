@@ -131,6 +131,9 @@ try {
   await defs.locator('input[name=threads]').fill('1');
   await defs.locator('button[type=submit]').click();
   await sched.locator('.counts', { hasText: 'device auto, 1 thread.' }).waitFor({ timeout: 10000 });
+  // Each default field shows what is set now (GREEN-033).
+  await page.waitForFunction(() => document.querySelector('input[name=threads][placeholder="now 1"]'));
+  assert.equal(await defs.locator('input[name=device]').getAttribute('placeholder'), 'now auto');
   // The layer floor and rate (D122) are schedule defaults too, and a
   // floor of 0 turns them off again.
   await defs.locator('input[name=floor]').fill('200');

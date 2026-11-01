@@ -332,7 +332,10 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     f.requestSubmit();
     sec.scrollIntoView({ block: 'start' });
   };
-  return { el: sec, stop: () => leave(area), run };
+  // hint sets a field's placeholder, as a view that knows the current
+  // value shows it (GREEN-033); an empty field still sends nothing.
+  const hint = (name, text) => { if (inputs[name]) inputs[name].placeholder = text; };
+  return { el: sec, stop: () => leave(area), run, hint };
 }
 
 // flag adds -name value when value is set.

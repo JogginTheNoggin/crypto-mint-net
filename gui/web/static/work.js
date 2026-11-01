@@ -342,8 +342,20 @@ export const workView = {
     const edits = gate();
     const reloadSchedule = () => schedulePanel.reload();
     const schedulePanel = panel(ctx, { title: 'Schedule', about: 'The jobs the node runs by itself, from node.json\'s grind section, and the defaults every job, build and work takes. A running node applies a change at once and keeps your own jobs running.', args: () => ['grind', 'schedule', ...where.flags()],
-      onResult: (r, area) => tableResult(r, area, v => scheduleTable(v, edits, reloadSchedule)) });
+      onResult: (r, area) => tableResult(r, area, v => { nowDefaults(v); return scheduleTable(v, edits, reloadSchedule); }) });
+    // The defaults form shows what is set now, as each field's placeholder:
+    // a field left empty keeps it (GREEN-033).
+    const nowDefaults = v => {
+      const g = (v && v.grind) || {};
+      defaultsForm.hint('device', `now ${g.device || 'auto'}`);
+      defaultsForm.hint('threads', `now ${g.threads || '0: every core but one'}`);
+      defaultsForm.hint('floor', `now ${g.layer_floor || '0: only the strongest of each search'} (0 to 256)`);
+      defaultsForm.hint('rate', `now ${g.layer_rate || '0: the default'} layers a second at most`);
+    };
     const afterSchedule = () => reloadSchedule();
+    const defaultsForm = form(ctx, { title: 'Schedule defaults', about: 'The device and threads every job takes unless it names its own, and which layers grinding keeps: poo grind schedule set.', fields: [{ name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0' }, { name: 'threads', label: 'Threads', type: 'number', placeholder: '0: every core but one' },
+        { name: 'floor', label: 'Layer floor', type: 'number', placeholder: '0 to 256; 0: only the strongest of each search' }, { name: 'rate', label: 'Layer rate', type: 'number', placeholder: 'most layers a second the floor adds (0: default)' }],
+        args: v => ['grind', 'schedule', 'set', ...where.flags(), ...flag('device', v.device), ...flag('threads', v.threads), ...flag('layer-floor', v.floor), ...flag('layer-rate', v.rate)], submit: 'Set', onResult: afterSchedule, gate: edits });
     return mountAll(root, 'Work', 'The node\'s hash grinding: which devices it has, how fast each is, and the jobs it runs. Each part is a poo grind command; node.json\'s grind section sets the defaults and the jobs the node runs by itself.', [
       panel(ctx, { title: 'Devices', about: 'Each device, what it grinds fast, and which one auto picks for each hash.', args: () => ['grind', 'devices', ...where.flags()],
         onResult: r => { if (r.code === 0) deviceChoices(root, r.out); } }),
@@ -351,9 +363,7 @@ export const workView = {
       schedulePanel,
       form(ctx, { title: 'Schedule a job', about: 'Adds a job to node.json\'s grind section with poo grind schedule add. It has no For: it runs whenever its hours allow.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields().filter(fd => fd.name !== 'for')],
         args: v => ['grind', 'schedule', 'add', ...where.flags(), v.target || 'tip', ...jobFlags(v)], submit: 'Add', onResult: afterSchedule, gate: edits }),
-      form(ctx, { title: 'Schedule defaults', about: 'The device and threads every job takes unless it names its own, and which layers grinding keeps: poo grind schedule set.', fields: [{ name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0' }, { name: 'threads', label: 'Threads', type: 'number', placeholder: '0: every core but one' },
-        { name: 'floor', label: 'Layer floor', type: 'number', placeholder: '0 to 256; 0: only the strongest of each search' }, { name: 'rate', label: 'Layer rate', type: 'number', placeholder: 'most layers a second the floor adds (0: default)' }],
-        args: v => ['grind', 'schedule', 'set', ...where.flags(), ...flag('device', v.device), ...flag('threads', v.threads), ...flag('layer-floor', v.floor), ...flag('layer-rate', v.rate)], submit: 'Set', onResult: afterSchedule, gate: edits }),
+      defaultsForm,
       { el: livePanel, stop: () => { liveHooks.detach(); livePanel.remove(); } },
       form(ctx, { title: 'Start a job in the background', about: 'The same job, left to the node: it shows under Jobs.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields()],
         args: v => ['grind', 'start', ...where.flags(), ...jobFlags(v), v.target || 'tip'], submit: 'Start' }),
