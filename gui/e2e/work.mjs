@@ -109,6 +109,16 @@ try {
   assert.equal(await page.evaluate(() => location.hash), hash, 'the jump list leaves the hash alone');
   const add = section('Schedule a job');
   assert.ok(!(await add.locator('label', { hasText: /^For/ }).count()), 'a scheduled job has no For');
+  // Until from reaches is only for an entry or tx: target (GREEN-032).
+  const until = add.locator('input[name=untilFrom]');
+  assert.ok(!(await until.isVisible()), 'tip takes no until-from');
+  await add.locator('input[name=target]').fill('tx:' + '00'.repeat(32));
+  assert.ok(await until.isVisible(), 'a tx: target shows until-from');
+  await until.fill('5');
+  assert.match(await add.locator('.cmd code').innerText(), /-until-from 5/);
+  await add.locator('input[name=target]').fill('tip');
+  assert.ok(!(await until.isVisible()) && !/until-from/.test(await add.locator('.cmd code').innerText()), 'hidden until-from is not sent');
+  assert.ok(!(await section('Run a job').locator('input[name=untilFrom]').isVisible()), 'the run form hides until-from for tip');
   await add.locator('input[name=hours]').fill('0-23');
   assert.match(await add.locator('.cmd code').innerText(), /^poo grind schedule add tip -hours 0-23$/);
   await add.locator('button[type=submit]').click();

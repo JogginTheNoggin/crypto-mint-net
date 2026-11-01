@@ -84,6 +84,8 @@ button.small { font-size: 12px; padding: 2px 8px; }
 button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 14px; }
 .fields label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+/* display: flex beats the hidden attribute, so a field only: hides stayed drawn (GREEN-032). */
+.fields label[hidden] { display: none; }
 .fields label.check { flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 6px; }
 .fields small { color: var(--muted); }
 .fields .actions { grid-column: 1 / -1; }

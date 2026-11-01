@@ -15,6 +15,10 @@ const RATE_POINTS = 120;
 const MAX_LINE = 1 << 20;
 const MAX_ERR = 64 << 10;
 
+// noUntil are the targets poo grind refuses -until-from with (an empty
+// target is tip), so the job forms hide that field for them (GREEN-032).
+const noUntil = ['', 'tip', 'pending'];
+
 // jobFields are poo grind's JOB FLAGS; jobFlags turns their values into
 // the flags.
 const jobFields = () => [
@@ -24,7 +28,7 @@ const jobFields = () => [
   { name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0 (default: node.json, else auto)' },
   { name: 'threads', label: 'Threads', type: 'number', placeholder: 'default: every core but one' },
   { name: 'for', label: 'For', placeholder: 'for example 30s or 10m' },
-  { name: 'untilFrom', label: 'Until from reaches', placeholder: 'with an entry hash or tx:TID target' },
+  { name: 'untilFrom', label: 'Until from reaches', placeholder: 'a weight; a tx:TID target needs one', only: { field: 'target', not: noUntil } },
   { name: 'hours', label: 'Only in hours', placeholder: 'for example 22-06 (local time)' },
 ];
 const jobFlags = v => [...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial),
@@ -159,16 +163,22 @@ let liveHooks = { attach: () => {}, detach: () => {} };
 
 function buildLive(ctx) {
   const fields = jobFields();
-  const target = el('input', { name: 'target', placeholder: 'tip, pending or an entry hash', spellcheck: 'false', value: 'tip' });
+  const target = el('input', { name: 'target', placeholder: 'tip, pending, tx:TID or an entry hash', spellcheck: 'false', value: 'tip' });
   const inputs = {};
   const f = el('form', { class: 'fields', autocomplete: 'off' },
     el('label', {}, el('span', {}, 'Target'), target,
-      el('small', {}, 'tip: layers on each pool\'s selected tip. pending: entries from pending transactions. An entry hash: layers on that entry. The series says which hash to grind.')));
+      el('small', {}, 'tip: layers on each pool\'s selected tip. pending: entries from pending transactions. tx:TID: one payment, until from reaches the weight below. An entry hash: layers on that entry. The series says which hash to grind.')));
+  const labels = {};
   for (const fd of fields) {
     inputs[fd.name] = el('input', { name: fd.name, placeholder: fd.placeholder, spellcheck: 'false', inputmode: fd.type === 'number' ? 'numeric' : undefined });
-    f.append(el('label', {}, el('span', {}, fd.label), inputs[fd.name]));
+    f.append(labels[fd.name] = el('label', {}, el('span', {}, fd.label), inputs[fd.name]));
   }
-  const values = () => Object.fromEntries(fields.map(fd => [fd.name, inputs[fd.name].value.trim()]));
+  // The same rule as form's only: a field hidden for this target is not sent.
+  const shown = fd => !fd.only || !fd.only.not.includes(target.value.trim());
+  const showOnly = () => { for (const fd of fields) labels[fd.name].hidden = !shown(fd); };
+  showOnly();
+  f.addEventListener('input', showOnly);
+  const values = () => Object.fromEntries(fields.map(fd => [fd.name, shown(fd) ? inputs[fd.name].value.trim() : '']));
   const args = () => ['grind', 'run', ...where.flags(), ...jobFlags(values()), target.value.trim() || 'tip'];
   const line = cmdLine(args(), ctx);
   f.addEventListener('input', () => line.set(args()));
@@ -334,7 +344,7 @@ export const workView = {
       form(ctx, { title: 'Schedule defaults', about: 'The device and threads every job takes unless it names its own: poo grind schedule set.', fields: [{ name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0' }, { name: 'threads', label: 'Threads', type: 'number', placeholder: '0: every core but one' }],
         args: v => ['grind', 'schedule', 'set', ...where.flags(), ...flag('device', v.device), ...flag('threads', v.threads)], submit: 'Set', onResult: afterSchedule }),
       { el: livePanel, stop: () => { liveHooks.detach(); livePanel.remove(); } },
-      form(ctx, { title: 'Start a job in the background', about: 'The same job, left to the node: it shows under Jobs.', fields: [{ name: 'target', label: 'Target', value: 'tip' }, ...jobFields()],
+      form(ctx, { title: 'Start a job in the background', about: 'The same job, left to the node: it shows under Jobs.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields()],
         args: v => ['grind', 'start', ...where.flags(), ...jobFlags(v), v.target || 'tip'], submit: 'Start' }),
       form(ctx, { title: 'Stop a job', fields: [{ name: 'id', label: 'Job id', type: 'number' }, { name: 'all', label: 'Every job', type: 'check' }],
         args: v => ['grind', 'stop', ...where.flags(), ...(v.all ? ['-all'] : v.id ? [v.id] : [])], submit: 'Stop', danger: true }),
