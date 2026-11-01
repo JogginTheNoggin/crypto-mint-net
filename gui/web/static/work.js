@@ -100,8 +100,14 @@ function scheduleTable(reply, edits, reload, say) {
       } catch (e) {
         why = e.message;
       } finally {
-        await reload();
-        if (why) say(`Not removed: ${why.slice(-2000)} The table is current now.`);
+        const again = await reload();
+        if (why) {
+          why = why.slice(-2000);
+          if (!/[.!?]$/.test(why)) why += '.';
+          // The table is said to be current only when reading it again
+          // worked; otherwise the panel shows that error itself.
+          say(`Not removed: ${why}${again && again.code === 0 ? ' The table is current now.' : ''}`);
+        }
         edits.release();
       }
     } }, 'Remove'));

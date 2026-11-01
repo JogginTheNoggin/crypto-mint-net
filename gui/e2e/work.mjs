@@ -213,15 +213,30 @@ try {
   // ... and says so, in poo's words, above the table drawn again (GUI-016).
   const refused = sched.locator('.remove-refused');
   await refused.waitFor();
-  assert.match(await refused.innerText(), /^Not removed: .+ The table is current now\.$/s);
+  assert.match(await refused.innerText(), /^Not removed: .+[.!?] The table is current now\.$/s);
   // A job added elsewhere changes the schedule's version: Remove on a row
   // that is still right is refused by -if-version, shown, and the row stays.
+  // Here reading the schedule again fails too, so the refusal does not
+  // claim the table is current; Refresh then draws it.
   poo(['grind', 'schedule', 'add', 'tip', '-hours', '7-8']);
+  const failRead = route => {
+    const body = route.request().postDataJSON() || {};
+    if (route.request().method() === 'POST' && (body.args || []).includes('schedule')) return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"test: schedule read refused"}' });
+    return route.continue();
+  };
+  const errorsBefore = errors.length;
+  await page.route('**/api/jobs', failRead);
   await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).locator('button', { hasText: 'Remove' }).click();
-  await sched.locator('table.grind-schedule tbody tr', { hasText: '7-8' }).waitFor({ timeout: 10000 });
   await refused.waitFor();
-  assert.match(await refused.innerText(), /^Not removed: /);
+  assert.match(await refused.innerText(), /^Not removed: .+[.!?]$/s);
+  assert.doesNotMatch(await refused.innerText(), /current now/, 'no claim the table is current when it could not be read');
+  await page.unroute('**/api/jobs', failRead);
+  // The browser logs the refused read it was made to see.
+  errors.splice(errorsBefore, errors.length - errorsBefore, ...errors.slice(errorsBefore).filter(e => !/status of 503/.test(e)));
+  await sched.locator('.panel-head button', { hasText: 'Refresh' }).click();
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '7-8' }).waitFor({ timeout: 10000 });
   assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 2, 'the refused Remove kept its row');
+  assert.equal(await refused.count(), 0, 'a redraw clears the old refusal');
   // A Remove that works leaves no refusal on show.
   await sched.locator('table.grind-schedule tbody tr', { hasText: '7-8' }).locator('button', { hasText: 'Remove' }).click();
   await sched.locator('table.grind-schedule tbody tr', { hasText: '7-8' }).waitFor({ state: 'detached', timeout: 10000 });

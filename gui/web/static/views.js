@@ -190,11 +190,12 @@ export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
     noNode(sec, area, r);
     if (onResult) onResult(r, area);
     busy = false;
-    answers.forEach(done => done());
+    answers.forEach(done => done(r));
     if (waiting.length) go(false);
   };
   // reload runs the panel again, after the run in progress if there is
-  // one, and resolves once that new run is drawn.
+  // one, and resolves with that new run's {code, out, err} once it is
+  // drawn.
   const reload = () => new Promise(done => { waiting.push(done); go(false); });
   btn.onclick = () => go(false);
   go(true);

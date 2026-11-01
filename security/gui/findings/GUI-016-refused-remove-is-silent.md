@@ -118,3 +118,19 @@ leaves a job grinding they meant to stop. No attacker is involved. Rated
 - **GREEN-035, safe.** The summary line is plain text built in `el`. A rate
   kept with no floor is now shown rather than hidden, and nothing new is
   sent.
+
+## Follow-up (GUI/Blue, Round 11C): Red's two wording notes
+
+- **Closing punctuation.** If poo's reason doesn't end in `.`, `!` or `?`,
+  the message adds a period before what follows, so it reads "Not removed:
+  <reason>. The table is current now."
+- **Only claim the table is current when it is.** `panel.reload()` now
+  resolves with the new run's `{code, out, err}`. "The table is current
+  now." is added only when that run exited 0. If reading the schedule again
+  failed, the message stops after poo's reason, and the panel shows that
+  read's own error below it.
+- **Test.** `e2e/work.mjs` checks the closing punctuation on the stale-row
+  refusal. For the changed-elsewhere refusal, the test makes the read after
+  the Remove fail: it routes the schedule's `POST /api/jobs` to a 503. It
+  then checks that the refusal is shown without "current now", and that
+  Refresh draws the table again. On the old code this check fails.
