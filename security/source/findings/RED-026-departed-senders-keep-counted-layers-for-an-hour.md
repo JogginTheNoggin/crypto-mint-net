@@ -1,4 +1,4 @@
-# RED-026: A sender that stalls and leaves keeps its counted layers in the node's memory for an hour, at 20 times the bytes it sent
+# RED-026: A sender that stalls and leaves keeps its counted layers in the node's memory for an hour, at about 7 times the bytes it sent
 
 | Field | Value |
 | --- | --- |
