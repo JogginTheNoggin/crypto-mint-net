@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 1ae4d46 (Source Round 9 Part B) |
 | Component | pkg/nodepolicy/nodepolicy.go (`MaxLayerRate`, `Grind.validate`, `Load`), pkg/node/node.go (`Open`) |
 | Surface | node policy / upgrade |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 5f993ee (BLUE-010) |
 
 ## Summary
 
@@ -49,4 +49,10 @@ warning is logged; the same value written through the RPC is refused.
 
 ## Resolution
 
-(Blue fills in.)
+Fixed by BLUE-010 (decision D128), as recommended. `nodepolicy.Load`
+brings a `grind.layer_rate` over `MaxLayerRate` down to it and says so in
+`Policy.Lowered` (not saved). `node.Open` logs each note as a warning and
+`poo doctor` shows it as a warn line. `Save`, and with it the RPC, CLI
+and GUI writes, still refuses the value. `docs/modules/nodepolicy.md`
+notes that a bound may only be lowered this way. Test:
+`TestLoadLowersAValueOverALoweredBound` (`pkg/nodepolicy`).

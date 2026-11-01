@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 1ae4d46 (Source Round 9 Part B) |
 | Component | pkg/p2p/chase.go (`fetchParts`, `chaseErr`), pkg/chase (`Stalled`) |
 | Surface | peers (any sender of a large entry) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 5f993ee (BLUE-010) |
 
 ## Summary
 
@@ -56,4 +56,11 @@ the last good one ended.
 
 ## Resolution
 
-(Blue fills in.)
+Fixed by BLUE-010 (decision D128), as recommended. `fetchParts`
+keeps its parts whenever the chase keeps its progress (`Outcome.Keeps`:
+a yield, or a stall such as `errTimeout`), so the next chase asks from
+the offset the fetch reached. A false part, a finished entry, or a chase
+that ends otherwise lets them go, and a departed sender's go by RED-023's
+sweep. Test: `TestStalledFetchKeepsItsParts` (`pkg/p2p`): the tenth parts
+request is left unanswered; after the stall the next request asks from
+the same offset.

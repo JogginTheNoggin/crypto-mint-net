@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 1ae4d46 (Source Round 9 Part B) |
 | Component | pkg/p2p/chase.go (`saveProgress`, `takeProgress`, `runJob`, `fetchParts`, `partsRoom`) |
 | Surface | peers (a sender the node chases) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 5f993ee (BLUE-010) |
 
 ## Summary
 
@@ -73,4 +73,14 @@ a moment and `ProgressHeld` is zero.
 
 ## Resolution
 
-(Blue fills in.)
+Fixed by BLUE-010 (decision D128). `sweepProgress` forgets a kept
+progress, its parts file included, once its sender has been disconnected
+for the new `p2p.Config.ProgressGrace` (2 minutes) or no chase has taken
+it up for `ProgressTTL` (an hour). It runs at each `saveProgress`, at each
+disconnect and every `CheckEvery`. A sender that comes back within the
+grace goes on from what it left, so a dropped connection does not cost an
+honest large fetch its parts. A fetch that would wait for disk space first
+calls `dropAwayParts`, which removes the parts files of every sender not
+connected, whatever its grace, and checks the room again. Nothing caps a
+ledger. Tests: `TestDepartedSenderLeavesNothing` and
+`TestDiskWaitTakesRoomFromDepartedSenders` (`pkg/p2p`).

@@ -81,7 +81,12 @@ same work, and more layers sent (ORANGE-010, D118). 0 keeps today's
 behaviour. `grind.layer_rate` bounds the layers a second the floor adds,
 strongest first, so peers' layer budgets take every one: 0 means 10, and
 at most 50, half of the 100 a second peers take from one node by default (ORANGE-016, D122; GUI-015, D127). Both are set by `poo grind schedule set
--layer-floor S -layer-rate R`. `p2p.fast_catch_up` and `p2p.depth_limit` are no longer used: a
+-layer-floor S -layer-rate R`. A node.json written while a bound was
+higher still opens: `Load` brings the value down to the bound and notes
+it in `Policy.Lowered`, which the node logs as a warning and `poo doctor`
+shows; every write (Save, the RPC, the CLI, the GUI) refuses it. A bound
+may only be lowered this way, so an older file never stops a node from
+starting (RED-025, D128). `p2p.fast_catch_up` and `p2p.depth_limit` are no longer used: a
 chase finds a split at any depth (D116). They still load and are ignored.
 
 Every field but `format` may be left out; the defaults are the provisional
