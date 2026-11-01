@@ -639,6 +639,18 @@ func TestScheduleAppliesTheDifference(t *testing.T) {
 	if len(again) != 2 || again[0].ID == next[0].ID || again[1].ID == next[1].ID {
 		t.Fatalf("a changed default kept jobs %v", again)
 	}
+	// The layer floor and rate are read at each search, so changing them
+	// keeps the jobs, and the next search uses the new values (GREEN-036).
+	floor, _ := f.m.Schedule(&nodepolicy.Grind{Threads: 1, LayerFloor: 8, LayerRate: 20, Jobs: []nodepolicy.GrindJob{job(2), job(3)}})
+	if len(floor) != 2 || floor[0].ID != again[0].ID || floor[1].ID != again[1].ID {
+		t.Fatalf("a changed layer floor or rate restarted jobs %v, were %v", floor, again)
+	}
+	f.m.mu.Lock()
+	def := f.m.def
+	f.m.mu.Unlock()
+	if def.Floor != 8 || def.Rate != 20 {
+		t.Fatalf("defaults %+v after the change", def)
+	}
 }
 
 // GREEN-035: a full schedule, even all waiting, leaves room for a job a
