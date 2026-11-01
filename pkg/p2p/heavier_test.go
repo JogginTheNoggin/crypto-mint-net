@@ -7,6 +7,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
@@ -137,4 +138,82 @@ func TestHeavierLedgerHuge(t *testing.T) {
 	must(t, err)
 	b.connect(a)
 	eventuallyFor(t, 5*time.Minute, "b to take the large entry", func() bool { return a.state() == b.state() }, a, b)
+}
+
+// Black's B1 (D121): b holds every entry of a's heavier branch but none
+// of its layers, so the sender's newest hashes are all held off b's
+// selected ledger. The chase walks back to where the branch leaves it,
+// checks the sender's layers on it, and switches.
+func TestHeldBranchWithoutLayers(t *testing.T) {
+	a := startNode(t, "a", nil)
+	b := startNode(t, "b", nil)
+	last, owner := grow(t, a, nil, "alice", 3, 32)
+	copyLedger(t, a, b)
+	growTagged(t, b, last, owner, "b", 2, 8)
+	growTagged(t, a, last, owner, "a", 4, 64)
+	pushEntries(t, a, b, 4)
+	if a.state() == b.state() {
+		t.Fatal("setup: b already on a's ledger")
+	}
+	b.connect(a)
+	eventuallyFor(t, 30*time.Second, "b to reach a's ledger", func() bool { return a.state() == b.state() }, a, b)
+}
+
+// B1's other half: the sender's ledger is a prefix of b's selected one,
+// or the same entries, with more layers deep down. b asks for the layers
+// on the sender's own hashes, page by page from its tip, until it is as
+// heavy as stated.
+func TestDeepLayersAreToppedUp(t *testing.T) {
+	small := func(c *p2p.Config) { c.Limits.HashLimit = 2 }
+	a := startNode(t, "a", small)
+	b := startNode(t, "b", small)
+	grow(t, a, nil, "alice", 12, 8)
+	copyLedger(t, a, b)
+	// Heavy new layers on a's third entry only.
+	var third hash.Hash
+	a.n.Engine().Ledger(exKey, func(l *ledger.Pool) { third = l.Chain(3, 3)[0] })
+	_, _, err := a.n.Work(exKey, third, 1<<20, 1<<12)
+	must(t, err)
+	if a.state() == b.state() {
+		t.Fatal("setup: no heavier layers")
+	}
+	b.connect(a)
+	eventuallyFor(t, 30*time.Second, "b to take a's layers", func() bool { return a.state() == b.state() }, a, b)
+}
+
+// pushEntries hands dst src's selected entries from height from on,
+// without their layers.
+func pushEntries(t *testing.T, src, dst *tnode, from int) {
+	t.Helper()
+	var hs []hash.Hash
+	src.n.Engine().Ledger(src.key, func(l *ledger.Pool) { hs = l.Chain(from, l.Height()) })
+	for _, h := range hs {
+		src.n.Engine().Ledger(src.key, func(l *ledger.Pool) {
+			e, _ := l.Entry(h)
+			_, err := dst.n.HandleEntry(dst.key, e, engine.Pushed)
+			must(t, err)
+		})
+	}
+}
+
+// Black's C-3 (D121): the branch's work sits in more layers on one entry
+// than the sender's layers reply carries whole. The chase pages them all
+// before it decides, so it reaches the heavier ledger.
+func TestManyLayersOnOneEntryAreCounted(t *testing.T) {
+	a := startNode(t, "a", func(c *p2p.Config) { c.LayersWhole = 1 })
+	b := startNode(t, "b", nil)
+	last, owner := grow(t, a, nil, "alice", 3, 32)
+	copyLedger(t, a, b)
+	growTagged(t, b, last, owner, "b", 2, 32)
+	growTagged(t, a, last, owner, "a", 1, 8)
+	tip := a.status().Tip
+	for i := uint64(1); i <= 12; i++ {
+		_, _, err := a.n.Work(exKey, tip, i<<20, 32)
+		must(t, err)
+	}
+	if !a.status().Weight.Greater(b.status().Weight) {
+		t.Fatal("setup: a is not heavier")
+	}
+	b.connect(a)
+	eventuallyFor(t, 30*time.Second, "b to reach a's ledger", func() bool { return a.state() == b.state() }, a, b)
 }

@@ -1,11 +1,14 @@
 package p2p
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
@@ -195,6 +198,8 @@ func (r replier) build(pi *poolInfo, l *ledger.Pool, q wire.Request) func() {
 		return func() { r.empty(wire.TypeWeight, r.stated) }
 	case wire.PartsReq:
 		return r.parts(l, q)
+	case wire.LayersFromReq:
+		return r.layersFrom(pi, l, q)
 	}
 	return func() { r.empty(wire.TypeRefused, r.stated) }
 }
@@ -260,17 +265,24 @@ func (r replier) tooLarge(h hash.Hash, size int) func() {
 }
 
 // parts replies with the encoded item of an entry of the active ledger
-// from the asked offset, in chunks, up to partsReply bytes (D117).
+// from the asked offset, in chunks, up to partsReply bytes (D117). Under
+// the engine's lock it only copies the item (the entry is immutable, the
+// nonces are copied); the encoding happens when the reply is sent, once
+// per item for a while (partsCache), so a fetch in many requests encodes
+// it once and sees one total (RED-017, decision D120).
 func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
 	if !l.InSelected(q.Entry) {
 		return func() { r.empty(wire.TypeNotHeld, r.stated) }
 	}
-	b := wire.EncodeItem(item(l, q.Entry, q.Variant == wire.EntriesWithLayers))
-	total := uint64(len(b))
-	if q.Offset >= total {
-		return func() { r.empty(wire.TypeRefused, r.stated) }
-	}
+	key := partsKey{q.Entry, q.Variant}
+	it := item(l, q.Entry, q.Variant == wire.EntriesWithLayers)
 	return func() {
+		b := r.h.encoded.get(key, it)
+		total := uint64(len(b))
+		if q.Offset >= total {
+			r.empty(wire.TypeRefused, r.stated)
+			return
+		}
 		per := r.lim.chunk - chunkRoom
 		if per < minPart {
 			per = minPart
@@ -287,6 +299,73 @@ func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
 		}
 		r.chunks(wire.TypePart, bodies, off < total)
 	}
+}
+
+// partsKey names one encoded item.
+type partsKey struct {
+	entry   hash.Hash
+	variant wire.Variant
+}
+
+// partsCache keeps the encoded items parts requests were last answered
+// from: up to partsCacheBytes in all (always the newest one), each for
+// partsCacheFor after its last use.
+type partsCache struct {
+	mu    sync.Mutex
+	items map[partsKey]*encodedItem
+}
+
+type encodedItem struct {
+	b    []byte
+	used time.Time
+}
+
+const (
+	partsCacheBytes = 256 << 20
+	partsCacheFor   = time.Minute
+)
+
+// get returns the encoding of it, cached under k: a fetch in many parts
+// requests encodes the item once.
+func (c *partsCache) get(k partsKey, it wire.EntryItem) []byte {
+	now := time.Now()
+	c.mu.Lock()
+	if e, ok := c.items[k]; ok {
+		e.used = now
+		c.mu.Unlock()
+		return e.b
+	}
+	c.mu.Unlock()
+	b := wire.EncodeItem(it)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.items == nil {
+		c.items = map[partsKey]*encodedItem{}
+	}
+	c.items[k] = &encodedItem{b: b, used: now}
+	size := 0
+	for kk, e := range c.items {
+		if kk != k && now.Sub(e.used) > partsCacheFor {
+			delete(c.items, kk)
+			continue
+		}
+		size += len(e.b)
+	}
+	for size > partsCacheBytes {
+		var old partsKey
+		var oldest *encodedItem
+		for kk, e := range c.items {
+			if kk != k && (oldest == nil || e.used.Before(oldest.used)) {
+				old, oldest = kk, e
+			}
+		}
+		if oldest == nil {
+			break
+		}
+		size -= len(oldest.b)
+		delete(c.items, old)
+	}
+	return b
 }
 
 func (r replier) hashChain(l *ledger.Pool, q wire.HashChainReq) func() {
@@ -387,6 +466,53 @@ func (r replier) byHash(l *ledger.Pool, q wire.EntriesReq) func() {
 	}
 }
 
+// strongestFirst orders the layers of one entry as a layers-from reply
+// gives them: strongest first, the lower nonce first among equals.
+func strongestFirst(fn hash.Func, lys []layer.Layer) {
+	st := make(map[uint64]int, len(lys))
+	for _, ly := range lys {
+		st[ly.Nonce] = ly.Strength(fn)
+	}
+	slices.SortFunc(lys, func(a, b layer.Layer) int {
+		if st[a.Nonce] != st[b.Nonce] {
+			return st[b.Nonce] - st[a.Nonce]
+		}
+		return cmp.Compare(a.Nonce, b.Nonce)
+	})
+}
+
+// layersFrom replies with an entry's layer nonces from the asked index,
+// strongest first, in chunks, up to partsReply bytes (D121).
+func (r replier) layersFrom(pi *poolInfo, l *ledger.Pool, q wire.LayersFromReq) func() {
+	if !l.InSelected(q.Entry) {
+		return func() { r.empty(wire.TypeNotHeld, r.stated) }
+	}
+	lys := l.Layers(q.Entry)
+	if len(lys) >= 1<<32 || int64(q.From) > int64(len(lys)) {
+		return func() { r.empty(wire.TypeRefused, r.stated) }
+	}
+	strongestFirst(pi.s.Hash(), lys)
+	total := uint32(len(lys))
+	return func() {
+		per := max((r.lim.chunk-chunkRoom)/8, minPart/8)
+		var bodies [][]byte
+		i := int(q.From)
+		for i < len(lys) && (i-int(q.From))*8 < partsReply {
+			end := min(i+per, len(lys))
+			ns := make([]uint64, 0, end-i)
+			for _, ly := range lys[i:end] {
+				ns = append(ns, ly.Nonce)
+			}
+			bodies = append(bodies, wire.LayersFrom{Total: total, From: uint32(i), Nonces: ns}.Encode())
+			i = end
+		}
+		if len(bodies) == 0 {
+			bodies = [][]byte{wire.LayersFrom{Total: total, From: q.From}.Encode()}
+		}
+		r.chunks(wire.TypeLayersFrom, bodies, i < len(lys))
+	}
+}
+
 func (r replier) layers(pi *poolInfo, l *ledger.Pool, q wire.LayersReq) func() {
 	var items []wire.HeldLayers
 	total := 0
@@ -397,16 +523,17 @@ func (r replier) layers(pi *poolInfo, l *ledger.Pool, q wire.LayersReq) func() {
 			continue
 		}
 		lys := l.Layers(h)
-		if len(lys) > maxNonces {
-			// More layers than one chunk holds: the strongest that fit go,
-			// which is the most work this reply can show (D117).
-			fn := pi.s.Hash()
-			st := make(map[uint64]int, len(lys))
-			for _, ly := range lys {
-				st[ly.Nonce] = ly.Strength(fn)
+		if len(lys) > r.h.cfg.LayersWhole {
+			// More layers than a reply carries whole: the reply ends
+			// before the entry, and the asker pages its layers (D121).
+			if len(items) == 0 {
+				n := uint32(min(len(lys), 1<<32-1))
+				return func() {
+					r.chunks(wire.TypeManyLayers, [][]byte{wire.ManyLayers{Entry: h, Count: n}.Encode()}, false)
+				}
 			}
-			sort.SliceStable(lys, func(i, j int) bool { return st[lys[i].Nonce] > st[lys[j].Nonce] })
-			lys = lys[:maxNonces]
+			more = true
+			break
 		}
 		var ns []uint64
 		for _, ly := range lys {

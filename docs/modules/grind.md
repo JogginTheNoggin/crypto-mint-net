@@ -80,6 +80,10 @@ own probe), the first one is kept.
   hands the node the strongest layer of every 4,096 nonces at or above the
   floor (`engine.Grind.Floor`, `layer.Keep`), and `Job.Layers` counts them
   (ORANGE-010, D118). The strongest of the search still goes in first.
+  The node sends at most `node.MaxKeptLayers` (16) of the others per
+  search, the strongest first, and `node.KeptPerSecond` (50) a second
+  across searches, half what a peer accepts from one address; the rest are
+  dropped (RED-018, D120).
 - `RunBench(ctx, plan, d)` grinds layers on a random entry for `d` and
   reports tries a second. With the prefix saved, an entry try costs the
   same as a layer try.

@@ -178,6 +178,18 @@ type Config struct {
 	// heavier ledger must always be reachable (audit items G1 to G3,
 	// docs/consensus-audit.md).
 	ChaseSlice time.Duration
+	// WeightlessPages is how many pages of hashes in a row that bring no
+	// work a chase checks before it yields its turn; it goes on later from
+	// where it stopped, so a listing is paced, never refused (RED-015,
+	// D120).
+	WeightlessPages int
+	// PartsDir is where large entries are put together from their parts
+	// ("": the system's temporary directory; RED-016).
+	PartsDir string
+	// LayersWhole is the most layers of one entry a layers reply carries;
+	// an entry with more has them paged (D121). It is at most, and by
+	// default, what one frame can hold.
+	LayersWhole int
 	// PartsOver is the largest entry item a reply carries whole; a larger
 	// one is sent in parts on request (consensus audit P1, D117). It is at
 	// most, and by default, what one frame can hold.
@@ -221,14 +233,15 @@ func DefaultConfig() Config {
 		BackupPingEvery: 6 * time.Minute,
 		MaxMisses:       3,
 
-		Slots:         peers.DefaultSlots(),
-		ReviewEvery:   10 * time.Minute,
-		InactiveAfter: 30 * time.Minute,
-		DenialLimit:   3,
-		UnlistedConns: 8,
-		QueueShares:   [4]int{8, 4, 2, 1},
-		QueueLimit:    1024,
-		ChaseSlice:    2 * time.Minute,
+		Slots:           peers.DefaultSlots(),
+		ReviewEvery:     10 * time.Minute,
+		InactiveAfter:   30 * time.Minute,
+		DenialLimit:     3,
+		UnlistedConns:   8,
+		QueueShares:     [4]int{8, 4, 2, 1},
+		QueueLimit:      1024,
+		ChaseSlice:      2 * time.Minute,
+		WeightlessPages: 64,
 	}
 }
 
@@ -333,6 +346,12 @@ func (c *Config) fill() {
 	if c.ChaseSlice == 0 {
 		c.ChaseSlice = d.ChaseSlice
 	}
+	if c.WeightlessPages <= 0 {
+		c.WeightlessPages = d.WeightlessPages
+	}
+	if c.LayersWhole <= 0 || c.LayersWhole > maxNonces {
+		c.LayersWhole = maxNonces
+	}
 	if c.PartsOver <= 0 || c.PartsOver > maxWhole {
 		c.PartsOver = maxWhole
 	}
@@ -351,6 +370,9 @@ type Host struct {
 	progMu    sync.Mutex
 	prog      map[progressKey]*progress
 	progOrder []progressKey
+	// encoded keeps the last large items encoded for parts requests
+	// (RED-017).
+	encoded partsCache
 
 	n   *node.Node
 	cfg Config
@@ -568,6 +590,13 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 	h.stopping = true
 	h.wgMu.Unlock()
 	h.wg.Wait()
+	// Parts of large entries fetched so far are not kept past a run.
+	h.progMu.Lock()
+	for _, st := range h.prog {
+		st.drop()
+	}
+	h.prog, h.progOrder = nil, nil
+	h.progMu.Unlock()
 	err := h.book.Save()
 	if terr := h.tr.Save(); err == nil {
 		err = terr

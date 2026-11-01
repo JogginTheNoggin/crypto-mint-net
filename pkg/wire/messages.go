@@ -175,6 +175,9 @@ func (q LayersReq) Common() RequestCommon     { return q.RequestCommon }
 func (q WeightReq) Common() RequestCommon     { return q.RequestCommon }
 func (q PartsReq) Common() RequestCommon      { return q.RequestCommon }
 func (PartsReq) Type() Type                   { return TypePartsReq }
+func (q LayersFromReq) Common() RequestCommon { return q.RequestCommon }
+func (LayersFromReq) Type() Type              { return TypeLayersFromReq }
+func (q LayersFromReq) Encode() []byte        { return enc(func(w *encoding.Writer) { q.encode(w) }) }
 func (q PartsReq) Encode() []byte             { return enc(func(w *encoding.Writer) { q.encode(w) }) }
 func (HashChainReq) Type() Type               { return TypeHashChainReq }
 func (EntriesReq) Type() Type                 { return TypeEntriesReq }
@@ -279,6 +282,22 @@ func (q PartsReq) encode(w *encoding.Writer) {
 	w.Raw(q.Entry[:]).U8(uint8(q.Variant)).U64(q.Offset)
 }
 
+// LayersFromReq asks for the layer nonces of one entry of the peer's
+// active ledger from index From on, in the order a TypeLayersFrom reply
+// gives them: strongest first, the lower nonce first among equals. Layers
+// added meanwhile can only move ones already read later in that order, so
+// paging on never misses a layer (D121).
+type LayersFromReq struct {
+	RequestCommon
+	Entry hash.Hash
+	From  uint32
+}
+
+func (q LayersFromReq) encode(w *encoding.Writer) {
+	q.RequestCommon.encode(w)
+	w.Raw(q.Entry[:]).U32(q.From)
+}
+
 // WeightReq asks only for the peer's stated weight.
 type WeightReq struct {
 	RequestCommon
@@ -337,6 +356,11 @@ func DecodeRequest(t Type, b []byte) (Request, error) {
 		q = LayersReq{RequestCommon: c, Hashes: readHashes(r)}
 	case TypeWeightReq:
 		q = WeightReq{RequestCommon: c}
+	case TypeLayersFromReq:
+		x := LayersFromReq{RequestCommon: c}
+		r.Into(x.Entry[:])
+		x.From = r.U32()
+		q = x
 	case TypePartsReq:
 		x := PartsReq{RequestCommon: c}
 		r.Into(x.Entry[:])
@@ -609,4 +633,62 @@ func DecodeItem(b []byte) (EntryItem, error) {
 	r := encoding.NewReader(b)
 	it := decodeEntryItem(r)
 	return it, finish(r, "entry item")
+}
+
+// ManyLayers is the body of a TypeManyLayers reply: the next entry of a
+// layers reply, and how many layers it holds, more than one reply carries
+// whole. It is the only chunk of its reply.
+type ManyLayers struct {
+	Entry hash.Hash
+	Count uint32
+}
+
+// Encode returns the body.
+func (m ManyLayers) Encode() []byte {
+	w := encoding.NewWriter(hash.Size + 4)
+	w.Raw(m.Entry[:]).U32(m.Count)
+	return w.Bytes()
+}
+
+// DecodeManyLayers reads a TypeManyLayers body.
+func DecodeManyLayers(b []byte) (ManyLayers, error) {
+	r := encoding.NewReader(b)
+	var m ManyLayers
+	r.Into(m.Entry[:])
+	m.Count = r.U32()
+	return m, finish(r, "many layers")
+}
+
+// LayersFrom is the body of a TypeLayersFrom chunk: nonces From onwards of
+// an entry's Total layers.
+type LayersFrom struct {
+	Total  uint32
+	From   uint32
+	Nonces []uint64
+}
+
+// Encode returns the body.
+func (c LayersFrom) Encode() []byte {
+	w := encoding.NewWriter(12 + 8*len(c.Nonces))
+	w.U32(c.Total).U32(c.From).Count(len(c.Nonces))
+	for _, n := range c.Nonces {
+		w.U64(n)
+	}
+	return w.Bytes()
+}
+
+// DecodeLayersFrom reads a TypeLayersFrom chunk.
+func DecodeLayersFrom(b []byte) (LayersFrom, error) {
+	r := encoding.NewReader(b)
+	var c LayersFrom
+	c.Total, c.From = r.U32(), r.U32()
+	n := r.Count(0, 8)
+	c.Nonces = make([]uint64, 0, n)
+	for i := 0; i < n && r.Err() == nil; i++ {
+		c.Nonces = append(c.Nonces, r.U64())
+	}
+	if r.Err() == nil && (c.From > c.Total || uint64(len(c.Nonces)) > uint64(c.Total-c.From)) {
+		r.Fail(fmt.Errorf("layers %d+%d past their total %d", c.From, len(c.Nonces), c.Total))
+	}
+	return c, finish(r, "layers from")
 }

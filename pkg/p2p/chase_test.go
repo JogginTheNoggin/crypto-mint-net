@@ -2,6 +2,7 @@ package p2p_test
 
 import (
 	"crypto/rand"
+	"os"
 	"testing"
 	"time"
 
@@ -246,5 +247,217 @@ func TestChaseInOrderCostsLittleRevert(t *testing.T) {
 	converged(t, a, b)
 	if st := tr.Status("127.0.0.1:1", time.Now()); st.FlagTotal != 0 {
 		t.Fatalf("an honest switch was flagged: %+v", st)
+	}
+}
+
+// RED-015: a sender that lists hashes for ever and shows no work on them
+// is paced, not refused: the chase yields after WeightlessPages pages in a
+// row with no work and goes on later from where it stopped, holding no
+// more than a page of the hashes listed.
+func TestWeightlessListingIsPaced(t *testing.T) {
+	a := startNode(t, "a", func(c *p2p.Config) {
+		c.Limits.HashLimit = 8
+		c.WeightlessPages = 4
+		c.Chase.YieldWait = 50 * time.Millisecond
+	})
+	grow(t, a, nil, "alice", 2, 32)
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	verified(t, a, r)
+	huge := weight.FromUint64(1 << 62)
+	var tip hash.Hash
+	rand.Read(tip[:])
+	r.write(wire.Message{Header: wire.Header{Type: wire.TypeNotice, Section: sec, Stated: huge},
+		Body: wire.Notice{Tip: tip}.Encode()})
+	pages, firsts, maxListed := 0, 0, 0
+	deadline := time.Now().Add(20 * time.Second)
+	for pages < 60 {
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d pages asked for", pages)
+		}
+		listed, held := a.h.ProgressHeld()
+		if held > 16 {
+			t.Fatalf("progress holds %d hashes of %d listed", held, listed)
+		}
+		maxListed = max(maxListed, listed)
+		m, _, err := r.readUntil(time.Now().Add(10 * time.Millisecond))
+		if err != nil {
+			continue
+		}
+		switch m.Type {
+		case wire.TypeHashChainReq:
+			req, err := wire.DecodeRequest(m.Type, m.Body)
+			must(t, err)
+			q := req.(wire.HashChainReq)
+			if !q.HasAnchor {
+				// The first page: the newest hashes, none held here.
+				firsts++
+				hs := make([]hash.Hash, 8)
+				for i := range hs {
+					rand.Read(hs[i][:])
+				}
+				r.reply(m, wire.TypeHashChain, wire.HashChainChunk{Hashes: hs}.Encode(), huge)
+				continue
+			}
+			if q.Count == 1 {
+				// Halving: this sender holds every entry of a's.
+				r.reply(m, wire.TypeHashChain, wire.HashChainChunk{Hashes: []hash.Hash{{1}}}.Encode(), huge)
+				continue
+			}
+			pages++
+			hs := make([]hash.Hash, 8)
+			for i := range hs {
+				rand.Read(hs[i][:])
+			}
+			r.write(wire.Message{Header: wire.Header{Type: wire.TypeHashChain, Section: m.Section, RequestID: m.RequestID,
+				Chunk: 1, Stated: huge}, Body: wire.HashChainChunk{Hashes: hs}.Encode()})
+			r.write(wire.Message{Header: wire.Header{Type: wire.TypeHashChain, Section: m.Section, RequestID: m.RequestID,
+				Chunk: 2, Flags: wire.FlagLast | wire.FlagMore, Stated: huge}, Body: wire.HashChainChunk{}.Encode()})
+		case wire.TypeLayersReq:
+			req, err := wire.DecodeRequest(m.Type, m.Body)
+			must(t, err)
+			var items []wire.HeldLayers
+			for _, h := range req.(wire.LayersReq).Hashes {
+				items = append(items, wire.HeldLayers{Entry: h, Held: true})
+			}
+			r.reply(m, wire.TypeLayers, wire.LayersChunk{Items: items}.Encode(), huge)
+		case wire.TypeWeightReq:
+			r.reply(m, wire.TypeWeight, nil, huge)
+		case wire.TypeExtensionReq, wire.TypeFullLedgerReq, wire.TypeEntriesReq, wire.TypePartsReq:
+			t.Fatalf("asked for entries (%s) with no work shown", m.Type)
+		}
+	}
+	if maxListed <= 8*4 {
+		t.Fatalf("no yielded chase was seen holding its progress (%d listed at most)", maxListed)
+	}
+	if firsts != 1 {
+		t.Fatalf("the chase started again %d times instead of going on from its progress", firsts-1)
+	}
+	if a.status().Height != 2 {
+		t.Fatalf("height %d", a.status().Height)
+	}
+}
+
+// largeSender plays a sender of one ledger whose first entry it claims is
+// size bytes. It shows one layer, so the work check passes, then answers
+// parts requests with first (the first part) and then filler.
+type largeSender struct {
+	r       *rawPeer
+	size    uint64
+	first   []byte
+	offsets []uint64 // of the parts requests, in order
+	full    bool     // a whole ledger was asked for
+	layers  bool     // layers were asked for before it
+}
+
+func (ls *largeSender) serve(t *testing.T, until time.Time, stop func() bool) {
+	t.Helper()
+	huge := weight.FromUint64(1 << 62)
+	var eh hash.Hash
+	rand.Read(eh[:])
+	for !stop() {
+		if time.Now().After(until) {
+			t.Fatalf("timed out: parts asked from %v", ls.offsets)
+		}
+		m, _, err := ls.r.readUntil(time.Now().Add(20 * time.Millisecond))
+		if err != nil {
+			continue
+		}
+		switch m.Type {
+		case wire.TypeHashChainReq:
+			ls.r.reply(m, wire.TypeHashChain, wire.HashChainChunk{FromStart: true, Hashes: []hash.Hash{eh}}.Encode(), huge)
+		case wire.TypeLayersReq:
+			ls.layers = true
+			ls.r.reply(m, wire.TypeLayers, wire.LayersChunk{Items: []wire.HeldLayers{{Entry: eh, Held: true, Nonces: []uint64{1}}}}.Encode(), huge)
+		case wire.TypeWeightReq:
+			ls.r.reply(m, wire.TypeWeight, nil, huge)
+		case wire.TypeFullLedgerReq, wire.TypeExtensionReq:
+			if !ls.layers {
+				t.Fatalf("asked for the ledger (%s) before its work", m.Type)
+			}
+			ls.full = true
+			ls.r.reply(m, wire.TypeLarge, wire.Large{Entry: eh, Size: ls.size}.Encode(), huge)
+		case wire.TypePartsReq:
+			req, err := wire.DecodeRequest(m.Type, m.Body)
+			must(t, err)
+			q := req.(wire.PartsReq)
+			ls.offsets = append(ls.offsets, q.Offset)
+			data := make([]byte, 64<<10)
+			if q.Offset == 0 {
+				copy(data, ls.first)
+			}
+			ls.r.write(wire.Message{Header: wire.Header{Type: wire.TypePart, Section: m.Section, RequestID: m.RequestID,
+				Chunk: 1, Flags: wire.FlagLast | wire.FlagMore, Stated: huge}, Body: wire.Part{Total: ls.size, Offset: q.Offset, Data: data}.Encode()})
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+}
+
+// RED-016: a node that holds nothing asks for work before any entry; the
+// parts of a claimed large entry go to disk, not memory, and a fetch past
+// its slice goes on later from the offset it reached; parts that do not
+// start with the expected parent are shown false at once.
+func TestLargeClaimIsPacedOnDisk(t *testing.T) {
+	dir := t.TempDir()
+	a := startNode(t, "a", func(c *p2p.Config) {
+		c.ChaseSlice = 300 * time.Millisecond
+		c.Chase.YieldWait = 50 * time.Millisecond
+		c.PartsDir = dir
+	})
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	verified(t, a, r)
+	poolID := exSeries.PoolID(exKey.Index)
+	ls := &largeSender{r: r, size: 1 << 40, first: poolID[:]}
+	var tip hash.Hash
+	rand.Read(tip[:])
+	r.write(wire.Message{Header: wire.Header{Type: wire.TypeNotice, Section: sec, Stated: weight.FromUint64(1 << 62)},
+		Body: wire.Notice{Tip: tip}.Encode()})
+	resumed := func() bool {
+		for i := 1; i < len(ls.offsets); i++ {
+			if ls.offsets[i] != ls.offsets[i-1]+64<<10 {
+				t.Fatalf("parts asked from %v: the fetch did not go on from its offset", ls.offsets)
+			}
+		}
+		return len(ls.offsets) > 100 // several slices of about 50 parts
+	}
+	ls.serve(t, time.Now().Add(20*time.Second), resumed)
+	es, err := os.ReadDir(dir)
+	must(t, err)
+	if len(es) != 1 {
+		t.Fatalf("%d files in the parts directory, want 1", len(es))
+	}
+	info, err := es[0].Info()
+	must(t, err)
+	if info.Size() < int64(len(ls.offsets)-1)*64<<10 {
+		t.Fatalf("the parts file holds %d bytes for %d parts", info.Size(), len(ls.offsets))
+	}
+}
+
+// RED-016: parts that do not start with the parent of the entry named are
+// false at once; the sender is flagged and the parts file removed.
+func TestLargeClaimWithWrongParentIsFalse(t *testing.T) {
+	dir := t.TempDir()
+	a := startNode(t, "a", func(c *p2p.Config) { c.PartsDir = dir })
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	verified(t, a, r)
+	ls := &largeSender{r: r, size: 1 << 40, first: []byte("not the pool id")}
+	var tip hash.Hash
+	rand.Read(tip[:])
+	r.write(wire.Message{Header: wire.Header{Type: wire.TypeNotice, Section: sec, Stated: weight.FromUint64(1 << 62)},
+		Body: wire.Notice{Tip: tip}.Encode()})
+	key := ""
+	for _, p := range a.h.Peers() {
+		key = p.Key
+	}
+	ls.serve(t, time.Now().Add(10*time.Second), func() bool { return a.h.Tracker().Status(key, time.Now()).FlagTotal > 0 })
+	if len(ls.offsets) != 1 {
+		t.Fatalf("parts asked from %v after a false first part", ls.offsets)
+	}
+	es, err := os.ReadDir(dir)
+	must(t, err)
+	if len(es) != 0 {
+		t.Fatalf("%d files left in the parts directory", len(es))
 	}
 }

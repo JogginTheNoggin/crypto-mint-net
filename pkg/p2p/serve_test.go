@@ -11,6 +11,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
@@ -419,5 +420,59 @@ func TestDeepForkSpendsRevertBudget(t *testing.T) {
 	eventually(t, "an over-budget flag", func() bool { return tr.Status("127.0.0.1:1", time.Now()).FlagTotal == 1 })
 	if !held(forks[0]) || !held(forks[1]) || held(forks[2]) {
 		t.Fatalf("held %v %v %v, want the first two forks only", held(forks[0]), held(forks[1]), held(forks[2]))
+	}
+}
+
+// Black's C-3 (D121): an entry with more layers than a reply carries
+// whole is named by a many-layers reply, and its layers are paged from
+// any index, strongest first, until all have come.
+func TestServeManyLayers(t *testing.T) {
+	a := startNode(t, "a", func(c *p2p.Config) { c.LayersWhole = 3 })
+	grow(t, a, nil, "alice", 2, 16)
+	chain := chainOf(t, a)
+	for i := uint64(1); i <= 6; i++ {
+		_, _, err := a.n.Work(exKey, chain[1], i<<20, 64)
+		must(t, err)
+	}
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	none := wire.Limits{}
+	ms := r.ask(sec, wire.LayersReq{RequestCommon: r.common(none), Hashes: []hash.Hash{chain[1], chain[0]}})
+	if len(ms) != 1 || ms[0].Type != wire.TypeManyLayers {
+		t.Fatalf("got %d messages, %s", len(ms), ms[0].Type)
+	}
+	ml, err := wire.DecodeManyLayers(ms[0].Body)
+	if err != nil || ml.Entry != chain[1] || ml.Count < 4 {
+		t.Fatalf("many layers %+v %v", ml, err)
+	}
+	// After the first entry, a reply stops before a many-layered one.
+	ms = r.ask(sec, wire.LayersReq{RequestCommon: r.common(none), Hashes: []hash.Hash{chain[0], chain[1]}})
+	lc, err := wire.DecodeLayersChunk(ms[0].Body)
+	if err != nil || ms[0].Type != wire.TypeLayers || len(lc.Items) != 1 || !ms[len(ms)-1].More() {
+		t.Fatalf("layers before a many-layered entry: %s %v", ms[0].Type, err)
+	}
+	var got []uint64
+	for from := uint32(0); ; {
+		ms := r.ask(sec, wire.LayersFromReq{RequestCommon: r.common(none), Entry: chain[1], From: from})
+		for _, m := range ms {
+			c, err := wire.DecodeLayersFrom(m.Body)
+			if err != nil || c.From != uint32(len(got)) || c.Total != ml.Count {
+				t.Fatalf("layers from %d: %+v %v", from, c, err)
+			}
+			got = append(got, c.Nonces...)
+		}
+		if !ms[len(ms)-1].More() {
+			break
+		}
+		from = uint32(len(got))
+	}
+	if uint32(len(got)) != ml.Count {
+		t.Fatalf("paged %d of %d layers", len(got), ml.Count)
+	}
+	fn := exSeries.Hash()
+	for i := 1; i < len(got); i++ {
+		if (layer.Layer{Entry: chain[1], Nonce: got[i]}).Strength(fn) > (layer.Layer{Entry: chain[1], Nonce: got[i-1]}).Strength(fn) {
+			t.Fatal("layers not strongest first")
+		}
 	}
 }

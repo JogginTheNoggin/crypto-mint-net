@@ -131,6 +131,24 @@ func TestGrindEndpoints(t *testing.T) {
 	if _, err := c.GrindSetSchedule(nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tips"}}}); code(err) != rpc.CodeInvalid {
 		t.Fatalf("bad schedule: %v", err)
 	}
+	// A section of only layer_floor is saved and checked, not dropped
+	// (GREEN-032).
+	if _, err := c.GrindSetSchedule(nodepolicy.Grind{LayerFloor: 300}); code(err) != rpc.CodeInvalid {
+		t.Fatalf("layer_floor 300: %v", err)
+	}
+	if _, err := c.GrindSetSchedule(nodepolicy.Grind{LayerFloor: 12}); err != nil {
+		t.Fatal(err)
+	}
+	if sr, err = c.GrindSchedule(); err != nil || sr.Grind.LayerFloor != 12 {
+		t.Fatalf("layer_floor after set %+v %v", sr, err)
+	}
+	// So is a section of only layer_rate (D122).
+	if _, err := c.GrindSetSchedule(nodepolicy.Grind{LayerRate: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if sr, err = c.GrindSchedule(); err != nil || sr.Grind.LayerRate != 5 {
+		t.Fatalf("layer_rate after set %+v %v", sr, err)
+	}
 	if _, err := vc.GrindSetSchedule(nodepolicy.Grind{}); code(err) != rpc.CodeForbidden {
 		t.Fatalf("view token schedule: %v", err)
 	}

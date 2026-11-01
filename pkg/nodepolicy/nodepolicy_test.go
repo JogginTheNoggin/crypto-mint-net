@@ -58,6 +58,10 @@ func TestValidate(t *testing.T) {
 			p.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tip", UntilFrom: "5"}}}
 		}, false},
 		{"grind threads", func(p *nodepolicy.Policy) { p.Grind = &nodepolicy.Grind{Threads: -1} }, false},
+		{"grind layer floor", func(p *nodepolicy.Policy) { p.Grind = &nodepolicy.Grind{LayerFloor: 20, LayerRate: 50} }, true},
+		{"grind layer rate", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{LayerFloor: 20, LayerRate: nodepolicy.MaxLayerRate + 1}
+		}, false},
 		{"grind too many", func(p *nodepolicy.Policy) {
 			p.Grind = &nodepolicy.Grind{Jobs: make([]nodepolicy.GrindJob, nodepolicy.MaxGrindJobs+1)}
 		}, false},

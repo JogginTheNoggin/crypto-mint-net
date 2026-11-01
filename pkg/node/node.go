@@ -20,6 +20,7 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -27,10 +28,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
@@ -78,6 +81,8 @@ type Node struct {
 	logs   map[engine.PoolKey]*store.Log
 	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
 	failed sync.Map     // pool keys whose store stopped, logged once
+	// kept paces the extra layers a layer floor keeps (RED-018).
+	kept   keptBucket
 	cmin   int
 	unlock func()
 	closed bool
@@ -408,8 +413,8 @@ func (n *Node) emit(ev Event) {
 	if len(n.observers) == 0 {
 		return
 	}
-	if st, err := n.eng.Status(ev.Key); err == nil {
-		ev.Weight = st.Weight
+	if _, _, w, err := n.eng.Tip(ev.Key); err == nil {
+		ev.Weight = w
 	}
 	for _, f := range n.observers {
 		f(ev)
@@ -557,12 +562,16 @@ func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Ha
 		return layer.Layer{}, engine.LayerResult{}, ErrClosed
 	}
 	// Grinding holds neither lock, so it never stalls peers or the RPC.
+	type found struct {
+		l layer.Layer
+		s int
+	}
 	var mu sync.Mutex
-	var kept []layer.Layer
+	var kept []found
 	if g.Floor > 0 {
-		g.Keep = func(l layer.Layer) {
+		g.Keep = func(l layer.Layer, s int) {
 			mu.Lock()
-			kept = append(kept, l)
+			kept = append(kept, found{l, s})
 			mu.Unlock()
 		}
 	}
@@ -572,16 +581,66 @@ func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Ha
 	}
 	res, err := n.HandleLayer(k, l, engine.Local)
 	// With a floor, the other layers found above it go in too: each adds
-	// its own credit, and none takes any away (ORANGE-010, D118).
+	// its own credit, and none takes any away (ORANGE-010, D118). The
+	// strongest go first: at most KeepMax of a search (ORANGE-016's
+	// layer_rate), at most MaxKeptLayers, and no more than KeptPerSecond
+	// across searches, under the rate peers accept; the rest are dropped,
+	// which loses only credit the node chose not to send (RED-018, D120).
+	slices.SortFunc(kept, func(a, b found) int {
+		if a.s != b.s {
+			return b.s - a.s
+		}
+		return cmp.Compare(a.l.Nonce, b.l.Nonce)
+	})
+	took := 0
 	for _, o := range kept {
-		if o.Nonce == l.Nonce {
+		if g.KeepMax > 0 && took >= g.KeepMax {
+			break
+		}
+		if o.l.Nonce == l.Nonce {
 			continue
 		}
-		if _, kerr := n.HandleLayer(k, o, engine.Local); kerr == nil && g.KeptCount != nil {
+		if took == MaxKeptLayers || !n.kept.take(time.Now()) {
+			break
+		}
+		took++
+		if _, kerr := n.HandleLayer(k, o.l, engine.Local); kerr == nil && g.KeptCount != nil {
 			g.KeptCount.Add(1)
 		}
 	}
 	return l, res, err
+}
+
+// MaxKeptLayers is the most layers above the floor one search sends
+// besides its strongest, and KeptPerSecond the most a node sends a second
+// across searches: half what a peer accepts from one address (100 a
+// second, tracking's layer budget), so an honest grinder is never flagged.
+const (
+	MaxKeptLayers = 16
+	KeptPerSecond = 50
+)
+
+// keptBucket is a token bucket of KeptPerSecond, holding a second's worth.
+type keptBucket struct {
+	mu     sync.Mutex
+	tokens float64
+	at     time.Time
+}
+
+func (b *keptBucket) take(now time.Time) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.at.IsZero() {
+		b.tokens = KeptPerSecond
+	} else {
+		b.tokens = min(KeptPerSecond, b.tokens+now.Sub(b.at).Seconds()*KeptPerSecond)
+	}
+	b.at = now
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
 }
 
 // Engine returns the engine, for reading. Changes must go through the

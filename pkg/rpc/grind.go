@@ -130,7 +130,7 @@ func (h *Handler) grindSetSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.Grind = &g
-	if g.Device == "" && g.Threads == 0 && len(g.Jobs) == 0 {
+	if g.IsZero() {
 		p.Grind = nil
 	}
 	if err := p.Validate(); err != nil {

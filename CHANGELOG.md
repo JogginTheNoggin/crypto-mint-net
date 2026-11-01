@@ -99,3 +99,10 @@ built.
   SIMD lane grinders in a `GOEXPERIMENT=simd` build; jobs stop at once
   and report progress each second; `poo grind schedule remove -target`
   guards against a stale row number.
+- **Held branches and many layers (D121, D122):** a node that holds a
+  heavier branch's entries without their layers now switches to it; layers
+  added deep in a shared ledger are fetched; an entry with any number of
+  layers is counted (wire types 27, 52, 53); budgets count only what they
+  let through. Witnesses of large transactions are checked on every core,
+  events no longer walk every branch, and `grind.layer_rate` bounds what
+  `layer_floor` sends (`poo grind schedule set -layer-rate`).

@@ -40,6 +40,9 @@ func NewWriter(capacity int) *Writer {
 // Bytes returns the encoded bytes. The slice aliases the Writer's buffer.
 func (w *Writer) Bytes() []byte { return w.buf }
 
+// Reset empties the Writer, keeping its buffer.
+func (w *Writer) Reset() { w.buf = w.buf[:0] }
+
 // Len returns the number of bytes written so far.
 func (w *Writer) Len() int { return len(w.buf) }
 
@@ -216,8 +219,13 @@ func (r *Reader) VarBytes(max int) []byte {
 // Count reads a U32 list length, refusing counts above max or counts that
 // could not fit in the remaining input given minItemSize bytes per item.
 func (r *Reader) Count(max, minItemSize int) int {
-	n := int(r.U32())
+	u := r.U32()
 	if r.err != nil {
+		return 0
+	}
+	n := int(u)
+	if n < 0 { // a count past int on a 32-bit build
+		r.err = ErrShort
 		return 0
 	}
 	if max > 0 && n > max {
