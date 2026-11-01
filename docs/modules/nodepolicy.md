@@ -65,7 +65,7 @@ D25). Nothing here changes what is valid.
   },
   "log": {"level": "info", "format": "plain"},
   "grind": {
-    "device": "auto", "threads": 0, "layer_floor": 0,
+    "device": "auto", "threads": 0, "layer_floor": 0, "layer_rate": 10,
     "jobs": [
       {"target": "pending"},
       {"target": "tip", "series": "…", "pools": [1], "hours": "22-06"}
@@ -78,7 +78,10 @@ D25). Nothing here changes what is valid.
 grinding finds at or above that strength (raised to the series' minimum),
 not only the strongest of each search: several times the credit for the
 same work, and more layers sent (ORANGE-010, D118). 0 keeps today's
-behaviour. `p2p.fast_catch_up` and `p2p.depth_limit` are no longer used: a
+behaviour. `grind.layer_rate` bounds the layers a second the floor adds,
+strongest first, so peers' layer budgets take every one: 0 means 10, and
+at most 1,000 (ORANGE-016, D122). Both are set by `poo grind schedule set
+-layer-floor S -layer-rate R`. `p2p.fast_catch_up` and `p2p.depth_limit` are no longer used: a
 chase finds a split at any depth (D116). They still load and are ignored.
 
 Every field but `format` may be left out; the defaults are the provisional

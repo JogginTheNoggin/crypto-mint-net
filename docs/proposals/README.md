@@ -51,3 +51,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-016](source/ORANGE-016-layer-floor-traffic.md) | Source | layer_floor traffic measured; bound it with layer_rate | adopted (D122) |
 | [ORANGE-017](source/ORANGE-017-encode-large-items-once.md) | Source | Large entry memory measured; encode a large item once | proposed |
 | [ORANGE-018](source/ORANGE-018-chase-request-pace.md) | Source | The B1 chase measured; pace requests under the sender's budget | proposed |
+| [GREEN-033](source/GREEN-033-parts-in-data-dir.md) | Source | Put large-entry parts in the data directory, and document `layer_rate` | proposed (prototyped) |
