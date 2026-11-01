@@ -484,13 +484,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 			// it), nor while one starts or another command writes
 			// (GUI-017, D134). A leftover rpc.addr from a crash holds no
 			// lock, so the change goes on.
-			unlock, err := nodepolicy.Lock(dir)
-			if errors.Is(err, nodepolicy.ErrLocked) {
-				if readErr != nil {
-					return fmt.Errorf("the node is running but its schedule could not be read, so nothing was changed: %w", readErr)
-				}
-				return fmt.Errorf("a node or another command holds %s, and no node answered, so nothing was changed: try again once it has started or ended: %w", dir, err)
-			}
+			unlock, err := lockPolicy(dir, "schedule", readErr)
 			if err != nil {
 				return err
 			}

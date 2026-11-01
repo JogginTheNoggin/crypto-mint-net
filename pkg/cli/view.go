@@ -276,8 +276,10 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 		}
 		*x.dst = &h
 	}
+	var nodeErr error
 	if cl, err := dialNode(out, dir); err == nil {
 		r, err := cl.Follow(req)
+		nodeErr = err
 		if err == nil {
 			if r.Reloading {
 				waitBack(out, dir)
@@ -293,8 +295,14 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 		if errors.As(err, &re) {
 			return err
 		}
-		// The node did not answer: change the file instead.
+		// The node did not answer: change the file instead, under the
+		// lock a running node holds (RED-030).
 	}
+	unlock, err := lockPolicy(dir, "follow list", nodeErr)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	path := filepath.Join(dir, nodepolicy.FileName)
 	p, err := nodepolicy.Load(path)
 	if err != nil {

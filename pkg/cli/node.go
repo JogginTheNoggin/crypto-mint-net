@@ -131,6 +131,13 @@ func initCmd(args []string, out io.Writer) error {
 		return fmt.Errorf("%s exists; use -force to replace its settings", path)
 	}
 	if *w.dir != "" {
+		// Not behind a running node, nor while another command writes
+		// (RED-030, D136).
+		unlock, err := lockPolicy(w.resolve(), "node policy", nil)
+		if err != nil {
+			return err
+		}
+		defer unlock()
 		if err := nodepolicy.Save(path, p); err != nil {
 			return err
 		}

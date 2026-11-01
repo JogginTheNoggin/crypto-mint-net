@@ -26,6 +26,16 @@ type reqWindow struct {
 	until  time.Time
 	misses int
 	reply  time.Time
+	// probing marks a learned pace not yet shown to be the peer's budget:
+	// it doubles each window in which the peer replied (raised is when it
+	// last did), and ends at Config.RequestPace, so a peer that was only
+	// slow, or lost two requests, is soon served at the pace it allows. A
+	// second learning while probing shows the budget: the pace then holds
+	// as D133 says, and known keeps it, so a later drop with as much sent
+	// holds at once (RED-028, D136).
+	probing bool
+	raised  time.Time
+	known   int
 }
 
 // paceLearn is how many windows a learned pace lasts after the last
@@ -53,17 +63,39 @@ func (w *reqWindow) dropped(sent, now time.Time, window time.Duration) {
 		return
 	}
 	limit := max(1, n*3/4)
-	if w.limit == 0 || now.After(w.until) || limit < w.limit {
-		w.limit = limit
+	active := w.limit > 0 && !now.After(w.until)
+	switch {
+	case active && !w.probing:
+		// Held: a lower pace replaces it only when as much as half of it
+		// was sent, since drops with little sent say nothing of the
+		// budget (RED-028).
+		if limit < w.limit && n >= w.limit/2 {
+			w.limit = limit
+		}
+	case (active && w.probing) || (w.known > 0 && n >= w.known):
+		// The peer drops again while probed, or at what it dropped at
+		// before: its budget, which holds.
+		w.limit, w.probing, w.known = limit, false, limit
+	default:
+		// The first drops say little about the budget: a pace to probe
+		// up from, not to hold.
+		w.limit, w.probing, w.raised = limit, true, now
 	}
 	w.until = now.Add(paceLearn * window)
 }
 
 // answered notes a reply from the peer at now: the misses in a row start
-// again.
-func (w *reqWindow) answered(now time.Time) {
+// again, and a pace being probed doubles once a window, ending once it
+// reaches pace (Config.RequestPace; 0 or less for none).
+func (w *reqWindow) answered(now time.Time, pace int, window time.Duration) {
 	w.mu.Lock()
 	w.misses, w.reply = 0, now
+	if w.probing && w.limit > 0 && !now.After(w.until) && now.Sub(w.raised) >= window {
+		w.limit, w.raised = w.limit*2, now
+		if pace > 0 && w.limit >= pace {
+			w.limit, w.probing = 0, false
+		}
+	}
 	w.mu.Unlock()
 }
 

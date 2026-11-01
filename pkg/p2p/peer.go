@@ -689,7 +689,7 @@ func (h *Host) ask(p *peer, pi *poolInfo, q wire.Request, f func(wire.Message) e
 		}
 		pos++
 		if pos == 1 {
-			p.reqs.answered(time.Now())
+			p.reqs.answered(time.Now(), h.cfg.RequestPace, h.cfg.RequestPaceWindow)
 		}
 		if !replyFits(q.Type(), m.Type) || (pos > 1 && m.Type != first) || m.Chunk != pos {
 			err := fmt.Errorf("%w: %s chunk %d in reply to %s", wire.ErrMalformed, m.Type, m.Chunk, q.Type())
