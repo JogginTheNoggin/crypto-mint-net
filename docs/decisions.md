@@ -2081,3 +2081,40 @@ a chase takes in after checking their work are not charged.
   the whole job (D125).
 - **Why:** Measured or found in Round 9 Part B and cleared by Black.
 - **Tier:** Implementation (node policy, the RPC and the CLI).
+
+### D131. Round 10 fixes: RED-026, RED-027 (BLUE-011)
+
+- **Decision:**
+  - **RED-026.** `progress.counted` holds the entries whose layers were
+    counted, not a hash for each layer. An entry listed again is not
+    counted again. Within one reply an entry's layers are told apart by
+    nonce, and `layersFrom` passes on only layers not read before, since
+    D124's order check already tells which ones in a page repeat. So kept
+    progress holds nothing for each layer.
+  - At `ProgressGrace` a departed sender's progress loses its parts file
+    and is cut down to its common entry (a topping-up progress, which
+    holds a page at most, keeps the rest). It is kept to `ProgressTTL` as
+    D129 says, so C-6 holds. A sender that comes back lists and counts
+    again from the common entry.
+  - **RED-027.** A fetch about to wait for disk space removes, one at a
+    time and lowest first, the parts files of kept chases that rank below
+    it, connected or not, until there is room. The order is:
+    - a departed sender's;
+    - then one whose last chase asked for parts and took none;
+    - then less shown (C-2's order);
+    - then fewer bytes held.
+    A chase that ranks at or above the waiting one keeps its parts, so the
+    first large entry to fetch always gets its room, and two fetches never
+    take turns throwing each other's away.
+- **Why:** RED-026: a sender could leave behind about 53 bytes of kept
+  progress for each 8-byte layer it sent, for an hour. RED-027: a
+  connected sender that stopped sending held the disk reserve, so no
+  other large entry was fetched.
+- **Tier:** Implementation (node policy). No consensus change: no rule of
+  validity or selection, and no byte form, changes. No new limit.
+- **For Black:**
+  - Nothing here refuses a heavier ledger. What is forgotten is asked
+    for again from the sender.
+  - The host-wide byte budget Red suggested is not added. It would let
+    cheap worked progress make an honest chase that is still counting
+    forget its count over and over (D115).

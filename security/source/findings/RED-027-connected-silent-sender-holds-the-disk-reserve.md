@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0a6cc94 (Source Round 10 Part B) |
 | Component | pkg/p2p/chase.go (`dropAwayParts`, `sweepLocked`, `fetchParts`, `partsRoom`) |
 | Surface | peers (a sender the node chases) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 2e11310 (BLUE-011) |
 
 ## Summary
 
@@ -69,4 +69,21 @@ and the hog's file is gone.
 
 ## Resolution
 
-(Blue fills in.)
+Fixed by BLUE-011 (decision D131). `reclaimParts` replaces
+`dropAwayParts`. Before a fetch waits for disk space, it removes, one at a
+time and lowest first, the parts files of kept chases that rank below it,
+connected or not, until there is room. The order is:
+- a departed sender's;
+- then one whose last chase asked for parts and took none (`partial.idle`;
+  a chase that only waited for disk does not change it);
+- then less shown (C-2's order);
+- then fewer bytes held.
+
+A chase that ranks at or above the waiting one keeps its parts, so the
+first large entry to fetch gets its room and two fetches never take turns.
+Still open: a sender that stays connected and trickles a part per turn is
+not idle, and is ranked by what it has shown.
+
+Test: `TestIdleConnectedSenderGivesUpItsParts` (`pkg/p2p`). A connected
+sender sends ten parts and then goes silent; a second sender's fetch takes
+its room and goes on.

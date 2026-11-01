@@ -196,13 +196,22 @@ budget only delays it (Black's B2, D124; RED-024, D128). A stall after
 the chase took something in (entries, layers, parts or counted work) is
 `chase.Slowed`: the sender waits the first backoff step and its doubling
 starts again, so a steady slow sender is not pushed to an hour between
-slices. A kept parts file goes once its sender has been disconnected for
-`ProgressGrace` (2 minutes), and a fetch that would wait for disk space
-first removes the parts files of senders that are not connected
-(RED-023, D128). The rest of the progress goes once no chase has taken it
-up for `ProgressTTL` (an hour), counted from the end of its sender's
-backoff, so it always outlasts the wait for its next turn (Black's C-6,
-D129). A chase that waits for disk space logs a warning and
+slices. Kept progress holds nothing for each layer: it remembers which
+entries had their layers counted, an entry's layers are told apart within
+the reply that carries them, and a many-layers page passes on only the
+layers not read before (RED-026, D131). Once its sender has been
+disconnected for `ProgressGrace` (2 minutes) a kept progress loses its
+parts file and is cut down to its common entry; what it counted is asked
+for again if the sender comes back (RED-023, D128; RED-026, D131). A fetch
+that would wait for disk space first removes, one at a time and lowest
+first, the parts files of kept chases that rank below it, connected or
+not: a departed sender's, then one whose last chase asked for parts and
+took none, then one that has shown less (C-2's order), then one holding
+fewer bytes. A chase that has shown more keeps its parts, so two fetches
+never take turns throwing each other's away (RED-027, D131). The progress
+itself goes once no chase has taken it up for `ProgressTTL` (an hour),
+counted from the end of its sender's backoff, so it always outlasts the
+wait for its next turn (Black's C-6, D129). A chase that waits for disk space logs a warning and
 shows as waiting in `poo chases` and `poo doctor` (D124). An entry pushed over the
 sender's revert budget is not dropped for good: its branch goes to the
 chase queue (D116). Only hashes shown false go on the known-bad list: an

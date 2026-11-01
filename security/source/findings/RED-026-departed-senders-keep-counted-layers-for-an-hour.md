@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | high |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 0a6cc94 (Source Round 10 Part B) |
 | Component | pkg/p2p/chase.go (`progress.counted`, `marks`, `branch`, `saveProgress`, `sweepLocked`), pkg/p2p/host.go (`ProgressTTL`) |
 | Surface | peers (a sender the node chases) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 2e11310 (BLUE-011) |
 
 ## Summary
 
@@ -79,4 +79,23 @@ within a few MB of its base and `poo chases` shows no progress for it.
 
 ## Resolution
 
-(Blue fills in.)
+Fixed by BLUE-011 (decision D131). `progress.counted` now holds
+the entries whose layers were counted, not each layer's hash. An entry
+listed again is skipped, an entry's layers are told apart by nonce within
+the reply that carries them, and `layersFrom` passes on only the layers
+not read before (D124's order check already tells which ones in a page
+repeat). So kept progress holds nothing for each layer. At `ProgressGrace`
+a departed sender's progress also loses `marks`, `branch` and the count,
+and is cut down to its common entry. It is kept to `ProgressTTL` as D129
+requires (Black's C-6), and a sender that comes back counts again.
+
+The host-wide byte budget is not added. Forgetting the least shown,
+connected or not, would let cheap worked progress make an honest chase
+that is still counting forget its count over and over, which D115 rules
+out. What remains for each entry (the hash listed, its mark and the entry
+fetched) is what RED-015 left. Showing kept bytes in `poo chases` is also
+not done.
+
+Tests: `TestKeptProgressHoldsNothingPerLayer` (`pkg/p2p`). 2,000 layers
+are counted and the chase stalls; the kept progress counts one entry, and
+after the sender leaves it is cut down but kept.
