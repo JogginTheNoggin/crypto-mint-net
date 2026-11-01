@@ -154,6 +154,12 @@ type Group struct {
 	Asked bool `json:"asked,omitempty"`
 	// Denied lists priority peers that answered nothing heavier.
 	Denied []string `json:"denied,omitempty"`
+	// Waiting is why the group's last chase stopped for a while (it
+	// yielded or stalled), and WaitingSince when it first stopped for
+	// that reason, so an operator sees a chase that waits, such as one
+	// waiting for disk space (Black's RED-022 condition, D124).
+	Waiting      string    `json:"waiting,omitempty"`
+	WaitingSince time.Time `json:"waiting_since,omitzero"`
 
 	running string // the sender a chase of it runs with, if any
 }
@@ -613,10 +619,19 @@ const (
 	// no backoff, so a long chase goes on later instead of being dropped
 	// (consensus audit P2, P4; D116).
 	Yield
+	// Stalled: a request to the sender timed out. The sender is backed off
+	// as after Nowhere, but it stays in the group and the chase's progress
+	// is kept, so a slow sender, or one whose budget is below this node's
+	// pace, only delays the chase (Black's B2, D124).
+	Stalled
 )
 
+// Keeps reports whether a chase that ended so keeps its progress for the
+// next chase of its group with the same sender.
+func (o Outcome) Keeps() bool { return o == Yield || o == Stalled }
+
 func (o Outcome) String() string {
-	return [...]string{"switched", "nowhere", "false", "gone", "caught", "requeue", "yield"}[o]
+	return [...]string{"switched", "nowhere", "false", "gone", "caught", "requeue", "yield", "stalled"}[o]
 }
 
 // Finish ends the running chase of group id and returns the group as it
@@ -654,8 +669,26 @@ func (q *Queue) Finish(id uint64, o Outcome, bad []hash.Hash, now time.Time) Gro
 		b.until = now.Add(q.cfg.YieldWait)
 		q.backoff[sender] = b
 		g.Evidence = q.evidenceLocked(g)
+	case Stalled:
+		q.backoffLocked(sender, now)
+		g.Evidence = q.evidenceLocked(g)
 	}
 	return out
+}
+
+// Note records why group id's chase stopped for a while. A new reason
+// restarts WaitingSince; an empty one clears it.
+func (q *Queue) Note(id uint64, why string, now time.Time) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	g := q.groups[id]
+	if g == nil || g.Waiting == why {
+		return
+	}
+	g.Waiting, g.WaitingSince = why, now
+	if why == "" {
+		g.WaitingSince = time.Time{}
+	}
 }
 
 func (q *Queue) dropLocked(g *Group) {

@@ -201,6 +201,47 @@ func TestGrindEndpoints(t *testing.T) {
 	}
 	c.GrindSetSchedule(nodepolicy.Grind{})
 	c.GrindStopAll("")
+
+	// GUI-014 (D125): an add and a remove made at once against the same
+	// reading both take effect, a stale removal is refused, and a whole
+	// replacement can be tied to the version it was made from.
+	tip, night := nodepolicy.GrindJob{Target: "tip"}, nodepolicy.GrindJob{Target: "tip", Hours: "0-23"}
+	if _, err := c.GrindEditSchedule(nodepolicy.GrindEdit{Add: []nodepolicy.GrindJob{tip, night}}); err != nil {
+		t.Fatal(err)
+	}
+	read, err := c.GrindSchedule()
+	must(t, err)
+	var wg sync.WaitGroup
+	for _, e := range []nodepolicy.GrindEdit{
+		{Remove: []nodepolicy.GrindRemove{{N: 1, Job: tip}}},
+		{Add: []nodepolicy.GrindJob{{Target: "pending"}}},
+	} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.GrindEditSchedule(e); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	sr, err = c.GrindSchedule()
+	if err != nil || len(sr.Grind.Jobs) != 2 || sr.Grind.Jobs[0].Hours != "0-23" || sr.Grind.Jobs[1].Target != "pending" {
+		t.Fatalf("after edits at once %+v %v", sr, err)
+	}
+	if _, err := c.GrindEditSchedule(nodepolicy.GrindEdit{Remove: []nodepolicy.GrindRemove{{N: 1, Job: tip}}}); code(err) != rpc.CodeConflict {
+		t.Fatalf("stale remove: %v", err)
+	}
+	if _, err := c.GrindReplaceSchedule(nodepolicy.Grind{}, read.Version); code(err) != rpc.CodeConflict {
+		t.Fatalf("replace of an old version: %v", err)
+	}
+	if _, err := c.GrindReplaceSchedule(nodepolicy.Grind{}, sr.Version); err != nil {
+		t.Fatalf("replace of the current version: %v", err)
+	}
+	if _, err := vc.GrindEditSchedule(nodepolicy.GrindEdit{RemoveAll: true}); code(err) != rpc.CodeForbidden {
+		t.Fatalf("view token edit: %v", err)
+	}
+	c.GrindStopAll("")
 }
 
 // TestGrindWithoutManager: an interface with no grind manager still

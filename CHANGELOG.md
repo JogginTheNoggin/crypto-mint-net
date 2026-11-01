@@ -106,3 +106,13 @@ built.
   let through. Witnesses of large transactions are checked on every core,
   events no longer walk every branch, and `grind.layer_rate` bounds what
   `layer_floor` sends (`poo grind schedule set -layer-rate`).
+- **Long chases always go on (D124 to D126):** a chase paces its requests
+  under the sender's budget and keeps its progress through a timeout;
+  paging one entry's layers yields each page and checks their order; step
+  4 moves on only past what it counted; a chase waiting for disk space
+  shows in `poo chases`, `poo doctor` and the metrics. Grind schedule
+  changes are made on the node (`POST /v1/grind/schedule/edit`, `If-Match`
+  on `PUT`), so two at once both apply. Large items are encoded once, and
+  large-entry parts live in the data directory; `grind.layer_rate` is at most 50
+  a second, so a node's own layers stay inside peers' default budget
+  (D127).

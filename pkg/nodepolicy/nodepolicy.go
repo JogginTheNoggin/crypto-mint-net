@@ -148,10 +148,13 @@ const MaxGrindThreads = 1024
 // The layers a second layer_floor adds by default, and at most. Peers
 // take 6,000 layers a minute from one node by default (tracking), 100 a
 // second, and drop the rest, the strongest too, while it sends more
-// (ORANGE-016).
+// (ORANGE-016); a node that keeps sending more is flagged once a minute,
+// timed out and then blocked. The most is half that budget, so the
+// floor's layers leave room for the node's other layers and those it
+// forwards (GUI-015, D127). It bounds only what this node sends.
 const (
 	DefaultLayerRate = 10
-	MaxLayerRate     = 1000
+	MaxLayerRate     = 50
 )
 
 // ParseHours reads a window "FROM-TO" of whole local hours, 0 to 23; TO

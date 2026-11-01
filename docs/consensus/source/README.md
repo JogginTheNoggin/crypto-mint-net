@@ -206,4 +206,5 @@ in plain words.
 
 | Round | File | Result |
 | --- | --- | --- |
-| (none yet) | | |
+| Source Round 7 | [ROUND-7.md](ROUND-7.md) | 13 clear, 4 with conditions, 1 blocked: hard fork (B1, reproduced); no consensus suggestions |
+| Source Round 8 | [ROUND-8.md](ROUND-8.md) | 13 clear, 2 with conditions (C-5 on BLUE-009, RED-022), 2 blocked: hard fork (B2 measured by Orange, B3 by reading); B1 fixed; no consensus suggestions |

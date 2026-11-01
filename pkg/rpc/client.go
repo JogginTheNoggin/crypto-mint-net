@@ -67,6 +67,11 @@ func DialView(dir string) (*Client, error) {
 }
 
 func (c *Client) do(method, path string, body, out any) error {
+	return c.doHeader(method, path, nil, body, out)
+}
+
+// doHeader is do with extra request headers.
+func (c *Client) doHeader(method, path string, header map[string]string, body, out any) error {
 	var rd *bytes.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -84,6 +89,9 @@ func (c *Client) do(method, path string, body, out any) error {
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, v := range header {
+		req.Header.Set(k, v)
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -214,10 +222,28 @@ func (c *Client) GrindSchedule() (ScheduleReply, error) {
 }
 
 // GrindSetSchedule replaces node.json's grind section; the node applies
-// it at once.
+// it at once. A change made meanwhile by another client is lost: use
+// GrindEditSchedule, or GrindReplaceSchedule with the version read.
 func (c *Client) GrindSetSchedule(g nodepolicy.Grind) (ScheduleReply, error) {
 	var r ScheduleReply
 	return r, c.do("PUT", "/v1/grind/schedule", g, &r)
+}
+
+// GrindReplaceSchedule replaces node.json's grind section only if it is
+// still at version, as GrindSchedule reported it; otherwise it fails with
+// CodeConflict (GUI-014, D125).
+func (c *Client) GrindReplaceSchedule(g nodepolicy.Grind, version string) (ScheduleReply, error) {
+	var r ScheduleReply
+	return r, c.doHeader("PUT", "/v1/grind/schedule", map[string]string{"If-Match": `"` + version + `"`}, g, &r)
+}
+
+// GrindEditSchedule applies e to node.json's grind section on the node,
+// under its lock, so changes made at once all take effect; the node
+// applies the result at once. A stale removal fails with CodeConflict
+// (GUI-014, D125).
+func (c *Client) GrindEditSchedule(e nodepolicy.GrindEdit) (ScheduleReply, error) {
+	var r ScheduleReply
+	return r, c.do("POST", "/v1/grind/schedule/edit", e, &r)
 }
 
 func mintQuery(series hash.Hash, serial uint64) url.Values {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
 
@@ -278,7 +279,20 @@ func p2pCheck(out io.Writer, dir string, p nodepolicy.Policy) Check {
 		}
 	}
 	notes = append(notes, fmt.Sprintf("%d connected, %d in the peer book", len(pr.Peers), len(pr.Book)))
+	if cr, err := cl.Chases(); err == nil {
+		for _, g := range cr.Groups {
+			if g.Waiting == p2p.WaitDisk {
+				// Black's RED-022 condition (D124): a heavier ledger
+				// waiting on disk space is not a healthy node.
+				result = checkWarn
+				notes = append(notes, fmt.Sprintf("a chase in pool %s has waited for disk space since %s", g.Pool, g.WaitingSince.Format(time.RFC3339)))
+			}
+		}
+	}
 	c := Check{Name: "p2p", Result: result, Detail: strings.Join(notes, "; ")}
+	if c.Result == checkWarn && strings.Contains(c.Detail, "disk space") {
+		c.Fix = "free disk space where the node keeps its data (its parts directory); the chase goes on by itself"
+	}
 	if len(pr.Peers) == 0 && len(p.P2P.Peers) == 0 && len(p.P2P.Registries) == 0 {
 		c.Result = checkWarn
 		c.Fix = "no peers are set; add p2p.peers or p2p.registries so the node can find others"

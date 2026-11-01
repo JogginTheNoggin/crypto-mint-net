@@ -104,9 +104,16 @@ func (t *Tx) TID(h hash.Func) hash.Hash { return h(hash.TagTx, t.Body()) }
 
 // Encode returns the full transaction: the body followed by the witnesses.
 func (t *Tx) Encode() []byte {
-	w := encoding.NewWriter(256)
+	w := encoding.NewWriter(t.Size())
 	t.EncodeTo(w)
 	return w.Bytes()
+}
+
+// Size returns len(t.Encode()) without building it (ORANGE-017).
+func (t *Tx) Size() int {
+	c := encoding.NewCounter()
+	t.EncodeTo(c)
+	return c.Len()
 }
 
 // EncodeTo writes the full transaction to w.

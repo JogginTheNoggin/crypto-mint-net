@@ -15,6 +15,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -83,6 +85,9 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 		return false, errors.Join(err, n.Close())
 	}
 	cfg.Tracker = tr
+	if cfg.PartsDir, err = partsDir(dir, nlog); err != nil {
+		return false, errors.Join(err, n.Close())
+	}
 	host, err := p2p.New(n, cfg)
 	if err != nil {
 		return false, errors.Join(err, n.Close())
@@ -178,4 +183,33 @@ func newGrind(n *node.Node, hub *watch.Hub) *grind.Manager {
 	gm.OnEvent(hub.PublishGrind)
 	gm.Schedule(n.Policy().Grind)
 	return gm
+}
+
+// PartsDirName is the directory, in the node's data directory, where large
+// entries are put together from their parts (D120). It sits beside the
+// store rather than in the system's temporary directory, which is often
+// in memory and shared, and a crash's leftovers are removed when the node
+// starts again (GREEN-033).
+const PartsDirName = "parts"
+
+// partsDir makes dir's parts directory and removes the files a node that
+// stopped without cleaning up left there.
+func partsDir(dir string, log *slog.Logger) (string, error) {
+	pd := filepath.Join(dir, PartsDirName)
+	if err := os.MkdirAll(pd, 0o700); err != nil {
+		return "", err
+	}
+	old, err := filepath.Glob(filepath.Join(pd, "poo-parts-*"))
+	if err != nil {
+		return "", err
+	}
+	for _, f := range old {
+		if err := os.Remove(f); err != nil {
+			return "", err
+		}
+	}
+	if len(old) > 0 {
+		log.Info("removed parts left by an earlier run", "files", len(old))
+	}
+	return pd, nil
 }

@@ -183,9 +183,25 @@ type Config struct {
 	// where it stopped, so a listing is paced, never refused (RED-015,
 	// D120).
 	WeightlessPages int
+	// RequestPace is how many requests a chase sends one peer in
+	// RequestPaceWindow before it yields its turn and goes on later from
+	// where it stopped. It is under the request budget peers keep by
+	// default (tracking budget "request", 600 a minute): over that budget
+	// a peer drops requests unanswered, the chase times out and loses what
+	// it took in, and a long enough branch is never reached (D115,
+	// ORANGE-018). Negative: no pacing.
+	RequestPace int
+	// RequestPaceWindow is the window RequestPace counts over: the
+	// default request budget's window (one minute).
+	RequestPaceWindow time.Duration
 	// PartsDir is where large entries are put together from their parts
 	// ("": the system's temporary directory; RED-016).
 	PartsDir string
+	// PartsReserve is the free space a large entry's parts never take
+	// from their disk; the reserve is the larger of it and 2% of the
+	// disk. At the reserve a fetch waits and goes on later (RED-022,
+	// D123). 0: 1 GiB.
+	PartsReserve uint64
 	// LayersWhole is the most layers of one entry a layers reply carries;
 	// an entry with more has them paged (D121). It is at most, and by
 	// default, what one frame can hold.
@@ -233,15 +249,17 @@ func DefaultConfig() Config {
 		BackupPingEvery: 6 * time.Minute,
 		MaxMisses:       3,
 
-		Slots:           peers.DefaultSlots(),
-		ReviewEvery:     10 * time.Minute,
-		InactiveAfter:   30 * time.Minute,
-		DenialLimit:     3,
-		UnlistedConns:   8,
-		QueueShares:     [4]int{8, 4, 2, 1},
-		QueueLimit:      1024,
-		ChaseSlice:      2 * time.Minute,
-		WeightlessPages: 64,
+		Slots:             peers.DefaultSlots(),
+		ReviewEvery:       10 * time.Minute,
+		InactiveAfter:     30 * time.Minute,
+		DenialLimit:       3,
+		UnlistedConns:     8,
+		QueueShares:       [4]int{8, 4, 2, 1},
+		QueueLimit:        1024,
+		ChaseSlice:        2 * time.Minute,
+		WeightlessPages:   64,
+		RequestPace:       480,
+		RequestPaceWindow: time.Minute,
 	}
 }
 
@@ -346,6 +364,12 @@ func (c *Config) fill() {
 	if c.ChaseSlice == 0 {
 		c.ChaseSlice = d.ChaseSlice
 	}
+	if c.RequestPace == 0 {
+		c.RequestPace = d.RequestPace
+	}
+	if c.RequestPaceWindow < paceBuckets {
+		c.RequestPaceWindow = d.RequestPaceWindow
+	}
 	if c.WeightlessPages <= 0 {
 		c.WeightlessPages = d.WeightlessPages
 	}
@@ -354,6 +378,9 @@ func (c *Config) fill() {
 	}
 	if c.PartsOver <= 0 || c.PartsOver > maxWhole {
 		c.PartsOver = maxWhole
+	}
+	if c.PartsReserve == 0 {
+		c.PartsReserve = 1 << 30
 	}
 }
 

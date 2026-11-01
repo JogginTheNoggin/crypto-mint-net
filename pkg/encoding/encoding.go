@@ -30,6 +30,9 @@ var ErrTrailing = errors.New("encoding: trailing bytes")
 // Writer appends canonical encodings to a byte slice.
 type Writer struct {
 	buf []byte
+	// counting, set by NewCounter, adds lengths to n and keeps no bytes.
+	counting bool
+	n        int
 }
 
 // NewWriter returns a Writer with an initial capacity hint.
@@ -37,42 +40,72 @@ func NewWriter(capacity int) *Writer {
 	return &Writer{buf: make([]byte, 0, capacity)}
 }
 
+// NewCounter returns a Writer that keeps no bytes, only their number:
+// Len after encoding into it is the encoding's length, without building
+// it (ORANGE-017).
+func NewCounter() *Writer { return &Writer{counting: true} }
+
 // Bytes returns the encoded bytes. The slice aliases the Writer's buffer.
 func (w *Writer) Bytes() []byte { return w.buf }
 
 // Reset empties the Writer, keeping its buffer.
-func (w *Writer) Reset() { w.buf = w.buf[:0] }
+func (w *Writer) Reset() { w.buf, w.n = w.buf[:0], 0 }
 
 // Len returns the number of bytes written so far.
-func (w *Writer) Len() int { return len(w.buf) }
+func (w *Writer) Len() int {
+	if w.counting {
+		return w.n
+	}
+	return len(w.buf)
+}
 
 // Raw appends b with no length prefix. Use it only for fixed-width values
 // such as hashes and tags.
 func (w *Writer) Raw(b []byte) *Writer {
+	if w.counting {
+		w.n += len(b)
+		return w
+	}
 	w.buf = append(w.buf, b...)
 	return w
 }
 
 // U8 appends one byte.
 func (w *Writer) U8(v uint8) *Writer {
+	if w.counting {
+		w.n += 1
+		return w
+	}
 	w.buf = append(w.buf, v)
 	return w
 }
 
 // U16 appends a big-endian uint16.
 func (w *Writer) U16(v uint16) *Writer {
+	if w.counting {
+		w.n += 2
+		return w
+	}
 	w.buf = binary.BigEndian.AppendUint16(w.buf, v)
 	return w
 }
 
 // U32 appends a big-endian uint32.
 func (w *Writer) U32(v uint32) *Writer {
+	if w.counting {
+		w.n += 4
+		return w
+	}
 	w.buf = binary.BigEndian.AppendUint32(w.buf, v)
 	return w
 }
 
 // U64 appends a big-endian uint64.
 func (w *Writer) U64(v uint64) *Writer {
+	if w.counting {
+		w.n += 8
+		return w
+	}
 	w.buf = binary.BigEndian.AppendUint64(w.buf, v)
 	return w
 }

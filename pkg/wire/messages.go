@@ -409,7 +409,7 @@ func decodeEntryItem(r *encoding.Reader) EntryItem {
 
 // Size returns the encoded size of the item.
 func (it EntryItem) Size() int {
-	n := len(it.Entry.Encode()) + 1
+	n := it.Entry.Size() + 1
 	if it.HasLayers {
 		n += 4 + 8*len(it.Nonces)
 	}
