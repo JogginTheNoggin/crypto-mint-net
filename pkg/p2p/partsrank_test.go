@@ -26,6 +26,11 @@ func TestPartsRankTurns(t *testing.T) {
 		{"no turn yet: D132 stands", partsRank{slow: true, shown: trickler}, partsRank{slow: true, shown: file(true, 0, 100*mib, 0)}, false},
 		{"a turn against a moving file nearer its end", partsRank{shown: file(false, 4*mib, 100*mib, 90*mib)}, honest(0), false},
 		{"a turn against a moving file further from it", partsRank{shown: file(false, 4*mib, 100*mib, 10*mib)}, partsRank{slow: true, turn: true, shown: file(true, 0, 100*mib, 50*mib)}, true},
+		// ORANGE-022: between slow fetches, the one expected to finish
+		// first keeps the room, so two at the same pace never take turns.
+		{"same pace: the holder nearer its end keeps it", partsRank{slow: true, shown: file(true, 64<<10, 100*mib, 90*mib)}, honest(64 << 10), false},
+		{"same pace: a turn nearer its end takes it", partsRank{slow: true, shown: file(true, 64<<10, 100*mib, 10*mib)}, partsRank{slow: true, turn: true, shown: file(true, 64<<10, 100*mib, 50*mib)}, true},
+		{"a holder that slowed down gives it up", partsRank{slow: true, shown: file(true, 1<<10, 100*mib, 90*mib)}, honest(64 << 10), true},
 		{"a departed sender's file goes first", partsRank{away: true, shown: file(false, 4*mib, 100*mib, 99*mib)}, honest(0), true},
 	}
 	for _, c := range cases {

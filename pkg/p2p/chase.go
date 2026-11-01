@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"slices"
@@ -845,10 +846,12 @@ func (h *Host) reclaimParts(st *progress, room func() bool) bool {
 // come would hold the room for good. A chase that took none yet (its one
 // request was lost) has its turn against any slow file. With its turn it
 // asks; a chase that then takes in partsMoving is moving and keeps the
-// room, and one that is slow again gives it back to the next turn, so two
-// slow fetches take turns, and the one that takes in more each turn
-// keeps the room. To keep it against an honest slow fetch a trickler
-// must send as much each chase as the honest sender does.
+// room. Against a slow file, the turn takes the room only if it would
+// finish first (finishesFirst: bytes to come over the last chase's
+// intake), so two slow fetches never take turns throwing each other's
+// parts away; the one nearer its end at its pace keeps the room until it
+// finishes or slows (ORANGE-022). To keep it against an honest slow
+// fetch a trickler must keep a pace that finishes first, and then finish.
 type partsRank struct {
 	away, slow bool
 	// turn: a slow waiting chase that has waited partsTurn (only the
@@ -862,7 +865,12 @@ func (a partsRank) below(b partsRank) bool {
 		return a.away
 	}
 	if b.turn && a.slow {
-		return b.shown.partsLast == 0 || b.shown.partsLast >= a.shown.partsLast
+		// The one expected to finish first keeps the room: what each has
+		// still to come over what its last chase took in. Two slow
+		// fetches then never take turns throwing each other's parts
+		// away, and a trickler keeps the room only while it would finish
+		// first, which it must then do (ORANGE-022).
+		return b.shown.partsLast == 0 || finishesFirst(b.shown, a.shown)
 	}
 	if a.slow != (b.slow && !b.turn) {
 		return a.slow
@@ -874,6 +882,23 @@ func (a partsRank) below(b partsRank) bool {
 		return false
 	}
 	return a.shown.partsToCome() > b.shown.partsToCome()
+}
+
+// finishesFirst reports whether fetch x, at the rate its last chase took
+// parts in, would finish in fewer chases than y: x's bytes to come over
+// x's last intake, against y's, compared exactly. A fetch that took
+// nothing in yet never finishes first; between two at the same pace the
+// one nearer its end does (ORANGE-022).
+func finishesFirst(x, y *progress) bool {
+	if x.partsLast == 0 {
+		return false
+	}
+	if y.partsLast == 0 {
+		return true
+	}
+	xh, xl := bits.Mul64(x.partsToCome(), y.partsLast)
+	yh, yl := bits.Mul64(y.partsToCome(), x.partsLast)
+	return xh < yh || xh == yh && xl < yl
 }
 
 // partsTurn is how long a slow chase waits for room before it has its
