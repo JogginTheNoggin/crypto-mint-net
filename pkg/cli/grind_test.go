@@ -291,3 +291,13 @@ func TestRenewSurvivesAFailure(t *testing.T) {
 		t.Fatalf("warned %d times: %q", n, warn.String())
 	}
 }
+
+// A bench that measures nothing says why rather than printing []
+// (GREEN-035).
+func TestGrindBenchNothingMeasured(t *testing.T) {
+	var out strings.Builder
+	err := run([]string{"grind", "bench", "-threads", "2000", "-seconds", "0.01"}, &out)
+	if err == nil || !strings.Contains(err.Error(), "threads") {
+		t.Fatalf("bench -threads 2000: %v, %q", err, out.String())
+	}
+}

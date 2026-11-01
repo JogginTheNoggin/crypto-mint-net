@@ -197,6 +197,7 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 	devs := grind.Default.Detect()
 	ctx := contextOf(out)
 	rows := []grind.Bench{}
+	var skipped error // why the last device was passed over
 	for _, id := range ids {
 		for _, d := range devs {
 			if *device != "" && d.ID != *device {
@@ -207,6 +208,7 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 				if *device != "" {
 					return err
 				}
+				skipped = err
 				continue // this device cannot grind this hash
 			}
 			b, err := grind.RunBench(ctx, p, time.Duration(*secs*float64(time.Second)))
@@ -221,6 +223,11 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 	}
 	if *device != "" && len(rows) == 0 {
 		return fmt.Errorf("no device %q (poo grind devices lists them)", *device)
+	}
+	// Nothing measured is an error, not an empty list: -threads 2000 used
+	// to print [] (GREEN-035).
+	if len(rows) == 0 && skipped != nil {
+		return skipped
 	}
 	return o.write(out, rows)
 }
