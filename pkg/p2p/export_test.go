@@ -22,3 +22,10 @@ func SetDiskSpace(f func(dir string) (free, total uint64, err error)) func() {
 
 // StrongestNonces orders nonces as a layers-from reply gives them.
 var StrongestNonces = strongestNonces
+
+// ProgressCount returns how many yielded chases the host remembers.
+func (h *Host) ProgressCount() int {
+	h.progMu.Lock()
+	defer h.progMu.Unlock()
+	return len(h.prog)
+}

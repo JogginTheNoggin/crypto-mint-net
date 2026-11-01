@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"testing"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
@@ -10,7 +11,9 @@ import (
 // Black's C-2 (D121): past maxProgress the host forgets the yielded chase
 // that has shown least, and never a worked one for one that is not.
 func TestProgressForgetsLeastShown(t *testing.T) {
-	h := &Host{}
+	// The senders are not connected: a long grace keeps their progress.
+	kept := Config{ProgressGrace: time.Hour, ProgressTTL: time.Hour}
+	h := &Host{cfg: kept}
 	worked := newProgress(hash.Hash{}, nil, false)
 	worked.worked = true
 	h.saveProgress(progressKey{group: 1}, worked)
@@ -27,7 +30,7 @@ func TestProgressForgetsLeastShown(t *testing.T) {
 		t.Fatal("a chase that showed work was forgotten for ones that showed none")
 	}
 	// Full of worked chases, a new unworked one is the one let go.
-	h = &Host{}
+	h = &Host{cfg: kept}
 	for i := 0; i < maxProgress; i++ {
 		st := newProgress(hash.Hash{}, nil, false)
 		st.worked = true

@@ -191,8 +191,13 @@ requests it sent each sender over `RequestPaceWindow` (a minute) and
 yields at `RequestPace` (480), under the 600 a minute peers serve by
 default (ORANGE-018). A request that still times out ends the chase as
 `chase.Stalled`: the sender is backed off but kept, and so is the chase's
-progress, so a slow sender or one with a smaller budget only delays it
-(Black's B2, D124). A chase that waits for disk space logs a warning and
+progress, its parts included, so a slow sender or one with a smaller
+budget only delays it (Black's B2, D124; RED-024, D128). Kept progress
+goes, parts file included, once its sender has been disconnected for
+`ProgressGrace` (2 minutes; a sender back within it goes on from it) or
+no chase has taken it up for `ProgressTTL` (an hour), and a fetch that
+would wait for disk space first removes the parts files of senders that
+are not connected (RED-023, D128). A chase that waits for disk space logs a warning and
 shows as waiting in `poo chases` and `poo doctor` (D124). An entry pushed over the
 sender's revert budget is not dropped for good: its branch goes to the
 chase queue (D116). Only hashes shown false go on the known-bad list: an

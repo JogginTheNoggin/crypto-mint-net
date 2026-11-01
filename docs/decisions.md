@@ -2009,3 +2009,33 @@ a chase takes in after checking their work are not charged.
 - **Tier:** Implementation (node policy). It bounds only what this node's
   own grinding adds with `layer_floor`; nothing it accepts or fetches
   changes, and the chase still fetches any layers it needs.
+
+### D128. Round 9 fixes: RED-023, RED-024, RED-025 (BLUE-010)
+
+- **Decision:**
+  - **RED-023.** A yielded chase's progress, its parts file included, is
+    forgotten once its sender has been disconnected for
+    `p2p.Config.ProgressGrace` (2 minutes) or no chase has taken it up for
+    `ProgressTTL` (an hour). The sweep runs at each save, at each
+    disconnect and every `CheckEvery`. A sender back within the grace goes
+    on from what it left. A fetch that would wait for disk space first
+    removes the parts files of senders that are not connected, whatever
+    their grace, and checks again.
+  - **RED-024.** `fetchParts` keeps its parts whenever the chase keeps its
+    progress (`Outcome.Keeps`: a yield, or a stall such as a timeout), so
+    the next chase goes on from the offset it reached. A false entry, a
+    finished one, or a chase that ends otherwise lets them go.
+  - **RED-025.** `nodepolicy.Load` brings a `grind.layer_rate` over
+    `MaxLayerRate` down to it and notes it in `Policy.Lowered`; the node
+    logs a warning and `poo doctor` shows one. Writes stay strict. A bound
+    is only ever lowered this way.
+- **Why:** RED-023: a sender that left kept disk and memory until the
+  node restarted, and with D123's disk reserve could keep honest
+  large-entry fetches waiting for ever. RED-024: one timeout threw away a
+  large entry's parts. RED-025: lowering a bound made older valid files
+  stop the node from starting.
+- **Tier:** Implementation (node policy). No consensus change: no rule of
+  validity or selection, and no byte form, changes. For Black: the grace
+  and the time to live forget only kept progress, which a later chase
+  rebuilds from the sender; nothing refuses a heavier ledger, and no
+  limit is added to what a ledger may hold.

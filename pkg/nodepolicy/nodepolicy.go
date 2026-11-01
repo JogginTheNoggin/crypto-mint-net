@@ -56,6 +56,9 @@ var ErrInvalid = errors.New("nodepolicy: invalid")
 // Policy is one node policy.
 type Policy struct {
 	Format int `json:"format"`
+	// Lowered says what Load brought down to a bound lowered since the
+	// file was written, for the caller to warn of; it is not saved.
+	Lowered []string `json:"-"`
 	// Series lists the series this node knows. Series information comes
 	// from outside the network, never from peers.
 	Series []SeriesInfo `json:"series"`
@@ -616,7 +619,23 @@ func DecodeWitness(s string) (policy.Witness, error) {
 	return w, nil
 }
 
-// Load reads and validates a node policy file.
+// lower brings a value over a bound that was lowered since it was
+// written down to the new bound, and says what it changed. A file that
+// was valid when it was written stays one a node opens: a lowered bound
+// is enforced on every write (Save, the RPC, the CLI, the GUI) and only
+// clamped on a read (RED-025, D128).
+func (p *Policy) lower() []string {
+	var notes []string
+	if g := p.Grind; g != nil && g.LayerRate > MaxLayerRate {
+		notes = append(notes, fmt.Sprintf("grind.layer_rate %d is over the most, %d: %d is used", g.LayerRate, MaxLayerRate, MaxLayerRate))
+		g.LayerRate = MaxLayerRate
+	}
+	return notes
+}
+
+// Load reads and validates a node policy file. A value over a bound
+// lowered since the file was written is brought down to it, and noted in
+// Lowered.
 func Load(path string) (Policy, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -626,6 +645,7 @@ func Load(path string) (Policy, error) {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return Policy{}, fmt.Errorf("%w: %s: %v", ErrInvalid, path, err)
 	}
+	p.Lowered = p.lower()
 	if err := p.Validate(); err != nil {
 		return Policy{}, fmt.Errorf("%s: %w", path, err)
 	}

@@ -560,6 +560,10 @@ type progress struct {
 	branch map[hash.Hash]bool // marked and fetched hashes
 	part   *partial           // a large entry, as far as it has arrived
 
+	// Kept by saveProgress: when it was saved, and since when its sender
+	// has not been connected (zero while it is), for sweepProgress.
+	saved, away time.Time
+
 	// Topping up layers on entries both hold (topUpLayers).
 	topping  bool
 	top      []hash.Hash // the sender's hashes whose layers to ask for next
@@ -614,6 +618,8 @@ type progressKey struct {
 const maxProgress = 256
 
 func (h *Host) saveProgress(k progressKey, st *progress) {
+	now := time.Now()
+	on := h.connectedIDs()
 	h.progMu.Lock()
 	defer h.progMu.Unlock()
 	if h.prog == nil {
@@ -622,7 +628,9 @@ func (h *Host) saveProgress(k progressKey, st *progress) {
 	if _, ok := h.prog[k]; !ok {
 		h.progOrder = append(h.progOrder, k)
 	}
+	st.saved, st.away = now, time.Time{}
 	h.prog[k] = st
+	h.sweepLocked(now, on)
 	for len(h.progOrder) > maxProgress {
 		// Forget the chase with the least shown: one whose work check has
 		// not passed before one whose has, then the least work counted,
@@ -638,6 +646,68 @@ func (h *Host) saveProgress(k progressKey, st *progress) {
 		delete(h.prog, h.progOrder[v])
 		h.progOrder = append(h.progOrder[:v], h.progOrder[v+1:]...)
 	}
+}
+
+// connectedIDs returns the ids of the connected peers.
+func (h *Host) connectedIDs() map[string]bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	on := make(map[string]bool, len(h.peers))
+	for id := range h.peers {
+		on[id] = true
+	}
+	return on
+}
+
+// sweepProgress forgets the progress of senders gone for longer than
+// ProgressGrace, and any not taken up for ProgressTTL, removing their
+// parts files, so a sender that leaves holds neither memory nor disk for
+// long (RED-023, D128). A sender that comes back within the grace goes
+// on from what it left.
+func (h *Host) sweepProgress(now time.Time) {
+	on := h.connectedIDs()
+	h.progMu.Lock()
+	defer h.progMu.Unlock()
+	h.sweepLocked(now, on)
+}
+
+func (h *Host) sweepLocked(now time.Time, on map[string]bool) {
+	kept := h.progOrder[:0]
+	for _, k := range h.progOrder {
+		st := h.prog[k]
+		switch {
+		case on[k.sender]:
+			st.away = time.Time{}
+		case st.away.IsZero():
+			st.away = now
+		}
+		if (!st.away.IsZero() && now.Sub(st.away) > h.cfg.ProgressGrace) || now.Sub(st.saved) > h.cfg.ProgressTTL {
+			st.drop()
+			delete(h.prog, k)
+			continue
+		}
+		kept = append(kept, k)
+	}
+	clear(h.progOrder[len(kept):])
+	h.progOrder = kept
+}
+
+// dropAwayParts removes the parts files of chases whose senders are not
+// connected, keeping the rest of their progress; it reports whether it
+// removed any. A fetch waiting for disk space calls it first, so room
+// that departed senders hold goes to one that is sending (RED-023).
+func (h *Host) dropAwayParts() bool {
+	on := h.connectedIDs()
+	h.progMu.Lock()
+	defer h.progMu.Unlock()
+	dropped := false
+	for k, st := range h.prog {
+		if !on[k.sender] && st.part != nil {
+			st.drop()
+			dropped = true
+		}
+	}
+	return dropped
 }
 
 // lessShown reports whether a has shown less than b: not worked where b
@@ -1248,7 +1318,7 @@ func (h *Host) partsRoom(f *os.File, n uint64) bool {
 // deadline, or one whose disk is down to its reserve, yields and a later
 // slice goes on from them (RED-022). No size is
 // refused: the sender pays for every byte it claims by sending it.
-func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash, st *progress, deadline time.Time) (wire.EntryItem, error) {
+func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash, st *progress, deadline time.Time) (_ wire.EntryItem, err error) {
 	var pt *partial
 	if st != nil && st.part != nil && st.part.entry == l.Entry && st.part.size == l.Size {
 		pt = st.part
@@ -1265,7 +1335,10 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 	}
 	keep := false
 	defer func() {
-		if !keep {
+		// The parts stay with the progress whenever the chase keeps it: a
+		// yield, and a stall such as a timeout, go on from their offset
+		// (RED-024, D128). A false or finished entry lets them go.
+		if !keep && (st == nil || err == nil || !chaseErr(err).out.Keeps()) {
 			pt.close()
 			if st != nil && st.part == pt {
 				st.part = nil
@@ -1278,7 +1351,8 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			keep = true
 			return wire.EntryItem{}, errPartsYield
 		}
-		if st != nil && !h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) {
+		if st != nil && !h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) &&
+			!(h.dropAwayParts() && h.partsRoom(pt.f, min(l.Size-pt.off, partsReply))) {
 			// Free space is waited for, never a reason to refuse: a
 			// real large entry goes on from its offset once there is
 			// room (RED-022).
