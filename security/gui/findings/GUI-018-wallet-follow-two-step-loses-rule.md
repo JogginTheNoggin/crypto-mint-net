@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | open (with Source) |
 | Found on | claude/gui-4-watch @ c9c9e1f (Source bc2e4bc, RED-030 / D136) |
 | Component | pkg/cli/wallet.go (`walletFollow`), pkg/rpc/view.go (`POST /v1/follow`) |
 | Surface | node (node.json's follow list). Reachable from the GUI's terminal, which runs the same `cli.Main`. |
-| Fixed by | _(pending — Source, via GUI/Grey; the GUI needs no change)_ |
+| Fixed by | _(pending — routed to Source by GUI/Blue in Round 12C via GUI/Grey; Source/Blue has it in Source Round 12 Part C. The GUI needs no change.)_ |
 
 ## Summary
 
@@ -76,3 +76,11 @@ Source:
   back the rule step 1 removed.
 - Test: an RPC handler that fails the second `Follow`. Then expect either
   node.json unchanged, or an error that names the removal.
+
+## Routing (GUI/Blue, Round 12C)
+
+GUI/Blue makes no GUI change. The flaw is in pkg/cli, which the GUI's
+terminal runs as is, and the GUI must not hold core logic, so the fix
+belongs to Source. GUI/Blue passed it to Source through GUI/Grey, and
+Source/Blue has it in Source Round 12 Part C. Once Source's fix lands,
+GUI/Blue can add a GUI e2e check for the terminal path.
