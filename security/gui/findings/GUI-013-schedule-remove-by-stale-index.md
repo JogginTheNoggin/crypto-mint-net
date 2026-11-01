@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed: GUI part (PR #37); Source `schedule remove -target`, which the GUI sends (Round 8); pending Red's verification |
+| Status | fixed for the case above (PR #37 and `remove -target`; verified by GUI/Red R8B @ a93ccb6); the remaining gaps are in GUI-014 |
 | Found on | claude/gui-4-watch @ b20bf8f |
 | Component | gui/web/static/work.js (`scheduleTable`, Remove), pkg/cli/grind.go (`grindSchedule remove N`) |
 | Surface | node (node.json's grind section, applied at once by a running node) |

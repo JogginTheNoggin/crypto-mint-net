@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (PR #37, merged Round 8; pending Red's verification) |
+| Status | fixed (PR #37, merged Round 8; verified by GUI/Red R8B @ a93ccb6) |
 | Found on | claude/gui-4-watch @ b20bf8f |
 | Component | gui/web/static/views.js (`runJob`, `form`; the ORANGE-010 `leave`) |
 | Surface | local (browser tab, poo-gui job and stream slots) |
