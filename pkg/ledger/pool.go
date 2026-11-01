@@ -251,6 +251,28 @@ func (p *Pool) Layers(h hash.Hash) []layer.Layer {
 	return out
 }
 
+// LayerCount returns how many layers the entry holds.
+func (p *Pool) LayerCount(h hash.Hash) int {
+	if n, ok := p.nodes[h]; ok {
+		return len(n.layers)
+	}
+	return 0
+}
+
+// LayerNonces returns the nonces of the entry's layers, in no order: a
+// copy for a caller that sorts outside the engine's lock (RED-020).
+func (p *Pool) LayerNonces(h hash.Hash) []uint64 {
+	n, ok := p.nodes[h]
+	if !ok {
+		return nil
+	}
+	out := make([]uint64, 0, len(n.layers))
+	for _, l := range n.layers {
+		out = append(out, l.Nonce)
+	}
+	return out
+}
+
 // InSelected reports whether the entry is in the selected ledger.
 func (p *Pool) InSelected(h hash.Hash) bool {
 	n, ok := p.nodes[h]

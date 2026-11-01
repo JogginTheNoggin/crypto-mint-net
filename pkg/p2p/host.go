@@ -186,6 +186,11 @@ type Config struct {
 	// PartsDir is where large entries are put together from their parts
 	// ("": the system's temporary directory; RED-016).
 	PartsDir string
+	// PartsReserve is the free space a large entry's parts never take
+	// from their disk; the reserve is the larger of it and 2% of the
+	// disk. At the reserve a fetch waits and goes on later (RED-022,
+	// D123). 0: 1 GiB.
+	PartsReserve uint64
 	// LayersWhole is the most layers of one entry a layers reply carries;
 	// an entry with more has them paged (D121). It is at most, and by
 	// default, what one frame can hold.
@@ -354,6 +359,9 @@ func (c *Config) fill() {
 	}
 	if c.PartsOver <= 0 || c.PartsOver > maxWhole {
 		c.PartsOver = maxWhole
+	}
+	if c.PartsReserve == 0 {
+		c.PartsReserve = 1 << 30
 	}
 }
 

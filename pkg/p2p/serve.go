@@ -274,10 +274,25 @@ func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
 	if !l.InSelected(q.Entry) {
 		return func() { r.empty(wire.TypeNotHeld, r.stated) }
 	}
-	key := partsKey{q.Entry, q.Variant}
-	it := item(l, q.Entry, q.Variant == wire.EntriesWithLayers)
+	// A cached item needs nothing from the pool. Otherwise only the entry
+	// and an unsorted copy of its nonces are taken under the lock; the sort
+	// and the encoding happen outside it (RED-017, RED-020, D123).
+	key := partsKey{entry: q.Entry, variant: q.Variant}
+	b, _, cached := r.h.encoded.peek(key)
+	var it wire.EntryItem
+	if !cached {
+		e, _ := l.Entry(q.Entry)
+		it = wire.EntryItem{Entry: e, HasLayers: q.Variant == wire.EntriesWithLayers}
+		if it.HasLayers {
+			it.Nonces = l.LayerNonces(q.Entry)
+		}
+	}
 	return func() {
-		b := r.h.encoded.get(key, it)
+		if !cached {
+			slices.Sort(it.Nonces)
+			b = wire.EncodeItem(it)
+			r.h.encoded.put(key, b, nil)
+		}
 		total := uint64(len(b))
 		if q.Offset >= total {
 			r.empty(wire.TypeRefused, r.stated)
@@ -301,15 +316,20 @@ func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
 	}
 }
 
-// partsKey names one encoded item.
+// partsKey names one cached item: an encoded entry item for parts
+// requests, or (order set) the strongest-first order of an entry's layers
+// when it held layers of them, for layers-from requests.
 type partsKey struct {
 	entry   hash.Hash
 	variant wire.Variant
+	order   bool
+	layers  int
 }
 
-// partsCache keeps the encoded items parts requests were last answered
-// from: up to partsCacheBytes in all (always the newest one), each for
-// partsCacheFor after its last use.
+// partsCache keeps the encoded items and layer orders requests were last
+// answered from: up to partsCacheBytes in all (always the newest one),
+// each for partsCacheFor after its last use, so a fetch in many requests
+// does its work once (RED-017, RED-020).
 type partsCache struct {
 	mu    sync.Mutex
 	items map[partsKey]*encodedItem
@@ -317,39 +337,46 @@ type partsCache struct {
 
 type encodedItem struct {
 	b    []byte
+	ns   []uint64
 	used time.Time
 }
+
+func (e *encodedItem) size() int { return len(e.b) + 8*len(e.ns) }
 
 const (
 	partsCacheBytes = 256 << 20
 	partsCacheFor   = time.Minute
 )
 
-// get returns the encoding of it, cached under k: a fetch in many parts
-// requests encodes the item once.
-func (c *partsCache) get(k partsKey, it wire.EntryItem) []byte {
-	now := time.Now()
+// peek returns what is cached under k, marking it used.
+func (c *partsCache) peek(k partsKey) ([]byte, []uint64, bool) {
 	c.mu.Lock()
-	if e, ok := c.items[k]; ok {
-		e.used = now
-		c.mu.Unlock()
-		return e.b
+	defer c.mu.Unlock()
+	e, ok := c.items[k]
+	if !ok {
+		return nil, nil, false
 	}
-	c.mu.Unlock()
-	b := wire.EncodeItem(it)
+	e.used = time.Now()
+	return e.b, e.ns, true
+}
+
+// put caches b or ns under k and lets go of items unused for
+// partsCacheFor, then of the oldest while the cache is over its size.
+func (c *partsCache) put(k partsKey, b []byte, ns []uint64) {
+	now := time.Now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.items == nil {
 		c.items = map[partsKey]*encodedItem{}
 	}
-	c.items[k] = &encodedItem{b: b, used: now}
+	c.items[k] = &encodedItem{b: b, ns: ns, used: now}
 	size := 0
 	for kk, e := range c.items {
 		if kk != k && now.Sub(e.used) > partsCacheFor {
 			delete(c.items, kk)
 			continue
 		}
-		size += len(e.b)
+		size += e.size()
 	}
 	for size > partsCacheBytes {
 		var old partsKey
@@ -362,9 +389,18 @@ func (c *partsCache) get(k partsKey, it wire.EntryItem) []byte {
 		if oldest == nil {
 			break
 		}
-		size -= len(oldest.b)
+		size -= oldest.size()
 		delete(c.items, old)
 	}
+}
+
+// get returns the encoding of it, cached under k.
+func (c *partsCache) get(k partsKey, it wire.EntryItem) []byte {
+	if b, _, ok := c.peek(k); ok {
+		return b
+	}
+	b := wire.EncodeItem(it)
+	c.put(k, b, nil)
 	return b
 }
 
@@ -466,51 +502,59 @@ func (r replier) byHash(l *ledger.Pool, q wire.EntriesReq) func() {
 	}
 }
 
-// strongestFirst orders the layers of one entry as a layers-from reply
-// gives them: strongest first, the lower nonce first among equals.
-func strongestFirst(fn hash.Func, lys []layer.Layer) {
-	st := make(map[uint64]int, len(lys))
-	for _, ly := range lys {
-		st[ly.Nonce] = ly.Strength(fn)
-	}
-	slices.SortFunc(lys, func(a, b layer.Layer) int {
-		if st[a.Nonce] != st[b.Nonce] {
-			return st[b.Nonce] - st[a.Nonce]
-		}
-		return cmp.Compare(a.Nonce, b.Nonce)
-	})
-}
-
 // layersFrom replies with an entry's layer nonces from the asked index,
-// strongest first, in chunks, up to partsReply bytes (D121).
+// strongest first, in chunks, up to partsReply bytes (D121). Under the
+// engine's lock it counts the layers and, unless the order for that count
+// is cached, copies the nonces unsorted; the hashing and the sort happen
+// outside the lock, once for all the pages of a fetch (RED-020, D123).
 func (r replier) layersFrom(pi *poolInfo, l *ledger.Pool, q wire.LayersFromReq) func() {
 	if !l.InSelected(q.Entry) {
 		return func() { r.empty(wire.TypeNotHeld, r.stated) }
 	}
-	lys := l.Layers(q.Entry)
-	if len(lys) >= 1<<32 || int64(q.From) > int64(len(lys)) {
+	n := l.LayerCount(q.Entry)
+	if n >= 1<<32 || int64(q.From) > int64(n) {
 		return func() { r.empty(wire.TypeRefused, r.stated) }
 	}
-	strongestFirst(pi.s.Hash(), lys)
-	total := uint32(len(lys))
+	key := partsKey{entry: q.Entry, order: true, layers: n}
+	_, order, cached := r.h.encoded.peek(key)
+	if !cached {
+		order = l.LayerNonces(q.Entry)
+	}
+	fn := pi.s.Hash()
 	return func() {
+		if !cached {
+			strongestNonces(fn, q.Entry, order)
+			r.h.encoded.put(key, nil, order)
+		}
+		total := uint32(len(order))
 		per := max((r.lim.chunk-chunkRoom)/8, minPart/8)
 		var bodies [][]byte
 		i := int(q.From)
-		for i < len(lys) && (i-int(q.From))*8 < partsReply {
-			end := min(i+per, len(lys))
-			ns := make([]uint64, 0, end-i)
-			for _, ly := range lys[i:end] {
-				ns = append(ns, ly.Nonce)
-			}
-			bodies = append(bodies, wire.LayersFrom{Total: total, From: uint32(i), Nonces: ns}.Encode())
+		for i < len(order) && (i-int(q.From))*8 < partsReply {
+			end := min(i+per, len(order))
+			bodies = append(bodies, wire.LayersFrom{Total: total, From: uint32(i), Nonces: order[i:end]}.Encode())
 			i = end
 		}
 		if len(bodies) == 0 {
 			bodies = [][]byte{wire.LayersFrom{Total: total, From: q.From}.Encode()}
 		}
-		r.chunks(wire.TypeLayersFrom, bodies, i < len(lys))
+		r.chunks(wire.TypeLayersFrom, bodies, i < len(order))
 	}
+}
+
+// strongestNonces orders the layer nonces of entry eh as a layers-from
+// reply gives them: strongest first, the lower nonce first among equals.
+func strongestNonces(fn hash.Func, eh hash.Hash, ns []uint64) {
+	st := make(map[uint64]int, len(ns))
+	for _, n := range ns {
+		st[n] = layer.Layer{Entry: eh, Nonce: n}.Strength(fn)
+	}
+	slices.SortFunc(ns, func(a, b uint64) int {
+		if st[a] != st[b] {
+			return st[b] - st[a]
+		}
+		return cmp.Compare(a, b)
+	})
 }
 
 func (r replier) layers(pi *poolInfo, l *ledger.Pool, q wire.LayersReq) func() {
@@ -522,12 +566,12 @@ func (r replier) layers(pi *poolInfo, l *ledger.Pool, q wire.LayersReq) func() {
 			items = append(items, wire.HeldLayers{Entry: h})
 			continue
 		}
-		lys := l.Layers(h)
-		if len(lys) > r.h.cfg.LayersWhole {
+		if c := l.LayerCount(h); c > r.h.cfg.LayersWhole {
 			// More layers than a reply carries whole: the reply ends
 			// before the entry, and the asker pages its layers (D121).
+			// Only counted, not copied, under the lock (RED-020).
 			if len(items) == 0 {
-				n := uint32(min(len(lys), 1<<32-1))
+				n := uint32(min(c, 1<<32-1))
 				return func() {
 					r.chunks(wire.TypeManyLayers, [][]byte{wire.ManyLayers{Entry: h, Count: n}.Encode()}, false)
 				}
@@ -535,6 +579,7 @@ func (r replier) layers(pi *poolInfo, l *ledger.Pool, q wire.LayersReq) func() {
 			more = true
 			break
 		}
+		lys := l.Layers(h)
 		var ns []uint64
 		for _, ly := range lys {
 			ns = append(ns, ly.Nonce)

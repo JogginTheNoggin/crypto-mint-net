@@ -11,3 +11,11 @@ func (h *Host) ProgressHeld() (listed, held int) {
 	}
 	return listed, held
 }
+
+// SetDiskSpace makes the parts' disk space read as f reads it, and
+// returns the call that puts statDisk back. Set it before a node starts
+// and put it back after the node stops.
+func SetDiskSpace(f func(dir string) (free, total uint64, err error)) func() {
+	diskSpace = f
+	return func() { diskSpace = statDisk }
+}
