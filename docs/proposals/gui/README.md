@@ -67,21 +67,21 @@ ORANGE-005 explains how to measure.
 ### Re-checks each round
 
 Each Part B runs every scenario again on Grey's new base, so a change that
-undoes an earlier gain shows up. Numbers are from one container with
+undoes an earlier gain shows up. Numbers are from a cloud container with
 Playwright Chromium, so compare them with each other, not with a laptop.
 
-| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) |
-| --- | --- | --- | --- |
-| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms |
-| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests |
-| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy |
-| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s |
-| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s |
-| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat |
-| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy |
-| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms |
-| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms |
-| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows |
+| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) |
+| --- | --- | --- | --- | --- |
+| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms |
+| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests |
+| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy |
+| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s |
+| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s |
+| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat |
+| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy |
+| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms |
+| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms |
+| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows |
 
 Round 8 found nothing new to fix. The jump list, one job per form and
 the Schedule Remove guard did not show up in any measurement.
@@ -91,6 +91,12 @@ defaults can make `poo grind run` print a found layer on most lines, so
 Round 9 measured that case (`FOUND=1` in the kit): the Work view stays at
 60 fps and keeps its found table at 500 rows. The kit used to count the
 plan table's rows as found rows; it now counts the found table.
+
+Round 10 found nothing new to fix. It ran in a new container, and the
+fast-stream numbers moved by up to a third with no change to that code.
+Running the Round 9 and Round 10 builds back to back, twice each, gave
+the same spread for both (Watch at full rate 0.55 to 0.69 s, terminal
+0.55 to 0.87 s). Compare rounds by their trend, not by one run.
 
 ## How to try the prototypes
 
