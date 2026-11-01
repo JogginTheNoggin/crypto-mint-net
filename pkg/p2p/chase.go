@@ -135,11 +135,11 @@ func (h *Host) runJob(j chase.Job) {
 		return
 	}
 	res := h.runChase(pi, p, j)
-	if p.closed() && (res.out == chase.Nowhere || res.out == chase.Stalled) {
+	if p.closed() && (res.out == chase.Nowhere || res.out == chase.Stalled || res.out == chase.Slowed) {
 		res.out = chase.Gone
 	}
 	now := time.Now()
-	if res.out == chase.Yield || res.out == chase.Stalled {
+	if res.out.Keeps() {
 		h.cq.Note(j.Group.ID, res.why, now)
 	}
 	g := h.cq.Finish(j.Group.ID, res.out, res.bad, now)
@@ -158,7 +158,7 @@ func (h *Host) runJob(j chase.Job) {
 	case chase.False:
 		h.tr.ChaseOutcome(p.key, text, false, now)
 		h.act(p, h.tr.Offend(p.key, tracking.FalseBranch, res.why, now))
-	case chase.Yield, chase.Stalled:
+	case chase.Yield, chase.Stalled, chase.Slowed:
 		// Not an outcome: the chase goes on later with what it took in.
 	}
 	switch {
@@ -210,6 +210,7 @@ func (h *Host) runChase(pi *poolInfo, p *peer, j chase.Job) result {
 		// The sender shows some work before any entry is taken in: any
 		// heavier ledger has some, against this node's none (RED-016,
 		// decision D120). It is asked for, never refused.
+		m0 := st.mark()
 		res := result{}
 		done := false
 		if !st.worked {
@@ -221,6 +222,7 @@ func (h *Host) runChase(pi *poolInfo, p *peer, j chase.Job) result {
 		if !done {
 			res = h.fetchAll(pi, p, st, before, deadline)
 		}
+		res = slowedIf(res, st, m0)
 		if res.out.Keeps() {
 			h.saveProgress(k, st)
 		} else {
@@ -252,6 +254,7 @@ func (h *Host) runChase(pi *poolInfo, p *peer, j chase.Job) result {
 			st = newProgress(common, after, complete)
 		}
 	}
+	m0 := st.mark()
 	var res result
 	if st.topping {
 		done := false
@@ -261,10 +264,41 @@ func (h *Host) runChase(pi *poolInfo, p *peer, j chase.Job) result {
 	} else {
 		res = h.stepsFrom(pi, p, j, st, before, deadline)
 	}
+	res = slowedIf(res, st, m0)
 	if res.out.Keeps() {
 		h.saveProgress(k, st)
 	} else {
 		st.drop()
+	}
+	return res
+}
+
+// progressMark is a snapshot of how far a chase has come, to tell
+// whether a chase took something in before it stalled.
+type progressMark struct {
+	listed, pending, idx, top int
+	total                     string
+	from, topAt               hash.Hash
+	partOff                   uint64
+	manyFrom                  uint32
+	worked                    bool
+}
+
+func (st *progress) mark() progressMark {
+	m := progressMark{listed: st.listed, pending: len(st.pending), idx: st.idx, top: len(st.top),
+		total: st.total.String(), from: st.from, topAt: st.topAt, manyFrom: st.manyFrom, worked: st.worked}
+	if st.part != nil {
+		m.partOff = st.part.off
+	}
+	return m
+}
+
+// slowedIf turns a stall into chase.Slowed when the chase took something
+// in before it, so the sender's backoff does not double (Black's C-6,
+// D129).
+func slowedIf(res result, st *progress, m0 progressMark) result {
+	if res.out == chase.Stalled && st.mark() != m0 {
+		res.out = chase.Slowed
 	}
 	return res
 }
@@ -659,11 +693,11 @@ func (h *Host) connectedIDs() map[string]bool {
 	return on
 }
 
-// sweepProgress forgets the progress of senders gone for longer than
-// ProgressGrace, and any not taken up for ProgressTTL, removing their
-// parts files, so a sender that leaves holds neither memory nor disk for
-// long (RED-023, D128). A sender that comes back within the grace goes
-// on from what it left.
+// sweepProgress removes the parts files of senders gone for longer than
+// ProgressGrace, and forgets any progress not taken up for ProgressTTL
+// after its sender's backoff ends, so a sender that leaves holds no disk
+// for long and no memory for ever (RED-023, D128), while a slow sender's
+// stalled chase keeps its progress until its next turn (C-6, D129).
 func (h *Host) sweepProgress(now time.Time) {
 	on := h.connectedIDs()
 	h.progMu.Lock()
@@ -681,7 +715,23 @@ func (h *Host) sweepLocked(now time.Time, on map[string]bool) {
 		case st.away.IsZero():
 			st.away = now
 		}
-		if (!st.away.IsZero() && now.Sub(st.away) > h.cfg.ProgressGrace) || now.Sub(st.saved) > h.cfg.ProgressTTL {
+		if !st.away.IsZero() && now.Sub(st.away) > h.cfg.ProgressGrace {
+			// A sender gone past the grace loses its parts file, which
+			// costs disk; the rest costs little memory and is kept to the
+			// time to live (Black's C-6, D129).
+			st.drop()
+		}
+		// The time to live runs from when the progress was saved or, if
+		// later, when its sender's backoff ends, so a stalled chase's
+		// progress always outlasts the wait before its next chase
+		// (Black's C-6, D129).
+		from := st.saved
+		if h.cq != nil {
+			if until, _ := h.cq.BackedOff(k.sender, now); until.After(from) {
+				from = until
+			}
+		}
+		if now.Sub(from) > h.cfg.ProgressTTL {
 			st.drop()
 			delete(h.prog, k)
 			continue

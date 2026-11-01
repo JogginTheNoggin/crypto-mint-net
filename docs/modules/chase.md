@@ -58,6 +58,7 @@ raises the evidence.
 | `requeue` | a priority peer confirmed it; the group waits for its next turn |
 | `yield` | the chase ran out of its time slice or the sender's budget for now; the sender waits `YieldWait` (5 s) with no backoff, and the group keeps its senders and evidence, so the chase goes on later (D116) |
 | `stalled` | a request to the sender timed out; the sender is backed off as after `nowhere`, but it stays in the group and the chase's progress is kept, so the next chase with it goes on from there (Black's B2, D124) |
+| `slowed` | a request timed out after the chase took something in; the sender waits the first backoff step (30 s) and its doubling starts again, it stays in the group, and the progress is kept (Black's C-6, D129) |
 
 Each `yield` or `stall` records its reason in the group's `waiting`, and
 when it first stopped for that reason in `waiting_since` (`Note`), so

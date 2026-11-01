@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D130) |
 | Based on | `claude/m10-watch` @ `1ae4d46` |
 | Area | `pkg/p2p` (`DefaultConfig().Limits.HashLimit`), `docs/modules/nodepolicy.md` |
 | Effort | one line |

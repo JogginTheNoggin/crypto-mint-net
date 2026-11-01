@@ -142,6 +142,25 @@ type GrindJob struct {
 	UntilFrom string `json:"until_from,omitempty"`
 }
 
+// MaxLayerFloor is the strongest layer_floor a grind section may set.
+const MaxLayerFloor = 256
+
+// GrindLimits are the bounds a grind section is checked against, so a
+// front end can offer exactly what validates (GUI/Blue's ask, D130).
+type GrindLimits struct {
+	MaxJobs          int `json:"max_jobs"`
+	MaxThreads       int `json:"max_threads"`
+	MaxLayerFloor    int `json:"max_layer_floor"`
+	MaxLayerRate     int `json:"max_layer_rate"`
+	DefaultLayerRate int `json:"default_layer_rate"`
+}
+
+// Limits returns the bounds Grind.Validate checks.
+func Limits() GrindLimits {
+	return GrindLimits{MaxJobs: MaxGrindJobs, MaxThreads: MaxGrindThreads, MaxLayerFloor: MaxLayerFloor,
+		MaxLayerRate: MaxLayerRate, DefaultLayerRate: DefaultLayerRate}
+}
+
 // MaxGrindJobs bounds the jobs a node policy may list.
 const MaxGrindJobs = 16
 
@@ -182,7 +201,7 @@ func (g *Grind) validate() error {
 	if g.Threads < 0 || g.Threads > MaxGrindThreads {
 		return fmt.Errorf("threads must be 0 to %d", MaxGrindThreads)
 	}
-	if g.LayerFloor < 0 || g.LayerFloor > 256 {
+	if g.LayerFloor < 0 || g.LayerFloor > MaxLayerFloor {
 		return errors.New("layer_floor must be 0 (off) to 256")
 	}
 	if g.LayerRate < 0 || g.LayerRate > MaxLayerRate {

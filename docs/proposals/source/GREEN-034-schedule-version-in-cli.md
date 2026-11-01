@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted (D130) |
 | Based on | `claude/m10-watch` @ `1ae4d46` |
 | Area | `pkg/cli` (`grind schedule`), `docs/modules/poo.md` |
 | Effort | small |

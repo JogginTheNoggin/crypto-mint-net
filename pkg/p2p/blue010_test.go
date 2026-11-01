@@ -61,8 +61,9 @@ func TestStalledFetchKeepsItsParts(t *testing.T) {
 	}
 }
 
-// RED-023: what a sender's chases left, its parts file included, goes once
-// the sender has been gone for the grace.
+// RED-023: a sender's parts file goes once the sender has been gone for
+// the grace; the rest of its progress, which costs little memory, is kept
+// to the time to live (Black's C-6, D129).
 func TestDepartedSenderLeavesNothing(t *testing.T) {
 	dir := t.TempDir()
 	a := startNode(t, "a", func(c *p2p.Config) {
@@ -81,9 +82,12 @@ func TestDepartedSenderLeavesNothing(t *testing.T) {
 		t.Fatalf("setup: %d parts files", partsFiles(t, dir))
 	}
 	ls.r.c.Close()
-	eventuallyFor(t, 10*time.Second, "the departed sender's progress and parts to go", func() bool {
-		return a.h.ProgressCount() == 0 && partsFiles(t, dir) == 0
+	eventuallyFor(t, 10*time.Second, "the departed sender's parts to go", func() bool {
+		return partsFiles(t, dir) == 0
 	}, a)
+	if a.h.ProgressCount() != 1 {
+		t.Fatalf("%d progress kept, want the departed sender's, to its time to live", a.h.ProgressCount())
+	}
 }
 
 // RED-023: a fetch that would wait for disk space first takes the room

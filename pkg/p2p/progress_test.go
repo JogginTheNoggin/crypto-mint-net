@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
@@ -39,5 +40,29 @@ func TestProgressForgetsLeastShown(t *testing.T) {
 	h.saveProgress(progressKey{group: 9999}, newProgress(hash.Hash{}, nil, false))
 	if _, ok := h.prog[progressKey{group: 9999}]; ok || len(h.prog) != maxProgress {
 		t.Fatal("a worked chase was forgotten for an unworked one")
+	}
+}
+
+// Black's C-6 (D129): kept progress lives for ProgressTTL after its
+// sender's backoff ends, so a stalled chase's progress outlasts the wait
+// for its next turn, however long the backoff grew.
+func TestProgressOutlastsTheBackoff(t *testing.T) {
+	cq := chase.New(chase.Config{Backoff: time.Hour, MaxBackoff: time.Hour})
+	h := &Host{cfg: Config{ProgressGrace: time.Hour, ProgressTTL: time.Minute}, cq: cq}
+	g, _, _ := cq.Offer("p", chase.Sender{ID: "s", Range: "r"}, &hash.Hash{1}, time.Now())
+	if _, ok := cq.Next(time.Now()); !ok {
+		t.Fatal("no job")
+	}
+	k := progressKey{group: g, sender: "s"}
+	h.saveProgress(k, newProgress(hash.Hash{}, nil, false))
+	now := time.Now()
+	cq.Finish(g, chase.Stalled, nil, now) // backed off for an hour
+	h.sweepProgress(now.Add(50 * time.Minute))
+	if h.prog[k] == nil {
+		t.Fatal("progress forgotten during its sender's backoff")
+	}
+	h.sweepProgress(now.Add(time.Hour + 2*time.Minute))
+	if h.prog[k] != nil {
+		t.Fatal("progress kept past its time to live after the backoff")
 	}
 }

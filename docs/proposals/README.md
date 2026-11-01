@@ -52,5 +52,5 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-017](source/ORANGE-017-encode-large-items-once.md) | Source | Large entry memory measured; encode a large item once | adopted (D126) |
 | [ORANGE-018](source/ORANGE-018-chase-request-pace.md) | Source | The B1 chase measured; pace requests under the sender's budget | adopted (D124) |
 | [GREEN-033](source/GREEN-033-parts-in-data-dir.md) | Source | Put large-entry parts in the data directory, and document `layer_rate` | adopted (D126) |
-| [ORANGE-019](source/ORANGE-019-ask-in-larger-hash-pages.md) | Source | Ask for hashes in pages of 4,096, as peers already serve | proposed |
-| [GREEN-034](source/GREEN-034-schedule-version-in-cli.md) | Source | The schedule's version on the command line | proposed (prototyped) |
+| [ORANGE-019](source/ORANGE-019-ask-in-larger-hash-pages.md) | Source | Ask for hashes in pages of 4,096, as peers already serve | adopted (D130) |
+| [GREEN-034](source/GREEN-034-schedule-version-in-cli.md) | Source | The schedule's version on the command line | adopted (D130) |

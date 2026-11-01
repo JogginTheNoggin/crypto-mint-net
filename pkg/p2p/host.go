@@ -202,11 +202,11 @@ type Config struct {
 	// disk. At the reserve a fetch waits and goes on later (RED-022,
 	// D123). 0: 1 GiB.
 	PartsReserve uint64
-	// ProgressGrace is how long a yielded chase's progress, its parts
-	// file included, is kept after its sender disconnects, so a sender
-	// that comes back goes on from it; ProgressTTL is how long any
-	// progress is kept with no chase taking it up (RED-023, D128).
-	// 0: 2 minutes and 1 hour.
+	// ProgressGrace is how long a yielded chase's parts file is kept
+	// after its sender disconnects; ProgressTTL is how long any progress
+	// is kept with no chase taking it up, counted from the end of its
+	// sender's backoff, so it always outlasts the wait (RED-023, D128;
+	// Black's C-6, D129). 0: 2 minutes and 1 hour.
 	ProgressGrace, ProgressTTL time.Duration
 	// LayersWhole is the most layers of one entry a layers reply carries;
 	// an entry with more has them paged (D121). It is at most, and by
