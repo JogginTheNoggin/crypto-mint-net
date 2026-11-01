@@ -63,6 +63,27 @@ ORANGE-005 explains how to measure.
 | [ORANGE-010](ORANGE-010-close-streams-on-leave.md) | Close a view's event streams when it is left: the Node view leaked one per visit and the GUI stopped answering after about 2 minutes | small | yes | adopted |
 | [ORANGE-011](ORANGE-011-one-crypto-ask-in-flight.md) | Ask `poo crypto` once while a key field waits for suggestions (8 focuses: 8 jobs → 1) | small | yes | adopted |
 
+### Re-checks each round
+
+Each Part B runs every scenario again on Grey's new base, so a change that
+undoes an earlier gain shows up. Numbers are from one container with
+Playwright Chromium, so compare them with each other, not with a laptop.
+
+| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) |
+| --- | --- | --- |
+| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms |
+| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests |
+| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy |
+| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s |
+| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s |
+| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat |
+| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy |
+| A 1.5 MB JSON result shown | not recorded | 199 ms |
+| Reload a running watch (40k events) | 238 ms | 257 ms |
+
+Round 8 found nothing new to fix. The jump list, one job per form and
+the Schedule Remove guard did not show up in any measurement.
+
 ## How to try the prototypes
 
 ```sh
