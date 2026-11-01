@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -136,8 +137,12 @@ func (ev Event) JobWide() bool { return ev.Series == (hash.Hash{}) }
 
 // Limits on jobs.
 const (
+	// UserJobs is how many jobs past a full schedule a node runs at once,
+	// so a schedule of nodepolicy.MaxGrindJobs jobs, even all waiting,
+	// never blocks a job a user or a follower starts (GREEN-035).
+	UserJobs = 4
 	// MaxJobs bounds the jobs a node runs at once.
-	MaxJobs = nodepolicy.MaxGrindJobs
+	MaxJobs = nodepolicy.MaxGrindJobs + UserJobs
 	// MaxDone is how many ended jobs a node remembers.
 	MaxDone = 32
 	// Slice is how long one search runs before the job looks again at its
@@ -237,25 +242,72 @@ func (m *Manager) Choose(id hash.ID, device string, threads int) (Plan, error) {
 	return m.reg.Choose(m.devs, id, device, threads)
 }
 
-// Schedule applies a node policy's grind section while the node runs: it
-// stops the jobs the policy started, takes the section's defaults, and
-// starts its jobs. It returns the jobs started and, by job, why any was
-// not (GREEN-026). g may be nil: no defaults and no jobs.
+// Schedule applies a node policy's grind section while the node runs. When
+// the section's defaults are unchanged it applies the difference: a
+// running policy job that is still scheduled keeps running, with its ID,
+// tries and rate, and only the jobs taken out are stopped and the jobs
+// added started (GREEN-035). When a default changes (device, threads,
+// layer_floor, layer_rate), every plan may change, so every policy job is
+// stopped and started again. A stopped job's reason says the schedule
+// changed. It returns the running job of each scheduled job, kept or new,
+// in the schedule's order, and, by job, why any was not started
+// (GREEN-026). g may be nil: no defaults and no jobs.
 func (m *Manager) Schedule(g *nodepolicy.Grind) ([]Job, map[int]error) {
 	m.sched.Lock()
 	defer m.sched.Unlock()
-	m.StopAll("policy")
 	var def Defaults
 	var jobs []nodepolicy.GrindJob
 	if g != nil {
 		def, jobs = Defaults{Device: g.Device, Threads: g.Threads, Floor: g.LayerFloor, Rate: g.LayerRate}, g.Jobs
 	}
 	m.mu.Lock()
+	same := m.def == def
 	m.def = def
+	// Each scheduled job takes the first running policy job of the same
+	// spec, when the defaults are the same; the rest are stopped.
+	kept := make([]int, len(jobs))
+	taken := map[int]bool{}
+	if same {
+		var ids []int
+		for id, j := range m.jobs {
+			if !j.Done() && j.Spec.Source == "policy" {
+				ids = append(ids, id)
+			}
+		}
+		slices.Sort(ids)
+		for i, gj := range jobs {
+			want := SpecOf(gj)
+			for _, id := range ids {
+				if !taken[id] && sameSpec(m.jobs[id].Spec, want) {
+					kept[i], taken[id] = id, true
+					break
+				}
+			}
+		}
+	}
+	var stop []int
+	for id, j := range m.jobs {
+		if !j.Done() && j.Spec.Source == "policy" && !taken[id] {
+			if j.stopped == "" {
+				j.stopped = "the schedule changed"
+			}
+			j.cancel()
+			stop = append(stop, id)
+		}
+	}
 	m.mu.Unlock()
+	for _, id := range stop {
+		m.wait(id)
+	}
 	started := []Job{}
 	failed := map[int]error{}
 	for i, gj := range jobs {
+		if kept[i] != 0 {
+			if j, ok := m.Get(kept[i]); ok {
+				started = append(started, j)
+			}
+			continue
+		}
 		j, err := m.Start(SpecOf(gj))
 		if err != nil {
 			failed[i] = err
@@ -265,6 +317,13 @@ func (m *Manager) Schedule(g *nodepolicy.Grind) ([]Job, map[int]error) {
 		started = append(started, j)
 	}
 	return started, failed
+}
+
+// sameSpec reports whether a and b are the same in every field.
+func sameSpec(a, b Spec) bool {
+	ja, _ := json.Marshal(a)
+	jb, _ := json.Marshal(b)
+	return string(ja) == string(jb)
 }
 
 // OnEvent adds a function that receives every job event. It runs on the

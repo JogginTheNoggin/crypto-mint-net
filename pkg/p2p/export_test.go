@@ -1,5 +1,7 @@
 package p2p
 
+import "github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
+
 // ProgressHeld returns, over the chases that yielded and kept their
 // progress, how many hashes they have been listed and how many they hold.
 func (h *Host) ProgressHeld() (listed, held int) {
@@ -28,4 +30,16 @@ func (h *Host) ProgressCount() int {
 	h.progMu.Lock()
 	defer h.progMu.Unlock()
 	return len(h.prog)
+}
+
+// ProgressCounted returns, over the kept progress, how many entries have
+// their layers counted and the work counted.
+func (h *Host) ProgressCounted() (entries int, total weight.Weight) {
+	h.progMu.Lock()
+	defer h.progMu.Unlock()
+	for _, st := range h.prog {
+		entries += len(st.counted)
+		total = total.Add(st.total)
+	}
+	return entries, total
 }

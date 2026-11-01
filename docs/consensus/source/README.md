@@ -209,3 +209,4 @@ in plain words.
 | Source Round 7 | [ROUND-7.md](ROUND-7.md) | 13 clear, 4 with conditions, 1 blocked: hard fork (B1, reproduced); no consensus suggestions |
 | Source Round 8 | [ROUND-8.md](ROUND-8.md) | 13 clear, 2 with conditions (C-5 on BLUE-009, RED-022), 2 blocked: hard fork (B2 measured by Orange, B3 by reading); B1 fixed; no consensus suggestions |
 | Source Round 9 | [ROUND-9.md](ROUND-9.md) | 12 clear, 1 with conditions (C-6 on BLUE-010: kept progress must outlast the stall backoff), 0 blocked; B2, B3, C-5 fixed; no consensus suggestions |
+| Source Round 10 | [ROUND-10.md](ROUND-10.md) | 11 clear, 1 with conditions (fix the flaky C-6 guard test), 1 blocked: hard fork (B4, a trickling sender holds the disk reserve; by reading); C-6 met; no consensus suggestions |

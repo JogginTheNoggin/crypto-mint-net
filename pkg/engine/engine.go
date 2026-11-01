@@ -27,6 +27,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -376,6 +377,69 @@ func (e *Engine) PreverifyEntry(k PoolKey, en *entry.Entry, origin Origin) {
 			return
 		}
 	}
+}
+
+// PreverifyPage is PreverifyEntry for a run of entries, each the parent
+// of the next, as a chase receives them in one reply. It finds every
+// entry's owners under the lock, against the state after the entries
+// before it (Pool.PageOwners), then checks all their witnesses outside
+// the lock on every core, so taking the entries in order afterwards finds
+// each witness verified. Entries it cannot preview, and every entry after
+// them, are left to PreverifyEntry. Like PreverifyEntry it only fills the
+// list of verified witnesses and never changes what any check returns.
+// Witnesses are only checked once their addresses match (RED-009); the
+// workers stop at the first that fails, so a bad one costs at most about
+// one check per core (ORANGE-014, ORANGE-020).
+func (e *Engine) PreverifyPage(k PoolKey, es []*entry.Entry) {
+	if len(es) < 2 {
+		return
+	}
+	e.mu.Lock()
+	p, err := e.pool(k)
+	if err != nil {
+		e.mu.Unlock()
+		return
+	}
+	items, owners := p.ledger.PageOwners(es)
+	e.mu.Unlock()
+	type job struct {
+		it     entry.Item
+		owners []hash.Hash
+	}
+	var jobs []job
+	for i := range items {
+		for j, it := range items[i] {
+			jobs = append(jobs, job{it, owners[i][j]})
+		}
+	}
+	workers := min(runtime.GOMAXPROCS(0), len(jobs))
+	if workers < 2 {
+		for _, j := range jobs {
+			if tx.Preverify(p.s, j.it.Tx, j.it.TID, j.owners) != nil {
+				return
+			}
+		}
+		return
+	}
+	var next atomic.Int64
+	var failed atomic.Bool
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for !failed.Load() {
+				i := int(next.Add(1) - 1)
+				if i >= len(jobs) {
+					return
+				}
+				if tx.Preverify(p.s, jobs[i].it.Tx, jobs[i].it.TID, jobs[i].owners) != nil {
+					failed.Store(true)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // TxResult reports what HandleTx did.

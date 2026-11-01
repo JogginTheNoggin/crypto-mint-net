@@ -121,3 +121,12 @@ built.
   progress outlasts its sender's backoff and a stall that made progress
   does not double it; chases ask for hashes in pages of 4,096; the grind
   schedule shows its version and limits, and edits take `-if-version`.
+- **The disk reserve and paced askers (D131 to D135):** kept progress
+  holds nothing per layer, and a fetch at the disk reserve reclaims the
+  parts of an idle sender, a departed one, or one with more still to come,
+  so a sender trickling a huge claim never holds the room an honest entry
+  needs; an asker learns a sender's request budget from dropped requests
+  and stays under it; catch-up checks signatures on every core; a full
+  grind schedule leaves room for four user jobs, an edit restarts only the
+  jobs it changes, and offline edits take the data directory's lock; `poo
+  doctor` offers a command for a lowered value.

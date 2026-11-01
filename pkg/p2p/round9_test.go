@@ -241,7 +241,7 @@ func TestChaseBelowSenderBudgetIsReached(t *testing.T) {
 	bareRun(t, a, 600)
 	b.connect(a)
 	eventuallyFor(t, time.Minute, "b to reach a's ledger", func() bool { return a.state() == b.state() }, a, b)
-	if !strings.Contains(b.log.String(), "result=stalled") {
+	if !strings.Contains(b.log.String(), "result=stalled") && !strings.Contains(b.log.String(), "result=slowed") {
 		t.Fatalf("no request was dropped, so the stall was not tested:\n%s", b.log)
 	}
 }

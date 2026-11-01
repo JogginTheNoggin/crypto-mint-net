@@ -58,7 +58,7 @@ type Policy struct {
 	Format int `json:"format"`
 	// Lowered says what Load brought down to a bound lowered since the
 	// file was written, for the caller to warn of; it is not saved.
-	Lowered []string `json:"-"`
+	Lowered []Lowered `json:"-"`
 	// Series lists the series this node knows. Series information comes
 	// from outside the network, never from peers.
 	Series []SeriesInfo `json:"series"`
@@ -643,13 +643,30 @@ func DecodeWitness(s string) (policy.Witness, error) {
 // was valid when it was written stays one a node opens: a lowered bound
 // is enforced on every write (Save, the RPC, the CLI, the GUI) and only
 // clamped on a read (RED-025, D128).
-func (p *Policy) lower() []string {
-	var notes []string
+func (p *Policy) lower() []Lowered {
+	var notes []Lowered
 	if g := p.Grind; g != nil && g.LayerRate > MaxLayerRate {
-		notes = append(notes, fmt.Sprintf("grind.layer_rate %d is over the most, %d: %d is used", g.LayerRate, MaxLayerRate, MaxLayerRate))
+		notes = append(notes, Lowered{Field: "grind.layer_rate", Was: g.LayerRate, Now: MaxLayerRate,
+			FixArgs: []string{"grind", "schedule", "set", "-layer-rate", strconv.Itoa(MaxLayerRate)}})
 		g.LayerRate = MaxLayerRate
 	}
 	return notes
+}
+
+// Lowered is one value Load brought down to a bound lowered since the
+// file was written: the field, as named in node.json, the value written
+// and the value used. FixArgs, when set, is the poo command line that
+// writes the value used, for `poo doctor`'s fix_args (GREEN-035).
+type Lowered struct {
+	Field   string   `json:"field"`
+	Was     int      `json:"was"`
+	Now     int      `json:"now"`
+	FixArgs []string `json:"fix_args,omitempty"`
+}
+
+// String says what was lowered, for a warning.
+func (l Lowered) String() string {
+	return fmt.Sprintf("%s %d is over the most, %d: %d is used", l.Field, l.Was, l.Now, l.Now)
 }
 
 // Load reads and validates a node policy file. A value over a bound

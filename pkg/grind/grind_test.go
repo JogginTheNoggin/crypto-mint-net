@@ -614,3 +614,48 @@ func TestProgressEachSecond(t *testing.T) {
 		t.Fatalf("%d progress events in 4.5 s", progress)
 	}
 }
+
+// GREEN-035: a schedule edit that changes only the jobs keeps the jobs
+// still scheduled running, with their IDs, and stops only the ones taken
+// out, saying why; a changed default restarts them all.
+func TestScheduleAppliesTheDifference(t *testing.T) {
+	f := newFixture(t)
+	job := func(b byte) nodepolicy.GrindJob { return nodepolicy.GrindJob{Target: hash.Hash{b}.String()} }
+	first, failed := f.m.Schedule(&nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{job(1), job(2)}})
+	if len(first) != 2 || len(failed) != 0 {
+		t.Fatalf("scheduled %v, failed %v", first, failed)
+	}
+	next, failed := f.m.Schedule(&nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{job(2), job(3)}})
+	if len(next) != 2 || len(failed) != 0 {
+		t.Fatalf("rescheduled %v, failed %v", next, failed)
+	}
+	if next[0].ID != first[1].ID || next[1].ID == first[0].ID || next[1].ID == first[1].ID {
+		t.Fatalf("jobs %d, %d then %d, %d: want the second kept and a new third", first[0].ID, first[1].ID, next[0].ID, next[1].ID)
+	}
+	if j, _ := f.m.Get(first[0].ID); j.State != StateStopped || j.Reason != "the schedule changed" {
+		t.Fatalf("the job taken out is %s (%q)", j.State, j.Reason)
+	}
+	again, _ := f.m.Schedule(&nodepolicy.Grind{Threads: 1, Jobs: []nodepolicy.GrindJob{job(2), job(3)}})
+	if len(again) != 2 || again[0].ID == next[0].ID || again[1].ID == next[1].ID {
+		t.Fatalf("a changed default kept jobs %v", again)
+	}
+}
+
+// GREEN-035: a full schedule, even all waiting, leaves room for a job a
+// user starts.
+func TestFullScheduleLeavesRoom(t *testing.T) {
+	f := newFixture(t)
+	h := (time.Now().Hour() + 2) % 24
+	g := &nodepolicy.Grind{}
+	for i := 0; i < nodepolicy.MaxGrindJobs; i++ {
+		g.Jobs = append(g.Jobs, nodepolicy.GrindJob{Target: hash.Hash{byte(i + 1)}.String(), Hours: fmt.Sprintf("%02d-%02d", h, (h+1)%24)})
+	}
+	if _, failed := f.m.Schedule(g); len(failed) != 0 {
+		t.Fatalf("failed %v", failed)
+	}
+	for i := 0; i < UserJobs; i++ {
+		if _, err := f.m.Start(Spec{Target: TargetTip}); err != nil {
+			t.Fatalf("user job %d with a full schedule: %v", i+1, err)
+		}
+	}
+}

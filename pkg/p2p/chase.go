@@ -583,7 +583,11 @@ type progress struct {
 	complete bool        // the listing reaches the sender's tip
 
 	// Step 4.
-	total   weight.Weight // provisional work counted so far
+	total weight.Weight // provisional work counted so far
+	// counted holds the entries whose layers were counted, not each
+	// layer: the layers of one entry are told apart in the reply that
+	// carries them, and an entry's many layers by their order, so the
+	// progress holds nothing for each layer (RED-026, D131).
 	counted map[hash.Hash]bool
 	marks   map[int]hash.Hash // listed hashes with layers, by index after common
 	worked  bool              // total beat the node's own weight after common
@@ -595,8 +599,10 @@ type progress struct {
 	part   *partial           // a large entry, as far as it has arrived
 
 	// Kept by saveProgress: when it was saved, and since when its sender
-	// has not been connected (zero while it is), for sweepProgress.
+	// has not been connected (zero while it is), for sweepProgress;
+	// compacted once the sweep has cut it down to its common entry.
 	saved, away time.Time
+	compacted   bool
 
 	// Topping up layers on entries both hold (topUpLayers).
 	topping  bool
@@ -662,7 +668,13 @@ func (h *Host) saveProgress(k progressKey, st *progress) {
 	if _, ok := h.prog[k]; !ok {
 		h.progOrder = append(h.progOrder, k)
 	}
-	st.saved, st.away = now, time.Time{}
+	st.saved, st.away, st.compacted = now, time.Time{}, false
+	if pt := st.part; pt != nil {
+		if pt.tried {
+			pt.idle = pt.got == 0
+		}
+		pt.tried, pt.got = false, 0
+	}
 	h.prog[k] = st
 	h.sweepLocked(now, on)
 	for len(h.progOrder) > maxProgress {
@@ -715,11 +727,21 @@ func (h *Host) sweepLocked(now time.Time, on map[string]bool) {
 		case st.away.IsZero():
 			st.away = now
 		}
-		if !st.away.IsZero() && now.Sub(st.away) > h.cfg.ProgressGrace {
-			// A sender gone past the grace loses its parts file, which
-			// costs disk; the rest costs little memory and is kept to the
-			// time to live (Black's C-6, D129).
+		if !st.away.IsZero() && now.Sub(st.away) > h.cfg.ProgressGrace && !st.compacted {
+			// A sender gone past the grace loses its parts file and all
+			// it showed but the common entry: what was counted and
+			// fetched is rebuilt from the sender if it comes back. The
+			// progress itself is kept to the time to live (Black's C-6,
+			// D129; RED-026, D131).
 			st.drop()
+			if !st.topping {
+				// Topping up holds only a page of the sender's hashes.
+				c := newProgress(st.common, nil, false)
+				c.saved, c.away = st.saved, st.away
+				h.prog[k] = c
+				st = c
+			}
+			st.compacted = true
 		}
 		// The time to live runs from when the progress was saved or, if
 		// later, when its sender's backoff ends, so a stalled chase's
@@ -742,22 +764,82 @@ func (h *Host) sweepLocked(now time.Time, on map[string]bool) {
 	h.progOrder = kept
 }
 
-// dropAwayParts removes the parts files of chases whose senders are not
-// connected, keeping the rest of their progress; it reports whether it
-// removed any. A fetch waiting for disk space calls it first, so room
-// that departed senders hold goes to one that is sending (RED-023).
-func (h *Host) dropAwayParts() bool {
+// reclaimParts makes room on the parts' disk for the chase of st, which
+// is about to wait for it: it removes, one at a time and until room says
+// there is room, the parts files of kept chases that rank below st,
+// connected or not, the lowest first (partsBelow). It reports whether
+// room was made. A chase whose sender left, or that asked for parts and
+// took none, gives way to one that is sending; among the rest the one
+// that has shown more keeps its parts, then the one nearer its end, so
+// two fetches never take turns throwing each other's away, and a sender
+// trickling a huge claim never holds the room an entry needs (RED-023,
+// RED-027, D131; Black's B4, D132).
+func (h *Host) reclaimParts(st *progress, room func() bool) bool {
 	on := h.connectedIDs()
 	h.progMu.Lock()
 	defer h.progMu.Unlock()
-	dropped := false
-	for k, st := range h.prog {
-		if !on[k.sender] && st.part != nil {
-			st.drop()
-			dropped = true
+	me := partsRank{shown: st}
+	for {
+		var low *progress
+		var lowRank partsRank
+		for k, o := range h.prog {
+			if o.part == nil {
+				continue
+			}
+			r := partsRank{away: !on[k.sender], idle: o.part.idle, shown: o}
+			if !r.below(me) {
+				continue
+			}
+			if low == nil || r.below(lowRank) {
+				low, lowRank = o, r
+			}
+		}
+		if low == nil {
+			return false
+		}
+		low.drop()
+		if room() {
+			return true
 		}
 	}
-	return dropped
+}
+
+// partsRank orders kept parts files for reclaimParts: a departed sender's
+// first, then one whose last chase asked for parts and took none, then
+// by what the chase has shown (lessShown), then the more bytes still to
+// come. The last is Black's B4 (D132): a sender that names a huge size and
+// trickles its bytes always has more to come than an entry being fetched
+// whole, so it can never hold the reserve against one, and to rank higher
+// it must claim a size it then has to complete, after which the hash
+// decides. Between honest fetches the one nearer its end keeps the room,
+// and it only gets nearer, so they never take turns.
+type partsRank struct {
+	away, idle bool
+	shown      *progress
+}
+
+func (a partsRank) below(b partsRank) bool {
+	if a.away != b.away {
+		return a.away
+	}
+	if a.idle != b.idle {
+		return a.idle
+	}
+	if lessShown(a.shown, b.shown) {
+		return true
+	}
+	if lessShown(b.shown, a.shown) {
+		return false
+	}
+	return a.shown.partsToCome() > b.shown.partsToCome()
+}
+
+// partsToCome is how many bytes st's large entry still needs.
+func (st *progress) partsToCome() uint64 {
+	if st.part == nil {
+		return 0
+	}
+	return st.part.size - st.part.off
 }
 
 // lessShown reports whether a has shown less than b: not worked where b
@@ -903,6 +985,19 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 				stop = &r
 				return true, nil
 			}
+			paging := st.manyOn && st.many == it.Entry
+			if st.counted[it.Entry] && !paging {
+				// Listed again: its layers were counted where it was
+				// listed first.
+				return st.total.Greater(beat), nil
+			}
+			st.counted[it.Entry] = true
+			// Within one reply an entry's layers are told apart here; the
+			// pages of its many layers come without repeats (layersFrom).
+			var seen map[uint64]bool
+			if !paging {
+				seen = make(map[uint64]bool, len(it.Nonces))
+			}
 			for _, n := range it.Nonces {
 				lh := layer.Layer{Entry: it.Entry, Nonce: n}.Hash(fn)
 				if lh.Strength() < minLayer {
@@ -911,10 +1006,12 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 					stop = &r
 					return true, nil
 				}
-				if st.counted[lh] {
-					continue
+				if seen != nil {
+					if seen[n] {
+						continue
+					}
+					seen[n] = true
 				}
-				st.counted[lh] = true
 				st.total = st.total.Add(weight.Credit(lh.Strength()))
 				st.marks[i] = it.Entry
 				st.branch[it.Entry] = true
@@ -1093,6 +1190,10 @@ func (h *Host) layersFrom(pi *poolInfo, p *peer, st *progress, eh hash.Hash, dea
 				st.manySlack += uint64(c.Total - st.manyTotal)
 			}
 			st.manyTotal = c.Total
+			// Only layers not read before go on to take: a page may
+			// repeat read ones (below), and they were counted then, so
+			// nothing needs to remember each layer (RED-026, D131).
+			fresh := make([]uint64, 0, len(c.Nonces))
 			for i, n := range c.Nonces {
 				at := layerAt{layer.Layer{Entry: eh, Nonce: n}.Strength(fn), n}
 				if st.manyRead {
@@ -1106,8 +1207,11 @@ func (h *Host) layersFrom(pi *poolInfo, p *peer, st *progress, eh hash.Hash, dea
 							return falseErr{err: fmt.Errorf("layers of %s read again at %d with no new layers", eh.Short(), int(c.From)+i)}
 						}
 						st.manySlack--
+						st.manyCur = at
+						continue
 					}
 				}
+				fresh = append(fresh, n)
 				st.manyCur = at
 				if !st.manyRead || at.after(st.manyHigh) {
 					st.manyHigh = at
@@ -1116,7 +1220,10 @@ func (h *Host) layersFrom(pi *poolInfo, p *peer, st *progress, eh hash.Hash, dea
 			}
 			got = true
 			st.manyFrom += uint32(len(c.Nonces))
-			enough, err = take(wire.HeldLayers{Entry: eh, Held: true, Nonces: c.Nonces})
+			if len(fresh) == 0 {
+				return nil
+			}
+			enough, err = take(wire.HeldLayers{Entry: eh, Held: true, Nonces: fresh})
 			return err
 		})
 		if err != nil {
@@ -1298,6 +1405,15 @@ func (h *Host) fetch(pi *poolInfo, p *peer, q wire.Request, st *progress, expect
 		if err != nil {
 			return err
 		}
+		if len(c.Items) > 1 && c.Items[0].Entry.Parent == parent {
+			// The chunk's witnesses on every core first, so each entry
+			// taken in order finds them verified (ORANGE-020).
+			es := make([]*entry.Entry, len(c.Items))
+			for i, it := range c.Items {
+				es[i] = it.Entry
+			}
+			h.n.Engine().PreverifyPage(pi.key, es)
+		}
 		for _, it := range c.Items {
 			if err := take(it); err != nil {
 				return err
@@ -1329,6 +1445,12 @@ type partial struct {
 	size  uint64
 	f     *os.File
 	off   uint64
+	// tried and got are what the chase now running did with it: whether
+	// it asked for parts, and the bytes it took in. At the save, idle
+	// records a chase that asked and took nothing (RED-027, D131).
+	tried bool
+	got   uint64
+	idle  bool
 }
 
 func (pt *partial) close() {
@@ -1402,14 +1524,14 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			return wire.EntryItem{}, errPartsYield
 		}
 		if st != nil && !h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) &&
-			!(h.dropAwayParts() && h.partsRoom(pt.f, min(l.Size-pt.off, partsReply))) {
+			!h.reclaimParts(st, func() bool { return h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) }) {
 			// Free space is waited for, never a reason to refuse: a
 			// real large entry goes on from its offset once there is
 			// room (RED-022).
 			keep = true
 			return wire.EntryItem{}, errPartsSpace
 		}
-		asked = true
+		asked, pt.tried = true, true
 		q := wire.PartsReq{RequestCommon: h.common(), Entry: l.Entry, Variant: wire.EntriesWithLayers, Offset: pt.off}
 		var kind wire.Type
 		more := false
@@ -1434,6 +1556,7 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 				return err
 			}
 			pt.off += uint64(len(part.Data))
+			pt.got += uint64(len(part.Data))
 			return nil
 		})
 		if err != nil {

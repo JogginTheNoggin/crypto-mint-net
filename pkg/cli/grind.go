@@ -197,6 +197,7 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 	devs := grind.Default.Detect()
 	ctx := contextOf(out)
 	rows := []grind.Bench{}
+	var skipped error // why the last device was passed over
 	for _, id := range ids {
 		for _, d := range devs {
 			if *device != "" && d.ID != *device {
@@ -207,6 +208,7 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 				if *device != "" {
 					return err
 				}
+				skipped = err
 				continue // this device cannot grind this hash
 			}
 			b, err := grind.RunBench(ctx, p, time.Duration(*secs*float64(time.Second)))
@@ -221,6 +223,11 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 	}
 	if *device != "" && len(rows) == 0 {
 		return fmt.Errorf("no device %q (poo grind devices lists them)", *device)
+	}
+	// Nothing measured is an error, not an empty list: -threads 2000 used
+	// to print [] (GREEN-035).
+	if len(rows) == 0 && skipped != nil {
+		return skipped
 	}
 	return o.write(out, rows)
 }
@@ -461,12 +468,34 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	var p nodepolicy.Policy
 	path := filepath.Join(dir, nodepolicy.FileName)
 	online := false
+	var readErr error
 	if dialErr == nil {
-		if r, err := cl.GrindSchedule(); err == nil {
+		var r rpc.ScheduleReply
+		if r, readErr = cl.GrindSchedule(); readErr == nil {
 			cur, online = r.Grind, true
 		}
 	}
 	if !online {
+		if op != "" {
+			// With no node, node.json is changed under the data
+			// directory's lock, which a running node holds, so a change
+			// is never written behind a node that answered with an
+			// error or did not answer at all (its next write would undo
+			// it), nor while one starts or another command writes
+			// (GUI-017, D134). A leftover rpc.addr from a crash holds no
+			// lock, so the change goes on.
+			unlock, err := nodepolicy.Lock(dir)
+			if errors.Is(err, nodepolicy.ErrLocked) {
+				if readErr != nil {
+					return fmt.Errorf("the node is running but its schedule could not be read, so nothing was changed: %w", readErr)
+				}
+				return fmt.Errorf("a node or another command holds %s, and no node answered, so nothing was changed: try again once it has started or ended: %w", dir, err)
+			}
+			if err != nil {
+				return err
+			}
+			defer unlock()
+		}
 		var err error
 		if p, err = nodepolicy.Load(path); err != nil {
 			return err
