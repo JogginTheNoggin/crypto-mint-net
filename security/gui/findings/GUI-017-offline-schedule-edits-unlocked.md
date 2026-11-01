@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed by Source (D134: offline edits take the node.json lock), merged Round 12; pending Red's verification |
+| Status | fixed by Source (D134: offline edits take the node.json lock), merged Round 12; verified by GUI/Red R12B @ c9c9e1f on unix; not on Windows (no lock there) |
 | Found on | claude/gui-4-watch @ 4108866 (Source claude/m10-watch @ 72d6f25) |
 | Component | pkg/cli/grind.go (`grindSchedule`: the path without a node), pkg/nodepolicy (`Load`, `Save`, `Lock`) |
 | Surface | node (node.json's grind section) |
@@ -136,3 +136,41 @@ Source, so the GUI and headless are fixed together:
 - **`limits` and `version` in the reply, safe.** They are drawn with
   `textContent` in placeholders and passed as one argv element
   (`flag('if-version', …)`), not through a shell line.
+## Notes — Round 12B verification (held up on unix)
+
+- **D134, verified.**
+  - With no node, `grind schedule add|remove|set` takes the data
+    directory's `LOCK` without waiting, before `Load`, and holds it through
+    `Save`.
+  - When the lock is held, it refuses with "a node or another command holds
+    …, so nothing was changed". If the node answered with an error, it
+    instead refuses with "the node is running but … could not be read".
+  - The R10B race was re-run 20 times: no change was lost. Every add
+    either landed or exited non-zero. Runs kept 3 to 5 of 9 jobs, each
+    matching 1 plus the number of adds that succeeded.
+  - `follow`, `wallet follow` and `init -dir` use the same lock (D136).
+    `wallet follow` changes a running node in two steps, which is GUI-018.
+  - A node hosted in poo-gui takes the lock on its own file descriptor, so
+    the GUI's offline edits are refused while it runs, as they are for an
+    outside node.
+- **Residual, Windows.** `nodepolicy.Lock` is a no-op off unix
+  (`lock_other.go`). There, offline edits still lose each other, and a
+  change can still be written behind a running node, exactly as before.
+  poo-gui supports Windows (its terminal has a Windows grammar). A
+  `LockFileEx` lock on the same file would close it. This stays Low.
+- **Wording, optional.** When another *command* holds the lock, the
+  wrapped error still ends "data directory in use by another node".
+- **Health check `fix_args` (GREEN-036), safe.**
+  - The GUI no longer adds Settings flags. It runs `fix_args` as doctor
+    printed it, and doctor appends `-dir <checked dir>` when `-root`,
+    `-policy` or `-dir` chose the policy.
+  - Every `fix_args` is built from constants (`init`, `node`,
+    `grind schedule set -layer-rate 50`) plus the resolved directory. None
+    of it comes from node.json values or peers.
+  - The line goes through `api.quote`, then the terminal's own split, as
+    each argument. A directory with spaces or quotes round-trips under the
+    POSIX quoting (single quotes).
+- **GREEN-036 Getting started links, safe.** The hrefs are fixed `#/node`,
+  `#/watch`, `#/work` and `#/wallet`.
+- **GUI-016 wording (Blue #51), safe.** A full stop is added, and "current"
+  is claimed only when `reload()` returned exit 0.

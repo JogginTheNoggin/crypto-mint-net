@@ -5,6 +5,18 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 12 Part B reviewed `claude/gui-4-watch @ c9c9e1f`:
+- Source's GUI-017 fix (D134: offline edits take the data directory's lock;
+  D136 does the same for follow, `wallet follow` and `init`).
+- GREEN-036 (doctor `fix_args` carry `-dir`, and the Health check runs them
+  as printed; new Getting started steps).
+- GUI/Blue's GUI-016 wording (#51).
+
+All held on unix. The R10B race lost nothing in 20 runs. Windows has no lock,
+so GUI-017 remains there. There is one new Low for Source: GUI-018.
+`wallet follow` changes a running node in two requests, and a failure
+between them drops the series' rule while saying nothing was changed.
+
 Round 11 Part B reviewed `claude/gui-4-watch @ 4be2230`: GUI/Blue's GUI-016
 fix (a refused Remove shows poo's reason) and GREEN-035 (the summary shows a
 layer rate kept with no floor). Both held, and `e2e/work.mjs` passes locally.
@@ -146,4 +158,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-014](GUI-014-schedule-edits-lost-update.md) | Low | Schedule changes are read, changed and written back by the client, so two at once lose one; `-target` cannot tell jobs with the same target apart | fixed: GUI part (PR #41) and core edits on the node (D125, merged Round 10); the GUI's Remove also sends `-if-version` (GREEN-034, Round 10); verified R10B @ 4108866 with a node; without one, see GUI-017 |
 | [GUI-015](GUI-015-layer-rate-above-peer-budget.md) | Low | Schedule defaults allow a layer rate (up to 1000/s) above what default peers take (~100/s), so a steady grinder is timed out and then blocked, with no warning | fixed (core D127 cap 50; GUI form PR #44, merged Round 10; verified R10B @ 4108866) |
 | [GUI-016](GUI-016-refused-remove-is-silent.md) | Low | A Schedule Remove that poo refuses (`-if-version`, `-target`) shows no message; the job just stays listed | fixed (PR #49, merged Round 11; verified R11B @ 4be2230) |
-| [GUI-017](GUI-017-offline-schedule-edits-unlocked.md) | Low | Schedule changes made without a node still read and write node.json whole with no lock, so they lose each other; any read error also makes poo write behind a running node | fixed by Source (D134), merged Round 12 |
+| [GUI-017](GUI-017-offline-schedule-edits-unlocked.md) | Low | Schedule changes made without a node still read and write node.json whole with no lock, so they lose each other; any read error also makes poo write behind a running node | fixed by Source (D134), merged Round 12; verified R12B @ c9c9e1f on unix (Windows has no lock) |
+| [GUI-018](GUI-018-wallet-follow-two-step-loses-rule.md) | Low | `poo wallet follow` changes a running node in two requests (remove, then add), so a failure in between drops the series' follow rule while saying "nothing was changed" | open (Source) |
