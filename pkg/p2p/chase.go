@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"time"
 
@@ -297,6 +298,9 @@ func chaseErr(err error) result {
 	case errors.Is(err, errRevertBudget):
 		// Not refused: it goes on once the budget has room again (P2).
 		return result{out: chase.Yield, why: "the revert budget is spent for now"}
+	case errors.Is(err, errPartsSpace):
+		// Not refused: it goes on once the disk has room (RED-022).
+		return result{out: chase.Yield, why: "waiting for disk space for a large entry"}
 	case errors.Is(err, errPartsYield):
 		// A large entry is fetched over several slices, from where the
 		// last one stopped (RED-016).
@@ -719,27 +723,28 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 		for i, eh := range page {
 			at[eh] = base + i
 		}
-		items, err := h.askLayers(pi, p, page)
-		if err != nil {
-			return chaseErr(err), true
-		}
-		if len(items) == 0 {
-			return nowhere("no layers sent"), true
-		}
+		// Each answer, and each page of an entry's many layers, is counted
+		// as it arrives; once the work beats the node's, nothing more is
+		// read (RED-021, D123).
 		before := st.total
-		for _, it := range items {
+		var stop *result
+		answered, err := h.askLayers(pi, p, page, func(it wire.HeldLayers) (bool, error) {
 			i, ok := at[it.Entry]
 			if !ok {
-				continue
+				return false, nil
 			}
 			if !it.Held {
-				return nowhere("the sender no longer holds %s", it.Entry.Short()), true
+				r := nowhere("the sender no longer holds %s", it.Entry.Short())
+				stop = &r
+				return true, nil
 			}
 			for _, n := range it.Nonces {
 				lh := layer.Layer{Entry: it.Entry, Nonce: n}.Hash(fn)
 				if lh.Strength() < minLayer {
 					// The layer is false, not the entry under it (P5).
-					return falseBranch(nil, "layer on %s below the minimum strength", it.Entry.Short()), true
+					r := falseBranch(nil, "layer on %s below the minimum strength", it.Entry.Short())
+					stop = &r
+					return true, nil
 				}
 				if st.counted[lh] {
 					continue
@@ -749,13 +754,23 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 				st.marks[i] = it.Entry
 				st.branch[it.Entry] = true
 			}
+			return st.total.Greater(beat), nil
+		})
+		if err != nil {
+			return chaseErr(err), true
+		}
+		if stop != nil {
+			return *stop, true
+		}
+		if answered == 0 {
+			return nowhere("no layers sent"), true
 		}
 		if st.total.Greater(before) {
 			bare = 0
 		} else {
 			bare++
 		}
-		st.pending = st.pending[min(len(items), end):]
+		st.pending = st.pending[min(answered, end):]
 		if len(st.pending) == 0 {
 			st.pending = nil
 		}
@@ -767,13 +782,17 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 	return result{}, false
 }
 
-// askLayers asks p for the layers on hashes. An entry with more layers
-// than a reply carries whole comes as a many-layers reply, and its layers
-// are then paged with layers-from requests until all have come, so no
-// entry holds too many layers to be counted (D121). It returns one item
-// per entry answered, in order; with many layers, only that entry.
-func (h *Host) askLayers(pi *poolInfo, p *peer, hashes []hash.Hash) ([]wire.HeldLayers, error) {
-	var items []wire.HeldLayers
+// askLayers asks p for the layers on hashes and gives each answered entry
+// to take as it arrives, in order. An entry with more layers than a reply
+// carries whole comes as a many-layers reply, and its layers are then
+// paged with layers-from requests, each page given to take as one item,
+// so no entry holds too many layers to be counted (D121) and none is held
+// whole: take returns enough to stop paging, once what it counted is all
+// the caller needs (RED-021, decision D123). It returns how many of hashes
+// were answered.
+func (h *Host) askLayers(pi *poolInfo, p *peer, hashes []hash.Hash, take func(wire.HeldLayers) (enough bool, err error)) (int, error) {
+	answered := 0
+	stop := false
 	var many *wire.ManyLayers
 	err := h.ask(p, pi, wire.LayersReq{RequestCommon: h.common(), Hashes: hashes}, func(m wire.Message) error {
 		switch m.Type {
@@ -782,7 +801,17 @@ func (h *Host) askLayers(pi *poolInfo, p *peer, hashes []hash.Hash) ([]wire.Held
 			if err != nil {
 				return err
 			}
-			items = append(items, c.Items...)
+			for _, it := range c.Items {
+				answered++
+				if stop {
+					continue
+				}
+				enough, err := take(it)
+				if err != nil {
+					return err
+				}
+				stop = enough
+			}
 			return nil
 		case wire.TypeManyLayers:
 			ml, err := wire.DecodeManyLayers(m.Body)
@@ -798,24 +827,26 @@ func (h *Host) askLayers(pi *poolInfo, p *peer, hashes []hash.Hash) ([]wire.Held
 		return wire.DecodeEmpty(m.Type, m.Body)
 	})
 	if err == nil && many != nil {
-		var ns []uint64
-		ns, err = h.layersFrom(pi, p, many.Entry)
-		items = []wire.HeldLayers{{Entry: many.Entry, Held: err == nil, Nonces: ns}}
+		answered = 1
+		err = h.layersFrom(pi, p, many.Entry, func(ns []uint64) (bool, error) {
+			return take(wire.HeldLayers{Entry: many.Entry, Held: true, Nonces: ns})
+		})
 	}
 	if errors.Is(err, wire.ErrMalformed) {
 		h.misbehave(p, err)
 	}
-	return items, err
+	return answered, err
 }
 
-// layersFrom pages every layer nonce of one entry from p, strongest
-// first. Each page must start where the last ended; a total that changes
-// is followed, since layers keep arriving (D121).
-func (h *Host) layersFrom(pi *poolInfo, p *peer, eh hash.Hash) ([]uint64, error) {
-	var ns []uint64
+// layersFrom pages the layer nonces of one entry from p, strongest first,
+// giving each page to take until it says enough or the layers end. Each
+// page must start where the last ended; a total that changes is followed,
+// since layers keep arriving (D121). Only the count of nonces is kept
+// between pages (RED-021).
+func (h *Host) layersFrom(pi *poolInfo, p *peer, eh hash.Hash, take func([]uint64) (bool, error)) error {
+	from := uint32(0)
 	for {
-		from := uint32(len(ns))
-		more, got := false, false
+		more, got, enough := false, false, false
 		var kind wire.Type
 		err := h.ask(p, pi, wire.LayersFromReq{RequestCommon: h.common(), Entry: eh, From: from}, func(m wire.Message) error {
 			kind, more = m.Type, m.More()
@@ -826,24 +857,28 @@ func (h *Host) layersFrom(pi *poolInfo, p *peer, eh hash.Hash) ([]uint64, error)
 			if err != nil {
 				return err
 			}
-			if c.From != uint32(len(ns)) {
-				return falseErr{err: fmt.Errorf("layers of %s from %d, want %d", eh.Short(), c.From, len(ns))}
+			if c.From != from {
+				return falseErr{err: fmt.Errorf("layers of %s from %d, want %d", eh.Short(), c.From, from)}
 			}
 			got = got || len(c.Nonces) > 0
-			ns = append(ns, c.Nonces...)
-			return nil
+			from += uint32(len(c.Nonces))
+			if enough || len(c.Nonces) == 0 {
+				return nil
+			}
+			enough, err = take(c.Nonces)
+			return err
 		})
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if kind != wire.TypeLayersFrom {
-			return nil, fmt.Errorf("layers of %s answered %s", eh.Short(), kind)
+			return fmt.Errorf("layers of %s answered %s", eh.Short(), kind)
 		}
-		if !more {
-			return ns, nil
+		if !more || enough {
+			return nil
 		}
 		if !got {
-			return nil, falseErr{err: fmt.Errorf("layers of %s: more said, none sent", eh.Short())}
+			return falseErr{err: fmt.Errorf("layers of %s: more said, none sent", eh.Short())}
 		}
 	}
 }
@@ -1044,12 +1079,33 @@ func (pt *partial) close() {
 // parts, and the next slice goes on from them.
 var errPartsYield = errors.New("time slice used up fetching a large entry")
 
+// errPartsSpace ends a slice when the parts' disk is down to its reserve;
+// st keeps the parts, and a later slice goes on once there is room.
+var errPartsSpace = errors.New("the disk for large entries is down to its reserve")
+
+// diskSpace is statDisk, a seam for tests.
+var diskSpace = statDisk
+
+// partsRoom reports whether the disk of the parts directory has room for
+// n more bytes above its reserve: the larger of Config.PartsReserve and
+// 2% of the disk, so a sender's claim never takes the room the store
+// needs. When the space cannot be read, it has room (RED-022, D123).
+func (h *Host) partsRoom(f *os.File, n uint64) bool {
+	free, total, err := diskSpace(filepath.Dir(f.Name()))
+	if err != nil {
+		return true
+	}
+	reserve := max(h.cfg.PartsReserve, total/50)
+	return free >= reserve && free-reserve >= n
+}
+
 // fetchParts fetches the encoded item of an entry too large for one
 // chunk, part by part, and decodes it once whole. Each part must start
 // where the last ended, hold at least a byte and name the size the sender
 // stated, and the first must start with the expected parent (D117,
 // RED-016). The parts go to a temporary file; with st, a fetch past the
-// deadline yields and the next slice goes on from them. No size is
+// deadline, or one whose disk is down to its reserve, yields and a later
+// slice goes on from them (RED-022). No size is
 // refused: the sender pays for every byte it claims by sending it.
 func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash, st *progress, deadline time.Time) (wire.EntryItem, error) {
 	var pt *partial
@@ -1080,6 +1136,13 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 		if asked && st != nil && !deadline.IsZero() && time.Now().After(deadline) {
 			keep = true
 			return wire.EntryItem{}, errPartsYield
+		}
+		if st != nil && !h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) {
+			// Free space is waited for, never a reason to refuse: a
+			// real large entry goes on from its offset once there is
+			// room (RED-022).
+			keep = true
+			return wire.EntryItem{}, errPartsSpace
 		}
 		asked = true
 		q := wire.PartsReq{RequestCommon: h.common(), Entry: l.Entry, Variant: wire.EntriesWithLayers, Offset: pt.off}
@@ -1205,21 +1268,21 @@ func (h *Host) topUpLayers(pi *poolInfo, p *peer, st *progress, stated weight.We
 		}
 		asked = true
 		for len(st.top) > 0 {
-			items, err := h.askLayers(pi, p, st.top)
+			// Each page of layers goes in as it arrives, so an entry's
+			// many layers are never held whole (RED-021).
+			answered, err := h.askLayers(pi, p, st.top, func(it wire.HeldLayers) (bool, error) {
+				if it.Held {
+					return false, h.takeLayers(pi, p, it.Entry, it.Nonces)
+				}
+				return false, nil
+			})
 			if err != nil {
 				return chaseErr(err), true
 			}
-			if len(items) == 0 {
+			if answered == 0 {
 				return nowhere("no layers sent"), true
 			}
-			for _, it := range items {
-				if it.Held {
-					if err := h.takeLayers(pi, p, it.Entry, it.Nonces); err != nil {
-						return chaseErr(err), true
-					}
-				}
-			}
-			st.top = st.top[min(len(items), len(st.top)):]
+			st.top = st.top[min(answered, len(st.top)):]
 		}
 		if !stated.Greater(h.ownWeight(pi)) || st.topStart {
 			break

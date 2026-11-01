@@ -345,16 +345,19 @@ type largeSender struct {
 	r       *rawPeer
 	size    uint64
 	first   []byte
-	offsets []uint64 // of the parts requests, in order
-	full    bool     // a whole ledger was asked for
-	layers  bool     // layers were asked for before it
+	offsets []uint64  // of the parts requests, in order
+	full    bool      // a whole ledger was asked for
+	layers  bool      // layers were asked for before it
+	eh      hash.Hash // the large entry, the same over every serve
 }
 
 func (ls *largeSender) serve(t *testing.T, until time.Time, stop func() bool) {
 	t.Helper()
 	huge := weight.FromUint64(1 << 62)
-	var eh hash.Hash
-	rand.Read(eh[:])
+	if ls.eh.IsZero() {
+		rand.Read(ls.eh[:])
+	}
+	eh := ls.eh
 	for !stop() {
 		if time.Now().After(until) {
 			t.Fatalf("timed out: parts asked from %v", ls.offsets)
