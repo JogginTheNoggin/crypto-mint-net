@@ -442,6 +442,10 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	default:
 		return fmt.Errorf("poo grind schedule %s: unknown; it is add, remove or set", op)
 	}
+	var ifVersion *string
+	if op != "" {
+		ifVersion = fs.String("if-version", "", "change only the section with this version, as poo grind schedule printed it (GREEN-034)")
+	}
 	pos, err := parseMixed(fs, args)
 	if err != nil {
 		return err
@@ -475,7 +479,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		if len(pos) != 0 {
 			return errors.New("usage: poo grind schedule [add|remove|set]")
 		}
-		return o.write(out, rpc.ScheduleReply{Grind: cur})
+		return o.write(out, rpc.ScheduleReply{Grind: cur, Version: cur.Version()})
 	}
 	if viewOnlyOf(out) {
 		return errViewOnly("grind schedule " + op)
@@ -560,6 +564,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		})
 		edit.Set = gs
 	}
+	edit.Version = *ifVersion
 	if online {
 		r, err := cl.GrindEditSchedule(edit)
 		if err != nil {
