@@ -145,6 +145,8 @@ try {
   assert.equal(await act.locator('.cmd code').innerText(), 'poo peer block -range 203.0.113.5:8646');
   await act.locator('select[name=action]').selectOption('unblock');
   assert.deepEqual(await visible(), ['Action', 'Peer address']);
+  // Hidden means not drawn, not only marked (GREEN-032).
+  assert.ok(!(await act.locator('input[name=seconds]').isVisible()), 'a hidden flag is not drawn');
   assert.equal(await act.locator('.cmd code').innerText(), 'poo peer unblock 203.0.113.5:8646');
   await act.locator('select[name=action]').selectOption('clear');
   assert.deepEqual(await visible(), ['Action', 'Peer address', 'Clear']);

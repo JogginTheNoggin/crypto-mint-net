@@ -281,7 +281,10 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   // A field with only: {field, values} is shown, and sent, only while that
   // other field (an action select) holds one of values: the same pairs poo
   // checks with flagsFor, so a form never offers a flag poo would refuse.
-  const shown = fd => !fd.only || fd.only.values.includes(inputs[fd.only.field].value);
+  // only: {field, not} is the other way round: hidden while the field holds
+  // one of not (a grind target of tip or pending takes no -until-from).
+  const shown = fd => !fd.only || (fd.only.not ? !fd.only.not.includes(inputs[fd.only.field].value.trim())
+    : fd.only.values.includes(inputs[fd.only.field].value));
   const showOnly = () => { for (const fd of fields) labels[fd.name].hidden = !shown(fd); };
   const values = () => {
     const v = {};
@@ -324,6 +327,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   // them and pressed the button (a link into a view uses it).
   const run = vals => {
     for (const [k, v] of Object.entries(vals)) if (inputs[k]) inputs[k].value = v;
+    showOnly();
     line.set(args(values()));
     f.requestSubmit();
     sec.scrollIntoView({ block: 'start' });

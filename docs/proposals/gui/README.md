@@ -40,6 +40,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-029](GREEN-029-crypto-suggestions.md) | Key and hash fields suggest what `poo crypto` lists | small | yes | adopted |
 | [GREEN-030](GREEN-030-jump-list.md) | Long views list their panels at the top; a title scrolls to its panel | small | yes | adopted |
 | [GREEN-031](GREEN-031-schedule-remove-by-index.md) | Schedule Remove goes by position and can drop the wrong job; ask Source for `remove N -target T` | small | no (needs Source) | done: `remove -target` by Source (D115-D119), the GUI sends each row's target (Round 8) |
+| [GREEN-032](GREEN-032-hidden-fields-and-until-from.md) | Fields `only` hides were still drawn (CSS beat `hidden`); Until from shows only for entry and tx: targets | small | yes | proposed |
 
 ## Orange (performance)
 
@@ -67,7 +68,7 @@ ORANGE-005 explains how to measure.
 ```sh
 git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
-node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019, 020, 028 and 029
+node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019, 020, 028, 029 and 032
 node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014 and 018
-node gui/e2e/work.mjs /tmp/poo-gui    # the checks for 023 to 025 and 030
+node gui/e2e/work.mjs /tmp/poo-gui    # the checks for 023 to 025, 030 and 032
 ```
