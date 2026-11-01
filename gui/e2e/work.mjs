@@ -131,6 +131,17 @@ try {
   await defs.locator('input[name=threads]').fill('1');
   await defs.locator('button[type=submit]').click();
   await sched.locator('.counts', { hasText: 'device auto, 1 thread.' }).waitFor({ timeout: 10000 });
+  // The layer floor and rate (D122) are schedule defaults too, and a
+  // floor of 0 turns them off again.
+  await defs.locator('input[name=floor]').fill('200');
+  await defs.locator('input[name=rate]').fill('5');
+  assert.match(await defs.locator('.cmd code').innerText(), /-layer-floor 200 -layer-rate 5$/);
+  await defs.locator('button[type=submit]').click();
+  await sched.locator('.counts', { hasText: 'strength 200 or more, at most 5 a second' }).waitFor({ timeout: 10000 });
+  await defs.locator('input[name=floor]').fill('0');
+  await defs.locator('input[name=rate]').fill('');
+  await defs.locator('button[type=submit]').click();
+  await sched.locator('.counts', { hasText: /^Defaults: device auto, 1 thread\.$/ }).waitFor({ timeout: 10000 });
   // Two quick Removes (GUI-013): the first turns every Remove off until
   // the table is drawn again, so the second cannot go by a shifted number.
   for (const t of ['pending', 'tip']) {

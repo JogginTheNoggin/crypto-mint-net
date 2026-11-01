@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 8) |
+| Status | adopted (Round 9) |
 | Based on | claude/gui-4-watch @ a93ccb6 |
 | Area | gui/web/static/style.css, views.js (form `only`), work.js (job forms) |
 | Effort | small |

@@ -40,7 +40,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-029](GREEN-029-crypto-suggestions.md) | Key and hash fields suggest what `poo crypto` lists | small | yes | adopted |
 | [GREEN-030](GREEN-030-jump-list.md) | Long views list their panels at the top; a title scrolls to its panel | small | yes | adopted |
 | [GREEN-031](GREEN-031-schedule-remove-by-index.md) | Schedule Remove goes by position and can drop the wrong job; ask Source for `remove N -target T` | small | no (needs Source) | done: `remove -target` by Source (D115-D119), the GUI sends each row's target (Round 8) |
-| [GREEN-032](GREEN-032-hidden-fields-and-until-from.md) | Fields `only` hides were still drawn (CSS beat `hidden`); Until from shows only for entry and tx: targets | small | yes | proposed |
+| [GREEN-032](GREEN-032-hidden-fields-and-until-from.md) | Fields `only` hides were still drawn (CSS beat `hidden`); Until from shows only for entry and tx: targets | small | yes | adopted |
 
 ## Orange (performance)
 
