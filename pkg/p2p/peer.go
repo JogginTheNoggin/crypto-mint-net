@@ -82,6 +82,8 @@ type peer struct {
 	err       error
 
 	sent, received atomic.Uint64
+	// reqs counts the requests sent to the peer in the last minute.
+	reqs reqWindow
 
 	mu    sync.Mutex
 	calls map[hash.Hash]chan wire.Message
@@ -655,6 +657,7 @@ func (h *Host) ask(p *peer, pi *poolInfo, q wire.Request, f func(wire.Message) e
 		delete(p.calls, id)
 		p.mu.Unlock()
 	}()
+	p.reqs.add(time.Now(), h.cfg.RequestPaceWindow)
 	p.send(wire.Message{Header: wire.Header{
 		Type: q.Type(), Section: pi.section, RequestID: id, Stated: h.ownWeight(pi),
 	}, Body: body})
