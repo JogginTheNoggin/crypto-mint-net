@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (PR #49, merged Round 11), pending Red's verification |
+| Status | fixed (PR #49, merged Round 11; verified by GUI/Red R11B @ 4be2230) |
 | Found on | claude/gui-4-watch @ 4108866 |
 | Component | gui/web/static/work.js (`scheduleTable`, the Remove button) |
 | Surface | local (what the Work view tells the user) |
@@ -93,3 +93,28 @@ leaves a job grinding they meant to stop. No attacker is involved. Rated
     a Remove after the redraw works with no message left.
 
   On the old code the check fails because no message appears.
+
+## Notes — Round 11B verification (held up)
+
+- **The fix, verified.**
+  - Remove reads `{code, err}` and catches an exception from `api.run`.
+  - The reason is shown only after `reload()` has drawn the table again. It
+    goes above the table as a `role="alert"` line, built with `el` (so as
+    `textContent`, not HTML) and capped at the last 2,000 characters.
+  - The next redraw clears it, because `runJob` empties the area.
+  - The gate is still released in `finally`.
+  - `runJob` always resolves, including when `api.start` fails, so a failing
+    redraw cannot hold the gate. The one exception is leaving the view during
+    the redraw. That gate belongs to the old mount, as noted in R9B.
+  - `gui/e2e/work.mjs` passes locally on 4be2230, including the new
+    `-if-version` case.
+- **Optional nits, wording only.**
+  - poo's errors end without a full stop, so the line reads "…changed
+    meanwhile: list it again The table is current now." Adding ". " when the
+    reason doesn't end in punctuation would fix it.
+  - If the redraw itself failed, for example because the running-job limit
+    was hit, "The table is current now" is not true. The line could leave
+    that sentence out when the panel's last run did not exit 0.
+- **GREEN-035, safe.** The summary line is plain text built in `el`. A rate
+  kept with no floor is now shown rather than hidden, and nothing new is
+  sent.
