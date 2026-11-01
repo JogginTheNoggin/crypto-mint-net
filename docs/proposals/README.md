@@ -54,3 +54,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-033](source/GREEN-033-parts-in-data-dir.md) | Source | Put large-entry parts in the data directory, and document `layer_rate` | adopted (D126) |
 | [ORANGE-019](source/ORANGE-019-ask-in-larger-hash-pages.md) | Source | Ask for hashes in pages of 4,096, as peers already serve | adopted (D130) |
 | [GREEN-034](source/GREEN-034-schedule-version-in-cli.md) | Source | The schedule's version on the command line | adopted (D130) |
+| [ORANGE-020](source/ORANGE-020-catch-up-signatures-on-every-core.md) | Source | Catching up measured; check each reply's signatures on every core | proposed |

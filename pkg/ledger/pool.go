@@ -464,6 +464,45 @@ func (p *Pool) EntryOwners(e *entry.Entry) ([]entry.Item, [][]hash.Hash, error) 
 	return items, owners, nil
 }
 
+// PageOwners is EntryOwners for a run of entries, each the parent of the
+// next, as a chase receives them: each entry's owners are found against
+// the state after the entries before it in the run, applied to a scratch
+// overlay. It returns the items and owners of the entries it got through,
+// in order, and stops before the first it cannot preview: one that fails
+// AddEntry's checks short of the witnesses, does not follow the one before
+// it, is held already, or whose first parent is too far from the selected
+// tip. It changes nothing (ORANGE-020).
+func (p *Pool) PageOwners(es []*entry.Entry) ([][]entry.Item, [][][]hash.Hash) {
+	if len(es) == 0 {
+		return nil, nil
+	}
+	parent, ok := p.parentOf(es[0])
+	if !ok || p.viewCost(parent, MaxPreviewCost) > MaxPreviewCost {
+		return nil, nil
+	}
+	v := p.viewAfter(parent).Overlay()
+	var items [][]entry.Item
+	var owners [][][]hash.Hash
+	var prev hash.Hash
+	for i, e := range es {
+		h, its, err := entry.CheckShape(p.s, p.index, e)
+		if err != nil || (i > 0 && e.Parent != prev) {
+			break
+		}
+		if _, held := p.nodes[h]; held {
+			break
+		}
+		o, err := entry.Owners(p.s, v, its)
+		if err != nil {
+			break
+		}
+		v.Apply(toStateItems(its))
+		items, owners = append(items, its), append(owners, o)
+		prev = h
+	}
+	return items, owners
+}
+
 // MaxPreviewCost is the most EntryOwners spends, in view cost units
 // (ViewCost), to build the state after an entry's parent. An honest entry
 // builds on the tip or close to it.
