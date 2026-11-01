@@ -56,3 +56,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-034](source/GREEN-034-schedule-version-in-cli.md) | Source | The schedule's version on the command line | adopted (D130) |
 | [ORANGE-020](source/ORANGE-020-catch-up-signatures-on-every-core.md) | Source | Catching up measured; check each reply's signatures on every core | adopted (D135) |
 | [GREEN-035](source/GREEN-035-schedule-room-and-restarts.md) | Source | Leave room for user jobs, and change only what a schedule edit changes | adopted (D135) |
+| [ORANGE-021](source/ORANGE-021-restart-signatures-on-every-core.md) | Source | Restart measured; check the store's signatures on every core | proposed |

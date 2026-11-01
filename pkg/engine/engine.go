@@ -37,6 +37,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/state"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
@@ -436,6 +437,71 @@ func (e *Engine) PreverifyPage(k PoolKey, es []*entry.Entry) {
 				if tx.Preverify(p.s, jobs[i].it.Tx, jobs[i].it.TID, jobs[i].owners) != nil {
 					failed.Store(true)
 				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// MaxWarm is the most witnesses WarmStored checks in one call, well under
+// the series' list of verified witnesses (policy.DefaultVerifiedSize), so
+// what it remembers is still there when the records are taken in.
+const MaxWarm = policy.DefaultVerifiedSize / 2
+
+// WarmStored checks the witnesses of transactions read back from this
+// node's own store, on every core, and remembers each that passes, so
+// replaying them in order (HandleTx, HandleEntry) finds them verified. It
+// needs no owners, so it works ahead of the state the records build; each
+// witness's address is still checked when the record is replayed, and a
+// witness that fails is simply not remembered, so a tampered store is
+// refused as before. It checks at most MaxWarm witnesses and never changes
+// what any check returns (ORANGE-021).
+func (e *Engine) WarmStored(txs []*tx.Tx) {
+	type job struct {
+		s   *series.Series
+		w   policy.Witness
+		tid hash.Hash
+	}
+	var jobs []job
+	seen := map[hash.Hash]bool{} // a stored transaction and the entry holding it
+	e.mu.Lock()
+	for _, t := range txs {
+		s, ok := e.series[t.Mint.Series]
+		if !ok || t.Mint.Serial >= s.Mints() {
+			continue
+		}
+		if _, err := e.pool(PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}); err != nil {
+			continue
+		}
+		tid := t.TID(s.Hash())
+		if seen[tid] {
+			continue
+		}
+		seen[tid] = true
+		for _, w := range t.Witnesses {
+			if len(jobs) == MaxWarm {
+				break
+			}
+			jobs = append(jobs, job{s, w, tid})
+		}
+	}
+	e.mu.Unlock()
+	workers := min(runtime.GOMAXPROCS(0), len(jobs))
+	if workers < 2 {
+		return // on one core, replaying checks them anyway
+	}
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				i := int(next.Add(1) - 1)
+				if i >= len(jobs) {
+					return
+				}
+				jobs[i].s.WarmWitness(jobs[i].w, jobs[i].tid)
 			}
 		}()
 	}

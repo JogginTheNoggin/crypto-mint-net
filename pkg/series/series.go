@@ -260,6 +260,12 @@ func (s *Series) CheckWitnesses(ws []policy.Witness, addrs []hash.Hash, tid hash
 	return s.reg.CheckAll(s.h, s, ws, addrs, tid, s.verified)
 }
 
+// WarmWitness checks w for tid and remembers a pass, without the address
+// it must satisfy, which CheckWitness checks later (ORANGE-021).
+func (s *Series) WarmWitness(w policy.Witness, tid hash.Hash) bool {
+	return s.reg.Warm(s, w, tid, s.verified)
+}
+
 // Remembered returns how many satisfied witnesses the series remembers
 // (ORANGE-002), for tests and metrics.
 func (s *Series) Remembered() int { return s.verified.Len() }

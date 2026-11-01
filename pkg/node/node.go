@@ -232,10 +232,26 @@ func (n *Node) load() error {
 		if op.Cut > 0 {
 			n.logger().Warn("dropped an unfinished write", "pool", k.String(), "bytes", op.Cut)
 		}
-		for _, r := range op.Records {
-			n.replay.Records++
-			if n.apply(k, r) {
-				n.replay.Kept++
+		// A window of records is decoded, its witnesses are checked on
+		// every core, and then it is replayed in order, finding them
+		// verified (ORANGE-021).
+		for i := 0; i < len(op.Records); i += replayWindow {
+			win := decodeAll(op.Records[i:min(i+replayWindow, len(op.Records))])
+			var txs []*tx.Tx
+			for _, d := range win {
+				switch {
+				case d.t != nil:
+					txs = append(txs, d.t)
+				case d.e != nil:
+					txs = append(txs, d.e.Txs...)
+				}
+			}
+			n.eng.WarmStored(txs)
+			for _, d := range win {
+				n.replay.Records++
+				if n.apply(k, d) {
+					n.replay.Kept++
+				}
 			}
 		}
 		if err := n.maybeCompact(k); err != nil {
@@ -245,27 +261,51 @@ func (n *Node) load() error {
 	return nil
 }
 
-// apply replays one stored record and reports whether the engine kept it.
-func (n *Node) apply(k engine.PoolKey, r store.Record) bool {
+// replayWindow is how many stored records are decoded and warmed at a
+// time on start-up (ORANGE-021).
+const replayWindow = 1024
+
+// decoded is one stored record, decoded.
+type decoded struct {
+	kind store.Kind
+	e    *entry.Entry
+	l    layer.Layer
+	t    *tx.Tx
+	err  error
+}
+
+func decodeAll(rs []store.Record) []decoded {
+	out := make([]decoded, len(rs))
+	for i, r := range rs {
+		d := decoded{kind: r.Kind}
+		switch r.Kind {
+		case store.KindEntry:
+			d.e, d.err = entry.Decode(r.Data)
+		case store.KindLayer:
+			d.l, d.err = layer.Decode(r.Data)
+		case store.KindTx:
+			d.t, d.err = tx.Decode(r.Data)
+		default:
+			d.err = fmt.Errorf("unknown record kind %d", r.Kind)
+		}
+		out[i] = d
+	}
+	return out
+}
+
+// apply replays one decoded record and reports whether the engine kept it.
+func (n *Node) apply(k engine.PoolKey, d decoded) bool {
+	if d.err != nil {
+		return false
+	}
 	var err error
-	switch r.Kind {
+	switch d.kind {
 	case store.KindEntry:
-		var e *entry.Entry
-		if e, err = entry.Decode(r.Data); err == nil {
-			_, err = n.eng.HandleEntry(k, e, engine.Stored)
-		}
+		_, err = n.eng.HandleEntry(k, d.e, engine.Stored)
 	case store.KindLayer:
-		var l layer.Layer
-		if l, err = layer.Decode(r.Data); err == nil {
-			_, err = n.eng.HandleLayer(k, l, engine.Stored)
-		}
+		_, err = n.eng.HandleLayer(k, d.l, engine.Stored)
 	case store.KindTx:
-		var t *tx.Tx
-		if t, err = tx.Decode(r.Data); err == nil {
-			_, err = n.eng.HandleTx(t, engine.Stored)
-		}
-	default:
-		err = fmt.Errorf("unknown record kind %d", r.Kind)
+		_, err = n.eng.HandleTx(d.t, engine.Stored)
 	}
 	return err == nil
 }
