@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 9) |
+| Status | adopted (Round 10) |
 | Based on | claude/gui-4-watch @ 6fae281 |
 | Area | gui/web/static/views.js (form `hint`), work.js (Schedule defaults) |
 | Effort | small |

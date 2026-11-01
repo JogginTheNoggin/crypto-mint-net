@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | GUI part fixed (PR #41, merged Round 9; verified by GUI/Red R9B @ 6fae281); core fix pending (Source) |
+| Status | GUI part fixed (PR #41, merged Round 9; verified by GUI/Red R9B @ 6fae281); core edits on the node (D125, merged Round 10); the GUI row guards by -target only until `poo` takes a schedule version |
 | Found on | claude/gui-4-watch @ a93ccb6 |
 | Component | pkg/cli/grind.go (`grindSchedule`: GET, then PUT of the whole section), pkg/rpc/grind.go (`PUT /v1/grind/schedule`), gui/web/static/work.js (Schedule a job, Schedule defaults, Remove) |
 | Surface | node (node.json's grind section, applied at once by a running node) |
