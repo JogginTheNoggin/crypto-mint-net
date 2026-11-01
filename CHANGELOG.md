@@ -130,3 +130,10 @@ built.
   grind schedule leaves room for four user jobs, an edit restarts only the
   jobs it changes, and offline edits take the data directory's lock; `poo
   doctor` offers a command for a lowered value.
+- **Turns at the disk reserve and faster restarts (D136 to D138):** a
+  learned pace is probed back up; a slow fetch waiting for disk gets its
+  turn, so one lost request or a slow honest link never leaves an entry
+  of the heavier ledger waiting for good behind a trickler; `node.json`
+  writes from the CLI take the data directory's lock; restart checks the
+  store's signatures on every core; `poo doctor`'s fixes name the policy
+  they checked, and floor or rate changes restart no grinding job.

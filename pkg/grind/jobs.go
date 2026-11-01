@@ -261,7 +261,10 @@ func (m *Manager) Schedule(g *nodepolicy.Grind) ([]Job, map[int]error) {
 		def, jobs = Defaults{Device: g.Device, Threads: g.Threads, Floor: g.LayerFloor, Rate: g.LayerRate}, g.Jobs
 	}
 	m.mu.Lock()
-	same := m.def == def
+	// Only the device and threads go into a job's plans; the layer floor
+	// and rate are read at each search (work), so changing them keeps the
+	// running jobs (GREEN-036).
+	same := m.def.Device == def.Device && m.def.Threads == def.Threads
 	m.def = def
 	// Each scheduled job takes the first running policy job of the same
 	// spec, when the defaults are the same; the rest are stopped.

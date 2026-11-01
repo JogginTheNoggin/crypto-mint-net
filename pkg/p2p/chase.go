@@ -603,6 +603,14 @@ type progress struct {
 	// compacted once the sweep has cut it down to its common entry.
 	saved, away time.Time
 	compacted   bool
+	// partsSlow: the last chase that asked this sender for parts took in
+	// less than partsMoving (reclaimParts, RED-029; D137). partsLast is
+	// what the last chase that took any parts took in, 0 when none has.
+	// partsWait is when the chase began waiting for room on the parts'
+	// disk, zero while it is not waiting (Black's B5, D137).
+	partsSlow bool
+	partsLast uint64
+	partsWait time.Time
 
 	// Topping up layers on entries both hold (topUpLayers).
 	topping  bool
@@ -671,7 +679,17 @@ func (h *Host) saveProgress(k progressKey, st *progress) {
 	st.saved, st.away, st.compacted = now, time.Time{}, false
 	if pt := st.part; pt != nil {
 		if pt.tried {
-			pt.idle = pt.got == 0
+			// Slow: the chase asked for parts and took in less than
+			// partsMoving. It is kept on the progress, so a sender whose
+			// parts file was taken for another fetch is still slow when
+			// it asks for room (RED-029, D136). A request that timed out
+			// after partsMoving had arrived is moving: the bytes came, so
+			// an honest link too slow for a whole parts reply within
+			// RequestTimeout is not slow (Black's B5, D137).
+			st.partsSlow = pt.got < partsMoving
+			if pt.got > 0 {
+				st.partsLast = pt.got
+			}
 		}
 		pt.tried, pt.got = false, 0
 	}
@@ -778,7 +796,10 @@ func (h *Host) reclaimParts(st *progress, room func() bool) bool {
 	on := h.connectedIDs()
 	h.progMu.Lock()
 	defer h.progMu.Unlock()
-	me := partsRank{shown: st}
+	me := partsRank{slow: st.partsSlow, shown: st}
+	if st.partsSlow && !st.partsWait.IsZero() && time.Since(st.partsWait) >= h.partsTurn() {
+		me.turn = true
+	}
 	for {
 		var low *progress
 		var lowRank partsRank
@@ -786,7 +807,7 @@ func (h *Host) reclaimParts(st *progress, room func() bool) bool {
 			if o.part == nil {
 				continue
 			}
-			r := partsRank{away: !on[k.sender], idle: o.part.idle, shown: o}
+			r := partsRank{away: !on[k.sender], slow: o.partsSlow, shown: o}
 			if !r.below(me) {
 				continue
 			}
@@ -805,25 +826,46 @@ func (h *Host) reclaimParts(st *progress, room func() bool) bool {
 }
 
 // partsRank orders kept parts files for reclaimParts: a departed sender's
-// first, then one whose last chase asked for parts and took none, then
-// by what the chase has shown (lessShown), then the more bytes still to
-// come. The last is Black's B4 (D132): a sender that names a huge size and
+// first, then a slow one (its last chase that asked for parts took in
+// less than partsMoving, or timed out: progress.partsSlow, RED-029,
+// D136), then by what the chase has shown (lessShown), then the more
+// bytes still to come. A waiting chase is ranked by its own last chase
+// too, so a slow sender whose file was taken cannot take it back. The last is Black's B4 (D132): a sender that names a huge size and
 // trickles its bytes always has more to come than an entry being fetched
 // whole, so it can never hold the reserve against one, and to rank higher
 // it must claim a size it then has to complete, after which the hash
 // decides. Between honest fetches the one nearer its end keeps the room,
 // and it only gets nearer, so they never take turns.
+//
+// A slow chase that has waited partsTurn for room has its turn (Black's
+// B5, D137): it ranks as moving against a moving file, and above a slow
+// one unless that one's last chase took in more than its own did. A
+// waiting chase cannot ask for parts, so without its turn a slow flag set
+// by one lost request would never clear, and a slow trickler with less to
+// come would hold the room for good. A chase that took none yet (its one
+// request was lost) has its turn against any slow file. With its turn it
+// asks; a chase that then takes in partsMoving is moving and keeps the
+// room, and one that is slow again gives it back to the next turn, so two
+// slow fetches take turns, and the one that takes in more each turn
+// keeps the room. To keep it against an honest slow fetch a trickler
+// must send as much each chase as the honest sender does.
 type partsRank struct {
-	away, idle bool
-	shown      *progress
+	away, slow bool
+	// turn: a slow waiting chase that has waited partsTurn (only the
+	// chase asking for room has it).
+	turn  bool
+	shown *progress
 }
 
 func (a partsRank) below(b partsRank) bool {
 	if a.away != b.away {
 		return a.away
 	}
-	if a.idle != b.idle {
-		return a.idle
+	if b.turn && a.slow {
+		return b.shown.partsLast == 0 || b.shown.partsLast >= a.shown.partsLast
+	}
+	if a.slow != (b.slow && !b.turn) {
+		return a.slow
 	}
 	if lessShown(a.shown, b.shown) {
 		return true
@@ -832,6 +874,16 @@ func (a partsRank) below(b partsRank) bool {
 		return false
 	}
 	return a.shown.partsToCome() > b.shown.partsToCome()
+}
+
+// partsTurn is how long a slow chase waits for room before it has its
+// turn: two of the sender's first backoff steps (Black's B5, D137).
+func (h *Host) partsTurn() time.Duration {
+	b := h.cfg.Chase.Backoff
+	if b <= 0 {
+		b = chase.DefaultConfig().Backoff
+	}
+	return 2 * b
 }
 
 // partsToCome is how many bytes st's large entry still needs.
@@ -1446,12 +1498,19 @@ type partial struct {
 	f     *os.File
 	off   uint64
 	// tried and got are what the chase now running did with it: whether
-	// it asked for parts, and the bytes it took in. At the save, idle
-	// records a chase that asked and took nothing (RED-027, D131).
+	// it asked for parts, and the bytes it took in. At the save they set
+	// progress.partsSlow and partsLast (RED-027, D131; RED-029, D136;
+	// D137).
 	tried bool
 	got   uint64
-	idle  bool
 }
+
+// partsMoving is the least a chase that asks for parts takes in for its
+// parts file to rank as moving at the disk reserve: a sixty-fourth of
+// what one parts reply carries. A sender that trickles a part a chase is
+// slow whatever size it claims, so it never holds the room an entry that
+// is moving needs (RED-029, D136). It ranks, and refuses nothing.
+const partsMoving = partsReply / 64
 
 func (pt *partial) close() {
 	pt.f.Close()
@@ -1523,13 +1582,20 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			keep = true
 			return wire.EntryItem{}, errPartsYield
 		}
-		if st != nil && !h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) &&
-			!h.reclaimParts(st, func() bool { return h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) }) {
-			// Free space is waited for, never a reason to refuse: a
-			// real large entry goes on from its offset once there is
-			// room (RED-022).
-			keep = true
-			return wire.EntryItem{}, errPartsSpace
+		if st != nil && !h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) {
+			if st.partsWait.IsZero() {
+				st.partsWait = time.Now()
+			}
+			if !h.reclaimParts(st, func() bool { return h.partsRoom(pt.f, min(l.Size-pt.off, partsReply)) }) {
+				// Free space is waited for, never a reason to refuse: a
+				// real large entry goes on from its offset once there is
+				// room (RED-022).
+				keep = true
+				return wire.EntryItem{}, errPartsSpace
+			}
+		}
+		if st != nil {
+			st.partsWait = time.Time{}
 		}
 		asked, pt.tried = true, true
 		q := wire.PartsReq{RequestCommon: h.common(), Entry: l.Entry, Variant: wire.EntriesWithLayers, Offset: pt.off}

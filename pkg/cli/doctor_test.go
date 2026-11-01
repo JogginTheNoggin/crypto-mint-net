@@ -143,7 +143,7 @@ func TestDoctorOutputAndGrind(t *testing.T) {
 	os.Chmod(dir, 0o700)
 	_ = run([]string{"doctor", "-json", "-dir", dir}, jsonInto(t, &j1))
 	_ = run([]string{"doctor", "-o", "json", "-dir", dir}, jsonInto(t, &j2))
-	if len(j1.Checks) == 0 || len(j1.Checks) != len(j2.Checks) || len(j1.Checks[0].FixArgs) != 1 || j1.Checks[0].FixArgs[0] != "init" {
+	if len(j1.Checks) == 0 || len(j1.Checks) != len(j2.Checks) || strings.Join(j1.Checks[0].FixArgs, " ") != "init -dir "+dir {
 		t.Fatalf("-json %+v, -o json %+v", j1, j2)
 	}
 	var tb bytes.Buffer
@@ -209,7 +209,20 @@ func TestDoctorLoweredHasFixArgs(t *testing.T) {
 	if strings.Join(lowered.FixArgs, " ") != strings.Join(want, " ") || !strings.Contains(lowered.Detail, "layer_rate 1000") {
 		t.Fatalf("lowered check %+v", lowered)
 	}
-	cli(t, nil, append(lowered.FixArgs, "-dir", dir)...)
+	// Run as poo doctor -dir DIR prints it, the fix names DIR, so it
+	// changes the policy that was checked (GREEN-036).
+	var rep DoctorReport
+	cli(t, &rep, "doctor", "-dir", dir, "-o", "json")
+	printed := checkNamed(rep, "policy")
+	for _, c := range rep.Checks {
+		if c.Name == "policy" && c.Result == checkWarn {
+			printed = c
+		}
+	}
+	if n := len(printed.FixArgs); n < 2 || printed.FixArgs[n-2] != "-dir" || printed.FixArgs[n-1] != dir {
+		t.Fatalf("printed fix_args %q do not name %s", printed.FixArgs, dir)
+	}
+	cli(t, nil, printed.FixArgs...)
 	for _, c := range doctor(io.Discard, dir).Checks {
 		if c.Name == "policy" && c.Result == checkWarn {
 			t.Fatalf("still lowered after the fix: %+v", c)

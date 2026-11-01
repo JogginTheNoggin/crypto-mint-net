@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -63,6 +65,23 @@ func doctorCmd(args []string, out io.Writer) error {
 		return fmt.Errorf("-o must be json or table, not %q", *format)
 	}
 	rep := doctor(out, w.resolve())
+	// A fix run as printed must change the node policy that was checked:
+	// when -root, -policy or -dir chose it, each fix_args names it by
+	// -dir, or "poo grind schedule set" would change the current one
+	// (GREEN-036).
+	chosen := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "root" || f.Name == "policy" || f.Name == "dir" {
+			chosen = true
+		}
+	})
+	if chosen {
+		for i, c := range rep.Checks {
+			if len(c.FixArgs) > 0 {
+				rep.Checks[i].FixArgs = append(slices.Clone(c.FixArgs), "-dir", rep.Dir)
+			}
+		}
+	}
 	if *asJSON || *format != "" {
 		f := *format
 		if *asJSON {

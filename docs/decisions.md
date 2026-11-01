@@ -2289,3 +2289,113 @@ a chase takes in after checking their work are not charged.
       written.
 - **Why:** Measured or found in Round 10 Part B and cleared by Black.
 - **Tier:** Implementation (node policy, the grinder and the CLI).
+
+### D136. Round 11 fixes: RED-028, RED-029, RED-030 (BLUE-012)
+
+- **Decision:**
+  - **RED-028.** The first pace learned from a sender is a probe. It
+    doubles once in each `RequestPaceWindow` in which the sender replies,
+    and ends when it reaches `RequestPace`. The pace holds as D133 says,
+    and is remembered as the sender's known budget, when either:
+    - two more requests in a row are dropped while it is still probing; or
+    - after a pace lapses, a drop comes with as much sent as the known
+      budget.
+    A held pace is lowered only by drops that came with at least half of
+    it sent. So a sender that was only slow, or lost two requests, is soon
+    served at the pace it allows, and a sender with a smaller budget
+    costs at most one more round of drops when it is first learned.
+  - **RED-029.** At the disk reserve, a kept parts file ranks as slow, just
+    above a departed sender's, when the last chase that asked it for parts
+    took in less than `partsMoving` (1 MiB, a sixty-fourth of a parts
+    reply) or a parts request timed out. This is kept on the progress, so
+    a waiting chase is ranked by its own last chase too. A sender that
+    trickles a part a chase gives way to a fetch that is moving, whatever
+    size it claims. Among fetches that are moving, D132's order stands.
+  - **RED-030.** `poo follow`, `poo unfollow` and `poo init -force` write
+    `node.json` only under `nodepolicy.Lock`, through the helper
+    `lockPolicy` that D134's schedule edit now uses too. When a node is
+    holding the lock, the write is refused and nothing is changed.
+    `poo wallet follow` changes the follow list through the node when it
+    answers (the series' rule is removed, then the wallet's pools are
+    added and applied), and otherwise writes under the same lock.
+- **Why:**
+  - RED-028: two lost requests pinned an asker to one request a window
+    for 30 windows.
+  - RED-029: claiming just under the honest size defeated D132's
+    tie-break.
+  - RED-030: these commands could write `node.json` behind a running
+    node.
+- **Tier:** Implementation (node policy and the CLI). No consensus
+  change: no rule of validity or selection, and no byte form, changes.
+  No limit is added: `partsMoving` only ranks, and the pace only spaces
+  requests.
+- **Tests:**
+  - `TestLearnedPaceRisesUnlessShown`;
+  - `TestReqWindowLearnsThePace`, `TestSlowSenderIsReachedOverManyChases`
+    and `TestChaseBelowSenderBudgetIsReached`, all still passing;
+  - `TestTricklerJustUnderCannotHoldTheReserve`;
+  - `TestPolicyWritesTakeTheLock`.
+
+### D137. Black's B5: a slow fetch waiting for disk gets its turn
+
+- **Decision:**
+  - A slow chase (`progress.partsSlow`) that has waited `partsTurn` (two
+    of its sender's first backoff steps) for room on the parts' disk has
+    its turn in `reclaimParts`. It ranks as moving against a moving file,
+    and above a slow file unless that file's last chase took in more than
+    its own last chase did (`progress.partsLast`). A chase whose only
+    parts request was lost (it took in nothing yet) has its turn against
+    any slow file.
+  - With its turn it asks for parts. If it takes in `partsMoving` (1 MiB)
+    it is moving and keeps the room against slow files. If it is slow
+    again, the next slow chase's turn may take the room back. So two slow
+    fetches take turns, and between them the one that takes in more each
+    turn keeps the room.
+  - A parts request that timed out after `partsMoving` had arrived no
+    longer makes the chase slow. The bytes came, so an honest link too
+    slow for a whole 64 MiB parts reply within `RequestTimeout` (under
+    about 2 MB/s) is moving (Black's third shape).
+  - `partial.timedOut` is gone. `progress.partsWait` is set when a chase
+    first waits for room, and cleared once it asks.
+- **Why:** Black's Round 11 review (B5, reproduced): a waiting chase
+  cannot ask for parts, so a slow flag set by one lost request never
+  cleared. A slow trickler with less still to come then held the reserve
+  for good, and the heavier ledger's large entry was never fetched
+  (D115). Black's appendix test, `TestBlackSlowHonestCannotReclaimFromTrickler`,
+  failed on the merged code before this change (the honest sender was
+  asked for 1 part and the trickler for 22) and passes now.
+- **What is left:** the turns compare what each fetch took in per chase.
+  A trickler can take the room from an honest fetch slower than 1 MiB a
+  chase only by sending as much each chase as the honest sender does,
+  and a fresh sender gets one turn before it has a measure. Each turn
+  costs it real bandwidth and a wait of two backoff steps. No case is
+  left in which a fetch waits for good. For Red in Part B: an honest
+  sender under about 35 KB/s against a trickler, and a stream of fresh
+  senders.
+- **Tier:** Implementation (node policy). It changes only which kept
+  parts file gives way at the disk reserve. No rule of validity or
+  selection, no byte form and no limit changes. Tests (P0):
+  `TestBlackSlowHonestCannotReclaimFromTrickler`, `TestPartsRankTurns`,
+  `TestTricklerCannotHoldTheReserve` and
+  `TestTricklerJustUnderCannotHoldTheReserve`.
+
+### D138. Round 12 adoptions: ORANGE-021, GREEN-036
+
+- **Decision:**
+  - ORANGE-021 as written: on restart, `node.load` decodes the store
+    1,024 records at a time, and `Engine.WarmStored` checks their
+    witnesses' signatures on every core before the window is replayed
+    in order. It is used only for the node's own store. The address and
+    every other check still run during the replay, so a tampered store
+    is refused as before.
+  - GREEN-036 as written: when `-root`, `-policy` or `-dir` chose the
+    policy, `poo doctor` adds `-dir DIR` to every `fix_args`, so a fix
+    changes the policy that was checked. A schedule change to
+    `layer_floor` or `layer_rate` restarts no job, since the grinder
+    reads both at each search. Only `device` and `threads` restart jobs
+    (this refines D135).
+- **Why:** Measured or found in Round 11 Part B and cleared by Black.
+  ORANGE-021: restart with 20,000 entries went from 1.7–2.2 s to
+  0.86–0.95 s on 4 cores.
+- **Tier:** Implementation (the node's start-up, `poo doctor` and the
+  grinder).
