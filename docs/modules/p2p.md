@@ -217,15 +217,23 @@ for again if the sender comes back (RED-023, D128; RED-026, D131). A fetch
 that would wait for disk space first removes, one at a time and lowest
 first, the parts files of kept chases that rank below it, connected or
 not: a departed sender's, then a slow one (its last chase that asked for
-parts took in less than a sixty-fourth of a parts reply, 1 MiB, or timed
-out; a waiting chase is ranked by its own last chase too, so a slow
-sender whose file was taken cannot take it back: RED-029, D136), then
+parts took in less than a sixty-fourth of a parts reply, 1 MiB, even if
+a request then timed out; a waiting chase is ranked by its own last
+chase too, so a slow sender whose file was taken cannot take it back:
+RED-029, D136; D137), then
 one that has shown less (C-2's order), then one with
 more bytes still to come. A chase that has shown more keeps its parts,
 and between equals the one nearer its end does, so two fetches never take
 turns throwing each other's away, and a sender that lists the heavier
 ledger, claims a huge entry and trickles it can never hold the room an
-honest fetch needs (RED-027, D131; Black's B4, D132). The progress
+honest fetch needs (RED-027, D131; Black's B4, D132). A slow chase that
+has waited two backoff steps for room has its turn: it ranks as moving
+against a moving file, and above a slow one whose last chase took in no
+more than its own (or any slow one, if its own one request was lost). It
+then asks; if it takes in 1 MiB it keeps the room, and if it is slow
+again the next turn may take it, so a flag set by one lost request always
+clears, and between slow fetches the one that takes in more each turn
+keeps the room (Black's B5, D137). The progress
 itself goes once no chase has taken it up for `ProgressTTL` (an hour),
 counted from the end of its sender's backoff, so it always outlasts the
 wait for its next turn (Black's C-6, D129). A chase that waits for disk space logs a warning and

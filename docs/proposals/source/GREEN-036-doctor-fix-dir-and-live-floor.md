@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted (D138) |
 | Based on | `claude/m10-watch` @ `1ae02ca` |
 | Area | `pkg/cli` (`doctor`), `pkg/grind` (`Manager.Schedule`), `docs/modules/grind.md` |
 | Effort | small |

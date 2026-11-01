@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D138) |
 | Based on | `claude/m10-watch` @ `1ae02ca` |
 | Area | `pkg/policy` (`Registry.Warm`), `pkg/series` (`WarmWitness`), `pkg/engine` (`WarmStored`, `MaxWarm`), `pkg/node` (`load`, `replayWindow`) |
 | Effort | small |

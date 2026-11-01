@@ -2257,3 +2257,67 @@ a chase takes in after checking their work are not charged.
     and `TestChaseBelowSenderBudgetIsReached`, all still passing;
   - `TestTricklerJustUnderCannotHoldTheReserve`;
   - `TestPolicyWritesTakeTheLock`.
+
+### D137. Black's B5: a slow fetch waiting for disk gets its turn
+
+- **Decision:**
+  - A slow chase (`progress.partsSlow`) that has waited `partsTurn` (two
+    of its sender's first backoff steps) for room on the parts' disk has
+    its turn in `reclaimParts`. It ranks as moving against a moving file,
+    and above a slow file unless that file's last chase took in more than
+    its own last chase did (`progress.partsLast`). A chase whose only
+    parts request was lost (it took in nothing yet) has its turn against
+    any slow file.
+  - With its turn it asks for parts. If it takes in `partsMoving` (1 MiB)
+    it is moving and keeps the room against slow files. If it is slow
+    again, the next slow chase's turn may take the room back. So two slow
+    fetches take turns, and between them the one that takes in more each
+    turn keeps the room.
+  - A parts request that timed out after `partsMoving` had arrived no
+    longer makes the chase slow. The bytes came, so an honest link too
+    slow for a whole 64 MiB parts reply within `RequestTimeout` (under
+    about 2 MB/s) is moving (Black's third shape).
+  - `partial.timedOut` is gone. `progress.partsWait` is set when a chase
+    first waits for room, and cleared once it asks.
+- **Why:** Black's Round 11 review (B5, reproduced): a waiting chase
+  cannot ask for parts, so a slow flag set by one lost request never
+  cleared. A slow trickler with less still to come then held the reserve
+  for good, and the heavier ledger's large entry was never fetched
+  (D115). Black's appendix test, `TestBlackSlowHonestCannotReclaimFromTrickler`,
+  failed on the merged code before this change (the honest sender was
+  asked for 1 part and the trickler for 22) and passes now.
+- **What is left:** the turns compare what each fetch took in per chase.
+  A trickler can take the room from an honest fetch slower than 1 MiB a
+  chase only by sending as much each chase as the honest sender does,
+  and a fresh sender gets one turn before it has a measure. Each turn
+  costs it real bandwidth and a wait of two backoff steps. No case is
+  left in which a fetch waits for good. For Red in Part B: an honest
+  sender under about 35 KB/s against a trickler, and a stream of fresh
+  senders.
+- **Tier:** Implementation (node policy). It changes only which kept
+  parts file gives way at the disk reserve. No rule of validity or
+  selection, no byte form and no limit changes. Tests (P0):
+  `TestBlackSlowHonestCannotReclaimFromTrickler`, `TestPartsRankTurns`,
+  `TestTricklerCannotHoldTheReserve` and
+  `TestTricklerJustUnderCannotHoldTheReserve`.
+
+### D138. Round 12 adoptions: ORANGE-021, GREEN-036
+
+- **Decision:**
+  - ORANGE-021 as written: on restart, `node.load` decodes the store
+    1,024 records at a time, and `Engine.WarmStored` checks their
+    witnesses' signatures on every core before the window is replayed
+    in order. It is used only for the node's own store. The address and
+    every other check still run during the replay, so a tampered store
+    is refused as before.
+  - GREEN-036 as written: when `-root`, `-policy` or `-dir` chose the
+    policy, `poo doctor` adds `-dir DIR` to every `fix_args`, so a fix
+    changes the policy that was checked. A schedule change to
+    `layer_floor` or `layer_rate` restarts no job, since the grinder
+    reads both at each search. Only `device` and `threads` restart jobs
+    (this refines D135).
+- **Why:** Measured or found in Round 11 Part B and cleared by Black.
+  ORANGE-021: restart with 20,000 entries went from 1.7–2.2 s to
+  0.86–0.95 s on 4 cores.
+- **Tier:** Implementation (the node's start-up, `poo doctor` and the
+  grinder).
