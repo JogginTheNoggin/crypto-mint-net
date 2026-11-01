@@ -27,7 +27,7 @@ only watch the node (GREEN-007).
 
 | Method and path | Body or query | Reply |
 | --- | --- | --- |
-| `GET /status` | | every followed pool, and replay stats |
+| `GET /status` | | every followed pool, and replay stats; `policy_changed` when node.json differs, outside the grind section, from the policy the node runs, so a change waits for a reload (GREEN-037) |
 | `GET /series` | | followed series with their params |
 | `POST /tx` | `{tx}` | `{series, pool, tid, forward}` |
 | `POST /entry` | `{series, pool, entry}` | `{hash, switched, pruned, dropped}` |

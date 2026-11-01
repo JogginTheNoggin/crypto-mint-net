@@ -133,6 +133,31 @@ func TestDoctorRunningNode(t *testing.T) {
 	if err := run([]string{"doctor", "-dir", dir}, &b); err != nil || !strings.Contains(b.String(), "ok    rpc") {
 		t.Fatalf("doctor text: %v\n%s", err, b.String())
 	}
+
+	// A schedule change applies at once and leaves the check ok; a follow
+	// change made with -no-reload waits for a reload, which the check
+	// says, with poo reload as the fix (GREEN-037).
+	cli(t, nil, "grind", "schedule", "add", "pending", "-dir", dir)
+	b.Reset()
+	_ = run([]string{"doctor", "-dir", dir, "-json"}, &b)
+	r = DoctorReport{}
+	if err := json.Unmarshal(b.Bytes(), &r); err != nil || checkNamed(r, "rpc").Result != checkOK {
+		t.Fatalf("after a schedule change: %v %+v", err, checkNamed(r, "rpc"))
+	}
+	var pools []struct {
+		Series string `json:"series"`
+	}
+	cli(t, &pools, "pools", "-dir", dir)
+	cli(t, nil, "unfollow", "-series", pools[0].Series, "-pool", "1", "-no-reload", "-dir", dir)
+	b.Reset()
+	_ = run([]string{"doctor", "-dir", dir, "-json"}, &b)
+	r = DoctorReport{}
+	if err := json.Unmarshal(b.Bytes(), &r); err != nil {
+		t.Fatal(err)
+	}
+	if c := checkNamed(r, "rpc"); c.Result != checkWarn || strings.Join(c.FixArgs, " ") != "reload -dir "+dir {
+		t.Fatalf("after unfollow -no-reload: %+v", c)
+	}
 }
 
 // TestDoctorOutputAndGrind: -o json is -json, -o table works, fix_args
