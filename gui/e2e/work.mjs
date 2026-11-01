@@ -98,6 +98,15 @@ try {
   // shows as a row, the running node starts it at once, and Remove drops
   // it again with its job.
   const sched = section('Schedule');
+  // A long view lists its panels at the top (GREEN-030); a title scrolls
+  // to its panel and leaves the hash, the router, alone.
+  const hash = await page.evaluate(() => location.hash);
+  await page.locator('nav.jump button', { hasText: /^Schedule$/ }).click();
+  await page.waitForFunction(() => {
+    const h = [...document.querySelectorAll('section.panel h2')].find(h => h.textContent === 'Schedule');
+    return h && Math.abs(h.closest('section').getBoundingClientRect().top) < 40 && document.activeElement === h;
+  });
+  assert.equal(await page.evaluate(() => location.hash), hash, 'the jump list leaves the hash alone');
   const add = section('Schedule a job');
   assert.ok(!(await add.locator('label', { hasText: /^For/ }).count()), 'a scheduled job has no For');
   await add.locator('input[name=hours]').fill('0-23');
