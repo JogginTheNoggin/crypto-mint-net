@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -276,5 +277,45 @@ func TestLogSection(t *testing.T) {
 		if err := p.Validate(); !errors.Is(err, nodepolicy.ErrInvalid) {
 			t.Errorf("%+v: %v", bad, err)
 		}
+	}
+}
+
+// RED-013: concurrent saves of documents of different lengths always
+// leave a file that loads, and no temporary files.
+func TestConcurrentSavesNeverTear(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, nodepolicy.FileName)
+	short := nodepolicy.Default()
+	long := nodepolicy.Default()
+	for i := 0; i < 40; i++ {
+		long.Grind = &nodepolicy.Grind{}
+		long.Grind.Jobs = append(long.Grind.Jobs, nodepolicy.GrindJob{Target: "tip", Hours: "0-23"})
+	}
+	for round := 0; round < 200; round++ {
+		var wg sync.WaitGroup
+		for i := 0; i < 4; i++ {
+			p := short
+			if i%2 == 1 {
+				p = long
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := nodepolicy.Save(path, p); err != nil {
+					t.Error(err)
+				}
+			}()
+		}
+		wg.Wait()
+		if _, err := nodepolicy.Load(path); err != nil {
+			t.Fatalf("round %d: %v", round, err)
+		}
+	}
+	es, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(es) != 1 {
+		t.Fatalf("%d files left in the directory", len(es))
 	}
 }

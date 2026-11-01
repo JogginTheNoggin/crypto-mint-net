@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | open: the owner's call |
+| Status | adopted as node policy `grind.layer_floor`, off by default (Source Round 7, D118) |
 | Based on | `claude/m10-watch` @ `29b08ce` (code `a92c2ca`) |
 | Area | `pkg/grind` (`Manager.slice`), `pkg/layer` (`GrindWith`), node policy |
 | Effort | medium |

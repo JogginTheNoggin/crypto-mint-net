@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
@@ -442,4 +444,36 @@ func TestBuildSearchHoldsNoLock(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the search did not stop when cancelled")
 	}
+}
+
+// A floor keeps the other layers a search found, so the same tries give
+// the entry at least as much weight, and only ever more (ORANGE-010).
+func TestWorkWithFloor(t *testing.T) {
+	f := newFixture(t)
+	n := f.open()
+	defer n.Close()
+	_, err := n.HandleTx(f.k.Claim(4, P("alice", 100)), engine.Local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _, err := n.Build(f.key, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eh := e.Hash(f.s)
+	var kept atomic.Uint64
+	if _, _, err := n.WorkWith(context.Background(), f.key, eh, 0, 1<<16, engine.Grind{Floor: 4, KeptCount: &kept}); err != nil {
+		t.Fatal(err)
+	}
+	if kept.Load() == 0 {
+		t.Fatal("no layer kept besides the strongest")
+	}
+	if got := len(layersOn(n, f, eh)); got != int(kept.Load())+1 {
+		t.Fatalf("%d layers held, %d kept", got, kept.Load())
+	}
+}
+
+func layersOn(n *node.Node, f *fixture, eh hash.Hash) (out []layer.Layer) {
+	n.Engine().Ledger(f.key, func(l *ledger.Pool) { out = l.Layers(eh) })
+	return out
 }

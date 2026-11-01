@@ -9,3 +9,11 @@ func SetFileSync(f func(*os.File) error) func() {
 	fileSync = f
 	return func() { fileSync = old }
 }
+
+// SetPieceSize lowers the most data one record on disk holds, for a test,
+// and returns a function that restores it.
+func SetPieceSize(n int) func() {
+	old := pieceSize
+	pieceSize = n
+	return func() { pieceSize = old }
+}

@@ -97,6 +97,13 @@ type Grind struct {
 	// Threads is how many threads a search takes (0: the device's
 	// default, every CPU core but one).
 	Threads int `json:"threads,omitempty"`
+	// LayerFloor, when above 0, keeps every layer the node's own grinding
+	// finds at or above this strength, not only the strongest of each
+	// search, so more of its work counts (ORANGE-010, decision D118). It
+	// is raised to the series' minimum layer strength where that is
+	// higher. 0, the default, keeps only the strongest. It changes what
+	// this node sends, never what any node accepts.
+	LayerFloor int `json:"layer_floor,omitempty"`
 	// Jobs start when the node starts and run until it stops: automatic
 	// work, or scheduled with hours.
 	Jobs []GrindJob `json:"jobs,omitempty"`
@@ -147,6 +154,9 @@ func (g *Grind) validate() error {
 	}
 	if g.Threads < 0 || g.Threads > MaxGrindThreads {
 		return fmt.Errorf("threads must be 0 to %d", MaxGrindThreads)
+	}
+	if g.LayerFloor < 0 || g.LayerFloor > 256 {
+		return errors.New("layer_floor must be 0 (off) to 256")
 	}
 	if len(g.Jobs) > MaxGrindJobs {
 		return fmt.Errorf("at most %d jobs", MaxGrindJobs)
@@ -340,9 +350,11 @@ type P2P struct {
 	// StrictReturn returns a timed out peer as a backup.
 	StrictReturn bool `json:"strict_return,omitempty"`
 	// NoConfirm stops asking a priority peer to confirm a stated weight
-	// from another sender; FastCatchUp asks a priority peer for its whole
-	// ledger when a split is deeper than DepthLimit hash chain pages.
-	NoConfirm   bool `json:"no_confirm,omitempty"`
+	// from another sender.
+	NoConfirm bool `json:"no_confirm,omitempty"`
+	// FastCatchUp and DepthLimit are no longer used: a chase finds the
+	// common entry at any depth by halving (audit item G3, decision D116).
+	// They are kept so older policy files still load, and are ignored.
 	FastCatchUp bool `json:"fast_catch_up,omitempty"`
 	DepthLimit  int  `json:"depth_limit,omitempty"`
 }
@@ -605,9 +617,35 @@ func Save(path string, p Policy) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+	// Each writer has its own temporary file, synced before the rename,
+	// so concurrent writers never tear the file, and a crash leaves the old
+	// or the new one (RED-013, decision D114).
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmp := f.Name()
+	_, err = f.Write(append(b, '\n'))
+	if err == nil {
+		err = f.Chmod(0o600)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if d, err := os.Open(dir); err == nil {
+		d.Sync()
+		d.Close()
+	}
+	return nil
 }

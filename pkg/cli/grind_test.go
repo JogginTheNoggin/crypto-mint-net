@@ -179,7 +179,7 @@ func TestGrindCommands(t *testing.T) {
 	if sr.Grind.Threads != 1 || len(sr.Started) != 1 {
 		t.Fatalf("schedule set %+v", sr)
 	}
-	for _, bad := range [][]string{{"grind", "schedule", "add", "tip", "-for", "1m"}, {"grind", "schedule", "add"}, {"grind", "schedule", "remove", "2"}, {"grind", "schedule", "remove"}, {"grind", "schedule", "nope"}, {"grind", "schedule", "add", "tx:00"}} {
+	for _, bad := range [][]string{{"grind", "schedule", "add", "tip", "-for", "1m"}, {"grind", "schedule", "add"}, {"grind", "schedule", "remove", "2"}, {"grind", "schedule", "remove"}, {"grind", "schedule", "remove", "1", "-target", "pending"}, {"grind", "schedule", "nope"}, {"grind", "schedule", "add", "tx:00"}} {
 		if err := run(append(bad, r...), &out); err == nil {
 			t.Fatalf("%v accepted", bad)
 		}
@@ -188,7 +188,7 @@ func TestGrindCommands(t *testing.T) {
 		t.Fatal("view-only schedule remove accepted")
 	}
 	sr = rpc.ScheduleReply{}
-	cli(t, &sr, append([]string{"grind", "schedule", "remove", "1"}, r...)...)
+	cli(t, &sr, append([]string{"grind", "schedule", "remove", "1", "-target", "tip"}, r...)...)
 	if len(sr.Grind.Jobs) != 0 || sr.Grind.Threads != 1 {
 		t.Fatalf("schedule remove %+v", sr)
 	}

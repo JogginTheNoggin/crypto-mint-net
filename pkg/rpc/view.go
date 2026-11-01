@@ -343,8 +343,10 @@ func (h *Handler) changeFollow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := h.policyPath()
+	h.policyMu.Lock()
 	p, err := nodepolicy.Load(path)
 	if err != nil {
+		h.policyMu.Unlock()
 		writeError(w, classify(err))
 		return
 	}
@@ -357,12 +359,17 @@ func (h *Handler) changeFollow(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		err = p.Validate()
 	}
+	if err == nil {
+		err = nodepolicy.Save(path, p)
+		if err != nil {
+			h.policyMu.Unlock()
+			writeError(w, classify(err))
+			return
+		}
+	}
+	h.policyMu.Unlock()
 	if err != nil {
 		writeError(w, &Error{Message: err.Error(), Code: CodeInvalid, Status: http.StatusUnprocessableEntity})
-		return
-	}
-	if err := nodepolicy.Save(path, p); err != nil {
-		writeError(w, classify(err))
 		return
 	}
 	writeJSON(w, h.followReply(p, !req.NoReload))

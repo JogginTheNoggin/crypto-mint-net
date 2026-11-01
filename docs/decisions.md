@@ -50,7 +50,10 @@ fixed by keeping the newest entry (D79). Milestone 9 lets each mint
 choose its own cryptography: five hashes (D80), nine signature algorithms
 with one way to derive their keys from a seed (D81), hashlock and nested
 k-of-policies address types (D82), and the few maintained dependencies
-that needs (D83).
+that needs (D83). Round 7 records the owner's rule that no node policy may
+make a heavier ledger unacceptable (D115) and removes every limit the
+consensus audit found against it: depth, length and budget limits in the
+chase (D116) and size and count caps on items (D117).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -1646,6 +1649,9 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 ### D111. A deep parent is checked once, and its revert is the sender's cost
 
+Partly superseded by D116: an entry pushed over the revert budget goes to
+the chase queue instead of being dropped.
+
 - **Decision:** `ledger.Pool.EntryOwners` (the engine's preverify) refuses
   with `ErrDeepParent` when building the state after an entry's parent
   would revert and apply more than `MaxPreviewCost` (64) entries;
@@ -1716,3 +1722,142 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   schedule by hand needs a reload, which would stop every user job.
   Applying the section in the manager keeps user jobs running.
 - **Tier:** Implementation.
+
+### D114. A branch costs what its entries hold, once, whoever sent it
+
+Partly superseded by D116: the `MaxBareRun` limit is removed, and entries
+a chase takes in after checking their work are not charged.
+
+- **Decision:** `ledger.Pool.AddEntry` keeps the state after the entry it
+  added (unless that entry switched the ledger) and starts the next entry
+  on it from there; a switch or the prune of that entry drops it.
+  Off-chain nodes keep their anchor height and the pool its set of
+  off-chain leaves, so ranking and weighing a branch no longer walk it.
+  View cost (`ViewCost`, `EntryCost`, the `revert` budget, D111) is one
+  unit per entry reverted or applied plus one per transaction in it;
+  `MaxPreviewCost` is 256 units. `pkg/p2p` charges entries a chase takes in
+  to the sender's `revert` budget as it does pushed ones, and ends a fetch
+  at more than `MaxBareRun` (4,096) entries in a row without layers in a
+  series without entry hash credit. `nodepolicy.Save` writes a temporary
+  file of its own, syncs it and renames it; the RPC serialises its edits of
+  `node.json` (follow, unfollow, the grind schedule, which it applies under
+  the same lock), `grind.Manager.Schedule` runs one call at a time, and
+  `Manager.Start` holds its slot from the `MaxJobs` count to the insert.
+- **Why:** RED-012: a branch of L entries without layers cost O(L^2)
+  (32,000 entries took 32.5 s) in re-applied state, anchor walks and leaf
+  scans, and a chase took them in uncharged and without a work check; now
+  the cost per entry is flat (1.5 us at 16,000 and 64,000 entries). Entries
+  with transactions cost up to 45 times more to revert than empty ones, so
+  counting entries alone let a busy chain cost far more lock per budget.
+  An honest catch-up or switch taken in order costs only its first revert.
+  RED-013 and RED-014: concurrent writers of `node.json` tore the file
+  and lost updates, and concurrent starts passed `MaxJobs`.
+- **Tier:** Implementation. No consensus change: what is valid and what is
+  selected are unchanged.
+
+### D115. No consensus rule outside the design documents; node policy may never refuse a heavier ledger
+
+- **Decision:** The owner's rule, recorded in `AGENTS.md`: no consensus
+  rule is added outside the design documents without the owner's
+  approval, and every suggested consensus change goes to Black first.
+  Work targets node policy, on one condition: no node policy, alone or
+  with others, may make a heavier valid ledger unacceptable for good, so
+  a hard fork is impossible whatever the settings. Node policy may decide
+  when, how fast, from whom and in what order, and may ask for work before
+  it spends anything; it may not set a depth limit, nor a size or count
+  limit that every peer would hit. The consensus audit
+  (`docs/consensus-audit.md`) lists what the code did that broke this; its
+  plan is D116 and D117, its test P0 is
+  `pkg/p2p/heavier_test.go`, run in CI with the default and the tightest
+  settings and, for items over 16 MiB, in a step of its own.
+- **Why:** The owner, 2026-10-30 and 2026-10-31, after the audit found
+  two caps that acted as consensus (C1, C2) and four node limits that
+  could stop a node reaching a heavier ledger (G1 to G4).
+- **Tier:** Process. It decides how every later change is judged.
+
+### D116. A chase never refuses a heavier ledger: it halves, rechecks and yields
+
+- **Decision:** For audit items P2 to P5. `pkg/p2p` drops `DepthLimit`,
+  `ProvisionalLayers`, `MaxBareRun` and `FastCatchUp` (the node policy's
+  `depth_limit` and `fast_catch_up` still load and are ignored). The
+  common entry is found by halving over the node's own selected ledger,
+  anchored only on entries it holds, about log₂(height) requests at any
+  depth. The work check pages the sender's hashes forward with no cap on
+  layers. Entries fetched after the work check are not charged to the
+  revert budget; a whole-ledger fetch and pushed entries still are, and
+  `tracking.Spend` lets one spend larger than the whole budget pass in an
+  empty window. Over the budget, or past `ChaseSlice` (2 minutes), a chase
+  yields (`chase.Yield`): its sender waits `YieldWait` (5 s) with no
+  backoff, and what it learned is kept (`progress`, up to 256 chases) so
+  the next one goes on from there; every slice makes at least one
+  request. A pushed entry over the budget is offered to the chase queue.
+  Before each extension request the chase checks that no ledger off the
+  branch and heavier than its work was selected meanwhile. Only hashes
+  shown false go on the known-bad list: an entry hash below the minimum,
+  an invalid entry, a listed hash another entry was sent for; a sender
+  that repeats a hash, sends entries out of order or weak layers is
+  flagged and backed off, and the hashes it named are not listed (G4).
+- **Why:** G1 (the revert budget ended a fetch), G2 (4,096 bare entries
+  ended a fetch), G3 (16 hash chain pages ended the search) and G4 (a valid
+  entry could be bad-listed for a day) each let node policy stop a node
+  reaching a heavier valid ledger, which D115 forbids. Halving keeps the
+  search cheap without a limit, and yielding with kept progress keeps any
+  one chase from holding the queue.
+- **Tier:** Implementation (node policy). What is valid and what is
+  selected are unchanged.
+
+### D117. No size or count cap on items; large entries travel in parts
+
+- **Decision:** For audit item P1. `entry.MaxTxs`, `tx.MaxInputs`,
+  `tx.MaxOutputs`, the witness count cap and the per-item layer cap in
+  `pkg/wire` are removed; `encoding.Reader.Count` already refuses a count
+  the bytes left could not hold. Wire version 1 gains three types (D76
+  allows new types): parts request (26), large (50) and part (51). An
+  entry item larger than `p2p.Config.PartsOver` (by default what one frame
+  holds) ends an entries reply before it, or is named by a large reply
+  when it comes first; the asker fetches it with parts requests, at most
+  64 MiB per reply, checks each part starts where the last ended and names
+  the stated size, and decodes and checks the hash once whole. Large
+  entries are announced with a notice, never pushed; a pending
+  transaction too large to push travels only inside an entry. The store
+  writes a record over `MaxRecordSize` as `KindPart` records and a last
+  record of its kind.
+- **Why:** C1 and C2: the owner refused both caps. A valid entry larger
+  than a frame, or a transaction with more than 65,536 outputs, could not
+  be decoded or sent at all, so every node would refuse a ledger holding
+  one: a hard fork.
+- **Tier:** Implementation and wire (new message types; byte forms of
+  entries and transactions unchanged, so no test vector changes).
+  A layers reply for one entry with more layers than a chunk holds
+  (about two million) sends the strongest that fit; the extension that
+  follows carries them all, in parts.
+- **Not yet:** an entry is put together in memory, not on disk, and the
+  RPC body limit (8 MiB) applies to items submitted locally. Both are
+  noted for Round 8.
+
+### D118. The node's own grinder may keep every layer above a floor (ORANGE-010)
+
+- **Decision:** Node policy `grind.layer_floor`, 0 (off) by default. Above
+  0, each search also hands the node the strongest layer of every range of
+  4,096 nonces that reaches the floor, raised to the series' minimum layer
+  strength; the node takes each in as its own layer and forwards it. The
+  strongest layer of the search is still taken in first.
+- **Why:** ORANGE-010 measured 3 to 7 times the credit for the same work.
+  Black's condition: the grinder only submits more layers and drops
+  nothing counted, so what any node accepts and selects is unchanged.
+- **Tier:** Implementation (node policy). Red checks the higher honest
+  layer rate against the flood limits in Round 7 Part B.
+
+### D119. Round 7 adoptions: BLUE-007, GREEN-020, ORANGE-012, ORANGE-013, GREEN-031
+
+- **Decision:** BLUE-007 (RED-012 to RED-014, D114) is merged, with its
+  per-peer budget reworked by D116. GREEN-020 (the start state outside a
+  job's hours, shorter tables), ORANGE-012 (SIMD lane grinders behind
+  `GOEXPERIMENT=simd`, `layer.Search`) and ORANGE-013 (the ended channel
+  and progress ticker) are merged. GREEN-031 and GUI-013: `poo grind
+  schedule remove N -target T` removes nothing unless each numbered job
+  grinds T.
+- **Why:** Each was reviewed in Round 6 and measured or tested; the guard
+  stops a stale row number from removing another job.
+- **Tier:** Implementation.
+

@@ -35,6 +35,15 @@ func (h *Host) onKept(ev node.Event) {
 		default:
 			return
 		}
+		if len(m.Body) > h.cfg.PartsOver {
+			// Too large to push whole: an entry is announced by a notice, and
+			// peers fetch it in parts when they chase it; a pending
+			// transaction this large travels only inside an entry (D117).
+			if ev.Entry == nil {
+				return
+			}
+			m.Type, m.Body = wire.TypeNotice, wire.Notice{Tip: ev.Entry.Hash(pi.s)}.Encode()
+		}
 		for _, p := range h.peersFor(pi.section, ev.From) {
 			p.send(m)
 		}
@@ -104,16 +113,15 @@ func (h *Host) handlePushed(p *peer, m wire.Message) error {
 			return nil // a branch shown to be false: dropped at once
 		}
 		// The selected entries the node reverts to check it are the
-		// sender's cost, drawn from its revert budget; over it the entry
-		// is dropped (RED-011, decision D111).
-		if c := h.n.Engine().EntryCost(pi.key, e); c > 0 {
-			ok, act := h.tr.Spend(p.key, tracking.KindRevert, uint64(c), now)
-			if err := h.act(p, act); err != nil {
-				return err
-			}
-			if !ok {
-				return nil
-			}
+		// sender's cost, drawn from its revert budget (RED-011, D111).
+		// Over it the entry is not dropped for good: the branch goes to
+		// the chase queue, which checks its work before it fetches
+		// anything (D116).
+		if err := h.spendRevert(pi, p, e); errors.Is(err, errRevertBudget) {
+			h.offer(pi, p, m.Stated, &eh)
+			return nil
+		} else if err != nil {
+			return err
 		}
 		_, err = h.n.HandleEntryFrom(pi.key, e, engine.Pushed, p.id)
 		switch {

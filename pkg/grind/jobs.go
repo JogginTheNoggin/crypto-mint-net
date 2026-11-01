@@ -162,6 +162,8 @@ var (
 type Defaults struct {
 	Device  string
 	Threads int
+	// Floor is the node policy's layer_floor (ORANGE-010).
+	Floor int
 }
 
 // Manager runs the jobs of one node.
@@ -176,8 +178,15 @@ type Manager struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	mu        sync.Mutex
-	jobs      map[int]*job
+	// sched serialises Schedule, so two policies never run together
+	// (RED-013).
+	sched sync.Mutex
+
+	mu   sync.Mutex
+	jobs map[int]*job
+	// reserved counts starts past the MaxJobs check that have not yet
+	// inserted their job (RED-014).
+	reserved  int
 	done      []int // ended jobs, oldest first
 	next      int
 	listeners []func(Event)
@@ -194,6 +203,8 @@ type job struct {
 	// The last progress event: when, and the tries then.
 	progAt    time.Time
 	progTries uint64
+	// ended is closed when the job ends (ORANGE-013).
+	ended chan struct{}
 }
 
 // NewManager returns a manager for n, grinding with reg's grinders on the
@@ -229,11 +240,13 @@ func (m *Manager) Choose(id hash.ID, device string, threads int) (Plan, error) {
 // starts its jobs. It returns the jobs started and, by job, why any was
 // not (GREEN-026). g may be nil: no defaults and no jobs.
 func (m *Manager) Schedule(g *nodepolicy.Grind) ([]Job, map[int]error) {
+	m.sched.Lock()
+	defer m.sched.Unlock()
 	m.StopAll("policy")
 	var def Defaults
 	var jobs []nodepolicy.GrindJob
 	if g != nil {
-		def, jobs = Defaults{Device: g.Device, Threads: g.Threads}, g.Jobs
+		def, jobs = Defaults{Device: g.Device, Threads: g.Threads, Floor: g.LayerFloor}, g.Jobs
 	}
 	m.mu.Lock()
 	m.def = def
@@ -354,20 +367,27 @@ func (m *Manager) Start(s Spec) (Job, error) {
 			running++
 		}
 	}
-	if running >= MaxJobs {
+	// The slot is held from the count to the insert, so concurrent starts
+	// cannot pass MaxJobs together (RED-014, decision D114).
+	if running+m.reserved >= MaxJobs {
 		m.mu.Unlock()
 		return Job{}, ErrTooManyJobs
 	}
+	m.reserved++
 	m.mu.Unlock()
 	// A job that would work now and has no device for one of its hashes
 	// is refused at once, as build and work are (GREEN-017). One within
 	// hours may find its device by then, and fails then if not.
+	var err error
 	if s.Hours == "" {
-		if err := m.checkPlans(s); err != nil {
-			return Job{}, err
-		}
+		err = m.checkPlans(s)
 	}
 	m.mu.Lock()
+	m.reserved--
+	if err != nil {
+		m.mu.Unlock()
+		return Job{}, err
+	}
 	if m.ctx.Err() != nil {
 		m.mu.Unlock()
 		return Job{}, ErrClosed
@@ -380,7 +400,12 @@ func (m *Manager) Start(s Spec) (Job, error) {
 		parent := cancel
 		cancel = func() { stop(); parent() }
 	}
-	j := &job{Job: Job{ID: m.next, Spec: s, State: StateRunning, Started: time.Now().UTC(), Plans: []Plan{}}, cancel: cancel}
+	j := &job{Job: Job{ID: m.next, Spec: s, State: StateRunning, Started: time.Now().UTC(), Plans: []Plan{}}, cancel: cancel, ended: make(chan struct{})}
+	// A job outside its hours says so in the reply that starts it, not only
+	// once its runner first looks (GREEN-020).
+	if reason, hint, ok := outsideHours(s.Hours, time.Now()); ok {
+		j.State, j.Reason, j.Hint = StateWaiting, reason, hint
+	}
 	if s.Lease != "" {
 		j.lease, _ = time.ParseDuration(s.Lease)
 		id := m.next
@@ -392,7 +417,7 @@ func (m *Manager) Start(s Spec) (Job, error) {
 	m.mu.Unlock()
 	m.log.Info("job started", "job", j.ID, "target", s.Target, "source", s.Source)
 	sp := s
-	m.emit(Event{Job: j.ID, Kind: "start", State: StateRunning, Spec: &sp, Scope: &sp})
+	m.emit(Event{Job: j.ID, Kind: "start", State: snap.State, Spec: &sp, Scope: &sp})
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
@@ -488,14 +513,19 @@ func (m *Manager) Stop(id int) (Job, error) {
 
 // wait waits a moment for job id to end, and returns its state.
 func (m *Manager) wait(id int) Job {
-	for i := 0; i < 200; i++ {
-		if j, _ := m.Get(id); j.Done() {
-			return j
+	m.mu.Lock()
+	j, ok := m.jobs[id]
+	m.mu.Unlock()
+	if ok {
+		t := time.NewTimer(2 * time.Second)
+		defer t.Stop()
+		select {
+		case <-j.ended:
+		case <-t.C:
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
-	j, _ := m.Get(id)
-	return j
+	j2, _ := m.Get(id)
+	return j2
 }
 
 // StopAll stops every running job made by source ("" for all).
@@ -563,6 +593,11 @@ func (m *Manager) end(j *job, state, reason string) {
 	}
 	j.State, j.Reason, j.Hint, j.Ended = state, reason, "", time.Now().UTC()
 	j.cancel()
+	select {
+	case <-j.ended:
+	default:
+		close(j.ended)
+	}
 	if j.timer != nil {
 		j.timer.Stop()
 	}
@@ -595,11 +630,10 @@ func (m *Manager) run(ctx context.Context, j *job) {
 		_ = w.UnmarshalText([]byte(s.UntilFrom))
 		until = &w
 	}
-	from, to, _ := ParseHours(s.Hours)
 	r := &runner{m: m, j: j, plans: map[hash.ID]Plan{}}
 	for ctx.Err() == nil {
-		if s.Hours != "" && !inHours(time.Now(), from, to) {
-			r.wait(ctx, "outside its hours "+s.Hours, "it works again at "+fmt.Sprintf("%02d:00", from), time.Minute)
+		if reason, hint, ok := outsideHours(s.Hours, time.Now()); ok {
+			r.wait(ctx, reason, hint, time.Minute)
 			continue
 		}
 		var worked bool
@@ -856,6 +890,7 @@ func (m *Manager) build(ctx context.Context, j *job, k engine.PoolKey, p Plan) (
 	sctx, cancel := context.WithTimeout(ctx, Slice)
 	defer cancel()
 	t0 := time.Now()
+	defer m.progress(j, k, t0, &tried)()
 	_, res, err := m.n.BuildWith(sctx, k, 0, p.Engine(&tried))
 	var found *hash.Hash
 	did := false
@@ -909,7 +944,16 @@ func (m *Manager) work(ctx context.Context, j *job, k engine.PoolKey, p Plan, ta
 	defer cancel()
 	t0 := time.Now()
 	ev := Event{Job: j.ID, Series: k.Series, Pool: k.Index}
-	l, res, err := m.n.WorkWith(sctx, k, target, randomNonce(), 0, p.Engine(&tried))
+	stop := m.progress(j, k, t0, &tried)
+	g := p.Engine(&tried)
+	var kept atomic.Uint64
+	m.mu.Lock()
+	g.Floor, g.KeptCount = m.def.Floor, &kept
+	m.mu.Unlock()
+	l, res, err := m.n.WorkWith(sctx, k, target, randomNonce(), 0, g)
+	if n := kept.Load(); n > 0 {
+		m.update(j, func(jj *Job) { jj.Layers += int(n) })
+	}
 	switch {
 	case err == nil:
 		lh, eh := res.Hash, l.Entry
@@ -921,6 +965,7 @@ func (m *Manager) work(ctx context.Context, j *job, k engine.PoolKey, p Plan, ta
 	default:
 		m.log.Warn("work failed", "job", j.ID, "pool", k.String(), "err", err)
 	}
+	stop()
 	m.count(j, k, p, tried.Load(), t0, ev)
 	return true, nil
 }
@@ -954,6 +999,41 @@ func (m *Manager) count(j *job, k engine.PoolKey, p Plan, n uint64, t0 time.Time
 	}
 }
 
+// progress reports job j's progress every ProgressEvery while a search on
+// pool k, started at t0, runs, counting the tries the search has made so far, so that a
+// job reports each second and not only at the end of each Slice
+// (ORANGE-013). The function it returns stops it.
+func (m *Manager) progress(j *job, k engine.PoolKey, t0 time.Time, tried *atomic.Uint64) func() {
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(ProgressEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case now := <-t.C:
+				m.mu.Lock()
+				total := j.Tries + tried.Load()
+				if j.progAt.IsZero() {
+					j.progAt, j.progTries = t0, j.Tries
+				}
+				var prog *Event
+				if now.Sub(j.progAt) >= ProgressEvery {
+					j.Rate = float64(total-j.progTries) / now.Sub(j.progAt).Seconds()
+					j.progAt, j.progTries = now, total
+					prog = &Event{Job: j.ID, Kind: "progress", Series: k.Series, Pool: k.Index, State: StateRunning, Tries: total, Rate: j.Rate}
+				}
+				m.mu.Unlock()
+				if prog != nil {
+					m.emit(*prog)
+				}
+			}
+		}
+	}()
+	return func() { close(done) }
+}
+
 // randomNonce is where a layer search starts, so slices and jobs on the
 // same entry try different nonces.
 func randomNonce() uint64 {
@@ -965,4 +1045,17 @@ func randomNonce() uint64 {
 // SpecOf is the spec of a job from the node policy.
 func SpecOf(j nodepolicy.GrindJob) Spec {
 	return Spec{Target: j.Target, Series: j.Series, Pools: j.Pools, Device: j.Device, Threads: j.Threads, Hours: j.Hours, UntilFrom: j.UntilFrom, Source: "policy"}
+}
+
+// outsideHours reports whether now is outside a job's hours, with the
+// reason and hint a waiting job shows.
+func outsideHours(hours string, now time.Time) (reason, hint string, ok bool) {
+	if hours == "" {
+		return "", "", false
+	}
+	from, to, err := ParseHours(hours)
+	if err != nil || inHours(now, from, to) {
+		return "", "", false
+	}
+	return "outside its hours " + hours, fmt.Sprintf("it works again at %02d:00", from), true
 }

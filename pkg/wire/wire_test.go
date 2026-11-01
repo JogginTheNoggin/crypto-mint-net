@@ -295,3 +295,34 @@ func FuzzBodies(f *testing.F) {
 		}
 	})
 }
+
+// Large items travel in parts (D117): the bodies round-trip, a part past
+// its stated total is malformed, and a parts request decodes.
+func TestPartsMessages(t *testing.T) {
+	l := wire.Large{Entry: hash.Hash{7}, Size: 1 << 40}
+	got, err := wire.DecodeLarge(l.Encode())
+	if err != nil || got != l {
+		t.Fatalf("large: %+v %v", got, err)
+	}
+	p := wire.Part{Total: 10, Offset: 4, Data: []byte("abcdef")}
+	gp, err := wire.DecodePart(p.Encode())
+	if err != nil || gp.Total != 10 || gp.Offset != 4 || string(gp.Data) != "abcdef" {
+		t.Fatalf("part: %+v %v", gp, err)
+	}
+	for _, bad := range []wire.Part{{Total: 10, Offset: 5, Data: []byte("abcdef")}, {Total: 3, Offset: 4}} {
+		if _, err := wire.DecodePart(bad.Encode()); !errors.Is(err, wire.ErrMalformed) {
+			t.Fatalf("%+v: %v", bad, err)
+		}
+	}
+	if _, err := wire.DecodePart([]byte{1}); !errors.Is(err, wire.ErrMalformed) {
+		t.Fatal("a short part decoded")
+	}
+	q := wire.PartsReq{RequestCommon: wire.RequestCommon{Nonce: 1, Time: 2}, Entry: hash.Hash{9}, Variant: wire.EntriesWithLayers, Offset: 99}
+	r, err := wire.DecodeRequest(wire.TypePartsReq, q.Encode())
+	if err != nil || r.(wire.PartsReq) != q {
+		t.Fatalf("parts request: %+v %v", r, err)
+	}
+	if !wire.TypePartsReq.IsRequest() || !wire.TypePart.IsReply() || !wire.TypeLarge.IsReply() {
+		t.Fatal("the new types are not requests and replies")
+	}
+}

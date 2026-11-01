@@ -172,19 +172,19 @@ type Config struct {
 	Tracker *tracking.Tracker
 	// Chase holds the chase queue's limits.
 	Chase chase.Config
-	// DepthLimit is how many hash chain pages a chase asks for before
-	// giving up on finding the common entry.
-	DepthLimit int
-	// ProvisionalLayers is the most layers a chase fetches before deciding
-	// whether a branch's work is enough.
-	ProvisionalLayers int
+	// ChaseSlice is how long one chase runs before it yields its turn in
+	// the chase queue. A yielded chase keeps everything it fetched and is
+	// taken up again later; it is never refused for its length, since a
+	// heavier ledger must always be reachable (audit items G1 to G3,
+	// docs/consensus-audit.md).
+	ChaseSlice time.Duration
+	// PartsOver is the largest entry item a reply carries whole; a larger
+	// one is sent in parts on request (consensus audit P1, D117). It is at
+	// most, and by default, what one frame can hold.
+	PartsOver int
 	// NoConfirm stops asking a priority peer to confirm a stated weight
 	// from another sender.
 	NoConfirm bool
-	// FastCatchUp asks a priority peer for its whole ledger when finding
-	// the common entry passes the depth limit; a node holding nothing for a
-	// pool always asks for the whole ledger.
-	FastCatchUp bool
 
 	// Log receives connection events. Nil discards them.
 	Log io.Writer
@@ -221,15 +221,14 @@ func DefaultConfig() Config {
 		BackupPingEvery: 6 * time.Minute,
 		MaxMisses:       3,
 
-		Slots:             peers.DefaultSlots(),
-		ReviewEvery:       10 * time.Minute,
-		InactiveAfter:     30 * time.Minute,
-		DenialLimit:       3,
-		UnlistedConns:     8,
-		QueueShares:       [4]int{8, 4, 2, 1},
-		QueueLimit:        1024,
-		DepthLimit:        16,
-		ProvisionalLayers: 1 << 16,
+		Slots:         peers.DefaultSlots(),
+		ReviewEvery:   10 * time.Minute,
+		InactiveAfter: 30 * time.Minute,
+		DenialLimit:   3,
+		UnlistedConns: 8,
+		QueueShares:   [4]int{8, 4, 2, 1},
+		QueueLimit:    1024,
+		ChaseSlice:    2 * time.Minute,
 	}
 }
 
@@ -331,11 +330,11 @@ func (c *Config) fill() {
 	if c.QueueLimit == 0 {
 		c.QueueLimit = d.QueueLimit
 	}
-	if c.DepthLimit == 0 {
-		c.DepthLimit = d.DepthLimit
+	if c.ChaseSlice == 0 {
+		c.ChaseSlice = d.ChaseSlice
 	}
-	if c.ProvisionalLayers == 0 {
-		c.ProvisionalLayers = d.ProvisionalLayers
+	if c.PartsOver <= 0 || c.PartsOver > maxWhole {
+		c.PartsOver = maxWhole
 	}
 }
 
@@ -348,6 +347,11 @@ type poolInfo struct {
 
 // Host runs the p2p side of one node.
 type Host struct {
+	// prog holds what yielded chases learned (see progress).
+	progMu    sync.Mutex
+	prog      map[progressKey]*progress
+	progOrder []progressKey
+
 	n   *node.Node
 	cfg Config
 	id  hash.Hash

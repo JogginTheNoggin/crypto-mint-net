@@ -29,9 +29,6 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
 
-// MaxTxs bounds decoding only. The design sets no limit on bundle size.
-const MaxTxs = 1 << 20
-
 // Errors returned by entry checks. One failing check makes the whole entry
 // invalid, and an invalid entry is thrown out together with its hash.
 var (
@@ -107,12 +104,15 @@ func Decode(b []byte) (*Entry, error) {
 	return e, nil
 }
 
-// DecodeFrom reads one entry from r. Check r.Err afterwards.
+// DecodeFrom reads one entry from r. Check r.Err afterwards. The design
+// sets no limit on bundle size, so the transaction count is not capped
+// (consensus audit C1, D117); Reader.Count refuses a count the bytes left
+// could not hold.
 func DecodeFrom(r *encoding.Reader) *Entry {
 	e := &Entry{}
 	r.Into(e.Parent[:])
 	e.Nonce = r.U64()
-	n := r.Count(MaxTxs, 60)
+	n := r.Count(0, 60)
 	e.Txs = make([]*tx.Tx, 0, n)
 	for i := 0; i < n && r.Err() == nil; i++ {
 		e.Txs = append(e.Txs, tx.DecodeFrom(r))

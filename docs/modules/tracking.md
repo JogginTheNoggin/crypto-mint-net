@@ -59,9 +59,10 @@ and by default counts the pings it missed while away, one per ping period
 `Budget(addr, kind, now)` counts items of one kind per window (one minute
 by default): transactions 1200, entries 1200, layers 6000, requests 600,
 discovery messages 120. `Spend(addr, kind, n, now)` counts a message
-that costs n units: the `revert` budget (200,000 a minute) counts the
-selected entries a pushed entry makes the node revert to check it
-(RED-011, D111). Over budget, the message is dropped and the
+that costs n units: the `revert` budget (200,000 a minute) counts what a
+pushed or requested entry makes the node revert and apply to check it,
+one unit per entry and one per transaction (RED-011, RED-012, D111,
+D114). Over budget, the message is dropped and the
 address flagged once per window. `Repeat` counts held items and repeated
 request ids against `RepeatLimit` (600 a minute). `StartChase` counts new
 stated weights above this node's own against `ChaseBudget` (30 per ten

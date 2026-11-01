@@ -49,7 +49,7 @@ D25). Nothing here changes what is valid.
     "review_seconds": 600,
     "unlisted_conns": 8,
     "strict_return": false,
-    "no_confirm": false, "fast_catch_up": false, "depth_limit": 16
+    "no_confirm": false
   },
   "tracking": {
     "template": "basic",
@@ -65,7 +65,7 @@ D25). Nothing here changes what is valid.
   },
   "log": {"level": "info", "format": "plain"},
   "grind": {
-    "device": "auto", "threads": 0,
+    "device": "auto", "threads": 0, "layer_floor": 0,
     "jobs": [
       {"target": "pending"},
       {"target": "tip", "series": "…", "pools": [1], "hours": "22-06"}
@@ -73,6 +73,13 @@ D25). Nothing here changes what is valid.
   }
 }
 ```
+
+`grind.layer_floor`, when above 0, keeps every layer the node's own
+grinding finds at or above that strength (raised to the series' minimum),
+not only the strongest of each search: several times the credit for the
+same work, and more layers sent (ORANGE-010, D118). 0 keeps today's
+behaviour. `p2p.fast_catch_up` and `p2p.depth_limit` are no longer used: a
+chase finds a split at any depth (D116). They still load and are ignored.
 
 Every field but `format` may be left out; the defaults are the provisional
 ones in [decisions.md](../decisions.md) (D12, D22, D24, D26). `k: -1` keeps
@@ -107,7 +114,9 @@ applies the change at once without a reload (D113).
 
 ## API
 
-- `Policy`, `Default`, `Validate`, `Load`, `Save` (atomic),
+- `Policy`, `Default`, `Validate`, `Load`, `Save` (atomic: its own
+  temporary file per call, synced, renamed, then the directory synced, so
+  concurrent writers never tear the file; RED-013),
   `LedgerConfig`, `TrackingConfig`, `ListenAddr`, `P2PListenAddr`
   (`p2p.FromPolicy` turns the p2p section into host settings).
 - `Accepted()` builds each listed series and applies the issuer rule,

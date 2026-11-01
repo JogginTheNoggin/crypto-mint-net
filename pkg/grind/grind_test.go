@@ -3,6 +3,7 @@ package grind
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -489,5 +490,127 @@ func TestTxTarget(t *testing.T) {
 	w = f.waitFor(t, w.ID, func(j Job) bool { return j.State == StateWaiting })
 	if w.Reason != "the node does not hold the transaction yet" {
 		t.Fatalf("waiting tx job %+v", w)
+	}
+}
+
+// RED-014: concurrent starts never pass MaxJobs.
+func TestJobLimitUnderConcurrency(t *testing.T) {
+	f := newFixture(t)
+	var wg sync.WaitGroup
+	var ok atomic.Int64
+	start := make(chan struct{})
+	for i := 0; i < 300; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if _, err := f.m.Start(Spec{Target: hash.Hash{byte(i%250 + 1), byte(i / 250)}.String()}); err == nil {
+				ok.Add(1)
+			} else if err != ErrTooManyJobs {
+				t.Error(err)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	running := 0
+	for _, j := range f.m.Jobs() {
+		if !j.Done() {
+			running++
+		}
+	}
+	if ok.Load() > MaxJobs || running > MaxJobs {
+		t.Fatalf("%d started, %d running, MaxJobs %d", ok.Load(), running, MaxJobs)
+	}
+}
+
+// RED-013: two policies scheduled at once leave exactly one of them
+// running.
+func TestScheduleIsSerialised(t *testing.T) {
+	f := newFixture(t)
+	policy := func(b byte) *nodepolicy.Grind {
+		g := &nodepolicy.Grind{}
+		for i := 0; i < 3; i++ {
+			g.Jobs = append(g.Jobs, nodepolicy.GrindJob{Target: hash.Hash{b, byte(i + 1)}.String()})
+		}
+		return g
+	}
+	for round := 0; round < 20; round++ {
+		var wg sync.WaitGroup
+		for _, b := range []byte{1, 2} {
+			wg.Add(1)
+			go func() { defer wg.Done(); f.m.Schedule(policy(b)) }()
+		}
+		wg.Wait()
+		owners := map[byte]int{}
+		for _, j := range f.m.Jobs() {
+			if !j.Done() && j.Spec.Source == "policy" {
+				h, err := hash.Parse(j.Spec.Target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				owners[h[0]]++
+			}
+		}
+		if len(owners) != 1 || owners[1]+owners[2] != 3 {
+			t.Fatalf("round %d: policy jobs running %v, want three of one policy", round, owners)
+		}
+	}
+}
+
+// A job started outside its hours is waiting in the reply that starts it,
+// not "running" until its runner first looks (GREEN-020).
+func TestStartOutsideHours(t *testing.T) {
+	f := newFixture(t)
+	h := (time.Now().Hour() + 2) % 24
+	hours := fmt.Sprintf("%02d-%02d", h, (h+1)%24)
+	j, err := f.m.Start(Spec{Target: TargetTip, Hours: hours})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.State != StateWaiting || j.Reason != "outside its hours "+hours || j.Hint == "" {
+		t.Fatalf("started as %s (%q, %q)", j.State, j.Reason, j.Hint)
+	}
+	if _, _, ok := outsideHours("", time.Now()); ok {
+		t.Fatal("a job with no hours is outside them")
+	}
+}
+
+// TestProgressEachSecond: a job reports progress each second, within a
+// slice and not only at its end, and Stop returns once the job has ended,
+// without polling (ORANGE-013).
+func TestProgressEachSecond(t *testing.T) {
+	f := newFixture(t)
+	first, _ := f.s.PoolRange(1)
+	if _, err := f.n.HandleTx(f.k.Claim(first, testutil.P("alice", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	progress := 0
+	f.m.OnEvent(func(e Event) {
+		if e.Kind == "progress" {
+			mu.Lock()
+			progress++
+			mu.Unlock()
+		}
+	})
+	pj, _ := f.m.Start(Spec{Target: TargetPending})
+	f.waitFor(t, pj.ID, func(j Job) bool { return j.Entries == 1 })
+	f.m.Stop(pj.ID)
+	mu.Lock()
+	progress = 0
+	mu.Unlock()
+	tj, _ := f.m.Start(Spec{Target: TargetTip})
+	time.Sleep(4500 * time.Millisecond)
+	t0 := time.Now()
+	j, _ := f.m.Stop(tj.ID)
+	if d := time.Since(t0); !j.Done() || d > 200*time.Millisecond {
+		t.Fatalf("stop took %s: %+v", d, j)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	// Slices of 2 s would give two; a report each second gives four.
+	if progress < 3 {
+		t.Fatalf("%d progress events in 4.5 s", progress)
 	}
 }

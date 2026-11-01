@@ -52,10 +52,11 @@ raises the evidence.
 | --- | --- |
 | `switched` | the sender's backoff is reset; the group ends |
 | `nowhere` | the sender is backed off (30 s, doubling to 1 h) and leaves the group; others may still try |
-| `false` | the hashes go on the known-bad list for 24 h; the group ends |
+| `false` | the sender is backed off; the hashes shown false, if any, go on the known-bad list for 24 h; the group ends |
 | `gone` | the sender disconnected; it leaves the group |
 | `caught` | this node caught up meanwhile; the group ends |
 | `requeue` | a priority peer confirmed it; the group waits for its next turn |
+| `yield` | the chase ran out of its time slice or the sender's budget for now; the sender waits `YieldWait` (5 s) with no backoff, and the group keeps its senders and evidence, so the chase goes on later (D116) |
 
 `IsBad` lets `p2p` ignore pushed items and offers naming a known-bad hash.
 `Drop` takes a disconnected sender out of every waiting group.

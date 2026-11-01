@@ -41,6 +41,10 @@ Kinds: 1 entry, 2 layer, 3 transaction. Numbers are never reused.
   and reports how many bytes it cut.
 - A corrupt length never causes a large allocation (`MaxRecordSize`, and
   the length must fit in the file).
+- No item is too large to store: one larger than `MaxRecordSize` is written
+  as `KindPart` records and a last record of its own kind, read back as
+  one record. A crash that leaves only some parts loses that item and cuts
+  the log before them (D117).
 
 ## Tests
 

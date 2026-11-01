@@ -123,6 +123,60 @@ const checkEvery = 1 << 12
 // (strength -1 if none) with ctx's error; with every nonce tried the
 // result is GrindHash's, whatever the number of workers.
 func GrindWith(ctx context.Context, newHasher hash.NewHasher, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64) (Layer, int, error) {
+	return GrindWithKeep(ctx, newHasher, entry, start, tries, workers, tried, nil)
+}
+
+// Keep receives layers a search found besides its strongest (ORANGE-010,
+// decision D118): every range of checkEvery nonces whose strongest layer
+// reaches Floor hands that layer to Func, so a node can send more of the
+// work it did. Func is called from the search's workers at once and must
+// be safe for that. The layer returned at the end is passed too.
+type Keep struct {
+	Floor int
+	Func  func(Layer, int)
+}
+
+// GrindWithKeep is GrindWith that also hands layers to keep, if not nil.
+func GrindWithKeep(ctx context.Context, newHasher hash.NewHasher, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep) (Layer, int, error) {
+	return grind(ctx, entry, start, tries, workers, tried, keep, func() (Search, error) {
+		g, err := newHasher(entry[:])
+		if err != nil {
+			return nil, err
+		}
+		var buf [8]byte
+		return func(_ hash.Hash, from, n uint64) (uint64, int) {
+			bestNonce, best := from, -1
+			for nonce := from; nonce < from+n; nonce++ {
+				binary.BigEndian.PutUint64(buf[:], nonce)
+				if s := g.Hash(buf[:]).Strength(); s > best {
+					bestNonce, best = nonce, s
+				}
+			}
+			return bestNonce, best
+		}, nil
+	})
+}
+
+// Search tries the layers on entry of nonces [from, from+n) and returns
+// the strongest, the lowest nonce among equals, with its strength (-1
+// when n is 0). A grinder that hashes many nonces at once, such as with
+// SIMD lanes (ORANGE-012), searches a range rather than hashing one try.
+type Search func(entry hash.Hash, from, n uint64) (nonce uint64, strength int)
+
+// GrindSearch is GrindWith with a Search, which each worker calls on
+// ranges of checkEvery nonces.
+func GrindSearch(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64) (Layer, int, error) {
+	return GrindSearchKeep(ctx, search, entry, start, tries, workers, tried, nil)
+}
+
+// GrindSearchKeep is GrindSearch that also hands layers to keep, if not nil.
+func GrindSearchKeep(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep) (Layer, int, error) {
+	return grind(ctx, entry, start, tries, workers, tried, keep, func() (Search, error) { return search, nil })
+}
+
+// grind splits the nonces between workers, each searching its own range
+// with the Search newSearch makes for it.
+func grind(ctx context.Context, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, newSearch func() (Search, error)) (Layer, int, error) {
 	if workers < 1 {
 		workers = 1
 	}
@@ -150,21 +204,20 @@ func GrindWith(ctx context.Context, newHasher hash.NewHasher, entry hash.Hash, s
 		wg.Add(1)
 		go func(w int, from, n uint64) {
 			defer wg.Done()
-			g, err := newHasher(entry[:])
+			search, err := newSearch()
 			if err != nil {
 				res[w] = result{err: err, s: -1}
 				return
 			}
 			best, bestStrength := Layer{Entry: entry, Nonce: from}, -1
-			var buf [8]byte
 			for done := uint64(0); done < n; {
 				chunk := min(n-done, checkEvery)
-				for i := uint64(0); i < chunk; i++ {
-					nonce := from + done + i
-					binary.BigEndian.PutUint64(buf[:], nonce)
-					if s := g.Hash(buf[:]).Strength(); s > bestStrength {
-						best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s
-					}
+				nonce, s := search(entry, from+done, chunk)
+				if s > bestStrength {
+					best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s
+				}
+				if keep != nil && s >= keep.Floor && s >= 0 {
+					keep.Func(Layer{Entry: entry, Nonce: nonce}, s)
 				}
 				done += chunk
 				if tried != nil {
