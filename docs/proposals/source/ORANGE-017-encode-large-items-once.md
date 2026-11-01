@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D126) |
 | Based on | `claude/m10-watch` @ `ae8a103` |
 | Area | `pkg/encoding` (`NewCounter`), `pkg/entry` and `pkg/tx` (`Size`, presized `Encode`), `pkg/policy` (`Policy.EncodeTo`), `pkg/wire` (`EntryItem.Size`), `pkg/p2p` (`onKept`) |
 | Effort | small |

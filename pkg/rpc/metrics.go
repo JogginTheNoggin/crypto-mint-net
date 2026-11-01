@@ -7,6 +7,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 )
 
 // Metrics: GET /v1/metrics serves what /v1/status and /v1/peers report as
@@ -109,7 +112,15 @@ func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
 		}
 		book := g("peer_book_records", "Nodes in the peer book.")
 		book.add("", float64(len(h.host.Book().Records())))
-		ms = append(ms, conn, cat, sent, recv, book)
+		disk := g("chases_waiting_disk", "Chases of a heavier stated ledger waiting for disk space for a large entry.")
+		nd := 0
+		for _, gr := range h.host.ChaseQueue().Groups("", time.Now()) {
+			if gr.Waiting == p2p.WaitDisk {
+				nd++
+			}
+		}
+		disk.add("", float64(nd))
+		ms = append(ms, conn, cat, sent, recv, book, disk)
 	}
 	ms = append(ms, h.grindMetrics()...)
 	w.Header().Set("Content-Type", metricsContentType)

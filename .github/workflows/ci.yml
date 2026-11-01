@@ -30,10 +30,11 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build ./...
       - name: test
         run: go test -race -count=1 ./...
-      - name: heavier ledger, large items
-        # The P0 test of docs/consensus-audit.md with an entry over 16 MiB;
-        # it is skipped under -race, so it runs here on its own.
-        run: go test -count=1 -run TestHeavierLedgerHuge ./pkg/p2p
+      - name: heavier ledger, large items and long runs
+        # The P0 tests of docs/consensus-audit.md with an entry over 16 MiB
+        # and a 100,000-entry run without layers under the default budgets
+        # (D124); they are skipped under -race, so they run here on their own.
+        run: go test -count=1 -timeout 20m -run 'TestHeavierLedgerHuge|TestHeavierLedgerLongBareRun' ./pkg/p2p
       - name: demo
         run: go run ./cmd/poo demo -quiet
       - name: fuzz

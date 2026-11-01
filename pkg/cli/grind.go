@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -481,8 +480,11 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	if viewOnlyOf(out) {
 		return errViewOnly("grind schedule " + op)
 	}
-	next := cur
-	next.Jobs = slices.Clone(cur.Jobs)
+	// The change is sent as an edit, which the node applies under its
+	// lock to the section it holds, so a change made meanwhile by another
+	// client is kept, and a numbered removal names the whole job, so a
+	// stale number cannot remove another job (GUI-014, D125).
+	var edit nodepolicy.GrindEdit
 	switch op {
 	case "add":
 		if *target == "" && len(pos) == 1 {
@@ -520,16 +522,15 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		if err := grind.Check(grind.SpecOf(j)); err != nil {
 			return err
 		}
-		next.Jobs = append(next.Jobs, j)
+		edit.Add = []nodepolicy.GrindJob{j}
 	case "remove":
 		if *all == (len(pos) > 0) {
 			return errors.New("usage: poo grind schedule remove N... | -all")
 		}
 		if *all {
-			next.Jobs = nil
+			edit.RemoveAll = true
 			break
 		}
-		drop := map[int]bool{}
 		for _, a := range pos {
 			n, err := strconv.Atoi(a)
 			if err != nil || n < 1 || n > len(cur.Jobs) {
@@ -538,40 +539,37 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 			if *expect != "" && cur.Jobs[n-1].Target != *expect {
 				return fmt.Errorf("scheduled job %d grinds %s, not %s: list the schedule again", n, cur.Jobs[n-1].Target, *expect)
 			}
-			drop[n-1] = true
-		}
-		next.Jobs = nil
-		for i, j := range cur.Jobs {
-			if !drop[i] {
-				next.Jobs = append(next.Jobs, j)
-			}
+			edit.Remove = append(edit.Remove, nodepolicy.GrindRemove{N: n, Job: cur.Jobs[n-1]})
 		}
 	case "set":
 		if len(pos) != 0 {
 			return errors.New("poo grind schedule set takes flags only")
 		}
+		gs := &nodepolicy.GrindSet{}
 		fs.Visit(func(f *flag.Flag) {
 			switch f.Name {
 			case "device":
-				next.Device = *device
-				if next.Device == grind.Auto {
-					next.Device = ""
-				}
+				gs.Device = device
 			case "threads":
-				next.Threads = *threads
+				gs.Threads = threads
 			case "layer-floor":
-				next.LayerFloor = *floor
+				gs.LayerFloor = floor
 			case "layer-rate":
-				next.LayerRate = *rate
+				gs.LayerRate = rate
 			}
 		})
+		edit.Set = gs
 	}
 	if online {
-		r, err := cl.GrindSetSchedule(next)
+		r, err := cl.GrindEditSchedule(edit)
 		if err != nil {
 			return err
 		}
 		return writeJSON(out, r)
+	}
+	next, err := edit.Apply(cur)
+	if err != nil {
+		return err
 	}
 	p.Grind = &next
 	if next.IsZero() {
@@ -583,7 +581,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	if err := nodepolicy.Save(path, p); err != nil {
 		return err
 	}
-	return writeJSON(out, rpc.ScheduleReply{Grind: next})
+	return writeJSON(out, rpc.ScheduleReply{Grind: next, Version: next.Version()})
 }
 
 // policySeries returns the series id of the node policy p, or its only

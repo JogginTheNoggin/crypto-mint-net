@@ -97,6 +97,22 @@ type result struct {
 	out chase.Outcome
 	bad []hash.Hash // entry hashes shown to be false
 	why string
+	// disk: the chase waits for disk space for a large entry.
+	disk bool
+}
+
+// WaitDisk is a chase group's Waiting while its chase waits for disk
+// space for a large entry's parts: poo chases, poo doctor and the metrics
+// show it, so a heavier ledger waiting on disk does not look like a
+// healthy node (Black's RED-022 condition, D124).
+const WaitDisk = "waiting for disk space for a large entry"
+
+// partsDir is where large entries' parts go.
+func (h *Host) partsDir() string {
+	if h.cfg.PartsDir != "" {
+		return h.cfg.PartsDir
+	}
+	return os.TempDir()
 }
 
 func nowhere(format string, args ...any) result {
@@ -119,10 +135,13 @@ func (h *Host) runJob(j chase.Job) {
 		return
 	}
 	res := h.runChase(pi, p, j)
-	if p.closed() && res.out == chase.Nowhere {
+	if p.closed() && (res.out == chase.Nowhere || res.out == chase.Stalled) {
 		res.out = chase.Gone
 	}
 	now := time.Now()
+	if res.out == chase.Yield || res.out == chase.Stalled {
+		h.cq.Note(j.Group.ID, res.why, now)
+	}
 	g := h.cq.Finish(j.Group.ID, res.out, res.bad, now)
 	text := pi.section.Text()
 	switch res.out {
@@ -139,10 +158,15 @@ func (h *Host) runJob(j chase.Job) {
 	case chase.False:
 		h.tr.ChaseOutcome(p.key, text, false, now)
 		h.act(p, h.tr.Offend(p.key, tracking.FalseBranch, res.why, now))
-	case chase.Yield:
+	case chase.Yield, chase.Stalled:
 		// Not an outcome: the chase goes on later with what it took in.
 	}
-	if res.why != "" {
+	switch {
+	case res.disk:
+		// A heavier ledger waiting on disk space must not look like a
+		// healthy node (Black's RED-022 condition, D124).
+		h.log.Warn("chase waits for disk space", "pool", pi.key.String(), "peer", p.short(), "dir", h.partsDir(), "why", res.why)
+	case res.why != "":
 		h.log.Info("chase", "pool", pi.key.String(), "peer", p.short(), "result", res.out, "why", res.why)
 	}
 }
@@ -197,7 +221,7 @@ func (h *Host) runChase(pi *poolInfo, p *peer, j chase.Job) result {
 		if !done {
 			res = h.fetchAll(pi, p, st, before, deadline)
 		}
-		if res.out == chase.Yield {
+		if res.out.Keeps() {
 			h.saveProgress(k, st)
 		} else {
 			st.drop()
@@ -237,7 +261,7 @@ func (h *Host) runChase(pi *poolInfo, p *peer, j chase.Job) result {
 	} else {
 		res = h.stepsFrom(pi, p, j, st, before, deadline)
 	}
-	if res.out == chase.Yield {
+	if res.out.Keeps() {
 		h.saveProgress(k, st)
 	} else {
 		st.drop()
@@ -300,7 +324,15 @@ func chaseErr(err error) result {
 		return result{out: chase.Yield, why: "the revert budget is spent for now"}
 	case errors.Is(err, errPartsSpace):
 		// Not refused: it goes on once the disk has room (RED-022).
-		return result{out: chase.Yield, why: "waiting for disk space for a large entry"}
+		return result{out: chase.Yield, why: WaitDisk, disk: true}
+	case errors.Is(err, errTimeout):
+		// Not refused either: the sender is backed off, and a later chase
+		// goes on from what this one took in (Black's B2, D124).
+		return result{out: chase.Stalled, why: err.Error()}
+	case errors.Is(err, errLayersYield):
+		return result{out: chase.Yield, why: "time slice used up paging an entry's layers"}
+	case errors.Is(err, errLayersPaced):
+		return result{out: chase.Yield, why: "requests to the sender paced"}
 	case errors.Is(err, errPartsYield):
 		// A large entry is fetched over several slices, from where the
 		// last one stopped (RED-016).
@@ -533,6 +565,19 @@ type progress struct {
 	top      []hash.Hash // the sender's hashes whose layers to ask for next
 	topAt    hash.Hash   // the oldest of them, the anchor for the page before
 	topStart bool        // top reaches the sender's first entry
+
+	// An entry's many layers, paged with layers-from requests: the entry,
+	// the next index, and the last and the furthest layer read, so paging
+	// goes on from there after a yield or a return to step 4, and the
+	// order is checked across pages in constant memory (Black's B3 and
+	// C-5, D124).
+	many              hash.Hash
+	manyOn            bool
+	manyFrom          uint32
+	manyRead          bool
+	manyCur, manyHigh layerAt
+	manyTotal         uint32 // the total the last page stated
+	manySlack         uint64 // read layers a page may still repeat
 }
 
 func newProgress(common hash.Hash, after []hash.Hash, complete bool) *progress {
@@ -731,11 +776,8 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 		// read (RED-021, D123).
 		before := st.total
 		var stop *result
-		answered, err := h.askLayers(pi, p, page, func(it wire.HeldLayers) (bool, error) {
-			i, ok := at[it.Entry]
-			if !ok {
-				return false, nil
-			}
+		answered, enough, err := h.askLayers(pi, p, st, page, deadline, func(it wire.HeldLayers) (bool, error) {
+			i := at[it.Entry]
 			if !it.Held {
 				r := nowhere("the sender no longer holds %s", it.Entry.Short())
 				stop = &r
@@ -765,7 +807,7 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 		if stop != nil {
 			return *stop, true
 		}
-		if answered == 0 {
+		if answered == 0 && !enough {
 			return nowhere("no layers sent"), true
 		}
 		if st.total.Greater(before) {
@@ -790,14 +832,23 @@ func (h *Host) checkWork(pi *poolInfo, p *peer, st *progress, deadline time.Time
 // carries whole comes as a many-layers reply, and its layers are then
 // paged with layers-from requests, each page given to take as one item,
 // so no entry holds too many layers to be counted (D121) and none is held
-// whole: take returns enough to stop paging, once what it counted is all
-// the caller needs (RED-021, decision D123). It returns how many of hashes
-// were answered.
-func (h *Host) askLayers(pi *poolInfo, p *peer, hashes []hash.Hash, take func(wire.HeldLayers) (enough bool, err error)) (int, error) {
-	answered := 0
-	stop := false
+// whole. take returns enough once what it counted is all the caller needs
+// (RED-021, decision D123). It returns n, how many of hashes, from the
+// first, were taken whole: an entry that take stopped in the middle of is
+// not among them, nor is any after it, so a caller that comes back moves
+// on only past what it counted (Black's C-5, D124). An entry whose layers
+// were being paged when a chase stopped, st.many, goes on from st.manyFrom
+// when it is first in hashes. enough reports that take said enough.
+func (h *Host) askLayers(pi *poolInfo, p *peer, st *progress, hashes []hash.Hash, deadline time.Time, take func(wire.HeldLayers) (enough bool, err error)) (n int, enough bool, err error) {
+	if len(hashes) > 0 && st.manyOn && hashes[0] == st.many {
+		whole, enough, err := h.layersFrom(pi, p, st, hashes[0], deadline, take)
+		if whole {
+			n = 1
+		}
+		return n, enough, err
+	}
 	var many *wire.ManyLayers
-	err := h.ask(p, pi, wire.LayersReq{RequestCommon: h.common(), Hashes: hashes}, func(m wire.Message) error {
+	err = h.ask(p, pi, wire.LayersReq{RequestCommon: h.common(), Hashes: hashes}, func(m wire.Message) error {
 		switch m.Type {
 		case wire.TypeLayers:
 			c, err := wire.DecodeLayersChunk(m.Body)
@@ -805,15 +856,16 @@ func (h *Host) askLayers(pi *poolInfo, p *peer, hashes []hash.Hash, take func(wi
 				return err
 			}
 			for _, it := range c.Items {
-				answered++
-				if stop {
-					continue
+				if enough {
+					return nil // not counted: a later chase asks again
 				}
-				enough, err := take(it)
-				if err != nil {
+				if n >= len(hashes) || it.Entry != hashes[n] {
+					return falseErr{err: fmt.Errorf("layers named %s, not the hash asked about next", it.Entry.Short())}
+				}
+				if enough, err = take(it); err != nil {
 					return err
 				}
-				stop = enough
+				n++
 			}
 			return nil
 		case wire.TypeManyLayers:
@@ -830,28 +882,74 @@ func (h *Host) askLayers(pi *poolInfo, p *peer, hashes []hash.Hash, take func(wi
 		return wire.DecodeEmpty(m.Type, m.Body)
 	})
 	if err == nil && many != nil {
-		answered = 1
-		err = h.layersFrom(pi, p, many.Entry, func(ns []uint64) (bool, error) {
-			return take(wire.HeldLayers{Entry: many.Entry, Held: true, Nonces: ns})
-		})
+		st.startMany(many.Entry)
+		var whole bool
+		whole, enough, err = h.layersFrom(pi, p, st, many.Entry, deadline, take)
+		if whole {
+			n = 1
+		}
 	}
 	if errors.Is(err, wire.ErrMalformed) {
 		h.misbehave(p, err)
 	}
-	return answered, err
+	return n, enough, err
 }
 
-// layersFrom pages the layer nonces of one entry from p, strongest first,
-// giving each page to take until it says enough or the layers end. Each
-// page must start where the last ended; a total that changes is followed,
-// since layers keep arriving (D121). Only the count of nonces is kept
-// between pages (RED-021).
-func (h *Host) layersFrom(pi *poolInfo, p *peer, eh hash.Hash, take func([]uint64) (bool, error)) error {
-	from := uint32(0)
-	for {
-		more, got, enough := false, false, false
+// errLayersYield and errLayersPaced end a slice while an entry's many
+// layers are paged; the chase goes on from st.manyFrom (Black's B3).
+var (
+	errLayersYield = errors.New("time slice used up paging an entry's layers")
+	errLayersPaced = errors.New("requests to the sender paced while paging an entry's layers")
+)
+
+// layerAt is one layer's place in the strongest-first order of an entry's
+// layers: the stronger first, the lower nonce first among equals.
+type layerAt struct {
+	strength int
+	nonce    uint64
+}
+
+// after reports whether a comes after b in that order.
+func (a layerAt) after(b layerAt) bool {
+	if a.strength != b.strength {
+		return a.strength < b.strength
+	}
+	return a.nonce > b.nonce
+}
+
+// startMany starts paging entry eh's layers from the first.
+func (st *progress) startMany(eh hash.Hash) {
+	st.many, st.manyOn, st.manyFrom, st.manyRead = eh, true, 0, false
+	st.manyTotal, st.manySlack = 0, 0
+}
+
+// layersFrom pages the layer nonces of entry eh from p, strongest first,
+// from st.manyFrom, giving each page to take until it says enough or the
+// layers end. whole reports that the layers ended. Before each page after
+// the first it checks the deadline and the pace, and yields with the
+// entry and its offset kept in st, so a sender cannot hold the chase here
+// (Black's B3, D124). Each page must start where the last ended; a total
+// that changes is followed, since layers keep arriving (D121).
+//
+// The order is checked across pages with what st keeps, the last layer
+// read, the furthest, and the total stated: within a page each layer
+// comes after the one before it. A page may start with layers read
+// already, since layers that arrive meanwhile push read ones later, but
+// no more of them than the total grew by since, and such a run must
+// reach the furthest layer read before any layer past it. A sender that
+// skips, reorders or repeats otherwise, or whose total shrinks, is false.
+func (h *Host) layersFrom(pi *poolInfo, p *peer, st *progress, eh hash.Hash, deadline time.Time, take func(wire.HeldLayers) (bool, error)) (whole, enough bool, err error) {
+	fn := pi.s.Hash()
+	for pages := 0; ; pages++ {
+		if pages > 0 && time.Now().After(deadline) {
+			return false, false, errLayersYield
+		}
+		if pages > 0 && h.paced(p) {
+			return false, false, errLayersPaced
+		}
+		more, got := false, false
 		var kind wire.Type
-		err := h.ask(p, pi, wire.LayersFromReq{RequestCommon: h.common(), Entry: eh, From: from}, func(m wire.Message) error {
+		err := h.ask(p, pi, wire.LayersFromReq{RequestCommon: h.common(), Entry: eh, From: st.manyFrom}, func(m wire.Message) error {
 			kind, more = m.Type, m.More()
 			if m.Type != wire.TypeLayersFrom {
 				return wire.DecodeEmpty(m.Type, m.Body)
@@ -860,28 +958,62 @@ func (h *Host) layersFrom(pi *poolInfo, p *peer, eh hash.Hash, take func([]uint6
 			if err != nil {
 				return err
 			}
-			if c.From != from {
-				return falseErr{err: fmt.Errorf("layers of %s from %d, want %d", eh.Short(), c.From, from)}
+			if c.From != st.manyFrom {
+				return falseErr{err: fmt.Errorf("layers of %s from %d, want %d", eh.Short(), c.From, st.manyFrom)}
 			}
-			got = got || len(c.Nonces) > 0
-			from += uint32(len(c.Nonces))
 			if enough || len(c.Nonces) == 0 {
 				return nil
 			}
-			enough, err = take(c.Nonces)
+			if uint64(c.From)+uint64(len(c.Nonces)) > uint64(c.Total) || (st.manyRead && c.Total < st.manyTotal) {
+				return falseErr{err: fmt.Errorf("layers of %s: %d from %d of %d, after %d", eh.Short(), len(c.Nonces), c.From, c.Total, st.manyTotal)}
+			}
+			if st.manyRead {
+				// Layers that arrived since the last page may push that
+				// many read ones into this one, and no more.
+				st.manySlack += uint64(c.Total - st.manyTotal)
+			}
+			st.manyTotal = c.Total
+			for i, n := range c.Nonces {
+				at := layerAt{layer.Layer{Entry: eh, Nonce: n}.Strength(fn), n}
+				if st.manyRead {
+					switch {
+					case i > 0 && !at.after(st.manyCur):
+						return falseErr{err: fmt.Errorf("layers of %s out of order at %d", eh.Short(), int(c.From)+i)}
+					case at.after(st.manyHigh) && st.manyCur != st.manyHigh:
+						return falseErr{err: fmt.Errorf("layers of %s skip past the last read at %d", eh.Short(), int(c.From)+i)}
+					case !at.after(st.manyHigh):
+						if st.manySlack == 0 {
+							return falseErr{err: fmt.Errorf("layers of %s read again at %d with no new layers", eh.Short(), int(c.From)+i)}
+						}
+						st.manySlack--
+					}
+				}
+				st.manyCur = at
+				if !st.manyRead || at.after(st.manyHigh) {
+					st.manyHigh = at
+				}
+				st.manyRead = true
+			}
+			got = true
+			st.manyFrom += uint32(len(c.Nonces))
+			enough, err = take(wire.HeldLayers{Entry: eh, Held: true, Nonces: c.Nonces})
 			return err
 		})
 		if err != nil {
-			return err
+			return false, enough, err
 		}
 		if kind != wire.TypeLayersFrom {
-			return fmt.Errorf("layers of %s answered %s", eh.Short(), kind)
+			return false, false, fmt.Errorf("layers of %s answered %s", eh.Short(), kind)
 		}
-		if !more || enough {
-			return nil
+		if !more {
+			st.manyOn = false
+			return true, enough, nil
+		}
+		if enough {
+			return false, true, nil
 		}
 		if !got {
-			return falseErr{err: fmt.Errorf("layers of %s: more said, none sent", eh.Short())}
+			return false, false, falseErr{err: fmt.Errorf("layers of %s: more said, none sent", eh.Short())}
 		}
 	}
 }
@@ -1272,17 +1404,17 @@ func (h *Host) takeLayers(pi *poolInfo, p *peer, eh hash.Hash, nonces []uint64) 
 func (h *Host) topUpLayers(pi *poolInfo, p *peer, st *progress, stated weight.Weight, deadline time.Time) (result, bool) {
 	asked := false
 	for len(st.top) > 0 {
-		if asked && time.Now().After(deadline) {
-			return result{out: chase.Yield, why: "time slice used up taking layers"}, true
-		}
-		if h.paced(p) {
-			return result{out: chase.Yield, why: "requests to the sender paced"}, true
-		}
-		asked = true
 		for len(st.top) > 0 {
+			if asked && time.Now().After(deadline) {
+				return result{out: chase.Yield, why: "time slice used up taking layers"}, true
+			}
+			if h.paced(p) {
+				return result{out: chase.Yield, why: "requests to the sender paced"}, true
+			}
+			asked = true
 			// Each page of layers goes in as it arrives, so an entry's
 			// many layers are never held whole (RED-021).
-			answered, err := h.askLayers(pi, p, st.top, func(it wire.HeldLayers) (bool, error) {
+			answered, _, err := h.askLayers(pi, p, st, st.top, deadline, func(it wire.HeldLayers) (bool, error) {
 				if it.Held {
 					return false, h.takeLayers(pi, p, it.Entry, it.Nonces)
 				}

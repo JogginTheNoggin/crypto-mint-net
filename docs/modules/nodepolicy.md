@@ -80,7 +80,7 @@ not only the strongest of each search: several times the credit for the
 same work, and more layers sent (ORANGE-010, D118). 0 keeps today's
 behaviour. `grind.layer_rate` bounds the layers a second the floor adds,
 strongest first, so peers' layer budgets take every one: 0 means 10, and
-at most 1,000 (ORANGE-016, D122). Both are set by `poo grind schedule set
+at most 50, half of the 100 a second peers take from one node by default (ORANGE-016, D122; GUI-015, D127). Both are set by `poo grind schedule set
 -layer-floor S -layer-rate R`. `p2p.fast_catch_up` and `p2p.depth_limit` are no longer used: a
 chase finds a split at any depth (D116). They still load and are ignored.
 
@@ -136,6 +136,14 @@ applies the change at once without a reload (D113).
   `series`. `poo follow`, `poo unfollow`, `poo wallet follow` and
   `POST /v1/follow` all use them, so the file and the running node always
   agree.
+- `GrindEdit{Remove, RemoveAll, Add, Set, Version}.Apply(g)` changes a
+  grind section where it is kept, so two changes made at once both apply.
+  A removal names the whole job at its number (`SameJob`), so a stale
+  number is refused with `ErrGrindChanged` rather than removing another
+  job. `Grind.Version()` names a section's content, for `If-Match` and
+  `GrindEdit.Version` (GUI-014, D125). The node applies edits under its
+  lock (`POST /v1/grind/schedule/edit`); `poo grind schedule` applies the
+  same edit to node.json when no node runs.
 - `EncodeWitness` / `DecodeWitness`: the hex form of an issuer witness.
 - `Manager{Root}`: `Save`, `Load`, `List`, `Current`, `Use`, `Archive`,
   `Unarchive(name, fresh)`, `Delete`, `Dir`.

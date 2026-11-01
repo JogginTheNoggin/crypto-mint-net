@@ -53,6 +53,8 @@ func TestManyLayersArePagedOnlyUntilEnough(t *testing.T) {
 			for i := range ns {
 				ns[i] = uint64(q.From) + uint64(i) + 1
 			}
+			// In the strongest-first order the node checks (Black's B3).
+			p2p.StrongestNonces(exSeries.Hash(), eh, ns)
 			r.write(wire.Message{Header: wire.Header{Type: wire.TypeLayersFrom, Section: m.Section, RequestID: m.RequestID,
 				Chunk: 1, Flags: wire.FlagLast | wire.FlagMore, Stated: huge},
 				Body: wire.LayersFrom{Total: claimed, From: q.From, Nonces: ns}.Encode()})

@@ -39,7 +39,7 @@ without a wallet. See
 | `poo grind stop ID \| -all` | Stops a job, or every job, keeping what it found |
 | `poo grind schedule [-o FORMAT]` | The jobs `node.json`'s `grind` section starts, and its defaults |
 | `poo grind schedule add TARGET [-series ID] [-pool K \| -serial N] [-device D] [-threads N] [-hours H] [-until-from W]` | Adds a job to the schedule; a running node saves it and starts it at once, with no reload, and says if it could not; otherwise `node.json` is edited (GREEN-026) |
-| `poo grind schedule remove N... \| -all` | Removes scheduled jobs, numbered from 1 as listed; a running node stops them. `-target T` removes nothing unless each numbered job grinds T, so a stale number cannot remove another job |
+| `poo grind schedule remove N... \| -all` | Removes scheduled jobs, numbered from 1 as listed; a running node stops them. `-target T` removes nothing unless each numbered job grinds T, so a stale number cannot remove another job. The removal names the whole job, so it is refused if the schedule changed meanwhile, and the add, remove and set commands change the section on the node, so two at once both apply (D125) |
 | `poo grind schedule set [-device D] [-threads N] [-layer-floor S] [-layer-rate R]` | Sets the defaults of every job, build and work; `-device auto` clears the device; `-layer-floor` sets `grind.layer_floor` (D118) and `-layer-rate` sets `grind.layer_rate`, the most layers a second the floor adds (D122) |
 | `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it. The older form of `poo tx -in-serial N TID`, kept for scripts |
 | `poo holdings -serial N` | Unspent portions of a mint. The older form of `poo unspent -serial N`, kept for scripts |

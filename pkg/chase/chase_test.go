@@ -231,3 +231,33 @@ func TestCapPerPool(t *testing.T) {
 		t.Fatalf("%d groups, cap 2", n)
 	}
 }
+
+// Black's B2 (D124): a chase that stalled on a timeout backs its sender
+// off, but the sender stays in the group, so the chase goes on with it
+// once the backoff ends; the group shows why it waits.
+func TestStalledKeepsTheSender(t *testing.T) {
+	q := chase.New(chase.Config{Backoff: time.Minute, MaxBackoff: 4 * time.Minute})
+	g, _, _ := q.Offer("p", sender("a", "r1", peers.CatPriority), h(1), t0)
+	j, ok := q.Next(t0)
+	if !ok || j.Group.ID != g {
+		t.Fatalf("job %+v", j)
+	}
+	q.Note(g, "request timed out", t0)
+	q.Finish(g, chase.Stalled, nil, t0)
+	if !chase.Stalled.Keeps() || !chase.Yield.Keeps() || chase.Nowhere.Keeps() {
+		t.Fatal("Keeps")
+	}
+	if _, off := q.BackedOff("a", t0.Add(30*time.Second)); !off {
+		t.Fatal("not backed off")
+	}
+	gs := q.Groups("p", t0)
+	if len(gs) != 1 || len(gs[0].Senders) != 1 || gs[0].Waiting != "request timed out" || !gs[0].WaitingSince.Equal(t0) {
+		t.Fatalf("groups %+v", gs)
+	}
+	if _, ok := q.Next(t0.Add(30 * time.Second)); ok {
+		t.Fatal("ran during the backoff")
+	}
+	if j, ok := q.Next(t0.Add(2 * time.Minute)); !ok || j.Group.ID != g || j.Sender.ID != "a" {
+		t.Fatalf("the stalled chase did not go on: %+v %v", j, ok)
+	}
+}

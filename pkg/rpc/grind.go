@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,7 +27,9 @@ import (
 //	DELETE /v1/grind          stop every job (?source=user: only those)
 //	POST   /v1/grind/{id}/renew  renew a job's lease
 //	GET    /v1/grind/schedule    node.json's grind section
-//	PUT    /v1/grind/schedule    replace it: saved, and applied at once
+//	PUT    /v1/grind/schedule    replace it: saved, and applied at once;
+//	                             with If-Match, only if it is still that version
+//	POST   /v1/grind/schedule/edit  add, remove or set, under the node's lock
 //
 // build and work take device, threads and for, and reply with the plan
 // and rate. Starting and stopping are writes: the view token cannot.
@@ -71,13 +74,17 @@ func (h *Handler) grindRoutes() {
 	h.mux.HandleFunc("POST /v1/grind/{id}/renew", h.grindRenew)
 	h.mux.HandleFunc("GET /v1/grind/schedule", h.grindSchedule)
 	h.mux.HandleFunc("PUT /v1/grind/schedule", h.grindSetSchedule)
+	h.mux.HandleFunc("POST /v1/grind/schedule/edit", h.grindEditSchedule)
 }
 
 // ScheduleReply is the grind section of node.json and, after a change,
 // the jobs it started and why any did not start.
 type ScheduleReply struct {
-	Grind   nodepolicy.Grind `json:"grind"`
-	Started []grind.Job      `json:"started,omitempty"`
+	Grind nodepolicy.Grind `json:"grind"`
+	// Version names Grind's content, for If-Match on a replacement and
+	// for GrindEdit.Version (GUI-014, D125).
+	Version string      `json:"version"`
+	Started []grind.Job `json:"started,omitempty"`
 	// Failed maps a job's index in Grind.Jobs to why it did not start.
 	Failed map[int]string `json:"failed,omitempty"`
 }
@@ -108,25 +115,65 @@ func (h *Handler) grindSchedule(w http.ResponseWriter, r *http.Request) {
 	if p.Grind != nil {
 		g = *p.Grind
 	}
-	writeJSON(w, ScheduleReply{Grind: g})
+	writeJSON(w, ScheduleReply{Grind: g, Version: g.Version()})
 }
 
 // grindSetSchedule saves a new grind section and applies it without a
-// reload, so running user jobs go on.
+// reload, so running user jobs go on. With an If-Match header it replaces
+// only the version named, so a client that read the section, changed it
+// and writes it back whole cannot undo a change made meanwhile (GUI-014,
+// D124).
 func (h *Handler) grindSetSchedule(w http.ResponseWriter, r *http.Request) {
 	var g nodepolicy.Grind
 	if e := decodeBody(r, &g); e != nil {
 		writeError(w, e)
 		return
 	}
+	match := strings.Trim(r.Header.Get("If-Match"), `"`)
+	h.changeSchedule(w, func(cur nodepolicy.Grind) (nodepolicy.Grind, error) {
+		if match != "" && match != cur.Version() {
+			return cur, nodepolicy.ErrGrindChanged
+		}
+		return g, nil
+	})
+}
+
+// grindEditSchedule applies one GrindEdit to the grind section where it
+// is kept, under the lock, so two edits made at once both take effect,
+// and removes a job only if it is still the job named (GUI-014, D125).
+func (h *Handler) grindEditSchedule(w http.ResponseWriter, r *http.Request) {
+	var e nodepolicy.GrindEdit
+	if err := decodeBody(r, &e); err != nil {
+		writeError(w, err)
+		return
+	}
+	h.changeSchedule(w, e.Apply)
+}
+
+// changeSchedule loads node.json's grind section, changes it with f,
+// validates, saves and applies the result. The file and the running
+// policy jobs change together under policyMu, so two changes leave the
+// same section in both (RED-013).
+func (h *Handler) changeSchedule(w http.ResponseWriter, f func(nodepolicy.Grind) (nodepolicy.Grind, error)) {
 	path := h.policyPath()
-	// The file and the running policy jobs change together, so two PUTs
-	// leave the same one in both (RED-013).
 	h.policyMu.Lock()
 	defer h.policyMu.Unlock()
 	p, err := nodepolicy.Load(path)
 	if err != nil {
 		writeError(w, classify(err))
+		return
+	}
+	var cur nodepolicy.Grind
+	if p.Grind != nil {
+		cur = *p.Grind
+	}
+	g, err := f(cur)
+	if errors.Is(err, nodepolicy.ErrGrindChanged) {
+		writeError(w, &Error{Message: err.Error(), Code: CodeConflict, Status: http.StatusConflict})
+		return
+	}
+	if err != nil {
+		writeError(w, badRequest("%v", err))
 		return
 	}
 	p.Grind = &g
@@ -141,7 +188,7 @@ func (h *Handler) grindSetSchedule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, classify(err))
 		return
 	}
-	reply := ScheduleReply{Grind: g}
+	reply := ScheduleReply{Grind: g, Version: g.Version()}
 	if h.grind != nil {
 		started, failed := h.grind.Schedule(p.Grind)
 		reply.Started = started

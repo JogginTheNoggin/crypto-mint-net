@@ -55,7 +55,9 @@ make a heavier ledger unacceptable (D115) and removes every limit the
 consensus audit found against it: depth, length and budget limits in the
 chase (D116) and size and count caps on items (D117). Round 8 closes the
 hard fork Black found, a held branch without its layers, and the narrow
-cases around it (D121).
+cases around it (D121). Round 9 closes the last two Black found: a long
+chase now paces itself and keeps its progress through a timeout, and
+paging one entry's layers yields and checks their order (D124).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -1916,3 +1918,94 @@ a chase takes in after checking their work are not charged.
   of validity or selection, and no byte form, changes. For Black: every
   change paces or stops reading once the answer is known; none refuses a
   heavier ledger, and a fetch at the disk reserve waits rather than fails.
+
+### D124. Long chases and paged layers always go on (Black's B2, B3 and C-5)
+
+- **Decision:**
+  - **B2.** ORANGE-018 is adopted: a chase counts the requests it sent
+    each sender over `p2p.Config.RequestPaceWindow` (a minute) and
+    yields, with its progress kept, at `RequestPace` (480, under the 600
+    a minute peers serve by default). A request that times out ends the
+    chase as the new outcome `chase.Stalled`: the sender is backed off
+    as after Nowhere, but it stays in the group and the chase's progress
+    is kept, so the next chase with it goes on from where this one
+    stopped. A sender with a budget below the pace, or a slow link, only
+    delays the chase.
+  - **B3.** Paging one entry's many layers (`layersFrom`) checks the time
+    slice and the pace before each page after the first, and yields with
+    the entry and its offset kept in the chase's progress. The order is
+    checked across pages in constant memory: within a page each layer
+    comes after the one before it (stronger first, the lower nonce first
+    among equals); a page may start with layers read already, as layers
+    that arrive meanwhile push read ones later, but no more of them than
+    the stated total grew by, and the run must reach the furthest layer
+    read before any layer past it. A total that shrinks, a page past the
+    total, or any other order is false (the sender is flagged, nothing is
+    bad-listed).
+  - **C-5.** `askLayers` reports how many hashes, from the first, it
+    counted whole. Step 4 moves on only past those: an entry it stopped
+    in the middle of keeps its offset, and the entries after it are asked
+    for again when the chase comes back to step 4 (C-1). The early stop of
+    RED-021 stays.
+  - **RED-022's condition.** A chase that waits for disk space logs a
+    warning, its group's new `waiting` and `waiting_since` fields show it
+    in `poo chases`, `poo doctor` warns about it, and the metric
+    `poo_chases_waiting_disk` counts it. Every yield or stall records its
+    reason in `waiting`.
+- **Why:** Black's Round 8 review (docs/consensus/source/ROUND-8.md).
+  Under the default budgets a long heavier branch overran the sender's
+  budget, timed out and started again for ever (B2, measured by Orange),
+  and a sender could hold a chase slot by paging one entry for ever (B3).
+  The early stop could skip uncounted entries of a one-page branch, which
+  brought back Round 7's C-1 (C-5). All three break D115.
+- **Tier:** Implementation (node policy). No rule of validity or
+  selection, and no byte form, changes. Tests:
+  `TestChaseBelowSenderBudgetIsReached`, `TestHeavierLedgerLongBareRun`
+  (100,000 bare entries with the default budgets, in CI's long step),
+  `TestManyLayersPagingYieldsAndGoesOn`, `TestManyLayersRepeatedAreFalse`
+  and `TestEarlyStopCountsTheRestLater` (the last three fail on the Round
+  8 code), and `TestStalledKeepsTheSender`.
+
+### D125. Grind schedule changes are made on the node (GUI-014)
+
+- **Decision:** `POST /v1/grind/schedule/edit` takes a
+  `nodepolicy.GrindEdit` (remove, remove all, add, set) and applies it to
+  node.json's grind section under the interface's policy lock, so two
+  changes made at once both take effect. A numbered removal names the
+  whole job, which must still be at that number, so a stale number never
+  removes another job, even one with the same target. `GET` and the
+  replies carry the section's `version`; a `PUT` with `If-Match` replaces
+  only that version, and an edit may name one too. A stale change fails
+  with code `conflict`. `poo grind schedule add|remove|set` sends edits;
+  without a running node it applies the same edit to node.json.
+  `rpc.Client` gains `GrindEditSchedule` and `GrindReplaceSchedule`.
+- **Why:** GUI-014 (GUI Red, PR #39): a client read the section and wrote
+  it back whole, and RED-013's lock only ordered the writes, so a removal
+  and an addition made at once (the GUI and a shell) lost one of them.
+- **Tier:** Implementation (node policy, the RPC). Grinding schedule only.
+
+### D126. Round 9 adoptions: ORANGE-017, GREEN-033
+
+- **Decision:** ORANGE-017 (a counting writer gives `Entry.Size` and
+  `Tx.Size`, encodings are presized, and a kept entry's size is checked
+  before it is encoded, so a large item is encoded once). GREEN-033 (the
+  daemon puts large-entry parts in `<data dir>/parts`, mode 0700, and
+  removes `poo-parts-*` leftovers when it starts; `layer_rate` documented
+  in nodepolicy.md).
+- **Why:** Measured or found in Round 8 Part B and cleared by Black.
+- **Tier:** Implementation (node policy). The bytes are unchanged
+  (`pkg/vectors` and the round-trip tests pass).
+
+### D127. `grind.layer_rate` is at most 50 (GUI-015)
+
+- **Decision:** `nodepolicy.MaxLayerRate` is 50 layers a second, down
+  from 1,000. A section asking for more does not validate, so `poo grind
+  schedule set -layer-rate`, the RPC and the GUI's form refuse it.
+- **Why:** GUI-015 (GUI Red, PR #42): peers take 6,000 layers a minute
+  from one node by default (100 a second) and flag a node that keeps
+  sending more once a minute, which times it out after about 10 minutes
+  and blocks it for 24 hours after about 30. Half the budget leaves room
+  for the node's other layers and the ones it forwards.
+- **Tier:** Implementation (node policy). It bounds only what this node's
+  own grinding adds with `layer_floor`; nothing it accepts or fetches
+  changes, and the chase still fetches any layers it needs.

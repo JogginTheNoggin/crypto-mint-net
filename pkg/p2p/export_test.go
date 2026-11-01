@@ -19,3 +19,6 @@ func SetDiskSpace(f func(dir string) (free, total uint64, err error)) func() {
 	diskSpace = f
 	return func() { diskSpace = statDisk }
 }
+
+// StrongestNonces orders nonces as a layers-from reply gives them.
+var StrongestNonces = strongestNonces

@@ -171,14 +171,29 @@ unsorted; it hashes and sorts them strongest first outside the lock, and
 caches the order under the entry and its layer count (RED-020). When the node's
 own ledger outgrows the work counted so far during step 6, the chase goes
 back to step 5 and counts more; only a branch counted to its end is not
-heavier (C-1).
+heavier (C-1). Step 5 moves on only past the entries it counted whole: an
+entry it stopped in the middle of keeps its offset, and the ones after it
+are asked for again when the chase comes back (Black's C-5, D124). Paging
+one entry's layers checks the time slice and the pace before each page
+after the first and yields with the entry and its offset kept. It checks
+the strongest-first order across pages in constant memory: a page may
+start with layers read already, no more of them than the stated total grew
+by, and must reach the furthest layer read before going past it; a sender
+that repeats, skips or reorders otherwise is false (Black's B3, D124).
 
 A chase runs for at most `ChaseSlice` (2 minutes) and then **yields**
 (`chase.Yield`): its sender waits `chase.Config.YieldWait` with no
 backoff, and what the chase learned (the common entry, the hashes with work,
 the work counted, the last entry fetched) is kept, so the next chase of
 the same group and sender goes on from there. Each slice makes at least
-one request, so a chase always moves forward. An entry pushed over the
+one request, so a chase always moves forward. The chase also counts the
+requests it sent each sender over `RequestPaceWindow` (a minute) and
+yields at `RequestPace` (480), under the 600 a minute peers serve by
+default (ORANGE-018). A request that still times out ends the chase as
+`chase.Stalled`: the sender is backed off but kept, and so is the chase's
+progress, so a slow sender or one with a smaller budget only delays it
+(Black's B2, D124). A chase that waits for disk space logs a warning and
+shows as waiting in `poo chases` and `poo doctor` (D124). An entry pushed over the
 sender's revert budget is not dropped for good: its branch goes to the
 chase queue (D116). Only hashes shown false go on the known-bad list: an
 entry hash below the minimum strength, an invalid entry, or a listed hash

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted (D126) |
 | Based on | `claude/m10-watch` @ `ae8a103` |
 | Area | `pkg/daemon`, docs (`p2p.md`, `nodepolicy.md`) |
 | Effort | small |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D124) |
 | Based on | `claude/m10-watch` @ `ae8a103` |
 | Area | `pkg/p2p` (`Config.RequestPace`, `RequestPaceWindow`, new `pace.go`, `peer.reqs`, the chase loops) |
 | Effort | small |
