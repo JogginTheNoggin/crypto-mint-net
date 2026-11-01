@@ -28,6 +28,13 @@ try {
   await page.locator('h1', { hasText: 'Getting started' }).waitFor();
   assert.equal(await page.locator('nav a[aria-current=page]').getAttribute('data-id'), 'start');
   if (shots) await page.screenshot({ path: join(shots, 'start.png') });
+  // The guide reaches grinding too, and each node step links its view (GREEN-036).
+  const grindStep = page.locator('.steps li', { hasText: 'Help secure the ledger' });
+  assert.equal(await grindStep.locator('code').innerText(), 'poo grind start tip');
+  assert.equal(await grindStep.locator('a.step-view').getAttribute('href'), '#/work');
+  await page.locator('.steps li', { hasText: 'Check its health' }).locator('a.step-view').click();
+  await page.locator('h1', { hasText: 'Node' }).waitFor();
+  await page.click('nav a[data-id=start]');
 
   // A step types its line into the terminal and runs it.
   await page.locator('.steps li', { hasText: 'Check the tool' }).getByRole('button').click();

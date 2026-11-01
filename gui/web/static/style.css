@@ -232,3 +232,4 @@ table.grind-jobs .hint { margin: 2px 0 0; font-size: 11px; }
 /* The jump list at the top of a long view (GREEN-030) */
 nav.jump { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--muted); margin: 0 0 12px; }
 nav.jump button { font-size: 12px; padding: 2px 8px; }
+a.step-view { font-size: 13px; }

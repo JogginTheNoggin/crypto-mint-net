@@ -43,6 +43,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-032](GREEN-032-hidden-fields-and-until-from.md) | Fields `only` hides were still drawn (CSS beat `hidden`); Until from shows only for entry and tx: targets | small | yes | adopted |
 | [GREEN-033](GREEN-033-defaults-show-current.md) | Schedule defaults fields show what is set now (and the layer rate the summary hides) | small | yes | adopted |
 | [GREEN-035](GREEN-035-layer-rate-loose-ends.md) | The Schedule summary shows a layer rate kept with no floor; ask Source for doctor `fix_args` when the rate was lowered | small | yes (GUI part) | GUI part adopted; doctor `fix_args` with Source |
+| [GREEN-036](GREEN-036-getting-started-reaches-grinding.md) | Getting started covers `doctor`, `watch` and `grind`, and each node step links its view | small | yes | proposed |
 
 ## Orange (performance)
 
@@ -104,7 +105,7 @@ the same spread for both (Watch at full rate 0.55 to 0.69 s, terminal
 ```sh
 git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
-node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019, 020, 028, 029 and 032
+node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019, 020, 028, 029, 032 and 036
 node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014 and 018
 node gui/e2e/work.mjs /tmp/poo-gui    # the checks for 023 to 025, 030, 032, 033 and 035
 ```
