@@ -55,3 +55,32 @@ func TestAddAndRemoveFollow(t *testing.T) {
 		}
 	}
 }
+
+// GUI-018 (D139): ReplaceFollow puts the given pools and mints in place
+// of the series' rule in one change, and leaves other rules alone.
+func TestReplaceFollow(t *testing.T) {
+	s := testutil.ExampleSeries()
+	id := s.ID()
+	iss := hash.Hash{7}
+	p := Default()
+	p.Series = []SeriesInfo{{Params: s.Params()}}
+	p.Follow = []Follow{{Series: &id}, {Issuer: &iss}}
+	if err := p.ReplaceFollow(Follow{Series: &id, Pools: []uint64{1, 1}}); err != nil {
+		t.Fatal(err)
+	}
+	if want := []Follow{{Issuer: &iss}, {Series: &id, Pools: []uint64{1}}}; !reflect.DeepEqual(p.Follow, want) {
+		t.Fatalf("follow %+v, want %+v", p.Follow, want)
+	}
+	if err := p.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	other := hash.Hash{9}
+	for _, bad := range []Follow{{}, {Issuer: &iss}, {Series: &other}, {Series: &id, Pools: []uint64{2}}} {
+		if err := p.ReplaceFollow(bad); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%+v: %v", bad, err)
+		}
+	}
+	if want := []Follow{{Issuer: &iss}, {Series: &id, Pools: []uint64{1}}}; !reflect.DeepEqual(p.Follow, want) {
+		t.Fatalf("a refused replace changed the list: %+v", p.Follow)
+	}
+}

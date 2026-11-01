@@ -1,41 +1,46 @@
 package p2p
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
-// Black's B5 (D137): a slow chase that has waited its turn ranks as
-// moving against a moving file and above a slow one that took in no more
-// than it did; without a turn, D132's and RED-029's order stands.
-func TestPartsRankTurns(t *testing.T) {
-	file := func(slow bool, last, size, off uint64) *progress {
-		return &progress{partsSlow: slow, partsLast: last, part: &partial{size: size, off: off}}
-	}
+// D139 (replacing D137's turns): a waiting chase may cut a kept parts
+// file when that file's sender left, its last chase took nothing or it
+// has not asked for a while, or the waiting chase, at the rate it is
+// receiving, would finish first. A claimed size alone never decides.
+func TestTakeFrom(t *testing.T) {
+	h := &Host{cfg: Config{ChaseSlice: time.Minute}}
+	h.cfg.Chase.Backoff = 30 * time.Second
+	now := time.Now()
 	const mib = 1 << 20
-	trickler := file(true, 64<<10, 100*mib, 90*mib) // slow, little to come
-	honest := func(last uint64) partsRank {
-		return partsRank{slow: true, turn: true, shown: file(true, last, 100*mib, 0)}
+	file := func(rate float64, size, off uint64) *progress {
+		return &progress{partsRate: rate, partsAt: now, part: &partial{size: size, off: off}}
 	}
+	me := func(size, off uint64) *progress { return &progress{part: &partial{size: size, off: off}} }
 	cases := []struct {
 		name   string
-		holder partsRank
-		me     partsRank
-		below  bool
+		holder *progress
+		away   bool
+		me     *progress
+		rate   float64 // the waiting chase's, in bytes a second
+		take   bool
 	}{
-		{"a lost first request has its turn", partsRank{slow: true, shown: trickler}, honest(0), true},
-		{"a turn that took in more", partsRank{slow: true, shown: trickler}, honest(8 * mib), true},
-		{"a turn that took in less", partsRank{slow: true, shown: file(true, 8*mib, 100*mib, 90*mib)}, honest(64 << 10), false},
-		{"no turn yet: D132 stands", partsRank{slow: true, shown: trickler}, partsRank{slow: true, shown: file(true, 0, 100*mib, 0)}, false},
-		{"a turn against a moving file nearer its end", partsRank{shown: file(false, 4*mib, 100*mib, 90*mib)}, honest(0), false},
-		{"a turn against a moving file further from it", partsRank{shown: file(false, 4*mib, 100*mib, 10*mib)}, partsRank{slow: true, turn: true, shown: file(true, 0, 100*mib, 50*mib)}, true},
-		// ORANGE-022: between slow fetches, the one expected to finish
-		// first keeps the room, so two at the same pace never take turns.
-		{"same pace: the holder nearer its end keeps it", partsRank{slow: true, shown: file(true, 64<<10, 100*mib, 90*mib)}, honest(64 << 10), false},
-		{"same pace: a turn nearer its end takes it", partsRank{slow: true, shown: file(true, 64<<10, 100*mib, 10*mib)}, partsRank{slow: true, turn: true, shown: file(true, 64<<10, 100*mib, 50*mib)}, true},
-		{"a holder that slowed down gives it up", partsRank{slow: true, shown: file(true, 1<<10, 100*mib, 90*mib)}, honest(64 << 10), true},
-		{"a departed sender's file goes first", partsRank{away: true, shown: file(false, 4*mib, 100*mib, 99*mib)}, honest(0), true},
+		{"a departed sender's file", file(64*mib, 100*mib, 99*mib), true, me(100*mib, 0), 1, true},
+		{"a holder whose last chase took nothing", file(0, 100*mib, 99*mib), false, me(100*mib, 0), 1, true},
+		{"a holder not chased for a while", &progress{partsRate: 64 * mib, partsAt: now.Add(-time.Hour), part: &partial{size: 100 * mib, off: 99 * mib}}, false, me(100*mib, 0), 1, true},
+		{"RED-031: a trickler just under, at 1 MiB a minute", file(mib/60, 99*mib, 10*mib), false, me(100*mib, 0), 4 * mib, true},
+		{"a huge claim trickled (B4)", file(mib, 1<<40, 90*mib), false, me(100*mib, 0), mib / 10, true},
+		{"a fetch that will finish first keeps it", file(4*mib, 100*mib, 90*mib), false, me(100*mib, 0), 4 * mib, false},
+		{"RED-032: a fresh sender slower than the holder", file(64<<10, 100*mib, 50*mib), false, me(100*mib, 0), 32 << 10, false},
+		{"RED-033: a slow honest link faster than a slow trickler", file(32<<10, 100*mib, 10*mib), false, me(100*mib, 50*mib), 64 << 10, true},
+		{"ORANGE-022: same pace, the one nearer its end keeps it", file(64<<10, 100*mib, 90*mib), false, me(100*mib, 50*mib), 64 << 10, false},
+		{"ORANGE-022: same pace, the one nearer its end takes it", file(64<<10, 100*mib, 10*mib), false, me(100*mib, 50*mib), 64 << 10, true},
+		{"an empty file is not cut", file(0, 100*mib, 0), true, me(100*mib, 0), 1, false},
 	}
 	for _, c := range cases {
-		if got := c.holder.below(c.me); got != c.below {
-			t.Errorf("%s: below %v, want %v", c.name, got, c.below)
+		if _, _, got := h.takeFrom(c.holder, c.away, c.me, c.rate, now); got != c.take {
+			t.Errorf("%s: take %v, want %v", c.name, got, c.take)
 		}
 	}
 }

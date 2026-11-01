@@ -32,10 +32,16 @@ type reqWindow struct {
 	// slow, or lost two requests, is soon served at the pace it allows. A
 	// second learning while probing shows the budget: the pace then holds
 	// as D133 says, and known keeps it, so a later drop with as much sent
-	// holds at once (RED-028, D136).
+	// holds at once (RED-028, D136). peak is what was sent in the window
+	// of the first learning and start the pace the probe began at: drops
+	// while probing show the budget only with nearly as much sent as
+	// then; with less, the asker was held low by the probe itself, and
+	// the probe halves, not below start, and goes on (RED-034, D139).
 	probing bool
 	raised  time.Time
 	known   int
+	peak    int
+	start   int
 }
 
 // paceLearn is how many windows a learned pace lasts after the last
@@ -72,14 +78,21 @@ func (w *reqWindow) dropped(sent, now time.Time, window time.Duration) {
 		if limit < w.limit && n >= w.limit/2 {
 			w.limit = limit
 		}
+	case active && w.probing && n < w.peak-w.peak/8:
+		// Drops while the probe held the asker below what it sent
+		// before say only that the peer is still losing requests: the
+		// probe steps back and goes on rising (RED-034).
+		w.limit, w.raised = max(w.start, w.limit/2), now
 	case (active && w.probing) || (w.known > 0 && n >= w.known):
-		// The peer drops again while probed, or at what it dropped at
-		// before: its budget, which holds.
+		// The peer drops again while probed with as much sent as when it
+		// first dropped, or at what it dropped at before: its budget,
+		// which holds.
 		w.limit, w.probing, w.known = limit, false, limit
 	default:
 		// The first drops say little about the budget: a pace to probe
 		// up from, not to hold.
 		w.limit, w.probing, w.raised = limit, true, now
+		w.peak, w.start = n, limit
 	}
 	w.until = now.Add(paceLearn * window)
 }

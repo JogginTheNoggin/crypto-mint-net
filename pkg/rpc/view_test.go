@@ -98,6 +98,21 @@ func TestViews(t *testing.T) {
 	if fr.Reloading || len(fr.Follow) != 1 || len(fr.Follow[0].Pools) != 0 {
 		t.Fatalf("follow without reload %+v", fr)
 	}
+	// GUI-018 (D139): a replace puts the pools in place of the whole
+	// series in one change; remove and replace together are refused.
+	fr, err = f.c.Follow(rpc.FollowRequest{Replace: true, Series: &id, Pools: []uint64{0}, NoReload: true})
+	must(t, err)
+	if len(fr.Follow) != 1 || len(fr.Follow[0].Pools) != 1 || fr.Follow[0].Pools[0] != 0 {
+		t.Fatalf("replace %+v", fr.Follow)
+	}
+	if _, err := f.c.Follow(rpc.FollowRequest{Replace: true, Remove: true, Series: &id, NoReload: true}); code(err) != rpc.CodeInvalid {
+		t.Fatalf("remove and replace: %v", err)
+	}
+	fr, err = f.c.Follow(rpc.FollowRequest{Replace: true, Series: &id, NoReload: true})
+	must(t, err)
+	if len(fr.Follow) != 1 || len(fr.Follow[0].Pools) != 0 {
+		t.Fatalf("replace with the whole series %+v", fr.Follow)
+	}
 }
 
 func must(t *testing.T, err error) {
