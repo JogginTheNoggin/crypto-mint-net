@@ -67,8 +67,9 @@ function jobsTable(list, ctx, refresh) {
 
 // scheduleTable lays out poo grind schedule's reply: the defaults, and
 // one row per job node.json starts, numbered as poo numbers them, each
-// with a Remove that runs poo grind schedule remove -target T N. A running node
-// applies the change at once; without one poo edits node.json.
+// with a Remove that runs poo grind schedule remove -if-version V
+// -target T N. A running node applies the change at once; without one poo
+// edits node.json.
 function scheduleTable(reply, edits, reload) {
   const g = (reply && reply.grind) || {};
   const layers = g.layer_floor ? `, keep layers of strength ${g.layer_floor} or more, at most ${g.layer_rate || 'the default'} a second` : '';
@@ -83,11 +84,12 @@ function scheduleTable(reply, edits, reload) {
     // reads: no click goes by a number the removal has already shifted
     // (GUI-013), and no change starts from a schedule another is about to
     // replace (GUI-014). -target makes poo refuse a number that no longer
-    // names this row's job, as when the schedule changed elsewhere
-    // (GREEN-031); the table is read again either way.
+    // names this row's job, and -if-version one that changed at all since
+    // this table was read (GREEN-031, GREEN-034); the table is read again
+    // either way.
     const remove = edits.add(el('button', { type: 'button', class: 'small danger', onclick: async () => {
       if (!edits.take()) return;
-      try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), '-target', j.target, String(i + 1)]); } finally {
+      try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), ...flag('if-version', reply.version), '-target', j.target, String(i + 1)]); } finally {
         await reload();
         edits.release();
       }
@@ -346,11 +348,13 @@ export const workView = {
     // The defaults form shows what is set now, as each field's placeholder:
     // a field left empty keeps it (GREEN-033).
     const nowDefaults = v => {
-      const g = (v && v.grind) || {};
+      // The ranges are poo's own limits, from the same reply.
+      const g = (v && v.grind) || {}, l = (v && v.limits) || {};
+      const upTo = n => n ? ` (up to ${n})` : '';
       defaultsForm.hint('device', `now ${g.device || 'auto'}`);
-      defaultsForm.hint('threads', `now ${g.threads || '0: every core but one'}`);
-      defaultsForm.hint('floor', `now ${g.layer_floor || '0: only the strongest of each search'} (0 to 256)`);
-      defaultsForm.hint('rate', `now ${g.layer_rate || '0: the default'} layers a second at most`);
+      defaultsForm.hint('threads', `now ${g.threads || '0: every core but one'}${upTo(l.max_threads)}`);
+      defaultsForm.hint('floor', `now ${g.layer_floor || '0: only the strongest of each search'}${upTo(l.max_layer_floor)}`);
+      defaultsForm.hint('rate', `now ${g.layer_rate || `0: the default${l.default_layer_rate ? `, ${l.default_layer_rate}` : ''}`} layers a second at most${upTo(l.max_layer_rate)}`);
     };
     const afterSchedule = () => reloadSchedule();
     const defaultsForm = form(ctx, { title: 'Schedule defaults', about: 'The device and threads every job takes unless it names its own, and which layers grinding keeps: poo grind schedule set.', fields: [{ name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0' }, { name: 'threads', label: 'Threads', type: 'number', placeholder: '0: every core but one' },
