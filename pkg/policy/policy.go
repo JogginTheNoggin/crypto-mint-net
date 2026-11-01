@@ -331,6 +331,31 @@ func (r *Registry) CheckCached(h hash.Func, rules Rules, w Witness, addr, tid ha
 	return nil
 }
 
+// Warm runs w's satisfaction function for tid and remembers a pass in v,
+// without the address it must satisfy. CheckCached later still runs the
+// size, address and allowed checks and finds the pass remembered: a pass
+// depends only on the policy, the data and the tid, which the key covers.
+// It is for data whose owners are not known yet, such as a node's own
+// store on start-up (ORANGE-021). It reports whether w passed.
+func (r *Registry) Warm(rules Rules, w Witness, tid hash.Hash, v *Verified) bool {
+	if max := rules.MaxWitnessSize(); max > 0 && w.Size() > max {
+		return false
+	}
+	t, err := r.allowed(rules, w.Policy)
+	if err != nil {
+		return false
+	}
+	k := verifiedKey(w, tid)
+	if v.has(k) {
+		return true
+	}
+	if t.Satisfy(r, w.Policy.Params, w.Data, Message(tid)) != nil {
+		return false
+	}
+	v.add(k)
+	return true
+}
+
 // allowed checks that the series allows policy p's type and key
 // algorithms, and those of every policy inside it (decision D82).
 func (r *Registry) allowed(rules Rules, p Policy) (Type, error) {
