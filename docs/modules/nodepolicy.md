@@ -34,7 +34,7 @@ D25). Nothing here changes what is valid.
     "advertise": "node.example.org:8646",
     "peers": ["203.0.113.5:8646"],
     "max_peers": 32,
-    "chunk_size": 1048576, "entry_limit": 512, "hash_limit": 256, "layer_limit": 65536,
+    "chunk_size": 1048576, "entry_limit": 512, "hash_limit": 4096, "layer_limit": 65536,
     "no_notices": false,
     "check_seconds": 60,
     "registries": ["https://registry.example/poo.json"],
