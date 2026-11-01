@@ -63,7 +63,7 @@ function jobsTable(list, ctx, refresh) {
 
 // scheduleTable lays out poo grind schedule's reply: the defaults, and
 // one row per job node.json starts, numbered as poo numbers them, each
-// with a Remove that runs poo grind schedule remove N. A running node
+// with a Remove that runs poo grind schedule remove -target T N. A running node
 // applies the change at once; without one poo edits node.json.
 function scheduleTable(reply, refresh) {
   const g = (reply && reply.grind) || {};
@@ -75,10 +75,12 @@ function scheduleTable(reply, refresh) {
   jobs.forEach((j, i) => {
     // A Remove turns every Remove off until the table is drawn again from
     // the schedule poo then reads, so no click goes by a number the
-    // removal has already shifted (GUI-013).
+    // removal has already shifted (GUI-013). -target makes poo refuse a
+    // number that no longer names this row's job, as when the schedule
+    // changed elsewhere (GREEN-031); the table is read again either way.
     const remove = el('button', { type: 'button', class: 'small danger', onclick: async () => {
       for (const b of body.querySelectorAll('button')) b.disabled = true;
-      try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), String(i + 1)]); } finally { refresh(); }
+      try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), '-target', j.target, String(i + 1)]); } finally { refresh(); }
     } }, 'Remove');
     body.append(el('tr', {},
       el('td', { class: 'num' }, String(i + 1)),

@@ -38,8 +38,8 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-027](GREEN-027-grind-loose-ends.md) | Grinding loose ends for Source: uncounted entry tries, two start lines, a waiting reason | small | no | done by Source (D112) |
 | [GREEN-028](GREEN-028-flags-per-action.md) | Forms show only the flags the chosen action takes (Peers, Node policies), as `poo` checks them | small | yes | adopted |
 | [GREEN-029](GREEN-029-crypto-suggestions.md) | Key and hash fields suggest what `poo crypto` lists | small | yes | adopted |
-| [GREEN-030](GREEN-030-jump-list.md) | Long views list their panels at the top; a title scrolls to its panel | small | yes | proposed |
-| [GREEN-031](GREEN-031-schedule-remove-by-index.md) | Schedule Remove goes by position and can drop the wrong job; ask Source for `remove N -target T` | small | no (needs Source) | proposed |
+| [GREEN-030](GREEN-030-jump-list.md) | Long views list their panels at the top; a title scrolls to its panel | small | yes | adopted |
+| [GREEN-031](GREEN-031-schedule-remove-by-index.md) | Schedule Remove goes by position and can drop the wrong job; ask Source for `remove N -target T` | small | no (needs Source) | done: `remove -target` by Source (D115-D119), the GUI sends each row's target (Round 8) |
 
 ## Orange (performance)
 
@@ -60,7 +60,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-008](ORANGE-008-long-text-results.md) | Show the last 1 MiB of a long text result (3.9 MB: 792 → 181 ms) | small | yes | adopted |
 | [ORANGE-009](ORANGE-009-work-view-paced-drawing.md) | Work view draws at most 10 times a second and reuses its chart (46% → 12% busy at 200 lines/s; full rate 9 → 46 fps) | small | yes | adopted |
 | [ORANGE-010](ORANGE-010-close-streams-on-leave.md) | Close a view's event streams when it is left: the Node view leaked one per visit and the GUI stopped answering after about 2 minutes | small | yes | adopted |
-| [ORANGE-011](ORANGE-011-one-crypto-ask-in-flight.md) | Ask `poo crypto` once while a key field waits for suggestions (8 focuses: 8 jobs → 1) | small | yes | proposed |
+| [ORANGE-011](ORANGE-011-one-crypto-ask-in-flight.md) | Ask `poo crypto` once while a key field waits for suggestions (8 focuses: 8 jobs → 1) | small | yes | adopted |
 
 ## How to try the prototypes
 

@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | GUI part fixed (claude/gui-blue); core identity check pending (Source) |
+| Status | fixed: GUI part (PR #37); Source `schedule remove -target`, which the GUI sends (Round 8); pending Red's verification |
 | Found on | claude/gui-4-watch @ b20bf8f |
 | Component | gui/web/static/work.js (`scheduleTable`, Remove), pkg/cli/grind.go (`grindSchedule remove N`) |
 | Surface | node (node.json's grind section, applied at once by a running node) |

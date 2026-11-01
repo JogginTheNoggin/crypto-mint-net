@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 7) |
+| Status | done: Source `remove -target`, GUI sends the row's target (Round 8) |
 | Based on | claude/gui-4-watch @ b20bf8f |
 | Area | pkg/cli/grind.go (`schedule remove`); gui/web/static/work.js (scheduleTable) |
 | Effort | small |

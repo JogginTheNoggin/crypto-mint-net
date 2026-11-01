@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 7) |
+| Status | adopted (Round 8) |
 | Based on | claude/gui-4-watch @ b20bf8f |
 | Area | gui/web/static/views.js (mountAll), style.css |
 | Effort | small |

@@ -139,7 +139,16 @@ try {
   await sched.locator('table.grind-schedule tbody tr', { hasText: '1-2' }).waitFor({ state: 'detached', timeout: 10000 });
   assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 1, 'one job left');
   await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).waitFor();
+  // A stale row (GREEN-031): the schedule changes outside this page, so
+  // the tip row's number 1 now names a pending job. Remove sends -target
+  // tip, poo refuses, and the table is read again with the pending job
+  // kept.
+  poo(['grind', 'schedule', 'add', 'pending', '-hours', '5-6']);
+  poo(['grind', 'schedule', 'remove', '1']);
   await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).locator('button', { hasText: 'Remove' }).click();
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).waitFor({ timeout: 10000 });
+  assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 1, 'the stale Remove removed nothing');
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).locator('button', { hasText: 'Remove' }).click();
   await sched.locator('.empty', { hasText: 'No scheduled jobs' }).waitFor({ timeout: 10000 });
   for (const end = Date.now() + 20000; ;) {
     await jobs.locator('button:has-text("Refresh")').click();
