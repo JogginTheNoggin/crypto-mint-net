@@ -146,8 +146,9 @@ random nonce, so slices and jobs never repeat each other.
   section while the node runs. When only the jobs change it applies the
   difference: a running policy job still scheduled keeps its ID, tries
   and rate, and only the jobs taken out stop, with the reason "the
-  schedule changed"; a changed default (device, threads, layer_floor,
-  layer_rate) restarts every policy job. It returns the running job of
+  schedule changed"; a changed device or threads restarts every policy
+  job, while a changed layer_floor or layer_rate keeps them, since each
+  search reads those (GREEN-036). It returns the running job of
   each scheduled job, kept or new, in the schedule's order (GREEN-035,
   D135), so `PUT /v1/grind/schedule`
   and `poo grind schedule` need no reload and leave user jobs running.
