@@ -358,6 +358,8 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 	}
 	p.mu.Unlock()
 	h.cq.Drop(p.id)
+	// What its chases left starts its grace now (RED-023).
+	h.sweepProgress(time.Now())
 	h.tr.Connection(p.key, "closed", time.Now())
 	h.log.Info("disconnected", "peer", p.short(), "err", p.closeErr())
 	// A freed slot is filled at once from the peers waiting as candidates.

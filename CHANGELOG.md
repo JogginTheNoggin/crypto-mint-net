@@ -116,3 +116,8 @@ built.
   large-entry parts live in the data directory; `grind.layer_rate` is at most 50
   a second, so a node's own layers stay inside peers' default budget
   (D127).
+- **Slow senders and larger pages (D128 to D130):** kept progress and
+  parts files of departed senders are cleaned up, while a stalled chase's
+  progress outlasts its sender's backoff and a stall that made progress
+  does not double it; chases ask for hashes in pages of 4,096; the grind
+  schedule shows its version and limits, and edits take `-if-version`.

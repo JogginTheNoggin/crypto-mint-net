@@ -2087,3 +2087,75 @@ a chase takes in after checking their work are not charged.
 - **Tier:** Implementation (node policy). It bounds only what this node's
   own grinding adds with `layer_floor`; nothing it accepts or fetches
   changes, and the chase still fetches any layers it needs.
+
+### D128. Round 9 fixes: RED-023, RED-024, RED-025 (BLUE-010)
+
+- **Decision:**
+  - **RED-023.** A yielded chase's progress, its parts file included, is
+    forgotten once its sender has been disconnected for
+    `p2p.Config.ProgressGrace` (2 minutes) or no chase has taken it up for
+    `ProgressTTL` (an hour). The sweep runs at each save, at each
+    disconnect and every `CheckEvery`. A sender back within the grace goes
+    on from what it left. A fetch that would wait for disk space first
+    removes the parts files of senders that are not connected, whatever
+    their grace, and checks again.
+  - **RED-024.** `fetchParts` keeps its parts whenever the chase keeps its
+    progress (`Outcome.Keeps`: a yield, or a stall such as a timeout), so
+    the next chase goes on from the offset it reached. A false entry, a
+    finished one, or a chase that ends otherwise lets them go.
+  - **RED-025.** `nodepolicy.Load` brings a `grind.layer_rate` over
+    `MaxLayerRate` down to it and notes it in `Policy.Lowered`; the node
+    logs a warning and `poo doctor` shows one. Writes stay strict. A bound
+    is only ever lowered this way.
+- **Why:** RED-023: a sender that left kept disk and memory until the
+  node restarted, and with D123's disk reserve could keep honest
+  large-entry fetches waiting for ever. RED-024: one timeout threw away a
+  large entry's parts. RED-025: lowering a bound made older valid files
+  stop the node from starting.
+- **Tier:** Implementation (node policy). No consensus change: no rule of
+  validity or selection, and no byte form, changes. For Black: the grace
+  and the time to live forget only kept progress, which a later chase
+  rebuilds from the sender; nothing refuses a heavier ledger, and no
+  limit is added to what a ledger may hold.
+
+### D129. Kept progress outlasts the backoff (Black's C-6)
+
+- **Decision:**
+  - `ProgressTTL` is counted from when the progress was saved or, if
+    later, from when its sender's backoff ends, so a stalled chase's
+    progress is never forgotten while it waits for its next turn,
+    however long the backoff has grown.
+  - A stall after the chase took something in (entries, layers, part
+    bytes or counted work, compared by a snapshot of the progress) is the
+    new outcome `chase.Slowed`. The sender waits the first backoff step,
+    its doubling starts again, it stays in the group, and the progress
+    is kept. A stall that took nothing in still doubles the backoff.
+  - `ProgressGrace` now removes only a departed sender's parts file. The
+    rest of its progress, which costs little memory and is capped at 256
+    chases, goes at the time to live.
+- **Why:** Black's Round 9 review (docs/consensus/source/ROUND-9.md): with
+  BLUE-010's time to live of an hour against a backoff doubling to an
+  hour, a sender that stalls every time lost its progress just as its
+  next chase came due, so a branch needing more than one chase's worth of
+  transfer was never reached from it (B2 again, for slow senders).
+- **Tier:** Implementation (node policy). It changes only when progress is
+  forgotten and how long a sender waits. Tests:
+  `TestSlowSenderIsReachedOverManyChases` (fails on the BLUE-010 code),
+  `TestProgressOutlastsTheBackoff`, and `TestDepartedSenderLeavesNothing`
+  (now: the parts file goes at the grace, the progress stays).
+
+### D130. Round 10 adoptions: ORANGE-019, GREEN-034, the grind limits
+
+- **Decision:** ORANGE-019: the default `p2p` `HashLimit` is 4,096, what
+  peers already serve, so a long listing takes 16 times fewer requests
+  under the pace (a 100,000-entry bare run in about a second instead of
+  two minutes); `WeightlessPages` stays at 64 pages, as Black prefers.
+  GREEN-034: `poo grind schedule` prints the section's version, and
+  `add`, `remove` and `set` take `-if-version V`. The schedule replies
+  carry `limits` (`nodepolicy.Limits()`: the most jobs, threads,
+  `layer_floor` and `layer_rate`, and the default rate), so the GUI
+  offers exactly what validates (GUI/Blue's ask). `remove -target` is
+  now described as a check on what was meant, since the removal names
+  the whole job (D125).
+- **Why:** Measured or found in Round 9 Part B and cleared by Black.
+- **Tier:** Implementation (node policy, the RPC and the CLI).

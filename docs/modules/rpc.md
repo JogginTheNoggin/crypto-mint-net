@@ -38,7 +38,7 @@ only watch the node (GREEN-007).
 | `GET /grind` | | every grind job, running and recently ended |
 | `POST /grind` | a `grind.Spec`: `{target, series, pools, device, threads, for, until_from, hours, lease}` | the job; 503 `full` at 16 jobs, 400 for a bad spec, a device that cannot grind (unless `hours` is set), or a `source` other than `user` (D111) |
 | `POST /grind/{id}/renew` | | renews the job's lease; the job |
-| `GET /grind/schedule` | | `{grind, version}`: `node.json`'s grind section and a name for its content |
+| `GET /grind/schedule` | | `{grind, version, limits}`: `node.json`'s grind section, a name for its content, and the bounds it is checked against (`max_jobs`, `max_threads`, `max_layer_floor`, `max_layer_rate`, `default_layer_rate`; D130) |
 | `PUT /grind/schedule` | a grind section `{device, threads, jobs}`; optional `If-Match: "VERSION"` | saves it and applies it without a reload: the policy's jobs are replaced, user jobs run on; `{grind, version, started, failed}` with why a job did not start, by index; 422 `invalid` for a section that does not validate; 409 `conflict` when `If-Match` names an older version (D125) |
 | `POST /grind/schedule/edit` | `{remove: [{n, job}], remove_all, add: [job], set: {device, threads, layer_floor, layer_rate}, version}` | applies the edit to the section the node holds, under its lock, so edits made at once all apply; a removal names the whole job at number `n`, so a stale number is refused with 409 `conflict` rather than removing another job; reply as for `PUT` (GUI-014, D125) |
 | `GET /grind/{id}` | | one job |

@@ -433,7 +433,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		}
 	case "remove":
 		all = fs.Bool("all", false, "remove every job")
-		expect = fs.String("target", "", "remove only if each numbered job has this target, so a stale number cannot remove another job")
+		expect = fs.String("target", "", "also check that each numbered job has this target (a removal names the whole job anyway, so a stale number is refused)")
 	case "set":
 		device = fs.String("device", "", "the default device: auto, cpu, gpu:0, ... (auto clears it)")
 		threads = fs.Int("threads", 0, "the default threads (0: every core but one)")
@@ -441,6 +441,10 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		rate = fs.Int("layer-rate", 0, "the most layers a second layer-floor adds, strongest first (0: the default, 10)")
 	default:
 		return fmt.Errorf("poo grind schedule %s: unknown; it is add, remove or set", op)
+	}
+	var ifVersion *string
+	if op != "" {
+		ifVersion = fs.String("if-version", "", "change only the section with this version, as poo grind schedule printed it (GREEN-034)")
 	}
 	pos, err := parseMixed(fs, args)
 	if err != nil {
@@ -475,7 +479,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		if len(pos) != 0 {
 			return errors.New("usage: poo grind schedule [add|remove|set]")
 		}
-		return o.write(out, rpc.ScheduleReply{Grind: cur})
+		return o.write(out, rpc.ScheduleReply{Grind: cur, Version: cur.Version(), Limits: nodepolicy.Limits()})
 	}
 	if viewOnlyOf(out) {
 		return errViewOnly("grind schedule " + op)
@@ -560,6 +564,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		})
 		edit.Set = gs
 	}
+	edit.Version = *ifVersion
 	if online {
 		r, err := cl.GrindEditSchedule(edit)
 		if err != nil {
@@ -581,7 +586,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	if err := nodepolicy.Save(path, p); err != nil {
 		return err
 	}
-	return writeJSON(out, rpc.ScheduleReply{Grind: next, Version: next.Version()})
+	return writeJSON(out, rpc.ScheduleReply{Grind: next, Version: next.Version(), Limits: nodepolicy.Limits()})
 }
 
 // policySeries returns the series id of the node policy p, or its only

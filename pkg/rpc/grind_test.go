@@ -211,6 +211,10 @@ func TestGrindEndpoints(t *testing.T) {
 	}
 	read, err := c.GrindSchedule()
 	must(t, err)
+	// The bounds the section is checked against come with it (D130).
+	if read.Limits != nodepolicy.Limits() || read.Limits.MaxLayerRate != nodepolicy.MaxLayerRate {
+		t.Fatalf("limits %+v", read.Limits)
+	}
 	var wg sync.WaitGroup
 	for _, e := range []nodepolicy.GrindEdit{
 		{Remove: []nodepolicy.GrindRemove{{N: 1, Job: tip}}},

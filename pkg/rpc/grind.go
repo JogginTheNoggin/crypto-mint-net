@@ -83,8 +83,10 @@ type ScheduleReply struct {
 	Grind nodepolicy.Grind `json:"grind"`
 	// Version names Grind's content, for If-Match on a replacement and
 	// for GrindEdit.Version (GUI-014, D125).
-	Version string      `json:"version"`
-	Started []grind.Job `json:"started,omitempty"`
+	Version string `json:"version"`
+	// Limits are the bounds the section is checked against (D130).
+	Limits  nodepolicy.GrindLimits `json:"limits"`
+	Started []grind.Job            `json:"started,omitempty"`
 	// Failed maps a job's index in Grind.Jobs to why it did not start.
 	Failed map[int]string `json:"failed,omitempty"`
 }
@@ -115,7 +117,7 @@ func (h *Handler) grindSchedule(w http.ResponseWriter, r *http.Request) {
 	if p.Grind != nil {
 		g = *p.Grind
 	}
-	writeJSON(w, ScheduleReply{Grind: g, Version: g.Version()})
+	writeJSON(w, ScheduleReply{Grind: g, Version: g.Version(), Limits: nodepolicy.Limits()})
 }
 
 // grindSetSchedule saves a new grind section and applies it without a
@@ -188,7 +190,7 @@ func (h *Handler) changeSchedule(w http.ResponseWriter, f func(nodepolicy.Grind)
 		writeError(w, classify(err))
 		return
 	}
-	reply := ScheduleReply{Grind: g, Version: g.Version()}
+	reply := ScheduleReply{Grind: g, Version: g.Version(), Limits: nodepolicy.Limits()}
 	if h.grind != nil {
 		started, failed := h.grind.Schedule(p.Grind)
 		reply.Started = started

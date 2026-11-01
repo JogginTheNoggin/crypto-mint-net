@@ -224,6 +224,16 @@ func TestGrindScheduleOffline(t *testing.T) {
 	if sr.Grind.Device != "cpu" || len(sr.Grind.Jobs) != 1 || sr.Grind.Jobs[0].Target != "pending" || len(sr.Grind.Jobs[0].Pools) != 1 {
 		t.Fatalf("schedule %+v", sr)
 	}
+	// The listing names its version, and -if-version refuses a change made
+	// against an older one (GREEN-034).
+	v := sr.Version
+	if v == "" {
+		t.Fatal("the schedule's listing has no version")
+	}
+	cli(t, &sr, append([]string{"grind", "schedule", "add", "tip", "-if-version", v}, r...)...)
+	if err := run(append([]string{"grind", "schedule", "remove", "1", "-if-version", v}, r...), &strings.Builder{}); err == nil {
+		t.Fatal("a removal against a stale version was accepted")
+	}
 	sr = rpc.ScheduleReply{}
 	cli(t, &sr, append([]string{"grind", "schedule", "remove", "-all"}, r...)...)
 	cli(t, &sr, append([]string{"grind", "schedule", "set", "-device", "auto"}, r...)...)

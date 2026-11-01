@@ -30,3 +30,6 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-020](RED-020-layers-from-and-parts-copy-and-sort-all-layers-under-lock.md) | A layers-from or parts request copies, sorts and hashes all of an entry's layers under the engine lock, for a reply of a few bytes | medium | fixed |
 | [RED-021](RED-021-many-layers-paged-whole-into-memory.md) | A sender's many-layers entry is paged and counted whole, with no stop once the work beats the node's, at 15 times the memory it sends | high | fixed |
 | [RED-022](RED-022-parts-written-to-disk-without-free-space-check.md) | Parts of a claimed large entry are written to disk with no check of the free space, at the speed of the link | medium | fixed |
+| [RED-023](RED-023-departed-senders-keep-their-progress-and-parts-files.md) | A sender that leaves after a yield keeps its progress, and its parts file on disk, until the node restarts | medium | fixed |
+| [RED-024](RED-024-stalled-chase-throws-away-its-parts.md) | A timeout in the middle of a large entry deletes the parts already fetched, so the next chase starts that entry again from zero | medium | fixed |
+| [RED-025](RED-025-lowering-layer-rate-maximum-stops-old-node-json-loading.md) | A node.json with a `layer_rate` that was valid before D127 no longer loads, so the node does not start | low | fixed |

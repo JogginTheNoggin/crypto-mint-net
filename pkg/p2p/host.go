@@ -202,6 +202,12 @@ type Config struct {
 	// disk. At the reserve a fetch waits and goes on later (RED-022,
 	// D123). 0: 1 GiB.
 	PartsReserve uint64
+	// ProgressGrace is how long a yielded chase's parts file is kept
+	// after its sender disconnects; ProgressTTL is how long any progress
+	// is kept with no chase taking it up, counted from the end of its
+	// sender's backoff, so it always outlasts the wait (RED-023, D128;
+	// Black's C-6, D129). 0: 2 minutes and 1 hour.
+	ProgressGrace, ProgressTTL time.Duration
 	// LayersWhole is the most layers of one entry a layers reply carries;
 	// an entry with more has them paged (D121). It is at most, and by
 	// default, what one frame can hold.
@@ -226,7 +232,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		MaxPeers:       32,
-		Limits:         wire.Limits{ChunkSize: 1 << 20, EntryLimit: 512, HashLimit: 256, LayerLimit: 1 << 16},
+		Limits:         wire.Limits{ChunkSize: 1 << 20, EntryLimit: 512, HashLimit: 4096, LayerLimit: 1 << 16},
 		ServeEntries:   1024,
 		ServeHashes:    4096,
 		CheckEvery:     time.Minute,
@@ -381,6 +387,12 @@ func (c *Config) fill() {
 	}
 	if c.PartsReserve == 0 {
 		c.PartsReserve = 1 << 30
+	}
+	if c.ProgressGrace <= 0 {
+		c.ProgressGrace = 2 * time.Minute
+	}
+	if c.ProgressTTL <= 0 {
+		c.ProgressTTL = time.Hour
 	}
 }
 
@@ -767,6 +779,7 @@ func (h *Host) checkLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			h.sweepProgress(time.Now())
 			for _, pi := range h.sortedPools() {
 				for _, p := range h.peersIn(pi.section, peers.CatPriority) {
 					h.spawn(func() {

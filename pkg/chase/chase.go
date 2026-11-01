@@ -624,14 +624,20 @@ const (
 	// is kept, so a slow sender, or one whose budget is below this node's
 	// pace, only delays the chase (Black's B2, D124).
 	Stalled
+	// Slowed: a request timed out, but the chase took something in first
+	// (entries, layers, parts or counted work). The sender waits the first
+	// backoff step and its doubling starts again, it stays in the group,
+	// and the progress is kept, so a steady slow sender is not pushed to
+	// an hour between slices (Black's C-6, D129).
+	Slowed
 )
 
 // Keeps reports whether a chase that ended so keeps its progress for the
 // next chase of its group with the same sender.
-func (o Outcome) Keeps() bool { return o == Yield || o == Stalled }
+func (o Outcome) Keeps() bool { return o == Yield || o == Stalled || o == Slowed }
 
 func (o Outcome) String() string {
-	return [...]string{"switched", "nowhere", "false", "gone", "caught", "requeue", "yield", "stalled"}[o]
+	return [...]string{"switched", "nowhere", "false", "gone", "caught", "requeue", "yield", "stalled", "slowed"}[o]
 }
 
 // Finish ends the running chase of group id and returns the group as it
@@ -671,6 +677,9 @@ func (q *Queue) Finish(id uint64, o Outcome, bad []hash.Hash, now time.Time) Gro
 		g.Evidence = q.evidenceLocked(g)
 	case Stalled:
 		q.backoffLocked(sender, now)
+		g.Evidence = q.evidenceLocked(g)
+	case Slowed:
+		q.backoff[sender] = backoff{until: now.Add(q.cfg.Backoff)}
 		g.Evidence = q.evidenceLocked(g)
 	}
 	return out
