@@ -155,6 +155,10 @@ try {
   await defs.locator('input[name=floor]').fill('0');
   await defs.locator('input[name=rate]').fill('');
   await defs.locator('button[type=submit]').click();
+  // The rate stays set with no floor, and the line says so (GREEN-035).
+  await sched.locator('.counts', { hasText: /^Defaults: device auto, 1 thread, no layer floor \(layer rate 5 kept for when one is set\)\.$/ }).waitFor({ timeout: 10000 });
+  await defs.locator('input[name=rate]').fill('0');
+  await defs.locator('button[type=submit]').click();
   await sched.locator('.counts', { hasText: /^Defaults: device auto, 1 thread\.$/ }).waitFor({ timeout: 10000 });
   // Two quick Removes (GUI-013): the first turns every Remove off until
   // the table is drawn again, so the second cannot go by a shifted number.
