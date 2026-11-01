@@ -33,3 +33,5 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-023](RED-023-departed-senders-keep-their-progress-and-parts-files.md) | A sender that leaves after a yield keeps its progress, and its parts file on disk, until the node restarts | medium | fixed |
 | [RED-024](RED-024-stalled-chase-throws-away-its-parts.md) | A timeout in the middle of a large entry deletes the parts already fetched, so the next chase starts that entry again from zero | medium | fixed |
 | [RED-025](RED-025-lowering-layer-rate-maximum-stops-old-node-json-loading.md) | A node.json with a `layer_rate` that was valid before D127 no longer loads, so the node does not start | low | fixed |
+| [RED-026](RED-026-departed-senders-keep-counted-layers-for-an-hour.md) | A sender that stalls and leaves keeps its counted layers in the node's memory for an hour, at 20 times the bytes it sent | high | open |
+| [RED-027](RED-027-connected-silent-sender-holds-the-disk-reserve.md) | A connected sender that stalls keeps its parts file, so the disk reserve stays taken and no other large entry can be fetched | medium | open |
