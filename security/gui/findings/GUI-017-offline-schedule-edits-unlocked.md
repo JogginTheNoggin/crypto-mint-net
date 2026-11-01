@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed by Source (D134: offline edits take the node.json lock), merged Round 12; pending Red's verification |
 | Found on | claude/gui-4-watch @ 4108866 (Source claude/m10-watch @ 72d6f25) |
 | Component | pkg/cli/grind.go (`grindSchedule`: the path without a node), pkg/nodepolicy (`Load`, `Save`, `Lock`) |
 | Surface | node (node.json's grind section) |

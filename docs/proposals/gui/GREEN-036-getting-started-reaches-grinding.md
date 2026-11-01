@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 11) |
+| Status | adopted (Round 12) |
 | Based on | claude/gui-4-watch @ 4be2230 |
 | Area | gui/web/static/start.js, style.css |
 | Effort | small |

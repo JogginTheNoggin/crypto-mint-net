@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | GUI part adopted (Round 11); doctor fix_args with Source |
+| Status | done: GUI part (Round 11); doctor fix_args by Source (D135), merged Round 12 |
 | Based on | claude/gui-4-watch @ 4108866 |
 | Area | gui/web/static/work.js (scheduleTable); pkg/cli/doctor.go (lowered check) |
 | Effort | small |
