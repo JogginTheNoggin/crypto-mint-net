@@ -5,6 +5,21 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 10 Part B reviewed `claude/gui-4-watch @ 4108866`:
+- Source's GUI-014 core (D125: edits applied on the node under its lock,
+  `If-Match`).
+- GREEN-034's `-if-version` on the GUI's Remove.
+- GUI-015's fix (D127: `MaxLayerRate` 50, clamped on load per D128; the
+  form shows poo's limits).
+- GREEN-033's "now …" hints.
+
+All of these held when a node is running. There are two new Low gaps:
+- GUI-016: a Remove that poo refuses shows nothing.
+- GUI-017: changes made without a node still read and write node.json whole
+  with no lock. Eight concurrent `add`s kept 3 to 6 of 9 jobs in all 20 runs.
+  Any error from the node's read also makes poo write the file behind a
+  running node. GUI-017 is for Source.
+
 Round 9 Part B reviewed `claude/gui-4-watch @ 6fae281`: GUI/Blue's GUI-014
 GUI part (one schedule change at a time), GREEN-032, the new layer floor and
 rate in Schedule defaults (D122), and Source's lease-renew retry (RED-019,
@@ -121,5 +136,7 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-011](GUI-011-sighup-stops-nohup-gui.md) | Low | poo-gui now stops on SIGHUP even under nohup, and SIGHUP no longer only reloads a node it hosts | fixed (verified R7B @ b20bf8f) |
 | [GUI-012](GUI-012-form-resubmit-leaks-stream.md) | Low | Pressing a form's button again leaks the previous job's event stream and orphans a job waiting for input | fixed (verified R8B @ a93ccb6) |
 | [GUI-013](GUI-013-schedule-remove-by-stale-index.md) | Low | The Schedule panel's Remove goes by position, so a stale table can remove a different scheduled job | fixed for its own case (verified R8B @ a93ccb6); duplicate targets and concurrent edits in GUI-014 |
-| [GUI-014](GUI-014-schedule-edits-lost-update.md) | Low | Schedule changes are read, changed and written back by the client, so two at once lose one; `-target` cannot tell jobs with the same target apart | fixed: GUI part (PR #41) and core edits on the node (D125, merged Round 10); the GUI's Remove also sends `-if-version` (GREEN-034, Round 10) |
-| [GUI-015](GUI-015-layer-rate-above-peer-budget.md) | Low | Schedule defaults allow a layer rate (up to 1000/s) above what default peers take (~100/s), so a steady grinder is timed out and then blocked, with no warning | fixed (core D127 cap 50; GUI form PR #44, merged Round 10) |
+| [GUI-014](GUI-014-schedule-edits-lost-update.md) | Low | Schedule changes are read, changed and written back by the client, so two at once lose one; `-target` cannot tell jobs with the same target apart | fixed: GUI part (PR #41) and core edits on the node (D125, merged Round 10); the GUI's Remove also sends `-if-version` (GREEN-034, Round 10); verified R10B @ 4108866 with a node; without one, see GUI-017 |
+| [GUI-015](GUI-015-layer-rate-above-peer-budget.md) | Low | Schedule defaults allow a layer rate (up to 1000/s) above what default peers take (~100/s), so a steady grinder is timed out and then blocked, with no warning | fixed (core D127 cap 50; GUI form PR #44, merged Round 10; verified R10B @ 4108866) |
+| [GUI-016](GUI-016-refused-remove-is-silent.md) | Low | A Schedule Remove that poo refuses (`-if-version`, `-target`) shows no message; the job just stays listed | open |
+| [GUI-017](GUI-017-offline-schedule-edits-unlocked.md) | Low | Schedule changes made without a node still read and write node.json whole with no lock, so they lose each other; any read error also makes poo write behind a running node | open (Source) |

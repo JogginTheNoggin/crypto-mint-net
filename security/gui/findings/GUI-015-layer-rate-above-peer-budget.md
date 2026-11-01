@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (core cap D127 on claude/m10-watch; GUI form PR #44, merged Round 10), pending Red's verification |
+| Status | fixed (core cap D127; GUI form PR #44; verified by GUI/Red R10B @ 4108866, notes in GUI-017) |
 | Found on | claude/gui-4-watch @ 6fae281 |
 | Component | gui/web/static/work.js (Schedule defaults: Layer floor, Layer rate), pkg/nodepolicy/nodepolicy.go (`MaxLayerRate`), pkg/tracking/tracking.go (layer budget, over-budget flags) |
 | Surface | p2p (this node's standing with its peers) |
