@@ -174,18 +174,28 @@ export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
   const sec = el('section', { class: 'panel' },
     el('div', { class: 'panel-head' }, el('h2', {}, title), btn), about ? el('p', { class: 'hint' }, about) : null, line, area);
   let busy = false;
+  // waiting are reload calls the next run answers: one that starts after
+  // them, so what it shows was read after whatever they followed.
+  let waiting = [];
   // auto is a run the panel starts itself, on opening or on its timer: a
   // refresh job, dropped before the user's own when the list is full.
   const go = async (auto) => {
     if (busy) return;
     busy = true;
+    const answers = waiting;
+    waiting = [];
     const a = args();
     line.set(a);
     const r = await runJob(a, area, { empty, refresh: auto === true });
     noNode(sec, area, r);
     if (onResult) onResult(r, area);
     busy = false;
+    answers.forEach(done => done());
+    if (waiting.length) go(false);
   };
+  // reload runs the panel again, after the run in progress if there is
+  // one, and resolves once that new run is drawn.
+  const reload = () => new Promise(done => { waiting.push(done); go(false); });
   btn.onclick = () => go(false);
   go(true);
   // A hidden tab does not refresh: nobody sees the result, and each run
@@ -194,7 +204,30 @@ export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
   const visible = () => { if (!document.hidden) go(true); };
   let t = refresh ? setInterval(visible, refresh) : null;
   if (t) document.addEventListener('visibilitychange', visible);
-  return { el: sec, stop: () => { leave(area); if (t) { clearInterval(t); document.removeEventListener('visibilitychange', visible); } } };
+  return { el: sec, reload, stop: () => { leave(area); if (t) { clearInterval(t); document.removeEventListener('visibilitychange', visible); } } };
+}
+
+// gate lets one of several actions run at a time: while it is held,
+// every button added to it is off. Forms and buttons that change the
+// same thing share one, so no change starts from what another is about
+// to make stale (GUI-014).
+export function gate() {
+  const buttons = new Set();
+  let held = false;
+  return {
+    get held() { return held; },
+    add(b) { buttons.add(b); b.disabled = held; return b; },
+    take() {
+      if (held) return false;
+      held = true;
+      for (const b of buttons) b.disabled = true;
+      return true;
+    },
+    release() {
+      held = false;
+      for (const b of buttons) if (b.isConnected) b.disabled = false; else buttons.delete(b);
+    },
+  };
 }
 
 // NO_NODE is the error every command that needs a running node prints
@@ -225,7 +258,7 @@ function noNode(sec, area, r) {
 // onResult, if given, is called with the finished job's {code, out, err}
 // and the result area, so a view can act on the data rather than on the
 // rendered page.
-export function form(ctx, { title, about, fields, args, submit = 'Run', danger, onResult, secretOutput }) {
+export function form(ctx, { title, about, fields, args, submit = 'Run', danger, onResult, secretOutput, gate: g }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
   const labels = {};
@@ -268,15 +301,21 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   // The button is off while the form's job runs, as a panel is busy: a
   // second press would hide the first job's prompt and leave it waiting
   // for input no one can give (GUI-012). Stop ends it.
+  // With a gate, the form also waits for it, and holds it until its job
+  // and onResult (which may return a promise) are done.
   let busy = false;
+  if (g) g.add(submitBtn);
   f.addEventListener('submit', ev => {
     ev.preventDefault();
-    if (busy) return;
+    if (busy || (g && g.held)) return;
     if (danger && !confirm(`Run ${api.quote(args(values()))}?`)) return;
+    if (g) g.take();
     busy = submitBtn.disabled = true;
-    runJob(args(values()), area, { secretOutput }).then(r => {
-      busy = submitBtn.disabled = false;
-      if (onResult) onResult(r, area);
+    runJob(args(values()), area, { secretOutput }).then(async r => {
+      busy = false;
+      try { if (onResult) await onResult(r, area); } finally {
+        if (g) g.release(); else submitBtn.disabled = false;
+      }
     });
   });
   const sec = el('section', { class: 'panel' }, el('div', { class: 'panel-head' }, el('h2', {}, title)),

@@ -134,7 +134,7 @@ with a button that runs it in the terminal.
 | Getting started | First steps, each a command line run in the terminal |
 | Node | `node` (start and stop it in the GUI), `status`, `follow`, `unfollow`, `reload`, `init` |
 | Watch | `watch` with the filter flags: live events, newest first, with pause, counts and each event in full. It keeps running when you switch views, and its tab shows a dot; Stop ends it |
-| Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poo` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job (one Remove at a time, then the table is read again), `grind schedule add` and `grind schedule set`. It keeps running when you switch views, and a reload takes a running job up again with its Stop |
+| Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poo` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job (one schedule change at a time: Remove, Add and Set are off while one runs and until the table is read again), `grind schedule add` and `grind schedule set`. It keeps running when you switch views, and a reload takes a running job up again with its Stop |
 | Explore | `pools`, `ledger` (page by page), `pending`, `unspent`, `tx`, `address`, with the same filter flags |
 | Pools and payments | `status`, `holdings`, `payment`, `build`, `work` |
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |

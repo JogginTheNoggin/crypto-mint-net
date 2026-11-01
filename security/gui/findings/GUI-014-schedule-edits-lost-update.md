@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | GUI part fixed (claude/gui-blue, Round 8C); core fix pending (Source) |
 | Found on | claude/gui-4-watch @ a93ccb6 |
 | Component | pkg/cli/grind.go (`grindSchedule`: GET, then PUT of the whole section), pkg/rpc/grind.go (`PUT /v1/grind/schedule`), gui/web/static/work.js (Schedule a job, Schedule defaults, Remove) |
 | Surface | node (node.json's grind section, applied at once by a running node) |
-| Fixed by | _(pending — GUI/Blue for the GUI part; the real fix is in the core, via GUI/Grey to Source)_ |
+| Fixed by | GUI/Blue on claude/gui-blue (GUI stopgap); core fix queued for Source Grey via GUI/Grey |
 
 ## Summary
 
@@ -109,3 +109,35 @@ GUI, as a stopgap:
   above is what remains. The table output changes (`pkg/cli/table.go`:
   prefixed hashes, times cut to the second) only affect `-o table` text, and
   the GUI renders JSON.
+
+## Fix (GUI/Blue, Round 8C), the GUI stopgap
+
+- **One schedule change at a time across the Work view.** A new `gate()` in
+  `gui/web/static/views.js` lets one of several actions run at a time, and
+  while it is held every button added to it is off. The Work view gives
+  Remove, Schedule a job (Add) and Schedule defaults (Set) one gate (`edits`
+  in work.js):
+  - A Remove takes the gate before it runs.
+  - A form with `gate` takes it on submit. While it is held, a press, or a
+    submit by other means (`requestSubmit`, a link into the view), is
+    dropped, not queued.
+- **The next change waits for the redraw.** `panel` now returns
+  `reload()`, which runs the panel again (after the run in progress, if
+  there is one) and resolves once that new run is drawn. Each schedule change
+  holds the gate until `reload()` has resolved, so the next change can only
+  start from a table read after the last one. Add and Set now redraw after a
+  failure too, not only after success.
+- **Test.** `e2e/work.mjs` clicks Remove and, in the same task in the page,
+  checks that every other Remove, Add and Set is off. It then calls
+  `requestSubmit()` on Add and checks that Add started no job. After the
+  redraw it checks that exactly the expected jobs are left, that Add is on
+  again, and that a new Add lands next to the remaining job. Without the
+  fix, the check fails at "one schedule change at a time".
+- **Still open, in the core.** This only orders changes made from one GUI
+  page. Another tab, the terminal or a script can still change the schedule
+  between a GET and a PUT, so one change is lost while both report success.
+  `-target` also can't tell scheduled jobs with the same target apart. The
+  fix is the one recommended above: server-side add, remove and set under
+  `policyMu`, or an `If-Match` version on the PUT, and a remove guard that
+  matches the whole job. It goes to Source through GUI/Grey, and the
+  coordinator has queued it for Source Grey's next Part A.

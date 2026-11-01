@@ -4,7 +4,7 @@
 // commands print. Which device and grinder run, and why, is the plan poo
 // prints, never a guess here.
 import * as api from './api.js';
-import { el, cmdLine, panel, form, flag, mountAll } from './views.js';
+import { el, cmdLine, panel, form, flag, mountAll, gate } from './views.js';
 import { render, rateText } from './render.js';
 import * as where from './where.js';
 import { paced } from './scroll.js';
@@ -65,7 +65,7 @@ function jobsTable(list, ctx, refresh) {
 // one row per job node.json starts, numbered as poo numbers them, each
 // with a Remove that runs poo grind schedule remove -target T N. A running node
 // applies the change at once; without one poo edits node.json.
-function scheduleTable(reply, refresh) {
+function scheduleTable(reply, edits, reload) {
   const g = (reply && reply.grind) || {};
   const defaults = el('p', { class: 'counts hint' }, `Defaults: device ${g.device || 'auto'}, ${g.threads ? `${g.threads} thread${g.threads === 1 ? '' : 's'}` : 'every core but one'}.`);
   const failed = reply && reply.failed ? Object.entries(reply.failed).map(([i, why]) => el('p', { class: 'hint err' }, `Job ${Number(i) + 1} did not start: ${why}`)) : [];
@@ -73,15 +73,20 @@ function scheduleTable(reply, refresh) {
   if (!jobs.length) return el('div', {}, defaults, ...failed, el('p', { class: 'hint empty' }, 'No scheduled jobs. Add one below.'));
   const body = el('tbody');
   jobs.forEach((j, i) => {
-    // A Remove turns every Remove off until the table is drawn again from
-    // the schedule poo then reads, so no click goes by a number the
-    // removal has already shifted (GUI-013). -target makes poo refuse a
-    // number that no longer names this row's job, as when the schedule
-    // changed elsewhere (GREEN-031); the table is read again either way.
-    const remove = el('button', { type: 'button', class: 'small danger', onclick: async () => {
-      for (const b of body.querySelectorAll('button')) b.disabled = true;
-      try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), '-target', j.target, String(i + 1)]); } finally { refresh(); }
-    } }, 'Remove');
+    // A Remove holds the view's schedule gate, so every Remove, Add and
+    // Set is off until the table is drawn again from the schedule poo then
+    // reads: no click goes by a number the removal has already shifted
+    // (GUI-013), and no change starts from a schedule another is about to
+    // replace (GUI-014). -target makes poo refuse a number that no longer
+    // names this row's job, as when the schedule changed elsewhere
+    // (GREEN-031); the table is read again either way.
+    const remove = edits.add(el('button', { type: 'button', class: 'small danger', onclick: async () => {
+      if (!edits.take()) return;
+      try { await api.run(['grind', 'schedule', 'remove', ...where.flags(), '-target', j.target, String(i + 1)]); } finally {
+        await reload();
+        edits.release();
+      }
+    } }, 'Remove'));
     body.append(el('tr', {},
       el('td', { class: 'num' }, String(i + 1)),
       el('td', {}, j.target, j.until_from ? el('div', { class: 'hint' }, `until from reaches ${j.until_from}`) : null),
@@ -320,19 +325,23 @@ export const workView = {
       onResult: (r, area) => tableResult(r, area, list => jobsTable(list, ctx, () => jobsPanel.el.querySelector('.panel-head button').click())) });
     // The schedule is node.json's grind section, edited only through poo
     // grind schedule (GREEN-026): the GUI never writes node.json itself.
-    const refreshSchedule = () => schedulePanel.el.querySelector('.panel-head button').click();
+    // One schedule change runs at a time, and the next waits until the
+    // table shows its result: poo grind schedule reads the section, edits
+    // it and writes it whole, so two at once would lose one (GUI-014).
+    const edits = gate();
+    const reloadSchedule = () => schedulePanel.reload();
     const schedulePanel = panel(ctx, { title: 'Schedule', about: 'The jobs the node runs by itself, from node.json\'s grind section, and the defaults every job, build and work takes. A running node applies a change at once and keeps your own jobs running.', args: () => ['grind', 'schedule', ...where.flags()],
-      onResult: (r, area) => tableResult(r, area, v => scheduleTable(v, refreshSchedule)) });
-    const afterSchedule = r => { if (r.code === 0) refreshSchedule(); };
+      onResult: (r, area) => tableResult(r, area, v => scheduleTable(v, edits, reloadSchedule)) });
+    const afterSchedule = () => reloadSchedule();
     return mountAll(root, 'Work', 'The node\'s hash grinding: which devices it has, how fast each is, and the jobs it runs. Each part is a poo grind command; node.json\'s grind section sets the defaults and the jobs the node runs by itself.', [
       panel(ctx, { title: 'Devices', about: 'Each device, what it grinds fast, and which one auto picks for each hash.', args: () => ['grind', 'devices', ...where.flags()],
         onResult: r => { if (r.code === 0) deviceChoices(root, r.out); } }),
       jobsPanel,
       schedulePanel,
       form(ctx, { title: 'Schedule a job', about: 'Adds a job to node.json\'s grind section with poo grind schedule add. It has no For: it runs whenever its hours allow.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields().filter(fd => fd.name !== 'for')],
-        args: v => ['grind', 'schedule', 'add', ...where.flags(), v.target || 'tip', ...jobFlags(v)], submit: 'Add', onResult: afterSchedule }),
+        args: v => ['grind', 'schedule', 'add', ...where.flags(), v.target || 'tip', ...jobFlags(v)], submit: 'Add', onResult: afterSchedule, gate: edits }),
       form(ctx, { title: 'Schedule defaults', about: 'The device and threads every job takes unless it names its own: poo grind schedule set.', fields: [{ name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0' }, { name: 'threads', label: 'Threads', type: 'number', placeholder: '0: every core but one' }],
-        args: v => ['grind', 'schedule', 'set', ...where.flags(), ...flag('device', v.device), ...flag('threads', v.threads)], submit: 'Set', onResult: afterSchedule }),
+        args: v => ['grind', 'schedule', 'set', ...where.flags(), ...flag('device', v.device), ...flag('threads', v.threads)], submit: 'Set', onResult: afterSchedule, gate: edits }),
       { el: livePanel, stop: () => { liveHooks.detach(); livePanel.remove(); } },
       form(ctx, { title: 'Start a job in the background', about: 'The same job, left to the node: it shows under Jobs.', fields: [{ name: 'target', label: 'Target', value: 'tip' }, ...jobFields()],
         args: v => ['grind', 'start', ...where.flags(), ...jobFlags(v), v.target || 'tip'], submit: 'Start' }),

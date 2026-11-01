@@ -132,12 +132,35 @@ try {
   }
   const removes = sched.locator('table.grind-schedule tbody button', { hasText: 'Remove' });
   await sched.locator('table.grind-schedule tbody tr').nth(2).waitFor();
-  await removes.nth(0).click();
-  assert.ok(await removes.nth(1).isDisabled(), 'every Remove is off while one runs');
+  // The click and the checks run in one go in the page, so the Remove
+  // cannot finish first: while it runs every Remove is off, and so are Add
+  // and Set (GUI-014), since a change submitted now would start from the
+  // schedule the Remove is replacing. A submit by other means is dropped.
+  await add.locator('input[name=hours]').fill('5-6');
+  const during = await page.evaluate(() => {
+    const sec = t => [...document.querySelectorAll('section.panel')].find(s => s.querySelector('h2')?.textContent === t);
+    const rm = [...sec('Schedule').querySelectorAll('table.grind-schedule tbody button')];
+    rm[0].click();
+    const addSec = sec('Schedule a job');
+    const out = { remove: rm[1].disabled, add: addSec.querySelector('.actions button').disabled, set: sec('Schedule defaults').querySelector('.actions button').disabled };
+    const before = addSec.querySelector('.area').firstChild;
+    addSec.querySelector('form.fields').requestSubmit();
+    out.addRan = addSec.querySelector('.area').firstChild !== before;
+    return out;
+  });
+  assert.deepEqual(during, { remove: true, add: true, set: true, addRan: false }, 'one schedule change at a time');
   await sched.locator('table.grind-schedule tbody tr', { hasText: '0-23' }).waitFor({ state: 'detached', timeout: 10000 });
   await sched.locator('table.grind-schedule tbody tr', { hasText: '1-2' }).locator('button', { hasText: 'Remove' }).click();
   await sched.locator('table.grind-schedule tbody tr', { hasText: '1-2' }).waitFor({ state: 'detached', timeout: 10000 });
-  assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 1, 'one job left');
+  assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 1, 'one job left, and the dropped Add added none');
+  // Once the table is drawn again, Add works, and its job is in the table
+  // with the others' changes kept.
+  assert.ok(!(await add.locator('.actions button[type=submit]').isDisabled()), 'Add is on again');
+  await add.locator('button[type=submit]').click();
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).waitFor({ timeout: 10000 });
+  assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 2, 'the added job and the one left');
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).locator('button', { hasText: 'Remove' }).click();
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).waitFor({ state: 'detached', timeout: 10000 });
   await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).waitFor();
   // A stale row (GREEN-031): the schedule changes outside this page, so
   // the tip row's number 1 now names a pending job. Remove sends -target
