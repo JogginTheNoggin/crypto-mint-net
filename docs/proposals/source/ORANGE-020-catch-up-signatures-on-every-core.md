@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D135) |
 | Based on | `claude/m10-watch` @ `0a6cc94` |
 | Area | `pkg/ledger` (`Pool.PageOwners`), `pkg/engine` (`Engine.PreverifyPage`), `pkg/p2p` (`fetch`) |
 | Effort | small |

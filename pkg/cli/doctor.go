@@ -119,7 +119,11 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	}
 	add(Check{Name: "policy", Result: checkOK, Detail: fmt.Sprintf("%s parses and validates (series: %d, follow rules: %d)", path, len(p.Series), len(p.Follow))})
 	for _, n := range p.Lowered {
-		add(Check{Name: "policy", Result: checkWarn, Detail: n, Fix: "lower it in " + path + " (poo grind schedule set, or edit the file)"})
+		fix := "lower it in " + path + " (poo grind schedule set, or edit the file)"
+		if len(n.FixArgs) > 0 {
+			fix = "poo " + strings.Join(n.FixArgs, " ") + " (or edit " + path + ")"
+		}
+		add(Check{Name: "policy", Result: checkWarn, Detail: n.String(), Fix: fix, FixArgs: n.FixArgs})
 	}
 
 	// 2. Who can read the node's files.

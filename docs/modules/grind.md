@@ -134,14 +134,22 @@ random nonce, so slices and jobs never repeat each other.
   them. They go to `OnEvent` listeners, which the daemon sends to the
   watch stream as kind `grind`.
 - **Limits:**
-  - At most 16 jobs at once (`MaxJobs`). A start holds its slot from the
-    count to the insert, so concurrent starts cannot pass it (RED-014).
+  - At most 20 jobs at once (`MaxJobs`): the 16 a schedule may hold and
+    `UserJobs` (4) more, so a full schedule, even all waiting, never
+    blocks a job a user or follower starts (GREEN-035, D135). A start
+    holds its slot from the count to the insert, so concurrent starts
+    cannot pass it (RED-014).
   - The last 32 ended jobs are kept (`MaxDone`).
   - Threads are capped at the device's.
   - Stopping a job keeps what it found.
 - **Schedule:** `Schedule(section)` applies a node policy's `grind`
-  section while the node runs: it stops the jobs the policy started, takes
-  the new defaults and starts the new jobs, so `PUT /v1/grind/schedule`
+  section while the node runs. When only the jobs change it applies the
+  difference: a running policy job still scheduled keeps its ID, tries
+  and rate, and only the jobs taken out stop, with the reason "the
+  schedule changed"; a changed default (device, threads, layer_floor,
+  layer_rate) restarts every policy job. It returns the running job of
+  each scheduled job, kept or new, in the schedule's order (GREEN-035,
+  D135), so `PUT /v1/grind/schedule`
   and `poo grind schedule` need no reload and leave user jobs running.
   Calls run one at a time, so two never leave both policies' jobs
   running (RED-013).

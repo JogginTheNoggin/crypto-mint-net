@@ -189,7 +189,13 @@ the same group and sender goes on from there. Each slice makes at least
 one request, so a chase always moves forward. The chase also counts the
 requests it sent each sender over `RequestPaceWindow` (a minute) and
 yields at `RequestPace` (480), under the 600 a minute peers serve by
-default (ORANGE-018). A request that still times out ends the chase as
+default (ORANGE-018). When a second request in a row to a sender goes
+unanswered, with no reply from it since either was sent, the chase takes
+that as the sender's budget being lower: the pace to that sender becomes
+three quarters of what was sent it in the window, for 30 windows from the
+last such drop, even with `RequestPace` off, so a sender with a smaller
+budget never flags this node often enough to time it out (D133). A
+request that still times out ends the chase as
 `chase.Stalled`: the sender is backed off but kept, and so is the chase's
 progress, its parts included, so a slow sender or one with a smaller
 budget only delays it (Black's B2, D124; RED-024, D128). A stall after
@@ -206,9 +212,12 @@ for again if the sender comes back (RED-023, D128; RED-026, D131). A fetch
 that would wait for disk space first removes, one at a time and lowest
 first, the parts files of kept chases that rank below it, connected or
 not: a departed sender's, then one whose last chase asked for parts and
-took none, then one that has shown less (C-2's order), then one holding
-fewer bytes. A chase that has shown more keeps its parts, so two fetches
-never take turns throwing each other's away (RED-027, D131). The progress
+took none, then one that has shown less (C-2's order), then one with
+more bytes still to come. A chase that has shown more keeps its parts,
+and between equals the one nearer its end does, so two fetches never take
+turns throwing each other's away, and a sender that lists the heavier
+ledger, claims a huge entry and trickles it can never hold the room an
+honest fetch needs (RED-027, D131; Black's B4, D132). The progress
 itself goes once no chase has taken it up for `ProgressTTL` (an hour),
 counted from the end of its sender's backoff, so it always outlasts the
 wait for its next turn (Black's C-6, D129). A chase that waits for disk space logs a warning and

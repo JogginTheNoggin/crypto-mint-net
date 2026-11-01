@@ -659,7 +659,8 @@ func (h *Host) ask(p *peer, pi *poolInfo, q wire.Request, f func(wire.Message) e
 		delete(p.calls, id)
 		p.mu.Unlock()
 	}()
-	p.reqs.add(time.Now(), h.cfg.RequestPaceWindow)
+	sent := time.Now()
+	p.reqs.add(sent, h.cfg.RequestPaceWindow)
 	p.send(wire.Message{Header: wire.Header{
 		Type: q.Type(), Section: pi.section, RequestID: id, Stated: h.ownWeight(pi),
 	}, Body: body})
@@ -676,11 +677,20 @@ func (h *Host) ask(p *peer, pi *poolInfo, q wire.Request, f func(wire.Message) e
 				return errClosed
 			}
 		case <-t.C:
+			if pos == 0 {
+				// Not a byte of a reply: twice in a row, most likely
+				// dropped over the peer's budget, so the pace to it is
+				// learned (D133).
+				p.reqs.dropped(sent, time.Now(), h.cfg.RequestPaceWindow)
+			}
 			return errTimeout
 		case <-p.done:
 			return errClosed
 		}
 		pos++
+		if pos == 1 {
+			p.reqs.answered(time.Now())
+		}
 		if !replyFits(q.Type(), m.Type) || (pos > 1 && m.Type != first) || m.Chunk != pos {
 			err := fmt.Errorf("%w: %s chunk %d in reply to %s", wire.ErrMalformed, m.Type, m.Chunk, q.Type())
 			h.misbehave(p, err)

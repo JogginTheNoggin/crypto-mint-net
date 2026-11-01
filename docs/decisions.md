@@ -2118,3 +2118,96 @@ a chase takes in after checking their work are not charged.
   - The host-wide byte budget Red suggested is not added. It would let
     cheap worked progress make an honest chase that is still counting
     forget its count over and over (D115).
+
+### D132. Black's B4: a trickled claim never holds the disk reserve
+
+- **Decision:** `reclaimParts`' last tie-break (after a departed sender,
+  an idle one, and less shown) is now *more bytes still to come ranks
+  below*, not *fewer bytes held*. A sender that lists the heavier ledger
+  (so it has shown as much as an honest one), claims a huge size for one
+  of its large entries and trickles the bytes always has more to come
+  than an entry being fetched whole, so its parts give way to the honest
+  fetch at the reserve, and its own chase can no longer reclaim the
+  honest file. To rank higher it must claim a size no larger than the
+  honest one's remainder, and then send all of it, after which the hash
+  check decides. Between two honest fetches the one nearer its end keeps
+  the room, and it only gets nearer, so they never take turns.
+- **Why:** Black's Round 10 review: with the old order the trickler held
+  the reserve against every honest fetch of that entry for as long as
+  the trickle lasted, so the heavier ledger was never taken (D115). Of
+  Black's three shapes, this is the smallest: one parts file per entry
+  needs shared state across senders, and turns let the trickler keep
+  half the room.
+- **Tier:** Implementation (node policy). No rule of validity or
+  selection, no byte form and no limit changes. Test (P0):
+  `TestTricklerCannotHoldTheReserve` (fails on `31bdf06`, the code
+  before it).
+
+### D133. The asker learns each sender's request budget
+
+- **Decision:** When a second request in a row to a peer goes
+  unanswered, with no reply from that peer since either was sent, the
+  pace to that peer becomes three quarters of what was sent to it in the
+  last `RequestPaceWindow`, for 30 windows from the last such drop
+  (`reqWindow.dropped`, `paced`). A lower learned pace replaces a higher
+  one, and it never rises while it lasts; it applies even when
+  `RequestPace` is off. One unanswered request alone, or one sent before
+  a later reply, teaches nothing, since it is as likely lost or slow.
+- **Why:** Black's Round 10 condition on
+  `TestSlowSenderIsReachedOverManyChases`, which guards C-6 and flaked
+  under `-race` and load. The cause was real node behaviour, not the
+  test: a sender whose request budget is below the asker's pace drops
+  the excess and flags the asker once per budget window; ten flags time
+  the asker out, the sender then refuses it for the time-out's length,
+  and a branch longer than ten windows was not reached from it (D115).
+  With the learned pace the asker stays under the budget after two
+  drops, so the flags stop at one or two per 30 windows, well below the
+  time-out. The test now matches b's pace window to a's budget window,
+  counts chases that went on later (slowed or paced), and checks that a
+  never timed b out; 30 of 30 runs passed ten at a time under `-race`.
+- **Tier:** Implementation (node policy, the asker only). It only slows
+  this node's requests. Tests: `TestReqWindowLearnsThePace`,
+  `TestSlowSenderIsReachedOverManyChases`,
+  `TestChaseBelowSenderBudgetIsReached`.
+
+### D134. GUI-017: offline schedule edits take the data directory's lock
+
+- **Decision:** With no node answering, `poo grind schedule add`,
+  `remove` and `set` change `node.json` under `nodepolicy.Lock(dir)`,
+  taken without waiting. A running node holds that lock, so an edit is
+  refused, and `node.json` left as it was, when a node answered the dial
+  but its schedule could not be read, or when a node is starting or
+  another command is writing. A leftover `rpc.addr` from a crash holds no
+  lock, so the edit goes on. Viewing takes no lock.
+- **Why:** GUI/Red's GUI-017: the CLI fell back to writing `node.json`
+  whenever reading the schedule from the node failed, which could write
+  behind a running node (its next write undoes the change, or the change
+  undoes one of its own), and two offline writers raced.
+- **Tier:** Implementation (the CLI). Test:
+  `TestOfflineScheduleEditTakesTheLock`.
+
+### D135. Round 11 adoptions: ORANGE-020, GREEN-035
+
+- **Decision:**
+  - ORANGE-020 as written: a catch-up reply's signatures are checked on
+    every core before the entries are applied in order.
+  - GREEN-035:
+    - A node runs `grind.UserJobs` (4) jobs past a full schedule
+      (`grind.MaxJobs` is 20, the schedule still at most 16), so a
+      schedule of 16 jobs, even all waiting, never blocks a job a user or
+      follower starts. Green's option (b), a schedule cap of 12, was not
+      taken: it would have refused files that hold 13 to 16 jobs.
+    - A schedule edit that changes only the jobs applies the difference:
+      a running policy job still scheduled keeps its ID, tries and rate,
+      and only jobs taken out stop, with the reason "the schedule
+      changed". A changed default restarts them all. The schedule
+      reply's `started` lists the running job of each scheduled job,
+      kept or new, in the schedule's order.
+    - `Policy.Lowered` is a list of `nodepolicy.Lowered` (the field, the
+      value written, the value used and `FixArgs`), and `poo doctor`
+      offers `grind schedule set -layer-rate 50` as the fix_args of a
+      lowered `layer_rate` (GUI/Grey's ask).
+    - The prototyped bench reason and the `node` log component, as
+      written.
+- **Why:** Measured or found in Round 10 Part B and cleared by Black.
+- **Tier:** Implementation (node policy, the grinder and the CLI).

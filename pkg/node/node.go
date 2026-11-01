@@ -123,7 +123,7 @@ func Open(dir string, opt Options) (*Node, error) {
 		}
 	}
 	for _, n := range pol.Lowered {
-		lg.With(logging.Component, "node").Warn("policy value lowered", "file", nodepolicy.FileName, "note", n)
+		lg.With(logging.Component, "node").Warn("policy value lowered", "file", nodepolicy.FileName, "note", n.String())
 	}
 	if opt.CompactMin <= 0 {
 		opt.CompactMin = DefaultCompactMin

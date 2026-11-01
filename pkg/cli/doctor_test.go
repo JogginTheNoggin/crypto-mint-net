@@ -178,3 +178,41 @@ func (w *jsonWriter) Write(p []byte) (int, error) {
 	}
 	return len(p), nil
 }
+
+// GREEN-035 and the GUI's ask: a value Load lowered is a warning whose
+// fix_args writes the value used, and running them clears it.
+func TestDoctorLoweredHasFixArgs(t *testing.T) {
+	dir := t.TempDir()
+	os.Chmod(dir, 0o700)
+	cli(t, nil, "init", "-example", "-dir", dir, "-p2p", "off")
+	path := filepath.Join(dir, "node.json")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["grind"] = map[string]any{"layer_rate": 1000}
+	b, _ = json.Marshal(raw)
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var lowered Check
+	for _, c := range doctor(io.Discard, dir).Checks {
+		if c.Name == "policy" && c.Result == checkWarn {
+			lowered = c
+		}
+	}
+	want := []string{"grind", "schedule", "set", "-layer-rate", "50"}
+	if strings.Join(lowered.FixArgs, " ") != strings.Join(want, " ") || !strings.Contains(lowered.Detail, "layer_rate 1000") {
+		t.Fatalf("lowered check %+v", lowered)
+	}
+	cli(t, nil, append(lowered.FixArgs, "-dir", dir)...)
+	for _, c := range doctor(io.Discard, dir).Checks {
+		if c.Name == "policy" && c.Result == checkWarn {
+			t.Fatalf("still lowered after the fix: %+v", c)
+		}
+	}
+}

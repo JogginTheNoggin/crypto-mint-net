@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (items 3 and 4 prototyped) |
+| Status | adopted (D135; item 1 as `grind.UserJobs`, not a lower cap) |
 | Based on | `claude/m10-watch` @ `0a6cc94` |
 | Area | `pkg/grind` (`Manager.Schedule`, `MaxJobs`), `pkg/cli` (`grind bench`, `doctor`), `pkg/node` |
 | Effort | small to medium |

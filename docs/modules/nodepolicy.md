@@ -83,8 +83,10 @@ strongest first, so peers' layer budgets take every one: 0 means 10, and
 at most 50, half of the 100 a second peers take from one node by default (ORANGE-016, D122; GUI-015, D127). Both are set by `poo grind schedule set
 -layer-floor S -layer-rate R`. A node.json written while a bound was
 higher still opens: `Load` brings the value down to the bound and notes
-it in `Policy.Lowered`, which the node logs as a warning and `poo doctor`
-shows; every write (Save, the RPC, the CLI, the GUI) refuses it. A bound
+it in `Policy.Lowered` (a `Lowered` each: the field, the value written,
+the value used and `FixArgs`, the command that writes the value used),
+which the node logs as a warning and `poo doctor` shows with that command
+as its fix_args (GREEN-035, D135); every write (Save, the RPC, the CLI, the GUI) refuses it. A bound
 may only be lowered this way, so an older file never stops a node from
 starting (RED-025, D128). `p2p.fast_catch_up` and `p2p.depth_limit` are no longer used: a
 chase finds a split at any depth (D116). They still load and are ignored.
@@ -148,7 +150,9 @@ applies the change at once without a reload (D113).
   job. `Grind.Version()` names a section's content, for `If-Match` and
   `GrindEdit.Version` (GUI-014, D125). The node applies edits under its
   lock (`POST /v1/grind/schedule/edit`); `poo grind schedule` applies the
-  same edit to node.json when no node runs.
+  same edit to node.json when no node runs, under `Lock(dir)`, so it is
+  refused while a node or another command holds the directory (GUI-017,
+  D134).
 - `EncodeWitness` / `DecodeWitness`: the hex form of an issuer witness.
 - `Manager{Root}`: `Save`, `Load`, `List`, `Current`, `Use`, `Archive`,
   `Unarchive(name, fresh)`, `Delete`, `Dir`.

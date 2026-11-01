@@ -770,9 +770,10 @@ func (h *Host) sweepLocked(now time.Time, on map[string]bool) {
 // connected or not, the lowest first (partsBelow). It reports whether
 // room was made. A chase whose sender left, or that asked for parts and
 // took none, gives way to one that is sending; among the rest the one
-// that has shown more keeps its parts, so two fetches never take turns
-// throwing each other's away, and the first large entry to fetch always
-// gets the room it needs (RED-023, RED-027, D131).
+// that has shown more keeps its parts, then the one nearer its end, so
+// two fetches never take turns throwing each other's away, and a sender
+// trickling a huge claim never holds the room an entry needs (RED-023,
+// RED-027, D131; Black's B4, D132).
 func (h *Host) reclaimParts(st *progress, room func() bool) bool {
 	on := h.connectedIDs()
 	h.progMu.Lock()
@@ -805,7 +806,13 @@ func (h *Host) reclaimParts(st *progress, room func() bool) bool {
 
 // partsRank orders kept parts files for reclaimParts: a departed sender's
 // first, then one whose last chase asked for parts and took none, then
-// by what the chase has shown (lessShown), then the fewer bytes held.
+// by what the chase has shown (lessShown), then the more bytes still to
+// come. The last is Black's B4 (D132): a sender that names a huge size and
+// trickles its bytes always has more to come than an entry being fetched
+// whole, so it can never hold the reserve against one, and to rank higher
+// it must claim a size it then has to complete, after which the hash
+// decides. Between honest fetches the one nearer its end keeps the room,
+// and it only gets nearer, so they never take turns.
 type partsRank struct {
 	away, idle bool
 	shown      *progress
@@ -824,15 +831,15 @@ func (a partsRank) below(b partsRank) bool {
 	if lessShown(b.shown, a.shown) {
 		return false
 	}
-	return a.shown.partBytes() < b.shown.partBytes()
+	return a.shown.partsToCome() > b.shown.partsToCome()
 }
 
-// partBytes is how many bytes st's parts file holds.
-func (st *progress) partBytes() uint64 {
+// partsToCome is how many bytes st's large entry still needs.
+func (st *progress) partsToCome() uint64 {
 	if st.part == nil {
 		return 0
 	}
-	return st.part.off
+	return st.part.size - st.part.off
 }
 
 // lessShown reports whether a has shown less than b: not worked where b
