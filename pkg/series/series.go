@@ -253,6 +253,13 @@ func (s *Series) CheckWitness(w policy.Witness, addr, tid hash.Hash) error {
 	return s.reg.CheckCached(s.h, s, w, addr, tid, s.verified)
 }
 
+// CheckWitnesses checks ws[i] against addrs[i] for a tid, in order, and
+// returns the index and error of the first that fails (-1 and nil when
+// all pass): CheckWitness on each, faster for many (ORANGE-014).
+func (s *Series) CheckWitnesses(ws []policy.Witness, addrs []hash.Hash, tid hash.Hash) (int, error) {
+	return s.reg.CheckAll(s.h, s, ws, addrs, tid, s.verified)
+}
+
 // Remembered returns how many satisfied witnesses the series remembers
 // (ORANGE-002), for tests and metrics.
 func (s *Series) Remembered() int { return s.verified.Len() }

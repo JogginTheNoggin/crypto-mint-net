@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -522,5 +523,47 @@ func TestWorkWithFloorIsCapped(t *testing.T) {
 	limit := uint64(node.KeptPerSecond) + uint64(time.Since(start).Seconds()*node.KeptPerSecond) + 1
 	if got := kept.Load(); got > limit {
 		t.Fatalf("kept %d in %v, want at most %d", got, time.Since(start), limit)
+	}
+}
+
+// KeepMax bounds the layers kept besides the strongest, and keeps the
+// strongest of them (ORANGE-016).
+func TestWorkWithFloorKeepMax(t *testing.T) {
+	f := newFixture(t)
+	n := f.open()
+	defer n.Close()
+	if _, err := n.HandleTx(f.k.Claim(4, P("alice", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	e, _, err := n.Build(f.key, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eh := e.Hash(f.s)
+	h := f.s.Hash()
+	// The strengths a search of these nonces finds with no cap, one per
+	// range of 4,096, strongest first.
+	var all []int
+	for from := uint64(0); from < 1<<16; from += 1 << 12 {
+		_, s := layer.Grind(h, eh, from, 1<<12)
+		all = append(all, s)
+	}
+	slices.Sort(all)
+	slices.Reverse(all)
+	var kept atomic.Uint64
+	if _, _, err := n.WorkWith(context.Background(), f.key, eh, 0, 1<<16, engine.Grind{Floor: 1, KeepMax: 3, KeptCount: &kept}); err != nil {
+		t.Fatal(err)
+	}
+	if kept.Load() != 3 {
+		t.Fatalf("kept %d, want 3", kept.Load())
+	}
+	var got []int
+	for _, l := range layersOn(n, f, eh) {
+		got = append(got, l.Strength(h))
+	}
+	slices.Sort(got)
+	slices.Reverse(got)
+	if !slices.Equal(got, all[:4]) {
+		t.Fatalf("held strengths %v, want the strongest four of %v", got, all)
 	}
 }

@@ -732,11 +732,11 @@ func (h *Host) common() wire.RequestCommon {
 
 // ownWeight is the node's computed weight of its active ledger for pi.
 func (h *Host) ownWeight(pi *poolInfo) weight.Weight {
-	st, err := h.n.Engine().Status(pi.key)
+	_, _, w, err := h.n.Engine().Tip(pi.key)
 	if err != nil {
 		return weight.Zero
 	}
-	return st.Weight
+	return w
 }
 
 // bucket is a token bucket: rate requests a minute, bursting to rate.

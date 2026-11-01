@@ -20,6 +20,7 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -412,8 +413,8 @@ func (n *Node) emit(ev Event) {
 	if len(n.observers) == 0 {
 		return
 	}
-	if st, err := n.eng.Status(ev.Key); err == nil {
-		ev.Weight = st.Weight
+	if _, _, w, err := n.eng.Tip(ev.Key); err == nil {
+		ev.Weight = w
 	}
 	for _, f := range n.observers {
 		f(ev)
@@ -561,12 +562,16 @@ func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Ha
 		return layer.Layer{}, engine.LayerResult{}, ErrClosed
 	}
 	// Grinding holds neither lock, so it never stalls peers or the RPC.
+	type found struct {
+		l layer.Layer
+		s int
+	}
 	var mu sync.Mutex
-	var kept []layer.Layer
+	var kept []found
 	if g.Floor > 0 {
-		g.Keep = func(l layer.Layer) {
+		g.Keep = func(l layer.Layer, s int) {
 			mu.Lock()
-			kept = append(kept, l)
+			kept = append(kept, found{l, s})
 			mu.Unlock()
 		}
 	}
@@ -576,29 +581,30 @@ func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Ha
 	}
 	res, err := n.HandleLayer(k, l, engine.Local)
 	// With a floor, the other layers found above it go in too: each adds
-	// its own credit, and none takes any away (ORANGE-010, D118). Only the
-	// strongest MaxKeptLayers of a search are sent, and no more than
-	// KeptPerSecond across searches, under the rate peers accept; the rest
-	// are dropped, which loses only credit the node chose not to send
-	// (RED-018, decision D120).
-	if s, ok := n.eng.Series(k.Series); ok && len(kept) > MaxKeptLayers {
-		fn := s.Hash()
-		strength := make(map[uint64]int, len(kept))
-		for _, o := range kept {
-			strength[o.Nonce] = o.Hash(fn).Strength()
+	// its own credit, and none takes any away (ORANGE-010, D118). The
+	// strongest go first: at most KeepMax of a search (ORANGE-016's
+	// layer_rate), at most MaxKeptLayers, and no more than KeptPerSecond
+	// across searches, under the rate peers accept; the rest are dropped,
+	// which loses only credit the node chose not to send (RED-018, D120).
+	slices.SortFunc(kept, func(a, b found) int {
+		if a.s != b.s {
+			return b.s - a.s
 		}
-		slices.SortFunc(kept, func(a, b layer.Layer) int { return strength[b.Nonce] - strength[a.Nonce] })
-	}
-	sent := 0
+		return cmp.Compare(a.l.Nonce, b.l.Nonce)
+	})
+	took := 0
 	for _, o := range kept {
-		if o.Nonce == l.Nonce {
-			continue
-		}
-		if sent == MaxKeptLayers || !n.kept.take(time.Now()) {
+		if g.KeepMax > 0 && took >= g.KeepMax {
 			break
 		}
-		sent++
-		if _, kerr := n.HandleLayer(k, o, engine.Local); kerr == nil && g.KeptCount != nil {
+		if o.l.Nonce == l.Nonce {
+			continue
+		}
+		if took == MaxKeptLayers || !n.kept.take(time.Now()) {
+			break
+		}
+		took++
+		if _, kerr := n.HandleLayer(k, o.l, engine.Local); kerr == nil && g.KeptCount != nil {
 			g.KeptCount.Add(1)
 		}
 	}
