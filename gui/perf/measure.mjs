@@ -257,10 +257,11 @@ if (want('paused')) {
 
 if (want('work')) {
   // The Work view's live run of poo grind run, at rising rates of
-  // progress lines (a found line before every 4th).
+  // progress lines (a found line before every 4th, or every FOUND'th).
   out.work = [];
+  const found = process.env.FOUND ? ['-found', process.env.FOUND] : [];
   for (const [rate, n] of (process.env.WORK_RATES ? JSON.parse(process.env.WORK_RATES) : [[2, 120], [200, 4000], [2000, 20000], [0, 20000]])) {
-    const g = await launch(['-rate', String(rate), '-events', String(n)]);
+    const g = await launch(['-rate', String(rate), '-events', String(n), ...found]);
     await g.page.click('nav a[data-id=work]');
     const before = pick(await g.metrics());
     const doneAt = () => g.page.evaluate(n => (document.querySelector('.chart-wrap svg')?.getAttribute('aria-label') || '').length > 0 &&
@@ -270,7 +271,7 @@ if (want('work')) {
       await g.page.click('button:has-text("Run and follow")');
       done = await until(g.page, doneAt, 180000);
     });
-    out.work.push({ rate: rate || 'max', events: n, allShown: done, ...f, cost: diff(before, pick(await g.metrics())), foundRows: await g.page.evaluate(() => [...document.querySelectorAll('section.panel')].find(p => p.querySelector('h2')?.textContent === 'Run a job')?.querySelector('tbody')?.children.length) });
+    out.work.push({ rate: rate || 'max', events: n, allShown: done, ...f, cost: diff(before, pick(await g.metrics())), foundRows: await g.page.evaluate(() => [...document.querySelectorAll('table.data')].find(t => t.querySelector('th')?.textContent === 'found')?.tBodies[0].children.length) });
     await g.close();
   }
 }
