@@ -232,7 +232,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		MaxPeers:       32,
-		Limits:         wire.Limits{ChunkSize: 1 << 20, EntryLimit: 512, HashLimit: 256, LayerLimit: 1 << 16},
+		Limits:         wire.Limits{ChunkSize: 1 << 20, EntryLimit: 512, HashLimit: 4096, LayerLimit: 1 << 16},
 		ServeEntries:   1024,
 		ServeHashes:    4096,
 		CheckEvery:     time.Minute,
