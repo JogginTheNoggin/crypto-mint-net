@@ -575,11 +575,16 @@ function cryptoChoices(out) {
 }
 
 // A key field opened before Series and keys asks poo crypto once, the
-// first time it is focused, so its suggestions are poo's own.
+// first time it is focused, so its suggestions are poo's own. One ask is
+// in flight at a time (ORANGE-011): focus moving in and out of key fields
+// before poo answers would otherwise run poo crypto for each focus, each
+// a job in the Jobs list.
+let askingCrypto = null;
 document.addEventListener('focusin', e => {
   const l = e.target.getAttribute && e.target.getAttribute('list');
-  if ((l === 'crypto-algs' || l === 'crypto-hashes') && !document.getElementById(l)) {
-    api.run(['crypto']).then(r => { if (r.code === 0) cryptoChoices(r.out); }).catch(() => {});
+  if ((l === 'crypto-algs' || l === 'crypto-hashes') && !document.getElementById(l) && !askingCrypto) {
+    askingCrypto = api.run(['crypto']).then(r => { if (r.code === 0) cryptoChoices(r.out); }).catch(() => {})
+      .finally(() => { askingCrypto = null; });
   }
 });
 
