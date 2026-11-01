@@ -2211,3 +2211,49 @@ a chase takes in after checking their work are not charged.
       written.
 - **Why:** Measured or found in Round 10 Part B and cleared by Black.
 - **Tier:** Implementation (node policy, the grinder and the CLI).
+
+### D136. Round 11 fixes: RED-028, RED-029, RED-030 (BLUE-012)
+
+- **Decision:**
+  - **RED-028.** The first pace learned from a sender is a probe. It
+    doubles once in each `RequestPaceWindow` in which the sender replies,
+    and ends when it reaches `RequestPace`. The pace holds as D133 says,
+    and is remembered as the sender's known budget, when either:
+    - two more requests in a row are dropped while it is still probing; or
+    - after a pace lapses, a drop comes with as much sent as the known
+      budget.
+    A held pace is lowered only by drops that came with at least half of
+    it sent. So a sender that was only slow, or lost two requests, is soon
+    served at the pace it allows, and a sender with a smaller budget
+    costs at most one more round of drops when it is first learned.
+  - **RED-029.** At the disk reserve, a kept parts file ranks as slow, just
+    above a departed sender's, when the last chase that asked it for parts
+    took in less than `partsMoving` (1 MiB, a sixty-fourth of a parts
+    reply) or a parts request timed out. This is kept on the progress, so
+    a waiting chase is ranked by its own last chase too. A sender that
+    trickles a part a chase gives way to a fetch that is moving, whatever
+    size it claims. Among fetches that are moving, D132's order stands.
+  - **RED-030.** `poo follow`, `poo unfollow` and `poo init -force` write
+    `node.json` only under `nodepolicy.Lock`, through the helper
+    `lockPolicy` that D134's schedule edit now uses too. When a node is
+    holding the lock, the write is refused and nothing is changed.
+    `poo wallet follow` changes the follow list through the node when it
+    answers (the series' rule is removed, then the wallet's pools are
+    added and applied), and otherwise writes under the same lock.
+- **Why:**
+  - RED-028: two lost requests pinned an asker to one request a window
+    for 30 windows.
+  - RED-029: claiming just under the honest size defeated D132's
+    tie-break.
+  - RED-030: these commands could write `node.json` behind a running
+    node.
+- **Tier:** Implementation (node policy and the CLI). No consensus
+  change: no rule of validity or selection, and no byte form, changes.
+  No limit is added: `partsMoving` only ranks, and the pace only spaces
+  requests.
+- **Tests:**
+  - `TestLearnedPaceRisesUnlessShown`;
+  - `TestReqWindowLearnsThePace`, `TestSlowSenderIsReachedOverManyChases`
+    and `TestChaseBelowSenderBudgetIsReached`, all still passing;
+  - `TestTricklerJustUnderCannotHoldTheReserve`;
+  - `TestPolicyWritesTakeTheLock`.

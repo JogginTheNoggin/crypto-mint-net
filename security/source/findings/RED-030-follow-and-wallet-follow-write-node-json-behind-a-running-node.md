@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 1ae02ca (Source Round 11 Part B) |
 | Component | pkg/cli/view.go (`followCmd`), pkg/cli/wallet.go (`walletFollow`), pkg/cli/node.go (init) |
 | Surface | local operator (CLI) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 75a71e7 (BLUE-012) |
 
 ## Summary
 
@@ -55,4 +55,20 @@ Test: as above, for each command.
 
 ## Resolution
 
-Open.
+Fixed by BLUE-012 (decision D136), as recommended. `lockPolicy`
+(`pkg/cli/policylock.go`) takes `nodepolicy.Lock` without waiting and
+gives D134's two messages. The offline schedule edit now uses it too.
+
+What each command does:
+- `poo follow` and `poo unfollow`, with no node answering, write
+  `node.json` only under the lock.
+- `poo init -dir` writes under the lock, which covers `-force`.
+- `poo wallet follow`, when the node answers, changes the follow list
+  through the node: it removes the series' rule without a reload, then
+  adds the wallet's pools and applies them. Otherwise it writes under the
+  lock.
+
+Test: `TestPolicyWritesTakeTheLock` (`pkg/cli`) covers follow, unfollow
+and `init -force` under another process's lock. The online path of
+`wallet follow` is covered by the existing light-mode test in
+`TestWalletEndToEnd`.

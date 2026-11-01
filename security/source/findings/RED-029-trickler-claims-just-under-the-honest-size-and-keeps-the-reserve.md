@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 1ae02ca (Source Round 11 Part B) |
 | Component | pkg/p2p/chase.go (`partsRank.below`, `partsToCome`, `reclaimParts`, `fetchParts`) |
 | Surface | peers (a sender the node chases) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 75a71e7 (BLUE-012) |
 
 ## Summary
 
@@ -82,4 +82,24 @@ the `just-under` case too.
 
 ## Resolution
 
-Open.
+Fixed by BLUE-012 (decision D136), by the rate option. At the disk
+reserve a kept parts file ranks as slow, just above a departed sender's,
+when the last chase that asked it for parts did either of these:
+- took in less than `partsMoving` (1 MiB, a sixty-fourth of a parts
+  reply);
+- had a parts request time out.
+
+This is kept on the progress (`partsSlow`), so a waiting chase is ranked
+by its own last chase too, and a trickler whose file was taken cannot take
+the honest one back. A sender that sends a part a chase is slow whatever
+size it claims. Among moving fetches, D132's order stands.
+
+`partsMoving` only ranks; it refuses nothing.
+
+Still open: an honest sender on a link so poor that every chase takes in
+under 1 MiB, or times out, ranks with tricklers.
+
+Test: `TestTricklerJustUnderCannotHoldTheReserve` (`pkg/p2p`). The
+trickler claims 2,000 parts against an honest 2,001, sends one part and
+lets the next request time out. The honest fetch is asked for 16 parts.
+The test fails with only "took nothing" counting as slow.

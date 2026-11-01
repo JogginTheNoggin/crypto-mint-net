@@ -194,8 +194,13 @@ unanswered, with no reply from it since either was sent, the chase takes
 that as the sender's budget being lower: the pace to that sender becomes
 three quarters of what was sent it in the window, for 30 windows from the
 last such drop, even with `RequestPace` off, so a sender with a smaller
-budget never flags this node often enough to time it out (D133). A
-request that still times out ends the chase as
+budget never flags this node often enough to time it out (D133). The
+first pace learned this way is a probe, since two requests lost while
+little was sent say little about the budget: it doubles each window the
+sender replies in and ends at `RequestPace`. Drops again while probing,
+or with as much sent as the sender dropped at before, show the budget,
+which then holds; drops with less than half of a held pace sent never
+lower it (RED-028, D136). A request that still times out ends the chase as
 `chase.Stalled`: the sender is backed off but kept, and so is the chase's
 progress, its parts included, so a slow sender or one with a smaller
 budget only delays it (Black's B2, D124; RED-024, D128). A stall after
@@ -211,8 +216,11 @@ parts file and is cut down to its common entry; what it counted is asked
 for again if the sender comes back (RED-023, D128; RED-026, D131). A fetch
 that would wait for disk space first removes, one at a time and lowest
 first, the parts files of kept chases that rank below it, connected or
-not: a departed sender's, then one whose last chase asked for parts and
-took none, then one that has shown less (C-2's order), then one with
+not: a departed sender's, then a slow one (its last chase that asked for
+parts took in less than a sixty-fourth of a parts reply, 1 MiB, or timed
+out; a waiting chase is ranked by its own last chase too, so a slow
+sender whose file was taken cannot take it back: RED-029, D136), then
+one that has shown less (C-2's order), then one with
 more bytes still to come. A chase that has shown more keeps its parts,
 and between equals the one nearer its end does, so two fetches never take
 turns throwing each other's away, and a sender that lists the heavier

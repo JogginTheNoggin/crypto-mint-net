@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 1ae02ca (Source Round 11 Part B) |
 | Component | pkg/p2p/pace.go (`reqWindow.dropped`, `paced`), pkg/p2p/peer.go (`ask`) |
 | Surface | peers (a sender the node chases; any honest sender with a transient outage) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 75a71e7 (BLUE-012) |
 
 ## Summary
 
@@ -94,4 +94,30 @@ the rate seen before it within a few windows.
 
 ## Resolution
 
-Open.
+Fixed by BLUE-012 (decision D136). The first pace learned from a
+sender is a probe. It doubles once in each `RequestPaceWindow` in which
+the sender replies, and ends at `RequestPace`. After two lost requests,
+the asker is back to the configured pace within about nine windows from
+a pace of 1, and sooner from more.
+
+The pace holds as D133 says when either of these happens:
+- two more requests in a row are dropped while the pace is still
+  probing; or
+- after a pace lapses, a drop comes with as much sent as the sender's
+  known budget.
+
+A held pace is lowered only by drops that came with at least half of it
+sent.
+
+A sender with a smaller budget costs one more round of drops the first
+time. D133's `TestSlowSenderIsReachedOverManyChases` and
+`TestChaseBelowSenderBudgetIsReached` still pass: 20 of 20 runs in a row
+under `-race`. A first version that doubled on every reply overshot a's
+budget in that test, so the rise is once per window.
+
+Not done: Red's floor of `RequestPace/4`. With a sender whose budget is
+below it, every learning would overshoot and the flags would add up to a
+time-out (D133). Also not done: sparing the confirm and weight queries,
+since the pace is still per peer.
+
+Test: `TestLearnedPaceRisesUnlessShown` (`pkg/p2p`).
