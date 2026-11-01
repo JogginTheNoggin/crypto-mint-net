@@ -5,6 +5,13 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 9 Part B reviewed `claude/gui-4-watch @ 6fae281`: GUI/Blue's GUI-014
+GUI part (one schedule change at a time), GREEN-032, the new layer floor and
+rate in Schedule defaults (D122), and Source's lease-renew retry (RED-019,
+D120). All of these held. One new Low gap: GUI-015. The form accepts a layer
+rate up to 1000 a second, but default peers take about 100 a second and then
+time out and block the sender, and nothing warns about it.
+
 Round 8 Part B reviewed `claude/gui-4-watch @ a93ccb6`: GUI/Blue's GUI-012 and
 GUI-013 fixes, GREEN-030 (jump list), GREEN-031 (Schedule Remove with
 `-target`), ORANGE-011, and Source m10-watch @ 0fd59fa (the in-node lock on
@@ -114,4 +121,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-011](GUI-011-sighup-stops-nohup-gui.md) | Low | poo-gui now stops on SIGHUP even under nohup, and SIGHUP no longer only reloads a node it hosts | fixed (verified R7B @ b20bf8f) |
 | [GUI-012](GUI-012-form-resubmit-leaks-stream.md) | Low | Pressing a form's button again leaks the previous job's event stream and orphans a job waiting for input | fixed (verified R8B @ a93ccb6) |
 | [GUI-013](GUI-013-schedule-remove-by-stale-index.md) | Low | The Schedule panel's Remove goes by position, so a stale table can remove a different scheduled job | fixed for its own case (verified R8B @ a93ccb6); duplicate targets and concurrent edits in GUI-014 |
-| [GUI-014](GUI-014-schedule-edits-lost-update.md) | Low | Schedule changes are read, changed and written back by the client, so two at once lose one; `-target` cannot tell jobs with the same target apart | GUI part fixed (PR #41, merged Round 9: one change at a time); core fix pending |
+| [GUI-014](GUI-014-schedule-edits-lost-update.md) | Low | Schedule changes are read, changed and written back by the client, so two at once lose one; `-target` cannot tell jobs with the same target apart | GUI part fixed (verified R9B @ 6fae281); core fix pending (Source) |
+| [GUI-015](GUI-015-layer-rate-above-peer-budget.md) | Low | Schedule defaults allow a layer rate (up to 1000/s) above what default peers take (~100/s), so a steady grinder is timed out and then blocked, with no warning | open |
