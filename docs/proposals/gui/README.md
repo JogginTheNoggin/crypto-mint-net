@@ -44,6 +44,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-033](GREEN-033-defaults-show-current.md) | Schedule defaults fields show what is set now (and the layer rate the summary hides) | small | yes | adopted |
 | [GREEN-035](GREEN-035-layer-rate-loose-ends.md) | The Schedule summary shows a layer rate kept with no floor; ask Source for doctor `fix_args` when the rate was lowered | small | yes (GUI part) | done: GUI part (Round 11), doctor `fix_args` by Source (D135) |
 | [GREEN-036](GREEN-036-getting-started-reaches-grinding.md) | Getting started covers `doctor`, `watch` and `grind`, and each node step links its view | small | yes | adopted |
+| [GREEN-038](GREEN-038-reload-due-notice.md) | The Node view says when a node.json change waits for a reload, with Reload now (needs Source GREEN-037) | small | yes | proposed |
 
 ## Orange (performance)
 
@@ -111,5 +112,5 @@ git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
 node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019, 020, 028, 029, 032 and 036
 node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014 and 018
-node gui/e2e/work.mjs /tmp/poo-gui    # the checks for 023 to 025, 030, 032, 033 and 035
+node gui/e2e/work.mjs /tmp/poo-gui    # the checks for 023 to 025, 030, 032, 033, 035 and 038
 ```

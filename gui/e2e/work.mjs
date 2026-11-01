@@ -268,6 +268,20 @@ try {
   await page.click('nav a[data-id=work]');
   await section('Devices').locator('.result', { hasText: 'cpu' }).waitFor();
   await page.click('nav a[data-id=node]');
+  // A node.json change left for a reload (GREEN-038): Followed pools says
+  // so while poo status reports policy_changed (Source GREEN-037; until a
+  // node has that field, this part has nothing to check), and its Reload
+  // now runs poo reload, after which the notice is gone.
+  const series = JSON.parse(poo(['follow'])).follow[0].series;
+  poo(['unfollow', '-series', series, '-pool', '1', '-no-reload']);
+  if (/"policy_changed": true/.test(poo(['status']))) {
+    const notice = section('Followed pools').locator('.policy-changed');
+    await section('Followed pools').locator('button:has-text("Refresh")').click();
+    await notice.waitFor({ timeout: 10000 });
+    await notice.locator('button', { hasText: 'Reload now' }).click();
+    await section('Reload the node policy').locator('.run-status.ok').waitFor({ timeout: 10000 });
+    await notice.waitFor({ state: 'detached', timeout: 10000 });
+  }
   await page.click('button:has-text("Stop node")');
   await nodeStopped(page);
   assert.deepEqual(errors, [], 'no page errors');
