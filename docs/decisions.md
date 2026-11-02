@@ -2820,7 +2820,8 @@ a chase takes in after checking their work are not charged.
     always the unused `fast_catch_up` and `depth_limit`. No secret is in
     a bundle, since none is in node.json.
   - **Import** (`poo policy import FILE`) prints a plan and changes
-    nothing without `-apply`. The default merge only adds: new series,
+    nothing without `-apply`. FILE `-` reads standard input, so the GUI
+    can hand over a file picked in the browser. The default merge only adds: new series,
     follows merged as `AddFollow` does, accepted issuers, peers,
     registries and grind jobs as sets, and every single setting the
     node leaves unset. Where both set a value and they differ, the node

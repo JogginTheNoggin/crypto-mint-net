@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -164,5 +165,28 @@ func TestPolicyImportKeepsRunningRPC(t *testing.T) {
 	got, err := nodepolicy.Load(filepath.Join(dir, nodepolicy.FileName))
 	if err != nil || got.RPC.AllowRemote || got.RPC.Listen != "127.0.0.1:0" {
 		t.Fatalf("rpc section changed: %+v %v", got.RPC, err)
+	}
+}
+
+// D149: "-" reads the bundle from standard input, as poo submit -f -
+// does, so the GUI can hand over a file picked in the browser.
+func TestPolicyImportFromStdin(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off")
+	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	bundle := runOut(t, "policy", "export", "-root", src)
+	var out bytes.Buffer
+	if err := Run(context.Background(), []string{"policy", "import", "-", "-apply", "-root", dst}, Stdio{In: strings.NewReader(bundle), Out: &out, Err: &out}); err != nil {
+		t.Fatalf("import -: %v\n%s", err, out.String())
+	}
+	p, err := nodepolicy.Load(filepath.Join(dst, "policies", "default", nodepolicy.FileName))
+	if err != nil || len(p.Series) != 1 {
+		t.Fatalf("imported from stdin: %+v %v\n%s", p, err, out.String())
+	}
+	// Cut off: nothing is read or changed.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := Run(ctx, []string{"policy", "import", "-", "-apply", "-root", t.TempDir()}, Stdio{In: strings.NewReader(bundle), Out: &out, Err: &out}); err == nil {
+		t.Fatal("a cut-off standard input was imported")
 	}
 }
