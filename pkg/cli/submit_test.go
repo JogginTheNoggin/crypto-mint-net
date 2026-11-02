@@ -171,15 +171,15 @@ func TestSubmitFromReply(t *testing.T) {
 	for _, c := range []struct{ in, what, want string }{
 		{build, "entry", "e1e1"}, {build, "layer", "1a1a"}, {work, "layer", "2b2b"}, {"c0ffee", "entry", "c0ffee"},
 	} {
-		got, err := fromReply(c.in, c.what)
-		if err != nil || got != c.want {
+		got, err := fromReply([]byte(c.in), c.what)
+		if err != nil || string(got) != c.want {
 			t.Errorf("fromReply(%s, %s) = %q, %v; want %q", c.in, c.what, got, err, c.want)
 		}
 	}
 	for _, c := range []struct{ in, what string }{
 		{`{"hash": "aa"}`, "entry"}, {work, "entry"}, {`{"hash":`, "entry"},
 	} {
-		if _, err := fromReply(c.in, c.what); err == nil {
+		if _, err := fromReply([]byte(c.in), c.what); err == nil {
 			t.Errorf("fromReply(%s, %s) accepted", c.in, c.what)
 		}
 	}

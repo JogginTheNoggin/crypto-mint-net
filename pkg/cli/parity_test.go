@@ -16,6 +16,7 @@ import (
 var noCommandYet = map[string]string{
 	"GrindReplaceSchedule": "poo grind schedule sends edits (D125), which cover every replacement",
 	"GrindSetSchedule":     "the older form of GrindReplaceSchedule",
+	"SubmitEntry":          "poo submit entry sends the same request with SubmitEntryHex, from the hex as read (GUI ORANGE-012)",
 }
 
 // TestEveryClientCallHasACommand fails when an rpc.Client method is
