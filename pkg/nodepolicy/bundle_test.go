@@ -129,7 +129,7 @@ func TestMergeAddsAndKeepsLocal(t *testing.T) {
 	file.P2P.Peers = []string{"b.example:1", "a.example:1"}
 	file.RPC.Listen = "127.0.0.1:9999"
 
-	res, plan, err := nodepolicy.Merge(local, file, nodepolicy.MergeOptions{})
+	res, plan, err := nodepolicy.Merge(local, file, nodepolicy.MergeOptions{Settings: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestMergeReplace(t *testing.T) {
 	file := nodepolicy.Default()
 	file.Series = []nodepolicy.SeriesInfo{sb}
 	file.Follow = []nodepolicy.Follow{{Series: &idb}}
-	res, plan, err := nodepolicy.Merge(local, file, nodepolicy.MergeOptions{Replace: true})
+	res, plan, err := nodepolicy.Merge(local, file, nodepolicy.MergeOptions{Replace: true, Settings: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +272,7 @@ func TestMergeRefusesWhatWouldNotValidate(t *testing.T) {
 	file := nodepolicy.Default()
 	file.Series = []nodepolicy.SeriesInfo{sa}
 	file.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "pending"}}}
-	if _, _, err := nodepolicy.Merge(local, file, nodepolicy.MergeOptions{}); !errors.Is(err, nodepolicy.ErrInvalid) {
+	if _, _, err := nodepolicy.Merge(local, file, nodepolicy.MergeOptions{Settings: true}); !errors.Is(err, nodepolicy.ErrInvalid) {
 		t.Fatalf("too many jobs: %v", err)
 	}
 	// A follow of a series neither lists.

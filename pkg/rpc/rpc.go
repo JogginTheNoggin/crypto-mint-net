@@ -102,6 +102,13 @@ const (
 // full token (RED-038, D144).
 const MaxBody = 8 << 20
 
+// MaxImportBody bounds a node policy import sent with the full token: any
+// node policy a bundle the node reads can hold (nodepolicy.MaxBundleSize),
+// even if encoding it again escapes every byte (six bytes each), and the
+// options, so poo policy import never reads a file the node then refuses
+// (RED-045, D150).
+const MaxImportBody = 6*nodepolicy.MaxBundleSize + MaxBody
+
 // Error codes.
 const (
 	CodeBadRequest     = "bad_request"
@@ -242,10 +249,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, &Error{Message: "missing or wrong token", Code: CodeUnauthorized, Status: http.StatusUnauthorized})
 		return
 	}
-	if !(full && r.Method == http.MethodPost && r.URL.Path == "/v1/entry") {
+	switch {
+	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/entry":
 		// An entry has no size bound: the node takes one of any size from
 		// a peer, in parts (D117), so the full token may hand it one of
 		// any size too, as poo submit and the GUI do (RED-038, D144).
+	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/policy/import":
+		r.Body = http.MaxBytesReader(w, r.Body, MaxImportBody)
+	default:
 		r.Body = http.MaxBytesReader(w, r.Body, MaxBody)
 	}
 	h.mux.ServeHTTP(w, r)

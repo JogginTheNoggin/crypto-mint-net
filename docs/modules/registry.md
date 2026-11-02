@@ -28,7 +28,10 @@ most 1 MiB.
 ## API
 
 - `Fetch(ctx, client, location)`: an http or https URL, or a file path
-  (with or without `file://`).
+  (with or without `file://`). The client decides where it may connect:
+  the node's (`p2p`, `registryClient`) refuses an address that is not
+  public, after name resolution and on every redirect, unless the policy
+  allows local peers (RED-043, D150).
 - `Parse(data)`, `Encode(entries)` (for publishing a registry),
   `ErrFormat`.
 

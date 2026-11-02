@@ -259,7 +259,7 @@ func (b *Bundle) check() error {
 	for i := range b.Policies {
 		bp := &b.Policies[i]
 		if b.Scope == ScopeNode || bp.Name != "" {
-			if err := checkName(bp.Name); err != nil {
+			if err := checkNewName(bp.Name); err != nil {
 				return fmt.Errorf("%w: node policy %d: %v", ErrBundle, i, err)
 			}
 		}
@@ -309,8 +309,15 @@ type MergeOptions struct {
 	// only the node's machine-local settings (unless Full).
 	Replace bool `json:"replace,omitempty"`
 	// Full takes the file's machine-local settings too (MachineLocal):
-	// for restoring a backup on the same machine.
+	// for restoring a backup on the same machine. It takes the node
+	// settings too, as Settings does.
 	Full bool `json:"full,omitempty"`
+	// Settings takes the file's node settings (Followed lists what is not
+	// one): peers, registries, grind jobs, tracking, the p2p switches and
+	// limits. By default an import takes only what to follow, so a file
+	// from someone else never turns off a defence of this node, points it
+	// at an address or starts work on it unasked (RED-043, D150).
+	Settings bool `json:"settings,omitempty"`
 	// SeriesOnly takes only the series, the follow list and the accepted
 	// issuers: how a series bundle is imported.
 	SeriesOnly bool `json:"series_only,omitempty"`
@@ -343,6 +350,13 @@ type Plan struct {
 	// Skipped are machine-local settings the file holds and the import
 	// left alone (MergeOptions.Full takes them).
 	Skipped []string `json:"skipped"`
+	// SkippedSettings are node settings the file holds and the import
+	// left alone (MergeOptions.Settings takes them), and registries that
+	// are local files (only Full takes them).
+	SkippedSettings []string `json:"skipped_settings"`
+	// Defences are the lines of this plan that change a defence of the
+	// node or where it reaches out (Defences), to be read first.
+	Defences []string `json:"defences"`
 	// Same counts the file's settings the node already has.
 	Same int `json:"same"`
 	// Refused are series the result lists but would not accept, and why
@@ -357,34 +371,59 @@ func (p Plan) Empty() bool {
 }
 
 // Merge brings the node policy file, from a bundle, into local and says
-// what it did. By default it adds what local lacks: series, followed
-// issuers, series, pools and mints (merged as AddFollow does), accepted
-// issuers, peers, registries, grind jobs and every single setting local
-// leaves unset. Where both set a value and they differ, local's is kept
-// and listed as a conflict, unless PreferFile. Replace takes the file's
-// node policy whole. Machine-local settings are left alone unless Full.
-// The result is valid (Validate) or Merge fails and local is unchanged.
+// what it did. By default it adds only what to follow (Followed) that
+// local lacks: series, followed issuers, series, pools and mints (merged
+// as AddFollow does) and accepted issuers; the file's node settings are
+// listed in Plan.SkippedSettings and left alone (RED-043, D150). With
+// Settings it also adds peers, registries (http and https only, unless
+// Full), grind jobs and every single setting local leaves unset, and names
+// the lines that touch a defence first (Plan.Defences). Where both set a
+// value and they differ, local's is kept and listed as a conflict, unless
+// PreferFile. Replace takes the file's node policy whole, or without
+// Settings only what it follows. Machine-local settings are left alone
+// unless Full. The result is valid (Validate) or Merge fails and local is
+// unchanged.
 func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
-	plan := Plan{Added: []Change{}, Removed: []Change{}, Changed: []Change{}, Conflicts: []Change{}, Skipped: []string{}, Refused: []string{}}
+	plan := Plan{Added: []Change{}, Removed: []Change{}, Changed: []Change{}, Conflicts: []Change{}, Skipped: []string{}, SkippedSettings: []string{}, Defences: []string{}, Refused: []string{}}
 	local, file = clone(local), clone(file)
 	file.P2P.FastCatchUp, file.P2P.DepthLimit = false, 0
 	if opt.SeriesOnly {
-		file = Policy{Format: Format, Series: file.Series, Follow: file.Follow, Issuers: Issuers{Accept: file.Issuers.Accept}}
+		file = followed(file)
 	}
+	settings := opt.Settings || opt.Full
 	if !opt.Full {
 		plan.Skipped = machineSet(file)
 		file = Strip(file)
+		var keep []string
+		for _, r := range file.P2P.Registries {
+			if isURL(r) {
+				keep = append(keep, r)
+			} else if settings {
+				plan.SkippedSettings = append(plan.SkippedSettings, "p2p.registries["+r+"] (a local file: only -full takes it)")
+			}
+		}
+		file.P2P.Registries = keep
+	}
+	if !settings {
+		plan.SkippedSettings = append(plan.SkippedSettings, settingsSet(file, local)...)
+		file = followed(file)
 	}
 	var res Policy
 	var err error
-	if opt.Replace {
+	switch {
+	case opt.Replace && !settings:
+		// What to follow is the file's; how the node runs stays its own.
+		res = clone(local)
+		res.Series, res.Follow, res.Issuers.Accept = file.Series, file.Follow, file.Issuers.Accept
+		res.Format = Format
+	case opt.Replace:
 		res = file
 		if !opt.Full {
 			res = withMachine(res, local)
 		}
 		res.Format = Format
-	} else {
-		res, err = mergeInto(local, file, opt, &plan)
+	default:
+		res, err = mergeInto(local, file, opt, settings, &plan)
 		if err != nil {
 			return Policy{}, Plan{}, err
 		}
@@ -410,6 +449,20 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 			plan.Same++
 		}
 	}
+	if settings {
+		for _, cs := range [][]Change{plan.Added, plan.Changed, plan.Removed} {
+			for _, c := range cs {
+				if isDefence(c.Field) {
+					plan.Defences = append(plan.Defences, c.Field)
+				}
+			}
+		}
+		for _, c := range plan.Conflicts {
+			if c.Took == "file" && isDefence(c.Field) {
+				plan.Defences = append(plan.Defences, c.Field)
+			}
+		}
+	}
 	_, refused := res.Accepted()
 	for _, r := range refused {
 		id := "?"
@@ -428,6 +481,64 @@ func conflicted(cs []Change, field string) bool {
 		}
 	}
 	return false
+}
+
+// Followed lists the parts of a node policy that say what it follows: its
+// series, its follow list and the issuers it accepts by name. A default
+// import takes only these; everything else is a node setting, which an
+// import takes only when asked (MergeOptions.Settings, RED-043, D150). A
+// setting added to node.json later is a node setting unless it is put
+// here, so a new switch is never taken from someone else's file unasked.
+var Followed = []string{"series", "follow", "issuers.accept"}
+
+// Defences lists the node settings that turn off a defence of the node,
+// say how it punishes or trusts peers, make it reach out to an address,
+// start work on it, or shrink it until it is of no use. An import that
+// takes settings names each such line it changes first (Plan.Defences),
+// so the person reading the plan sees them before the rest.
+var Defences = []string{
+	"issuers.any", "k",
+	"p2p.allow_local_peers", "p2p.no_confirm", "p2p.strict_return", "p2p.no_notices", "p2p.no_relay",
+	"p2p.request_rate", "p2p.unlisted_conns", "p2p.peers", "p2p.registries",
+	"p2p.max_peers", "p2p.max_inbound", "p2p.max_outbound", "p2p.entry_limit",
+	"tracking", "grind.jobs",
+}
+
+// followed returns the parts of p that Followed names.
+func followed(p Policy) Policy {
+	return Policy{Format: Format, Series: p.Series, Follow: p.Follow, Issuers: Issuers{Accept: p.Issuers.Accept}}
+}
+
+// settingsSet lists the node settings p sets that followed would drop
+// and local does not already have.
+func settingsSet(p, local Policy) []string {
+	out := []string{}
+	keep, have := flatAll(followed(p)), flatAll(local)
+	flat := flatAll(p)
+	for _, k := range sortedKeys(flat) {
+		if v, ok := have[k]; ok && v == flat[k] {
+			continue
+		}
+		if v, ok := keep[k]; !ok || v != flat[k] {
+			out = append(out, show(k))
+		}
+	}
+	return out
+}
+
+// isDefence reports whether a plan's field is one Defences names, or an
+// item or part of one.
+func isDefence(field string) bool {
+	for _, d := range Defences {
+		if field == d || strings.HasPrefix(field, d+".") || strings.HasPrefix(field, d+"[") {
+			return true
+		}
+	}
+	return false
+}
+
+func isURL(loc string) bool {
+	return strings.HasPrefix(loc, "http://") || strings.HasPrefix(loc, "https://")
 }
 
 // machineSet lists the machine-local settings p sets.
@@ -462,7 +573,7 @@ func isMachine(k string) bool {
 }
 
 // mergeInto is Merge without Replace.
-func mergeInto(local, file Policy, opt MergeOptions, plan *Plan) (Policy, error) {
+func mergeInto(local, file Policy, opt MergeOptions, settings bool, plan *Plan) (Policy, error) {
 	// Single settings, compared one by one.
 	lm, err := toMap(local)
 	if err != nil {
@@ -474,7 +585,7 @@ func mergeInto(local, file Policy, opt MergeOptions, plan *Plan) (Policy, error)
 	}
 	lf, ff := map[string]any{}, map[string]any{}
 	flatten(lm, nil, lf)
-	if !opt.SeriesOnly {
+	if settings && !opt.SeriesOnly {
 		flatten(fm, nil, ff)
 	}
 	for _, k := range sortedKeys(ff) {
@@ -503,9 +614,12 @@ func mergeInto(local, file Policy, opt MergeOptions, plan *Plan) (Policy, error)
 
 	// Lists, merged item by item.
 	have := map[hash.Hash]int{}
+	built := map[hash.Hash]*series.Series{}
 	for i, si := range res.Series {
 		if s, err := series.New(si.Params); err == nil {
-			have[s.ID()] = i
+			if _, ok := have[s.ID()]; !ok {
+				have[s.ID()], built[s.ID()] = i, s
+			}
 		}
 	}
 	for _, si := range file.Series {
@@ -516,6 +630,7 @@ func mergeInto(local, file Policy, opt MergeOptions, plan *Plan) (Policy, error)
 		i, ok := have[s.ID()]
 		switch {
 		case !ok:
+			built[s.ID()] = s
 			have[s.ID()] = len(res.Series)
 			res.Series = append(res.Series, si)
 		case si.IssuerWitness == "" || si.IssuerWitness == res.Series[i].IssuerWitness:
@@ -531,10 +646,14 @@ func mergeInto(local, file Policy, opt MergeOptions, plan *Plan) (Policy, error)
 			plan.Conflicts = append(plan.Conflicts, Change{Field: field, Local: quote(res.Series[i].IssuerWitness), File: quote(si.IssuerWitness), Took: took})
 		}
 	}
-	for _, f := range file.Follow {
-		if err := res.AddFollow(f); err != nil {
-			return Policy{}, fmt.Errorf("follow in the file: %w", err)
+	look := func(id hash.Hash) (*series.Series, error) {
+		if s, ok := built[id]; ok {
+			return s, nil
 		}
+		return nil, fmt.Errorf("%w: series %s is not listed in the node policy", ErrInvalid, id.Short())
+	}
+	if err := res.addFollows(file.Follow, look); err != nil {
+		return Policy{}, fmt.Errorf("follow in the file: %w", err)
 	}
 	res.Issuers.Accept = unionHashes(res.Issuers.Accept, file.Issuers.Accept)
 	res.P2P.Peers = unionStrings(res.P2P.Peers, file.P2P.Peers)

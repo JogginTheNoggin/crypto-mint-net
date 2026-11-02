@@ -117,7 +117,63 @@ func (p *Policy) ReplaceFollow(f Follow) error {
 	return nil
 }
 
-func (p *Policy) checkFollow(f Follow) error {
+// addFollows adds every entry of fs as AddFollow does, in time linear in
+// the entries: look finds a listed series by id without building every
+// series again, and the follow list is indexed once (RED-044, D150). The
+// result names what AddFollow one by one would, except that an entry it
+// changes keeps its place instead of moving to the end. On an error p is
+// unchanged.
+func (p *Policy) addFollows(fs []Follow, look func(hash.Hash) (*series.Series, error)) error {
+	for _, f := range fs {
+		if err := checkFollowIn(f, look); err != nil {
+			return err
+		}
+	}
+	out := make([]Follow, 0, len(p.Follow)+len(fs))
+	issuers := map[hash.Hash]bool{}
+	at := map[hash.Hash]int{}
+	add := func(f Follow) {
+		switch {
+		case f.Issuer != nil:
+			if !issuers[*f.Issuer] {
+				issuers[*f.Issuer] = true
+				out = append(out, Follow{Issuer: f.Issuer})
+			}
+			return
+		}
+		i, ok := at[*f.Series]
+		if !ok {
+			at[*f.Series] = len(out)
+			g := Follow{Series: f.Series}
+			if len(f.Pools) > 0 || len(f.Mints) > 0 {
+				g.Pools, g.Mints = union(nil, f.Pools), union(nil, f.Mints)
+			}
+			out = append(out, g)
+			return
+		}
+		g := &out[i]
+		switch {
+		case len(f.Pools) == 0 && len(f.Mints) == 0:
+			g.Pools, g.Mints = nil, nil
+		case len(g.Pools) == 0 && len(g.Mints) == 0:
+			// The whole series is followed already.
+		default:
+			g.Pools, g.Mints = union(g.Pools, f.Pools), union(g.Mints, f.Mints)
+		}
+	}
+	for _, f := range p.Follow {
+		add(f)
+	}
+	for _, f := range fs {
+		add(f)
+	}
+	p.Follow = out
+	return nil
+}
+
+func (p *Policy) checkFollow(f Follow) error { return checkFollowIn(f, p.series) }
+
+func checkFollowIn(f Follow, look func(hash.Hash) (*series.Series, error)) error {
 	if (f.Issuer == nil) == (f.Series == nil) {
 		return fmt.Errorf("%w: name exactly one of an issuer and a series", ErrInvalid)
 	}
@@ -127,7 +183,7 @@ func (p *Policy) checkFollow(f Follow) error {
 		}
 		return nil
 	}
-	s, err := p.series(*f.Series)
+	s, err := look(*f.Series)
 	if err != nil {
 		return err
 	}

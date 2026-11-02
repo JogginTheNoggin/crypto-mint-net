@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"sync"
 	"time"
 
@@ -1001,13 +1003,53 @@ func (h *Host) askPeerList(p *peer, s wire.Section) int {
 	return added
 }
 
+// registryClient returns the client that fetches the registry at loc.
+// Unless the policy allows local peers, it refuses, after name resolution
+// and on every redirect, to connect to an address that is not public, as
+// a book candidate's dialer does (RED-043, D150): a registry location
+// never makes the node send a request into its own network, such as a
+// cloud metadata address or a service on loopback. A registry reached
+// through a proxy the environment names is the proxy's to resolve.
+func (h *Host) registryClient(loc string) (*http.Client, error) {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	switch {
+	case h.cfg.AllowLocalPeers:
+	case viaProxy(tr, loc):
+		// The proxy resolves the name; a literal address is checked here.
+		if u, err := url.Parse(loc); err == nil {
+			if ip, err := netip.ParseAddr(u.Hostname()); err == nil && !publicIP(ip) {
+				return nil, errNotPublic
+			}
+		}
+	default:
+		tr.Proxy, tr.DialContext = nil, publicDialer().DialContext
+	}
+	return &http.Client{Timeout: 15 * time.Second, Transport: tr}, nil
+}
+
+// viaProxy reports whether tr sends a request for loc through a proxy.
+func viaProxy(tr *http.Transport, loc string) bool {
+	if tr.Proxy == nil {
+		return false
+	}
+	req, err := http.NewRequest(http.MethodGet, loc, nil)
+	if err != nil {
+		return false
+	}
+	u, err := tr.Proxy(req)
+	return err == nil && u != nil
+}
+
 // LoadRegistries reads every configured registry and adds the nodes listed
 // for this node's mint policies to the book as candidates.
 func (h *Host) LoadRegistries(ctx context.Context) int {
-	client := &http.Client{Timeout: 15 * time.Second}
 	added := 0
 	for _, loc := range h.cfg.Registries {
-		es, err := registry.Fetch(ctx, client, loc)
+		client, err := h.registryClient(loc)
+		var es []registry.Entry
+		if err == nil {
+			es, err = registry.Fetch(ctx, client, loc)
+		}
 		if err != nil {
 			h.log.Warn("registry failed", "location", loc, "err", err)
 			continue
