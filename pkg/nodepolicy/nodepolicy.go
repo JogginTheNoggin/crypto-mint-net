@@ -669,6 +669,17 @@ func (l Lowered) String() string {
 	return fmt.Sprintf("%s %d is over the most, %d: %d is used", l.Field, l.Was, l.Now, l.Now)
 }
 
+// SameApplied reports whether p and q differ only in what a running node
+// takes in without a reload: the grind section, which the schedule
+// commands apply at once (D125). Anything else that differs needs a
+// reload to take effect (GREEN-037).
+func (p Policy) SameApplied(q Policy) bool {
+	p.Grind, q.Grind = nil, nil
+	a, errA := json.Marshal(p)
+	b, errB := json.Marshal(q)
+	return errA == nil && errB == nil && string(a) == string(b)
+}
+
 // Load reads and validates a node policy file. A value over a bound
 // lowered since the file was written is brought down to it, and noted in
 // Lowered.

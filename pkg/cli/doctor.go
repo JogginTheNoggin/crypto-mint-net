@@ -264,6 +264,9 @@ func rpcCheck(out io.Writer, dir string) (Check, bool) {
 	var ne net.Error
 	var oe *net.OpError
 	switch {
+	case err == nil && st.PolicyChanged:
+		return Check{Name: "rpc", Result: checkWarn, Detail: fmt.Sprintf("the node answers, following %d pools, but %s has changed since it loaded it, and the change waits for a reload", len(st.Pools), nodepolicy.FileName),
+			Fix: "poo reload", FixArgs: []string{"reload"}}, true
 	case err == nil:
 		return Check{Name: "rpc", Result: checkOK, Detail: fmt.Sprintf("the node answers, following %d pools", len(st.Pools))}, true
 	case errors.As(err, &re) && re.Code == rpc.CodeUnauthorized:
