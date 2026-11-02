@@ -1,0 +1,394 @@
+// Package jobs runs poo command lines for the GUI. A job is one call of
+// cli.Main, the function the poo binary runs, with its own context, input
+// and output: the GUI's terminal, views and forms all run commands this
+// way and no other (docs/gui.md).
+package jobs
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"slices"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/cli"
+)
+
+// Limits on what a runner keeps.
+const (
+	DefaultMaxOutput = 4 << 20 // bytes of output kept per job
+	DefaultMaxJobs   = 64      // jobs kept, finished ones dropped first
+)
+
+// Stream names a chunk's stream.
+type Stream string
+
+// The two output streams.
+const (
+	Stdout Stream = "out"
+	Stderr Stream = "err"
+)
+
+// Chunk is one write of a job's output. Seq counts chunks from 0.
+type Chunk struct {
+	Seq    int64  `json:"seq"`
+	Stream Stream `json:"stream"`
+	Data   string `json:"data"`
+}
+
+// MainFunc is the signature of cli.Main.
+type MainFunc func(ctx context.Context, args []string, s cli.Stdio) int
+
+// Runner starts and keeps jobs.
+type Runner struct {
+	ctx       context.Context
+	cancel    context.CancelFunc
+	main      MainFunc
+	maxOutput int
+	maxJobs   int
+
+	mu    sync.Mutex
+	next  int
+	jobs  map[string]*Job
+	order []string // ids, oldest first
+	wg    sync.WaitGroup
+}
+
+// Options adjust a runner; zero values mean the defaults.
+type Options struct {
+	MaxOutput int
+	MaxJobs   int
+	// Main replaces cli.Main; only tests set it.
+	Main MainFunc
+}
+
+// New returns a runner whose jobs are cancelled when ctx is done or the
+// runner is closed.
+func New(ctx context.Context, o Options) *Runner {
+	r := &Runner{main: cli.Main, maxOutput: DefaultMaxOutput, maxJobs: DefaultMaxJobs, jobs: map[string]*Job{}}
+	if o.Main != nil {
+		r.main = o.Main
+	}
+	if o.MaxOutput > 0 {
+		r.maxOutput = o.MaxOutput
+	}
+	if o.MaxJobs > 0 {
+		r.maxJobs = o.MaxJobs
+	}
+	r.ctx, r.cancel = context.WithCancel(ctx)
+	return r
+}
+
+// ErrClosed is returned by Start after Close.
+var ErrClosed = errors.New("jobs: runner closed")
+
+// Start runs args (without the program name) as a new job.
+func (r *Runner) Start(args []string) (*Job, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.ctx.Err() != nil {
+		return nil, ErrClosed
+	}
+	r.next++
+	ctx, cancel := context.WithCancel(r.ctx)
+	j := &Job{
+		ID:      strconv.Itoa(r.next),
+		Args:    slices.Clone(args),
+		Started: time.Now(),
+		cancel:  cancel,
+		max:     r.maxOutput,
+		changed: make(chan struct{}),
+		done:    make(chan struct{}),
+	}
+	j.in = newInput(ctx)
+	j.in.onWait = j.touch
+	r.jobs[j.ID] = j
+	r.order = append(r.order, j.ID)
+	r.trim()
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		code := r.main(ctx, j.Args, cli.Stdio{In: j.in, Out: j.writer(Stdout), Err: j.writer(Stderr)})
+		cancel()
+		j.finish(code)
+	}()
+	return j, nil
+}
+
+// trim drops the oldest finished jobs beyond the limit. Running jobs are
+// never dropped.
+func (r *Runner) trim() {
+	for i := 0; len(r.order) > r.maxJobs && i < len(r.order); {
+		id := r.order[i]
+		if r.jobs[id].Done() {
+			delete(r.jobs, id)
+			r.order = slices.Delete(r.order, i, i+1)
+			continue
+		}
+		i++
+	}
+}
+
+// Get returns the job with id, if kept.
+func (r *Runner) Get(id string) (*Job, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	j, ok := r.jobs[id]
+	return j, ok
+}
+
+// List returns the kept jobs, oldest first.
+func (r *Runner) List() []*Job {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]*Job, 0, len(r.order))
+	for _, id := range r.order {
+		out = append(out, r.jobs[id])
+	}
+	return out
+}
+
+// Close cancels every job and waits for them to return, at most timeout.
+// A cancelled poo node closes its stores before it returns, so callers
+// should give it a few seconds.
+func (r *Runner) Close(timeout time.Duration) error {
+	r.mu.Lock()
+	r.cancel()
+	r.mu.Unlock()
+	done := make(chan struct{})
+	go func() { r.wg.Wait(); close(done) }()
+	select {
+	case <-done:
+		return nil
+	case <-time.After(timeout):
+		return fmt.Errorf("jobs: still running after %v", timeout)
+	}
+}
+
+// Job is one run of a command line.
+type Job struct {
+	ID      string
+	Args    []string
+	Started time.Time
+
+	cancel context.CancelFunc
+	in     *input
+	max    int
+
+	mu      sync.Mutex
+	chunks  []Chunk
+	size    int   // bytes in chunks
+	first   int64 // seq of chunks[0]
+	nextSeq int64
+	changed chan struct{} // closed and replaced on every change
+	done    chan struct{}
+	code    int
+}
+
+// Cancel stops the job, as an interrupt stops a command in a shell.
+func (j *Job) Cancel() { j.cancel() }
+
+// Input sends one line to the job's input. It does not block.
+func (j *Job) Input(line string) error { return j.in.add(line + "\n") }
+
+// Done reports whether the job has returned.
+func (j *Job) Done() bool {
+	select {
+	case <-j.done:
+		return true
+	default:
+		return false
+	}
+}
+
+// Wait waits for the job to return and gives its exit code.
+func (j *Job) Wait(ctx context.Context) (int, error) {
+	select {
+	case <-j.done:
+		return j.code, nil
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+}
+
+// State is a view of a job's output from some sequence number on.
+type State struct {
+	Chunks []Chunk
+	// Dropped is true when output from the asked sequence number on was
+	// dropped to stay within the limit; Chunks then starts later.
+	Dropped bool
+	Next    int64 // the sequence number to ask for next
+	Done    bool
+	Code    int // the exit code, once Done
+	// Waiting is true while the job is blocked reading its input.
+	Waiting bool
+	// Changed is closed when anything above changes.
+	Changed <-chan struct{}
+}
+
+// Read returns the output from sequence number from on.
+func (j *Job) Read(from int64) State {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	s := State{Next: j.nextSeq, Changed: j.changed, Waiting: j.in.waiting()}
+	if from < j.first {
+		s.Dropped, from = true, j.first
+	}
+	if from < j.nextSeq {
+		s.Chunks = slices.Clone(j.chunks[from-j.first:])
+	}
+	select {
+	case <-j.done:
+		s.Done, s.Code = true, j.code
+	default:
+	}
+	return s
+}
+
+// Output returns all kept output of one stream, joined.
+func (j *Job) Output(stream Stream) string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	var b []byte
+	for _, c := range j.chunks {
+		if c.Stream == stream {
+			b = append(b, c.Data...)
+		}
+	}
+	return string(b)
+}
+
+func (j *Job) notify() {
+	close(j.changed)
+	j.changed = make(chan struct{})
+}
+
+func (j *Job) write(stream Stream, p []byte) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.chunks = append(j.chunks, Chunk{Seq: j.nextSeq, Stream: stream, Data: string(p)})
+	j.nextSeq++
+	j.size += len(p)
+	for j.size > j.max && len(j.chunks) > 1 {
+		j.size -= len(j.chunks[0].Data)
+		j.chunks = j.chunks[1:]
+		j.first++
+	}
+	j.notify()
+}
+
+func (j *Job) finish(code int) {
+	j.in.close()
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.code = code
+	close(j.done)
+	j.notify()
+}
+
+// touch signals a change that is not output, such as the job starting or
+// stopping to wait for input.
+func (j *Job) touch() {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.notify()
+}
+
+type streamWriter struct {
+	j      *Job
+	stream Stream
+}
+
+func (w streamWriter) Write(p []byte) (int, error) {
+	if len(p) > 0 {
+		w.j.write(w.stream, p)
+	}
+	return len(p), nil
+}
+
+func (j *Job) writer(s Stream) io.Writer { return streamWriter{j, s} }
+
+// input is a job's standard input: lines sent from the GUI, read by the
+// command. A read blocks until a line arrives, and returns EOF once the
+// job is cancelled or has returned, so a command never waits forever.
+type input struct {
+	ctx    context.Context
+	mu     sync.Mutex
+	buf    []byte
+	closed bool
+	nwait  int
+	wake   chan struct{}
+	onWait func() // called when a reader starts or stops waiting
+}
+
+func newInput(ctx context.Context) *input {
+	in := &input{ctx: ctx, wake: make(chan struct{})}
+	go func() {
+		<-ctx.Done()
+		in.close()
+	}()
+	return in
+}
+
+var errInputClosed = errors.New("jobs: the job has ended")
+
+func (in *input) add(s string) error {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if in.closed {
+		return errInputClosed
+	}
+	in.buf = append(in.buf, s...)
+	close(in.wake)
+	in.wake = make(chan struct{})
+	return nil
+}
+
+func (in *input) close() {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if in.closed {
+		return
+	}
+	in.closed = true
+	in.buf = nil // a passphrase sent but never read is not kept
+	close(in.wake)
+}
+
+func (in *input) waiting() bool {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	return in.nwait > 0
+}
+
+func (in *input) Read(p []byte) (int, error) {
+	in.mu.Lock()
+	for len(in.buf) == 0 && !in.closed {
+		wake := in.wake
+		in.nwait++
+		cb := in.onWait
+		in.mu.Unlock()
+		if cb != nil {
+			cb()
+		}
+		<-wake
+		in.mu.Lock()
+		in.nwait--
+		cb = in.onWait
+		if cb != nil {
+			in.mu.Unlock()
+			cb()
+			in.mu.Lock()
+		}
+	}
+	defer in.mu.Unlock()
+	if len(in.buf) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, in.buf)
+	in.buf = in.buf[n:]
+	return n, nil
+}
