@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 15) |
+| Status | adopted (Round 16 Part A) |
 | Based on | claude/gui-4-watch @ 55cf745 |
 | Area | gui/web/static/views.js (Pools and payments, Wallet) |
 | Effort | small |
