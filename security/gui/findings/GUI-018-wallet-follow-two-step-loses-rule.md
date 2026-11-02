@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed by Source (BLUE-013, 56633dc: one replace request), merged Round 13; pending Red's verification |
+| Status | fixed by Source (BLUE-013, 56633dc: one replace request), merged Round 13; verified by GUI/Red R13B @ 376e964 |
 | Found on | claude/gui-4-watch @ c9c9e1f (Source bc2e4bc, RED-030 / D136) |
 | Component | pkg/cli/wallet.go (`walletFollow`), pkg/rpc/view.go (`POST /v1/follow`) |
 | Surface | node (node.json's follow list). Reachable from the GUI's terminal, which runs the same `cli.Main`. |
@@ -84,3 +84,34 @@ terminal runs as is, and the GUI must not hold core logic, so the fix
 belongs to Source. GUI/Blue passed it to Source through GUI/Grey, and
 Source/Blue has it in Source Round 12 Part C. Once Source's fix lands,
 GUI/Blue can add a GUI e2e check for the terminal path.
+
+## Notes — Round 13B verification (held up)
+
+- **BLUE-013 / D139, verified.**
+  - `wallet follow` now sends one `FollowRequest{Replace: true, Series, Pools}`.
+    The node applies it under `policyMu` in one `Load`, `ReplaceFollow`,
+    `Validate`, `Save`, and then reloads. The series is never saved off the
+    list between two steps.
+  - Without a node, the same `ReplaceFollow` runs under the data-directory
+    lock (D136).
+  - `Remove` together with `Replace` is refused.
+  - An older node rejects the unknown `replace` field: `decodeBody` uses
+    `DisallowUnknownFields`, so the command fails with an RPC error and
+    nothing changes. A version mismatch therefore cannot fall back to a
+    merging `AddFollow`.
+- **GREEN-037/038 reload notice, safe.**
+  - `status` compares node.json, loaded fresh, with the policy the node
+    runs, ignoring the grind section.
+  - Checked live:
+    - false right after start;
+    - false after a `grind schedule add`, which is applied at once;
+    - true after `unfollow -no-reload`;
+    - false again after `poo reload`;
+    - `poo doctor` warns with fix `reload`.
+  - The notice is fixed text. "Reload now" runs the Reload form's own
+    `poo reload`, which refuses an invalid file (GREEN-011) and is refused
+    in view-only mode.
+  - `gui/e2e/work.mjs` passes locally on 376e964.
+  - Each `status` call, including the Followed pools panel's 5 s refresh,
+    now also reads node.json. That is a small extra cost, not a finding.
+
