@@ -161,7 +161,9 @@ applies the change at once without a reload (D113).
 - `Manager{Root}`: `Save`, `Load`, `List`, `Current`, `Use`, `Archive`,
   `Unarchive(name, fresh)`, `Delete`, `Dir`.
 - `Lock(dir)`: an exclusive lock on a data directory, released by the
-  operating system if the process dies (advisory only on non-Unix systems).
+  operating system if the process dies, refused at once if another process
+  holds it: flock on Unix, LockFileEx on Windows (D147), and only a
+  directory check on other systems.
 
 ## Extending
 

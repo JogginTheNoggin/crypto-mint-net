@@ -214,3 +214,4 @@ in plain words.
 | Source Round 12 | [ROUND-12.md](ROUND-12.md) | 6 clear, 0 with conditions, 1 blocked: hard fork (B6, reproduced: two colluding senders hold the parts reserve with BLUE-013's paid cuts); ORANGE-022's D115 case on main upheld, superseded by BLUE-013; B5 fixed; no consensus suggestions |
 | Source Round 13 | [ROUND-13.md](ROUND-13.md) | 8 clear, 0 with conditions, 0 blocked; B6 fixed (D140); ORANGE-022 closed; the two-thirds holder is a bandwidth contest; no consensus suggestions |
 | Source Round 14 | [ROUND-14.md](ROUND-14.md) | 7 clear, 0 with conditions, 0 blocked; the full-token entry body cap lifted (removes a size bound); ORANGE-024's stale-waiter note is a delay paid in bytes; no consensus suggestions |
+| Source Round 15 | [ROUND-15.md](ROUND-15.md) | 7 clear, 0 with conditions, 0 blocked; wallet, CLI and local RPC only; the entry body has no size bound; no consensus suggestions |

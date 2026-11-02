@@ -44,6 +44,23 @@ so a command left waiting at its passphrase prompt never undoes another
 command's change, such as a new passphrase. A new wallet whose file
 appeared meanwhile returns `ErrExists` (GUI-019, D145).
 
+A command that acts on the node and then saves (`poo wallet pay`,
+`claim`, `submit`, `resend`) first calls `Hold`, after its passphrase
+prompt: it takes the same lock until the command ends and reads the file
+again, so what another command saved meanwhile is kept and the change
+address is a key nobody else took. No other `Save` can come between the
+send and the save, so the record of a payment that went out is never
+refused; another command's `Save` waits, and is refused if it read the
+file before. If the save fails anyway (a full disk, a removed file), the
+command prints the record and says not to run it again, since that would
+pay a second time (RED-039, D146).
+
+The other commands that save (`passwd`, `address`, `watch`, `request`,
+`receive`, `status`, `policy`) also call `Hold` after their prompts, just
+before they change the wallet. So a change saved while one of them waited
+at a prompt is read in and kept, and the command saves without
+`ErrChanged` (D147).
+
 Public keys are in the clear, so a locked wallet still lists its
 addresses, reads balances and follows payments. Only signing, giving out a
 new address, and showing the seed need the passphrase.

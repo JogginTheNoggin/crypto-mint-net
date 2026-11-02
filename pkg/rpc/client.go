@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -72,22 +73,25 @@ func (c *Client) do(method, path string, body, out any) error {
 
 // doHeader is do with extra request headers.
 func (c *Client) doHeader(method, path string, header map[string]string, body, out any) error {
-	var rd *bytes.Reader
+	var rd io.Reader = bytes.NewReader(nil)
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return err
 		}
 		rd = bytes.NewReader(b)
-	} else {
-		rd = bytes.NewReader(nil)
 	}
+	return c.doReader(method, path, header, rd, body != nil, out)
+}
+
+// doReader is doHeader with the body's JSON already made, read from rd.
+func (c *Client) doReader(method, path string, header map[string]string, rd io.Reader, isJSON bool, out any) error {
 	req, err := http.NewRequest(method, c.base+path, rd)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
-	if body != nil {
+	if isJSON {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	for k, v := range header {
@@ -130,6 +134,21 @@ func (c *Client) Series() ([]SeriesInfo, error) {
 func (c *Client) SubmitTx(t *tx.Tx) (TxReply, error) {
 	var r TxReply
 	return r, c.do("POST", "/v1/tx", TxRequest{Tx: hex.EncodeToString(t.Encode())}, &r)
+}
+
+// SubmitEntryHex submits an entry of a pool given as its hex, which the
+// request body carries as it is: an entry of hundreds of MiB is neither
+// encoded again nor copied into a JSON string on the way (GUI ORANGE-012).
+// The hex must be checked first; the node decodes it as SubmitEntry's.
+func (c *Client) SubmitEntryHex(p PoolRef, hexText []byte) (EntryReply, error) {
+	head, err := json.Marshal(p)
+	if err != nil {
+		return EntryReply{}, err
+	}
+	head = append(head[:len(head)-1], `,"entry":"`...)
+	var r EntryReply
+	body := io.MultiReader(bytes.NewReader(head), bytes.NewReader(hexText), strings.NewReader(`"}`))
+	return r, c.doReader("POST", "/v1/entry", nil, body, true, &r)
 }
 
 // SubmitEntry submits an entry of a pool.

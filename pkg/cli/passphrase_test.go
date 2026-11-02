@@ -63,3 +63,39 @@ func TestNewPassphraseIsConfirmed(t *testing.T) {
 		t.Fatalf("the new passphrase does not open the wallet: %v", err)
 	}
 }
+
+// TestWaitingCommandKeepsAnotherChange: a key-only command that saves
+// (here passwd) holds the wallet only after its prompts, and reads the
+// file again then, so a change saved while it waited at a prompt (a new
+// address) is kept, and it saves without ErrChanged (D147).
+func TestWaitingCommandKeepsAnotherChange(t *testing.T) {
+	createIterations = 1
+	defer func() { createIterations = 0 }()
+	root := t.TempDir()
+	cli(t, nil, "init", "-example", "-root", root)
+	w := []string{"-root", root}
+	t.Setenv("POO_PASSPHRASE", "one")
+	cli(t, nil, append([]string{"wallet", "create"}, w...)...)
+	ctx := context.Background()
+	var out bytes.Buffer
+	io := Stdio{Out: &out, Err: &out, Secret: func(p string) (string, error) {
+		if strings.Contains(p, "again") {
+			// Another command saves while passwd waits here.
+			cli(t, nil, append([]string{"wallet", "address", "-label", "while waiting"}, w...)...)
+		}
+		return "two", nil
+	}}
+	if err := Run(ctx, append([]string{"wallet", "passwd"}, w...), io); err != nil {
+		t.Fatalf("passwd after another command saved: %v\n%s", err, out.String())
+	}
+	t.Setenv("POO_PASSPHRASE", "two")
+	var addrs []struct{ Label string }
+	cli(t, &addrs, append([]string{"wallet", "addresses"}, w...)...)
+	found := false
+	for _, a := range addrs {
+		found = found || a.Label == "while waiting"
+	}
+	if !found {
+		t.Fatalf("the address saved while passwd waited was lost: %+v", addrs)
+	}
+}

@@ -2676,3 +2676,87 @@ a chase takes in after checking their work are not charged.
   Tests: `TestSaveNeverUndoesAnotherChange` and
   `TestConcurrentSavesOneWins` (pkg/wallet), `TestNewPassphraseIsConfirmed`
   (pkg/cli), and the hex cases in `TestSubmitEntryBodySize` (pkg/rpc).
+
+### D146. Round 15 fix: RED-039 (BLUE-016)
+
+- **Decision:**
+  - `Wallet.Hold` takes the lock beside the wallet file until it is
+    released and reads the file again, keeping the open seed. While a
+    wallet is held, its `Save` does not take the lock again. A file that
+    is no longer this seed's (its first key differs) or that changed its
+    format or key algorithm is `ErrChanged`.
+  - `poo wallet pay`, `claim`, `submit` and `resend` hold the wallet,
+    after the passphrase prompt, from before they act on the node until
+    after they save. Other commands' saves wait for the release; one that
+    read the file before the hold is refused (D145), having sent nothing.
+  - If the save after a send still fails, the command prints the record
+    and says the payment or claim was sent and must not be sent again,
+    in place of `ErrChanged`'s "run the command again".
+- **Why:** Red's Round 15 finding. D145's compare-and-write refused the
+  save of a payment that was already on the node when another command
+  (the GUI, a second terminal) had saved in between. The record and the
+  change address were lost, and the message said to run the command
+  again, which paid a second time.
+- **Not taken:** a merge of the new records into the changed file after
+  the fact. With the hold there is nothing to merge, and a merge would
+  have to decide between two commands that took the same key for
+  different uses. A refusal to pay a request already paid was not taken
+  either: the hold removes the cause, and with a record lost it would
+  not fire.
+- **What is left:** the lock is held while the node answers, so another
+  command's save waits that long (seconds at most; never at a prompt).
+  `lock_other.go` (systems with neither flock nor LockFileEx) has no
+  lock, as before.
+- **Tier:** Implementation (the wallet and the CLI). No consensus change.
+  Tests: `TestPaymentHoldsTheWallet`, `TestSaveSentSaysDoNotRepeat`.
+
+### D147. Round 16: the entry body's buffer grows; submit sends the hex as read; Windows locks node.json; waiting wallet commands keep other changes
+
+- **Decision:**
+  - **GREEN-040 as written.** `poo submit` reads a `-bytes` reply as it
+    was printed (`entry`; `layer` or `layer.layer`), and bare hex as
+    before. A missing wallet says how to make one.
+  - **ORANGE-025, with the size hint changed.** `POST /v1/entry` reads
+    the body once into one buffer and decodes it there (`readEntryBody`,
+    with the same JSON rules as `decodeBody`). The buffer starts with
+    room for the stated `Content-Length` up to 64 MiB (`entryHint`). It
+    doubles as bytes arrive, and never grows past the stated length.
+    ORANGE-025 reserved up to 1 GiB from the stated length. Blue asked
+    for growth toward it and Black for a 64 MiB ceiling, and this does
+    both. A false length now sets aside at most 64 MiB, or twice what was
+    sent. An honest large entry costs a copy or two on the way in. There
+    is still no bound on the size read.
+  - **GUI ORANGE-012, taken into Source.** `poo submit entry` checks that
+    the entry decodes, lets the decoded form go, and sends the hex as it
+    was read (`rpc.Client.SubmitEntryHex`). It no longer encodes the
+    entry again. The node gets the same JSON. GUI/Orange measured a 128
+    MiB entry: 12 s became 5 to 7 s, and the client's peak heap went from
+    1 GB to 625 MB.
+  - **GUI-017's Windows residual.** `nodepolicy.Lock` takes a
+    LockFileEx lock on Windows. It is refused at once when the lock is
+    held, as on Unix, so an offline `node.json` edit is never written
+    behind a running node there either. It is built and vetted for
+    Windows. CI builds Windows but runs no tests there.
+  - **Key-only wallet commands hold the wallet after their prompts.**
+    This was the coordinator's question: retry once on `ErrChanged`.
+    `passwd`, `address`, `watch`, `request`, `receive`, `status` and
+    `policy` call `Wallet.Hold` (D146) just before they change the
+    wallet, so the file is read again under the lock. A change saved
+    while they waited at a prompt is kept, and nothing needs to be run
+    again. A retry would have redone the command's work on a fresh read.
+    Hold gives the same result with no second pass, and it is the path
+    payments already use.
+  - **Black's Round 15 review is merged** (7 clear, 0 blocked).
+- **What is left:** GUI/Red measured the node's peak at about 1.3 GB on a
+  128 MiB entry, before this round. The body (twice the entry, as hex),
+  its decoded bytes and the decoded entry are each still held once.
+  Orange can measure what remains after D147.
+- **Why:** the Round 16 queue: BLUE-016, GREEN-040, ORANGE-025 with its
+  open hint question, GUI/Orange's ORANGE-012 and GUI/Red's Windows
+  residual (PR #67).
+- **Tier:** Implementation (the wallet file, the CLI, the local RPC and
+  the data-directory lock). No rule of validity or selection, no byte
+  form and no limit changes. Tests: `TestReadSized` (pkg/rpc),
+  `TestWaitingCommandKeepsAnotherChange` (pkg/cli, fails without the
+  hold), `TestSubmitFromReply`, `TestEntryBodyReadOnce`, and the
+  existing submit, wallet and lock tests.

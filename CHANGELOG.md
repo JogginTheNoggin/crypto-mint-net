@@ -155,3 +155,10 @@ built.
   `poo submit` reads a file or standard input, `build`/`work -bytes` print
   what it reads, and the node's own RPC takes an entry of any size with the
   full token.
+- **Round 16 (D146, D147):** a payment holds the wallet from before it is
+  sent until it is saved, and every wallet command that saves reads the
+  file again after its prompts, so nothing saved meanwhile is lost;
+  `poo submit` reads a `-bytes` reply as printed and sends a large entry's
+  hex as read; the node reads an entry body once, setting aside at most
+  64 MiB before the bytes arrive; Windows locks a data directory as Unix
+  does.

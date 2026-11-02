@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -39,7 +41,11 @@ func submitCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	b, err := hex.DecodeString(text)
+	if text, err = fromReply(text, what); err != nil {
+		return fmt.Errorf("poo submit %s: %w", what, err)
+	}
+	b := make([]byte, hex.DecodedLen(len(text)))
+	_, err = hex.Decode(b, text)
 	if err != nil {
 		return fmt.Errorf("poo submit %s: the %s is not hex: %w", what, what, err)
 	}
@@ -68,12 +74,17 @@ func submitCmd(args []string, out io.Writer) error {
 	}
 	ref := rpc.PoolRef{Series: s.ID(), Pool: pool}
 	if what == "entry" {
-		r, err := cl.SubmitEntry(ref, e)
+		// The hex goes to the node as it was read, now that it is known
+		// to decode: a large entry is not encoded again and copied on the
+		// way, and its decoded form is let go first (GUI ORANGE-012).
+		parent := e.Parent
+		b, e = nil, nil
+		r, err := cl.SubmitEntryHex(ref, text)
 		if err != nil {
 			// Say which entry is missing, so the person knows what to
 			// hand in first (GREEN-039).
 			if strings.Contains(err.Error(), ledger.ErrUnknownParent.Error()) {
-				return fmt.Errorf("%w: submit its parent %s first (poo build -bytes printed it on the node that made it), or let this node take the pool from a peer", err, e.Parent)
+				return fmt.Errorf("%w: submit its parent %s first (poo build -bytes printed it on the node that made it), or let this node take the pool from a peer", err, parent)
 			}
 			return err
 		}
@@ -93,16 +104,16 @@ func submitCmd(args []string, out io.Writer) error {
 // text, trimmed. One argument may be at most 128 KiB on Linux, so an
 // entry over 64 KiB is handed in through a file or standard input, as the
 // GUI hands one of any size (RED-038, D144).
-func submitHex(out io.Writer, file string, args []string, usage string) (string, error) {
+func submitHex(out io.Writer, file string, args []string, usage string) ([]byte, error) {
 	switch {
 	case file != "" && len(args) == 0:
 	case file == "" && len(args) == 1:
 		if args[0] != "-" {
-			return strings.TrimSpace(args[0]), nil
+			return []byte(strings.TrimSpace(args[0])), nil
 		}
 		file = "-"
 	default:
-		return "", errors.New(usage)
+		return nil, errors.New(usage)
 	}
 	var b []byte
 	var err error
@@ -112,7 +123,36 @@ func submitHex(out io.Writer, file string, args []string, usage string) (string,
 		b, err = os.ReadFile(file)
 	}
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return strings.TrimSpace(string(b)), nil
+	return bytes.TrimSpace(b), nil
+}
+
+// fromReply takes the hex out of a reply of poo build -bytes or poo work
+// -bytes, so one can be piped into poo submit as it is printed
+// (GREEN-040): an entry is the reply's "entry"; a layer is a work reply's
+// "layer", or a build reply's "layer"."layer". Text that is not a JSON
+// object is returned as it is.
+func fromReply(text []byte, what string) ([]byte, error) {
+	if !bytes.HasPrefix(text, []byte("{")) {
+		return text, nil
+	}
+	var r map[string]json.RawMessage
+	if err := json.Unmarshal(text, &r); err != nil {
+		return nil, fmt.Errorf("the input looks like a reply but is not JSON: %w", err)
+	}
+	var s string
+	raw, ok := r[what]
+	if ok && json.Unmarshal(raw, &s) == nil && s != "" {
+		return []byte(s), nil
+	}
+	if what == "layer" && ok {
+		var nested struct {
+			Layer string `json:"layer"`
+		}
+		if json.Unmarshal(raw, &nested) == nil && nested.Layer != "" {
+			return []byte(nested.Layer), nil
+		}
+	}
+	return nil, fmt.Errorf("the reply holds no %s bytes: make it with -bytes", what)
 }
