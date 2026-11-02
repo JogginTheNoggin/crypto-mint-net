@@ -126,7 +126,7 @@ applies the change at once without a reload (D113).
 
 - `Policy`, `Default`, `Validate`, `Load`, `Save` (atomic: its own
   temporary file per call, synced, renamed, then the directory synced, so
-  concurrent writers never tear the file; RED-013),
+  concurrent writers never tear the file; RED-013; through `fsutil.WriteFile` since D148),
   `LedgerConfig`, `TrackingConfig`, `ListenAddr`, `P2PListenAddr`
   (`p2p.FromPolicy` turns the p2p section into host settings).
 - `Accepted()` builds each listed series and applies the issuer rule,

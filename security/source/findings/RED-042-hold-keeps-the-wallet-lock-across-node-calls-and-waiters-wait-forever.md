@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `main` @ b502960 (Source Round 16 Part B) |
 | Component | pkg/wallet/wallet.go (`Hold`), pkg/wallet/lock_unix.go, pkg/cli/wallet.go |
 | Surface | local operator (CLI, GUI) |
-| Fixed by | - |
+| Fixed by | `claude/project-thread-ggo8dt` @ c2964ed (BLUE-017) |
 
 ## Summary
 
@@ -54,4 +54,11 @@ wallet tab freezes the same way.
 
 ## Resolution
 
-Open.
+Fixed (D148), points 1 and 2 in part. `status` and `receive` ask the node
+without the wallet held and hold it only to save (`status` keeps a leg
+state another command changed meanwhile). The lock is tried first
+without waiting; a command that must wait says so on its error output,
+the GUI's terminal included, then waits. No time limit: the holder is
+saving a payment's record, and giving up would leave the waiter's change
+unsaved. The send-then-save commands still hold across their node calls
+(D146). Tests: `TestHoldSaysWhenBusy`, `TestHeldWalletWaitersSayWhy`.

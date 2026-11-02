@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `main` @ b502960 (Source Round 16 Part B) |
 | Component | pkg/rpc/client.go (`SubmitEntryHex`, `doReader`), pkg/rpc/rpc.go (`readSized`) |
 | Surface | local operator (CLI to its own node, full token) |
-| Fixed by | - |
+| Fixed by | `claude/project-thread-ggo8dt` @ c2964ed (BLUE-017) |
 
 ## Summary
 
@@ -63,4 +63,8 @@ a `Content-Length`.
 
 ## Resolution
 
-Open.
+Fixed (D148). `Client.SubmitEntryHex` sets the body's `Content-Length`
+(`doReader` takes a length), so `poo submit` no longer sends a chunked
+body and the node's sizing applies. Test: `TestSubmitEntryHexSendsItsLength`,
+through the client; on b502960 it fails with "Content-Length -1, chunked
+true".

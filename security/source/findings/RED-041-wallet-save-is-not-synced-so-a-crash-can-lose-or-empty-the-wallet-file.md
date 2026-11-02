@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `main` @ b502960 (Source Round 16 Part B) |
 | Component | pkg/wallet/wallet.go (`Save`); also pkg/peers/peers.go, pkg/tracking/tracking.go |
 | Surface | local (crash, power loss, kernel panic, VM stop) |
-| Fixed by | - |
+| Fixed by | `claude/project-thread-ggo8dt` @ c2964ed (BLUE-017) |
 
 ## Summary
 
@@ -56,4 +56,7 @@ durable by default. A fixed `.tmp` name is fine under the wallet lock.
 
 ## Resolution
 
-Open.
+Fixed (D148). A shared `pkg/fsutil.WriteFile` (temporary file of its own,
+mode, `Sync`, `Close`, `Rename`, directory sync) is used by the wallet,
+the peer book, the tracker, the policy manager and `nodepolicy.Save`.
+Test: `TestWriteFile`. Not run: a real crash or power loss.

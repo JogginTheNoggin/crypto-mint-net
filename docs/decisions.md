@@ -2760,3 +2760,45 @@ a chase takes in after checking their work are not charged.
   `TestWaitingCommandKeepsAnotherChange` (pkg/cli, fails without the
   hold), `TestSubmitFromReply`, `TestEntryBodyReadOnce`, and the
   existing submit, wallet and lock tests.
+
+### D148. Round 16 fixes: RED-040, RED-041, RED-042 (BLUE-017)
+
+- **Decision:**
+  - **RED-041.** One durable writer, `fsutil.WriteFile`: a temporary
+    file of its own, the mode, `Sync`, `Close`, `Rename`, then the
+    directory synced (skipped where it cannot be, as on Windows). The
+    wallet, the peer book, the tracker, the policy manager and
+    `nodepolicy.Save` (whose own code it was, D114) all use it.
+  - **RED-040.** `rpc.Client.SubmitEntryHex` sets the body's
+    `Content-Length`, so the node sizes its buffer by it (ORANGE-025,
+    D147). ORANGE-026's change to `readSized` is on the node's side and
+    independent of this.
+  - **RED-042.**
+    - `status` and `receive` ask the node without the wallet held.
+      `status` holds it only to save the legs whose state changed, each
+      only where the file still has the state it read, so a change made
+      meanwhile (a resend) stands. `receive` holds it only to note what
+      `-tid` names.
+    - The lock is tried first without waiting. A command that must wait
+      says so on its error output (`Wallet.OnBusy`, `holdWallet`), then
+      waits.
+- **Why:** Red's Round 16 findings. RED-041: the wallet file is the one
+  record of sent payments (D146), and without syncs a crash could empty
+  it after `Save` had returned. RED-040: a chunked body made the node's
+  buffer double past the entry's need (748 against 492 MiB for a 100 MiB
+  entry, Red's measure). RED-042: a read-only `status` waited silently
+  behind a command waiting for the node.
+- **Not taken:** a time limit on the wait (RED-042's second point). The
+  holder is sending a payment and saving its record, and each of its
+  node requests is bounded by the client's timeout. Giving up would
+  leave the waiter's change unsaved, so the waiter says why it waits and
+  goes on waiting. The send-then-save commands (`pay`, `claim`, `submit`,
+  `resend`) still hold across their node calls. Their select-then-spend
+  order needs it (D146).
+- **What is left:** a `status` that has a leg to update still waits for
+  a holder to save it, and says so. Not tested: a real crash or power
+  loss, and Windows (built and vetted only).
+- **Tier:** Implementation (storage, the wallet, the CLI and the local
+  RPC client). No consensus change and no limit. Tests: `TestWriteFile`,
+  `TestSubmitEntryHexSendsItsLength` (fails on b502960),
+  `TestHoldSaysWhenBusy`, `TestHeldWalletWaitersSayWhy`.

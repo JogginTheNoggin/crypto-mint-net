@@ -24,6 +24,7 @@ together. When you change a package, update its page.
 | `pkg/engine` | [engine.md](engine.md) | Node |
 | `pkg/store` | [store.md](store.md) | Node (storage) |
 | `pkg/logging` | [logging.md](logging.md) | Node (logs) |
+| `pkg/fsutil` | [fsutil.md](fsutil.md) | Node (storage) |
 | `pkg/nodepolicy` | [nodepolicy.md](nodepolicy.md) | Node policy |
 | `pkg/node` | [node.md](node.md) | Node |
 | `pkg/wire` | [wire.md](wire.md) | Node (network) |
