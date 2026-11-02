@@ -54,3 +54,25 @@ fix belongs to Source. GUI/Blue passed it to Source through GUI/Grey.
 Once poo asks `new passphrase again:`, the GUI shows that second masked
 field unchanged, and GUI/Blue can add an e2e check that a mismatch is
 refused.
+
+## Notes — Round 15B verification (held up)
+
+- `create` and `passwd` now read a typed new passphrase through
+  `readNewSecret`. When it comes through `Stdio.Secret` (the headless
+  terminal's hidden read, or the GUI's masked field), poo asks
+  `new passphrase again:` and refuses a mismatch ("the two new passphrases
+  differ, so nothing was changed") before it seals or creates anything.
+  Piped input, `-new-passphrase-file`, `$POO_NEW_PASSPHRASE` and
+  `$POO_PASSPHRASE` are read once, as scripts expect.
+- **GUI, the second ask.** Each read that starts waiting raises
+  `State.Asks`, and the event stream sends a new `state` event when
+  `Asks` changes. So the form shows its field again for the second
+  prompt, even when the stream never saw `waiting` go false in between.
+- **Masking order.** `readSecret` sets `Secret` before its read starts
+  waiting, and clears it only after the read has returned. A plain read
+  that follows starts waiting only after that. No state the stream can
+  read pairs a waiting secret prompt with `secret: false`, or a plain
+  prompt with a stale `secret: true`.
+- `gui/e2e/terminal.mjs`, `views.mjs` and `viewonly.mjs` pass locally on
+  55cf745. They cover two different answers being refused, two matching
+  ones making the wallet, and neither passphrase being echoed.

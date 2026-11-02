@@ -174,3 +174,10 @@ Source, so the GUI and headless are fixed together:
   `#/watch`, `#/work` and `#/wallet`.
 - **GUI-016 wording (Blue #51), safe.** A full stop is added, and "current"
   is claimed only when `reload()` returned exit 0.
+
+## Notes — Round 15B
+
+- The Windows residual is unchanged: `pkg/nodepolicy/lock_other.go` is
+  still a no-op. The wallet now locks on Windows with `LockFileEx`
+  (`pkg/wallet/lock_windows.go`, D145). The same code on the data
+  directory's `LOCK` would close this residual.
