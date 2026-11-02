@@ -81,10 +81,18 @@ go build -o poo ./cmd/poo
 ./poo node               # in another terminal: ./poo status
 ```
 
+The GUI, `poo-gui`, is the same tool with a visual layer and a built-in
+terminal; every click runs a `poo` command ([docs/gui.md](docs/gui.md)):
+
+```sh
+cd gui && go run ./cmd/poo-gui   # opens the GUI in your browser
+```
+
 ## Repository layout
 
 | Path | What it holds |
 | --- | --- |
+| `gui/` | `poo-gui`: a separate module that runs `pkg/cli` behind a local web page, with a terminal ([docs/gui.md](docs/gui.md)) |
 | `pkg/cli`, `cmd/poo` | The `poo` command (node daemon, client commands, in-process demo) as a library, and the few lines of process around it |
 | `pkg/encoding` | The canonical byte form every hash is computed over |
 | `pkg/hash` | 32-byte hashes, the hash number list, domain tags, strength |

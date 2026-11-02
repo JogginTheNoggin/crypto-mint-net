@@ -30,6 +30,12 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build ./...
       - name: test
         run: go test -race -count=1 ./...
+      - name: gui
+        run: |
+          go -C gui vet ./...
+          go -C gui test -race -count=1 ./...
+          GOOS=windows GOARCH=amd64 go -C gui build ./...
+          GOOS=darwin GOARCH=arm64 go -C gui build ./...
       - name: heavier ledger, large items and long runs
         # The P0 tests of docs/consensus-audit.md with an entry over 16 MiB
         # and a 100,000-entry run without layers under the default budgets
@@ -41,3 +47,29 @@ jobs:
         run: FUZZTIME=5s ./scripts/fuzz.sh
       - name: release build
         run: DIST="$RUNNER_TEMP/dist" ./scripts/release.sh 0.0.0-ci
+
+  gui-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: browser
+        run: |
+          cd "$RUNNER_TEMP" && npm init -y >/dev/null && npm install playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: end to end
+        run: |
+          go -C gui build -o "$RUNNER_TEMP/poo-gui" ./cmd/poo-gui
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/terminal.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/views.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/qol.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/watch.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/viewonly.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/bounds.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/work.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/streams.mjs "$RUNNER_TEMP/poo-gui"
