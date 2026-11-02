@@ -152,7 +152,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if file == "" && fs.NArg() == 1 {
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 || file == "" {
-		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-policy NAME | -dir DIR]")
+		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-if-digest D] [-policy NAME | -dir DIR]")
 	}
 	if *apply && viewOnlyOf(out) {
 		return errViewOnly("policy import -apply")
@@ -267,14 +267,19 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if *asJSON {
 		return writeJSON(out, results)
 	}
-	fmt.Fprintf(out, "file digest %s (-if-digest applies only this file)\n", b.Digest)
+	changes := slices.ContainsFunc(results, func(r importResult) bool { return !r.Plan.Empty() })
+	if !*apply && changes {
+		// Only a preview with something to apply needs the digest: it is
+		// what -apply -if-digest checks (GREEN-043).
+		fmt.Fprintf(out, "file digest %s (-if-digest applies only this file)\n", b.Digest)
+	}
 	if b.HasSettings() {
 		fmt.Fprintln(out, "note: the file also holds settings; this version imports node policies only")
 	}
 	for _, r := range results {
 		printPlan(out, r, *apply)
 	}
-	if !*apply && slices.ContainsFunc(results, func(r importResult) bool { return !r.Plan.Empty() }) {
+	if !*apply && changes {
 		fmt.Fprintln(out, "dry run: nothing was changed; add -apply to make this change")
 	}
 	return nil
@@ -384,7 +389,7 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		return s
 	}
 	if len(p.Defences) > 0 {
-		fmt.Fprintf(out, "  read first: these change a defence of this node or where it reaches out: %s\n", listSome(p.Defences, 20))
+		fmt.Fprintf(out, "  read first: these change a defence of this node or where it reaches out: %s\n", listSome(planFields(p.Defences, short), 20))
 	}
 	for _, c := range p.Added {
 		fmt.Fprintf(out, "  + %s\n", planLine(c.Field, c.File, short))
@@ -406,13 +411,17 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		fmt.Fprintf(out, "  skipped, machine-local (-full takes them): %s\n", strings.Join(p.Skipped, ", "))
 	}
 	if len(p.SkippedSettings) > 0 {
-		fmt.Fprintf(out, "  skipped, node settings (-settings takes them): %s\n", listSome(p.SkippedSettings, 20))
+		fmt.Fprintf(out, "  skipped, node settings (-settings takes them): %s\n", listSome(planFields(p.SkippedSettings, short), 20))
 	}
 	for _, s := range p.Refused {
 		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", s)
 	}
 	if p.Same > 0 {
-		fmt.Fprintf(out, "  %d of the file's settings are already the same\n", p.Same)
+		verb := "are"
+		if p.Same == 1 {
+			verb = "is"
+		}
+		fmt.Fprintf(out, "  %d of the file's settings %s already the same\n", p.Same, verb)
 	}
 	switch {
 	case p.Empty():
@@ -428,6 +437,16 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 	if r.Current {
 		fmt.Fprintln(out, "  made current")
 	}
+}
+
+// planFields writes each of a plan's field names as its lines do, an
+// item of a list as "p2p.peers: a.example:1" (GREEN-043).
+func planFields(fields []string, short func(string) string) []string {
+	out := make([]string, len(fields))
+	for i, f := range fields {
+		out[i] = planLine(f, "", short)
+	}
+	return out
 }
 
 // listSome joins the first n of list, and says how many more there are
