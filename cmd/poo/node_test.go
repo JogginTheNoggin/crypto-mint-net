@@ -49,7 +49,7 @@ func cli(t *testing.T, v any, args ...string) {
 func TestNodeEndToEnd(t *testing.T) {
 	root := t.TempDir()
 	r := []string{"-root", root}
-	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0"}, r...)...)
+	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "127.0.0.1:0"}, r...)...)
 	dir := root + "/policies/default"
 	stop := startNode(t, dir)
 
@@ -172,5 +172,62 @@ func TestPolicyCommands(t *testing.T) {
 		if err := run(args, &out); err == nil {
 			t.Errorf("poo %v succeeded", args)
 		}
+	}
+}
+
+// Two nodes run by the command: the second lists the first as a peer and
+// receives what the first builds.
+func TestTwoNodes(t *testing.T) {
+	root := t.TempDir()
+	one := []string{"-root", root, "-policy", "one"}
+	two := []string{"-root", root, "-policy", "two"}
+	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "127.0.0.1:0"}, one...)...)
+	defer startNode(t, root+"/policies/one")()
+	var peers struct {
+		NodeID string `json:"node_id"`
+		Listen string
+		Peers  []struct{ ID string }
+	}
+	cli(t, &peers, append([]string{"peers"}, one...)...)
+	if peers.Listen == "" || len(peers.Peers) != 0 {
+		t.Fatalf("peers of one: %+v", peers)
+	}
+	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "off", "-peer", peers.Listen}, two...)...)
+	defer startNode(t, root+"/policies/two")()
+	firstID := peers.NodeID
+	waitFor(t, func() bool {
+		cli(t, &peers, append([]string{"peers"}, two...)...)
+		return len(peers.Peers) == 1 && peers.Peers[0].ID == firstID
+	})
+
+	alice := strings.Repeat("a1", 32)
+	cli(t, nil, append([]string{"claim", "-seed", alice, "-serial", "5"}, one...)...)
+	cli(t, nil, append([]string{"build", "-pool", "1", "-work", "4000"}, one...)...)
+	type status struct {
+		Pools []struct {
+			Tip    string
+			Height int
+			Weight string
+		}
+	}
+	var s1, s2 status
+	cli(t, &s1, append([]string{"status"}, one...)...)
+	waitFor(t, func() bool {
+		cli(t, &s2, append([]string{"status"}, two...)...)
+		return s2.Pools[1] == s1.Pools[1]
+	})
+	if s2.Pools[1].Height != 1 {
+		t.Fatalf("two: %+v", s2.Pools[1])
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

@@ -2,8 +2,8 @@
 
 ## Summary
 
-The command-line tool. `poo node` runs the full node daemon with its store
-and local RPC; client commands talk to it; `poo policy` manages node
+The command-line tool. `poo node` runs the full node daemon with its store,
+its peer connections and local RPC; client commands talk to it; `poo policy` manages node
 policies; offline commands make keys, inspect series and run an in-process
 demo. `claim` and `pay` sign with a single raw key and exist so a node can
 be exercised end to end; the wallet comes in milestone 6. See
@@ -13,8 +13,9 @@ be exercised end to end; the wallet comes in milestone 6. See
 
 | Command | Does |
 | --- | --- |
-| `poo init [-example] [-series FILE]... [-listen ADDR] [-force]` | Writes a node policy that knows and follows the given series, and makes it current |
+| `poo init [-example] [-series FILE]... [-listen ADDR] [-p2p ADDR] [-peer ADDR]... [-force]` | Writes a node policy that knows and follows the given series, and makes it current |
 | `poo node` | Runs the node until interrupted |
+| `poo peers` | The node's id, its p2p address and its connected peers |
 | `poo status` | Every followed pool |
 | `poo claim -seed HEX -serial N` | Claims a whole mint for the key's 1-of-1 address |
 | `poo pay -seed HEX -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |
@@ -39,4 +40,5 @@ node follows more than one series.
 `main.go` dispatches through `run(args, out)` so tests can call it
 directly; `node.go` holds the daemon, client and policy commands;
 `demo.go` holds the demo. `node_test.go` runs a daemon in-process and drives
-it only through the commands, across a restart.
+it only through the commands, across a restart; `TestTwoNodes` runs two
+daemons where the second lists the first as a peer.

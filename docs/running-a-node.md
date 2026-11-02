@@ -4,8 +4,8 @@
 
 How to run the full node today: write a node policy, start the daemon, and
 use the local commands to claim a mint, pay, build an entry, add work and
-check a payment, then restart and see everything come back from disk. The
-node does not talk to peers yet (milestone 3), so this is a single node.
+check a payment, then restart and see everything come back from disk, and
+then connect a second node and watch what you do on one reach the other.
 Keys made with `poo keygen` are raw seeds printed on screen; use them only
 for testing, never for anything of value.
 
@@ -35,8 +35,8 @@ only some pools or mints, or to change K and the other limits; see
 ./poo node
 ```
 
-It prints how many pools it follows and what it replayed, and listens on
-`127.0.0.1:8645`. Leave it running and use another terminal. Stop it with
+It prints how many pools it follows and what it replayed, and listens for
+peers on port 8646 and for local commands on `127.0.0.1:8645`. Leave it running and use another terminal. Stop it with
 Ctrl-C; it compacts its stores and exits.
 
 ## 4. Claim, pay and settle
@@ -66,6 +66,28 @@ weights, and the replay line reports how many records it read back. Every
 record is checked again on the way in; a file damaged by a crash loses at
 most its last record.
 
+## 6. A second node
+
+Give the second node its own policy, its own RPC port, and the first node
+as a peer:
+
+```sh
+./poo init -policy second -example -listen 127.0.0.1:8655 -p2p off -peer 127.0.0.1:8646
+./poo node -policy second            # in a third terminal
+./poo peers -policy second           # the first node, connected
+```
+
+`init` makes the new policy current, so give the first node's commands
+`-policy default` from now on. On connecting, the second node asks the first for its whole ledger of each
+pool. From then on, whatever either node keeps is forwarded to the other:
+claim, pay and build on the first node and `./poo status -policy second`
+shows the same tips and weights a moment later. To let the first node dial
+the second as well, or to connect nodes on different machines, give each a
+`-p2p` address the other can reach and list it with `-peer`, or edit the
+`p2p` section of `node.json` (see
+[modules/nodepolicy.md](modules/nodepolicy.md)). Nodes find each other only
+through these lists until peer discovery (milestone 4).
+
 ## Node policies
 
 ```sh
@@ -86,6 +108,12 @@ node holds a lock on its directory.
 - The RPC listens on loopback only. Every call needs the token in
   `rpc.token` in the data directory, readable only by your user. Anyone who
   can read that file controls the node.
+- The p2p port (8646) listens on every interface by default, because peers
+  are on other machines. It accepts only protocol messages, and every item
+  is checked before it is kept; nothing it receives can change the node's
+  settings. Set `p2p.listen` to `"off"` to accept no connections (the node
+  still dials its listed peers). Connections are not encrypted (decision
+  D30).
 - `poo claim` and `poo pay` take a raw seed on the command line, which your
   shell may save in its history. They are developer tools until the wallet
   (milestone 6).

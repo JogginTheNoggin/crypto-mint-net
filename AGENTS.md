@@ -26,7 +26,8 @@ a byte form without updating the test vectors on purpose.
 - Do not import anything outside the Go standard library without recording
   the reason in `docs/decisions.md`.
 - Do not add network, disk or clock access to `tx`, `entry`, `layer`,
-  `state`, `ledger` or `engine`. Disk belongs to `store` and `node`.
+  `state`, `ledger` or `engine`. Disk belongs to `store` and `node`; the
+  network belongs to `wire` and `p2p`.
   Consensus reads no clock; the ledger records first-seen times only
   through an injected clock that selection never reads.
 - `go test ./pkg/vectors` failing means you changed an encoding or a hash.
@@ -37,6 +38,8 @@ a byte form without updating the test vectors on purpose.
 - Keep node policy in configuration with documented, provisional defaults.
   The design leaves most default values open until tests show what works.
 - Use the design's terms. Do not rename concepts.
+- `pkg/p2p` must never hold its own lock while calling the node, and
+  node observers must never block: the lock order is node, engine, host.
 - Never make the repository public or change its visibility; that is the
   owner's decision.
 
@@ -52,6 +55,8 @@ a byte form without updating the test vectors on purpose.
 | How items are kept on disk | `pkg/store` (format), `pkg/node` (when and what) |
 | A node policy setting | `pkg/nodepolicy` (an optional field with a documented default) |
 | A local control endpoint | `pkg/rpc` (handler, client method, test) |
+| A message between full nodes | `pkg/wire` (byte form, never reuse a type number), `docs/protocol/wire.md` |
+| What a node sends, serves or asks peers | `pkg/p2p` (test it with nodes over loopback TCP) |
 | A new policy type or key algorithm | `pkg/policy` (register it; never reuse a number) |
 | A new series setting | `pkg/series` (changes the byte form and so the vectors) |
 | The command-line tool | `cmd/poo` |

@@ -25,6 +25,8 @@ together. When you change a package, update its page.
 | `pkg/store` | [store.md](store.md) | Node (storage) |
 | `pkg/nodepolicy` | [nodepolicy.md](nodepolicy.md) | Node policy |
 | `pkg/node` | [node.md](node.md) | Node |
+| `pkg/wire` | [wire.md](wire.md) | Node (network) |
+| `pkg/p2p` | [p2p.md](p2p.md) | Node (network) |
 | `pkg/rpc` | [rpc.md](rpc.md) | Node (local control) |
 | `pkg/vectors`, `pkg/testutil` | [vectors-and-testutil.md](vectors-and-testutil.md) | Tooling |
 | `cmd/poo` | [poo.md](poo.md) | Tooling |

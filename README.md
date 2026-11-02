@@ -15,8 +15,10 @@ heaviest-ledger selection and switching, pending transactions, and a
 transport-independent full-node engine. Milestone 2 adds the node daemon:
 a crash-safe store per pool that is replayed and checked again on start-up,
 node policy files with save, archive and delete, and a local RPC with
-command-line clients. Networking and peer management come in later
-milestones ([roadmap](docs/roadmap.md)). Every design decision and every place this code
+command-line clients. Milestone 3 connects nodes: a wire protocol over TCP
+that forwards what each node keeps, answers ledger data requests, and lets
+a node catch up with a heavier ledger. Peer discovery and peer management
+come next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
 departs from the design documents is recorded in
 [docs/decisions.md](docs/decisions.md).
 
@@ -86,6 +88,8 @@ go build -o poo ./cmd/poo
 | `pkg/store` | The append-only, checksummed log of one pool |
 | `pkg/nodepolicy` | The node policy file and saved/archived node policies |
 | `pkg/node` | The engine with a data directory and a store per pool |
+| `pkg/wire` | The byte form of messages between full nodes |
+| `pkg/p2p` | Peer connections: forwarding, ledger data requests, catch-up |
 | `pkg/rpc` | The local control interface (JSON over HTTP, loopback, token) |
 | `pkg/vectors` | Published test vectors for independent implementations |
 | `pkg/testutil` | Deterministic keys and builders for tests and the demo |
@@ -98,15 +102,17 @@ go build -o poo ./cmd/poo
 - [Roadmap](docs/roadmap.md): milestones from here to an open release.
 - [Decisions](docs/decisions.md): design decisions and deviations from the design documents.
 - [Byte formats](docs/protocol/encoding.md): exact encodings and test vectors.
+- [Wire protocol](docs/protocol/wire.md): messages between full nodes.
 - [Glossary](docs/glossary.md): the terms used throughout.
 - [Module guides](docs/modules/README.md): one page per package.
 - [Contributing](CONTRIBUTING.md) and [notes for AI agents](AGENTS.md).
 
 ## Status
 
-Pre-release. The consensus core and a single node with storage and a local
-RPC are implemented and tested; the node does not yet talk to other nodes
-over a network. Do not use it
+Pre-release. The consensus core, a node with storage and a local RPC, and
+the wire protocol between full nodes (forwarding, ledger data requests and
+catch-up with the peers a node is told about) are implemented and tested.
+Nodes do not yet discover peers by themselves. Do not use it
 with anything of value. Keys made by the test helpers are derived from public
 labels and must never hold real funds.
 

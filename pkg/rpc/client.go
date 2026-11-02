@@ -85,6 +85,12 @@ func (c *Client) Status() (StatusReply, error) {
 	return r, c.do("GET", "/v1/status", nil, &r)
 }
 
+// Peers returns the node's connected peers.
+func (c *Client) Peers() (PeersReply, error) {
+	var r PeersReply
+	return r, c.do("GET", "/v1/peers", nil, &r)
+}
+
 // Series returns the known series that are followed.
 func (c *Client) Series() ([]SeriesInfo, error) {
 	var r []SeriesInfo

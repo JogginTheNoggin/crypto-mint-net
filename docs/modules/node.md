@@ -7,7 +7,8 @@ accepted series known, applies the follow rules, and replays each followed
 pool's store through the engine. After that, every item the engine keeps is
 appended to its pool's store before the call returns. Logs are compacted on
 start-up and on close when most records are dead (decision D23). This is
-the layer a transport (milestone 3) and the RPC build on.
+the layer the p2p host and the RPC build on. Observers hear of every item
+the node keeps, which is how the host forwards.
 
 ## Data directory
 
@@ -27,6 +28,12 @@ again picks up its history.
 - `HandleTx`, `HandleEntry`, `HandleLayer`, `Build`, `Work`: the engine's
   calls, plus storing what is kept. Calls are serialized so each log is in
   the order the engine accepted items.
+- `HandleTxFrom`, `HandleEntryFrom`, `HandleLayerFrom`: the same, naming
+  the peer that sent the item.
+- `Observe(f)`: f receives an `Event{Key, Tx|Entry|Layer, Origin, From,
+  Forward, Switch, Weight}` for every item kept from then on, after it is
+  stored, in order. It runs under the node's lock: it must not block or
+  call the node.
 - `Engine()` for reads (changes made directly on the engine are not
   stored), `Policy`, `Dir`, `Replayed` (`ReplayStats`), `Stores`,
   `Compact(key)`.
@@ -37,4 +44,5 @@ again picks up its history.
 `node_test.go`: restart restores tip, weight, branches, holdings and
 pending; compaction (explicit and automatic) keeps state; a torn write is
 cut; a record edited on disk is refused on replay; a second node on the
-same directory is refused; follow rules and unaccepted series.
+same directory is refused; follow rules and unaccepted series. Events are
+exercised by the p2p tests.

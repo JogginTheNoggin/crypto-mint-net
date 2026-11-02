@@ -39,6 +39,14 @@ func TestValidate(t *testing.T) {
 		{"rpc remote", func(p *nodepolicy.Policy) { p.RPC.Listen = "0.0.0.0:9000" }, false},
 		{"rpc remote allowed", func(p *nodepolicy.Policy) { p.RPC.Listen, p.RPC.AllowRemote = "0.0.0.0:9000", true }, true},
 		{"rpc bad address", func(p *nodepolicy.Policy) { p.RPC.Listen = "nonsense" }, false},
+		{"p2p off", func(p *nodepolicy.Policy) { p.P2P.Listen = "off" }, true},
+		{"p2p remote", func(p *nodepolicy.Policy) { p.P2P.Listen = "0.0.0.0:7000" }, true},
+		{"p2p bad address", func(p *nodepolicy.Policy) { p.P2P.Listen = "nonsense" }, false},
+		{"p2p peers", func(p *nodepolicy.Policy) { p.P2P.Peers = []string{"example.org:8646", "[::1]:1"} }, true},
+		{"p2p bad peer", func(p *nodepolicy.Policy) { p.P2P.Peers = []string{"example.org"} }, false},
+		{"p2p negative", func(p *nodepolicy.Policy) { p.P2P.MaxPeers = -1 }, false},
+		{"p2p never check", func(p *nodepolicy.Policy) { p.P2P.CheckSeconds = -1 }, true},
+		{"p2p check too low", func(p *nodepolicy.Policy) { p.P2P.CheckSeconds = -2 }, false},
 	}
 	for _, c := range cases {
 		p := nodepolicy.Default()
@@ -68,6 +76,17 @@ func TestSettings(t *testing.T) {
 	p.RPC.Listen = "off"
 	if p.ListenAddr() != "" {
 		t.Fatal(p.ListenAddr())
+	}
+	if p.P2PListenAddr() != nodepolicy.DefaultP2PListen {
+		t.Fatal(p.P2PListenAddr())
+	}
+	p.P2P.Listen = "off"
+	if p.P2PListenAddr() != "" {
+		t.Fatal(p.P2PListenAddr())
+	}
+	p.P2P.Listen = "127.0.0.1:1"
+	if p.P2PListenAddr() != "127.0.0.1:1" {
+		t.Fatal(p.P2PListenAddr())
 	}
 }
 

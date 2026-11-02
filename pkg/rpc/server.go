@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 )
 
 // Serve runs the interface for n on the node policy's listen address until
@@ -17,6 +18,12 @@ import (
 // listens on to rpc.addr (removed again on return). ready, if not nil, is
 // called with that address once the server accepts connections.
 func Serve(ctx context.Context, n *node.Node, ready func(addr string)) error {
+	return ServeHost(ctx, n, nil, ready)
+}
+
+// ServeHost is Serve for a node that also runs a p2p host, which the
+// interface reports on.
+func ServeHost(ctx context.Context, n *node.Node, host *p2p.Host, ready func(addr string)) error {
 	addr := n.Policy().ListenAddr()
 	if addr == "" {
 		<-ctx.Done()
@@ -36,8 +43,10 @@ func Serve(ctx context.Context, n *node.Node, ready func(addr string)) error {
 		return err
 	}
 	defer os.Remove(addrPath)
+	handler := NewHandler(n, tok)
+	handler.SetHost(host)
 	srv := &http.Server{
-		Handler:           NewHandler(n, tok),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       60 * time.Second,

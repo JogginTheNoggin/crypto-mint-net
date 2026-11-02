@@ -34,6 +34,8 @@ form layers, and a package only imports packages below it:
 ```
 cmd/poo
   rpc
+    p2p
+      wire
     node
       engine    store    nodepolicy
     ledger      mempool
@@ -46,7 +48,8 @@ cmd/poo
 Keep it that way. A new feature usually belongs in a new package rather than
 in a larger existing one. Network and storage code must never be imported by
 the consensus packages (`tx`, `entry`, `layer`, `state`, `ledger`) or by the
-engine; the engine is the boundary, and `node` is where storage meets it.
+engine; the engine is the boundary, `node` is where storage meets it, and
+`p2p` is where the network meets the node.
 
 ## Where a rule belongs
 

@@ -38,6 +38,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/store"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
 
 // ErrClosed is returned by calls on a closed node.
@@ -72,6 +73,8 @@ type Node struct {
 	unlock func()
 	closed bool
 	replay ReplayStats
+
+	observers []func(Event)
 }
 
 // ReplayStats reports what Open read back from the stores.
@@ -322,8 +325,53 @@ func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte) error {
 	return nil
 }
 
+// Event reports an item the node kept, after it is stored. Exactly one of
+// Tx, Entry and Layer is set.
+type Event struct {
+	Key    engine.PoolKey
+	Tx     *tx.Tx
+	Entry  *entry.Entry
+	Layer  *layer.Layer
+	Origin engine.Origin
+	// From names the peer that sent the item, or is empty.
+	From string
+	// Forward is the engine's answer: whether the item must be passed on.
+	Forward bool
+	// Switch is set when the item changed the selected ledger.
+	Switch *ledger.Switch
+	// Weight is the selected ledger's weight after the item: the node's
+	// stated weight for the pool.
+	Weight weight.Weight
+}
+
+// Observe registers f to receive an Event for every item the node keeps
+// from now on, in the order they were kept. f runs while the node's lock
+// is held: it must return quickly and must not call the node.
+func (n *Node) Observe(f func(Event)) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.observers = append(n.observers, f)
+}
+
+func (n *Node) emit(ev Event) {
+	if len(n.observers) == 0 {
+		return
+	}
+	if st, err := n.eng.Status(ev.Key); err == nil {
+		ev.Weight = st.Weight
+	}
+	for _, f := range n.observers {
+		f(ev)
+	}
+}
+
 // HandleTx takes in a transaction and stores it if the engine keeps it.
 func (n *Node) HandleTx(t *tx.Tx, origin engine.Origin) (engine.TxResult, error) {
+	return n.HandleTxFrom(t, origin, "")
+}
+
+// HandleTxFrom is HandleTx for an item sent by the named peer.
+func (n *Node) HandleTxFrom(t *tx.Tx, origin engine.Origin, from string) (engine.TxResult, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {
@@ -333,11 +381,20 @@ func (n *Node) HandleTx(t *tx.Tx, origin engine.Origin) (engine.TxResult, error)
 	if err != nil {
 		return res, err
 	}
-	return res, n.record(res.Key, store.KindTx, t.Encode())
+	if err := n.record(res.Key, store.KindTx, t.Encode()); err != nil {
+		return res, err
+	}
+	n.emit(Event{Key: res.Key, Tx: t, Origin: origin, From: from, Forward: res.Forward})
+	return res, nil
 }
 
 // HandleEntry takes in an entry of pool k and stores it if kept.
 func (n *Node) HandleEntry(k engine.PoolKey, e *entry.Entry, origin engine.Origin) (engine.EntryResult, error) {
+	return n.HandleEntryFrom(k, e, origin, "")
+}
+
+// HandleEntryFrom is HandleEntry for an item sent by the named peer.
+func (n *Node) HandleEntryFrom(k engine.PoolKey, e *entry.Entry, origin engine.Origin, from string) (engine.EntryResult, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {
@@ -347,11 +404,20 @@ func (n *Node) HandleEntry(k engine.PoolKey, e *entry.Entry, origin engine.Origi
 	if err != nil {
 		return res, err
 	}
-	return res, n.record(k, store.KindEntry, e.Encode())
+	if err := n.record(k, store.KindEntry, e.Encode()); err != nil {
+		return res, err
+	}
+	n.emit(Event{Key: k, Entry: e, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch})
+	return res, nil
 }
 
 // HandleLayer takes in a layer of pool k and stores it if kept.
 func (n *Node) HandleLayer(k engine.PoolKey, l layer.Layer, origin engine.Origin) (engine.LayerResult, error) {
+	return n.HandleLayerFrom(k, l, origin, "")
+}
+
+// HandleLayerFrom is HandleLayer for an item sent by the named peer.
+func (n *Node) HandleLayerFrom(k engine.PoolKey, l layer.Layer, origin engine.Origin, from string) (engine.LayerResult, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {
@@ -361,7 +427,11 @@ func (n *Node) HandleLayer(k engine.PoolKey, l layer.Layer, origin engine.Origin
 	if err != nil {
 		return res, err
 	}
-	return res, n.record(k, store.KindLayer, l.Encode())
+	if err := n.record(k, store.KindLayer, l.Encode()); err != nil {
+		return res, err
+	}
+	n.emit(Event{Key: k, Layer: &l, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch})
+	return res, nil
 }
 
 // Build makes an entry from the pending transactions of pool k (see
@@ -376,7 +446,11 @@ func (n *Node) Build(k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.En
 	if err != nil {
 		return e, res, err
 	}
-	return e, res, n.record(k, store.KindEntry, e.Encode())
+	if err := n.record(k, store.KindEntry, e.Encode()); err != nil {
+		return e, res, err
+	}
+	n.emit(Event{Key: k, Entry: e, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch})
+	return e, res, nil
 }
 
 // Work grinds a layer on an entry of pool k (see engine.Engine.Work) and
@@ -391,7 +465,11 @@ func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) 
 	if err != nil {
 		return l, res, err
 	}
-	return l, res, n.record(k, store.KindLayer, l.Encode())
+	if err := n.record(k, store.KindLayer, l.Encode()); err != nil {
+		return l, res, err
+	}
+	n.emit(Event{Key: k, Layer: &l, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch})
+	return l, res, nil
 }
 
 // Engine returns the engine, for reading. Changes must go through the

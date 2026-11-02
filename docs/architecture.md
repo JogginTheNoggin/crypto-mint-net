@@ -11,9 +11,11 @@ disk and no network, so the same inputs always give the same selected ledger.
 entries, layers) from any transport, says whether to forward them, and
 reports what changed. `pkg/node` wraps it with a data directory: the node
 policy and a store per pool, replayed through the engine on start-up so
-nothing on disk is trusted. `pkg/rpc` gives the owner local control. The wire
-protocol and peer management (milestones 3 to 5) will sit around the node
-and must not leak into the packages below the engine.
+nothing on disk is trusted. `pkg/p2p` connects nodes over the wire protocol
+of `pkg/wire`: it hands what peers send to the node and forwards what the
+node keeps, and it never decides validity. `pkg/rpc` gives the owner local
+control. Peer discovery and management (milestones 4 and 5) will sit in
+`pkg/p2p` and must not leak into the packages below the engine.
 
 ## Package layers
 
@@ -21,7 +23,17 @@ and must not leak into the packages below the engine.
 graph TD
   cmd[cmd/poo] --> rpc
   cmd --> node
+  cmd --> p2p
   rpc --> node
+  rpc --> p2p
+  p2p --> node
+  p2p --> wire
+  p2p --> engine
+  p2p --> ledger
+  p2p --> nodepolicy
+  wire --> entry
+  wire --> layer
+  wire --> tx
   node --> engine
   node --> store
   node --> nodepolicy
@@ -58,6 +70,7 @@ project. Every package above `policy` also imports `hash`, and most import
 | Consensus tier | `tx`, `entry`, `layer`, `state`, `ledger` | Validity, weight, selection, switching |
 | Node policy | `mempool`, `engine` (and their `Config`), `nodepolicy` | What to keep, follow and forward |
 | Node | `store`, `node`, `rpc` | Disk, the data directory, local control |
+| Network | `wire`, `p2p` | Messages between full nodes, peers, forwarding, catch-up |
 | Tools | `cmd/poo`, `vectors`, `testutil` | CLI, demo, published vectors, test helpers |
 
 ## The three tiers
@@ -85,7 +98,7 @@ same for every series?
 
 ```mermaid
 sequenceDiagram
-  participant T as Transport (later milestones)
+  participant T as Transport (p2p, rpc, store replay)
   participant E as engine.Engine
   participant M as mempool.Pool
   participant L as ledger.Pool
@@ -140,9 +153,11 @@ fork point, through an overlay on the current state.
   kept entry, layer and pending transaction to the pool's log and feeds
   them back through the `Handle*` calls, as `Stored`, on start-up.
   Consensus packages stay in memory and unaware of disk.
-- **Wire protocol and forwarding (M3)** turn bytes into items, call the
-  node with `Pushed` or `Requested` and forward what the engine says to
-  forward. Serving ledger data reads the engine through `Engine.Ledger`.
+- **Wire protocol and forwarding (M3, done)**: `pkg/p2p` turns bytes into
+  items with `pkg/wire`, calls the node with `Pushed` or `Requested` and
+  the sending peer, and forwards what the node reports through its
+  observers when the engine says to forward. Serving ledger data reads the
+  engine through `Engine.Ledger`. See [modules/p2p.md](modules/p2p.md).
 - **Peers (M4, M5)** decide who to talk to. They never change validity.
 
 See [roadmap.md](roadmap.md) for the milestones and
