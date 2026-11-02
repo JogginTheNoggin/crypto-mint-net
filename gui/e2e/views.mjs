@@ -91,6 +91,17 @@ try {
   const build = section('Build an entry');
   await build.locator('label', { hasText: 'Also print the hex' }).locator('input').check();
   assert.match(await build.locator('.cmd code').innerText(), / -bytes$/);
+  // Build and Add a layer take poo grind's device, threads and for, and a
+  // serial in place of a pool (GUI-GREEN-041).
+  await build.locator('input[name=serial]').fill('5');
+  await build.locator('input[name=device]').fill('cpu');
+  await build.locator('input[name=threads]').fill('2');
+  await build.locator('input[name=for]').fill('5s');
+  assert.equal(await build.locator('.cmd code').innerText(), `poo build -root ${home} -serial 5 -device cpu -threads 2 -for 5s -bytes`);
+  const layer = section('Add a layer');
+  await layer.locator('input[name=start]').fill('7');
+  await layer.locator('input[name=device]').fill('cpu');
+  assert.equal(await layer.locator('.cmd code').innerText(), `poo work -root ${home} -device cpu -start 7`);
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.

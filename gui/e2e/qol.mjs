@@ -170,6 +170,14 @@ try {
   const bal = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Balance' }) });
   assert.equal(await bal.locator('.cmd code').innerText(), 'poo wallet balance -wallet w2.json');
   assert.equal(await page.locator('section.panel label', { hasText: 'Wallet file' }).count(), 1, 'one wallet field');
+  // One series for the whole view too, on every wallet command (GUI-GREEN-041).
+  await page.fill('.wallet-pick input[name=wallet-series]', 'ab12');
+  assert.equal(await bal.locator('.cmd code').innerText(), 'poo wallet balance -wallet w2.json -series ab12');
+  const recv = page.locator('section.panel', { has: page.locator('h2', { hasText: 'What has arrived' }) });
+  await recv.locator('input[name=tid]').fill('aa bb');
+  await recv.locator('input[name=tidSerial]').fill('3 5');
+  assert.equal(await recv.locator('.cmd code').innerText(), 'poo wallet receive -wallet w2.json -series ab12 -serial 3 -serial 5 -tid aa -tid bb');
+  await page.fill('.wallet-pick input[name=wallet-series]', '');
   // Every poo wallet command has a form (GREEN-039), so a shared payment
   // Pay starts can be co-signed and submitted here too.
   const wsec = t => page.locator('section.panel', { has: page.locator('h2', { hasText: t }) }).first();
