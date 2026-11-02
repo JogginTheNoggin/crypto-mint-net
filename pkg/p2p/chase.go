@@ -1615,6 +1615,12 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			return wire.EntryItem{}, errPartsSpace
 		}
 		asked = true
+		// A probe throws a whole reply away, every part of it: a reply
+		// holds up to partsReply bytes in many chunks, each following the
+		// last, and none of them is written once one was thrown away
+		// (ORANGE-023).
+		probing = false
+		want := pt.off
 		start := time.Now()
 		q := wire.PartsReq{RequestCommon: h.common(), Entry: l.Entry, Variant: wire.EntriesWithLayers, Offset: pt.off}
 		var kind wire.Type
@@ -1628,16 +1634,20 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			if err != nil {
 				return err
 			}
-			if part.Total != l.Size || part.Offset != pt.off || len(part.Data) == 0 || uint64(len(part.Data)) > l.Size-pt.off {
-				return falseErr{err: fmt.Errorf("part %d+%d of %d for entry %s, want %d of %d", part.Offset, len(part.Data), part.Total, l.Entry.Short(), pt.off, l.Size)}
+			if part.Total != l.Size || part.Offset != want || len(part.Data) == 0 || uint64(len(part.Data)) > l.Size-want {
+				return falseErr{err: fmt.Errorf("part %d+%d of %d for entry %s, want %d of %d", part.Offset, len(part.Data), part.Total, l.Entry.Short(), want, l.Size)}
 			}
-			if pt.off == 0 && (len(part.Data) < len(parent) || !bytes.Equal(part.Data[:len(parent)], parent[:])) {
+			if want == 0 && (len(part.Data) < len(parent) || !bytes.Equal(part.Data[:len(parent)], parent[:])) {
 				// An entry item starts with its parent: this one is not
 				// the next entry of the reply (RED-016).
 				return falseErr{err: fmt.Errorf("the parts of entry %s do not start with its parent %s", l.Entry.Short(), parent.Short())}
 			}
 			n := uint64(len(part.Data))
 			seen += n
+			want += n
+			if probing {
+				return nil
+			}
 			if st != nil && !h.partsRoom(pt.f, n) {
 				// Room for what has arrived, paid for by its arrival
 				// (D139), by this chase's measure once it has one, else by
