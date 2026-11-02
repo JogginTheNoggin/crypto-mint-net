@@ -61,3 +61,4 @@ jobs:
         run: |
           go -C gui build -o "$RUNNER_TEMP/poo-gui" ./cmd/poo-gui
           NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/terminal.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/views.mjs "$RUNNER_TEMP/poo-gui"

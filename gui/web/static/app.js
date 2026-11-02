@@ -2,6 +2,16 @@
 // and run poo command lines (views.js); the terminal runs typed ones.
 import * as terminal from './terminal.js';
 import { views } from './views.js';
+import * as where from './where.js';
+
+where.applyTheme();
+const whereEl = document.getElementById('where');
+const showWhere = () => {
+  const f = where.flags();
+  whereEl.textContent = f.length ? f.join(' ') : 'default node policy';
+};
+showWhere();
+where.onChange(showWhere);
 
 const nav = document.getElementById('nav');
 const main = document.getElementById('main');
