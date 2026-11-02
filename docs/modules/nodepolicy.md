@@ -198,24 +198,44 @@ this version writes none and only notes that a file has them.
   newer format, and checks every node policy as `Load` does, every series'
   parameters, and the names. A plain node.json is read as a bundle of one.
 - **Merging** (`Merge(local, file, MergeOptions)`) returns the result and
-  a `Plan`. By default it only adds:
+  a `Plan`. By default it takes only what to follow (`Followed`, D150):
   - series new to local (a witness local lacks is added; two different
     witnesses are a conflict);
-  - followed issuers, series, pools and mints, merged as `AddFollow` does;
-  - accepted issuers, peers, registries and grind jobs, as sets;
+  - followed issuers, series, pools and mints, merged as `AddFollow` does
+    (in time linear in the entries, RED-044);
+  - accepted issuers, as a set.
+
+  Every other setting of the file is a node setting. The plan lists them
+  in `SkippedSettings` and leaves them alone, so a file from someone else
+  never turns off a defence of the node, points it at an address or
+  starts work on it (RED-043). A setting added to node.json later is a
+  node setting unless it is put in `Followed`. `Settings` takes them too:
+  - peers, registries and grind jobs, as sets. A registry that is a local
+    file is still skipped unless `Full`;
   - every single setting local leaves unset. A custom tracking template
     and the tracking weights count as one setting each.
 
+  With `Settings`, the plan's `Defences` names first each line that
+  changes one of `Defences`: the p2p switches (`allow_local_peers`,
+  `no_confirm`, `strict_return`, `no_notices`, `no_relay`), the request
+  rate, the connection counts, peers, registries, `entry_limit`, `k`,
+  `issuers.any`, tracking and grind jobs.
+
   Where both set a value and they differ, local's is kept and the plan
   lists the conflict; `PreferFile` takes the file's. `Replace` takes the
-  file's node policy whole, keeping local's machine-local settings.
-  `Full` takes the file's machine-local settings too. `SeriesOnly` (how a
+  file's node policy whole, keeping local's machine-local settings, or
+  without `Settings` only what it follows. `Full` takes the file's
+  machine-local settings and node settings too. `SeriesOnly` (how a
   series bundle imports) takes only series, follows and accepted issuers.
   The plan lists what is added, changed and removed, the conflicts, the
-  machine-local settings skipped, how many of the file's settings were
-  already the same, and any series the result lists but would not accept
-  (`Accepted`). A result that does not validate is refused, and the inputs
-  are never changed.
+  machine-local settings and node settings skipped, the defence lines, how
+  many of the file's settings were already the same, and any series the
+  result lists but would not accept (`Accepted`). A result that does not
+  validate is refused, and the inputs are never changed.
+- **Names.** A node policy made here or read from a bundle may not be a
+  Windows device name (`con`, `nul`, `com1`, ...) or end in `.`, so it can
+  be kept on any system (`checkNewName`). One already saved under such a
+  name still loads.
 
 Nothing in a bundle changes what is valid, and nothing in a merge can make
 a node refuse a heavier ledger: it writes only node.json, through the same

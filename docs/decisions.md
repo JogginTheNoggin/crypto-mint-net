@@ -2880,3 +2880,91 @@ a chase takes in after checking their work are not charged.
   `TestPolicyExportImport`, `TestPolicyExportAllImportsEachByName`,
   `TestPolicyImportIntoRunningNode`, `TestPolicyImportKeepsRunningRPC`
   (pkg/cli); `TestHoldRefusesAStaleSeal` (pkg/wallet, GUI-022).
+
+### D150. Round 17 fixes: RED-043, RED-044, RED-045 (BLUE-018)
+
+- **Decision:**
+  - **RED-043. An import takes what to follow, and node settings only
+    when asked.**
+    - `nodepolicy.Merge` takes from a file, by default, only `Followed`:
+      series, follows and accepted issuers.
+    - Every other setting is a node setting. That covers peers,
+      registries, grind jobs, tracking, the p2p switches and limits, `k`
+      and `issuers.any`. The plan lists them in `skipped_settings` and
+      leaves them alone, whether merging or replacing.
+    - `MergeOptions.Settings` (`poo policy import -settings`, the
+      endpoint's `settings`, implied by `full`) takes them. The plan's
+      `defences` then names each changed line that touches `Defences`,
+      and the CLI prints those first.
+    - A registry that is a local file comes in only with `full`.
+    - This is an allow-list, so a setting added to node.json later stays
+      out of a default import unless it is added to `Followed`.
+    - The node's registry fetch refuses, after name resolution and on
+      redirects, an address that is not public unless
+      `allow_local_peers`, as a book candidate's dial does (D96). Through
+      an environment proxy, a literal address is checked.
+    - Export is unchanged.
+  - **RED-044.** The file's follow entries are merged in one pass
+    (`addFollows`) against the series built once. The result is the same
+    as `AddFollow` one by one.
+  - **RED-045.**
+    - `poo policy import` plans every node policy first and applies only
+      if all plans succeeded. A later failure names what was saved.
+    - A full-token `POST /v1/policy/import` takes up to `MaxImportBody`,
+      so any bundle the CLI reads fits.
+    - New node policy names may not be Windows device names or end in
+      `.` (`checkNewName`). Existing ones still load.
+- **Why:** Red's Round 17 findings on D149. A shared file could turn off
+  peer-steering protection (D96) or punishment, make the node fetch an
+  internal address on every start, or start grind jobs. The only guard
+  was a person reading a long plan in which those lines looked like any
+  other. Taking only what to follow by default keeps the feature's main
+  use (sharing what to follow, backups with `-full`) and makes every
+  other change something the operator asks for.
+- **Consensus:** none. Only node policy changes. No limit is added, and
+  no import can make a heavier ledger unacceptable. Fewer settings come
+  in from a file by default than before.
+- **Tier:** Implementation (node policy, the CLI, the local RPC and the
+  registry fetch). Tests are listed in BLUE-018.
+
+### D151. Round 18: GUI-022 closed for every command; imports tied to the previewed file; GREEN-042 adopted
+
+- **Decision:**
+  - **GUI-022, the rest (GUI/Red, PR #86).** `Wallet.Unlock` reads the
+    file again before it checks the passphrase. If the seal changed
+    since `Open` read it, Unlock returns `ErrPassphraseChanged`, and the
+    old passphrase opens nothing. This covers the commands that never
+    hold the wallet: `wallet seed` and `wallet cosign`. A stale "Show
+    seed" no longer prints the seed after a rotation. `Hold` keeps its
+    own check (D149) for a rotation made between the unlock and the
+    hold.
+  - **The previewed file (GUI-023's Source half).** `ReadBundle` sets
+    the file's SHA-256 as `Bundle.Digest`. `poo policy import` prints
+    it, and with `-json` gives it as `digest` on every row. The new flag
+    `-if-digest D` refuses, before any change, a file whose digest is
+    not D. The GUI passes the digest it previewed with Apply, and the
+    terminal can do the same. The GUI half, Apply sending the previewed
+    text, is GUI/Blue's.
+  - **Black's extreme-settings test is adopted** as
+    `pkg/p2p/settings_extremes_test.go` (Black, Round 17 appendix). It
+    sets `k`, `ties`, `max_pending`, `seen_size` and the four reply
+    limits to their smallest, then their largest, values. In both cases
+    a node still reaches a heavier ledger.
+  - **Merged with this round:**
+    - BLUE-018 (D150: RED-043 to RED-045), with Red's findings (PR #83).
+    - GREEN-042 (grind `-series` help, plans that show values).
+    - ORANGE-027 (the modular seams measured; no exception needed).
+    - Black's Round 17 review (9 clear, 0 blocked).
+  - **FEATURES.md:** imports gain `-settings`, `-if-digest` and `-`.
+    `holdings` and `payment` are listed. The wallet row lists `seed`
+    and `cosign`.
+- **Why:** the Round 18 queue.
+- **Consensus:** none. This round touches the wallet, the CLI and a
+  test.
+- **What is left:** the GUI form's half of GUI-023 (GUI/Blue). Two
+  points from GREEN-020 are still open: errors name `until_from` where
+  `-until-from` was typed, and no command renews a lease.
+- **Tier:** Implementation. Tests: `TestUnlockRefusesAStaleSeal`
+  (pkg/wallet; `TestSaveNeverUndoesAnotherChange` now expects the
+  refusal at unlock), `TestPolicyImportIfDigest` (pkg/cli), and the
+  extreme-settings test (pkg/p2p).

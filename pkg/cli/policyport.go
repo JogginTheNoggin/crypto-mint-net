@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -121,6 +122,9 @@ type importResult struct {
 	Saved     bool            `json:"saved"`
 	Reloading bool            `json:"reloading,omitempty"`
 	Current   bool            `json:"made_current,omitempty"`
+	// Digest is the SHA-256 of the file read, the same on every row:
+	// pass it back with -if-digest to apply only that file (GUI-023).
+	Digest string `json:"digest"`
 }
 
 // policyImportCmd reads a bundle (or a node.json) and merges it into the
@@ -132,9 +136,11 @@ func policyImportCmd(args []string, out io.Writer) error {
 	apply := fs.Bool("apply", false, "make the change (default: only show the plan)")
 	prefer := fs.Bool("prefer-file", false, "where both set a value and they differ, take the file's (default: keep this node's)")
 	replace := fs.Bool("replace", false, "put the file's node policy in place of this one's instead of merging, keeping this machine's machine-local settings")
-	full := fs.Bool("full", false, "take the file's machine-local settings too (rpc, no_sync, p2p listen and advertise, grind device and threads): restoring a backup on this machine")
+	settings := fs.Bool("settings", false, "take the file's node settings too (peers, registries, grind jobs, tracking, the p2p switches and limits); by default only what to follow is taken")
+	full := fs.Bool("full", false, "take every setting, machine-local ones too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): restoring a backup on this machine")
 	noReload := fs.Bool("no-reload", false, "change node.json only; a running node applies it on its next reload or start")
 	asJSON := fs.Bool("json", false, "print the plan as JSON")
+	ifDigest := fs.String("if-digest", "", "apply only if the file's SHA-256 (hex, as the plan prints it) is this one: so the file applied is the file previewed")
 	// The file may come before the flags: poo policy import FILE -apply.
 	var file string
 	if len(args) > 0 && (args[0] == "-" || !strings.HasPrefix(args[0], "-")) {
@@ -146,7 +152,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if file == "" && fs.NArg() == 1 {
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 || file == "" {
-		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-full] [-policy NAME | -dir DIR]")
+		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-policy NAME | -dir DIR]")
 	}
 	if *apply && viewOnlyOf(out) {
 		return errViewOnly("policy import -apply")
@@ -171,7 +177,10 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
+	if *ifDigest != "" && !strings.EqualFold(*ifDigest, b.Digest) {
+		return fmt.Errorf("the file is not the one previewed (its digest is %s, not %s), so nothing was changed: preview it again", b.Digest, *ifDigest)
+	}
+	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
 	if opt.SeriesOnly && *replace {
 		return errors.New("a series bundle adds one series: -replace is for a node policy")
 	}
@@ -208,16 +217,37 @@ func policyImportCmd(args []string, out io.Writer) error {
 		targets = []target{{name, w.resolve(), b.Policies[0].Policy, false}}
 	}
 
+	// Every plan first, so a node policy that cannot be imported stops
+	// the import before any is changed (RED-045, D150).
 	var results []importResult
 	for _, t := range targets {
-		r, err := importOne(out, t.dir, t.name, *w.dir == "", t.p, opt, *apply, *noReload, m)
+		r, err := importOne(out, t.dir, t.name, *w.dir == "", t.p, opt, false, *noReload, m)
 		if err != nil {
 			if t.name != "" {
-				return fmt.Errorf("node policy %q: %w", t.name, err)
+				err = fmt.Errorf("node policy %q: %w", t.name, err)
 			}
-			return err
+			return fmt.Errorf("%w; nothing was changed", err)
 		}
 		results = append(results, r)
+	}
+	if *apply {
+		var saved []string
+		for i, t := range targets {
+			r, err := importOne(out, t.dir, t.name, *w.dir == "", t.p, opt, true, *noReload, m)
+			if err != nil {
+				if t.name != "" {
+					err = fmt.Errorf("node policy %q: %w", t.name, err)
+				}
+				if len(saved) == 0 {
+					return fmt.Errorf("%w; nothing was changed", err)
+				}
+				return fmt.Errorf("%w; already saved: %s (importing again is safe: it changes nothing twice)", err, strings.Join(saved, ", "))
+			}
+			results[i] = r
+			if r.Saved {
+				saved = append(saved, fmt.Sprintf("%q", t.name))
+			}
+		}
 	}
 	if *apply && b.Scope == nodepolicy.ScopeNode {
 		if _, err := m.Current(); err != nil {
@@ -231,19 +261,36 @@ func policyImportCmd(args []string, out io.Writer) error {
 			}
 		}
 	}
+	for i := range results {
+		results[i].Digest = b.Digest
+	}
 	if *asJSON {
 		return writeJSON(out, results)
 	}
+	fmt.Fprintf(out, "file digest %s (-if-digest applies only this file)\n", b.Digest)
 	if b.HasSettings() {
 		fmt.Fprintln(out, "note: the file also holds settings; this version imports node policies only")
 	}
 	for _, r := range results {
 		printPlan(out, r, *apply)
 	}
-	if !*apply {
+	if !*apply && slices.ContainsFunc(results, func(r importResult) bool { return !r.Plan.Empty() }) {
 		fmt.Fprintln(out, "dry run: nothing was changed; add -apply to make this change")
 	}
 	return nil
+}
+
+// planLine is one added or removed line of a plan with its value: an
+// item of a list as "grind.jobs: {...}", a setting as "k: 3", where the
+// field alone ("+ k") did not say what would be set (GREEN-042).
+func planLine(field, value string, short func(string) string) string {
+	if i := strings.LastIndex(field, ".["); i >= 0 && strings.HasSuffix(field, "]") {
+		return field[:i] + ": " + short(field[i+2:len(field)-1])
+	}
+	if value == "" {
+		return field
+	}
+	return field + ": " + short(value)
 }
 
 // importOne plans, and with apply makes, the import into one node policy:
@@ -336,14 +383,17 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		}
 		return s
 	}
+	if len(p.Defences) > 0 {
+		fmt.Fprintf(out, "  read first: these change a defence of this node or where it reaches out: %s\n", listSome(p.Defences, 20))
+	}
 	for _, c := range p.Added {
-		fmt.Fprintf(out, "  + %s\n", c.Field)
+		fmt.Fprintf(out, "  + %s\n", planLine(c.Field, c.File, short))
 	}
 	for _, c := range p.Changed {
 		fmt.Fprintf(out, "  ~ %s: %s -> %s\n", c.Field, short(c.Local), short(c.File))
 	}
 	for _, c := range p.Removed {
-		fmt.Fprintf(out, "  - %s\n", c.Field)
+		fmt.Fprintf(out, "  - %s\n", planLine(c.Field, c.Local, short))
 	}
 	for _, c := range p.Conflicts {
 		if c.Took == "file" {
@@ -354,6 +404,9 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 	}
 	if len(p.Skipped) > 0 {
 		fmt.Fprintf(out, "  skipped, machine-local (-full takes them): %s\n", strings.Join(p.Skipped, ", "))
+	}
+	if len(p.SkippedSettings) > 0 {
+		fmt.Fprintf(out, "  skipped, node settings (-settings takes them): %s\n", listSome(p.SkippedSettings, 20))
 	}
 	for _, s := range p.Refused {
 		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", s)
@@ -375,4 +428,13 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 	if r.Current {
 		fmt.Fprintln(out, "  made current")
 	}
+}
+
+// listSome joins the first n of list, and says how many more there are
+// (-json prints them all).
+func listSome(list []string, n int) string {
+	if len(list) <= n {
+		return strings.Join(list, ", ")
+	}
+	return fmt.Sprintf("%s and %d more (-json lists them all)", strings.Join(list[:n], ", "), len(list)-n)
 }

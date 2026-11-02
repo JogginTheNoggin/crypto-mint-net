@@ -222,8 +222,19 @@ func (w *Wallet) KeyAlg() policy.AlgID {
 func (w *Wallet) Path() string { return w.path }
 
 // Unlock opens the seed with passphrase and derives any keys missing
-// from the gap.
+// from the gap. It first reads the file again: if the passphrase was
+// changed since Open read it, the old passphrase opens nothing, even for
+// a command that never saves (wallet seed, cosign), and Unlock returns
+// ErrPassphraseChanged (GUI-022, D151).
 func (w *Wallet) Unlock(passphrase string) error {
+	if w.read != nil && !w.held {
+		if cur, err := os.ReadFile(w.path); err == nil && !bytes.Equal(cur, w.read) {
+			var f File
+			if json.Unmarshal(cur, &f) == nil && !sameSeal(f, w.f) {
+				return ErrPassphraseChanged
+			}
+		}
+	}
 	seed, err := open(w.f.KDF, w.f.Sealed, passphrase)
 	if err != nil {
 		return err

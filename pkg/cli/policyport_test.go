@@ -44,7 +44,7 @@ func TestPolicyExportImport(t *testing.T) {
 	before, _ := os.ReadFile(dstPath)
 	out := runOut(t, "policy", "import", bundle, "-root", dst)
 	id := testutil.ExampleSeries().ID().Short()
-	if !strings.Contains(out, "+ series.["+id+"]") || !strings.Contains(out, "dry run") {
+	if !strings.Contains(out, "+ series: "+id) || !strings.Contains(out, "dry run") {
 		t.Fatalf("plan:\n%s", out)
 	}
 	if after, _ := os.ReadFile(dstPath); !bytes.Equal(before, after) {
@@ -60,10 +60,21 @@ func TestPolicyExportImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Series) != 1 || len(p.Follow) != 1 || len(p.P2P.Peers) != 1 || p.P2P.Listen != "off" {
+	// What to follow only: the peer is a node setting (RED-043, D150).
+	if len(p.Series) != 1 || len(p.Follow) != 1 || len(p.P2P.Peers) != 0 || p.P2P.Listen != "off" {
 		t.Fatalf("imported: %+v", p)
 	}
-	out = runOut(t, "policy", "import", bundle, "-apply", "-root", dst)
+	if !strings.Contains(out, "skipped, node settings (-settings takes them): p2p.peers.[a.example:1]") {
+		t.Fatalf("apply did not say what it skipped:\n%s", out)
+	}
+	out = runOut(t, "policy", "import", bundle, "-apply", "-settings", "-root", dst)
+	if !strings.Contains(out, "read first") || !strings.Contains(out, "p2p.peers.[a.example:1]") {
+		t.Fatalf("-settings did not name the peer first:\n%s", out)
+	}
+	if p, _ = nodepolicy.Load(dstPath); len(p.P2P.Peers) != 1 || p.P2P.Listen != "off" {
+		t.Fatalf("imported with -settings: %+v", p)
+	}
+	out = runOut(t, "policy", "import", bundle, "-apply", "-settings", "-root", dst)
 	if !strings.Contains(out, "nothing to change") {
 		t.Fatalf("second import:\n%s", out)
 	}
@@ -188,5 +199,59 @@ func TestPolicyImportFromStdin(t *testing.T) {
 	cancel()
 	if err := Run(ctx, []string{"policy", "import", "-", "-apply", "-root", t.TempDir()}, Stdio{In: strings.NewReader(bundle), Out: &out, Err: &out}); err == nil {
 		t.Fatal("a cut-off standard input was imported")
+	}
+}
+
+// A plan line says what would be set, and an import with nothing to
+// change does not tell the person to add -apply (GREEN-042).
+func TestPlanLinesShowValues(t *testing.T) {
+	short := func(s string) string { return s }
+	for _, c := range []struct{ field, value, want string }{
+		{"k", "3", "k: 3"},
+		{`grind.jobs.[{"target":"pending"}]`, "true", `grind.jobs: {"target":"pending"}`},
+		{"p2p.peers.[10.0.0.1:8646]", "true", "p2p.peers: 10.0.0.1:8646"},
+		{"log", "", "log"},
+	} {
+		if got := planLine(c.field, c.value, short); got != c.want {
+			t.Errorf("planLine(%q, %q) = %q, want %q", c.field, c.value, got, c.want)
+		}
+	}
+	root := t.TempDir()
+	cli(t, nil, "init", "-example", "-root", root, "-p2p", "off")
+	bundle := filepath.Join(t.TempDir(), "same.json")
+	runOut(t, "policy", "export", "-root", root, "-out", bundle)
+	if out := runOut(t, "policy", "import", bundle, "-root", root); strings.Contains(out, "dry run") || !strings.Contains(out, "nothing to change") {
+		t.Fatalf("importing a node's own policy:\n%s", out)
+	}
+}
+
+// GUI-023, D151: -if-digest applies only the file that was previewed.
+func TestPolicyImportIfDigest(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off")
+	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	a := filepath.Join(t.TempDir(), "a.json")
+	runOut(t, "policy", "export", "-root", src, "-out", a)
+	var res []importResult
+	cli(t, &res, "policy", "import", a, "-json", "-root", dst)
+	if len(res) != 1 || len(res[0].Digest) != 64 {
+		t.Fatalf("digest: %+v", res)
+	}
+	d := res[0].Digest
+	// The file changes after the preview: refused, nothing changed.
+	b, _ := os.ReadFile(a)
+	os.WriteFile(a, append(b, ' '), 0o600)
+	before, _ := os.ReadFile(filepath.Join(dst, "policies", "default", nodepolicy.FileName))
+	if err := run([]string{"policy", "import", a, "-apply", "-if-digest", d, "-root", dst}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "not the one previewed") {
+		t.Fatalf("changed file: %v", err)
+	}
+	if after, _ := os.ReadFile(filepath.Join(dst, "policies", "default", nodepolicy.FileName)); !bytes.Equal(before, after) {
+		t.Fatal("a refused import changed node.json")
+	}
+	os.WriteFile(a, b, 0o600)
+	runOut(t, "policy", "import", a, "-apply", "-if-digest", d, "-root", dst)
+	p, err := nodepolicy.Load(filepath.Join(dst, "policies", "default", nodepolicy.FileName))
+	if err != nil || len(p.Series) != 1 {
+		t.Fatalf("applied: %+v %v", p, err)
 	}
 }

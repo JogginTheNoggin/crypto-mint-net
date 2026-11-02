@@ -41,7 +41,7 @@ const LEFT_OUT = {
   tx: { kind: 'poo refuses -kind outside poo watch', ...Object.fromEntries(['address', 'address-policy', 'pool', 'serial', 'tid'].map(f => [f, 'one transaction by its id: In mint serial (-in-serial) is the narrowing that helps'])) },
   address: { kind: 'poo refuses -kind outside poo watch', address: 'the address is the command\'s own argument', 'address-policy': 'the address is the command\'s own argument' },
   'grind schedule': { 'if-version': 'add and set are applied as edits under the node\'s lock and keep changes made meanwhile (D125); Remove sends it' },
-  'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply' },
+  'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', settings: 'new in Source R18 (D150); the form adds it in the next GUI Part A', 'if-digest': 'new in Source R18 (D151); the form adds it in the next GUI Part A, with GUI-023' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's

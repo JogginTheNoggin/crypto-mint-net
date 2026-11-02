@@ -43,6 +43,29 @@ func checkName(name string) error {
 	return nil
 }
 
+// checkNewName checks the name of a node policy about to be made, here or
+// from a bundle: as checkName, and also not a name Windows takes for a
+// device (con, nul, com1, ...) or changes (a trailing dot), so a node
+// policy made or shared on one system can be kept on any (RED-045, D150).
+// A node policy already saved under such a name still loads.
+func checkNewName(name string) error {
+	if err := checkName(name); err != nil {
+		return err
+	}
+	if strings.HasSuffix(name, ".") {
+		return fmt.Errorf("%w: %q ends with '.', which Windows drops", ErrName, name)
+	}
+	base, _, _ := strings.Cut(strings.ToLower(name), ".")
+	switch base {
+	case "con", "prn", "aux", "nul", "conin$", "conout$":
+		return fmt.Errorf("%w: %q is a device name on Windows", ErrName, name)
+	}
+	if len(base) == 4 && (strings.HasPrefix(base, "com") || strings.HasPrefix(base, "lpt")) && base[3] >= '0' && base[3] <= '9' {
+		return fmt.Errorf("%w: %q is a device name on Windows", ErrName, name)
+	}
+	return nil
+}
+
 // Dir returns the data directory of a saved node policy.
 func (m Manager) Dir(name string) string { return filepath.Join(m.Root, "policies", name) }
 
@@ -56,7 +79,11 @@ func exists(path string) bool {
 // Save stores p under name, creating the policy or replacing its settings.
 // Data the node already holds for it is kept.
 func (m Manager) Save(name string, p Policy) error {
-	if err := checkName(name); err != nil {
+	check := checkName
+	if !exists(m.Dir(name)) {
+		check = checkNewName
+	}
+	if err := check(name); err != nil {
 		return err
 	}
 	if exists(m.archiveDir(name)) {
