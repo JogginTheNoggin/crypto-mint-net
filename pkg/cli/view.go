@@ -27,8 +27,13 @@ type viewFlags struct {
 	f      filter.Filter
 }
 
-func addView(fs *flag.FlagSet) *viewFlags {
-	return &viewFlags{w: addWhere(fs), filter: filter.Flags(fs)}
+// addView adds the where and filter flags; -kind only for a command that
+// streams events (GREEN-041).
+func addView(fs *flag.FlagSet, events bool) *viewFlags {
+	if events {
+		return &viewFlags{w: addWhere(fs), filter: filter.Flags(fs)}
+	}
+	return &viewFlags{w: addWhere(fs), filter: filter.ItemFlags(fs)}
 }
 
 // parse parses the flags and reads the filter.
@@ -57,7 +62,7 @@ func (v *viewFlags) oneSeries() (*hash.Hash, error) {
 
 func viewCmd(name string, args []string, out io.Writer) error {
 	fs := newFlagSet(name, out)
-	v := addView(fs)
+	v := addView(fs, false)
 	var below, limit *int
 	var serial *string
 	if name == "ledger" || name == "address" {
@@ -75,10 +80,6 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	}
 	if err := o.check(); err != nil {
 		return err
-	}
-	if len(v.f.Kinds) > 0 {
-		// Views hold items, not events: a kind would select nothing.
-		return fmt.Errorf("-kind selects events and applies to poo watch only")
 	}
 	if name == "tx" || name == "address" {
 		if fs.NArg() != 1 {
@@ -167,7 +168,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 // end) are left out unless -notices is given; missed lines always show.
 func watchCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("watch", out)
-	v := addView(fs)
+	v := addView(fs, true)
 	notices := fs.Bool("notices", false, "also print hello, ping and end lines")
 	once := fs.Bool("once", false, "stop when the stream ends instead of connecting again")
 	if err := v.parse(fs, args); err != nil {

@@ -100,7 +100,7 @@ prompt goes to standard error. Piped input is read as a line, as before.
 `[filter]` is the shared filter ([filter.md](filter.md)): `-series`,
 `-pool`, `-serial`, `-address`, `-address-policy` (hex of a policy's byte
 form), `-tid` and `-kind` (`tx`, `entry`, `layer`, `switch`, `selected`,
-`reverted`, `dropped`; `watch` only). Each takes comma-separated values
+`reverted`, `dropped`, `grind`; `watch` only: the views do not offer it, GREEN-041). Each takes comma-separated values
 and may repeat; fields combine with "and", values with "or". For example
 `poo watch -serial 5 -kind tx,selected` prints mint 5's transactions as
 they arrive and are selected. Event lines are described in

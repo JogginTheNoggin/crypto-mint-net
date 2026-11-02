@@ -266,7 +266,14 @@ func (b *Builder) Filter() Filter {
 // Flags registers the filter flags on fs: -series, -pool, -serial,
 // -address, -address-policy, -tid and -kind, each repeatable and taking
 // comma-separated values. Call the returned function after fs.Parse.
-func Flags(fs *flag.FlagSet) func() (Filter, error) {
+func Flags(fs *flag.FlagSet) func() (Filter, error) { return flags(fs, true) }
+
+// ItemFlags is Flags without -kind, for the views, which hold items rather
+// than events: a kind would select nothing there, so it is not offered
+// (GREEN-041).
+func ItemFlags(fs *flag.FlagSet) func() (Filter, error) { return flags(fs, false) }
+
+func flags(fs *flag.FlagSet, kinds bool) func() (Filter, error) {
 	b := &Builder{}
 	var errs []error
 	add := func(flagName, field, usage string) {
@@ -284,7 +291,9 @@ func Flags(fs *flag.FlagSet) func() (Filter, error) {
 	add("address", "address", "only items paying or spending these addresses")
 	add("address-policy", "policy", "only items paying or spending the addresses of these policies (hex), under each series' hash")
 	add("tid", "tid", "only these transactions")
-	add("kind", "kind", "only these kinds of event: "+kindList())
+	if kinds {
+		add("kind", "kind", "only these kinds of event: "+kindList())
+	}
 	return func() (Filter, error) { return b.Filter(), errors.Join(errs...) }
 }
 

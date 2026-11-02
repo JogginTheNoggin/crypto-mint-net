@@ -150,3 +150,28 @@ func TestViewFollowAndWatch(t *testing.T) {
 		}
 	}
 }
+
+// The views do not offer -kind, which selects events and so only watch
+// reads; their help used to list it while they refused it (GREEN-041).
+func TestKindOnlyOnWatch(t *testing.T) {
+	for _, name := range []string{"pools", "pending", "unspent", "ledger", "tx", "address"} {
+		var help strings.Builder
+		_ = Run(context.Background(), []string{name, "-h"}, Stdio{Out: &help, Err: &help})
+		if strings.Contains(help.String(), "-kind") {
+			t.Errorf("poo %s -h lists -kind:\n%s", name, help.String())
+		}
+	}
+	var help strings.Builder
+	_ = Run(context.Background(), []string{"watch", "-h"}, Stdio{Out: &help, Err: &help})
+	if !strings.Contains(help.String(), "-kind") {
+		t.Errorf("poo watch -h lacks -kind:\n%s", help.String())
+	}
+	// The same slip in grind: run listed -lease and refused it.
+	for cmd, want := range map[string]bool{"start": true, "run": false} {
+		help.Reset()
+		_ = Run(context.Background(), []string{"grind", cmd, "-h"}, Stdio{Out: &help, Err: &help})
+		if strings.Contains(help.String(), "-lease") != want {
+			t.Errorf("poo grind %s -h lists -lease: %v, want %v", cmd, !want, want)
+		}
+	}
+}

@@ -265,17 +265,23 @@ type jobFlags struct {
 	lease   *string
 }
 
-func addJob(fs *flag.FlagSet) *jobFlags {
-	return &jobFlags{
+// addJob adds the job flags; -lease only for grind start, since grind run
+// keeps its job's lease itself (GREEN-041).
+func addJob(fs *flag.FlagSet, lease bool) *jobFlags {
+	j := &jobFlags{
 		c:       addClient(fs),
 		pf:      addPool(fs),
 		device:  fs.String("device", "", "device: auto, cpu, gpu:0, ... (default: node.json's grind section, else auto)"),
 		threads: fs.Int("threads", 0, "threads (default: every core but one)"),
 		dur:     fs.String("for", "", "stop after this long: 30s, 2h (default: until stopped)"),
-		until:   fs.String("until-from", "", "with an entry target: stop once from(e) reaches this weight"),
+		until:   fs.String("until-from", "", "with an entry or tx:TID target: stop once from(e) reaches this weight (a tx:TID target needs it)"),
 		hours:   fs.String("hours", "", "work only within these local hours: 22-06"),
-		lease:   fs.String("lease", "", "start: stop the job unless it is renewed within this long (POST /v1/grind/ID/renew)"),
+		lease:   new(string),
 	}
+	if lease {
+		j.lease = fs.String("lease", "", "stop the job unless it is renewed within this long (POST /v1/grind/ID/renew)")
+	}
+	return j
 }
 
 // spec reads the job's spec, resolving -series, -pool and -serial with
@@ -349,7 +355,7 @@ func renew(ctx context.Context, cl renewer, id int, every time.Duration, warn io
 var errJobEnded = errors.New("the job ended")
 
 func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) error {
-	j := addJob(fs)
+	j := addJob(fs, !follow)
 	// TARGET comes first, as poo grind help writes it, or after the flags.
 	target := ""
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -365,9 +371,6 @@ func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) err
 	}
 	if target == "" {
 		return fmt.Errorf("usage: poo %s TARGET [flags]; TARGET is tip, pending, tx:TID or an entry hash", fs.Name())
-	}
-	if follow && *j.lease != "" {
-		return errors.New("-lease is for poo grind start; run keeps its job's lease itself")
 	}
 	cl, err := j.c.dial(out)
 	if err != nil {
