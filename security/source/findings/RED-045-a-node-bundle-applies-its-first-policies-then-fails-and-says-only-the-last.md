@@ -7,7 +7,7 @@
 | Found on | `main` @ b17e892 (Source Round 17 Part B) |
 | Component | pkg/cli/policyport.go (`policyImportCmd`, `importOne`); pkg/rpc/policyimport.go (body cap) |
 | Surface | local operator (`poo policy import -apply` of a bundle of several policies) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-018) |
+| Fixed by | `claude/project-thread-ggo8dt` @ cfd1cbd (BLUE-018) |
 
 ## Summary
 

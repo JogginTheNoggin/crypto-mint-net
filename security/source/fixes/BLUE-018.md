@@ -5,6 +5,7 @@
 | Fixes | RED-043 (medium), RED-044 (low), RED-045 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `b17e892` (Source Round 17 Part C) |
+| Code | `cfd1cbd` |
 | Decisions | D150 |
 | Review | No consensus change and no limit. |
 
