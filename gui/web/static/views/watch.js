@@ -1,10 +1,10 @@
 // Watch and Explore: the node's live events and its views, selected by the
 // same filter flags as poo watch, poo pools, poo ledger and the rest. The
 // filter is only turned into flags here; poo applies it (pkg/filter).
-import * as api from './api.js';
-import { el, cmdLine, panel, form, flag, mountAll } from './views.js';
-import { render } from './render.js';
-import * as where from './where.js';
+import * as api from '../api.js';
+import { el, cmdLine, panel, form, flag, mountAll } from '../views.js';
+import { render } from '../render.js';
+import * as where from '../where.js';
 
 const KINDS = ['tx', 'entry', 'layer', 'selected', 'reverted', 'switch', 'dropped', 'grind'];
 // Bounds on what the view keeps, so a busy node cannot exhaust the tab

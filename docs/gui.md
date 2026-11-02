@@ -158,6 +158,12 @@ unchanged, and the note comes only from those commands' own results.
 Transaction ids and addresses in results link to Explore, which runs
 `poo tx` or `poo address` on them.
 
+Each view is one file in `gui/web/static/views/`, an object `{ id, title,
+mount }` built from the panel and form helpers in
+`gui/web/static/views.js`. `views/index.js` lists them in navigation
+order. The navigation, the narrow-window menu and the e2e checks that walk
+every view read that one list (GUI-GREEN-044).
+
 When a running command reads input, such as a passphrase prompt, the view
 shows an input field next to it. The field is masked when, and only when,
 `poo` is reading a passphrase or seed: the core reads every secret through

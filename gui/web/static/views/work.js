@@ -3,11 +3,11 @@
 // commands; the view only turns fields into flags and draws what the
 // commands print. Which device and grinder run, and why, is the plan poo
 // prints, never a guess here.
-import * as api from './api.js';
-import { el, cmdLine, panel, form, flag, mountAll, gate } from './views.js';
-import { render, rateText } from './render.js';
-import * as where from './where.js';
-import { paced } from './scroll.js';
+import * as api from '../api.js';
+import { el, cmdLine, panel, form, flag, mountAll, gate } from '../views.js';
+import { render, rateText } from '../render.js';
+import * as where from '../where.js';
+import { paced } from '../scroll.js';
 
 // Bounds, as in Watch (GUI-007): events kept, rate points drawn, one line.
 const MAX_EVENTS = 500;
