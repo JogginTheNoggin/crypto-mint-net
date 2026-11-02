@@ -74,18 +74,18 @@ Each Part B runs every scenario again on Grey's new base, so a change that
 undoes an earlier gain shows up. Numbers are from a cloud container with
 Playwright Chromium, so compare them with each other, not with a laptop.
 
-| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) | Round 11 (4be2230) | Round 12 (c9c9e1f) |
-| --- | --- | --- | --- | --- | --- | --- |
-| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms | 3.2 MB, 27.7k, 1, 40 MB, 50 ms | 3.1 MB, 27.7k, 1, 40 MB, 33 ms |
-| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests | 33 ms, 64 ms, 142 KB in 15 requests | 30 ms, 60 ms, 144 KB in 15 requests |
-| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 19% busy |
-| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s | 29 fps, 0.72 s | 32 fps, 0.67 s |
-| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s | 0.63 s | 0.65 s |
-| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat |
-| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy |
-| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms | 192 to 306 ms | 261 ms |
-| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms | 217 ms | 279 ms |
-| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 27% busy, 500 rows |
+| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) | Round 11 (4be2230) | Round 12 (c9c9e1f) | Round 13 (376e964) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms | 3.2 MB, 27.7k, 1, 40 MB, 50 ms | 3.1 MB, 27.7k, 1, 40 MB, 33 ms | 3.2 MB, 27.6k, 1, 42 MB, 50 ms |
+| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests | 33 ms, 64 ms, 142 KB in 15 requests | 30 ms, 60 ms, 144 KB in 15 requests | 32 ms, 62 ms, 145 KB in 15 requests |
+| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 19% busy | 60 fps, 18% busy |
+| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s | 29 fps, 0.72 s | 32 fps, 0.67 s | 35 fps, 0.51 s |
+| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s | 0.63 s | 0.65 s | 0.62 s |
+| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat |
+| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 12% busy |
+| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms | 192 to 306 ms | 261 ms | 237 ms |
+| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms | 217 ms | 279 ms | 226 ms |
+| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 27% busy, 500 rows |
 
 Round 8 found nothing new to fix. The jump list, one job per form and
 the Schedule Remove guard did not show up in any measurement.
@@ -109,6 +109,13 @@ twice each gave 192 to 240 ms for both, so that is noise too.
 Round 12 found nothing new to fix. The new Getting started steps add
 links only; their `poo watch` step runs in the terminal, which the
 terminal row above already measures.
+
+Round 13 found nothing new to fix. The reload notice comes from
+`policy_changed` in `poo status`, which the Node view asks for every
+5 s. To answer it the node reads node.json again and compares it with the
+policy it runs: 17 µs and 40 allocations for the example policy (a Go
+benchmark of `nodepolicy.Load` and `SameApplied`), so the 5 s refresh
+costs the node nothing worth changing.
 
 ## How to try the prototypes
 
