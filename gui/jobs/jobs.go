@@ -270,6 +270,11 @@ func (j *Job) Cancel() { j.cancel() }
 // Input sends one line to the job's input. It does not block.
 func (j *Job) Input(line string) error { return j.in.add(line + "\n") }
 
+// InputPart sends text to the job's input with no end of line: the start
+// of a line too long for one request, which the next Input ends
+// (ORANGE-013).
+func (j *Job) InputPart(text string) error { return j.in.add(text) }
+
 // EOF ends the job's input, as Ctrl-D does in a shell: the command reads
 // what was sent, then io.EOF (GUI-021). Cancel is not an end of input.
 func (j *Job) EOF() error { return j.in.end() }
