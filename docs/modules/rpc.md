@@ -23,7 +23,11 @@ only by the node's user and made on first start. `rpc.token` opens every
 endpoint. `rpc.view-token` opens the `GET` endpoints only, and any other
 method gets 403 with code `forbidden`. Give the view token to a monitor
 (a Prometheus scrape of `/metrics`), a dashboard or any tool that should
-only watch the node (GREEN-007).
+only watch the node (GREEN-007). The view token is refused before a body
+is read. A request body is at most `MaxBody` (8 MiB), except `POST /entry`
+with `rpc.token`: an entry has no size bound, as the node takes one of any
+size from a peer in parts, so its owner may hand it one of any size too
+(RED-038, D144).
 
 | Method and path | Body or query | Reply |
 | --- | --- | --- |

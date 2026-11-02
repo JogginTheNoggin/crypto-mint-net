@@ -81,7 +81,7 @@ This is accepted as the bandwidth contest, and it is not blocked.
 | BLUE-014: RED-036 | Drops count toward holding a pace only if the sender served part of the window. It only paces requests to one peer, never below one a window, and the pace lapses |
 | BLUE-014: RED-037, `measureLasts` | A waiting chase that keeps losing asks less often: up to 8 times `partsStale`, 32 minutes. A holder that slows, stalls or leaves is still cut at once by its own measure. A waiting sender that sped up waits at most 32 minutes to show it. That is a delay, and the measure always lapses |
 | BLUE-014: the test-harness teardown race | Tests only |
-| GREEN-038, `poo follow -replace` | The CLI uses `ReplaceFollow` (D139, GUI-018), which is cleared. It changes which pools this node follows, as before |
+| GREEN-038, the replace flag for `poo follow` | The CLI uses `ReplaceFollow` (D139, GUI-018), which is cleared. It changes which pools this node follows, as before |
 | GREEN-038, the CLI and GUI parity test | Tests only. It supports the owner's rule that the GUI and the headless node never diverge |
 
 ## A note for Grey (no verdict)

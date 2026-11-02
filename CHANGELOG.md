@@ -149,3 +149,9 @@ built.
   entry|layer` hands the node an entry or layer made elsewhere;
   `poo grind jobs ID` shows one job; a test fails when an RPC call has no
   `poo` command.
+- **Safer wallet writes (D144, D145):** a `poo wallet` command never undoes
+  another's change, a new passphrase included (it saves only over the file
+  it read, under a short lock); a typed new passphrase is asked for twice;
+  `poo submit` reads a file or standard input, `build`/`work -bytes` print
+  what it reads, and the node's own RPC takes an entry of any size with the
+  full token.

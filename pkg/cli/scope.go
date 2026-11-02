@@ -138,6 +138,29 @@ func readSecret(out io.Writer, prompt string) (string, error) {
 
 var errNoInput = errors.New("nothing on standard input")
 
+// readNewSecret reads a new passphrase as readSecret does. When it is
+// typed, through Stdio.Secret (a terminal that hides it, or the GUI's
+// masked field), it is asked for again and refused unless the two
+// match, so a typo never seals the seed under a passphrase nobody knows
+// (GUI-020, D145). A line piped on standard input is read once, as a
+// script sends it.
+func readNewSecret(out io.Writer, prompt string) (string, error) {
+	p, err := readSecret(out, prompt)
+	if err != nil {
+		return "", err
+	}
+	if s, ok := out.(*stdio); ok && s.secret != nil {
+		again, err := s.secret(strings.TrimSuffix(prompt, ": ") + " again: ")
+		if err != nil {
+			return "", err
+		}
+		if again != p {
+			return "", errors.New("the two new passphrases differ, so nothing was changed")
+		}
+	}
+	return p, nil
+}
+
 // SecretFlags returns the names of the flags, in any command, whose value
 // can be a secret (a seed), so a front end that keeps or shows command
 // lines, such as the GUI's terminal history, can mask their values

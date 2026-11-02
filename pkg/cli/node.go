@@ -466,6 +466,7 @@ func buildCmd(args []string, out io.Writer) error {
 	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: the node's limit, 16777216)")
 	work := fs.Uint64("work", 0, "then add the strongest layer found in this many nonces")
 	g := addGrindOptions(fs)
+	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -486,7 +487,9 @@ func buildCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	r.Entry = "" // the hash is what a user needs; the bytes are for tools
+	if !*keep {
+		r.Entry = "" // the hash is what a user needs; the bytes are for tools
+	}
 	rep := struct {
 		rpc.EntryReply
 		Layer *rpc.LayerReply `json:"layer,omitempty"`
@@ -496,7 +499,9 @@ func buildCmd(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		l.Layer = ""
+		if !*keep {
+			l.Layer = ""
+		}
 		rep.Layer = &l
 	}
 	return writeJSON(out, rep)
@@ -510,6 +515,7 @@ func workCmd(args []string, out io.Writer) error {
 	start := fs.Uint64("start", 0, "first nonce")
 	tries := fs.Uint64("tries", 1<<16, "nonces to try (with -for: 0, as many as fit)")
 	g := addGrindOptions(fs)
+	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -553,8 +559,16 @@ func workCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	r.Layer = ""
+	if !*keep {
+		r.Layer = ""
+	}
 	return writeJSON(out, r)
+}
+
+// addBytes is -bytes, which keeps the encoded entry or layer in a build
+// or work reply, as poo submit takes it on another node (GREEN-039).
+func addBytes(fs *flag.FlagSet) *bool {
+	return fs.Bool("bytes", false, "also print the encoded entry or layer (hex), for poo submit on another node")
 }
 
 func paymentCmd(args []string, out io.Writer) error {
