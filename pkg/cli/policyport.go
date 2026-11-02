@@ -137,7 +137,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	asJSON := fs.Bool("json", false, "print the plan as JSON")
 	// The file may come before the flags: poo policy import FILE -apply.
 	var file string
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+	if len(args) > 0 && (args[0] == "-" || !strings.HasPrefix(args[0], "-")) {
 		file, args = args[0], args[1:]
 	}
 	if err := fs.Parse(args); err != nil {
@@ -146,17 +146,28 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if file == "" && fs.NArg() == 1 {
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 || file == "" {
-		return errors.New("usage: poo policy import FILE [-apply] [-prefer-file] [-replace] [-full] [-policy NAME | -dir DIR]")
+		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-full] [-policy NAME | -dir DIR]")
 	}
 	if *apply && viewOnlyOf(out) {
 		return errViewOnly("policy import -apply")
 	}
-	f, err := os.Open(file)
-	if err != nil {
-		return err
+	var b nodepolicy.Bundle
+	var err error
+	if file == "-" {
+		// Standard input, as poo submit -f - reads it: how the GUI hands
+		// over a file picked in the browser.
+		b, err = nodepolicy.ReadBundle(inputOf(out))
+		if cerr := contextOf(out).Err(); cerr != nil {
+			return fmt.Errorf("standard input was cut off, so nothing was read: %w", cerr)
+		}
+	} else {
+		var f *os.File
+		if f, err = os.Open(file); err != nil {
+			return err
+		}
+		b, err = nodepolicy.ReadBundle(f)
+		f.Close()
 	}
-	b, err := nodepolicy.ReadBundle(f)
-	f.Close()
 	if err != nil {
 		return err
 	}
