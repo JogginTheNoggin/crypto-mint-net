@@ -2760,3 +2760,123 @@ a chase takes in after checking their work are not charged.
   `TestWaitingCommandKeepsAnotherChange` (pkg/cli, fails without the
   hold), `TestSubmitFromReply`, `TestEntryBodyReadOnce`, and the
   existing submit, wallet and lock tests.
+
+### D148. Round 16 fixes: RED-040, RED-041, RED-042 (BLUE-017)
+
+- **Decision:**
+  - **RED-041.** One durable writer, `fsutil.WriteFile`: a temporary
+    file of its own, the mode, `Sync`, `Close`, `Rename`, then the
+    directory synced (skipped where it cannot be, as on Windows). The
+    wallet, the peer book, the tracker, the policy manager and
+    `nodepolicy.Save` (whose own code it was, D114) all use it.
+  - **RED-040.** `rpc.Client.SubmitEntryHex` sets the body's
+    `Content-Length`, so the node sizes its buffer by it (ORANGE-025,
+    D147). ORANGE-026's change to `readSized` is on the node's side and
+    independent of this.
+  - **RED-042.**
+    - `status` and `receive` ask the node without the wallet held.
+      `status` holds it only to save the legs whose state changed, each
+      only where the file still has the state it read, so a change made
+      meanwhile (a resend) stands. `receive` holds it only to note what
+      `-tid` names.
+    - The lock is tried first without waiting. A command that must wait
+      says so on its error output (`Wallet.OnBusy`, `holdWallet`), then
+      waits.
+- **Why:** Red's Round 16 findings. RED-041: the wallet file is the one
+  record of sent payments (D146), and without syncs a crash could empty
+  it after `Save` had returned. RED-040: a chunked body made the node's
+  buffer double past the entry's need (748 against 492 MiB for a 100 MiB
+  entry, Red's measure). RED-042: a read-only `status` waited silently
+  behind a command waiting for the node.
+- **Not taken:** a time limit on the wait (RED-042's second point). The
+  holder is sending a payment and saving its record, and each of its
+  node requests is bounded by the client's timeout. Giving up would
+  leave the waiter's change unsaved, so the waiter says why it waits and
+  goes on waiting. The send-then-save commands (`pay`, `claim`, `submit`,
+  `resend`) still hold across their node calls. Their select-then-spend
+  order needs it (D146).
+- **What is left:** a `status` that has a leg to update still waits for
+  a holder to save it, and says so. Not tested: a real crash or power
+  loss, and Windows (built and vetted only).
+- **Tier:** Implementation (storage, the wallet, the CLI and the local
+  RPC client). No consensus change and no limit. Tests: `TestWriteFile`,
+  `TestSubmitEntryHexSendsItsLength` (fails on b502960),
+  `TestHoldSaysWhenBusy`, `TestHeldWalletWaitersSayWhy`.
+
+### D149. Round 17: node policy export and import; GUI-022 fixed; GREEN-041 and ORANGE-026 adopted
+
+- **Decision:**
+  - **Bundles.** One JSON file, a bundle (`nodepolicy.Bundle`, kind
+    `poo-node-policies`, format 1), carries node policies between nodes.
+    Its scope is a series (one series, how it is followed, its issuer),
+    a policy (one node policy) or a node (every saved node policy, each
+    by name, with the current one marked). A `settings` member is
+    reserved for the node's settings, which a later format adds. The
+    owner asked for this on 2026-11-02, for sharing, several machines and
+    backups.
+  - **Export** (`poo policy export`) leaves out the machine-local
+    settings (`nodepolicy.MachineLocal`: `rpc`, `no_sync`, `p2p.listen`,
+    `p2p.advertise`, the grind device and threads) unless `-full`, and
+    always the unused `fast_catch_up` and `depth_limit`. No secret is in
+    a bundle, since none is in node.json.
+  - **Import** (`poo policy import FILE`) prints a plan and changes
+    nothing without `-apply`. FILE `-` reads standard input, so the GUI
+    can hand over a file picked in the browser. The default merge only adds: new series,
+    follows merged as `AddFollow` does, accepted issuers, peers,
+    registries and grind jobs as sets, and every single setting the
+    node leaves unset. Where both set a value and they differ, the node
+    keeps its own and the plan lists the conflict. `-prefer-file` takes
+    the file's, `-replace` takes the file's node policy whole, and
+    `-full` takes machine-local settings too. A series bundle touches
+    only series, follows and accepted issuers. A node bundle goes into
+    each saved node policy by name, creating the missing ones, and is
+    refused before any change if one of those names is archived. The
+    result must validate, or nothing is written.
+  - **Reading** refuses unknown fields rather than dropping them, a
+    newer format, more than 16 MiB or 256 node policies, an invalid
+    node policy or series, and bad or repeated names. A plain node.json
+    imports as a bundle of one.
+  - **A running node** takes an import through `POST /v1/policy/import`
+    under the lock its follow edits use, and reloads. It never takes an
+    `rpc` section, even with `-full`. Where the interface listens and
+    who may reach it changes only in node.json with the node stopped,
+    so a token holder cannot open the interface to the network. With no
+    node running, the CLI edits node.json under the data directory's
+    lock.
+  - **GUI-022 (GUI/Red, medium).** `Wallet.Hold` no longer adopts a
+    file whose seal changed since the command was unlocked: it returns
+    `ErrPassphraseChanged` and the command does nothing. A passphrase
+    rotation then revokes commands already waiting at a prompt, and a
+    stale `passwd` never re-seals over the owner's change, as under
+    D145. Other changes saved meanwhile are still taken in (D146).
+  - **A feature list, docs/FEATURES.md (owner, 2026-11-02).** One plain
+    file of what the project offers, one feature per row, with its
+    command, its package and its decision. It has a Source part, which
+    Source/Grey updates each Part A, and a GUI part, which GUI/Grey
+    updates. It feeds the later docs site. Each feature stays in its own
+    package behind a small API, with thin CLI and RPC layers over it, so
+    it can be extended. Orange may challenge that for one piece where
+    measurements show it really hurts performance, in a Part B proposal
+    (AGENTS.md, Orange proposals; the owner, 2026-11-02).
+  - **Merged with this round:** BLUE-017 (D148), GREEN-041 (help lists
+    only the flags a command takes), ORANGE-026 (the entry body's buffer
+    ends at its stated size) and Black's Round 16 review (10 clear, 0
+    blocked).
+- **Why:** the owner's feature request, and the Round 16 queue.
+- **Consensus:** none. A bundle holds only node policy and is checked as
+  node.json is. No import can add a depth limit (node.json has none) or
+  make a heavier ledger unacceptable. Black reviews this in Part D.
+- **What is left:** the GUI form (GUI Part A, after this merges); the
+  settings export, when the owner asks; signing a bundle, so that a
+  shared file can be checked against its publisher (not done: there is
+  no key to sign with yet, and the plan already shows every series,
+  peer and registry a file adds).
+- **Tier:** Implementation (node policy, the wallet, the CLI and the
+  local RPC). Tests: `TestExportStripsMachineLocal`, `TestBundleRoundTrip`,
+  `TestReadBundleRefuses`, `TestMergeAddsAndKeepsLocal`,
+  `TestMergeReplace`, `TestMergeSeriesOnly`,
+  `TestMergeWitnessConflictAndRefused`,
+  `TestMergeRefusesWhatWouldNotValidate` (pkg/nodepolicy);
+  `TestPolicyExportImport`, `TestPolicyExportAllImportsEachByName`,
+  `TestPolicyImportIntoRunningNode`, `TestPolicyImportKeepsRunningRPC`
+  (pkg/cli); `TestHoldRefusesAStaleSeal` (pkg/wallet, GUI-022).

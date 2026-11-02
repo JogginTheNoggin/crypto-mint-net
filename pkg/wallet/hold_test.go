@@ -88,3 +88,32 @@ func TestPaymentHoldsTheWallet(t *testing.T) {
 		t.Fatalf("used keys by label %v", labels)
 	}
 }
+
+// RED-042 (D148): a Hold or Save that finds the wallet held calls OnBusy
+// once before it waits, so the command can say why; one that finds it
+// free does not.
+func TestHoldSaysWhenBusy(t *testing.T) {
+	w := newWallet(t, "w", wallet.Options{})
+	other, err := wallet.Open(w.Path())
+	must(t, err)
+	busy := 0
+	other.OnBusy(func() { busy++ })
+	release, err := other.Hold()
+	must(t, err)
+	release()
+	if busy != 0 {
+		t.Fatal("OnBusy called with the wallet free")
+	}
+	release, err = w.Hold()
+	must(t, err)
+	done := make(chan error, 1)
+	go func() { done <- other.Save() }()
+	time.Sleep(100 * time.Millisecond)
+	release()
+	if err := <-done; err != nil {
+		t.Fatalf("the waiting save: %v", err)
+	}
+	if busy != 1 {
+		t.Fatalf("OnBusy called %d times while held, want 1", busy)
+	}
+}

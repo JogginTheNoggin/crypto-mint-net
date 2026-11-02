@@ -74,6 +74,7 @@ when the node follows exactly one series. Reply shapes are in
 | `GET /watch` | filter | A stream of newline-delimited JSON events with `hello`, `ping`, `missed` and `end` notices; it ends on a reload |
 | `GET /follow` | | `{follow, pools}`: the node policy's follow list and the pools followed now |
 | `POST /follow` | `{remove, replace, issuer, series, pools, mints, no_reload}` | `{follow, pools, reloading}`; saves the changed node policy and, unless `no_reload`, reloads the node after replying. `replace` puts `pools` and `mints` in place of the series' rule in one change (GUI-018, D139) |
+| `POST /policy/import` | `{policy, options: {prefer_file, replace, full, series_only}, dry_run, no_reload}` | `{plan, saved, reloading}`: merges a node policy from a bundle into the node's (`nodepolicy.Merge`) under the same lock as `/follow`, saves it unless `dry_run` or nothing changes, and reloads unless `no_reload`. 422 `invalid` when the result would not validate. The `rpc` section is never taken, even with `full`: it changes only in node.json with the node stopped, so a token holder cannot open the interface to the network (D149) |
 | `POST /reload` | `{}` | `{reloading: true}`; the node applies its node policy again. 422 `invalid` when `node.json` does not load, and the node keeps its current policy |
 | `GET /metrics` | | What `/status` and `/peers` report, in Prometheus text format 0.0.4 (`poo_pool_height`, `poo_pool_weight` as a float, `poo_pool_pending`, `poo_peers_connected`, …); a scraper sends the token as a bearer token (GREEN-002) |
 

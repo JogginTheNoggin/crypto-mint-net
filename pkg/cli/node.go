@@ -741,15 +741,21 @@ func chasesCmd(args []string, out io.Writer) error {
 }
 
 // policyCmd lists, switches, archives, takes out of the archive and deletes
-// node policies.
+// node policies, and exports and imports them (policyport.go, D149).
 func policyCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("policy", out)
 	root := fs.String("root", defaultRoot(), "directory holding the node policies ($POO_HOME)")
 	fresh := fs.Bool("fresh", false, "unarchive: drop the stored data and start from scratch")
 	if len(args) == 0 {
-		return fmt.Errorf("usage: poo policy list|use|archive|unarchive|delete [-root DIR] [NAME]")
+		return fmt.Errorf("usage: poo policy list|use|archive|unarchive|delete [-root DIR] [NAME], or poo policy export|import")
 	}
 	sub := args[0]
+	switch sub {
+	case "export":
+		return policyExportCmd(args[1:], out)
+	case "import":
+		return policyImportCmd(args[1:], out)
+	}
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}

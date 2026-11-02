@@ -22,12 +22,12 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
@@ -708,38 +708,8 @@ func Save(path string, p Policy) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
 	// Each writer has its own temporary file, synced before the rename,
 	// so concurrent writers never tear the file, and a crash leaves the old
-	// or the new one (RED-013, decision D114).
-	dir := filepath.Dir(path)
-	f, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
-	if err != nil {
-		return err
-	}
-	tmp := f.Name()
-	_, err = f.Write(append(b, '\n'))
-	if err == nil {
-		err = f.Chmod(0o600)
-	}
-	if err == nil {
-		err = f.Sync()
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Rename(tmp, path)
-	}
-	if err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	if d, err := os.Open(dir); err == nil {
-		d.Sync()
-		d.Close()
-	}
-	return nil
+	// or the new one (RED-013, decision D114; now shared, D148).
+	return fsutil.WriteFile(path, append(b, '\n'), 0o600)
 }

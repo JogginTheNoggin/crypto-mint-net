@@ -22,8 +22,8 @@ wallet watches (`poo wallet follow`).
 
 ## The wallet file
 
-`wallet.json` (default in `$POO_HOME` or `~/.poo`, written with mode 0600
-and atomically) holds:
+`wallet.json` (default in `$POO_HOME` or `~/.poo`, written with mode 0600,
+atomically and synced) holds:
 
 | Field | What |
 | --- | --- |
@@ -60,6 +60,27 @@ The other commands that save (`passwd`, `address`, `watch`, `request`,
 before they change the wallet. So a change saved while one of them waited
 at a prompt is read in and kept, and the command saves without
 `ErrChanged` (D147).
+
+The one change `Hold` does not take in is a new passphrase. If the file's
+seal changed after the command was unlocked, `Hold` returns
+`ErrPassphraseChanged` and the command does nothing, so changing the
+passphrase also revokes commands already waiting with the old one, and a
+stale `passwd` never re-seals over it (GUI-022, D149).
+
+`status` and `receive` ask the node without holding the wallet: `status`
+holds it only to save the legs whose state changed, each only where the
+file still has the state it read, and `receive` only to note the
+transactions `-tid` names. A command that must wait for the lock says so
+on its error output ("waiting for another poo wallet command (or the GUI)
+to finish with ..."), in the GUI's terminal too, then waits for as long
+as the holder needs: a holder is sending a payment and saving its record,
+and giving up would leave a change or a record unsaved (`OnBusy`, RED-042,
+D148).
+
+Every save is durable: the file is written to a temporary file of its
+own, synced, renamed over `wallet.json`, and the directory synced
+(`fsutil.WriteFile`), so a crash leaves the old file or the new one,
+never an empty or short one (RED-041, D148).
 
 Public keys are in the clear, so a locked wallet still lists its
 addresses, reads balances and follows payments. Only signing, giving out a

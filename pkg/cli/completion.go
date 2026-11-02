@@ -153,7 +153,14 @@ func subcommands(cmd string) []string {
 		}
 		w, _, _ := strings.Cut(rest, " ")
 		if subWord.MatchString(w) {
-			return strings.Split(w, "|")
+			// A list of subcommands, and maybe more on later lines, as
+			// poo policy export and import (D149).
+			for _, sub := range strings.Split(w, "|") {
+				if !slices.Contains(out, sub) {
+					out = append(out, sub)
+				}
+			}
+			continue
 		}
 		if w != "" && !strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "[") && strings.ToLower(w) == w && !slices.Contains(out, w) {
 			out = append(out, w) // one subcommand per line, as poo series

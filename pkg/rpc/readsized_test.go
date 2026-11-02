@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"bytes"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -41,5 +42,29 @@ func TestReadSized(t *testing.T) {
 	}
 	if got, _ := readSized(strings.NewReader(""), 0, hint); len(got) != 0 {
 		t.Fatalf("an empty body read %q", got)
+	}
+}
+
+// ORANGE-026: a body stated past the hint ends at exactly its stated
+// size. Starting at the hint, a body just over a power of two was copied
+// whole once more for its last bytes: about 3x its size set aside over
+// the read, now about 2x.
+func TestReadSizedEndsAtStated(t *testing.T) {
+	const hint = 64 << 10
+	const stated = 1<<20 + 100
+	data := bytes.Repeat([]byte("a"), stated)
+	runtime.GC()
+	var m0, m1 runtime.MemStats
+	runtime.ReadMemStats(&m0)
+	got, err := readSized(bytes.NewReader(data), stated, hint)
+	runtime.ReadMemStats(&m1)
+	if err != nil || !bytes.Equal(got, data) {
+		t.Fatalf("read %d bytes, %v", len(got), err)
+	}
+	if cap(got) != stated+1 {
+		t.Fatalf("ended with room for %d, want %d", cap(got), stated+1)
+	}
+	if a := m1.TotalAlloc - m0.TotalAlloc; a > stated*9/4 {
+		t.Fatalf("set aside %d bytes over the read of %d, want at most %d", a, stated, stated*9/4)
 	}
 }

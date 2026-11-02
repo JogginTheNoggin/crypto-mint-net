@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
@@ -248,14 +248,7 @@ func (b *Book) Save() error {
 	if err != nil {
 		return err
 	}
-	tmp := b.path + ".tmp"
-	if err := os.MkdirAll(filepath.Dir(b.path), 0o700); err != nil {
-		return err
-	}
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, b.path)
+	return fsutil.WriteFile(b.path, append(data, '\n'), 0o600) // RED-041, D148
 }
 
 func (b *Book) sortedLocked() []*Record {

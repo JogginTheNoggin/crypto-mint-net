@@ -162,3 +162,10 @@ built.
   hex as read; the node reads an entry body once, setting aside at most
   64 MiB before the bytes arrive; Windows locks a data directory as Unix
   does.
+- **Sharing node policies (D148, D149):** `poo policy export` writes one
+  JSON file with a series, a node policy or every saved node policy, without
+  this machine's own settings unless `-full`; `poo policy import` shows what
+  it would add, change or keep and applies it only with `-apply`, live on a
+  running node; a wallet command waiting since before a passphrase change
+  is refused; wallet, peer and node files are written durably; help lists
+  only the flags a command takes; a large entry's buffer ends at its size.

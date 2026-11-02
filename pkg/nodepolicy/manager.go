@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 )
 
 // Manager keeps several node policies under one root directory:
@@ -228,14 +230,7 @@ func (m Manager) Delete(name string) error {
 }
 
 func writeAtomic(path string, b []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return fsutil.WriteFile(path, b, 0o600) // RED-041, D148
 }
 
 // ErrLocked: another process is using the data directory.

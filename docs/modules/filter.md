@@ -39,7 +39,7 @@ before looking at their items.
 | --- | --- |
 | Go | `filter.Filter{Series, Pools, Serials, Addresses, Policies, TIDs, Kinds}` |
 | Query parameters (RPC) | `series`, `pool`, `serial`, `address`, `policy`, `tid`, `kind`; each comma-separated, repeatable. `Values` and `FromValues` convert |
-| Command-line flags | `-series`, `-pool`, `-serial`, `-address`, `-address-policy`, `-tid`, `-kind`; each comma-separated, repeatable. `Flags(fs)` adds them and returns a function that reads the filter after parsing |
+| Command-line flags | `-series`, `-pool`, `-serial`, `-address`, `-address-policy`, `-tid`, `-kind`; each comma-separated, repeatable. `Flags(fs)` adds them and returns a function that reads the filter after parsing; `ItemFlags(fs)` adds all but `-kind`, for the views, which hold items rather than events (GREEN-041) |
 
 The flag for policies is `-address-policy` because `-policy` already
 chooses the node policy on every command. A bad value fails with
