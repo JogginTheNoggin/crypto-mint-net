@@ -59,6 +59,44 @@ func TestSubmitEntryAndLayer(t *testing.T) {
 		t.Fatalf("submit layer %+v, want %+v", lay, worked)
 	}
 
+	// The same with poo alone: build -bytes -work prints the entry and its
+	// layer for poo submit on the other node (GREEN-039).
+	var both struct {
+		Hash  string
+		Entry string
+		Layer struct {
+			Hash  string
+			Layer string
+		}
+	}
+	cli(t, nil, "pay", "-seed-file", seedFile(t, alice), "-serial", "5", "-to", strings.Repeat("b2", 32), "-amount", "1", "-root", rootA)
+	cli(t, &both, "build", "-pool", "1", "-bytes", "-work", "4000", "-root", rootA)
+	if both.Entry == "" || both.Layer.Layer == "" {
+		t.Fatalf("build -bytes -work %+v", both)
+	}
+	got.Hash = ""
+	cli(t, &got, "submit", "entry", "-pool", "1", "-root", rootB, both.Entry)
+	cli(t, &lay, "submit", "layer", "-pool", "1", "-root", rootB, both.Layer.Layer)
+	if got.Hash != both.Hash || lay.Hash != both.Layer.Hash {
+		t.Fatalf("submitted %+v and %+v, built %+v", got, lay, both)
+	}
+	var plain struct{ Entry string }
+	cli(t, nil, "pay", "-seed-file", seedFile(t, alice), "-serial", "5", "-to", strings.Repeat("b2", 32), "-amount", "2", "-root", rootA)
+	cli(t, &plain, "build", "-pool", "1", "-root", rootA)
+	if plain.Entry != "" {
+		t.Fatal("build without -bytes printed the entry's bytes")
+	}
+	// A new node C lacks the parent of the entry built with -bytes, and
+	// the error names it.
+	rootC := t.TempDir()
+	cli(t, nil, "init", "-example", "-listen", "127.0.0.1:0", "-p2p", "127.0.0.1:0", "-root", rootC)
+	stopC := startNode(t, rootC+"/policies/default")
+	defer stopC()
+	var sb strings.Builder
+	if err := run([]string{"submit", "entry", "-pool", "1", "-root", rootC, both.Entry}, &sb); err == nil || !strings.Contains(err.Error(), "submit its parent") {
+		t.Fatalf("an entry whose parent C lacks: %v", err)
+	}
+
 	var out strings.Builder
 	if err := run([]string{"submit"}, &out); err == nil {
 		t.Fatal("poo submit accepted")

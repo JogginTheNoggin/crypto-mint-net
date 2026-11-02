@@ -80,24 +80,27 @@ func grindCmd(args []string, out io.Writer) error {
 		return grindSchedule(fs, rest, out)
 	case "jobs":
 		w, o := addWhere(fs), addOutput(fs)
-		if err := fs.Parse(rest); err != nil {
+		// Flags may follow the id, as in "poo grind jobs 3 -o table"
+		// (GREEN-039).
+		pos, err := parseMixed(fs, rest)
+		if err != nil {
 			return err
 		}
 		if err := o.check(); err != nil {
 			return err
 		}
-		if fs.NArg() > 1 {
+		if len(pos) > 1 {
 			return errors.New("usage: poo grind jobs [ID]")
 		}
 		cl, err := dialNode(out, w.resolve())
 		if err != nil {
 			return err
 		}
-		if fs.NArg() == 1 {
+		if len(pos) == 1 {
 			// One job by id, as the GUI's job view asks (GREEN-038, D143).
-			id, err := strconv.Atoi(fs.Arg(0))
+			id, err := strconv.Atoi(pos[0])
 			if err != nil || id < 0 {
-				return fmt.Errorf("poo grind jobs: the job id %q is not a number", fs.Arg(0))
+				return fmt.Errorf("poo grind jobs: the job id %q is not a number", pos[0])
 			}
 			job, err := cl.GrindJob(id)
 			if err != nil {

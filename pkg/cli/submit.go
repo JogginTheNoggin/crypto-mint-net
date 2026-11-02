@@ -9,6 +9,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
 
@@ -66,6 +67,11 @@ func submitCmd(args []string, out io.Writer) error {
 	if what == "entry" {
 		r, err := cl.SubmitEntry(ref, e)
 		if err != nil {
+			// Say which entry is missing, so the person knows what to
+			// hand in first (GREEN-039).
+			if strings.Contains(err.Error(), ledger.ErrUnknownParent.Error()) {
+				return fmt.Errorf("%w: submit its parent %s first (poo build -bytes printed it on the node that made it), or let this node take the pool from a peer", err, e.Parent)
+			}
 			return err
 		}
 		r.Entry = ""

@@ -103,6 +103,12 @@ func TestGrindCommands(t *testing.T) {
 	if one.ID != job.ID || one.Done() {
 		t.Fatalf("grind jobs %d: %+v", job.ID, one)
 	}
+	// Flags may follow the id (GREEN-039).
+	one = grind.Job{}
+	cli(t, &one, "grind", "jobs", itoa(job.ID), "-root", root)
+	if one.ID != job.ID {
+		t.Fatalf("grind jobs %d -root: %+v", job.ID, one)
+	}
 	for _, bad := range [][]string{{"grind", "jobs", "-root", root, "x"}, {"grind", "jobs", "-root", root, "1", "2"}, {"grind", "jobs", "-root", root, "999"}} {
 		if err := run(bad, &out); err == nil {
 			t.Fatalf("%v accepted", bad)
