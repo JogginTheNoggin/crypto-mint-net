@@ -3,6 +3,7 @@ package rpc
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -284,9 +285,12 @@ type FollowReply struct {
 }
 
 // FollowRequest adds to or removes from the node policy's follow list
-// (nodepolicy.AddFollow, RemoveFollow) and, unless NoReload, applies it.
+// (nodepolicy.AddFollow, RemoveFollow) or, with Replace, puts Pools and
+// Mints in place of the series' rule (nodepolicy.ReplaceFollow) in one
+// change, and, unless NoReload, applies it.
 type FollowRequest struct {
 	Remove   bool       `json:"remove,omitempty"`
+	Replace  bool       `json:"replace,omitempty"`
 	Issuer   *hash.Hash `json:"issuer,omitempty"`
 	Series   *hash.Hash `json:"series,omitempty"`
 	Pools    []uint64   `json:"pools,omitempty"`
@@ -351,9 +355,14 @@ func (h *Handler) changeFollow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f := nodepolicy.Follow{Issuer: req.Issuer, Series: req.Series, Pools: req.Pools, Mints: req.Mints}
-	if req.Remove {
+	switch {
+	case req.Remove && req.Replace:
+		err = fmt.Errorf("%w: remove or replace, not both", nodepolicy.ErrInvalid)
+	case req.Replace:
+		err = p.ReplaceFollow(f)
+	case req.Remove:
 		err = p.RemoveFollow(f)
-	} else {
+	default:
 		err = p.AddFollow(f)
 	}
 	if err == nil {

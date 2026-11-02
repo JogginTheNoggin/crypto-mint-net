@@ -147,3 +147,72 @@ func TestLearnedPaceRisesUnlessShown(t *testing.T) {
 		t.Fatalf("learned %d after the lapse, want 112 held", got)
 	}
 }
+
+// RED-034 (D139): a second outage while probing, with the probe holding
+// the asker below what it sent at the first, halves the probe (not below
+// where it began) and the pace still rises back to the configured one;
+// drops with as much sent as at the first show the budget and hold.
+func TestSecondOutageWhileProbingKeepsProbing(t *testing.T) {
+	const pace = 480
+	win := time.Minute
+	var w reqWindow
+	t0 := time.Unix(3_000_000, 0)
+	for i := 0; i < 40; i++ {
+		w.add(t0, win)
+	}
+	w.dropped(t0, t0, win)
+	w.dropped(t0, t0, win) // probing from 30
+	now := t0
+	for i := 0; i < 2; i++ {
+		now = now.Add(win)
+		w.answered(now, pace, win)
+	}
+	if got := w.learned(now); got != 120 {
+		t.Fatalf("probe at %d, want 120", got)
+	}
+	// The second outage, with 3 sent in its window.
+	now = now.Add(win)
+	for i := 0; i < 3; i++ {
+		w.add(now, win)
+	}
+	w.dropped(now, now, win)
+	w.dropped(now, now, win)
+	if got := w.learned(now); got != 60 {
+		t.Fatalf("after the second outage %d, want the probe halved to 60", got)
+	}
+	// Again, at the probe's start: it does not fall below it.
+	w.dropped(now, now, win)
+	w.dropped(now, now, win)
+	if got := w.learned(now); got != 30 {
+		t.Fatalf("after a third outage %d, want 30", got)
+	}
+	w.dropped(now, now, win)
+	if got := w.learned(now); got != 30 {
+		t.Fatalf("fell to %d, below where the probe began", got)
+	}
+	windows := 0
+	for w.learned(now) != 0 {
+		now = now.Add(win)
+		w.answered(now, pace, win)
+		if windows++; windows > 6 {
+			t.Fatalf("the pace is still %d after %d windows", w.learned(now), windows)
+		}
+	}
+	// Drops while probing with as much sent as at the first hold.
+	w = reqWindow{}
+	for i := 0; i < 40; i++ {
+		w.add(t0, win)
+	}
+	w.dropped(t0, t0, win)
+	w.dropped(t0, t0, win)
+	t1 := t0.Add(win)
+	w.answered(t1, pace, win) // 60
+	for i := 0; i < 36; i++ {
+		w.add(t1, win)
+	}
+	w.dropped(t1, t1, win)
+	w.dropped(t1, t1, win)
+	if got := w.learned(t1.Add(3 * win)); got != 27 {
+		t.Fatalf("learned %d with 36 sent, want 27 held", got)
+	}
+}
