@@ -2,7 +2,8 @@
 // (ORANGE-010). A browser opens at most six connections to poo-gui; a
 // view that left one stream open per visit stalled the whole GUI after a
 // few visits to the Node view while a node ran. It also checks that
-// focus moving through key fields asks poo crypto once (ORANGE-011).
+// focus moving through key fields asks poo crypto once (ORANGE-011), and
+// that a long paste reaches the command whole (ORANGE-013).
 //
 //   node gui/e2e/streams.mjs PATH/TO/poo-gui
 import assert from 'node:assert/strict';
@@ -29,6 +30,22 @@ try {
   });
   await page.waitForTimeout(1000);
   assert.equal(cryptoRuns, 1, `poo crypto ran ${cryptoRuns} times for eight focuses`);
+
+  // A pasted entry longer than one request (1 MiB) reaches the command
+  // whole: sent in parts, then the input ended (ORANGE-013).
+  await page.click('nav a[data-id=pools]');
+  const submit = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Submit an entry or layer' }) });
+  await submit.locator('input[name=file]').fill('-');
+  await submit.locator('input[name=pool]').fill('0');
+  page.once('dialog', d => d.accept());
+  await submit.locator('button[type=submit]').first().click();
+  const ask = submit.locator('form.ask input').first();
+  await ask.waitFor({ state: 'visible' });
+  await ask.evaluate(i => { i.value = 'ab'.repeat(768 << 10); });
+  await submit.locator('button.end-input').click();
+  await submit.locator('.run-status.ok, .run-status.bad').waitFor();
+  const said = await submit.locator('.area').innerText();
+  assert.ok(!said.includes('request body too large'), `a 1.5 MiB paste did not arrive whole: ${said.slice(0, 200)}`);
 
   execFileSync(bin, ['poo', 'init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off'], { env });
   await page.click('nav a[data-id=node]');

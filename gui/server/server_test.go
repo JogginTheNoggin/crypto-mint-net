@@ -669,3 +669,33 @@ func TestJobEOF(t *testing.T) {
 		t.Fatalf("unknown job: %d", r.StatusCode)
 	}
 }
+
+// A line longer than one request's body is sent in parts with more, and
+// the command reads it whole, with one end of line (ORANGE-013).
+func TestInputInParts(t *testing.T) {
+	got := make(chan string, 1)
+	h := newHarness(t, jobs.Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		b, _ := io.ReadAll(s.In)
+		got <- string(b)
+		return 0
+	}})
+	var j struct{ ID string }
+	decode(t, h.do("POST", "/api/jobs", map[string]any{"line": "poo submit entry -f -"}, nil), &j)
+	part := strings.Repeat("ab", MaxBody/4)
+	for _, b := range []map[string]any{{"line": part, "more": true}, {"line": part, "more": true}, {"line": "cd"}} {
+		if r := h.do("POST", "/api/jobs/"+j.ID+"/input", b, nil); r.StatusCode != http.StatusNoContent {
+			t.Fatalf("input: %d", r.StatusCode)
+		}
+	}
+	if r := h.do("POST", "/api/jobs/"+j.ID+"/eof", nil, nil); r.StatusCode != http.StatusNoContent {
+		t.Fatalf("eof: %d", r.StatusCode)
+	}
+	select {
+	case s := <-got:
+		if want := part + part + "cd\n"; s != want {
+			t.Fatalf("read %d bytes, want %d", len(s), len(want))
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the job never read its input")
+	}
+}

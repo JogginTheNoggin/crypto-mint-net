@@ -23,7 +23,16 @@ export function start(cmd, { refresh = false } = {}) {
   return post('/api/jobs', { ...(typeof cmd === 'string' ? { line: cmd } : { args: cmd }), ...(refresh ? { refresh } : {}) });
 }
 
-export function input(id, line) { return post(`/api/jobs/${id}/input`, { line }); }
+// A line is sent in parts of at most PART characters, each a request well
+// under the server's 1 MiB body limit, so a pasted entry of any size
+// reaches the command whole (ORANGE-013). The parts go in order, the last
+// one ending the line.
+const PART = 256 << 10;
+export async function input(id, line) {
+  let i = 0;
+  for (; line.length - i > PART; i += PART) await post(`/api/jobs/${id}/input`, { line: line.slice(i, i + PART), more: true });
+  return post(`/api/jobs/${id}/input`, { line: line.slice(i) });
+}
 // eof ends a job's input, as Ctrl-D does in a shell; cancel is Ctrl-C,
 // and is never read as an end of input (GUI-021).
 export function eof(id) { return post(`/api/jobs/${id}/eof`); }
