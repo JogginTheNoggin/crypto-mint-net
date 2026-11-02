@@ -203,7 +203,11 @@ which then holds; drops with less than half of a held pace sent never
 lower it (RED-028, D136). Drops while probing show the budget only with
 at least seven eighths of what was sent at the first drops; with less,
 the probe was holding the chase low itself, so the probe halves (not below
-where it began) and goes on rising (RED-034, D139). A request that still times out ends the chase as
+where it began) and goes on rising (RED-034, D139). Drops with nothing
+sent in the window answered are an outage, not a budget, since a sender
+over its budget has served the budget first: they never hold or lower a
+pace, so two short outages at low load no longer pin the chase to one
+request a window (RED-036, D142). A request that still times out ends the chase as
 `chase.Stalled`: the sender is backed off but kept, and so is the chase's
 progress, its parts included, so a slow sender or one with a smaller
 budget only delays it (Black's B2, D124; RED-024, D128). A stall after
@@ -230,7 +234,15 @@ whole chase, lost requests included, and never a burst: a chase counts
 as measured once a request was lost, a full parts reply (or the rest of
 the entry) arrived, or its slice ended. A fetch with no measure yet goes
 on asking for the part at its offset, throwing it away, until it has
-one. A claim never decides against a much faster sender, so a sender
+one; once one part of a reply is thrown away the rest of that reply is
+too, each part still checked against the offset it should start at, so
+a sender whose replies hold many parts is never taken for false
+(RED-035 and ORANGE-023, D142). A waiting fetch whose measured chase
+found no room asks again after that measure lapses, two backoff steps
+at first and twice as long after each such chase in a row, up to eight
+times, so a node at the reserve does not throw away a reply from every
+waiting sender every few minutes; a holder that slows, stalls or leaves
+is still cut by its own measure at once (RED-037, D142). A claim never decides against a much faster sender, so a sender
 that claims a huge entry, one just under the honest one, or a little
 more than it holds keeps the room only by delivering about as fast as
 the honest sender for as long as it holds it; colluders that cut each

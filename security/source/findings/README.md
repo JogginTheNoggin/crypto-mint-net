@@ -42,3 +42,6 @@ One file per finding, `RED-<NNN>-<slug>.md`. This index lists them all.
 | [RED-032](RED-032-fresh-senders-take-the-room-from-a-slow-file.md) | Each fresh sender ranks as moving and drops a slow file, so a stream of them restarts a slow link's fetch for good | medium | fixed |
 | [RED-033](RED-033-slow-trickler-sending-a-little-more-starves-a-slow-honest-link.md) | A slow trickler that takes one part more than the honest link each chase wins every turn | low | fixed |
 | [RED-034](RED-034-second-outage-while-probing-pins-the-pace-again.md) | A second pair of lost requests while the pace is being probed pins the asker to one request a window again | medium | fixed |
+| [RED-035](RED-035-probing-flags-an-honest-multi-chunk-reply-as-false.md) | A fetch that probes at the disk reserve throws the first chunk of a reply away, so the second chunk is "false" and the honest sender is flagged | high | fixed |
+| [RED-036](RED-036-second-outage-at-low-load-still-pins-the-pace.md) | The RED-034 fix compares with the first drops' load, so at low load a second outage still pins the pace at one request a window | medium | fixed |
+| [RED-037](RED-037-fast-fresh-sender-chews-a-slow-file-and-probing-costs-a-reply.md) | A fast fresh sender cuts a slow file at its own line rate, byte for byte, and each probe costs the sender up to a parts reply | low | partly fixed |

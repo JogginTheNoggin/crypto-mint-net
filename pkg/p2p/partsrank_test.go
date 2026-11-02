@@ -49,3 +49,17 @@ func TestTakeFrom(t *testing.T) {
 		}
 	}
 }
+
+// RED-037 (D142): a waiting chase whose measured probes found no room
+// asks again less often each time, up to eight times partsStale; one
+// that wrote resets it.
+func TestMeasureLastsLongerAfterMisses(t *testing.T) {
+	h := &Host{cfg: Config{ChaseSlice: time.Minute}}
+	h.cfg.Chase.Backoff = 30 * time.Second
+	stale := h.partsStale()
+	for miss, want := range []time.Duration{stale, stale, 2 * stale, 4 * stale, 8 * stale, 8 * stale, 8 * stale} {
+		if got := h.measureLasts(&progress{partsMiss: miss}); got != want {
+			t.Errorf("after %d misses: %v, want %v", miss, got, want)
+		}
+	}
+}
