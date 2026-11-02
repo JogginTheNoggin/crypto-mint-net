@@ -5,13 +5,14 @@
 //   node gui/e2e/qol.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 //
 // Needs the playwright package and a Chromium it can launch.
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { launch } from './lib.mjs';
 
 const bin = process.argv[2];
 const shots = process.argv[3];
-const { page, errors, close } = await launch(bin);
+const { page, errors, close, env } = await launch(bin);
 
 // until polls cond from the test; page.waitForFunction can need eval,
 // which the GUI's CSP forbids.
@@ -169,6 +170,23 @@ try {
   const bal = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Balance' }) });
   assert.equal(await bal.locator('.cmd code').innerText(), 'poo wallet balance -wallet w2.json');
   assert.equal(await page.locator('section.panel label', { hasText: 'Wallet file' }).count(), 1, 'one wallet field');
+  // Every poo wallet command has a form (GREEN-039), so a shared payment
+  // Pay starts can be co-signed and submitted here too.
+  const wsec = t => page.locator('section.panel', { has: page.locator('h2', { hasText: t }) }).first();
+  await wsec('Record a shared policy').locator('input[name=name]').fill('joint');
+  await wsec('Record a shared policy').locator('input[name=k]').fill('2');
+  await wsec('Record a shared policy').locator('input[name=key]').fill('self ed25519:ab');
+  assert.equal(await wsec('Record a shared policy').locator('.cmd code').innerText(), 'poo wallet policy -wallet w2.json -name joint -k 2 -key self -key ed25519:ab');
+  await wsec('Co-sign a payment').locator('input[name=file]').fill('pay.json');
+  assert.equal(await wsec('Co-sign a payment').locator('.cmd code').innerText(), 'poo wallet cosign -wallet w2.json pay.json');
+  await wsec('Submit a co-signed payment').locator('input[name=file]').fill('pay.json');
+  assert.equal(await wsec('Submit a co-signed payment').locator('.cmd code').innerText(), 'poo wallet submit -wallet w2.json pay.json');
+  for (const [t, c] of [['Send dropped legs again', 'resend'], ['Follow only the watched mints', 'follow'], ['Change the passphrase', 'passwd'], ['Show the seed', 'seed']]) {
+    assert.equal(await wsec(t).locator('.cmd code').innerText(), `poo wallet ${c} -wallet w2.json`);
+  }
+  const used = new Set(await page.locator('section.panel .cmd code').evaluateAll(cs => cs.map(c => c.textContent.split(' ')[2])));
+  const help = execFileSync(bin, ['poo', 'wallet', 'help'], { env }).toString();
+  for (const sub of [...help.matchAll(/^  ([a-z]+) /gm)].map(m => m[1])) assert.ok(used.has(sub), `the Wallet view runs poo wallet ${sub}`);
   await page.fill('.wallet-pick input', '');
 
   // A result has a Copy output button for poo's exact output.
