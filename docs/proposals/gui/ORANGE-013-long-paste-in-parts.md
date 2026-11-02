@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 16) |
+| Status | adopted (Round 17 Part A) |
 | Based on | main @ 6a1cdce |
 | Area | gui/web/static/api.js (`input`), gui/web/static/views.js (Send and end input), gui/server/server.go (`/input` takes `more`), gui/jobs/jobs.go (`InputPart`) |
 | Effort | small |

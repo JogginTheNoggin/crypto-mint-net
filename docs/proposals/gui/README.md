@@ -48,7 +48,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-039](GREEN-039-wallet-parity.md) | Every `poo wallet` subcommand has a form (shared policy, co-sign, submit, resend, follow, passwd, seed), checked against `poo wallet help` | small | yes | adopted (with Source `follow -replace`) |
 | [GREEN-040](GREEN-040-whole-help-parity.md) | Every `poo help` command is in a view or listed as terminal-only; adds `sim` and `series example` forms | small | yes | adopted, with Build/Work `-bytes` and Submit `-f` |
 | [GUI-GREEN-041](GUI-GREEN-041-flag-parity.md) | Forms take the flags poo takes: Build/Work device, threads, for, serial; one wallet series for every wallet command; Receive's named transactions | small | yes | adopted |
-| [GUI-GREEN-042](GUI-GREEN-042-flag-parity-check.md) | A check (parity.mjs, in CI) that every flag `poo CMD -h` lists is sent by a form or left out for a stated reason; fixes Explore's address -below/-tid and Pools' filters | small | yes | proposed |
+| [GUI-GREEN-042](GUI-GREEN-042-flag-parity-check.md) | A check (parity.mjs, in CI) that every flag `poo CMD -h` lists is sent by a form or left out for a stated reason; fixes Explore's address -below/-tid and Pools' filters | small | yes | adopted |
 
 ## Orange (performance)
 
@@ -70,8 +70,8 @@ ORANGE-005 explains how to measure.
 | [ORANGE-009](ORANGE-009-work-view-paced-drawing.md) | Work view draws at most 10 times a second and reuses its chart (46% → 12% busy at 200 lines/s; full rate 9 → 46 fps) | small | yes | adopted |
 | [ORANGE-010](ORANGE-010-close-streams-on-leave.md) | Close a view's event streams when it is left: the Node view leaked one per visit and the GUI stopped answering after about 2 minutes | small | yes | adopted |
 | [ORANGE-011](ORANGE-011-one-crypto-ask-in-flight.md) | Ask `poo crypto` once while a key field waits for suggestions (8 focuses: 8 jobs → 1) | small | yes | adopted |
-| [ORANGE-012](ORANGE-012-submit-large-entry-as-read.md) | `poo submit entry` sends the hex as read (128 MiB entry: 12 s → 5 to 7 s, client heap 1 GB → 625 MB); Round 15's ask and wallet-lock measurements | small | yes | sent to Source |
-| [ORANGE-013](ORANGE-013-long-paste-in-parts.md) | Send a long pasted line in parts and end the input only once it arrived (largest pasteable entry: about 500 KiB → any size; 8 MiB of hex in 4.7 s) | small | yes | proposed |
+| [ORANGE-012](ORANGE-012-submit-large-entry-as-read.md) | `poo submit entry` sends the hex as read (128 MiB entry: 12 s → 5 to 7 s, client heap 1 GB → 625 MB); Round 15's ask and wallet-lock measurements | small | yes | adopted by Source (D147) |
+| [ORANGE-013](ORANGE-013-long-paste-in-parts.md) | Send a long pasted line in parts and end the input only once it arrived (largest pasteable entry: about 500 KiB → any size; 8 MiB of hex in 4.7 s) | small | yes | adopted |
 
 ### Re-checks each round
 

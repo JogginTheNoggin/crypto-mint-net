@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 16) |
+| Status | adopted (Round 17 Part A) |
 | Based on | main @ 6a1cdce |
 | Area | gui/e2e/parity.mjs (new), .github/workflows/ci.yml, gui/web/static/watch.js (Explore) |
 | Effort | small |
