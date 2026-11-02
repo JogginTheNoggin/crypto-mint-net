@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,6 +31,10 @@ type rawPeer struct {
 	n        uint64
 	coverage []wire.Section
 	silent   bool // do not answer the node's follow requests and pings
+	// closing is set by the test's cleanup before it closes the
+	// connection: a sender goroutine still writing then stops quietly
+	// instead of failing a test that has passed (B5's CI flake).
+	closing atomic.Bool
 }
 
 func poolSection() wire.Section {
@@ -45,11 +50,11 @@ func dialRaw(t *testing.T, tn *tnode, coverage []wire.Section) *rawPeer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
 	var id hash.Hash
 	rand.Read(id[:])
 	hello := wire.Hello{Protocol: 1, NodeID: id, Agent: "raw"}
 	r := &rawPeer{t: t, c: c, r: bufio.NewReader(c), coverage: coverage}
+	t.Cleanup(func() { r.closing.Store(true); c.Close() })
 	r.write(wire.Message{Header: wire.Header{Type: wire.TypeHello}, Body: hello.Encode()})
 	m, _, err := r.read()
 	if err != nil || m.Type != wire.TypeHello {
@@ -60,7 +65,7 @@ func dialRaw(t *testing.T, tn *tnode, coverage []wire.Section) *rawPeer {
 
 func (r *rawPeer) write(m wire.Message) {
 	r.t.Helper()
-	if err := wire.WriteFrame(r.c, m); err != nil {
+	if err := wire.WriteFrame(r.c, m); err != nil && !r.closing.Load() {
 		r.t.Fatal(err)
 	}
 }

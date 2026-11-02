@@ -70,23 +70,29 @@ func (w *reqWindow) dropped(sent, now time.Time, window time.Duration) {
 	}
 	limit := max(1, n*3/4)
 	active := w.limit > 0 && !now.After(w.until)
+	// served: the peer answered something sent in the window before the
+	// drops began. A peer over its budget has served the budget first; a
+	// peer that answered nothing sent in the window is out, not over a
+	// budget, and its drops never hold or lower a pace (RED-036, D142).
+	served := n > w.misses
 	switch {
 	case active && !w.probing:
 		// Held: a lower pace replaces it only when as much as half of it
 		// was sent, since drops with little sent say nothing of the
 		// budget (RED-028).
-		if limit < w.limit && n >= w.limit/2 {
+		if served && limit < w.limit && n >= w.limit/2 {
 			w.limit = limit
 		}
-	case active && w.probing && n < w.peak-w.peak/8:
+	case active && w.probing && (!served || n < w.peak-w.peak/8):
 		// Drops while the probe held the asker below what it sent
-		// before say only that the peer is still losing requests: the
-		// probe steps back and goes on rising (RED-034).
+		// before, or with nothing in the window answered, say only that
+		// the peer is still losing requests: the probe steps back and
+		// goes on rising (RED-034, RED-036).
 		w.limit, w.raised = max(w.start, w.limit/2), now
-	case (active && w.probing) || (w.known > 0 && n >= w.known):
+	case (active && w.probing) || (served && w.known > 0 && n >= w.known):
 		// The peer drops again while probed with as much sent as when it
-		// first dropped, or at what it dropped at before: its budget,
-		// which holds.
+		// first dropped, or at what it dropped at before, having served
+		// some of the window: its budget, which holds.
 		w.limit, w.probing, w.known = limit, false, limit
 	default:
 		// The first drops say little about the budget: a pace to probe

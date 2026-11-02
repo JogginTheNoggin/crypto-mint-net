@@ -216,3 +216,67 @@ func TestSecondOutageWhileProbingKeepsProbing(t *testing.T) {
 		t.Fatalf("learned %d with 36 sent, want 27 held", got)
 	}
 }
+
+// RED-036 (D142): at low load a second outage while probing came with as
+// little sent as the first (a peak of 2), so the peak alone let it hold
+// at 1. Drops with nothing sent in the window answered are an outage, not
+// a budget: the probe steps back and rises to the configured pace. A
+// peer that served some of the window before dropping still holds.
+func TestOutageAtLowLoadNeverHolds(t *testing.T) {
+	const pace = 480
+	win := time.Minute
+	var w reqWindow
+	t0 := time.Unix(4_000_000, 0)
+	w.add(t0, win)
+	w.add(t0, win)
+	w.dropped(t0, t0, win)
+	w.dropped(t0, t0, win) // probing from 1, peak 2
+	now := t0.Add(win)
+	w.answered(now, pace, win) // 2
+	now = now.Add(win)
+	w.add(now, win)
+	w.add(now, win)
+	w.dropped(now, now, win)
+	w.dropped(now, now, win) // 2 sent, both lost
+	if got := w.learned(now); got != 1 || !w.probing {
+		t.Fatalf("after the second outage %d (probing %v), want the probe at 1", got, w.probing)
+	}
+	windows := 0
+	for w.learned(now) != 0 {
+		now = now.Add(win)
+		w.answered(now, pace, win)
+		if windows++; windows > 12 {
+			t.Fatalf("the pace is still %d after %d windows", w.learned(now), windows)
+		}
+	}
+	// A peer that answered some of the window, then dropped: a budget.
+	w = reqWindow{}
+	for i := 0; i < 40; i++ {
+		w.add(t0, win)
+	}
+	w.dropped(t0, t0, win)
+	w.dropped(t0, t0, win)
+	t1 := t0.Add(win)
+	w.answered(t1, pace, win) // 60
+	for i := 0; i < 40; i++ {
+		w.add(t1, win)
+	}
+	w.dropped(t1, t1, win)
+	w.dropped(t1, t1, win)
+	if got := w.learned(t1); got != 30 || w.probing {
+		t.Fatalf("learned %d (probing %v) from a peer that served 38 of 40, want 30 held", got, w.probing)
+	}
+	// Drops at the known pace with nothing in the window answered do
+	// not hold either.
+	later := t1.Add(paceLearn*win + time.Second)
+	w.answered(later.Add(-time.Second), pace, win)
+	for i := 0; i < 2; i++ {
+		w.add(later, win)
+	}
+	w.known = 2
+	w.dropped(later, later, win)
+	w.dropped(later, later, win)
+	if !w.probing {
+		t.Fatal("an outage at the known pace held")
+	}
+}
