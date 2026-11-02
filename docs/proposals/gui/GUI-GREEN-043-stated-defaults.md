@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 17) |
+| Status | adopted (Round 18 Part A) |
 | Based on | main @ 052d032 |
 | Area | gui/e2e/parity.mjs, gui/web/static/work.js (Schedule a job) |
 | Effort | small |
