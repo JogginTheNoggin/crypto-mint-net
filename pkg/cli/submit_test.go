@@ -1,6 +1,11 @@
 package cli
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -95,6 +100,49 @@ func TestSubmitEntryAndLayer(t *testing.T) {
 	var sb strings.Builder
 	if err := run([]string{"submit", "entry", "-pool", "1", "-root", rootC, both.Entry}, &sb); err == nil || !strings.Contains(err.Error(), "submit its parent") {
 		t.Fatalf("an entry whose parent C lacks: %v", err)
+	}
+
+	// RED-038 (D144): the hex from a file (-f) or standard input (-), as
+	// one argument is at most 128 KiB on Linux.
+	// A fresh node D takes the first entry, then the one built on it.
+	rootD := t.TempDir()
+	cli(t, nil, "init", "-example", "-listen", "127.0.0.1:0", "-p2p", "127.0.0.1:0", "-root", rootD)
+	stopD := startNode(t, rootD+"/policies/default")
+	defer stopD()
+	for _, how := range []string{"stdin", "file"} {
+		e := struct{ Hash, Entry string }{built.Hash.String(), built.Entry}
+		if how == "file" {
+			e.Hash, e.Entry = both.Hash, both.Entry
+		}
+		var sub struct{ Hash string }
+		if how == "file" {
+			path := t.TempDir() + "/entry.hex"
+			if err := os.WriteFile(path, []byte(e.Entry+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cli(t, &sub, "submit", "entry", "-pool", "1", "-root", rootD, "-f", path)
+		} else {
+			var buf bytes.Buffer
+			if err := Run(context.Background(), []string{"submit", "entry", "-pool", "1", "-root", rootD, "-"}, Stdio{In: strings.NewReader(e.Entry + "\n"), Out: &buf, Err: &buf}); err != nil {
+				t.Fatalf("submit from standard input: %v", err)
+			}
+			if err := json.Unmarshal(buf.Bytes(), &sub); err != nil {
+				t.Fatalf("%v: %s", err, buf.String())
+			}
+		}
+		if sub.Hash != e.Hash {
+			t.Fatalf("submit from %s: %+v, built %s", how, sub, e.Hash)
+		}
+	}
+	// 300 KB of hex on standard input is read whole and decoded (junk, so
+	// refused as an entry); -f with an argument is refused.
+	err = Run(context.Background(), []string{"submit", "entry", "-pool", "1", "-root", rootB, "-"}, Stdio{In: strings.NewReader(strings.Repeat("00", 150_000)), Out: io.Discard, Err: io.Discard})
+	if err == nil || !strings.Contains(err.Error(), "poo submit entry:") || strings.Contains(err.Error(), "usage") {
+		t.Fatalf("300 KB of hex on standard input: %v", err)
+	}
+	var sink strings.Builder
+	if err := run([]string{"submit", "entry", "-pool", "1", "-root", rootB, "-f", "x", "00"}, &sink); err == nil || !strings.Contains(err.Error(), "usage") {
+		t.Fatalf("-f and an argument: %v", err)
 	}
 
 	var out strings.Builder

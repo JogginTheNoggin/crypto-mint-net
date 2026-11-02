@@ -95,7 +95,8 @@ const (
 	ViewTokenFile = "rpc.view-token"
 )
 
-// MaxBody bounds a request body.
+// MaxBody bounds a request body, except an entry's submitted with the
+// full token (RED-038, D144).
 const MaxBody = 8 << 20
 
 // Error codes.
@@ -238,7 +239,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, &Error{Message: "missing or wrong token", Code: CodeUnauthorized, Status: http.StatusUnauthorized})
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, MaxBody)
+	if !(full && r.Method == http.MethodPost && r.URL.Path == "/v1/entry") {
+		// An entry has no size bound: the node takes one of any size from
+		// a peer, in parts (D117), so the full token may hand it one of
+		// any size too, as poo submit and the GUI do (RED-038, D144).
+		r.Body = http.MaxBytesReader(w, r.Body, MaxBody)
+	}
 	h.mux.ServeHTTP(w, r)
 }
 
