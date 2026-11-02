@@ -216,3 +216,4 @@ in plain words.
 | Source Round 14 | [ROUND-14.md](ROUND-14.md) | 7 clear, 0 with conditions, 0 blocked; the full-token entry body cap lifted (removes a size bound); ORANGE-024's stale-waiter note is a delay paid in bytes; no consensus suggestions |
 | Source Round 15 | [ROUND-15.md](ROUND-15.md) | 7 clear, 0 with conditions, 0 blocked; wallet, CLI and local RPC only; the entry body has no size bound; no consensus suggestions |
 | Source Round 16 | [ROUND-16.md](ROUND-16.md) | 10 clear, 0 with conditions, 0 blocked; wallet, CLI, local RPC and durable writes only; the entry body is still a hint with no size bound (64 MiB start, D147); no consensus suggestions |
+| Source Round 17 | [ROUND-17.md](ROUND-17.md) | 9 clear, 0 with conditions, 0 blocked; node policy export and import; Red's question answered: k, the reply limits and max_pending cannot refuse a heavier ledger (tested at both extremes); no consensus suggestions |
