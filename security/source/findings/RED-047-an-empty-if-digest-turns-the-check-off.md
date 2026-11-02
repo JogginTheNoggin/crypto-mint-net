@@ -7,7 +7,7 @@
 | Found on | `main` @ 533dbcd (Source Round 18 Part B) |
 | Component | pkg/cli/policyport.go (`policyImportCmd`) |
 | Surface | local operator or script (CLI, GUI) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-019) |
+| Fixed by | `claude/project-thread-ggo8dt` @ a133161 (BLUE-019) |
 
 ## Summary
 

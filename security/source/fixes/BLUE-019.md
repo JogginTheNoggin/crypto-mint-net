@@ -5,6 +5,7 @@
 | Fixes | RED-046 (medium, in part), RED-047 (low), RED-048 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `533dbcd` (Source Round 18 Part C) |
+| Code | `a133161` |
 | Decisions | D152 |
 | Review | No consensus change and no limit. One protocol question for Black. |
 

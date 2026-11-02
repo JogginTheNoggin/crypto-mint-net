@@ -7,7 +7,7 @@
 | Found on | `main` @ 533dbcd (Source Round 18 Part B) |
 | Component | pkg/nodepolicy/bundle.go (`Defences`, `isDefence`) |
 | Surface | a bundle file from someone else; `poo policy import -settings`, `-full` |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-019) |
+| Fixed by | `claude/project-thread-ggo8dt` @ a133161 (BLUE-019) |
 
 ## Summary
 

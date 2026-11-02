@@ -7,7 +7,7 @@
 | Found on | `main` @ 533dbcd (Source Round 18 Part B) |
 | Component | pkg/node/node.go (`load`, `logPath`), pkg/engine/engine.go (`FollowedPools`); pkg/nodepolicy/bundle.go (`Merge`, `Followed`) |
 | Surface | a bundle file from someone else; `poo policy import -apply` (the default import), `POST /v1/policy/import` |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-019) |
+| Fixed by | `claude/project-thread-ggo8dt` @ a133161 (BLUE-019) |
 
 ## Summary
 
