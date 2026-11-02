@@ -453,7 +453,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	beat := time.NewTicker(s.Heartbeat)
 	defer beat.Stop()
-	waiting, secret := false, false
+	waiting, secret, asks := false, false, 0
 	first := true
 	for {
 		st := j.Read(from)
@@ -469,8 +469,10 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			sse(w, "chunk", chunkEvent{c.Chunk, c.Seq + 1})
 		}
 		from = st.Next
-		if st.Waiting != waiting || st.Secret != secret || first {
-			waiting, secret, first = st.Waiting, st.Secret, false
+		// A new ask is a new state even when waiting reads true both times
+		// (a passphrase asked again): the page hid its field on the answer.
+		if st.Waiting != waiting || st.Secret != secret || st.Asks != asks || first {
+			waiting, secret, asks, first = st.Waiting, st.Secret, st.Asks, false
 			sse(w, "state", map[string]bool{"waiting": waiting, "secret": secret})
 		}
 		if st.Done {

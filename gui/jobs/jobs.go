@@ -301,6 +301,10 @@ type State struct {
 	Code    int // the exit code, once Done
 	// Waiting is true while the job is blocked reading its input.
 	Waiting bool
+	// Asks counts the times the job has started waiting for input, so
+	// a second prompt right after the first, such as a new passphrase
+	// asked again, is a change even if Waiting never read false between.
+	Asks int
 	// Secret is true while what it waits for is a passphrase or a seed,
 	// so the GUI masks that line and only that line.
 	Secret bool
@@ -315,7 +319,8 @@ type State struct {
 func (j *Job) Read(from int64) State {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	s := State{Next: j.nextSeq, Changed: j.changed, Waiting: j.in.waiting(), Secret: j.secret}
+	waiting, asks := j.in.waits()
+	s := State{Next: j.nextSeq, Changed: j.changed, Waiting: waiting, Asks: asks, Secret: j.secret}
 	// A read from past the end, such as a status check, reads no output.
 	reads := from <= j.nextSeq
 	if from < j.first {
@@ -474,6 +479,7 @@ type input struct {
 	buf    []byte
 	closed bool
 	nwait  int
+	asks   int // the times a read started waiting
 	wake   chan struct{}
 	onWait func() // called when a reader starts or stops waiting
 }
@@ -512,10 +518,11 @@ func (in *input) close() {
 	close(in.wake)
 }
 
-func (in *input) waiting() bool {
+// waits reports whether a read waits now, and how many have started to.
+func (in *input) waits() (bool, int) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
-	return in.nwait > 0
+	return in.nwait > 0, in.asks
 }
 
 // errNoSecret is what readLine returns when the job ends first.
@@ -545,6 +552,7 @@ func (in *input) Read(p []byte) (int, error) {
 	for len(in.buf) == 0 && !in.closed {
 		wake := in.wake
 		in.nwait++
+		in.asks++
 		cb := in.onWait
 		in.mu.Unlock()
 		if cb != nil {

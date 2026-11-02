@@ -319,6 +319,43 @@ func TestSecret(t *testing.T) {
 	}
 }
 
+// TestSecretAskedAgain checks that a second secret read right after the
+// first is a new ask: State.Asks counts up, so the page shows its field
+// again even if it never saw Waiting false in between (GUI-020's second
+// "new passphrase again" prompt).
+func TestSecretAskedAgain(t *testing.T) {
+	r := New(context.Background(), Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		a, _ := s.Secret("new passphrase: ")
+		b, _ := s.Secret("new passphrase again: ")
+		fmt.Fprint(s.Out, a == b)
+		return 0
+	}})
+	defer r.Close(5 * time.Second)
+	j, _ := r.Start(nil)
+	asked := func(n int) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for st := j.Read(0); !st.Waiting || st.Asks < n; st = j.Read(0) {
+			if time.Now().After(deadline) {
+				t.Fatalf("ask %d never came", n)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	asked(1)
+	if err := j.Input("hunter2"); err != nil {
+		t.Fatal(err)
+	}
+	asked(2)
+	if err := j.Input("hunter2"); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, j)
+	if got := j.Output(Stdout); got != "true" {
+		t.Fatalf("stdout %q", got)
+	}
+}
+
 func TestSecretEndsOnCancel(t *testing.T) {
 	r := New(context.Background(), Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
 		if _, err := s.Secret("seed: "); err != nil {

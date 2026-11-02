@@ -113,15 +113,31 @@ try {
   // The browser logs the refused request; that one is expected.
   errors.splice(before, errors.length - before, ...errors.slice(before).filter(e => !/status of 400/.test(e)));
 
-  // A passphrase prompt gets a masked field, and the passphrase is not echoed.
+  // A passphrase prompt gets a masked field, and the passphrase is not
+  // echoed. A new passphrase is asked twice (GUI-020): two that differ
+  // change nothing, two that match make the wallet.
+  const masked = async () => until(async () => (await line.getAttribute('type')) === 'password', 'a masked field');
   await type(`wallet create -wallet ${join(home, 'w.json')}`);
-  await until(async () => (await line.getAttribute('type')) === 'password', 'a masked field');
+  await masked();
   await line.fill('hunter2-secret');
   await line.press('Enter');
+  await out.filter({ hasText: 'new passphrase again' }).waitFor();
+  await masked();
+  await line.fill('hunter2-other');
+  await line.press('Enter');
+  await idle();
+  assert.match(await out.innerText(), /the two new passphrases differ/);
+  await type(`wallet create -wallet ${join(home, 'w.json')}`);
+  for (let n = 0; n < 2; n++) {
+    await masked();
+    await line.fill('hunter2-secret');
+    await line.press('Enter');
+    if (n === 0) await until(async () => (await out.innerText()).split('new passphrase again').length > 2, 'the second ask');
+  }
   await idle();
   assert.equal(await line.getAttribute('type'), 'text');
   const after = await out.innerText();
-  assert.ok(!after.includes('hunter2-secret'), 'passphrase not echoed');
+  assert.ok(!after.includes('hunter2-secret') && !after.includes('hunter2-other'), 'passphrase not echoed');
   assert.match(after, /wrote .*w\.json/);
 
   // Run a node in the terminal, send it to the background, and query it.

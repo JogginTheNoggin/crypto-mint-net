@@ -78,9 +78,14 @@ try {
   for (let i = 0; i < 6; i++) await create.locator('form.fields').evaluate(f => f.requestSubmit());
   const waiting = await page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => !j.done && j.args[0] === 'wallet').length);
   assert.equal(waiting, 1, 'one wallet job, not one per press');
-  await ask.waitFor();
-  await ask.fill('views-secret');
-  await ask.press('Enter');
+  // poo asks for a new passphrase twice (GUI-020), each in the masked
+  // field.
+  for (const n of [1, 2]) {
+    await create.locator(`form.ask:not([hidden]) input`).waitFor();
+    await ask.fill('views-secret');
+    await ask.press('Enter');
+    if (n === 1) await create.locator('.result, pre', { hasText: 'new passphrase again' }).first().waitFor();
+  }
   await create.locator('.run-status.ok').waitFor();
   const addrs = section('Addresses');
   await addrs.locator('button[type=submit]').click();
