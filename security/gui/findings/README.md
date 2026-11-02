@@ -5,6 +5,34 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 15 Part B reviewed `claude/gui-4-watch @ 55cf745`:
+- Source 46bcb9e: the wallet's compare-and-write lock and the new
+  passphrase confirm (D145).
+- The `-bytes` checkboxes on Build and Add a layer.
+- Submit with `-f FILE` or `-`.
+- The GUI's count of secret asks (`State.Asks`).
+
+GUI-019 and GUI-020 are verified fixed:
+- Both R14B races are now refused rather than lost.
+- A typed new passphrase is asked twice, and the second masked field
+  shows.
+- The masking order holds.
+
+`-bytes` prints only public entry and layer bytes. `-f FILE` reads a path
+the full-token user names, and an error shows at most one byte of a
+non-hex file. View-only mode refuses `submit`.
+
+There is one new finding, for GUI/Blue:
+- GUI-021 (Low): Stop on a `submit -f -` job sends the pasted entry. Stop
+  is the GUI's only end of input, and `io.ReadAll` treats it as one. In
+  the GUI terminal, Ctrl-C therefore does what Ctrl-D does in a shell.
+
+Also noted:
+- The refused-save-after-payment case is Source's RED-039, already fixed
+  in the Source Round 16 queue.
+- `wallet.Save` still doesn't fsync.
+- GUI-017's Windows residual could reuse the wallet's new `LockFileEx`.
+
 Round 14 Part B reviewed `claude/gui-4-watch @ 3a7a39c`:
 - the new Wallet forms (GREEN-039);
 - `follow -replace`;
@@ -187,5 +215,6 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-016](GUI-016-refused-remove-is-silent.md) | Low | A Schedule Remove that poo refuses (`-if-version`, `-target`) shows no message; the job just stays listed | fixed (PR #49, merged Round 11; verified R11B @ 4be2230) |
 | [GUI-017](GUI-017-offline-schedule-edits-unlocked.md) | Low | Schedule changes made without a node still read and write node.json whole with no lock, so they lose each other; any read error also makes poo write behind a running node | fixed by Source (D134), merged Round 12; verified R12B @ c9c9e1f on unix (Windows has no lock) |
 | [GUI-018](GUI-018-wallet-follow-two-step-loses-rule.md) | Low | `poo wallet follow` changes a running node in two requests (remove, then add), so a failure in between drops the series' follow rule while saying "nothing was changed" | fixed by Source (BLUE-013), merged Round 13; verified R13B @ 376e964; GUI terminal e2e check added R13C |
-| [GUI-019](GUI-019-wallet-commands-overwrite-each-other.md) | Medium | Wallet commands read the whole wallet.json and write it back; one waiting at a passphrase prompt in another form undoes the rest, even a passphrase change (the old passphrase works again) | fixed by Source (wallet.Save compare-and-write, D144/D145), merged Round 15 |
-| [GUI-020](GUI-020-new-passphrase-not-confirmed.md) | Low | A new wallet passphrase is typed once into a masked field and never confirmed, so a typo locks the wallet | fixed by Source (asks twice), merged Round 15; the GUI shows the second ask (State.Asks) |
+| [GUI-019](GUI-019-wallet-commands-overwrite-each-other.md) | Medium | Wallet commands read the whole wallet.json and write it back; one waiting at a passphrase prompt in another form undoes the rest, even a passphrase change (the old passphrase works again) | fixed by Source (wallet.Save compare-and-write, D145), merged Round 15; verified R15B @ 55cf745 |
+| [GUI-020](GUI-020-new-passphrase-not-confirmed.md) | Low | A new wallet passphrase is typed once into a masked field and never confirmed, so a typo locks the wallet | fixed by Source (asks twice, D145), merged Round 15; the GUI shows the second ask (State.Asks); verified R15B @ 55cf745 |
+| [GUI-021](GUI-021-stop-submits-pasted-entry.md) | Low | Stop (or Ctrl-C in the terminal) on `poo submit -f -` hands the pasted entry or layer to the node: a cancelled job's input reads as end of input, and the GUI has no other end of input | open (GUI/Blue) |

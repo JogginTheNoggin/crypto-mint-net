@@ -7,7 +7,7 @@
 | Found on | claude/gui-4-watch @ 3a7a39c |
 | Component | pkg/wallet/wallet.go (`Open`, `Save`), pkg/cli/wallet.go (every subcommand that saves: `passwd`, `address`, `pay`, `claim`, `watch`, `request`, `policy`, `cosign`, `submit`, `resend`, …); the GUI's Wallet view runs them as independent forms |
 | Surface | local (wallet.json: its seal, keys, payment records) |
-| Fixed by | _(pending — routed to Source by GUI/Blue in Round 14C via GUI/Grey. The GUI needs no change.)_ |
+| Fixed by | Source 46bcb9e (D145), routed by GUI/Blue in Round 14C via GUI/Grey; merged into GUI main in Round 15 |
 
 ## Summary
 
@@ -127,3 +127,40 @@ the fix belongs to Source. GUI/Blue passed it to Source through GUI/Grey.
 Once Source's fix lands, GUI/Blue can add a GUI e2e check: start two
 wallet forms, let one wait at its prompt, save the other, then expect the
 waiting one to be refused.
+
+## Notes — Round 15B verification (held up)
+
+- **D145, verified.**
+  - `Save` takes an exclusive lock on `wallet.json.lock`, re-reads the
+    file, and writes only if it is byte for byte what `Open` read or this
+    wallet last wrote. Otherwise it returns `ErrChanged` and writes
+    nothing. The lock is held only around compare-and-write, so a form
+    waiting at its prompt blocks no other form.
+  - Both R14B races were re-run on the new binary:
+    - `passwd` waiting at `new passphrase:` while `address` saves:
+      `passwd` is refused ("the file changed since it was read … run the
+      command again"), and the `during` address stays used.
+    - `address` waiting at `passphrase:` while `passwd` saves: `address`
+      is refused. `new` unlocks the wallet and `old` does not, so the
+      passphrase change stands.
+  - `Create` over a file that appeared meanwhile returns `ErrExists`, and a
+    save over a removed file returns `ErrChanged`.
+  - The temporary file is still the fixed `wallet.json.tmp`. It is now
+    written only under the lock, so two poo commands can no longer mix
+    their writes.
+  - Windows has a real lock (`LockFileEx`). `GOOS=windows` builds.
+  - `go test ./pkg/wallet -run 'Save|Concurrent' -count=3` passes.
+- **Covered by Source, not repeated here.** A refused `Save` after
+  `pay`, `claim`, `submit` or `resend` already sent something loses the
+  record and says "run the command again". That is RED-039, and Source
+  BLUE-016 / D146 fixes it in the Source Round 16 queue. The GUI's Wallet
+  forms run those same commands, so they are fixed along with it.
+- **Residual, durability (optional, Source).** `Save` still doesn't
+  fsync the temporary file before the rename. After a power loss, the
+  rename can land without the data, and a wallet file the user saw as
+  saved can come back empty. `nodepolicy.Save` already syncs (D114).
+  This isn't a finding on its own, since no attacker or second command
+  is involved. It is noted so the recommendation above is closed in full.
+- **Windows for GUI-017.** The wallet now has a Windows lock, but
+  `nodepolicy.Lock` is still a no-op off unix. The same `LockFileEx` code
+  would close GUI-017's Windows residual.
