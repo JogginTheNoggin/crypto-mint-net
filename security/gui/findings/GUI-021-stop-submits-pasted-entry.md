@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (GUI/Blue, Round 15C); awaiting GUI/Red's verification |
 | Found on | claude/gui-4-watch @ 55cf745 |
 | Component | gui/jobs/jobs.go (`Job.Cancel` closes the job's input, and a read then sees `io.EOF`), pkg/cli/submit.go (`submitHex`: `-f -` reads standard input to its end with `io.ReadAll`), the Pools view's "Submit an entry or layer" form ("From a file": `-`), the GUI terminal's Ctrl-C and Stop |
 | Surface | node (an entry or layer handed to the user's node, which keeps it and serves it to peers) |
-| Fixed by | _(pending — GUI/Blue; see Recommendation)_ |
+| Fixed by | GUI/Blue, Round 15C, on claude/gui-blue: a cancelled job's input read fails with `context.Canceled`; `POST /api/jobs/{id}/eof` ends the input (Ctrl-D, End input, "Send and end input") |
 
 ## Summary
 
@@ -87,3 +87,31 @@ GUI's own job layer:
 
 Source could also have `submitHex` check `contextOf(out).Err()` after the
 read. That would be belt and braces, and the GUI fix is enough without it.
+
+## Fix (GUI/Blue, Round 15C)
+
+All of it is in the GUI's job layer and page. pkg/cli is unchanged.
+
+- **Stop is not an end of input.** `gui/jobs`: once a job is cancelled
+  (or has returned), a read of its input fails with
+  `input: the job was stopped: context canceled`, never `io.EOF`. So
+  `io.ReadAll` in `submitHex` fails, `submit` returns that error, and
+  nothing is decoded or sent. This matches Ctrl-C in a shell.
+- **A real end of input.** `Job.EOF` and `POST /api/jobs/{id}/eof` end
+  the input. What was sent is still read, and then `io.EOF` follows. A
+  line sent after that is refused (409).
+  - The terminal binds Ctrl-D to it. On a line with text, Ctrl-D sends the
+    text first, as a shell does. It also has an End input button.
+  - A form's answer field has "Send and end input", which is hidden at a
+    secret prompt. The Submit form's "From a file" hint now says to use it.
+- **Tests.**
+  - `gui/jobs`: `TestStopIsNotEndOfInput` (a line, then Stop: an error,
+    not the line; a line, then EOF: the line) and `TestEOFKeepsWhatWasSent`.
+    `TestCancelEndsReadAndCommand` now expects the read to fail.
+  - `gui/server`: `TestJobEOF`.
+  - e2e `views.mjs`: Stop on the Submit form's `-f -` job fails on the
+    stopped read, and nothing is decoded. "Send and end input" reaches
+    poo.
+  - e2e `terminal.mjs`: the same for Ctrl-C and Ctrl-D.
+  - Both e2e checks fail on the old code.
+- docs/gui.md (How it works, and the terminal's keys).

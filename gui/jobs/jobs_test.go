@@ -86,17 +86,115 @@ func TestInputAndWaiting(t *testing.T) {
 func TestCancelEndsReadAndCommand(t *testing.T) {
 	r := New(context.Background(), Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
 		_, err := io.ReadAll(s.In) // blocks until cancelled
-		if err != nil {
-			return 2
+		if err == nil {
+			return 1 // Stop read as an end of input (GUI-021)
 		}
 		<-ctx.Done()
-		return 1
+		return 2
 	}})
 	defer r.Close(5 * time.Second)
 	j, _ := r.Start(nil)
 	j.Cancel()
-	if code := wait(t, j); code != 1 {
+	if code := wait(t, j); code != 2 {
 		t.Fatalf("code %d", code)
+	}
+}
+
+// waitForRead waits until j is blocked reading its input.
+func waitForRead(t *testing.T, j *Job) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); !j.Read(0).Waiting; time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("job never waited for input")
+		}
+	}
+}
+
+// GUI-021: a command that reads its input to the end, as submit -f -
+// does, gets an error when the job is stopped, not the lines sent so far
+// as if the input had ended, so it acts on nothing. EOF is the end of
+// input, as Ctrl-D is in a shell.
+func TestStopIsNotEndOfInput(t *testing.T) {
+	readAll := func(ctx context.Context, args []string, s cli.Stdio) int {
+		b, err := io.ReadAll(s.In)
+		if err != nil {
+			fmt.Fprintf(s.Err, "read: %v", err)
+			return 1
+		}
+		fmt.Fprintf(s.Out, "submitted %q", b)
+		return 0
+	}
+	r := New(context.Background(), Options{Main: readAll})
+	defer r.Close(5 * time.Second)
+
+	stopped, _ := r.Start(nil)
+	waitForRead(t, stopped)
+	if err := stopped.Input("deadbeef"); err != nil {
+		t.Fatal(err)
+	}
+	waitForRead(t, stopped) // the line is read, and ReadAll waits for more
+	stopped.Cancel()
+	if code := wait(t, stopped); code != 1 {
+		t.Fatalf("Stop: exit %d, output %q", code, stopped.Output(Stdout))
+	}
+	if out := stopped.Output(Stdout); out != "" {
+		t.Fatalf("Stop acted on the input: %q", out)
+	}
+	if e := stopped.Output(Stderr); !strings.Contains(e, "stopped") || !strings.Contains(e, context.Canceled.Error()) {
+		t.Fatalf("Stop: stderr %q", e)
+	}
+
+	ended, _ := r.Start(nil)
+	waitForRead(t, ended)
+	if err := ended.Input("deadbeef"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ended.EOF(); err != nil {
+		t.Fatal(err)
+	}
+	if code := wait(t, ended); code != 0 {
+		t.Fatalf("EOF: exit %d, stderr %q", code, ended.Output(Stderr))
+	}
+	if out := ended.Output(Stdout); out != `submitted "deadbeef\n"` {
+		t.Fatalf("EOF: output %q", out)
+	}
+	if ended.EOF() == nil || ended.Input("late") == nil {
+		t.Fatal("input or EOF accepted after the job ended")
+	}
+}
+
+// Lines sent before EOF are all read; a line sent after it is refused.
+func TestEOFKeepsWhatWasSent(t *testing.T) {
+	release := make(chan struct{})
+	r := New(context.Background(), Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		<-release // nothing is read until both lines and EOF are in
+		b, err := io.ReadAll(s.In)
+		if err != nil {
+			return 1
+		}
+		fmt.Fprint(s.Out, string(b))
+		return 0
+	}})
+	defer r.Close(5 * time.Second)
+	j, _ := r.Start(nil)
+	if err := j.Input("a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.Input("b"); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.EOF(); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.EOF(); err != nil {
+		t.Fatalf("a second EOF: %v", err)
+	}
+	if j.Input("c") == nil {
+		t.Fatal("a line accepted after EOF")
+	}
+	close(release)
+	if code := wait(t, j); code != 0 || j.Output(Stdout) != "a\nb\n" {
+		t.Fatalf("exit %d, output %q", code, j.Output(Stdout))
 	}
 }
 

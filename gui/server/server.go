@@ -11,6 +11,7 @@
 //	GET  /api/jobs/{id}/events?from=N             the job's output as server-sent
 //	                                              events: chunk, dropped, state, exit
 //	POST /api/jobs/{id}/input   {line}            send a line to the job's input
+//	POST /api/jobs/{id}/eof                       end the job's input, as Ctrl-D does
 //	POST /api/jobs/{id}/cancel                    stop the job
 //	POST /api/run               {args} or {line}  run to the end: {code, out, err, command}
 //	GET  /api/split?line=                         the args a typed line is: {args, command}
@@ -125,6 +126,7 @@ func New(runner *jobs.Runner, static fs.FS, host string) *Server {
 	s.mux.HandleFunc("GET /api/jobs", s.listJobs)
 	s.mux.HandleFunc("GET /api/jobs/{id}/events", s.events)
 	s.mux.HandleFunc("POST /api/jobs/{id}/input", s.post(s.input))
+	s.mux.HandleFunc("POST /api/jobs/{id}/eof", s.post(s.eof))
 	s.mux.HandleFunc("POST /api/jobs/{id}/cancel", s.post(s.cancel))
 	s.mux.HandleFunc("POST /api/run", s.post(s.run))
 	s.mux.HandleFunc("GET /api/split", s.split)
@@ -348,6 +350,20 @@ func (s *Server) input(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := j.Input(body.Line); err != nil {
+		writeErr(w, http.StatusConflict, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// eof ends the job's input: the command reads what was sent, then the
+// end, as after Ctrl-D in a shell. Stop is not an end of input (GUI-021).
+func (s *Server) eof(w http.ResponseWriter, r *http.Request) {
+	j, ok := s.job(w, r)
+	if !ok {
+		return
+	}
+	if err := j.EOF(); err != nil {
 		writeErr(w, http.StatusConflict, err.Error())
 		return
 	}

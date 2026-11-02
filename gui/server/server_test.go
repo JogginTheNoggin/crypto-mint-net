@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -618,5 +619,53 @@ func TestSecretOutputNotReplayed(t *testing.T) {
 	j.ID = run.ID
 	if again := read(nil); strings.Contains(again, seed) {
 		t.Fatalf("run output replayed: %s", again)
+	}
+}
+
+// GUI-021: POST eof ends a job's input, as Ctrl-D does, so a command
+// reading to the end gets what was sent; it is refused once the job ends.
+func TestJobEOF(t *testing.T) {
+	h := newHarness(t, jobs.Options{Main: func(ctx context.Context, args []string, s cli.Stdio) int {
+		b, err := io.ReadAll(s.In)
+		if err != nil {
+			return 1
+		}
+		s.Out.Write(b)
+		return 0
+	}})
+	var j struct{ ID string }
+	r := h.do("POST", "/api/jobs", map[string]any{"line": "poo submit entry -f -"}, nil)
+	if r.StatusCode != http.StatusCreated {
+		t.Fatalf("start: %d", r.StatusCode)
+	}
+	decode(t, r, &j)
+	if r := h.do("POST", "/api/jobs/"+j.ID+"/input", map[string]string{"line": "abcd"}, nil); r.StatusCode != http.StatusNoContent {
+		t.Fatalf("input: %d", r.StatusCode)
+	}
+	if r := h.do("POST", "/api/jobs/"+j.ID+"/eof", nil, nil); r.StatusCode != http.StatusNoContent {
+		t.Fatalf("eof: %d", r.StatusCode)
+	}
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		var list []struct {
+			ID   string
+			Done bool
+			Code *int
+		}
+		decode(t, h.do("GET", "/api/jobs", nil, nil), &list)
+		if len(list) == 1 && list[0].Done {
+			if list[0].Code == nil || *list[0].Code != 0 {
+				t.Fatalf("job ended %+v", list[0])
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the job never ended after eof")
+		}
+	}
+	if r := h.do("POST", "/api/jobs/"+j.ID+"/eof", nil, nil); r.StatusCode != http.StatusConflict {
+		t.Fatalf("late eof: %d", r.StatusCode)
+	}
+	if r := h.do("POST", "/api/jobs/999/eof", nil, nil); r.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown job: %d", r.StatusCode)
 	}
 }
