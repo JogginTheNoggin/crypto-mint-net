@@ -194,6 +194,34 @@ try {
   assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json -`);
   await imp.locator('button[type=submit]').click();
   await imp.locator('.import-plan', { hasText: 'already the same' }).waitFor();
+  // GUI-023: Apply runs what was previewed, and only that. Picking
+  // another file, or changing an option, after a preview takes Apply
+  // away, and Apply sends the text that was previewed.
+  const peer = '203.0.113.7:7000';
+  const fileB = join(home, 'with-peer.json');
+  const b = JSON.parse(readFileSync(bundle, 'utf8'));
+  b.policies[0].policy.p2p = { ...(b.policies[0].policy.p2p || {}), peers: [peer] };
+  writeFileSync(fileB, JSON.stringify(b, null, 2));
+  const applyBtn = imp.locator('button.danger:has-text("Apply")');
+  assert.equal(await applyBtn.count(), 1, 'Apply offered for the previewed file');
+  await imp.locator('input[type=file]').setInputFiles(fileB);
+  assert.equal(await applyBtn.count(), 0, 'picking another file takes Apply away');
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.import-plan', { hasText: 'Nothing changed yet' }).waitFor();
+  assert.match(await imp.locator('.import-plan').innerText(), /203\.0\.113\.7/, 'the plan shows B');
+  await imp.locator('label', { hasText: 'Only write the policy' }).locator('input').check();
+  assert.equal(await applyBtn.count(), 0, 'changing an option takes Apply away');
+  await imp.locator('label', { hasText: 'Only write the policy' }).locator('input').uncheck();
+  // A's preview again, then Apply: node.json does not get B's peer.
+  await imp.locator('input[type=file]').setInputFiles(bundle);
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.import-plan', { hasText: 'already the same' }).waitFor();
+  let asked = '';
+  page.once('dialog', d => { asked = d.message(); d.accept(); });
+  await applyBtn.click();
+  await imp.locator('.area .area .import-plan', { hasText: 'Nothing needed changing.' }).waitFor();
+  assert.match(asked, /with the previewed file shared-policy\.json\?$/, 'the dialog names the previewed file');
+  assert.doesNotMatch(readFileSync(join(home, 'policies', 'default', 'node.json'), 'utf8'), /203\.0\.113\.7/, "B's peer was never applied");
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');
