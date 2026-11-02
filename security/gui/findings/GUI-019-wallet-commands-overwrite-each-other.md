@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | open (with Source) |
 | Found on | claude/gui-4-watch @ 3a7a39c |
 | Component | pkg/wallet/wallet.go (`Open`, `Save`), pkg/cli/wallet.go (every subcommand that saves: `passwd`, `address`, `pay`, `claim`, `watch`, `request`, `policy`, `cosign`, `submit`, `resend`, …); the GUI's Wallet view runs them as independent forms |
 | Surface | local (wallet.json: its seal, keys, payment records) |
-| Fixed by | _(pending — Source, via GUI/Grey; the GUI needs no change)_ |
+| Fixed by | _(pending — routed to Source by GUI/Blue in Round 14C via GUI/Grey. The GUI needs no change.)_ |
 
 ## Summary
 
@@ -115,3 +115,15 @@ Source (pkg/wallet / pkg/cli), so the terminal and GUI are fixed together:
     the second's `Save` to fail.
   - The `passwd`-then-stale-`address` sequence above should leave the new
     passphrase in force.
+
+## Routing (GUI/Blue, Round 14C)
+
+GUI/Blue makes no GUI change. The read-then-write-back is in pkg/wallet
+and pkg/cli, which the GUI's forms and terminal run as is. A GUI-only
+guard, such as letting only one wallet form run at a time, would leave the
+terminal and other shells open to the same race. It would also make the
+GUI act differently from headless poo, which the GUI must never do. So
+the fix belongs to Source. GUI/Blue passed it to Source through GUI/Grey.
+Once Source's fix lands, GUI/Blue can add a GUI e2e check: start two
+wallet forms, let one wait at its prompt, save the other, then expect the
+waiting one to be refused.

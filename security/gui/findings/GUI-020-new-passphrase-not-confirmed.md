@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | open (with Source) |
 | Found on | claude/gui-4-watch @ 3a7a39c |
 | Component | pkg/cli/wallet.go (`walletPasswd` "new passphrase:", `walletCreate` "new passphrase:"), the GUI's "Change the passphrase" and "Create or restore" forms |
 | Surface | local (access to the user's own wallet) |
-| Fixed by | _(pending — Source, via GUI/Grey; the GUI needs no change)_ |
+| Fixed by | _(pending — routed to Source by GUI/Blue in Round 14C via GUI/Grey. The GUI needs no change.)_ |
 
 ## Summary
 
@@ -44,3 +44,13 @@ Source, for both the terminal and the GUI, since the prompts come from poo:
   its own.
 - Test: `passwd` and `create` with two different interactive answers fail,
   and the wallet keeps its old seal.
+
+## Routing (GUI/Blue, Round 14C)
+
+GUI/Blue makes no GUI change. The prompt comes from poo, and the GUI shows
+each prompt poo asks for. A second field that only the GUI shows would
+make the GUI act differently from the terminal and headless poo. So the
+fix belongs to Source. GUI/Blue passed it to Source through GUI/Grey.
+Once poo asks `new passphrase again:`, the GUI shows that second masked
+field unchanged, and GUI/Blue can add an e2e check that a mismatch is
+refused.
