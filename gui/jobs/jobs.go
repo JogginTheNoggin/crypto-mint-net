@@ -270,6 +270,10 @@ func (j *Job) Cancel() { j.cancel() }
 // Input sends one line to the job's input. It does not block.
 func (j *Job) Input(line string) error { return j.in.add(line + "\n") }
 
+// EOF ends the job's input, as Ctrl-D does in a shell: the command reads
+// what was sent, then io.EOF (GUI-021). Cancel is not an end of input.
+func (j *Job) EOF() error { return j.in.end() }
+
 // Done reports whether the job has returned.
 func (j *Job) Done() bool {
 	select {
@@ -471,13 +475,17 @@ func (w streamWriter) Write(p []byte) (int, error) {
 func (j *Job) writer(s Stream) io.Writer { return streamWriter{j, s} }
 
 // input is a job's standard input: lines sent from the GUI, read by the
-// command. A read blocks until a line arrives, and returns EOF once the
-// job is cancelled or has returned, so a command never waits forever.
+// command. A read blocks until a line arrives. It returns io.EOF after an
+// end of input (EOF), and an error, not io.EOF, once the job is cancelled
+// or has returned, so a command never waits forever. A command that
+// reads to the end, such as submit -f -, then fails rather than act on
+// what was sent before Stop, as Ctrl-C does in a shell (GUI-021).
 type input struct {
 	ctx    context.Context
 	mu     sync.Mutex
 	buf    []byte
 	closed bool
+	eof    bool // ended by EOF: buf is still read, then io.EOF
 	nwait  int
 	asks   int // the times a read started waiting
 	wake   chan struct{}
@@ -493,7 +501,13 @@ func newInput(ctx context.Context) *input {
 	return in
 }
 
-var errInputClosed = errors.New("jobs: the job has ended")
+var (
+	errInputClosed = errors.New("jobs: the job has ended")
+	errInputEnded  = errors.New("jobs: the job's input has ended")
+	// errStopped is what a read returns once the job is stopped or has
+	// returned: not io.EOF, so it never reads as the end of what was sent.
+	errStopped = fmt.Errorf("input: the job was stopped: %w", context.Canceled)
+)
 
 func (in *input) add(s string) error {
 	in.mu.Lock()
@@ -501,9 +515,27 @@ func (in *input) add(s string) error {
 	if in.closed {
 		return errInputClosed
 	}
+	if in.eof {
+		return errInputEnded
+	}
 	in.buf = append(in.buf, s...)
 	close(in.wake)
 	in.wake = make(chan struct{})
+	return nil
+}
+
+// end marks the end of input: what was sent is still read, then io.EOF.
+func (in *input) end() error {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if in.closed {
+		return errInputClosed
+	}
+	if !in.eof {
+		in.eof = true
+		close(in.wake)
+		in.wake = make(chan struct{})
+	}
 	return nil
 }
 
@@ -549,7 +581,7 @@ func (in *input) readLine() (string, error) {
 
 func (in *input) Read(p []byte) (int, error) {
 	in.mu.Lock()
-	for len(in.buf) == 0 && !in.closed {
+	for len(in.buf) == 0 && !in.closed && !in.eof {
 		wake := in.wake
 		in.nwait++
 		in.asks++
@@ -569,6 +601,9 @@ func (in *input) Read(p []byte) (int, error) {
 		}
 	}
 	defer in.mu.Unlock()
+	if in.closed {
+		return 0, errStopped
+	}
 	if len(in.buf) == 0 {
 		return 0, io.EOF
 	}

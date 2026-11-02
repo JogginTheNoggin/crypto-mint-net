@@ -61,9 +61,47 @@ try {
   await fill(submit, 'From a file', '-');
   assert.ok(!(await submit.locator('label', { hasText: 'Hex' }).isVisible()), 'Hex hides when a file is named');
   assert.equal(await submit.locator('.cmd code').innerText(), `poo submit layer -root ${home} -pool 1 -f -`);
+  // GUI-021: with -f -, poo reads what is pasted to its end. Stop is
+  // Ctrl-C and sends nothing: poo fails on the stopped read, before it
+  // decodes or hands anything to the node. "Send and end input" is
+  // Ctrl-D: poo reads the paste and acts on it (here, refuses "zz").
+  const submitRun = async () => {
+    page.once('dialog', d => d.accept());
+    await submit.locator('button[type=submit]').click();
+    const ask = submit.locator('form.ask');
+    await ask.locator('input').waitFor();
+    assert.equal(await ask.locator('input').getAttribute('type'), 'text', 'a paste is not a secret');
+    assert.ok(await ask.locator('button.end-input').isVisible(), 'the paste can be ended');
+    return ask;
+  };
+  let paste = await submitRun();
+  await paste.locator('input').fill('abcd');
+  await paste.locator('button[type=submit]').click();
+  await paste.locator('input').waitFor(); // poo reads on, for more
+  await submit.locator('.run-bar button', { hasText: 'Stop' }).click();
+  await submit.locator('.run-status.bad').waitFor({ timeout: 10000 });
+  const stopped = await submit.locator('.area').innerText();
+  assert.match(stopped, /stopped/, 'Stop fails the read');
+  assert.doesNotMatch(stopped, /not hex|"hash"/, 'nothing pasted before Stop was decoded or sent');
+  paste = await submitRun();
+  await paste.locator('input').fill('zz');
+  await paste.locator('button.end-input').click();
+  await submit.locator('.run-status.bad').waitFor({ timeout: 10000 });
+  assert.match(await submit.locator('.area').innerText(), /the layer is not hex/, 'the ended paste reached poo');
   const build = section('Build an entry');
   await build.locator('label', { hasText: 'Also print the hex' }).locator('input').check();
   assert.match(await build.locator('.cmd code').innerText(), / -bytes$/);
+  // Build and Add a layer take poo grind's device, threads and for, and a
+  // serial in place of a pool (GUI-GREEN-041).
+  await build.locator('input[name=serial]').fill('5');
+  await build.locator('input[name=device]').fill('cpu');
+  await build.locator('input[name=threads]').fill('2');
+  await build.locator('input[name=for]').fill('5s');
+  assert.equal(await build.locator('.cmd code').innerText(), `poo build -root ${home} -serial 5 -device cpu -threads 2 -for 5s -bytes`);
+  const layer = section('Add a layer');
+  await layer.locator('input[name=start]').fill('7');
+  await layer.locator('input[name=device]').fill('cpu');
+  assert.equal(await layer.locator('.cmd code').innerText(), `poo work -root ${home} -device cpu -start 7`);
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.

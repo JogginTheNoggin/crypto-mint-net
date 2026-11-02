@@ -50,7 +50,11 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
     askInput.focus();
   };
   const stopBtn = el('button', { type: 'button' }, 'Stop');
-  ask.append(askLabel, askInput, showBtn, el('button', { type: 'submit', class: 'primary' }, 'Send'));
+  // End input is Ctrl-D: what was sent is read, then the end, as for a
+  // command reading a pasted entry to its end (submit -f -). Stop is
+  // Ctrl-C and sends nothing (GUI-021). A secret prompt needs no end.
+  const endBtn = el('button', { type: 'button', class: 'end-input', title: 'Send what is typed, if anything, then end the input, as Ctrl-D does in a shell' }, 'Send and end input');
+  ask.append(askLabel, askInput, showBtn, el('button', { type: 'submit', class: 'primary' }, 'Send'), endBtn);
   area.append(el('div', { class: 'run-bar' }, status, stopBtn), ask, live);
   return new Promise(resolve => {
     api.start(args, { refresh }).then(j => {
@@ -67,7 +71,12 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
         askInput.type = 'password';
         showBtn.setAttribute('aria-pressed', 'false');
         ask.hidden = true;
-        api.input(j.id, v).catch(e => { err += `poo-gui: ${e.message}\n`; });
+        return api.input(j.id, v).catch(e => { err += `poo-gui: ${e.message}\n`; });
+      };
+      endBtn.onclick = async () => {
+        if (askInput.value !== '') await ask.onsubmit(new Event('submit'));
+        ask.hidden = true;
+        api.eof(j.id).catch(e => { err += `poo-gui: ${e.message}\n`; });
       };
       area.unfollow = api.follow(j.id, {
         chunk: c => {
@@ -79,6 +88,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
           ask.hidden = !s.waiting;
           askInput.type = s.secret ? 'password' : 'text';
           showBtn.hidden = !s.secret;
+          endBtn.hidden = !!s.secret;
           showBtn.setAttribute('aria-pressed', 'false');
           if (s.waiting) {
             const prompt = tail.split('\n').pop().trim() || 'input:';
@@ -504,6 +514,17 @@ const nodeView = {
   },
 };
 
+// grindFields are the flags build and work share with poo grind: which
+// device grinds, with how many threads, and for how long instead of a
+// number of tries (GUI-GREEN-041). Device suggests what poo grind devices
+// listed, once the Work view has run it.
+const grindFields = () => [
+  { name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0 (default: node.json, else auto)', list: 'grind-devices' },
+  { name: 'threads', label: 'Threads', type: 'number', placeholder: 'default: every core but one' },
+  { name: 'for', label: 'For', placeholder: 'grind this long, up to 4m (30s), instead of tries' },
+];
+const grindFlags = v => [...flag('device', v.device), ...flag('threads', v.threads), ...flag('for', v.for)];
+
 const poolsView = {
   id: 'pools',
   title: 'Pools and payments',
@@ -521,16 +542,16 @@ const poolsView = {
         fields: [{ name: 'tid', label: 'Transaction id', placeholder: 'hex' }, { ...serial, label: 'In mint serial', placeholder: 'optional: look only in its pool' }, series],
         args: v => ['tx', ...where.flags(), ...flag('in-serial', v.serial), ...flag('series', v.series), ...(v.tid ? [v.tid] : [])], submit: 'Look up' }),
       form(ctx, { title: 'Build an entry', about: 'Builds an entry from the pending transactions of a pool.',
-        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, series, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
-        args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('work', v.work), ...flag('series', v.series), ...flag('bytes', v.bytes)], submit: 'Build' }),
+        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, series, ...grindFields(), { name: 'maxTries', label: 'Most entry tries', type: 'number', placeholder: 'when the series sets a minimum entry strength' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
+        args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('work', v.work), ...flag('series', v.series), ...grindFlags(v), ...flag('max-tries', v.maxTries), ...flag('bytes', v.bytes)], submit: 'Build' }),
       form(ctx, { title: 'Add a layer', about: 'Adds the strongest layer found, by default on the selected tip.',
-        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { name: 'entry', label: 'Entry hash', placeholder: 'default: the selected tip' }, { name: 'tries', label: 'Tries', type: 'number' }, series, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
-        args: v => ['work', ...where.flags(), ...flag('pool', v.pool), ...flag('entry', v.entry), ...flag('tries', v.tries), ...flag('series', v.series), ...flag('bytes', v.bytes)], submit: 'Work' }),
+        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'entry', label: 'Entry hash', placeholder: 'default: the selected tip' }, { name: 'tries', label: 'Tries', type: 'number' }, series, ...grindFields(), { name: 'start', label: 'First nonce', type: 'number', placeholder: 'default 0' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
+        args: v => ['work', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('entry', v.entry), ...flag('tries', v.tries), ...flag('series', v.series), ...grindFlags(v), ...flag('start', v.start), ...flag('bytes', v.bytes)], submit: 'Work' }),
       // poo submit (Source D142) hands the node an entry or layer made
       // elsewhere, as the hex Build or Add a layer prints with -bytes,
       // typed in or read by poo from a file (-f, BLUE-015).
       form(ctx, { title: 'Submit an entry or layer', about: 'Gives the node an entry or a layer made elsewhere: the hex of an entry or layer reply.',
-        fields: [{ name: 'kind', label: 'Kind', type: 'select', options: ['entry', 'layer'] }, { name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, series, { name: 'file', label: 'From a file', placeholder: 'a path on this machine, or - to paste it when asked' },
+        fields: [{ name: 'kind', label: 'Kind', type: 'select', options: ['entry', 'layer'] }, { name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, series, { name: 'file', label: 'From a file', placeholder: 'a path on this machine, or - to paste it when asked, then Send and end input' },
           { name: 'hex', label: 'Hex', placeholder: 'the entry or layer, hex', only: { field: 'file', values: [''] } }],
         args: v => ['submit', v.kind || 'entry', ...where.flags(), ...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('f', v.file), ...(!v.file && v.hex ? [v.hex] : [])], submit: 'Submit', danger: true }),
     ]);
@@ -565,6 +586,8 @@ const peersView = {
 const WALLET_KEY = 'poo-gui-wallet';
 const walletFile = () => { try { return localStorage.getItem(WALLET_KEY) || ''; } catch (_) { return ''; } };
 const setWalletFile = v => { try { localStorage.setItem(WALLET_KEY, v); } catch (_) { /* storage off */ } };
+const walletSeries = () => { try { return localStorage.getItem(WALLET_KEY + '-series') || ''; } catch (_) { return ''; } };
+const setWalletSeries = v => { try { localStorage.setItem(WALLET_KEY + '-series', v); } catch (_) { /* storage off */ } };
 
 const walletView = {
   id: 'wallet',
@@ -573,27 +596,34 @@ const walletView = {
     // The wallet file is chosen once for the whole view, like -root and
     // -policy in Settings, instead of in every form.
     const pick = el('input', { name: 'wallet-file', value: walletFile(), placeholder: 'wallet.json in the root', spellcheck: 'false' });
-    const wf = () => [...where.flags(), ...flag('wallet', pick.value.trim())];
+    // Every poo wallet command takes -series; it is chosen here once, with
+    // the file, instead of in three forms and missing from the rest
+    // (GUI-GREEN-041).
+    const pickSeries = el('input', { name: 'wallet-series', value: walletSeries(), placeholder: 'only if the node follows more than one', spellcheck: 'false' });
+    const wf = () => [...where.flags(), ...flag('wallet', pick.value.trim()), ...flag('series', pickSeries.value.trim())];
     const picker = el('section', { class: 'panel wallet-pick' },
       el('label', {}, el('span', {}, 'Wallet file (-wallet)'), pick),
-      el('small', { class: 'hint' }, 'Every form below uses this file. Empty means wallet.json in the root, as in a shell.'));
-    pick.addEventListener('input', () => {
+      el('label', {}, el('span', {}, 'Series (-series)'), pickSeries),
+      el('small', { class: 'hint' }, 'Every form below uses this file and series. Empty means wallet.json in the root and the only followed series, as in a shell.'));
+    const changed = () => {
       setWalletFile(pick.value.trim());
+      setWalletSeries(pickSeries.value.trim());
       // Each form's preview shows the new -wallet at once.
       for (const f of root.querySelectorAll('form.fields')) f.dispatchEvent(new Event('input'));
-    });
-    const series = { name: 'series', label: 'Series id', placeholder: 'only if the node follows more than one' };
+    };
+    pick.addEventListener('input', changed);
+    pickSeries.addEventListener('input', changed);
     const pass = 'The command asks for the passphrase when it needs it.';
     return mountAll(root, 'Wallet', 'Keys from one seed, payments and requests, all through poo wallet. Passphrases go straight to the command and are never stored.', [
       { el: picker, stop: () => {} },
-      form(ctx, { title: 'Balance', about: 'Spendable units per watched mint. ' + pass, fields: [series], args: v => ['wallet', 'balance', ...wf(v), ...flag('series', v.series)], submit: 'Show balance' }),
+      form(ctx, { title: 'Balance', about: 'Spendable units per watched mint. ' + pass, fields: [], args: v => ['wallet', 'balance', ...wf(v)], submit: 'Show balance' }),
       form(ctx, { title: 'Addresses', about: 'Every address, used or not, and shared ones. ' + pass, fields: [], args: v => ['wallet', 'addresses', ...wf(v)], submit: 'Show addresses' }),
       form(ctx, { title: 'New address', fields: [{ name: 'label', label: 'Label' }], args: v => ['wallet', 'address', ...wf(v), ...flag('label', v.label)], submit: 'Give out an address' }),
       form(ctx, { title: 'Pay', about: 'Pays an address, or a payment request file.', fields: [
         { name: 'to', label: 'To address' }, { name: 'amount', label: 'Amount', type: 'number' },
         { name: 'request', label: 'Or a request file' }, { name: 'mint', label: 'Only from mints', type: 'list', placeholder: 'serials …' },
-        { name: 'memo', label: 'Memo' }, { name: 'out', label: 'Co-signing file', placeholder: 'for a shared policy' }, series],
-      args: v => ['wallet', 'pay', ...wf(v), ...flag('to', v.to), ...flag('amount', v.amount), ...flag('request', v.request), ...flags('mint', v.mint), ...flag('memo', v.memo), ...flag('out', v.out), ...flag('series', v.series)],
+        { name: 'memo', label: 'Memo' }, { name: 'out', label: 'Co-signing file', placeholder: 'for a shared policy' }],
+      args: v => ['wallet', 'pay', ...wf(v), ...flag('to', v.to), ...flag('amount', v.amount), ...flag('request', v.request), ...flags('mint', v.mint), ...flag('memo', v.memo), ...flag('out', v.out)],
       submit: 'Pay', danger: true }),
       // A shared k-of-n payment from start to end (GREEN-039): Pay with a
       // co-signing file writes what co-signers sign; each runs cosign on
@@ -608,16 +638,19 @@ const walletView = {
         args: v => ['wallet', 'submit', ...wf(v), ...(v.file ? [v.file] : [])], submit: 'Submit', danger: true }),
       form(ctx, { title: 'Request a payment', about: 'Asks to be paid, to a fresh address.', fields: [{ name: 'amount', label: 'Amount', type: 'number' }, { name: 'memo', label: 'What for' }, { name: 'out', label: 'Request file', placeholder: 'default: print it' }],
         args: v => ['wallet', 'request', ...wf(v), ...flag('amount', v.amount), ...flag('memo', v.memo), ...flag('out', v.out)], submit: 'Make request' }),
-      form(ctx, { title: 'What has arrived', fields: [{ name: 'address', label: 'Requested address' }, { name: 'request', label: 'Or the request file' }, { name: 'threshold', label: 'Threshold', placeholder: 'from(e) for settled' }],
-        args: v => ['wallet', 'receive', ...wf(v), ...flag('address', v.address), ...flag('request', v.request), ...flag('threshold', v.threshold)], submit: 'Check' }),
+      // -serial N -tid HASH pairs name transactions the payer told you of;
+      // poo pairs them in order and says if the counts differ (GUI-GREEN-041).
+      form(ctx, { title: 'What has arrived', fields: [{ name: 'address', label: 'Requested address' }, { name: 'request', label: 'Or the request file' }, { name: 'threshold', label: 'Threshold', placeholder: 'from(e) for settled' },
+        { name: 'tid', label: 'Transactions the payer named', type: 'list', placeholder: 'optional: tid …' }, { name: 'tidSerial', label: 'Their mint serials', type: 'list', placeholder: 'one per transaction, in order' }],
+        args: v => ['wallet', 'receive', ...wf(v), ...flag('address', v.address), ...flag('request', v.request), ...flag('threshold', v.threshold), ...flags('serial', v.tidSerial), ...flags('tid', v.tid)], submit: 'Check' }),
       form(ctx, { title: 'Payments sent', about: 'Where every payment sent stands.', fields: [{ name: 'threshold', label: 'Threshold', placeholder: 'from(e) for settled' }],
         args: v => ['wallet', 'status', ...wf(v), ...flag('threshold', v.threshold)], submit: 'Show' }),
       form(ctx, { title: 'Send dropped legs again', about: 'Sends again the parts of payments the node dropped (Payments sent shows them). ' + pass, fields: [],
         args: v => ['wallet', 'resend', ...wf(v)], submit: 'Resend' }),
       form(ctx, { title: 'Watch mints', about: 'Adds mints or pools to look for portions in.', fields: [{ name: 'serial', label: 'Mint serials', type: 'list' }, { name: 'pool', label: 'Pools', type: 'list' }],
         args: v => ['wallet', 'watch', ...wf(v), ...flags('serial', v.serial), ...flags('pool', v.pool)], submit: 'Watch' }),
-      form(ctx, { title: 'Claim a mint', fields: [{ name: 'serial', label: 'Mint serial', type: 'number' }, series],
-        args: v => ['wallet', 'claim', ...wf(v), ...flag('serial', v.serial), ...flag('series', v.series)], submit: 'Claim', danger: true }),
+      form(ctx, { title: 'Claim a mint', fields: [{ name: 'serial', label: 'Mint serial', type: 'number' }],
+        args: v => ['wallet', 'claim', ...wf(v), ...flag('serial', v.serial)], submit: 'Claim', danger: true }),
       form(ctx, { title: 'Follow only the watched mints', about: 'Light mode: the node policy follows only the pools of the mints this wallet watches, in place of what it follows now.', fields: [],
         args: v => ['wallet', 'follow', ...wf(v)], submit: 'Follow only these', danger: true }),
       form(ctx, { title: 'Change the passphrase', about: 'Seals the seed under a new passphrase. poo asks for the old one, then the new one, each in a masked field.', fields: [],

@@ -91,8 +91,14 @@ Here is how a request flows:
    output is JSON and render it. The terminal prints the output as it
    arrives.
 4. The browser can send a line to the job's input, for example a
-   passphrase prompt, or cancel the job. Cancelling does what Ctrl-C does
-   in a shell, and the terminal binds Ctrl-C to it.
+   passphrase prompt, end the job's input, or cancel the job. Ending the
+   input does what Ctrl-D does in a shell: the command reads what was
+   sent, then the end. The terminal binds Ctrl-D to it, and so do its End
+   input button and a form's "Send and end input", which a command that
+   reads a paste to its end needs (`poo submit entry -f -`). Cancelling does
+   what Ctrl-C does in a shell, and the terminal binds Ctrl-C and Stop to
+   it. A cancelled job's read fails. It is never an end of input, so a
+   command never acts on what was sent before Stop (GUI-021).
 
 The node itself is a job too. "Start node" runs `poo node` in the GUI
 process, and closing the GUI (Ctrl-C, SIGTERM, or closing the terminal it
@@ -206,6 +212,9 @@ grammars, and table tests pin them.
 - **One convenience.** A leading `poo` word is dropped, because the prompt
   already reads `poo`. In a shell, `poo` followed by a second `poo` would
   be an unknown command anyway.
+
+Ctrl-D, while a command runs, sends any text on the line, as a shell
+does. On an empty line it ends the command's input.
 
 Clearing the screen is the Clear button and Ctrl-L, which are display
 controls. `clear` typed as a line goes to `poo` like any other line, as
