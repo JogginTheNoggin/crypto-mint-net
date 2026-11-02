@@ -521,16 +521,18 @@ const poolsView = {
         fields: [{ name: 'tid', label: 'Transaction id', placeholder: 'hex' }, { ...serial, label: 'In mint serial', placeholder: 'optional: look only in its pool' }, series],
         args: v => ['tx', ...where.flags(), ...flag('in-serial', v.serial), ...flag('series', v.series), ...(v.tid ? [v.tid] : [])], submit: 'Look up' }),
       form(ctx, { title: 'Build an entry', about: 'Builds an entry from the pending transactions of a pool.',
-        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, series],
-        args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('work', v.work), ...flag('series', v.series)], submit: 'Build' }),
+        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, series, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
+        args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('work', v.work), ...flag('series', v.series), ...flag('bytes', v.bytes)], submit: 'Build' }),
       form(ctx, { title: 'Add a layer', about: 'Adds the strongest layer found, by default on the selected tip.',
-        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { name: 'entry', label: 'Entry hash', placeholder: 'default: the selected tip' }, { name: 'tries', label: 'Tries', type: 'number' }, series],
-        args: v => ['work', ...where.flags(), ...flag('pool', v.pool), ...flag('entry', v.entry), ...flag('tries', v.tries), ...flag('series', v.series)], submit: 'Work' }),
+        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { name: 'entry', label: 'Entry hash', placeholder: 'default: the selected tip' }, { name: 'tries', label: 'Tries', type: 'number' }, series, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
+        args: v => ['work', ...where.flags(), ...flag('pool', v.pool), ...flag('entry', v.entry), ...flag('tries', v.tries), ...flag('series', v.series), ...flag('bytes', v.bytes)], submit: 'Work' }),
       // poo submit (Source D142) hands the node an entry or layer made
-      // elsewhere, as the hex an entry or layer reply carries.
+      // elsewhere, as the hex Build or Add a layer prints with -bytes,
+      // typed in or read by poo from a file (-f, BLUE-015).
       form(ctx, { title: 'Submit an entry or layer', about: 'Gives the node an entry or a layer made elsewhere: the hex of an entry or layer reply.',
-        fields: [{ name: 'kind', label: 'Kind', type: 'select', options: ['entry', 'layer'] }, { name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, series, { name: 'hex', label: 'Hex', placeholder: 'the entry or layer, hex' }],
-        args: v => ['submit', v.kind || 'entry', ...where.flags(), ...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial), ...(v.hex ? [v.hex] : [])], submit: 'Submit', danger: true }),
+        fields: [{ name: 'kind', label: 'Kind', type: 'select', options: ['entry', 'layer'] }, { name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, series, { name: 'file', label: 'From a file', placeholder: 'a path on this machine, or - to paste it when asked' },
+          { name: 'hex', label: 'Hex', placeholder: 'the entry or layer, hex', only: { field: 'file', values: [''] } }],
+        args: v => ['submit', v.kind || 'entry', ...where.flags(), ...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('f', v.file), ...(!v.file && v.hex ? [v.hex] : [])], submit: 'Submit', danger: true }),
     ]);
   },
 };

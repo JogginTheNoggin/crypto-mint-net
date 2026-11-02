@@ -58,6 +58,12 @@ try {
   await fill(submit, 'Pool', '1');
   await fill(submit, 'Hex', 'abcd');
   assert.equal(await submit.locator('.cmd code').innerText(), `poo submit layer -root ${home} -pool 1 abcd`);
+  await fill(submit, 'From a file', '-');
+  assert.ok(!(await submit.locator('label', { hasText: 'Hex' }).isVisible()), 'Hex hides when a file is named');
+  assert.equal(await submit.locator('.cmd code').innerText(), `poo submit layer -root ${home} -pool 1 -f -`);
+  const build = section('Build an entry');
+  await build.locator('label', { hasText: 'Also print the hex' }).locator('input').check();
+  assert.match(await build.locator('.cmd code').innerText(), / -bytes$/);
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.

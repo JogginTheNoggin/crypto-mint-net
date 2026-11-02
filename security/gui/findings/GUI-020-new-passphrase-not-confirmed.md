@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open (with Source) |
+| Status | fixed by Source (asks twice), merged Round 15; the GUI shows the second ask through State.Asks; pending Red's verification |
 | Found on | claude/gui-4-watch @ 3a7a39c |
 | Component | pkg/cli/wallet.go (`walletPasswd` "new passphrase:", `walletCreate` "new passphrase:"), the GUI's "Change the passphrase" and "Create or restore" forms |
 | Surface | local (access to the user's own wallet) |

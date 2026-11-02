@@ -46,7 +46,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-036](GREEN-036-getting-started-reaches-grinding.md) | Getting started covers `doctor`, `watch` and `grind`, and each node step links its view | small | yes | adopted |
 | [GREEN-038](GREEN-038-reload-due-notice.md) | The Node view says when a node.json change waits for a reload, with Reload now (needs Source GREEN-037) | small | yes | adopted (with Source GREEN-037) |
 | [GREEN-039](GREEN-039-wallet-parity.md) | Every `poo wallet` subcommand has a form (shared policy, co-sign, submit, resend, follow, passwd, seed), checked against `poo wallet help` | small | yes | adopted (with Source `follow -replace`) |
-| [GREEN-040](GREEN-040-whole-help-parity.md) | Every `poo help` command is in a view or listed as terminal-only; adds `sim` and `series example` forms | small | yes | proposed |
+| [GREEN-040](GREEN-040-whole-help-parity.md) | Every `poo help` command is in a view or listed as terminal-only; adds `sim` and `series example` forms | small | yes | adopted, with Build/Work `-bytes` and Submit `-f` |
 
 ## Orange (performance)
 

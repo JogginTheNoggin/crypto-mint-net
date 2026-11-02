@@ -136,7 +136,7 @@ with a button that runs it in the terminal.
 | Watch | `watch` with the filter flags: live events, newest first, with pause, counts and each event in full. It keeps running when you switch views, and its tab shows a dot; Stop ends it |
 | Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poo` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job (one schedule change at a time: Remove, Add and Set are off while one runs and until the table is read again), `grind schedule add` and `grind schedule set` (device, threads, layer floor and rate). It keeps running when you switch views, and a reload takes a running job up again with its Stop |
 | Explore | `pools`, `ledger` (page by page), `pending`, `unspent`, `tx`, `address`, with the same filter flags |
-| Pools and payments | `status`, `holdings`, `payment`, `build`, `work`, `submit` |
+| Pools and payments | `status`, `holdings`, `payment`, `build`, `work` (with `-bytes`), `submit` (hex or `-f`) |
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
 | Peers | `peers`, `peer ACTION`, `tracking`, `chases` |
 | Node policies | `policy list`, `use`, `archive`, `unarchive`, `delete` |

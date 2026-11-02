@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open (with Source) |
+| Status | fixed by Source (D144/D145), merged Round 15; pending Red's verification |
 | Found on | claude/gui-4-watch @ 3a7a39c |
 | Component | pkg/wallet/wallet.go (`Open`, `Save`), pkg/cli/wallet.go (every subcommand that saves: `passwd`, `address`, `pay`, `claim`, `watch`, `request`, `policy`, `cosign`, `submit`, `resend`, …); the GUI's Wallet view runs them as independent forms |
 | Surface | local (wallet.json: its seal, keys, payment records) |

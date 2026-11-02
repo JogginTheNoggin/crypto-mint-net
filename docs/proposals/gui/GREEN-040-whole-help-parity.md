@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 14) |
+| Status | adopted (Round 15), with the -bytes and submit -f follow-ups |
 | Based on | claude/gui-4-watch @ 3a7a39c |
 | Area | gui/web/static/views.js (Series and keys), gui/e2e/qol.mjs |
 | Effort | small |
