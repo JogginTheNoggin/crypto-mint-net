@@ -63,6 +63,7 @@ import (
 	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -490,30 +491,59 @@ func (b *hexBytes) UnmarshalJSON(data []byte) error {
 
 var errNotHex = errors.New("not hex")
 
-// entryHint is the most of an entry body read up front by the size the
-// request states; past it the buffer grows as the bytes arrive
-// (ORANGE-025).
-const entryHint = 1 << 30
+// entryHint is the most of an entry body set aside before any of it
+// arrives, whatever size the request states. Past it the buffer doubles
+// as bytes arrive, never past the stated size, so a false or hostile
+// Content-Length sets aside at most 64 MiB, or twice what was really
+// sent, while an honest large entry costs a copy or two on the way
+// (ORANGE-025; Blue's and Black's notes on its hint, D147).
+const entryHint = 64 << 20
 
-// readEntryBody reads an entry request whole into one buffer, sized by
-// the stated length up to entryHint, and decodes it in place: json's
-// Decoder would copy the body again into its own buffer, growing it
-// step by step, so a large entry cost eight times its size in memory
-// instead of three (ORANGE-025). It is decodeBody's JSON: the same
-// options as encoding/json, unknown fields refused, and nothing after
-// the value.
+// readEntryBody reads an entry request whole into one buffer and decodes
+// it in place: json's Decoder would copy the body again into its own
+// buffer, growing it step by step, so a large entry cost eight times its
+// size in memory instead of three (ORANGE-025). It is decodeBody's JSON:
+// the same options as encoding/json, unknown fields refused, and nothing
+// after the value.
 func readEntryBody(r *http.Request, v any) *Error {
-	var body bytes.Buffer
-	if n := r.ContentLength; n > 0 {
-		body.Grow(int(min(n, entryHint)) + bytes.MinRead)
-	}
-	if _, err := body.ReadFrom(r.Body); err != nil {
+	body, err := readSized(r.Body, r.ContentLength, entryHint)
+	if err != nil {
 		return badRequest("body: %v", err)
 	}
-	if err := jsonv2.Unmarshal(body.Bytes(), v, json.DefaultOptionsV1(), jsonv2.RejectUnknownMembers(true)); err != nil {
+	if err := jsonv2.Unmarshal(body, v, json.DefaultOptionsV1(), jsonv2.RejectUnknownMembers(true)); err != nil {
 		return badRequest("body: %v", err)
 	}
 	return nil
+}
+
+// readSized reads all of rd. It starts with room for min(stated, hint)
+// bytes (hint when stated is unknown) and doubles the room as it fills,
+// up to stated when that is known and not yet reached, so what it sets
+// aside is never more than twice what has arrived, nor more than the
+// stated size once the room has grown to it.
+func readSized(rd io.Reader, stated, hint int64) ([]byte, error) {
+	room := hint
+	if stated >= 0 {
+		room = min(stated, hint)
+	}
+	buf := make([]byte, 0, max(room, 512)+1) // +1: the read that sees EOF
+	for {
+		if len(buf) == cap(buf) {
+			grow := int64(cap(buf)) * 2
+			if stated > int64(cap(buf)) {
+				grow = min(grow, stated+1)
+			}
+			buf = append(make([]byte, 0, grow), buf...)
+		}
+		n, err := rd.Read(buf[len(buf):cap(buf)])
+		buf = buf[:len(buf)+n]
+		if err == io.EOF {
+			return buf, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
 }
 
 func (h *Handler) submitEntry(w http.ResponseWriter, r *http.Request) {
