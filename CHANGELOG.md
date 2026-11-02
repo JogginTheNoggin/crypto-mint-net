@@ -131,3 +131,10 @@ built.
   writes from the CLI take the data directory's lock; restart checks the
   store's signatures on every core; `poo doctor`'s fixes name the policy
   they checked, and floor or rate changes restart no grinding job.
+- **Paid cuts at the disk reserve (D139 to D141):** a fetch waiting for
+  disk takes room only for the bytes that arrive, cut from the end of a
+  file whose sender left, stalled, or delivers at least 1.5 times more
+  slowly over a whole chase, so neither a trickler nor colluders cutting
+  each other in bursts can hold the room against an honest sender;
+  `poo wallet follow` replaces the series' rule in one change; status and
+  `poo doctor` say when `node.json` waits for a reload.

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -607,8 +606,9 @@ type progress struct {
 	compacted   bool
 	// partsRate is the rate, in bytes a second, at which the last chase
 	// that asked this sender for parts received them, over the time its
-	// requests took, lost ones included; partsAt is when that chase was
-	// saved (takeRoom, D139).
+	// requests took, lost ones included, measured over a whole chase and
+	// never a burst (fetchParts, Black's B6, D140); partsAt is when it
+	// was measured (takeRoom, D139).
 	partsRate float64
 	partsAt   time.Time
 
@@ -677,18 +677,6 @@ func (h *Host) saveProgress(k progressKey, st *progress) {
 		h.progOrder = append(h.progOrder, k)
 	}
 	st.saved, st.away, st.compacted = now, time.Time{}, false
-	if pt := st.part; pt != nil {
-		if pt.tried {
-			// What the sender showed it delivers, measured over the time
-			// its parts requests took, a lost one's wait included; a
-			// chase that only waited for room measures nothing (D139).
-			st.partsRate, st.partsAt = 0, now
-			if pt.dur > 0 {
-				st.partsRate = float64(pt.seen) / pt.dur.Seconds()
-			}
-		}
-		pt.tried, pt.seen, pt.dur = false, 0, 0
-	}
 	h.prog[k] = st
 	h.sweepLocked(now, on)
 	for len(h.progOrder) > maxProgress {
@@ -779,14 +767,16 @@ func (h *Host) sweepLocked(now time.Time, on map[string]bool) {
 }
 
 // takeRoom makes room for n more bytes of the chase of st, which is
-// receiving its parts at rate (bytes a second, measured in this chase),
+// receiving its parts at rate (bytes a second, over a whole chase: see
+// fetchParts),
 // by cutting bytes off the end of other kept parts files until room says
 // there is room. It reports whether it did. Bytes are taken only as the
 // waiting chase receives them, so whoever takes room has paid for it
 // byte for byte, and only from a file it is not behind (takeFrom). The
 // file cut the most is the one whose sender left, then one whose last
 // chase took nothing or that has not asked for a while, then the one
-// expected to finish last. A file cut to nothing goes (D139).
+// whose sender is slowest. A file cut to nothing goes (D139; rates, not
+// times to finish, since Black's B6, D140).
 //
 // This replaces the ranks of D131, D132, D136 and D137 with a measure no
 // claim alone can game: a sender that claims a size and trickles has a
@@ -829,11 +819,17 @@ func (h *Host) takeRoom(st *progress, rate float64, n uint64, room func() bool) 
 }
 
 // takeFrom reports whether the waiting chase st, receiving at rate, may
-// cut kept file o, with its priority (lower first) and expected time to
-// finish. A file whose sender left is cut first (0); then one whose last
-// chase that asked for parts took nothing, or that has not asked for
-// partsStale (1); then, when st would finish first, the one expected to
-// finish last (2).
+// cut kept file o, with its priority (lower first) and how slow o's
+// sender is (the larger, the sooner it is cut). A file whose sender left
+// is cut first (0); then one whose last chase that asked for parts took
+// nothing, or that has not asked for partsStale (1); then one whose
+// sender delivers at least partsMargin times more slowly than st's (2);
+// then, between senders within partsMargin of each other, one with more
+// still to come (3).
+// A claim, and how much is still to come, decide only between senders
+// about as fast as each other: a holder keeps the room against a much
+// faster fetch only by delivering about as fast, for as long as it holds
+// it (Black's B6, D140). With cuts by bytes neither file starts over.
 func (h *Host) takeFrom(o *progress, away bool, st *progress, rate float64, now time.Time) (int, float64, bool) {
 	if o == st || o.part == nil || o.part.off == 0 {
 		return 0, 0, false
@@ -843,24 +839,23 @@ func (h *Host) takeFrom(o *progress, away bool, st *progress, rate float64, now 
 		return 0, 0, true
 	case o.partsRate <= 0 || now.Sub(o.partsAt) > h.partsStale():
 		return 1, 0, true
-	}
-	mine := finishIn(st, rate)
-	theirs := finishIn(o, o.partsRate)
-	if mine < theirs || mine == theirs && st.part != nil && st.part.off > o.part.off {
-		// Each cut puts the file cut further behind and the one cutting
-		// further ahead, so the two never take turns (ORANGE-022).
-		return 2, theirs, true
+	case rate > 0 && rate >= partsMargin*o.partsRate:
+		return 2, 1 / o.partsRate, true
+	case rate > 0 && rate*partsMargin >= o.partsRate && st.part != nil && st.partsToCome() < o.partsToCome():
+		// About as fast: the one nearer its end keeps the room. Each cut
+		// puts the file cut further behind and the one cutting further
+		// ahead, so the two never take turns (ORANGE-022), and a claim
+		// near its end must still be delivered at about the honest rate
+		// and then finished, after which the hash decides.
+		return 3, 1 / o.partsRate, true
 	}
 	return 0, 0, false
 }
 
-// finishIn is how many seconds st's large entry needs at rate.
-func finishIn(st *progress, rate float64) float64 {
-	if rate <= 0 {
-		return math.Inf(1)
-	}
-	return float64(st.partsToCome()) / rate
-}
+// partsMargin is how many times faster than a kept file's sender a fetch
+// must deliver to cut it, so two fetches at about the same rate do not
+// trade bytes back and forth (Black's B6, D140).
+const partsMargin = 1.5
 
 // partsStale is how long a kept parts file's measure lasts without its
 // chase asking for parts again: two of the sender's first backoff steps,
@@ -1485,13 +1480,6 @@ type partial struct {
 	size  uint64
 	f     *os.File
 	off   uint64
-	// tried, seen and dur are what the chase now running did with it:
-	// whether it asked for parts, the bytes of parts it received (kept
-	// or not), and the time its parts requests took. At the save they set
-	// progress.partsRate (D139).
-	tried bool
-	seen  uint64
-	dur   time.Duration
 }
 
 // cut takes up to n bytes off the end of the parts, which its chase then
@@ -1579,22 +1567,54 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			}
 		}
 	}()
+	// What this call measures of the sender: the bytes of parts received,
+	// kept or not, over the time its requests took, a lost one's wait
+	// included. It is a measure of a whole chase, never a burst, once a
+	// request was lost, a full parts reply's worth (or the rest of the
+	// entry) arrived, or the slice ended; only then is it saved, and only
+	// then does it decide a cut (Black's B6, D140).
+	began := time.Now()
+	var seen uint64
+	var dur time.Duration
+	lost := false
+	measured := func() bool {
+		return lost || seen >= min(partsReply, l.Size-pt.off) ||
+			(!deadline.IsZero() && time.Now().After(deadline)) || time.Since(began) >= h.cfg.ChaseSlice
+	}
+	rate := func(inFlight time.Duration) float64 {
+		if d := (dur + inFlight).Seconds(); d > 0 {
+			return float64(seen) / d
+		}
+		return 0
+	}
+	defer func() {
+		if st != nil && (seen > 0 || lost) && measured() {
+			st.partsRate, st.partsAt = rate(0), time.Now()
+		}
+	}()
+	// probing: no room, and no measure yet that could take any. The chase
+	// goes on asking for the part at its offset and throws it away until
+	// it has measured the sender, then takes room by that measure or
+	// waits (D140).
+	probing := false
 	asked := false
 	for pt.off < l.Size {
 		if asked && st != nil && !deadline.IsZero() && time.Now().After(deadline) {
 			keep = true
 			return wire.EntryItem{}, errPartsYield
 		}
-		if st != nil && !h.partsRoom(pt.f, 1) && !h.mayTake(st) {
+		if st != nil && (probing || !h.partsRoom(pt.f, min(l.Size-pt.off, partsReply))) && !h.mayTake(st) {
 			// Free space is waited for, never a reason to refuse: a real
 			// large entry goes on from its offset once there is room
 			// (RED-022). Room is taken from another file only as parts
 			// arrive (takeRoom); with none it could be taken from, the
-			// chase does not ask.
+			// chase does not ask. A byte of room is not room: the chase
+			// asks with no measure that could take room only when a
+			// whole part fits (Black's B6, D140).
 			keep = true
 			return wire.EntryItem{}, errPartsSpace
 		}
-		asked, pt.tried = true, true
+		asked = true
 		start := time.Now()
 		q := wire.PartsReq{RequestCommon: h.common(), Entry: l.Entry, Variant: wire.EntriesWithLayers, Offset: pt.off}
 		var kind wire.Type
@@ -1617,12 +1637,23 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 				return falseErr{err: fmt.Errorf("the parts of entry %s do not start with its parent %s", l.Entry.Short(), parent.Short())}
 			}
 			n := uint64(len(part.Data))
-			pt.seen += n
+			seen += n
 			if st != nil && !h.partsRoom(pt.f, n) {
 				// Room for what has arrived, paid for by its arrival
-				// (D139).
-				rate := float64(pt.seen) / (pt.dur + time.Since(start)).Seconds()
-				if !h.takeRoom(st, rate, n, func() bool { return h.partsRoom(pt.f, n) }) {
+				// (D139), by this chase's measure once it has one, else by
+				// the last whole chase's (D140).
+				// A departed, idle or stale holder is cut by any.
+				r := st.partsRate
+				if measured() {
+					r = rate(time.Since(start))
+				}
+				switch {
+				case h.takeRoom(st, r, n, func() bool { return h.partsRoom(pt.f, n) }):
+					probing = false
+				case !measured() && h.mayTake(st):
+					probing = true // thrown away, and asked for again
+					return nil
+				default:
 					return errPartsSpace
 				}
 			}
@@ -1632,7 +1663,10 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			pt.off += n
 			return nil
 		})
-		pt.dur += time.Since(start)
+		dur += time.Since(start)
+		if errors.Is(err, errTimeout) {
+			lost = true
+		}
 		if errors.Is(err, errPartsSpace) {
 			keep = true
 		}
@@ -1642,7 +1676,7 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 		if kind != wire.TypePart {
 			return wire.EntryItem{}, fmt.Errorf("parts of entry %s answered %s", l.Entry.Short(), kind)
 		}
-		if pt.off < l.Size && !more {
+		if pt.off < l.Size && !more && !probing {
 			return wire.EntryItem{}, falseErr{err: fmt.Errorf("entry %s ended at %d of %d bytes", l.Entry.Short(), pt.off, l.Size)}
 		}
 	}
@@ -1786,7 +1820,9 @@ func (h *Host) mayTake(st *progress) bool {
 		if o == st || o.part == nil || o.part.off == 0 {
 			continue
 		}
-		if st.partsRate <= 0 {
+		if st.partsRate <= 0 || now.Sub(st.partsAt) > h.partsStale() {
+			// No measure, or an old one: the chase asks, to measure the
+			// sender again over a whole chase (Black's B5 and B6, D140).
 			return true
 		}
 		if _, _, ok := h.takeFrom(o, !on[k.sender], st, st.partsRate, now); ok {

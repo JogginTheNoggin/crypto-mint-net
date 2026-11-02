@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | superseded by D139 and D140; finding upheld (D141) |
 | Based on | `claude/m10-watch` @ `bc2e4bc` |
 | Area | `pkg/p2p` (`partsRank.below`, new `finishesFirst`), `.github/workflows/ci.yml` |
 | Effort | small |

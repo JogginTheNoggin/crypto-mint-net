@@ -5,10 +5,11 @@ import (
 	"time"
 )
 
-// D139 (replacing D137's turns): a waiting chase may cut a kept parts
-// file when that file's sender left, its last chase took nothing or it
-// has not asked for a while, or the waiting chase, at the rate it is
-// receiving, would finish first. A claimed size alone never decides.
+// D139 and D140 (replacing D137's turns): a waiting chase may cut a kept
+// parts file when that file's sender left, its last chase took nothing
+// or it has not asked for a while, its sender delivers at least 1.5
+// times more slowly, or, within that margin, it has more still to come.
+// A claimed size never decides against a much faster sender.
 func TestTakeFrom(t *testing.T) {
 	h := &Host{cfg: Config{ChaseSlice: time.Minute}}
 	h.cfg.Chase.Backoff = 30 * time.Second
@@ -30,8 +31,12 @@ func TestTakeFrom(t *testing.T) {
 		{"a holder whose last chase took nothing", file(0, 100*mib, 99*mib), false, me(100*mib, 0), 1, true},
 		{"a holder not chased for a while", &progress{partsRate: 64 * mib, partsAt: now.Add(-time.Hour), part: &partial{size: 100 * mib, off: 99 * mib}}, false, me(100*mib, 0), 1, true},
 		{"RED-031: a trickler just under, at 1 MiB a minute", file(mib/60, 99*mib, 10*mib), false, me(100*mib, 0), 4 * mib, true},
-		{"a huge claim trickled (B4)", file(mib, 1<<40, 90*mib), false, me(100*mib, 0), mib / 10, true},
-		{"a fetch that will finish first keeps it", file(4*mib, 100*mib, 90*mib), false, me(100*mib, 0), 4 * mib, false},
+		{"a huge claim trickled (B4)", file(mib/10, 1<<40, 90*mib), false, me(100*mib, 0), mib, true},
+		{"B6: a slower fetch never cuts a faster holder, whatever it claims", file(mib, 1<<40, 90*mib), false, me(100*mib, 0), mib / 10, false},
+		{"B6: a colluder near its end, far slower than the honest fetch", file(4<<10, 34*mib, 32*mib), false, me(64*mib, 0), 13 * mib, true},
+		{"B6: 1.4 times faster but further from its end", file(mib, 100*mib, 90*mib), false, me(100*mib, 0), 1.4 * mib, false},
+		{"B6: 1.5 times faster takes it, whatever is to come", file(mib, 100*mib, 90*mib), false, me(100*mib, 0), 1.5 * mib, true},
+		{"a holder as fast and nearer its end keeps it", file(4*mib, 100*mib, 90*mib), false, me(100*mib, 0), 4 * mib, false},
 		{"RED-032: a fresh sender slower than the holder", file(64<<10, 100*mib, 50*mib), false, me(100*mib, 0), 32 << 10, false},
 		{"RED-033: a slow honest link faster than a slow trickler", file(32<<10, 100*mib, 10*mib), false, me(100*mib, 50*mib), 64 << 10, true},
 		{"ORANGE-022: same pace, the one nearer its end keeps it", file(64<<10, 100*mib, 90*mib), false, me(100*mib, 50*mib), 64 << 10, false},

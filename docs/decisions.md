@@ -2379,3 +2379,66 @@ a chase takes in after checking their work are not charged.
   `TestSecondOutageWhileProbingKeepsProbing`, `TestReplaceFollow`, the
   replace case in `pkg/rpc`'s view test, and the existing B4, B5,
   ORANGE-022, trickler and slow-sender tests.
+
+### D140. Black's B6: the disk reserve goes by rates over whole chases
+
+- **Decision:** BLUE-013's paid cuts (D139) stay: room is taken only for
+  bytes that arrive, cut from the end of another file, so a cut file
+  resumes rather than starting over. What decides a cut changes, as
+  Black's Round 12 review set out:
+  - **Rates, not times to finish.** A waiting fetch may cut a file whose
+    sender delivers at least `partsMargin` (1.5) times more slowly than
+    it does. Within that margin, the file with more still to come gives
+    way. So a claim, and how much is still to come, never decide against
+    a much faster sender. Departed, idle and stale files give way first,
+    as in D139.
+  - **Whole chases, never bursts.** A rate is the bytes of parts
+    received, kept or not, over the time the requests took, lost ones
+    included. It counts, is saved and decides a cut only once a request
+    was lost, a full parts reply (64 MiB, or the rest of the entry)
+    arrived, or the chase's slice ended. Until then a waiting fetch with
+    no measure keeps asking for the part at its offset and throws it
+    away. A waiting fetch whose measure is older than `partsStale` asks
+    again to measure afresh, so a slow flag from one lost request never
+    lasts (B5).
+  - **One byte of room is not room.** A chase asks without a measure
+    that could take room only when a whole part fits.
+  - The measure is kept on the progress by `fetchParts` itself.
+    `partial.tried`, `seen` and `dur` and `finishIn` are gone.
+  - Black's appendix test is added as
+    `TestBlackColludingTricklersHoldTheReserve`. Only its teardown
+    changed: the raw senders now stop before their connections close, so
+    the test no longer fails while it closes down.
+- **Why:** Black's B6, reproduced: two colluding senders at about
+  4 KB/s each claimed a little more than they held and cut each other in
+  bursts. Each burst's instant rate "finished first", so no file ever
+  completed, and an honest fetch was locked out. That broke D115.
+- **What is left:** a holder keeps the room against an honest fetch
+  only by delivering at least two thirds as fast, for as long as it
+  holds it. That is the bandwidth contest D139 names. A fresh fetch
+  spends up to one parts reply, or one slice, of the sender's bandwidth
+  measuring before it can cut. For Red in Part B: three or more
+  colluders, and a fresh sender at every chase.
+- **Tier:** Implementation (node policy). It changes only which kept
+  parts file gives way at the disk reserve. No rule of validity or
+  selection, no byte form and no limit changes. Tests (P0):
+  `TestBlackColludingTricklersHoldTheReserve`,
+  `TestBlackSlowHonestCannotReclaimFromTrickler`,
+  `TestTwoSlowFetchesBothFinish`, `TestTricklerCannotHoldTheReserve`,
+  `TestTricklerJustUnderCannotHoldTheReserve`,
+  `TestMovingTricklerJustUnderCannotHoldTheReserve` and `TestTakeFrom`.
+
+### D141. Round 13 adoptions: GREEN-037; ORANGE-022 superseded
+
+- **Decision:**
+  - GREEN-037 as written: `/v1/status` reports `policy_changed` when
+    `node.json` differs from the policy the node runs, ignoring the
+    grind section (it applies live; `nodepolicy.Policy.SameApplied`).
+    `poo doctor` warns with the fix `poo reload`.
+  - ORANGE-022 is superseded, as Black ruled. Its finding (two slow
+    fetches taking turns deleting each other's files) is closed by
+    D139's cuts by bytes and D140's margin. Its test,
+    `TestTwoSlowFetchesBothFinish`, is kept, and it runs in CI's long
+    step.
+- **Why:** Found in Round 12 Part B and cleared by Black.
+- **Tier:** Implementation (status, `poo doctor` and node policy).

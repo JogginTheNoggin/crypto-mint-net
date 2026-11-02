@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted (D141) |
 | Based on | `claude/m10-watch` @ `bc2e4bc` |
 | Area | `pkg/nodepolicy` (`SameApplied`), `pkg/rpc` (`/v1/status`), `pkg/cli` (`doctor`), `docs/modules/rpc.md` |
 | Effort | small |

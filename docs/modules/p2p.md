@@ -217,22 +217,28 @@ layers not read before (RED-026, D131). Once its sender has been
 disconnected for `ProgressGrace` (2 minutes) a kept progress loses its
 parts file and is cut down to its common entry; what it counted is asked
 for again if the sender comes back (RED-023, D128; RED-026, D131). A fetch
-that finds no room for its parts on the disk asks anyway if some other
-kept parts file may give way, and takes room only for the bytes that have
-actually arrived: each part that comes in cuts that many bytes off the end
-of another kept file, which asks for them again later (D139). A file gives
-way first if its sender has left, then if its last chase took in nothing
-or it has not been chased for two backoff steps, then if it would finish
-later than the waiting fetch: its bytes still to come over the rate (bytes
-a second) its last chase measured, against the waiting fetch's bytes to
-come over the rate it is receiving at. Between equals the file nearer its
-end keeps the room. A claimed size alone never decides, so a sender that
-claims a huge entry or one just under the honest one and trickles it
-loses the room to any fetch that would finish first, a fresh sender takes
-only as much as it delivers, and two slow fetches at the same pace never
-throw each other's files away: the one nearer its end finishes, then the
-other (RED-027, D131; Black's B4, D132; Black's B5, D137; RED-031,
-RED-032, RED-033 and ORANGE-022, D139). The progress
+that finds no room for a whole part on the disk (a byte of room is not
+room) asks anyway if some other kept parts file may give way, and takes
+room only for the bytes that have actually arrived: each part that comes
+in cuts that many bytes off the end of another kept file, which asks for
+them again later (D139). A file gives way first if its sender has left,
+then if its last chase took in nothing or it has not been chased for two
+backoff steps, then if its sender delivers at least 1.5 times more
+slowly than the waiting fetch's, and, between senders within that
+margin, if it has more still to come. Rates are bytes a second over a
+whole chase, lost requests included, and never a burst: a chase counts
+as measured once a request was lost, a full parts reply (or the rest of
+the entry) arrived, or its slice ended. A fetch with no measure yet goes
+on asking for the part at its offset, throwing it away, until it has
+one. A claim never decides against a much faster sender, so a sender
+that claims a huge entry, one just under the honest one, or a little
+more than it holds keeps the room only by delivering about as fast as
+the honest sender for as long as it holds it; colluders that cut each
+other in bursts never measure fast; and two fetches at about the same
+pace never throw each other's files away: the one nearer its end
+finishes, then the other (RED-027, D131; Black's B4, D132; Black's B5,
+D137; RED-031, RED-032, RED-033 and ORANGE-022, D139; Black's B6,
+D140). The progress
 itself goes once no chase has taken it up for `ProgressTTL` (an hour),
 counted from the end of its sender's backoff, so it always outlasts the
 wait for its next turn (Black's C-6, D129). A chase that waits for disk space logs a warning and
