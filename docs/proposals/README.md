@@ -65,3 +65,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-039](source/GREEN-039-submit-from-the-command-line.md) | Source | Make `poo submit` usable with `poo` alone | adopted (D145) |
 | [ORANGE-024](source/ORANGE-024-round-14-room-contention-measured.md) | Source | Contention at the disk reserve measured after D142; no change proposed | measured |
 | [GREEN-040](source/GREEN-040-submit-takes-the-reply.md) | Source | `poo submit` takes the reply as printed; a missing wallet says what to do | proposed (prototyped) |
+| [ORANGE-025](source/ORANGE-025-entry-body-read-once.md) | Source | Wallet lock and entry submit measured; read an entry body once | proposed |

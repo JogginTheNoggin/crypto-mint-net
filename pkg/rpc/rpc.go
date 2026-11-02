@@ -60,6 +60,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -489,9 +490,35 @@ func (b *hexBytes) UnmarshalJSON(data []byte) error {
 
 var errNotHex = errors.New("not hex")
 
+// entryHint is the most of an entry body read up front by the size the
+// request states; past it the buffer grows as the bytes arrive
+// (ORANGE-025).
+const entryHint = 1 << 30
+
+// readEntryBody reads an entry request whole into one buffer, sized by
+// the stated length up to entryHint, and decodes it in place: json's
+// Decoder would copy the body again into its own buffer, growing it
+// step by step, so a large entry cost eight times its size in memory
+// instead of three (ORANGE-025). It is decodeBody's JSON: the same
+// options as encoding/json, unknown fields refused, and nothing after
+// the value.
+func readEntryBody(r *http.Request, v any) *Error {
+	var body bytes.Buffer
+	if n := r.ContentLength; n > 0 {
+		body.Grow(int(min(n, entryHint)) + bytes.MinRead)
+	}
+	if _, err := body.ReadFrom(r.Body); err != nil {
+		return badRequest("body: %v", err)
+	}
+	if err := jsonv2.Unmarshal(body.Bytes(), v, json.DefaultOptionsV1(), jsonv2.RejectUnknownMembers(true)); err != nil {
+		return badRequest("body: %v", err)
+	}
+	return nil
+}
+
 func (h *Handler) submitEntry(w http.ResponseWriter, r *http.Request) {
 	var req entryBody
-	if e := decodeBody(r, &req); e != nil {
+	if e := readEntryBody(r, &req); e != nil {
 		if strings.Contains(e.Message, errNotHex.Error()) {
 			e = badRequest("entry: not hex")
 		}
