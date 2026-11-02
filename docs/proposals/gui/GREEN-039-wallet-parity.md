@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 13) |
+| Status | adopted (Round 14): wallet forms; Follow more's Replace on Source `follow -replace`; Submit form on `poo submit` |
 | Based on | claude/gui-4-watch @ 376e964 |
 | Area | gui/web/static/views.js (Wallet view) |
 | Effort | small |

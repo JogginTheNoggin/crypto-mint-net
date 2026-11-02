@@ -45,7 +45,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-035](GREEN-035-layer-rate-loose-ends.md) | The Schedule summary shows a layer rate kept with no floor; ask Source for doctor `fix_args` when the rate was lowered | small | yes (GUI part) | done: GUI part (Round 11), doctor `fix_args` by Source (D135) |
 | [GREEN-036](GREEN-036-getting-started-reaches-grinding.md) | Getting started covers `doctor`, `watch` and `grind`, and each node step links its view | small | yes | adopted |
 | [GREEN-038](GREEN-038-reload-due-notice.md) | The Node view says when a node.json change waits for a reload, with Reload now (needs Source GREEN-037) | small | yes | adopted (with Source GREEN-037) |
-| [GREEN-039](GREEN-039-wallet-parity.md) | Every `poo wallet` subcommand has a form (shared policy, co-sign, submit, resend, follow, passwd, seed), checked against `poo wallet help` | small | yes | proposed |
+| [GREEN-039](GREEN-039-wallet-parity.md) | Every `poo wallet` subcommand has a form (shared policy, co-sign, submit, resend, follow, passwd, seed), checked against `poo wallet help` | small | yes | adopted (with Source `follow -replace`) |
 
 ## Orange (performance)
 

@@ -40,6 +40,25 @@ try {
     await page.waitForTimeout(250);
   }
   await shot('node');
+  // Follow more offers Replace (poo follow -replace) only once a series is
+  // named, as poo takes it only with -series.
+  const more = section('Follow more');
+  const replace = more.locator('label', { hasText: 'Replace what the series follows' });
+  assert.ok(!(await replace.isVisible()), 'Replace is hidden without a series');
+  await fill(more, 'Series id', 'abc');
+  await replace.locator('input').check();
+  assert.match(await more.locator('.cmd code').innerText(), / -series abc -replace$/);
+  await fill(more, 'Series id', '');
+  assert.ok(!(await replace.isVisible()), 'Replace hides again with the series');
+  assert.doesNotMatch(await more.locator('.cmd code').innerText(), /-replace/);
+  // poo submit: an entry or layer made elsewhere, by its hex.
+  await page.click('nav a[data-id=pools]');
+  const submit = section('Submit an entry or layer');
+  await submit.locator('select[name=kind]').selectOption('layer');
+  await fill(submit, 'Pool', '1');
+  await fill(submit, 'Hex', 'abcd');
+  assert.equal(await submit.locator('.cmd code').innerText(), `poo submit layer -root ${home} -pool 1 abcd`);
+  await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.
   await page.click('nav a[data-id=wallet]');

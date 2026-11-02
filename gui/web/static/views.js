@@ -476,10 +476,13 @@ const nodeView = {
       { name: 'pool', label: 'Pools', type: 'list', placeholder: 'K …' },
       { name: 'mint', label: 'Mints', type: 'list', placeholder: 'serial …' },
     ];
-    const followArgs = (cmd, v) => [cmd, ...where.flags(), ...flag('issuer', v.issuer), ...flag('series', v.series), ...flags('pool', v.pool), ...flags('mint', v.mint), ...flag('no-reload', v.noReload)];
+    const followArgs = (cmd, v) => [cmd, ...where.flags(), ...flag('issuer', v.issuer), ...flag('series', v.series), ...flags('pool', v.pool), ...flags('mint', v.mint), ...flag('replace', v.replace), ...flag('no-reload', v.noReload)];
     const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy.', args: () => ['follow', ...where.flags()] });
+    // Replace (GREEN-038, Source) is poo follow -replace: with a series, the
+    // pools and mints given become all it follows of that series, in one
+    // change. It shows only once a series is named, as poo requires.
     const follow = form(ctx, { title: 'Follow more', about: 'Adds to the node policy; a running node applies it at once.',
-      fields: [...followFields, { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }], args: v => followArgs('follow', v), submit: 'Follow' });
+      fields: [...followFields, { name: 'replace', label: 'Replace what the series follows with these', type: 'check', only: { field: 'series', not: [''] } }, { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }], args: v => followArgs('follow', v), submit: 'Follow' });
     const unfollow = form(ctx, { title: 'Follow less', fields: [...followFields, { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
       args: v => followArgs('unfollow', v), submit: 'Unfollow', danger: true });
     const reload = form(ctx, { title: 'Reload the node policy', about: 'Makes the running node apply its node policy file as it now stands.', fields: [],
@@ -523,6 +526,11 @@ const poolsView = {
       form(ctx, { title: 'Add a layer', about: 'Adds the strongest layer found, by default on the selected tip.',
         fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { name: 'entry', label: 'Entry hash', placeholder: 'default: the selected tip' }, { name: 'tries', label: 'Tries', type: 'number' }, series],
         args: v => ['work', ...where.flags(), ...flag('pool', v.pool), ...flag('entry', v.entry), ...flag('tries', v.tries), ...flag('series', v.series)], submit: 'Work' }),
+      // poo submit (Source D142) hands the node an entry or layer made
+      // elsewhere, as the hex an entry or layer reply carries.
+      form(ctx, { title: 'Submit an entry or layer', about: 'Gives the node an entry or a layer made elsewhere: the hex of an entry or layer reply.',
+        fields: [{ name: 'kind', label: 'Kind', type: 'select', options: ['entry', 'layer'] }, { name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, series, { name: 'hex', label: 'Hex', placeholder: 'the entry or layer, hex' }],
+        args: v => ['submit', v.kind || 'entry', ...where.flags(), ...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial), ...(v.hex ? [v.hex] : [])], submit: 'Submit', danger: true }),
     ]);
   },
 };
