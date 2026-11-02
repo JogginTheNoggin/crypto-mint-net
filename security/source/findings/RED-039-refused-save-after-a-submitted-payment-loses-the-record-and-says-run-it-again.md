@@ -83,16 +83,9 @@ No consensus rule is involved.
 
 ## Resolution
 
-Fixed (D146), by preventing the refused save rather than merging after
-it. `pay`, `claim`, `submit` and `resend` call `Wallet.Hold` after the
-passphrase prompt. It takes the wallet's lock until the command ends and
-reads the file again, so another command's changes are kept and the
-change address is a key no one else took. No other save can come between
-the send and the save of its record: the other command's save waits, and
-is refused (D145) only if it read the file before, having sent nothing.
-If the save after a send still fails, the record is printed and the
-error says it was sent and must not be sent again. The "already paid"
-check and the merge were not taken; D146 says why. Tests:
-`TestPaymentHoldsTheWallet` (your shape: the record is kept, the request
-saved meanwhile is kept, the change takes its own key) and
-`TestSaveSentSaysDoNotRepeat`.
+Fixed by BLUE-016 (D146). `pay`, `claim` and `submit` take `Wallet.Hold` before
+they act on the node and keep it through `Save`, so no other command's save
+comes between; `Hold` re-reads a changed file first. If the save still fails,
+`saveSent` prints the record and says not to run the command again.
+Re-checked in Source Round 16 Part B: the same test with `Hold` taken first
+saves the payment (wallet file records it) with no `ErrChanged`.
