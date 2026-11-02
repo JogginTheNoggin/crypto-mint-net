@@ -49,6 +49,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GREEN-040](GREEN-040-whole-help-parity.md) | Every `poo help` command is in a view or listed as terminal-only; adds `sim` and `series example` forms | small | yes | adopted, with Build/Work `-bytes` and Submit `-f` |
 | [GUI-GREEN-041](GUI-GREEN-041-flag-parity.md) | Forms take the flags poo takes: Build/Work device, threads, for, serial; one wallet series for every wallet command; Receive's named transactions | small | yes | adopted |
 | [GUI-GREEN-042](GUI-GREEN-042-flag-parity-check.md) | A check (parity.mjs, in CI) that every flag `poo CMD -h` lists is sent by a form or left out for a stated reason; fixes Explore's address -below/-tid and Pools' filters | small | yes | adopted |
+| [GUI-GREEN-043](GUI-GREEN-043-stated-defaults.md) | parity.mjs also checks every default a field states against `poo -h`; Schedule a job's device and threads say the section's default | small | yes | proposed |
 
 ## Orange (performance)
 
@@ -143,6 +144,6 @@ git checkout claude/gui-green
 go -C gui build -o /tmp/poo-gui ./cmd/poo-gui && /tmp/poo-gui
 node gui/e2e/qol.mjs /tmp/poo-gui     # the checks for 001 to 003, 007 to 010, 016, 017, 019, 020, 028, 029, 032, 036, 039, 040 and GUI-GREEN-041
 node gui/e2e/watch.mjs /tmp/poo-gui   # the checks for 012 to 014 and 018
-node gui/e2e/parity.mjs /tmp/poo-gui  # the check for GUI-GREEN-042
+node gui/e2e/parity.mjs /tmp/poo-gui  # the checks for GUI-GREEN-042 and 043
 node gui/e2e/work.mjs /tmp/poo-gui    # the checks for 023 to 025, 030, 032, 033, 035 and 038
 ```

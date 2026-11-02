@@ -31,6 +31,13 @@ const jobFields = () => [
   { name: 'untilFrom', label: 'Until from reaches', placeholder: 'a weight; a tx:TID target needs one', only: { field: 'target', not: noUntil } },
   { name: 'hours', label: 'Only in hours', placeholder: 'for example 22-06 (local time)' },
 ];
+// scheduled words a job field as poo grind schedule add documents it: a
+// scheduled job's device and threads default to the section's, the
+// Schedule defaults below, not to a one-off job's (GUI-GREEN-043).
+const scheduled = fd => ({
+  device: { ...fd, placeholder: 'auto, cpu, gpu:0 (default: the section\'s, see Schedule defaults)' },
+  threads: { ...fd, placeholder: 'default: the section\'s, see Schedule defaults' },
+}[fd.name] || fd);
 const jobFlags = v => [...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial),
   ...flag('device', v.device), ...flag('threads', v.threads), ...flag('for', v.for),
   ...flag('until-from', v.untilFrom), ...flag('hours', v.hours)];
@@ -388,7 +395,7 @@ export const workView = {
         onResult: r => { if (r.code === 0) deviceChoices(root, r.out); } }),
       jobsPanel,
       schedulePanel,
-      form(ctx, { title: 'Schedule a job', about: 'Adds a job to node.json\'s grind section with poo grind schedule add. It has no For: it runs whenever its hours allow.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields().filter(fd => fd.name !== 'for')],
+      form(ctx, { title: 'Schedule a job', about: 'Adds a job to node.json\'s grind section with poo grind schedule add. It has no For: it runs whenever its hours allow.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields().filter(fd => fd.name !== 'for').map(scheduled)],
         args: v => ['grind', 'schedule', 'add', ...where.flags(), v.target || 'tip', ...jobFlags(v)], submit: 'Add', onResult: afterSchedule, gate: edits }),
       defaultsForm,
       { el: livePanel, stop: () => { liveHooks.detach(); livePanel.remove(); } },

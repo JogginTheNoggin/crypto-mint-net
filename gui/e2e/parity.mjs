@@ -97,6 +97,55 @@ try {
     lines.forEach(add);
   }
 
+  // A field that states poo's default in its placeholder ("default 16")
+  // must state the one poo -h prints for its flag, so the GUI's hint
+  // cannot drift from poo (GUI-GREEN-043). Each such field is filled
+  // alone, so the preview says which flag it is.
+  const stated = [];
+  for (const v of ['node', 'pools', 'peers', 'wallet', 'policies', 'crypto', 'work', 'watch', 'explore']) {
+    await page.click(`nav a[data-id=${v}]`);
+    await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
+    stated.push(...await page.evaluate(() => {
+      const out = [];
+      for (const sec of document.querySelectorAll('#main section.panel')) {
+        const form = sec.querySelector('form.fields');
+        if (!form) continue;
+        const sel = form.querySelector('select');
+        for (const choice of sel ? [...sel.options].map(o => o.value) : [null]) {
+          if (sel) sel.value = choice;
+          for (const i of form.querySelectorAll('input')) { if (i.type === 'checkbox') i.checked = false; else i.value = ''; }
+          form.dispatchEvent(new Event('input', { bubbles: true }));
+          for (const i of form.querySelectorAll('label:not([hidden]) input')) {
+            // Only a stated value: a number, list or name, not prose.
+            const m = /\bdefault:? ([0-9][\w.,:-]*|ed25519|sha256|auto)/.exec(i.placeholder || '');
+            if (!m) continue;
+            i.value = '7777';
+            form.dispatchEvent(new Event('input', { bubbles: true }));
+            out.push({ line: sec.querySelector('.cmd code').textContent, said: m[1].replace(/,$/, ''), placeholder: i.placeholder });
+            i.value = '';
+            form.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
+      }
+      return out;
+    }));
+  }
+  const drift = [];
+  for (const s of stated) {
+    const t = s.line.split(' ');
+    const k = t.indexOf('7777');
+    if (k < 1 || !t[k - 1].startsWith('-')) continue;
+    const fl = t[k - 1].slice(1);
+    const cmd = commandOf(s.line.replace(' 7777', ''));
+    const r = spawnSync(bin, ['poo', ...cmd, '-h'], { env });
+    const m = new RegExp(`^ {2}-${fl}(?: \\w+)?\n\\s+(.*)$`, 'm').exec(`${r.stdout}${r.stderr}`);
+    // Go's flag help leaves a zero default out.
+    const poo = (m && /\(default "?([^")]*)"?\)$/.exec(m[1]) || [, '0'])[1];
+    if (poo !== s.said) drift.push(`poo ${cmd.join(' ')} -${fl}: the GUI says default ${s.said}, poo says ${poo}`);
+  }
+  assert.ok(stated.length > 5, 'fields that state a default were found');
+  assert.deepEqual([...new Set(drift)], [], 'a stated default is poo\'s');
+
   const gaps = [];
   for (const [cmd, sent] of seen) {
     if (!cmd) continue;
