@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 46bcb9e (Source Round 15 Part B) |
 | Component | pkg/wallet/wallet.go (`Save`, `ErrChanged`), pkg/cli/wallet.go (`walletPay`, `walletClaim`) |
 | Surface | local operator (CLI, GUI, a second terminal) |
-| Fixed by | - |
+| Fixed by | `claude/project-thread-ggo8dt` @ 47ad630 (BLUE-016) |
 
 ## Summary
 
@@ -83,4 +83,16 @@ No consensus rule is involved.
 
 ## Resolution
 
-Open.
+Fixed (D146), by preventing the refused save rather than merging after
+it. `pay`, `claim`, `submit` and `resend` call `Wallet.Hold` after the
+passphrase prompt. It takes the wallet's lock until the command ends and
+reads the file again, so another command's changes are kept and the
+change address is a key no one else took. No other save can come between
+the send and the save of its record: the other command's save waits, and
+is refused (D145) only if it read the file before, having sent nothing.
+If the save after a send still fails, the record is printed and the
+error says it was sent and must not be sent again. The "already paid"
+check and the merge were not taken; D146 says why. Tests:
+`TestPaymentHoldsTheWallet` (your shape: the record is kept, the request
+saved meanwhile is kept, the change takes its own key) and
+`TestSaveSentSaysDoNotRepeat`.

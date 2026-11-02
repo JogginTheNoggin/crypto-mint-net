@@ -2676,3 +2676,36 @@ a chase takes in after checking their work are not charged.
   Tests: `TestSaveNeverUndoesAnotherChange` and
   `TestConcurrentSavesOneWins` (pkg/wallet), `TestNewPassphraseIsConfirmed`
   (pkg/cli), and the hex cases in `TestSubmitEntryBodySize` (pkg/rpc).
+
+### D146. Round 15 fix: RED-039 (BLUE-016)
+
+- **Decision:**
+  - `Wallet.Hold` takes the lock beside the wallet file until it is
+    released and reads the file again, keeping the open seed. While a
+    wallet is held, its `Save` does not take the lock again. A file that
+    is no longer this seed's (its first key differs) or that changed its
+    format or key algorithm is `ErrChanged`.
+  - `poo wallet pay`, `claim`, `submit` and `resend` hold the wallet,
+    after the passphrase prompt, from before they act on the node until
+    after they save. Other commands' saves wait for the release; one that
+    read the file before the hold is refused (D145), having sent nothing.
+  - If the save after a send still fails, the command prints the record
+    and says the payment or claim was sent and must not be sent again,
+    in place of `ErrChanged`'s "run the command again".
+- **Why:** Red's Round 15 finding. D145's compare-and-write refused the
+  save of a payment that was already on the node when another command
+  (the GUI, a second terminal) had saved in between. The record and the
+  change address were lost, and the message said to run the command
+  again, which paid a second time.
+- **Not taken:** a merge of the new records into the changed file after
+  the fact. With the hold there is nothing to merge, and a merge would
+  have to decide between two commands that took the same key for
+  different uses. A refusal to pay a request already paid was not taken
+  either: the hold removes the cause, and with a record lost it would
+  not fire.
+- **What is left:** the lock is held while the node answers, so another
+  command's save waits that long (seconds at most; never at a prompt).
+  `lock_other.go` (systems with neither flock nor LockFileEx) has no
+  lock, as before.
+- **Tier:** Implementation (the wallet and the CLI). No consensus change.
+  Tests: `TestPaymentHoldsTheWallet`, `TestSaveSentSaysDoNotRepeat`.
