@@ -81,14 +81,20 @@ func (c *Client) doHeader(method, path string, header map[string]string, body, o
 		}
 		rd = bytes.NewReader(b)
 	}
-	return c.doReader(method, path, header, rd, body != nil, out)
+	return c.doReader(method, path, header, rd, -1, body != nil, out)
 }
 
 // doReader is doHeader with the body's JSON already made, read from rd.
-func (c *Client) doReader(method, path string, header map[string]string, rd io.Reader, isJSON bool, out any) error {
+func (c *Client) doReader(method, path string, header map[string]string, rd io.Reader, length int64, isJSON bool, out any) error {
 	req, err := http.NewRequest(method, c.base+path, rd)
 	if err != nil {
 		return err
+	}
+	if length >= 0 {
+		// A reader Go cannot size goes out chunked, with no length; the
+		// caller that knows it says so, and the node sizes its buffer by
+		// it once (RED-040, D148).
+		req.ContentLength = length
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	if isJSON {
@@ -147,8 +153,10 @@ func (c *Client) SubmitEntryHex(p PoolRef, hexText []byte) (EntryReply, error) {
 	}
 	head = append(head[:len(head)-1], `,"entry":"`...)
 	var r EntryReply
-	body := io.MultiReader(bytes.NewReader(head), bytes.NewReader(hexText), strings.NewReader(`"}`))
-	return r, c.doReader("POST", "/v1/entry", nil, body, true, &r)
+	const tail = `"}`
+	body := io.MultiReader(bytes.NewReader(head), bytes.NewReader(hexText), strings.NewReader(tail))
+	n := int64(len(head) + len(hexText) + len(tail))
+	return r, c.doReader("POST", "/v1/entry", nil, body, n, true, &r)
 }
 
 // SubmitEntry submits an entry of a pool.

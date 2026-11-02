@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -117,6 +118,9 @@ type Wallet struct {
 	// held is set between Hold and its release: the lock beside the file
 	// is this wallet's, so Save does not take it again (RED-039, D146).
 	held bool
+	// busy, if set, is called when Save or Hold finds the lock taken by
+	// another command, before it waits (OnBusy, RED-042, D148).
+	busy func()
 }
 
 // Options are the settings of a new wallet. Zero values mean the defaults.
@@ -281,7 +285,7 @@ func (w *Wallet) Save() error {
 		return err
 	}
 	if !w.held {
-		unlock, err := lockFile(w.path + ".lock")
+		unlock, err := lockFile(w.path+".lock", w.busy)
 		if err != nil {
 			return err
 		}
@@ -300,16 +304,22 @@ func (w *Wallet) Save() error {
 	case !bytes.Equal(cur, w.read):
 		return ErrChanged
 	}
-	tmp := w.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, w.path); err != nil {
+	// Synced, file and directory, before Save returns: the file is the
+	// one record of what the wallet sent (RED-041, D148).
+	if err := fsutil.WriteFile(w.path, b, 0o600); err != nil {
 		return err
 	}
 	w.read = b
 	return nil
 }
+
+// OnBusy sets what Save and Hold call when another command holds the
+// wallet, before they wait for it, so a command can say why it waits
+// (RED-042, D148). The wait has no limit: the holder is a command
+// sending a payment, whose every request to the node is bounded by the
+// client's timeout, and giving up would leave this command's change, or
+// its record of a payment, unsaved.
+func (w *Wallet) OnBusy(f func()) { w.busy = f }
 
 // Hold takes the lock beside the wallet file until release is called,
 // and reads the file again, so what another command saved since Open
@@ -329,7 +339,7 @@ func (w *Wallet) Hold() (release func(), err error) {
 	if err := os.MkdirAll(filepath.Dir(w.path), 0o700); err != nil {
 		return nil, err
 	}
-	unlock, err := lockFile(w.path + ".lock")
+	unlock, err := lockFile(w.path+".lock", w.busy)
 	if err != nil {
 		return nil, err
 	}

@@ -333,7 +333,7 @@ func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if p == "" {
 		return errors.New("the new passphrase must not be empty")
 	}
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -361,7 +361,7 @@ func walletAddress(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	if err != nil {
 		return err
 	}
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -449,7 +449,7 @@ func walletWatch(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	if err != nil {
 		return err
 	}
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -581,7 +581,7 @@ func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	if err != nil {
 		return err
 	}
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -625,7 +625,7 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 		sent *wallet.Sent
 		u    *wallet.Unsigned
 	)
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -677,7 +677,7 @@ func walletRequest(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	if err != nil {
 		return err
 	}
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -733,26 +733,36 @@ func walletReceive(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	default:
 		return errors.New("name the request with -address or -request")
 	}
-	release, err := w.Hold()
-	if err != nil {
-		return err
-	}
-	defer release()
-	e, ok := w.Find(addr)
-	if !ok {
-		return fmt.Errorf("no request to %s in this wallet", addr.Short())
-	}
+	refs := make([]wallet.TxRef, len(tids))
 	for i, t := range tids {
 		id, err := hash.Parse(t)
 		if err != nil {
 			return fmt.Errorf("-tid: %w", err)
 		}
-		e.Tell(wallet.TxRef{Serial: serials[i], TID: id})
+		refs[i] = wallet.TxRef{Serial: serials[i], TID: id}
 	}
-	if len(tids) > 0 {
-		if err := w.Save(); err != nil {
+	if len(refs) > 0 {
+		// Held only to note what the payer named, not while the node is
+		// asked: the receipt itself only reads (RED-042, D148).
+		release, err := holdWallet(w, out)
+		if err != nil {
 			return err
 		}
+		e, ok := w.Find(addr)
+		if ok {
+			for _, r := range refs {
+				e.Tell(r)
+			}
+			err = w.Save()
+		}
+		release()
+		if err != nil {
+			return err
+		}
+	}
+	e, ok := w.Find(addr)
+	if !ok {
+		return fmt.Errorf("no request to %s in this wallet", addr.Short())
 	}
 	n, err := f.node(out, s)
 	if err != nil {
@@ -803,24 +813,50 @@ func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	release, err := w.Hold()
-	if err != nil {
-		return err
-	}
-	defer release()
+	// The node is asked without the wallet held, so status never waits
+	// behind a command waiting for the node, or makes one wait. The legs'
+	// new states are then saved under the hold, each only where the file
+	// still has the state this command read, so a change another command
+	// made meanwhile (a resend) stands (RED-042, D148).
+	type change struct{ was, now string }
+	changed := map[hash.Hash]change{}
 	rows := []sentStatus{}
 	for _, p := range w.Sent() {
 		if p.Series != s.ID() {
 			continue
 		}
+		was := make([]string, len(p.Legs))
+		for i, l := range p.Legs {
+			was[i] = l.State
+		}
 		legs, err := w.Refresh(s, n, p)
 		if err != nil {
 			return err
 		}
+		for i, l := range p.Legs {
+			if l.State != was[i] {
+				changed[l.TID] = change{was[i], l.State}
+			}
+		}
 		rows = append(rows, sentStatus{p.To, p.Amount, p.Memo, p.Claim, legs, wallet.Settled(legs, th)})
 	}
-	if err := w.Save(); err != nil {
-		return err
+	if len(changed) > 0 {
+		release, err := holdWallet(w, out)
+		if err != nil {
+			return err
+		}
+		for _, p := range w.Sent() {
+			for i := range p.Legs {
+				if c, ok := changed[p.Legs[i].TID]; ok && p.Legs[i].State == c.was {
+					p.Legs[i].State = c.now
+				}
+			}
+		}
+		err = w.Save()
+		release()
+		if err != nil {
+			return err
+		}
 	}
 	return o.write(out, rows)
 }
@@ -841,7 +877,7 @@ func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -917,7 +953,7 @@ func walletPolicy(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -987,7 +1023,7 @@ func walletSubmit(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	release, err := w.Hold()
+	release, err := holdWallet(w, out)
 	if err != nil {
 		return err
 	}
@@ -1034,4 +1070,14 @@ func saveSent(w *wallet.Wallet, out io.Writer, what string, p *wallet.Sent, send
 		why = "the wallet file was changed or removed by something else"
 	}
 	return fmt.Errorf("the %s above was sent to the node, but the wallet could not record it (%s). Do not run the command again: that would send it a second time. Keep the record above", what, why)
+}
+
+// holdWallet holds w (Wallet.Hold) and, when another command holds it,
+// says so on the invocation's error output before it waits, so a waiting
+// command, the GUI's terminal included, is never silent (RED-042, D148).
+func holdWallet(w *wallet.Wallet, out io.Writer) (func(), error) {
+	w.OnBusy(func() {
+		fmt.Fprintf(errOf(out), "waiting for another poo wallet command (or the GUI) to finish with %s\n", w.Path())
+	})
+	return w.Hold()
 }
