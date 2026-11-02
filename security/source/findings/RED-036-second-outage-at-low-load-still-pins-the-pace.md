@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 97456c1 (Source Round 13 Part B) |
 | Component | pkg/p2p/pace.go (`reqWindow.dropped`: `peak`, `start`, the `n < w.peak-w.peak/8` case) |
 | Surface | peers (a sender with two short outages; a sender that wants the asker slow) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 8a64066 (BLUE-014) |
 
 ## Summary
 
@@ -58,4 +58,14 @@ Test: as above, and the unit test at `peak` 2, `n` 2.
 
 ## Resolution
 
-Open.
+Fixed (D142), another way than recommended. Drops count toward a held
+pace only if the sender answered something sent in the window before
+they began (more requests in the window than misses in a row): a sender
+over its budget has served its budget first. Drops with nothing in the
+window answered never hold, lower or confirm a known pace, so Red's case
+(peak 2, two sent, both lost) steps the probe back and it rises again.
+The `RequestPace/4` floor was not taken: a sender whose budget is below
+it would be overshot every few windows and time this node out (D133).
+Left: one answered request then two lost still reads as a budget of
+about that load. Test: `TestOutageAtLowLoadNeverHolds` fails on 97456c1
+and passes.

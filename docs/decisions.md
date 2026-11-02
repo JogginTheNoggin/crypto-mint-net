@@ -2442,3 +2442,47 @@ a chase takes in after checking their work are not charged.
     step.
 - **Why:** Found in Round 12 Part B and cleared by Black.
 - **Tier:** Implementation (status, `poo doctor` and node policy).
+
+### D142. Round 13 fixes: RED-035, RED-036, RED-037; ORANGE-023 (BLUE-014)
+
+- **Decision:**
+  - **RED-035, with ORANGE-023 as written.** A probe at the disk
+    reserve (D140) throws away the whole reply it is in, not one
+    chunk. Each parts request checks every part against the offset it
+    expects next (`want`), which moves with every part received, kept
+    or not, so the chunks after one thrown away are never taken for
+    parts out of order and an honest sender is never flagged false.
+  - **RED-036.** Drops count toward a held pace only if the sender
+    answered something sent in the window before the drops began (more
+    requests in the window than misses in a row). A sender over its
+    budget has served the budget first; one that answered nothing in the
+    window is out. Such drops never hold, lower or confirm a known pace:
+    a probe steps back and goes on rising.
+  - **RED-037.** A waiting chase whose measured chase wrote nothing asks
+    again only once its measure lapses: `partsStale` at first, doubled
+    for each such chase in a row (`progress.partsMiss`), up to eight
+    times (`measureLasts`). A chase that writes resets it.
+- **Why:** Red's Round 13 findings and Orange's ORANGE-023. RED-035 was
+  high: at the reserve every honest sender of a large entry whose reply
+  held more than one chunk was flagged false and in a few chases blocked
+  for a day, so the heavier ledger's large entry could not be fetched
+  (D115). Not taken from RED-036: a hold only above `RequestPace/4`,
+  since a sender whose budget is below that would then be overshot every
+  few windows and time this node out (D133). Not taken from RED-037: a
+  record of a cut file's old offset. A cut file already resumes where it
+  was cut, and the bytes cut are gone.
+- **What is left:** a sender that answers one request in a window and
+  then loses two still looks like a budget of about that load, as D133
+  says of a real budget. A waiting sender that has sped up waits up to
+  eight times `partsStale` (32 minutes at the defaults) to show it,
+  unless the holder slows, stalls or leaves. A fast fresh sender still
+  cuts a slow file at its own rate: the bandwidth contest D140 names. No
+  case is left in which a fetch waits for good, and nothing is refused
+  for its size.
+- **Tier:** Implementation (node policy). It changes only how parts are
+  checked while probing, the learned pace and when a waiting chase asks.
+  No rule of validity or selection, no byte form and no limit changes.
+  Tests (P0): `TestProbeNeverFlagsAMultiChunkSender` (fails on 97456c1),
+  `TestProbeKeepsAnHonestSender` (ORANGE-023), `TestOutageAtLowLoadNeverHolds`,
+  `TestMeasureLastsLongerAfterMisses`, and the B5, B6, ORANGE-022,
+  trickler and slow-sender tests.

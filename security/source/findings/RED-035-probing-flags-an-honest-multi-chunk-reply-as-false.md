@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | high |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 97456c1 (Source Round 13 Part B) |
 | Component | pkg/p2p/chase.go (`fetchParts`: the `probing` path and the offset check in the part callback) |
 | Surface | peers (every honest sender of a large entry, while the node is at its disk reserve) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 8a64066 (BLUE-014) |
 
 ## Summary
 
@@ -75,4 +75,11 @@ once measured.
 
 ## Resolution
 
-Open.
+Fixed (D142), with ORANGE-023's fix as Orange wrote it. Each parts
+request checks every part against the offset it expects next (`want`),
+which moves with every part received, kept or not; once a probe throws
+one part of a reply away it throws the rest of that reply away too, and
+none of it is written. Test: `TestProbeNeverFlagsAMultiChunkSender`
+(replies of 4 chunks, the probe beginning on the first, a middle and the
+last chunk) fails on 97456c1 with Red's message and passes; Orange's
+`TestProbeKeepsAnHonestSender` passes too.

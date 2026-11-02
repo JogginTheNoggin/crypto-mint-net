@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open (the residual D139/D140 name) |
+| Status | partly fixed |
 | Found on | `claude/m10-watch` @ 97456c1 (Source Round 13 Part B) |
 | Component | pkg/p2p/chase.go (`takeFrom`, `takeRoom`, `mayTake`, `fetchParts`) |
 | Surface | peers (many senders; the sender of the honest entry) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 8a64066 (BLUE-014) |
 
 ## Summary
 
@@ -55,4 +55,12 @@ Test: not run.
 
 ## Resolution
 
-Open.
+Partly fixed (D142). The probe's cost: a waiting chase whose measured
+chase wrote nothing asks again only once its own measure lapses,
+`partsStale` at first and doubled for each such chase in a row, up to
+eight times (`progress.partsMiss`, `measureLasts`); a holder that slows,
+stalls or leaves is still cut at once by its own measure. Not taken: a
+record of a cut file's old offset, since a cut file already resumes
+where it was cut. Left: a fast fresh sender still cuts a slow file at
+its own rate, the bandwidth contest D140 names. Test:
+`TestMeasureLastsLongerAfterMisses`.
