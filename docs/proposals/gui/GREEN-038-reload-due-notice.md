@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 12) |
+| Status | adopted (Round 13, on Source GREEN-037) |
 | Based on | claude/gui-4-watch @ c9c9e1f, checked with claude/source-green @ 557534b merged in |
 | Area | gui/web/static/views.js (Node view: Followed pools, Reload the node policy) |
 | Effort | small |

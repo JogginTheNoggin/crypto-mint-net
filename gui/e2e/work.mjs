@@ -265,23 +265,29 @@ try {
   process.kill(pid, 'SIGHUP');
   await page.locator('.live-out', { hasText: 'reloading its node policy' }).waitFor({ timeout: 20000 });
   await page.locator('.run-status.live', { hasText: 'running: poo node' }).waitFor();
+  // The reload restarts the node on the new policy: wait until it listens
+  // again, so what follows talks to the reloaded node.
+  for (const end = Date.now() + 20000; ;) {
+    const log = await page.locator('.live-out').first().innerText();
+    if (log.split('rpc: listening').length > 2) break;
+    assert.ok(Date.now() < end, 'the node listens again after the reload');
+    await page.waitForTimeout(100);
+  }
   await page.click('nav a[data-id=work]');
   await section('Devices').locator('.result', { hasText: 'cpu' }).waitFor();
   await page.click('nav a[data-id=node]');
   // A node.json change left for a reload (GREEN-038): Followed pools says
-  // so while poo status reports policy_changed (Source GREEN-037; until a
-  // node has that field, this part has nothing to check), and its Reload
-  // now runs poo reload, after which the notice is gone.
+  // so while poo status reports policy_changed (Source GREEN-037), and its
+  // Reload now runs poo reload, after which the notice is gone.
   const series = JSON.parse(poo(['follow'])).follow[0].series;
   poo(['unfollow', '-series', series, '-pool', '1', '-no-reload']);
-  if (/"policy_changed": true/.test(poo(['status']))) {
-    const notice = section('Followed pools').locator('.policy-changed');
-    await section('Followed pools').locator('button:has-text("Refresh")').click();
-    await notice.waitFor({ timeout: 10000 });
-    await notice.locator('button', { hasText: 'Reload now' }).click();
-    await section('Reload the node policy').locator('.run-status.ok').waitFor({ timeout: 10000 });
-    await notice.waitFor({ state: 'detached', timeout: 10000 });
-  }
+  assert.match(poo(['status']), /"policy_changed": true/);
+  const notice = section('Followed pools').locator('.policy-changed');
+  await section('Followed pools').locator('button:has-text("Refresh")').click();
+  await notice.waitFor({ timeout: 10000 });
+  await notice.locator('button', { hasText: 'Reload now' }).click();
+  await section('Reload the node policy').locator('.run-status.ok').waitFor({ timeout: 10000 });
+  await notice.waitFor({ state: 'detached', timeout: 10000 });
   await page.click('button:has-text("Stop node")');
   await nodeStopped(page);
   assert.deepEqual(errors, [], 'no page errors');

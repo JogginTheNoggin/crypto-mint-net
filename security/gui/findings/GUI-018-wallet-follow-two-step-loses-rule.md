@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open (with Source) |
+| Status | fixed by Source (BLUE-013, 56633dc: one replace request), merged Round 13; pending Red's verification |
 | Found on | claude/gui-4-watch @ c9c9e1f (Source bc2e4bc, RED-030 / D136) |
 | Component | pkg/cli/wallet.go (`walletFollow`), pkg/rpc/view.go (`POST /v1/follow`) |
 | Surface | node (node.json's follow list). Reachable from the GUI's terminal, which runs the same `cli.Main`. |
