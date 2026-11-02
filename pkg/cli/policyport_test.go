@@ -44,7 +44,7 @@ func TestPolicyExportImport(t *testing.T) {
 	before, _ := os.ReadFile(dstPath)
 	out := runOut(t, "policy", "import", bundle, "-root", dst)
 	id := testutil.ExampleSeries().ID().Short()
-	if !strings.Contains(out, "+ series.["+id+"]") || !strings.Contains(out, "dry run") {
+	if !strings.Contains(out, "+ series: "+id) || !strings.Contains(out, "dry run") {
 		t.Fatalf("plan:\n%s", out)
 	}
 	if after, _ := os.ReadFile(dstPath); !bytes.Equal(before, after) {
@@ -188,5 +188,28 @@ func TestPolicyImportFromStdin(t *testing.T) {
 	cancel()
 	if err := Run(ctx, []string{"policy", "import", "-", "-apply", "-root", t.TempDir()}, Stdio{In: strings.NewReader(bundle), Out: &out, Err: &out}); err == nil {
 		t.Fatal("a cut-off standard input was imported")
+	}
+}
+
+// A plan line says what would be set, and an import with nothing to
+// change does not tell the person to add -apply (GREEN-042).
+func TestPlanLinesShowValues(t *testing.T) {
+	short := func(s string) string { return s }
+	for _, c := range []struct{ field, value, want string }{
+		{"k", "3", "k: 3"},
+		{`grind.jobs.[{"target":"pending"}]`, "true", `grind.jobs: {"target":"pending"}`},
+		{"p2p.peers.[10.0.0.1:8646]", "true", "p2p.peers: 10.0.0.1:8646"},
+		{"log", "", "log"},
+	} {
+		if got := planLine(c.field, c.value, short); got != c.want {
+			t.Errorf("planLine(%q, %q) = %q, want %q", c.field, c.value, got, c.want)
+		}
+	}
+	root := t.TempDir()
+	cli(t, nil, "init", "-example", "-root", root, "-p2p", "off")
+	bundle := filepath.Join(t.TempDir(), "same.json")
+	runOut(t, "policy", "export", "-root", root, "-out", bundle)
+	if out := runOut(t, "policy", "import", bundle, "-root", root); strings.Contains(out, "dry run") || !strings.Contains(out, "nothing to change") {
+		t.Fatalf("importing a node's own policy:\n%s", out)
 	}
 }
