@@ -169,3 +169,9 @@ built.
   running node; a wallet command waiting since before a passphrase change
   is refused; wallet, peer and node files are written durably; help lists
   only the flags a command takes; a large entry's buffer ends at its size.
+- **Safer imports (D150, D151):** a default import takes only what to
+  follow, `-settings` the node's settings with the lines that switch off
+  defences listed first; a node bundle applies whole or not at all;
+  `-if-digest` applies only the file that was previewed; plans show
+  values; and a wallet command opened before a passphrase change, `seed`
+  and `cosign` included, no longer unlocks with the old one.

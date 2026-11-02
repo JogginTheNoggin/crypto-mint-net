@@ -2,6 +2,8 @@ package nodepolicy
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -69,6 +71,10 @@ type Bundle struct {
 	// Settings is reserved for the node's own settings, which a later
 	// format adds. This version writes none and reads none.
 	Settings json.RawMessage `json:"settings,omitempty"`
+	// Digest is the SHA-256 of the file as read (hex), set by
+	// ReadBundle, so an import can be tied to the file that was
+	// previewed (GUI-023, D151). It is not written.
+	Digest string `json:"-"`
 }
 
 // BundlePolicy is one node policy in a bundle.
@@ -199,7 +205,7 @@ func ReadBundle(r io.Reader) (Bundle, error) {
 		if err := strictJSON(b, &p); err != nil {
 			return Bundle{}, fmt.Errorf("%w: neither a bundle nor a node policy: %v", ErrBundle, err)
 		}
-		bd := Bundle{Kind: BundleKind, Format: BundleFormat, Scope: ScopePolicy, Policies: []BundlePolicy{{Policy: p}}}
+		bd := Bundle{Kind: BundleKind, Format: BundleFormat, Scope: ScopePolicy, Policies: []BundlePolicy{{Policy: p}}, Digest: digest(b)}
 		return bd, bd.check()
 	}
 	if *head.Kind != BundleKind {
@@ -216,6 +222,7 @@ func ReadBundle(r io.Reader) (Bundle, error) {
 	if err := strictJSON(b, &bd); err != nil {
 		return Bundle{}, fmt.Errorf("%w: %v", ErrBundle, err)
 	}
+	bd.Digest = digest(b)
 	return bd, bd.check()
 }
 
@@ -834,4 +841,9 @@ func clone(p Policy) Policy {
 	}
 	q.Lowered = lowered
 	return q
+}
+
+func digest(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }

@@ -224,3 +224,34 @@ func TestPlanLinesShowValues(t *testing.T) {
 		t.Fatalf("importing a node's own policy:\n%s", out)
 	}
 }
+
+// GUI-023, D151: -if-digest applies only the file that was previewed.
+func TestPolicyImportIfDigest(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off")
+	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	a := filepath.Join(t.TempDir(), "a.json")
+	runOut(t, "policy", "export", "-root", src, "-out", a)
+	var res []importResult
+	cli(t, &res, "policy", "import", a, "-json", "-root", dst)
+	if len(res) != 1 || len(res[0].Digest) != 64 {
+		t.Fatalf("digest: %+v", res)
+	}
+	d := res[0].Digest
+	// The file changes after the preview: refused, nothing changed.
+	b, _ := os.ReadFile(a)
+	os.WriteFile(a, append(b, ' '), 0o600)
+	before, _ := os.ReadFile(filepath.Join(dst, "policies", "default", nodepolicy.FileName))
+	if err := run([]string{"policy", "import", a, "-apply", "-if-digest", d, "-root", dst}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "not the one previewed") {
+		t.Fatalf("changed file: %v", err)
+	}
+	if after, _ := os.ReadFile(filepath.Join(dst, "policies", "default", nodepolicy.FileName)); !bytes.Equal(before, after) {
+		t.Fatal("a refused import changed node.json")
+	}
+	os.WriteFile(a, b, 0o600)
+	runOut(t, "policy", "import", a, "-apply", "-if-digest", d, "-root", dst)
+	p, err := nodepolicy.Load(filepath.Join(dst, "policies", "default", nodepolicy.FileName))
+	if err != nil || len(p.Series) != 1 {
+		t.Fatalf("applied: %+v %v", p, err)
+	}
+}

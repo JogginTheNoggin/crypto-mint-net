@@ -29,7 +29,7 @@ decision that records it. Each package has its own document in
 | Full node: follows series, pools and mints, keeps their ledgers, takes and forwards transactions, entries and layers | `poo init`, `poo node`, `poo status` | `pkg/engine`, `pkg/node`, `pkg/daemon` | M1, M2 |
 | Node policies: what a node knows, accepts and follows, how many branches it keeps, its limits, logs and ports, in `node.json` | `poo init`, `poo follow`, `poo unfollow`, `poo reload` | `pkg/nodepolicy` | D93, D139 |
 | Several node policies side by side: save, use, archive, unarchive, delete | `poo policy list` and the `use`, `archive`, `unarchive` and `delete` subcommands | `pkg/nodepolicy` (Manager) | M2 |
-| **Policy export and import:** one shareable JSON file holding a series, a node policy or every saved policy. Import shows a plan first, merges, and lists conflicts. A running node applies it live | `poo policy export`, `poo policy import` | `pkg/nodepolicy` (bundle.go), `pkg/cli` (policyport.go), `POST /v1/policy/import` | D149 |
+| **Policy export and import:** one shareable JSON file holding a series, a node policy or every saved policy. Import shows a plan first, merges, lists conflicts and puts lines that switch off defences first. By default it takes only what to follow; `-settings` takes the node's settings too, and `-full` this machine's own. A node bundle applies whole or not at all. The plan prints the file's digest, and `-if-digest` applies only the file previewed. `-` reads standard input. A running node applies it live | `poo policy export`, `poo policy import` | `pkg/nodepolicy` (bundle.go), `pkg/cli` (policyport.go), `POST /v1/policy/import` | D149, D150, D151 |
 | Live reload of a changed policy without stopping the node | `poo reload` | `pkg/daemon`, `pkg/rpc` | GREEN-011 |
 | Setup check that says what to fix | `poo doctor` | `pkg/cli` | GREEN-035 |
 | Structured logs: plain, text or JSON | `poo node -log-format json` | `pkg/logging` | D104 |
@@ -48,6 +48,7 @@ decision that records it. Each package has its own document in
 | --- | --- | --- | --- |
 | One filter (series, pool, mint, address, address policy, transaction, kind) for every view | the `-series`, `-pool`, `-serial`, `-address`, `-tid` flags | `pkg/filter` | M10 |
 | Views: pools, ledger pages, pending, unspent, one transaction, an address | `poo pools`, `poo ledger`, `poo pending`, `poo unspent`, `poo tx`, `poo address` | `pkg/watch`, `pkg/rpc` | M10 |
+| Older forms kept for scripts: a mint's unspent portions, where a transaction stands | `poo holdings`, `poo payment` | `pkg/cli` | M6 |
 | Live events, one JSON object per line | `poo watch` | `pkg/watch` | M10 |
 | Table output for reading | `poo pools -o table` | `pkg/cli` | |
 | View-only mode: reads only, with a separate token | `poo -view-only status` | `pkg/cli`, `pkg/rpc` | D101 |
@@ -70,7 +71,7 @@ decision that records it. Each package has its own document in
 | Claims, payments with coin selection, change | `poo wallet claim`, `poo wallet pay` | `pkg/wallet` | M6 |
 | Payment requests and receiving | `poo wallet request`, `poo wallet receive`, `poo wallet status` | `pkg/wallet` | M6 |
 | Co-signing and light mode | `poo wallet cosign`, `poo wallet watch` | `pkg/wallet` | M6 |
-| Safe concurrent use: no command undoes another's change, and a passphrase change cancels commands that were already waiting | | `pkg/wallet` | D145, D146, D149 |
+| Safe concurrent use: no command undoes another's change, and a passphrase change cancels every command that was already waiting, `seed` and `cosign` included | | `pkg/wallet` | D145, D146, D149, D151 |
 
 ### Series and cryptography
 

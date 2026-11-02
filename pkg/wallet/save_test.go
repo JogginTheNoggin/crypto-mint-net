@@ -32,8 +32,11 @@ func TestSaveNeverUndoesAnotherChange(t *testing.T) {
 	must(t, passwd.Unlock("old"))
 	must(t, passwd.Rekey("new"))
 	must(t, passwd.Save())
-	must(t, label.Unlock("old"))
-	must(t, label.Rekey("late"))
+	// Since D151 the stale command is refused already at its unlock
+	// (GUI-022); a save without the unlock is still refused (D145).
+	if err := label.Unlock("old"); !errors.Is(err, wallet.ErrPassphraseChanged) {
+		t.Fatalf("a stale unlock: %v, want ErrPassphraseChanged", err)
+	}
 	if err := label.Save(); !errors.Is(err, wallet.ErrChanged) {
 		t.Fatalf("a stale save: %v, want ErrChanged", err)
 	}
@@ -152,4 +155,32 @@ func TestHoldRefusesAStaleSeal(t *testing.T) {
 		t.Fatalf("a change without a new seal: %v", err)
 	}
 	release()
+}
+
+// TestUnlockRefusesAStaleSeal is the rest of GUI-022: a command that
+// never saves (wallet seed, cosign) opened before a rotation does not
+// open the seed with the old passphrase (D151).
+func TestUnlockRefusesAStaleSeal(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "w.json")
+	if _, err := wallet.Create(path, "old", wallet.Options{Iterations: 1, Gap: 2}); err != nil {
+		t.Fatal(err)
+	}
+	stale, err := wallet.Open(path) // a "Show seed" waiting at its prompt
+	must(t, err)
+	owner, err := wallet.Open(path)
+	must(t, err)
+	must(t, owner.Unlock("old"))
+	release, err := owner.Hold()
+	must(t, err)
+	must(t, owner.Rekey("rotated"))
+	must(t, owner.Save())
+	release()
+	if err := stale.Unlock("old"); !errors.Is(err, wallet.ErrPassphraseChanged) {
+		t.Fatalf("stale unlock: %v, want ErrPassphraseChanged", err)
+	}
+	if _, err := stale.Seed(); err == nil {
+		t.Fatal("the seed is open after a refused unlock")
+	}
+	// The owner's own wallet unlocks again with its passphrase.
+	must(t, owner.Unlock("rotated"))
 }

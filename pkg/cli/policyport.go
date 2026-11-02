@@ -122,6 +122,9 @@ type importResult struct {
 	Saved     bool            `json:"saved"`
 	Reloading bool            `json:"reloading,omitempty"`
 	Current   bool            `json:"made_current,omitempty"`
+	// Digest is the SHA-256 of the file read, the same on every row:
+	// pass it back with -if-digest to apply only that file (GUI-023).
+	Digest string `json:"digest"`
 }
 
 // policyImportCmd reads a bundle (or a node.json) and merges it into the
@@ -137,6 +140,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	full := fs.Bool("full", false, "take every setting, machine-local ones too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): restoring a backup on this machine")
 	noReload := fs.Bool("no-reload", false, "change node.json only; a running node applies it on its next reload or start")
 	asJSON := fs.Bool("json", false, "print the plan as JSON")
+	ifDigest := fs.String("if-digest", "", "apply only if the file's SHA-256 (hex, as the plan prints it) is this one: so the file applied is the file previewed")
 	// The file may come before the flags: poo policy import FILE -apply.
 	var file string
 	if len(args) > 0 && (args[0] == "-" || !strings.HasPrefix(args[0], "-")) {
@@ -172,6 +176,9 @@ func policyImportCmd(args []string, out io.Writer) error {
 	}
 	if err != nil {
 		return err
+	}
+	if *ifDigest != "" && !strings.EqualFold(*ifDigest, b.Digest) {
+		return fmt.Errorf("the file is not the one previewed (its digest is %s, not %s), so nothing was changed: preview it again", b.Digest, *ifDigest)
 	}
 	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
 	if opt.SeriesOnly && *replace {
@@ -254,9 +261,13 @@ func policyImportCmd(args []string, out io.Writer) error {
 			}
 		}
 	}
+	for i := range results {
+		results[i].Digest = b.Digest
+	}
 	if *asJSON {
 		return writeJSON(out, results)
 	}
+	fmt.Fprintf(out, "file digest %s (-if-digest applies only this file)\n", b.Digest)
 	if b.HasSettings() {
 		fmt.Fprintln(out, "note: the file also holds settings; this version imports node policies only")
 	}

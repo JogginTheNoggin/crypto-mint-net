@@ -2926,3 +2926,45 @@ a chase takes in after checking their work are not charged.
   in from a file by default than before.
 - **Tier:** Implementation (node policy, the CLI, the local RPC and the
   registry fetch). Tests are listed in BLUE-018.
+
+### D151. Round 18: GUI-022 closed for every command; imports tied to the previewed file; GREEN-042 adopted
+
+- **Decision:**
+  - **GUI-022, the rest (GUI/Red, PR #86).** `Wallet.Unlock` reads the
+    file again before it checks the passphrase. If the seal changed
+    since `Open` read it, Unlock returns `ErrPassphraseChanged`, and the
+    old passphrase opens nothing. This covers the commands that never
+    hold the wallet: `wallet seed` and `wallet cosign`. A stale "Show
+    seed" no longer prints the seed after a rotation. `Hold` keeps its
+    own check (D149) for a rotation made between the unlock and the
+    hold.
+  - **The previewed file (GUI-023's Source half).** `ReadBundle` sets
+    the file's SHA-256 as `Bundle.Digest`. `poo policy import` prints
+    it, and with `-json` gives it as `digest` on every row. The new flag
+    `-if-digest D` refuses, before any change, a file whose digest is
+    not D. The GUI passes the digest it previewed with Apply, and the
+    terminal can do the same. The GUI half, Apply sending the previewed
+    text, is GUI/Blue's.
+  - **Black's extreme-settings test is adopted** as
+    `pkg/p2p/settings_extremes_test.go` (Black, Round 17 appendix). It
+    sets `k`, `ties`, `max_pending`, `seen_size` and the four reply
+    limits to their smallest, then their largest, values. In both cases
+    a node still reaches a heavier ledger.
+  - **Merged with this round:**
+    - BLUE-018 (D150: RED-043 to RED-045), with Red's findings (PR #83).
+    - GREEN-042 (grind `-series` help, plans that show values).
+    - ORANGE-027 (the modular seams measured; no exception needed).
+    - Black's Round 17 review (9 clear, 0 blocked).
+  - **FEATURES.md:** imports gain `-settings`, `-if-digest` and `-`.
+    `holdings` and `payment` are listed. The wallet row lists `seed`
+    and `cosign`.
+- **Why:** the Round 18 queue.
+- **Consensus:** none. This round touches the wallet, the CLI and a
+  test.
+- **What is left:** the GUI form's half of GUI-023 (GUI/Blue). Two
+  points from GREEN-020 are still open: errors name `until_from` where
+  `-until-from` was typed, and no command renews a lease.
+- **Tier:** Implementation. Tests: `TestUnlockRefusesAStaleSeal`
+  (pkg/wallet; `TestSaveNeverUndoesAnotherChange` now expects the
+  refusal at unlock), `TestPolicyImportIfDigest` (pkg/cli), and the
+  extreme-settings test (pkg/p2p).

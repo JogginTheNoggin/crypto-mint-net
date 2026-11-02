@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D151) |
 | Based on | `main` @ `b17e892` |
 | Area | `pkg/cli` (`addClientSeries`, `grind start`/`run`, `policy import` plan output), `docs/modules/poo.md` |
 | Effort | small |
