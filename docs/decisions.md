@@ -2848,6 +2848,13 @@ a chase takes in after checking their work are not charged.
     rotation then revokes commands already waiting at a prompt, and a
     stale `passwd` never re-seals over the owner's change, as under
     D145. Other changes saved meanwhile are still taken in (D146).
+  - **A feature list, docs/FEATURES.md (owner, 2026-11-02).** One plain
+    file of what the project offers, one feature per row, with its
+    command, its package and its decision. It has a Source part, which
+    Source/Grey updates each Part A, and a GUI part, which GUI/Grey
+    updates. It feeds the later docs site. Each feature stays in its own
+    package behind a small API, with thin CLI and RPC layers over it, so
+    it can be extended.
   - **Merged with this round:** BLUE-017 (D148), GREEN-041 (help lists
     only the flags a command takes), ORANGE-026 (the entry body's buffer
     ends at its stated size) and Black's Round 16 review (10 clear, 0
