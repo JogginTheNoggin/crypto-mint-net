@@ -269,7 +269,7 @@ type jobFlags struct {
 // keeps its job's lease itself (GREEN-041).
 func addJob(fs *flag.FlagSet, lease bool) *jobFlags {
 	j := &jobFlags{
-		c:       addClient(fs),
+		c:       addClientSeries(fs, "series id (default: every followed series; -pool and -serial need one, and take the only followed series)"),
 		pf:      addPool(fs),
 		device:  fs.String("device", "", "device: auto, cpu, gpu:0, ... (default: node.json's grind section, else auto)"),
 		threads: fs.Int("threads", 0, "threads (default: every core but one)"),

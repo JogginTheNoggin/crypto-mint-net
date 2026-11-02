@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -262,10 +263,23 @@ func policyImportCmd(args []string, out io.Writer) error {
 	for _, r := range results {
 		printPlan(out, r, *apply)
 	}
-	if !*apply {
+	if !*apply && slices.ContainsFunc(results, func(r importResult) bool { return !r.Plan.Empty() }) {
 		fmt.Fprintln(out, "dry run: nothing was changed; add -apply to make this change")
 	}
 	return nil
+}
+
+// planLine is one added or removed line of a plan with its value: an
+// item of a list as "grind.jobs: {...}", a setting as "k: 3", where the
+// field alone ("+ k") did not say what would be set (GREEN-042).
+func planLine(field, value string, short func(string) string) string {
+	if i := strings.LastIndex(field, ".["); i >= 0 && strings.HasSuffix(field, "]") {
+		return field[:i] + ": " + short(field[i+2:len(field)-1])
+	}
+	if value == "" {
+		return field
+	}
+	return field + ": " + short(value)
 }
 
 // importOne plans, and with apply makes, the import into one node policy:
@@ -362,13 +376,13 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		fmt.Fprintf(out, "  read first: these change a defence of this node or where it reaches out: %s\n", listSome(p.Defences, 20))
 	}
 	for _, c := range p.Added {
-		fmt.Fprintf(out, "  + %s\n", c.Field)
+		fmt.Fprintf(out, "  + %s\n", planLine(c.Field, c.File, short))
 	}
 	for _, c := range p.Changed {
 		fmt.Fprintf(out, "  ~ %s: %s -> %s\n", c.Field, short(c.Local), short(c.File))
 	}
 	for _, c := range p.Removed {
-		fmt.Fprintf(out, "  - %s\n", c.Field)
+		fmt.Fprintf(out, "  - %s\n", planLine(c.Field, c.Local, short))
 	}
 	for _, c := range p.Conflicts {
 		if c.Took == "file" {

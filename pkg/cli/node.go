@@ -240,7 +240,13 @@ type clientFlags struct {
 }
 
 func addClient(fs *flag.FlagSet) *clientFlags {
-	return &clientFlags{w: addWhere(fs), series: fs.String("series", "", "series id (default: the only followed series)")}
+	return addClientSeries(fs, "series id (default: the only followed series)")
+}
+
+// addClientSeries is addClient with -series described by usage, for a
+// command whose default is not the only followed series (GREEN-042).
+func addClientSeries(fs *flag.FlagSet, usage string) *clientFlags {
+	return &clientFlags{w: addWhere(fs), series: fs.String("series", "", usage)}
 }
 
 func (c *clientFlags) dial(out io.Writer) (*rpc.Client, error) { return dialNode(out, c.w.resolve()) }

@@ -173,5 +173,9 @@ func TestKindOnlyOnWatch(t *testing.T) {
 		if strings.Contains(help.String(), "-lease") != want {
 			t.Errorf("poo grind %s -h lists -lease: %v, want %v", cmd, !want, want)
 		}
+		// A job with no -series grinds every followed series (GREEN-042).
+		if !strings.Contains(help.String(), "every followed series") || strings.Contains(help.String(), "default: the only followed series") {
+			t.Errorf("poo grind %s -h misdescribes -series:\n%s", cmd, help.String())
+		}
 	}
 }
