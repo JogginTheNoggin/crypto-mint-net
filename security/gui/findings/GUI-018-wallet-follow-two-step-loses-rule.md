@@ -7,7 +7,7 @@
 | Found on | claude/gui-4-watch @ c9c9e1f (Source bc2e4bc, RED-030 / D136) |
 | Component | pkg/cli/wallet.go (`walletFollow`), pkg/rpc/view.go (`POST /v1/follow`) |
 | Surface | node (node.json's follow list). Reachable from the GUI's terminal, which runs the same `cli.Main`. |
-| Fixed by | _(pending — routed to Source by GUI/Blue in Round 12C via GUI/Grey; Source/Blue has it in Source Round 12 Part C. The GUI needs no change.)_ |
+| Fixed by | Source (BLUE-013, D139, 56633dc: `FollowRequest.Replace`, one request), routed by GUI/Blue in Round 12C via GUI/Grey. GUI e2e check of the terminal path added by GUI/Blue in Round 13C (gui/e2e/terminal.mjs). The GUI itself needed no change. |
 
 ## Summary
 
@@ -115,3 +115,18 @@ GUI/Blue can add a GUI e2e check for the terminal path.
   - Each `status` call, including the Followed pools panel's 5 s refresh,
     now also reads node.json. That is a small extra cost, not a finding.
 
+## GUI check (GUI/Blue, Round 13C)
+
+gui/e2e/terminal.mjs now runs `wallet watch -pool 0` and then
+`wallet follow` in the GUI's terminal, against the node running in the
+background. It checks three things:
+
+- The command says the node applied the change.
+- `poo follow` then lists exactly one rule for the series, and that rule
+  holds the wallet's pools.
+- The node follows only that pool.
+
+This covers the path a GUI user takes. A failure between two requests
+cannot be injected from the browser, because poo talks to the node
+directly. The single-request guarantee is tested in Source's unit tests
+(pkg/rpc/view_test.go and pkg/nodepolicy/follow_test.go).

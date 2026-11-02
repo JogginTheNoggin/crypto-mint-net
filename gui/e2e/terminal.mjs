@@ -140,6 +140,33 @@ try {
     await page.waitForTimeout(250);
   }
 
+  // GUI-018: wallet follow, run in the terminal against the running node,
+  // swaps the series' rule for the wallet's pools in one request (D139).
+  // The node applies it, and the follow list has that one rule, not the
+  // old one, not none, and not two.
+  // answer gives the wallet's passphrase if the command asks for it.
+  const answer = async () => {
+    const asked = async () => (await line.getAttribute('type')) === 'password';
+    await until(async () => (await asked()) || (await runs()) >= expect, 'a prompt or the command to end');
+    if (await asked()) {
+      await line.fill('hunter2-secret');
+      await line.press('Enter');
+    }
+    await idle();
+  };
+  const since = async mark => (await out.innerText()).split(mark).pop();
+  await type(`wallet watch -pool 0 -wallet ${join(home, 'w.json')}`);
+  await answer();
+  await type(`wallet follow -wallet ${join(home, 'w.json')}`);
+  await answer();
+  assert.match(await since('$ poo wallet follow'), /series [0-9a-f]+ follows pools \[0\]; the node applied it/, 'the running node applied the follow');
+  await type('follow');
+  await idle();
+  const listed = JSON.parse((await since('$ poo follow')).replace(/^[^{]*/, '').replace(/[^}]*$/, ''));
+  assert.equal(listed.follow.length, 1, 'one follow rule for the series');
+  assert.deepEqual(listed.follow[0].pools, [0], "the rule is the wallet's pools");
+  assert.deepEqual(listed.pools.map(p => p.pool), [0], 'the node follows only that pool now');
+
   // The Jobs view lists the running node and stops it.
   await page.click('nav a[data-id=jobs]');
   const nodeRow = page.locator('.job', { hasText: /^poo node/ }).filter({ hasText: 'running' });
