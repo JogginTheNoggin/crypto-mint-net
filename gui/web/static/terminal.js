@@ -30,6 +30,7 @@ export function mount(root) {
         <button type="button" data-act="forget" title="Forget the command lines this browser saved">Forget history</button>
         <button type="button" data-act="show" hidden aria-pressed="false" title="Show what you type to the running command">Show typing</button>
         <button type="button" data-act="detach" disabled title="Keep the running command going in the background">Run in background</button>
+        <button type="button" data-act="eof" disabled title="End the running command's input, as Ctrl-D does in a shell">End input</button>
         <button type="button" data-act="stop" disabled>Stop</button>
       </div>
       <pre class="term-out" tabindex="0" aria-label="Terminal output"></pre>
@@ -45,6 +46,7 @@ export function mount(root) {
   const prompt = root.querySelector('.prompt');
   const stopBtn = root.querySelector('[data-act=stop]');
   const detachBtn = root.querySelector('[data-act=detach]');
+  const eofBtn = root.querySelector('[data-act=eof]');
   // Screen readers hear when a command ends, not every chunk it prints.
   const status = root.querySelector('[role=status]');
   const announce = text => { status.textContent = text; };
@@ -79,7 +81,7 @@ export function mount(root) {
   let secret = false;
   const setRunning = j => {
     job = j;
-    stopBtn.disabled = detachBtn.disabled = !j;
+    stopBtn.disabled = detachBtn.disabled = eofBtn.disabled = !j;
     secret = showTyping = false;
     refreshInput();
   };
@@ -138,8 +140,20 @@ export function mount(root) {
     runLine(text);
   });
 
+  // endInput is Ctrl-D: text on the line is sent first, as a shell sends
+  // it; on an empty line it ends the input, and the command reads to its
+  // end. Ctrl-C and Stop cancel, and are never an end of input (GUI-021).
+  const endInput = async () => {
+    if (!job) return;
+    if (line.value !== '') { form.requestSubmit(); return; }
+    write('^D\n', 'note');
+    try { await api.eof(job.id); } catch (e) { write(`poo-gui: ${e.message}\n`, 'err'); }
+  };
   line.addEventListener('keydown', ev => {
-    if (ev.ctrlKey && ev.key === 'c' && job && line.selectionStart === line.selectionEnd) {
+    if (ev.ctrlKey && ev.key === 'd' && job) {
+      ev.preventDefault();
+      endInput();
+    } else if (ev.ctrlKey && ev.key === 'c' && job && line.selectionStart === line.selectionEnd) {
       ev.preventDefault();
       write('^C\n', 'note');
       api.cancel(job.id).catch(() => {});
@@ -166,6 +180,7 @@ export function mount(root) {
   });
   clearBtn.addEventListener('click', () => { sb.clear(); line.focus(); });
   showBtn.addEventListener('click', () => { showTyping = !showTyping; refreshInput(); line.focus(); });
+  eofBtn.addEventListener('click', () => { line.value = ''; endInput(); line.focus(); });
   stopBtn.addEventListener('click', () => { if (job) { write('^C\n', 'note'); api.cancel(job.id).catch(() => {}); } });
   detachBtn.addEventListener('click', () => {
     if (!job) return;

@@ -24,6 +24,9 @@ export function start(cmd, { refresh = false } = {}) {
 }
 
 export function input(id, line) { return post(`/api/jobs/${id}/input`, { line }); }
+// eof ends a job's input, as Ctrl-D does in a shell; cancel is Ctrl-C,
+// and is never read as an end of input (GUI-021).
+export function eof(id) { return post(`/api/jobs/${id}/eof`); }
 export function cancel(id) { return post(`/api/jobs/${id}/cancel`); }
 
 export async function jobs() {

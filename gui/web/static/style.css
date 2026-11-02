@@ -95,7 +95,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .live-out, .text-out { margin: 6px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--term-bg); color: var(--term-ink); white-space: pre-wrap; word-break: break-word; font-size: 12px; max-height: 340px; overflow: auto; }
 .live-out:empty { display: none; }
 .text-out.err, .live-out .err { color: var(--term-err); }
-.ask { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.ask { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
 .ask[hidden] { display: none; }
 .ask label { font-family: var(--mono); font-size: 12px; }
 .ask input { flex: 1; max-width: 360px; }

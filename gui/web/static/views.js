@@ -50,7 +50,11 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
     askInput.focus();
   };
   const stopBtn = el('button', { type: 'button' }, 'Stop');
-  ask.append(askLabel, askInput, showBtn, el('button', { type: 'submit', class: 'primary' }, 'Send'));
+  // End input is Ctrl-D: what was sent is read, then the end, as for a
+  // command reading a pasted entry to its end (submit -f -). Stop is
+  // Ctrl-C and sends nothing (GUI-021). A secret prompt needs no end.
+  const endBtn = el('button', { type: 'button', class: 'end-input', title: 'Send what is typed, if anything, then end the input, as Ctrl-D does in a shell' }, 'Send and end input');
+  ask.append(askLabel, askInput, showBtn, el('button', { type: 'submit', class: 'primary' }, 'Send'), endBtn);
   area.append(el('div', { class: 'run-bar' }, status, stopBtn), ask, live);
   return new Promise(resolve => {
     api.start(args, { refresh }).then(j => {
@@ -67,7 +71,12 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
         askInput.type = 'password';
         showBtn.setAttribute('aria-pressed', 'false');
         ask.hidden = true;
-        api.input(j.id, v).catch(e => { err += `poo-gui: ${e.message}\n`; });
+        return api.input(j.id, v).catch(e => { err += `poo-gui: ${e.message}\n`; });
+      };
+      endBtn.onclick = async () => {
+        if (askInput.value !== '') await ask.onsubmit(new Event('submit'));
+        ask.hidden = true;
+        api.eof(j.id).catch(e => { err += `poo-gui: ${e.message}\n`; });
       };
       area.unfollow = api.follow(j.id, {
         chunk: c => {
@@ -79,6 +88,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
           ask.hidden = !s.waiting;
           askInput.type = s.secret ? 'password' : 'text';
           showBtn.hidden = !s.secret;
+          endBtn.hidden = !!s.secret;
           showBtn.setAttribute('aria-pressed', 'false');
           if (s.waiting) {
             const prompt = tail.split('\n').pop().trim() || 'input:';
@@ -530,7 +540,7 @@ const poolsView = {
       // elsewhere, as the hex Build or Add a layer prints with -bytes,
       // typed in or read by poo from a file (-f, BLUE-015).
       form(ctx, { title: 'Submit an entry or layer', about: 'Gives the node an entry or a layer made elsewhere: the hex of an entry or layer reply.',
-        fields: [{ name: 'kind', label: 'Kind', type: 'select', options: ['entry', 'layer'] }, { name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, series, { name: 'file', label: 'From a file', placeholder: 'a path on this machine, or - to paste it when asked' },
+        fields: [{ name: 'kind', label: 'Kind', type: 'select', options: ['entry', 'layer'] }, { name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, series, { name: 'file', label: 'From a file', placeholder: 'a path on this machine, or - to paste it when asked, then Send and end input' },
           { name: 'hex', label: 'Hex', placeholder: 'the entry or layer, hex', only: { field: 'file', values: [''] } }],
         args: v => ['submit', v.kind || 'entry', ...where.flags(), ...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('f', v.file), ...(!v.file && v.hex ? [v.hex] : [])], submit: 'Submit', danger: true }),
     ]);

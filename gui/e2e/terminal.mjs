@@ -156,6 +156,27 @@ try {
     await page.waitForTimeout(250);
   }
 
+  // GUI-021: Ctrl-C is not an end of input, as in a shell. submit -f -
+  // reads to its end; Ctrl-C fails that read, and nothing is decoded or
+  // sent. Ctrl-D ends the input, and poo reads what was typed.
+  const lastRun = async mark => (await out.innerText()).split(mark).pop();
+  await type('submit layer -pool 1 -f -');
+  await until(async () => (await page.locator('.term-in .prompt').innerText()) === 'input', 'the input prompt');
+  await type('abcd');
+  await line.press('Control+c');
+  await idle();
+  {
+    const said = await lastRun('$ poo submit layer');
+    assert.match(said, /stopped/, 'Ctrl-C fails the read');
+    assert.doesNotMatch(said, /not hex|"hash"/, 'nothing typed before Ctrl-C was decoded or sent');
+  }
+  await type('submit layer -pool 1 -f -');
+  await until(async () => (await page.locator('.term-in .prompt').innerText()) === 'input', 'the input prompt');
+  await type('zz');
+  await line.press('Control+d');
+  await idle();
+  assert.match(await lastRun('$ poo submit layer'), /\^D\n[\s\S]*the layer is not hex/, 'Ctrl-D ended the input and poo read it');
+
   // GUI-018: wallet follow, run in the terminal against the running node,
   // swaps the series' rule for the wallet's pools in one request (D139).
   // The node applies it, and the follow list has that one rule, not the
