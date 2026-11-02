@@ -95,7 +95,7 @@ Here is how a request flows:
    input does what Ctrl-D does in a shell: the command reads what was
    sent, then the end. The terminal binds Ctrl-D to it, and so do its End
    input button and a form's "Send and end input", which a command that
-   reads a paste to its end needs (`poo submit … -f -`). Cancelling does
+   reads a paste to its end needs (`poo submit entry -f -`). Cancelling does
    what Ctrl-C does in a shell, and the terminal binds Ctrl-C and Stop to
    it. A cancelled job's read fails. It is never an end of input, so a
    command never acts on what was sent before Stop (GUI-021).
