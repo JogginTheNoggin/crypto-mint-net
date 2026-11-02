@@ -50,7 +50,7 @@ without a wallet. See
 | `poo tx [-in-serial N] TID` | One transaction: where it stands, the weight behind it, rivals, its contents |
 | `poo address [-below H] [-limit N] [filter] ADDRESS` | An address's balance, holdings, history and pending transactions; `next` gives the `-below` for each pool's older history |
 | `poo watch [-notices] [-once] [filter]` | Prints events as they happen, one JSON line each, until interrupted; reconnects after a reload unless `-once` |
-| `poo follow [-issuer HEX] [-series ID] [-pool K]... [-mint N]... [-no-reload]` | Without flags, what is followed; with them, adds to the follow list and applies it to the running node (or, when no node answers, edits `node.json` under the data directory's lock, refused with nothing changed while a node or another command holds it: RED-030, D136) |
+| `poo follow [-issuer HEX] [-series ID] [-pool K]... [-mint N]... [-replace] [-no-reload]` | Without flags, what is followed; with them, adds to the follow list (with `-replace` and `-series`, puts exactly those pools and mints in place of the series' rule in one change, as `POST /v1/follow`'s `replace` does for the GUI: GUI-018, GREEN-038) and applies it to the running node (or, when no node answers, edits `node.json` under the data directory's lock, refused with nothing changed while a node or another command holds it: RED-030, D136) |
 | `poo unfollow (-issuer HEX \| -series ID) [-pool K]... [-mint N]... [-no-reload]` | Removes from the follow list, the same way |
 | `poo reload` | Makes the running node apply its node policy again (as SIGHUP to `poo node` does) |
 | `poo policy list\|use\|archive\|unarchive\|delete [-root DIR] [NAME]` | Manages node policies (flags before NAME) |
