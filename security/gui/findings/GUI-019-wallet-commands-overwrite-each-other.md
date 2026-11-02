@@ -7,7 +7,7 @@
 | Found on | claude/gui-4-watch @ 3a7a39c |
 | Component | pkg/wallet/wallet.go (`Open`, `Save`), pkg/cli/wallet.go (every subcommand that saves: `passwd`, `address`, `pay`, `claim`, `watch`, `request`, `policy`, `cosign`, `submit`, `resend`, …); the GUI's Wallet view runs them as independent forms |
 | Surface | local (wallet.json: its seal, keys, payment records) |
-| Fixed by | _(pending — routed to Source by GUI/Blue in Round 14C via GUI/Grey. The GUI needs no change.)_ |
+| Fixed by | Source 46bcb9e (D145), routed by GUI/Blue in Round 14C via GUI/Grey; merged into GUI main in Round 15 |
 
 ## Summary
 

@@ -7,7 +7,7 @@
 | Found on | claude/gui-4-watch @ 3a7a39c |
 | Component | pkg/cli/wallet.go (`walletPasswd` "new passphrase:", `walletCreate` "new passphrase:"), the GUI's "Change the passphrase" and "Create or restore" forms |
 | Surface | local (access to the user's own wallet) |
-| Fixed by | _(pending — routed to Source by GUI/Blue in Round 14C via GUI/Grey. The GUI needs no change.)_ |
+| Fixed by | Source 46bcb9e (D145), routed by GUI/Blue in Round 14C via GUI/Grey; merged into GUI main in Round 15 |
 
 ## Summary
 
