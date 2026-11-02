@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -38,6 +39,9 @@ func submitCmd(args []string, out io.Writer) error {
 	text, err := submitHex(out, *file, fs.Args(), usage)
 	if err != nil {
 		return err
+	}
+	if text, err = fromReply(text, what); err != nil {
+		return fmt.Errorf("poo submit %s: %w", what, err)
 	}
 	b, err := hex.DecodeString(text)
 	if err != nil {
@@ -115,4 +119,33 @@ func submitHex(out io.Writer, file string, args []string, usage string) (string,
 		return "", err
 	}
 	return strings.TrimSpace(string(b)), nil
+}
+
+// fromReply takes the hex out of a reply of poo build -bytes or poo work
+// -bytes, so one can be piped into poo submit as it is printed
+// (GREEN-040): an entry is the reply's "entry"; a layer is a work reply's
+// "layer", or a build reply's "layer"."layer". Text that is not a JSON
+// object is returned as it is.
+func fromReply(text, what string) (string, error) {
+	if !strings.HasPrefix(text, "{") {
+		return text, nil
+	}
+	var r map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(text), &r); err != nil {
+		return "", fmt.Errorf("the input looks like a reply but is not JSON: %w", err)
+	}
+	var s string
+	raw, ok := r[what]
+	if ok && json.Unmarshal(raw, &s) == nil && s != "" {
+		return s, nil
+	}
+	if what == "layer" && ok {
+		var nested struct {
+			Layer string `json:"layer"`
+		}
+		if json.Unmarshal(raw, &nested) == nil && nested.Layer != "" {
+			return nested.Layer, nil
+		}
+	}
+	return "", fmt.Errorf("the reply holds no %s bytes: make it with -bytes", what)
 }
