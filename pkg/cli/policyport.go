@@ -2,7 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -157,6 +160,18 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if *apply && viewOnlyOf(out) {
 		return errViewOnly("policy import -apply")
 	}
+	// A digest given empty is not a digest left out: a script passing an
+	// unset variable must not apply the file unchecked (RED-047, D152).
+	digestGiven := false
+	fs.Visit(func(f *flag.Flag) { digestGiven = digestGiven || f.Name == "if-digest" })
+	if digestGiven {
+		if d, err := hex.DecodeString(*ifDigest); err != nil || len(d) != sha256.Size {
+			return fmt.Errorf("-if-digest needs the digest the preview printed (64 hex digits), not %q; nothing was changed", *ifDigest)
+		}
+		if !*apply {
+			return errors.New("-if-digest checks the file an -apply changes: add -apply, or leave it out to preview")
+		}
+	}
 	var b nodepolicy.Bundle
 	var err error
 	if file == "-" {
@@ -177,7 +192,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if *ifDigest != "" && !strings.EqualFold(*ifDigest, b.Digest) {
+	if digestGiven && !strings.EqualFold(*ifDigest, b.Digest) {
 		return fmt.Errorf("the file is not the one previewed (its digest is %s, not %s), so nothing was changed: preview it again", b.Digest, *ifDigest)
 	}
 	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
@@ -384,7 +399,14 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		return s
 	}
 	if len(p.Defences) > 0 {
-		fmt.Fprintf(out, "  read first: these change a defence of this node or where it reaches out: %s\n", listSome(p.Defences, 20))
+		fmt.Fprintf(out, "  read first: these change how this node runs, guards itself or reaches out, or take on many pools: %s\n", listSome(p.Defences, 20))
+	}
+	for _, f := range p.Follows {
+		if f.Whole {
+			fmt.Fprintf(out, "  series %s: follows all %d pools\n", f.Series, f.Pools)
+		} else {
+			fmt.Fprintf(out, "  series %s: follows %d of %d pools\n", f.Series, f.Followed, f.Pools)
+		}
 	}
 	for _, c := range p.Added {
 		fmt.Fprintf(out, "  + %s\n", planLine(c.Field, c.File, short))

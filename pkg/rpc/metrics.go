@@ -60,7 +60,7 @@ func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
 	for _, s := range h.n.Stores() {
 		stores[s.Key.Series.String()+"/"+fmt.Sprint(s.Key.Index)] = s.Records
 	}
-	for _, k := range h.n.Engine().FollowedPools() {
+	for _, k := range h.n.Engine().ListedPools() {
 		st, err := h.n.Engine().Status(k)
 		if err != nil {
 			writeError(w, classify(err))

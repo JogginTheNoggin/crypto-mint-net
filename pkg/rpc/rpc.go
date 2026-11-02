@@ -376,7 +376,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
 		rep.PolicyChanged = !p.SameApplied(h.n.Policy())
 	}
-	for _, k := range h.n.Engine().FollowedPools() {
+	for _, k := range h.n.Engine().ListedPools() {
 		st, err := h.n.Engine().Status(k)
 		if err != nil {
 			writeError(w, classify(err))
@@ -399,13 +399,8 @@ type SeriesInfo struct {
 
 func (h *Handler) series(w http.ResponseWriter, r *http.Request) {
 	out := []SeriesInfo{}
-	seen := map[hash.Hash]bool{}
-	for _, k := range h.n.Engine().FollowedPools() {
-		if seen[k.Series] {
-			continue
-		}
-		seen[k.Series] = true
-		s, _ := h.n.Engine().Series(k.Series)
+	for _, id := range h.n.Engine().FollowedSeries() {
+		s, _ := h.n.Engine().Series(id)
 		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount()})
 	}
 	writeJSON(w, out)

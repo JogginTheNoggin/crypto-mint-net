@@ -71,7 +71,7 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	}
 	nlog := n.Logger().With(logging.Component, "node")
 	rs := n.Replayed()
-	nlog.Info("started", "dir", dir, "pools", len(n.Engine().FollowedPools()),
+	nlog.Info("started", "dir", dir, "pools", n.Engine().FollowedCount(),
 		"records", rs.Records, "stores", rs.Pools, "kept", rs.Kept)
 	cfg := p2p.FromPolicy(n.Policy())
 	cfg.Logger = n.Logger()

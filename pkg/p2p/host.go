@@ -426,7 +426,6 @@ type Host struct {
 	coverage []wire.Section
 	byPoolID map[hash.Hash]*poolInfo
 	byKey    map[engine.PoolKey]*poolInfo
-	byName   map[string]*poolInfo    // pool section text → pool
 	issuers  map[hash.Hash]hash.Hash // series id → issuer (zero if none)
 
 	tr    *tracking.Tracker
@@ -466,7 +465,6 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 		n: n, cfg: cfg,
 		byPoolID: map[hash.Hash]*poolInfo{},
 		byKey:    map[engine.PoolKey]*poolInfo{},
-		byName:   map[string]*poolInfo{},
 		issuers:  map[hash.Hash]hash.Hash{},
 		tr:       cfg.Tracker,
 		cq:       chase.New(cfg.Chase),
@@ -504,19 +502,29 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	}
 	eng := n.Engine()
 	perSeries := map[hash.Hash]int{}
-	for _, k := range eng.FollowedPools() {
-		s, _ := eng.Series(k.Series)
+	n0 := eng.FollowedCount()
+	h.byPoolID = make(map[hash.Hash]*poolInfo, n0)
+	h.byKey = make(map[engine.PoolKey]*poolInfo, n0)
+	known := map[hash.Hash]*series.Series{}
+	for _, id := range eng.FollowedSeries() {
+		s, _ := eng.Series(id)
+		known[id] = s
 		var iss hash.Hash
 		if p := s.Params().Issuer; p != nil {
 			iss = *p
 		}
-		h.issuers[s.ID()] = iss
-		pi := &poolInfo{key: k, s: s, section: wire.PoolSection(iss, s.ID(), s.PoolID(k.Index))}
-		h.byPoolID[s.PoolID(k.Index)] = pi
-		h.byKey[k] = pi
-		h.byName[pi.section.Text()] = pi
-		perSeries[k.Series]++
+		h.issuers[id] = iss
 	}
+	// Without a list of every pool first: a series of very many pools
+	// followed whole costs one entry per pool here, and no more (RED-046).
+	eng.EachFollowedPool(func(k engine.PoolKey) {
+		s := known[k.Series]
+		pid := s.PoolID(k.Index)
+		pi := &poolInfo{key: k, s: s, section: wire.PoolSection(h.issuers[k.Series], k.Series, pid)}
+		h.byPoolID[pid] = pi
+		h.byKey[k] = pi
+		perSeries[k.Series]++
+	})
 	// Coverage: a whole series where every pool is followed, else pools.
 	ids := make([]hash.Hash, 0, len(perSeries))
 	for id := range perSeries {
@@ -544,6 +552,21 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	}
 	n.Observe(h.onKept)
 	return h, nil
+}
+
+// poolByName returns the followed pool a pool section's text names. The
+// text is parsed rather than kept for every pool, which cost a string per
+// pool of a series followed whole (RED-046, D152).
+func (h *Host) poolByName(text string) *poolInfo {
+	sec, err := wire.ParseSection(text)
+	if err != nil || sec.Depth != 3 {
+		return nil
+	}
+	pi := h.byPoolID[sec.Pool]
+	if pi == nil || pi.section != sec {
+		return nil
+	}
+	return pi
 }
 
 func (h *Host) sortedPools() []*poolInfo {

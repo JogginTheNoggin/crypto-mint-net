@@ -2968,3 +2968,35 @@ a chase takes in after checking their work are not charged.
   (pkg/wallet; `TestSaveNeverUndoesAnotherChange` now expects the
   refusal at unlock), `TestPolicyImportIfDigest` (pkg/cli), and the
   extreme-settings test (pkg/p2p).
+
+### D152. Round 18 fixes: RED-046 (in part), RED-047, RED-048 (BLUE-019)
+
+- **Decision:**
+  - **RED-046. A huge whole-series follow costs what is in use.**
+    - The node finds its stores by reading `pools/`.
+    - Status, metrics, queries and grind targets go through
+      `Engine.ListedPools`. That lists every pool of a whole series under
+      `ListAll` (65,536), and of a larger one only the pools with state.
+    - The p2p host builds its pool index without a list of keys first,
+      with maps sized once and no per-pool section text.
+    - The plan states each touched series' pool count. A whole-series
+      follow of `LargeFollow` (65,536) pools or more goes in `defences`.
+    - No series parameter is capped and no follow is refused.
+  - **RED-047.** `-if-digest`, when given, must be 64 hex digits and
+    needs `-apply`.
+  - **RED-048.** `Defences` is gone. Under `Settings` every node-setting
+    line is named first except `Cosmetic` (`log.format`), the same
+    inversion as `Followed` (D150).
+- **Why:** Red's Round 18 findings. A default import could bring in a
+  series of 2^32 or more pools followed whole, and the node then paid per
+  pool at every start and every status call. An empty variable turned the
+  digest check off. Settings nobody had thought of went unnamed.
+- **Consensus:** none. Every pool stays followed, and a pool's state is
+  still made when its first item or request arrives. No limit is added.
+  Nothing changes what a node accepts.
+- **What is left:** the p2p host's index is still one entry per followed
+  pool. The wire names a pool only by its id hash, which cannot be turned
+  back into an index. A pool index carried next to the id (a protocol
+  change) is put to Black. It is not built.
+- **Tier:** Implementation (node start-up, engine listings, the p2p index,
+  node policy import, the CLI). Tests are listed in BLUE-019.
