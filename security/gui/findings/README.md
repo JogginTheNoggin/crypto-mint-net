@@ -5,6 +5,24 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 14 Part B reviewed `claude/gui-4-watch @ 3a7a39c`:
+- the new Wallet forms (GREEN-039);
+- `follow -replace`;
+- `poo submit entry|layer` (D142).
+
+Secret handling held:
+- `wallet seed` is withheld by the server (`cli.SecretOutput`) and has no
+  Copy.
+- `passwd` and the shared-policy `self` key ask through masked prompts.
+- No new command prints a secret.
+- `submit` is a write command, refused when view-only.
+
+There are two new findings, both for Source:
+- GUI-019 (Medium): wallet commands overwrite each other's saves. A form
+  waiting at its passphrase prompt reverted a passphrase change, so the old
+  passphrase worked again, and it dropped an address given out meanwhile.
+- GUI-020 (Low): a new passphrase is never asked for twice.
+
 Round 13 Part B reviewed `claude/gui-4-watch @ 376e964`:
 - Source's GUI-018 fix (BLUE-013 / D139: `wallet follow` is one replace
   request).
@@ -169,3 +187,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-016](GUI-016-refused-remove-is-silent.md) | Low | A Schedule Remove that poo refuses (`-if-version`, `-target`) shows no message; the job just stays listed | fixed (PR #49, merged Round 11; verified R11B @ 4be2230) |
 | [GUI-017](GUI-017-offline-schedule-edits-unlocked.md) | Low | Schedule changes made without a node still read and write node.json whole with no lock, so they lose each other; any read error also makes poo write behind a running node | fixed by Source (D134), merged Round 12; verified R12B @ c9c9e1f on unix (Windows has no lock) |
 | [GUI-018](GUI-018-wallet-follow-two-step-loses-rule.md) | Low | `poo wallet follow` changes a running node in two requests (remove, then add), so a failure in between drops the series' follow rule while saying "nothing was changed" | fixed by Source (BLUE-013), merged Round 13; verified R13B @ 376e964; GUI terminal e2e check added R13C |
+| [GUI-019](GUI-019-wallet-commands-overwrite-each-other.md) | Medium | Wallet commands read the whole wallet.json and write it back; one waiting at a passphrase prompt in another form undoes the rest, even a passphrase change (the old passphrase works again) | open (Source) |
+| [GUI-020](GUI-020-new-passphrase-not-confirmed.md) | Low | A new wallet passphrase is typed once into a masked field and never confirmed, so a typo locks the wallet | open (Source) |
