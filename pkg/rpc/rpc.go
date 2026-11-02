@@ -50,6 +50,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
@@ -147,6 +148,8 @@ type PeersReply struct {
 	NodeID string         `json:"node_id"`
 	Listen string         `json:"listen,omitempty"`
 	Peers  []p2p.PeerInfo `json:"peers"`
+	// Book is every node in the peer book, with its state per policy.
+	Book []peers.Record `json:"book"`
 }
 
 func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
@@ -154,7 +157,11 @@ func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, &Error{Message: "p2p is not running", Code: CodeNotFound, Status: http.StatusNotFound})
 		return
 	}
-	writeJSON(w, PeersReply{NodeID: h.host.ID().String(), Listen: h.host.Addr(), Peers: h.host.Peers()})
+	book := h.host.Book().Records()
+	if book == nil {
+		book = []peers.Record{}
+	}
+	writeJSON(w, PeersReply{NodeID: h.host.ID().String(), Listen: h.host.Addr(), Peers: h.host.Peers(), Book: book})
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

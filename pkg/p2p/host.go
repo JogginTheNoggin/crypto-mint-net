@@ -16,10 +16,17 @@
 //   - a node asks only by entries it holds or hashes the same peer sent,
 //     and switches only on weight it computed itself.
 //
-// Peers come from the node policy's list of addresses. Peer discovery,
-// relaying and address registries are milestone 4; peer ranking, tracking
-// and the full chasing rules are milestone 5. Until then a peer that sends
-// a malformed message or an invalid entry is disconnected.
+// It also finds peers (the design's "Peer Discovery and Management" and
+// "Address Registries"): a connection is only a peer for the mint policies
+// this node checked with its own follow request; broadcast follow requests
+// are relayed by followers with a return path; peers are pinged; and a
+// connection manager keeps enough verified peers per mint policy, picking
+// candidates from the peer book, peer lists, follow replies, the archive
+// and address registries.
+//
+// Peer ranking, tracking and the full chasing rules are milestone 5. Until
+// then a peer that sends a malformed message or an invalid entry is
+// disconnected.
 package p2p
 
 import (
@@ -36,6 +43,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
@@ -82,6 +90,41 @@ type Config struct {
 	QueueSize int
 	// Agent names this software in hellos.
 	Agent string
+
+	// Book is the peer book; nil keeps one in memory.
+	Book *peers.Book
+	// Registries are address registry locations (URLs or files).
+	Registries []string
+	// PeersPerPolicy is how many verified peers to keep for each followed
+	// mint policy; the connection manager dials candidates below it.
+	PeersPerPolicy int
+	// MaxOutbound caps connections this node dials itself.
+	MaxOutbound int
+	// ManageEvery is how often the connection manager runs (negative:
+	// never; then only listed peers are dialled).
+	ManageEvery time.Duration
+	// BroadcastEvery is the least time between two broadcast follow
+	// requests for one mint policy; RegistryEvery between two loads of the
+	// registries.
+	BroadcastEvery time.Duration
+	RegistryEvery  time.Duration
+	// FollowTimeout is how long to wait for answers to a follow request.
+	FollowTimeout time.Duration
+	// NoRelay stops this node relaying broadcast follow requests.
+	NoRelay bool
+	// HopLimit is the hop count at which this node stops relaying.
+	HopLimit int
+	// RequestRate caps the follow, peer list and ping requests a peer may
+	// send per minute; more are dropped.
+	RequestRate int
+	// PingEvery is how often to ping each peer for each verified mint
+	// policy (negative: never); MaxMisses unanswered pings in a row end
+	// the peering for that policy.
+	PingEvery time.Duration
+	MaxMisses int
+	// VerifiedPerRange caps the peers for one mint policy from one network
+	// range (loopback addresses are exempt).
+	VerifiedPerRange int
 	// Log receives connection events. Nil discards them.
 	Log io.Writer
 }
@@ -101,6 +144,18 @@ func DefaultConfig() Config {
 		MaxRedial:      5 * time.Minute,
 		QueueSize:      4096,
 		Agent:          "poo",
+
+		PeersPerPolicy:   4,
+		MaxOutbound:      8,
+		ManageEvery:      30 * time.Second,
+		BroadcastEvery:   5 * time.Minute,
+		RegistryEvery:    time.Hour,
+		FollowTimeout:    5 * time.Second,
+		HopLimit:         8,
+		RequestRate:      120,
+		PingEvery:        2 * time.Minute,
+		MaxMisses:        3,
+		VerifiedPerRange: 4,
 	}
 }
 
@@ -145,6 +200,39 @@ func (c *Config) fill() {
 	if c.Log == nil {
 		c.Log = io.Discard
 	}
+	if c.PeersPerPolicy == 0 {
+		c.PeersPerPolicy = d.PeersPerPolicy
+	}
+	if c.MaxOutbound == 0 {
+		c.MaxOutbound = d.MaxOutbound
+	}
+	if c.ManageEvery == 0 {
+		c.ManageEvery = d.ManageEvery
+	}
+	if c.BroadcastEvery == 0 {
+		c.BroadcastEvery = d.BroadcastEvery
+	}
+	if c.RegistryEvery == 0 {
+		c.RegistryEvery = d.RegistryEvery
+	}
+	if c.FollowTimeout == 0 {
+		c.FollowTimeout = d.FollowTimeout
+	}
+	if c.HopLimit == 0 {
+		c.HopLimit = d.HopLimit
+	}
+	if c.RequestRate == 0 {
+		c.RequestRate = d.RequestRate
+	}
+	if c.PingEvery == 0 {
+		c.PingEvery = d.PingEvery
+	}
+	if c.MaxMisses == 0 {
+		c.MaxMisses = d.MaxMisses
+	}
+	if c.VerifiedPerRange == 0 {
+		c.VerifiedPerRange = d.VerifiedPerRange
+	}
 }
 
 // poolInfo is what the host knows about one followed pool.
@@ -175,6 +263,15 @@ type Host struct {
 	ln      net.Listener
 	ctx     context.Context
 	wg      sync.WaitGroup
+
+	book      *peers.Book
+	dialing   map[string]bool                 // addresses being dialled
+	paths     map[hash.Hash]returnPath        // relayed requests: where replies go
+	bcast     map[hash.Hash]chan wire.Message // this node's broadcasts awaiting replies
+	sent      map[hash.Hash]sentReply         // peer list replies kept for missing chunks
+	lastBcast map[wire.Section]time.Time
+	lastReg   time.Time
+	selfAddrs map[string]bool // addresses found to lead back to this node
 }
 
 // New prepares a host for n. Run starts it.
@@ -190,6 +287,17 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 		chasing:  map[engine.PoolKey]bool{},
 		again:    map[engine.PoolKey]*peer{},
 		reqs:     newIDCache(cfg.RequestWindow),
+		book:     cfg.Book,
+		dialing:  map[string]bool{},
+		paths:    map[hash.Hash]returnPath{},
+		bcast:    map[hash.Hash]chan wire.Message{},
+		sent:     map[hash.Hash]sentReply{},
+
+		lastBcast: map[wire.Section]time.Time{},
+		selfAddrs: map[string]bool{},
+	}
+	if h.book == nil {
+		h.book, _ = peers.Open("", peers.Limits{})
 	}
 	if _, err := rand.Read(h.id[:]); err != nil {
 		return nil, err
@@ -228,6 +336,9 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	}
 	if len(h.coverage) > 4096 {
 		return nil, fmt.Errorf("p2p: following %d separate pools; follow whole series instead", len(h.coverage))
+	}
+	for _, a := range cfg.Peers {
+		h.book.Add(a, h.coverage, peers.FromConfig, time.Now())
 	}
 	n.Observe(h.onKept)
 	return h, nil
@@ -291,6 +402,14 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 		h.wg.Add(1)
 		go h.checkLoop(ctx)
 	}
+	if h.cfg.ManageEvery > 0 {
+		h.wg.Add(1)
+		go h.manageLoop(ctx)
+	}
+	if h.cfg.PingEvery > 0 {
+		h.wg.Add(1)
+		go h.pingLoop(ctx)
+	}
 	if ready != nil {
 		ready()
 	}
@@ -304,7 +423,7 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 	}
 	h.mu.Unlock()
 	h.wg.Wait()
-	return nil
+	return h.book.Save()
 }
 
 func (h *Host) acceptLoop(ln net.Listener) {
@@ -329,8 +448,13 @@ func (h *Host) acceptLoop(ln net.Listener) {
 	}
 }
 
+// dialLoop keeps a listed peer connected, whatever the connection
+// manager does.
 func (h *Host) dialLoop(ctx context.Context, addr string) {
 	defer h.wg.Done()
+	h.mu.Lock()
+	h.dialing[addr] = true
+	h.mu.Unlock()
 	wait := h.cfg.Redial
 	for ctx.Err() == nil {
 		start := time.Now()
@@ -363,7 +487,7 @@ func (h *Host) dial(ctx context.Context, addr string) error {
 }
 
 // Connect dials addr once and runs the connection in the background. It
-// returns once the hello exchange is done.
+// returns once the peer has answered the follow requests (or failed to).
 func (h *Host) Connect(addr string) error {
 	h.mu.Lock()
 	ctx := h.ctx
@@ -442,14 +566,24 @@ func (h *Host) peersFor(s wire.Section, skip string) []*peer {
 	return out
 }
 
+// anyPeerFor picks a peer to ask about s, preferring one this node dialled
+// itself: those are harder for an attacker to place.
 func (h *Host) anyPeerFor(s wire.Section) *peer {
 	ps := h.peersFor(s, "")
 	if len(ps) == 0 {
 		return nil
 	}
-	sort.Slice(ps, func(i, j int) bool { return ps[i].id < ps[j].id })
+	sort.Slice(ps, func(i, j int) bool {
+		if ps[i].outbound != ps[j].outbound {
+			return ps[i].outbound
+		}
+		return ps[i].id < ps[j].id
+	})
 	return ps[0]
 }
+
+// Book returns the peer book.
+func (h *Host) Book() *peers.Book { return h.book }
 
 // idCache remembers request ids for a window.
 type idCache struct {

@@ -13,9 +13,9 @@ be exercised end to end; the wallet comes in milestone 6. See
 
 | Command | Does |
 | --- | --- |
-| `poo init [-example] [-series FILE]... [-listen ADDR] [-p2p ADDR] [-peer ADDR]... [-force]` | Writes a node policy that knows and follows the given series, and makes it current |
+| `poo init [-example] [-series FILE]... [-listen ADDR] [-p2p ADDR] [-advertise ADDR] [-peer ADDR]... [-registry LOC]... [-force]` | Writes a node policy that knows and follows the given series, and makes it current |
 | `poo node` | Runs the node until interrupted |
-| `poo peers` | The node's id, its p2p address and its connected peers |
+| `poo peers` | The node's id, its p2p address, its connected peers and its peer book |
 | `poo status` | Every followed pool |
 | `poo claim -seed HEX -serial N` | Claims a whole mint for the key's 1-of-1 address |
 | `poo pay -seed HEX -serial N -to ADDR -amount A` | Pays from the key's address, change back to it |

@@ -4,14 +4,16 @@
 
 This document is the byte-level specification of what full nodes send each
 other over TCP: frames, the common header, the hello, pushed items and
-notices, and every ledger data request and reply. It implements the
-design's "Forwarding" and "Ledger Data" documents. Items inside messages
+notices, every ledger data request and reply, and the peer discovery
+messages (follow requests and their relaying, peer lists, pings, dropped
+policy updates, missing chunks). It implements the design's "Forwarding",
+"Ledger Data" and "Peer Discovery and Management" documents. Items inside messages
 (transactions, entries, layers) use the byte forms of
 [encoding.md](encoding.md) unchanged. The code is `pkg/wire` (encoding) and
-`pkg/p2p` (behaviour). Peer discovery, relaying and registries (milestone
-4) and peer ranking (milestone 5) will add message types; numbers are never
-reused, and a node ignores types it does not know. The reasons for the
-choices here are decisions D30 to D39 in [../decisions.md](../decisions.md).
+`pkg/p2p` (behaviour). Peer ranking (milestone 5) may add message types;
+numbers are never reused, and a node ignores types it does not know. The
+reasons for the choices here are decisions D30 to D39 and D40 to D49 in
+[../decisions.md](../decisions.md).
 
 ## Primitives
 
@@ -43,7 +45,7 @@ message concerns it before reading the body:
 | chunk | `U32` | Position of a reply chunk (1, 2, 3 …); 0 on other messages. |
 | flags | `U8` | Bit 0: last chunk. Bit 1: more marker. Other bits must be 0. |
 | stated weight | `Bytes` (≤ 64) | The sender's computed weight of its active ledger for the pool, minimal big-endian, empty for 0. |
-| hops | `U16` | 0. For relaying, milestone 4. |
+| hops | `U16` | On a broadcast follow request, how many times it has been relayed; on a reply, how many relays it passed back through. 0 otherwise. |
 
 The body is the rest of the frame.
 
@@ -83,6 +85,8 @@ the clock skew (2 minutes) ahead.
 | Number | Type | Body |
 | --- | --- | --- |
 | 1 | hello | Hello |
+| 2 | ping | `U64` nonce ∥ `U64` time |
+| 3 | dropped policy update | empty |
 | 10 | tx | a transaction's byte form |
 | 11 | entry | an entry's byte form |
 | 12 | layer | a layer's byte form |
@@ -93,6 +97,9 @@ the clock skew (2 minutes) ahead.
 | 23 | full ledger request | Common ∥ `U8` variant |
 | 24 | layers request | Common ∥ `List<Hash>` entries |
 | 25 | weight check request | Common |
+| 30 | follow request | Follow request |
+| 31 | peer list request | `U64` nonce ∥ `U64` time ∥ `U8` peer variant (1 or 2) ∥ discovery limits |
+| 32 | missing chunks request | `List<U32>` positions (header: the original request id) |
 | 40 | extension | entries chunk |
 | 41 | nothing heavier | empty |
 | 42 | heavier, not from this entry | empty |
@@ -103,6 +110,11 @@ the clock skew (2 minutes) ahead.
 | 47 | weight | empty (the answer is the header's stated weight) |
 | 48 | not held | empty |
 | 49 | refused | empty |
+| 60 | pong | Contact ∥ `List<Section>` (empty) |
+| 61 | partial pong | Contact ∥ `List<Section>` followed within the one asked about |
+| 62 | yes | Follow reply |
+| 63 | partial yes | Follow reply |
+| 64 | peer list | `List<Peer>` |
 
 **Common** starts every request: `U64` nonce ∥ `U64` time (Unix seconds) ∥
 the asker's limits `U32` chunk size ∥ `U32` entry limit ∥ `U32` hash limit
@@ -121,21 +133,26 @@ checks its strength as usual.
 
 ## Hello
 
-    U16 protocol ∥ Hash node id ∥ Bytes listen ∥ Bytes agent ∥ List<Section> coverage
+    U16 protocol ∥ Hash node id ∥ Bytes agent
 
 Each side sends its hello first and sends nothing else until it has read
 the other's, within 10 seconds. The node id is random per run. A node
 closes the connection when the node id is its own, when it is already
 connected to that node id (two nodes that dial each other at once both keep
-the connection dialled by the node with the lower id), when the two
-coverages share nothing, when it has too many peers, or on a second hello.
-Coverage is the list of sections the sender follows: a whole series as a
-series section, otherwise each followed pool.
+the connection dialled by the node with the lower id), when it has too many
+peers, or on a second hello.
+
+The hello says nothing about what the sender follows. After it, each side
+sends the other a direct follow request for each mint policy it follows (a
+whole series as a series section, otherwise each followed pool). The
+policies answered with a yes or partial yes are what the other node is a
+peer for; a node closes a connection on which none was answered within
+the follow timeout.
 
 ## Forwarding
 
 A node forwards an item only after it has checked and kept it, only to
-peers whose coverage includes the item's pool, and never back to the peer
+peers it verified for the item's pool, and never back to the peer
 that sent it. It forwards its own items and items pushed to it; it never
 forwards data it requested (or read back from its store). The seen list
 stops an item going round a loop twice.
@@ -196,10 +213,75 @@ before it (or the request's starting point) as parent, and they are taken
 in through the engine as requested data: checked exactly like pushed data,
 switched to only on computed weight, never forwarded.
 
+## Peer discovery
+
+### Discovery bodies
+
+**Contact**: `Bool` reachable ∥ [`Bytes` "host:port"]. Only a reachable
+node offers one; it is an offer, never a return address.
+
+**Discovery limits**: `U32` chunk size ∥ `U32` list limit ∥ `U32` peer list
+limit. As for ledger requests, 0 means the asker sets none, except the peer
+list limit, where 0 asks for no peers.
+
+**Peer variant**: 0 no peers, 1 full peers (peers that follow all of the
+mint policy, or all of the part the replier follows), 2 all peers (each
+with its own list of mint policies within the one asked about).
+
+**Follow request**: `U64` nonce ∥ `U64` time ∥ `U8` peer variant ∥ `Bool`
+broadcast ∥ Contact ∥ discovery limits. The header names the one mint
+policy asked about. Broadcast marks a request followers may relay; it is in
+the body, so in the request id, and no relay can change it.
+
+**Follow reply**: Contact ∥ `List<Section>` (a partial yes: the replier's
+mint policies within the one asked about, sorted) ∥ `Bool` more (the list
+was cut short) ∥ `List<Peer>`. Later chunks of a direct reply carry only
+more peers, with no contact and no list.
+
+**Peer**: Contact (reachable) ∥ `List<Section>` (all peers variant; empty
+for full peers).
+
+Request ids, the seen list and the time window work as for ledger
+requests. A node also drops discovery requests over its rate limit per
+connection (120 a minute by default).
+
+### Answering
+
+A node answers a follow request or a ping with a yes (pong) when one of
+its mint policies contains the one asked about, a partial yes (partial
+pong) listing its policies inside it when it follows only part of it, and
+silence otherwise. There is no "no". A follow request that arrived
+directly (hop count 0) may get the peers its variant asks for, within the
+peer list limit, in chunks; one that was relayed gets a single message
+without peers that fits the asker's chunk size, cutting the list (and
+setting more) if it must. A peer list request gets the replier's verified
+peers for the mint policy, in chunks; the replier keeps the chunks for 2
+minutes for a missing chunks request, which names the original request id
+and the positions lost. Listed peers and contacts are candidates only.
+
+### Relaying
+
+A node relays a broadcast follow request only when it follows some or all
+of the mint policy, only to its peers for that policy, never back to the
+sender, and only while the hop count is below its hop limit (8 by
+default); it adds 1 to the hop count. It remembers for 30 seconds which
+connection the request came from and passes each reply back over it,
+adding 1 to the reply's hop count. A relayed reply in chunks or with peers
+is dropped. No other message is relayed.
+
+### Pings and dropped policies
+
+A node pings each peer for each verified mint policy (every 2 minutes by
+default). After 3 silences in a row the peering for that policy ends; a
+partial pong narrows it to the parts listed. A dropped policy update (empty
+body, the header naming the policy) ends the peering for the policies
+inside it. A peer with no verified policy left is disconnected.
+
 ## Misbehaviour
 
 Until peer ranking (milestone 5), a node disconnects a peer that sends a
-malformed message, a request whose id does not match, an entry that breaks
+malformed message, a request whose id does not match, a follow reply
+listing a mint policy outside the one asked about, an entry that breaks
 a rule, a layer below the series' minimum strength, a reply that does not
 fit the request, or more reply chunks than it can queue; and a peer whose
 send queue is full. It does not disconnect for a refused transaction: a

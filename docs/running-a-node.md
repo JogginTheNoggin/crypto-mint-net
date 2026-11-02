@@ -85,8 +85,24 @@ shows the same tips and weights a moment later. To let the first node dial
 the second as well, or to connect nodes on different machines, give each a
 `-p2p` address the other can reach and list it with `-peer`, or edit the
 `p2p` section of `node.json` (see
-[modules/nodepolicy.md](modules/nodepolicy.md)). Nodes find each other only
-through these lists until peer discovery (milestone 4).
+[modules/nodepolicy.md](modules/nodepolicy.md)).
+
+Listed peers are only a start. Each node asks its peers what they follow,
+asks them for their peer lists, and broadcasts itself to the network, so
+nodes that follow the same pools find each other. It keeps what it learns
+in `peers.json` in the data directory and dials from there after a restart.
+Two `init` flags help on a real network:
+
+- `-advertise host:port` is the address other nodes should dial, such as a
+  public address or port forward. Without it the node gives no address, so
+  it still finds and dials peers but other nodes are not offered it.
+- `-registry URL` (repeatable) names a bootstrap list: a JSON file over
+  `https://`, `file://` or a plain path, read on start-up and every hour.
+  See [modules/registry.md](modules/registry.md) for the format.
+
+`poo peers` shows the connected peers and the peer book: every address the
+node knows, whether it is a candidate, verified or archived, and what it
+was seen to follow.
 
 ## Node policies
 
@@ -112,8 +128,13 @@ node holds a lock on its directory.
   are on other machines. It accepts only protocol messages, and every item
   is checked before it is kept; nothing it receives can change the node's
   settings. Set `p2p.listen` to `"off"` to accept no connections (the node
-  still dials its listed peers). Connections are not encrypted (decision
-  D30).
+  still dials its listed and discovered peers). Connections are not
+  encrypted (decision D30).
+- What peers say about other peers is only a lead. A node dials an address
+  and checks its follows itself before it relies on it, limits how many
+  addresses it keeps from one network range, and rate-limits each peer's
+  requests (decisions D40 to D49). Set `p2p.no_relay` to stop relaying
+  other nodes' discovery requests.
 - `poo claim` and `poo pay` take a raw seed on the command line, which your
   shell may save in its history. They are developer tools until the wallet
   (milestone 6).

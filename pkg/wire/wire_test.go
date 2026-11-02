@@ -122,8 +122,7 @@ func TestFrameLimit(t *testing.T) {
 }
 
 func TestHello(t *testing.T) {
-	h := wire.Hello{Protocol: 1, NodeID: hash.Hash{8}, Listen: "1.2.3.4:8646", Agent: "poo/test",
-		Coverage: []wire.Section{wire.SeriesSection(iss, s1), wire.MintSection(iss, s2, p2, 1)}}
+	h := wire.Hello{Protocol: 1, NodeID: hash.Hash{8}, Agent: "poo/test"}
 	got, err := wire.DecodeHello(h.Encode())
 	if err != nil || !reflect.DeepEqual(got, h) {
 		t.Fatalf("%+v %v", got, err)
@@ -257,7 +256,9 @@ func FuzzDecode(f *testing.F) {
 }
 
 func FuzzBodies(f *testing.F) {
-	f.Add(uint16(wire.TypeHello), wire.Hello{Coverage: []wire.Section{wire.All}}.Encode())
+	f.Add(uint16(wire.TypeHello), wire.Hello{Agent: "x"}.Encode())
+	f.Add(uint16(wire.TypeFollowReq), wire.FollowReq{Contact: wire.Contact{Addr: "a:1"}}.Encode())
+	f.Add(uint16(wire.TypeFollowYes), wire.FollowReply{Peers: []wire.PeerInfo{{Contact: wire.Contact{Addr: "a:1"}}}}.Encode())
 	f.Add(uint16(wire.TypeExtensionReq), wire.ExtensionReq{Beat: weight.Credit(3)}.Encode())
 	f.Add(uint16(wire.TypeHashChain), wire.HashChainChunk{Hashes: []hash.Hash{{1}}}.Encode())
 	f.Add(uint16(wire.TypeLayers), wire.LayersChunk{Items: []wire.HeldLayers{{Held: true, Nonces: []uint64{1}}}}.Encode())
@@ -275,6 +276,20 @@ func FuzzBodies(f *testing.F) {
 			wire.DecodeLayersChunk(b)
 		case wire.TypeNotice:
 			wire.DecodeNotice(b)
+		case wire.TypeFollowReq:
+			wire.DecodeFollowReq(b)
+		case wire.TypePeerListReq:
+			wire.DecodePeerListReq(b)
+		case wire.TypePing:
+			wire.DecodePing(b)
+		case wire.TypeMissingChunksReq:
+			wire.DecodeMissingChunksReq(b)
+		case wire.TypeFollowYes, wire.TypePartialYes:
+			wire.DecodeFollowReply(b)
+		case wire.TypePong, wire.TypePartialPong:
+			wire.DecodePongReply(b)
+		case wire.TypePeerList:
+			wire.DecodePeerListChunk(b)
 		default:
 			wire.DecodeRequest(wire.Type(typ), b)
 		}

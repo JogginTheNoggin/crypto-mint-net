@@ -16,6 +16,13 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		Peers:     append([]string(nil), p.P2P.Peers...),
 		MaxPeers:  p.P2P.MaxPeers,
 		NoNotices: p.P2P.NoNotices,
+
+		Registries:     append([]string(nil), p.P2P.Registries...),
+		PeersPerPolicy: p.P2P.PeersPerPolicy,
+		MaxOutbound:    p.P2P.MaxOutbound,
+		NoRelay:        p.P2P.NoRelay,
+		HopLimit:       p.P2P.HopLimit,
+		RequestRate:    p.P2P.RequestRate,
 	}
 	d := DefaultConfig().Limits
 	c.Limits = wire.Limits{
@@ -29,6 +36,12 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		c.CheckEvery = -1
 	case p.P2P.CheckSeconds > 0:
 		c.CheckEvery = time.Duration(p.P2P.CheckSeconds) * time.Second
+	}
+	switch {
+	case p.P2P.PingSeconds < 0:
+		c.PingEvery = -1
+	case p.P2P.PingSeconds > 0:
+		c.PingEvery = time.Duration(p.P2P.PingSeconds) * time.Second
 	}
 	return c
 }

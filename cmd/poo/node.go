@@ -19,6 +19,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -87,8 +88,11 @@ func initCmd(args []string, out io.Writer) error {
 	example := fs.Bool("example", false, "know and follow the worked example's series")
 	listen := fs.String("listen", "", "RPC listen address (default "+nodepolicy.DefaultListen+"; \"off\" to disable)")
 	p2pListen := fs.String("p2p", "", "address for peers (default "+nodepolicy.DefaultP2PListen+"; \"off\" to accept none)")
-	var peers stringList
-	fs.Var(&peers, "peer", "host:port of a peer to stay connected to (repeatable)")
+	var peerList stringList
+	fs.Var(&peerList, "peer", "host:port of a peer to stay connected to (repeatable)")
+	var registries stringList
+	fs.Var(&registries, "registry", "address registry URL or file to find first peers from (repeatable)")
+	advertise := fs.String("advertise", "", "host:port peers should connect to (default: none, so the node is not offered as a contact)")
 	force := fs.Bool("force", false, "replace the settings of an existing node policy (its data is kept)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -96,7 +100,9 @@ func initCmd(args []string, out io.Writer) error {
 	p := nodepolicy.Default()
 	p.RPC.Listen = *listen
 	p.P2P.Listen = *p2pListen
-	p.P2P.Peers = peers
+	p.P2P.Peers = peerList
+	p.P2P.Registries = registries
+	p.P2P.Advertise = *advertise
 	var params []series.Params
 	if *example {
 		params = append(params, testutil.ExampleParams())
@@ -167,6 +173,11 @@ func runNode(ctx context.Context, dir string, out io.Writer, ready func(string))
 		dir, len(n.Engine().FollowedPools()), rs.Records, rs.Pools, rs.Kept)
 	cfg := p2p.FromPolicy(n.Policy())
 	cfg.Log = out
+	book, err := peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{})
+	if err != nil {
+		return errors.Join(err, n.Close())
+	}
+	cfg.Book = book
 	host, err := p2p.New(n, cfg)
 	if err != nil {
 		return errors.Join(err, n.Close())

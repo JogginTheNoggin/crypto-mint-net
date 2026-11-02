@@ -19,17 +19,21 @@ import (
 // rawPeer is a hand-driven connection to a node, for checking exactly what
 // the node sends.
 type rawPeer struct {
-	t *testing.T
-	c net.Conn
-	r *bufio.Reader
-	n uint64
+	t        *testing.T
+	c        net.Conn
+	r        *bufio.Reader
+	n        uint64
+	coverage []wire.Section
+	silent   bool // do not answer the node's follow requests and pings
 }
 
 func poolSection() wire.Section {
 	return wire.PoolSection(hash.Zero, exSeries.ID(), exSeries.PoolID(exKey.Index))
 }
 
-// dialRaw connects to tn and exchanges hellos.
+// dialRaw connects to tn and exchanges hellos. The raw peer answers the
+// node's follow requests and pings with a yes for anything its coverage
+// includes, as it reads.
 func dialRaw(t *testing.T, tn *tnode, coverage []wire.Section) *rawPeer {
 	t.Helper()
 	c, err := net.Dial("tcp", tn.h.Addr())
@@ -39,8 +43,8 @@ func dialRaw(t *testing.T, tn *tnode, coverage []wire.Section) *rawPeer {
 	t.Cleanup(func() { c.Close() })
 	var id hash.Hash
 	rand.Read(id[:])
-	hello := wire.Hello{Protocol: 1, NodeID: id, Agent: "raw", Coverage: coverage}
-	r := &rawPeer{t: t, c: c, r: bufio.NewReader(c)}
+	hello := wire.Hello{Protocol: 1, NodeID: id, Agent: "raw"}
+	r := &rawPeer{t: t, c: c, r: bufio.NewReader(c), coverage: coverage}
 	r.write(wire.Message{Header: wire.Header{Type: wire.TypeHello}, Body: hello.Encode()})
 	m, _, err := r.read()
 	if err != nil || m.Type != wire.TypeHello {
@@ -57,8 +61,30 @@ func (r *rawPeer) write(m wire.Message) {
 }
 
 func (r *rawPeer) read() (wire.Message, int, error) {
-	r.c.SetReadDeadline(time.Now().Add(5 * time.Second))
-	return wire.ReadFrame(r.r, wire.MaxFrame)
+	return r.readUntil(time.Now().Add(5 * time.Second))
+}
+
+// readUntil reads the next message the test should see, answering the
+// node's follow requests and pings on the way.
+func (r *rawPeer) readUntil(deadline time.Time) (wire.Message, int, error) {
+	for {
+		r.c.SetReadDeadline(deadline)
+		m, n, err := wire.ReadFrame(r.r, wire.MaxFrame)
+		if err != nil || r.silent || (m.Type != wire.TypeFollowReq && m.Type != wire.TypePing) {
+			return m, n, err
+		}
+		for _, c := range r.coverage {
+			if c.Contains(m.Section) {
+				t := wire.TypeFollowYes
+				body := wire.FollowReply{}.Encode()
+				if m.Type == wire.TypePing {
+					t, body = wire.TypePong, wire.PongReply{}.Encode()
+				}
+				wire.WriteFrame(r.c, wire.Message{Header: wire.Header{Type: t, Section: m.Section, RequestID: m.RequestID, Chunk: 1, Flags: wire.FlagLast}, Body: body})
+				break
+			}
+		}
+	}
 }
 
 func (r *rawPeer) common(l wire.Limits) wire.RequestCommon {

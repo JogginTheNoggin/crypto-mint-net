@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -138,6 +139,22 @@ type P2P struct {
 	// CheckSeconds is how often to ask a peer for an extension of each
 	// pool; 0 means the default, -1 never.
 	CheckSeconds int `json:"check_seconds,omitempty"`
+	// Registries are address registry locations (http(s) URLs or files)
+	// to find first peers from. None by default: there is no project
+	// registry yet.
+	Registries []string `json:"registries,omitempty"`
+	// PeersPerPolicy is how many verified peers to keep per followed mint
+	// policy; MaxOutbound caps the connections the node dials itself.
+	PeersPerPolicy int `json:"peers_per_policy,omitempty"`
+	MaxOutbound    int `json:"max_outbound,omitempty"`
+	// NoRelay stops the node relaying other nodes' broadcast follow
+	// requests; HopLimit is the hop count at which it stops relaying.
+	NoRelay  bool `json:"no_relay,omitempty"`
+	HopLimit int  `json:"hop_limit,omitempty"`
+	// RequestRate caps the discovery requests one peer may send per minute.
+	RequestRate int `json:"request_rate,omitempty"`
+	// PingSeconds is how often to ping each peer; 0 the default, -1 never.
+	PingSeconds int `json:"ping_seconds,omitempty"`
 }
 
 // Default returns a node policy that knows no series and follows nothing.
@@ -212,13 +229,24 @@ func (p Policy) Validate() error {
 			return fmt.Errorf("%w: p2p listen %q: %v", ErrInvalid, addr, err)
 		}
 	}
+	if a := p.P2P.Advertise; a != "" {
+		if _, _, err := net.SplitHostPort(a); err != nil {
+			return fmt.Errorf("%w: p2p advertise %q: %v", ErrInvalid, a, err)
+		}
+	}
 	for _, a := range p.P2P.Peers {
 		if _, _, err := net.SplitHostPort(a); err != nil {
 			return fmt.Errorf("%w: p2p peer %q: %v", ErrInvalid, a, err)
 		}
 	}
-	if p.P2P.MaxPeers < 0 || p.P2P.CheckSeconds < -1 {
+	if p.P2P.MaxPeers < 0 || p.P2P.CheckSeconds < -1 || p.P2P.PingSeconds < -1 || p.P2P.PeersPerPolicy < 0 ||
+		p.P2P.MaxOutbound < 0 || p.P2P.HopLimit < 0 || p.P2P.RequestRate < 0 {
 		return fmt.Errorf("%w: p2p limits must not be negative", ErrInvalid)
+	}
+	for _, r := range p.P2P.Registries {
+		if strings.TrimSpace(r) == "" {
+			return fmt.Errorf("%w: p2p registry location is empty", ErrInvalid)
+		}
 	}
 	return nil
 }

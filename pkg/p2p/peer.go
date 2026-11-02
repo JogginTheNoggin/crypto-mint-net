@@ -31,7 +31,7 @@ var (
 	errQueueFull = errors.New("send queue full")
 	errSelf      = errors.New("connected to self")
 	errDuplicate = errors.New("already connected to this node")
-	errNoOverlap = errors.New("no mint policy in common")
+	errNoOverlap = errors.New("no mint policy in common was verified")
 	errTooMany   = errors.New("too many peers")
 	errTimeout   = errors.New("request timed out")
 	errClosed    = errors.New("connection closed")
@@ -47,6 +47,7 @@ type peer struct {
 	outbound bool
 	hello    wire.Hello
 	since    time.Time
+	limiter  *bucket
 
 	sendq     chan wire.Message
 	done      chan struct{}
@@ -58,11 +59,19 @@ type peer struct {
 
 	mu    sync.Mutex
 	calls map[hash.Hash]chan wire.Message
+	// verified are the mint policies this node checked, with its own
+	// follow request or ping, that the peer follows.
+	verified map[wire.Section]bool
+	// contact is the address the peer offered in its replies, if any.
+	contact string
+	misses  map[wire.Section]int
 }
 
-// covers reports whether the peer follows any part of s.
+// covers reports whether the peer is verified for any part of s.
 func (p *peer) covers(s wire.Section) bool {
-	for _, c := range p.hello.Coverage {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for c := range p.verified {
 		if c.Covers(s) != wire.None {
 			return true
 		}
@@ -70,14 +79,40 @@ func (p *peer) covers(s wire.Section) bool {
 	return false
 }
 
+// verifiedList returns the peer's verified mint policies, sorted.
+func (p *peer) verifiedList() []wire.Section {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]wire.Section, 0, len(p.verified))
+	for s := range p.verified {
+		out = append(out, s)
+	}
+	wire.SortSections(out)
+	return out
+}
+
+// bookAddr is the address the peer is known by in the book: the one
+// dialled for an outbound connection, else none (an inbound peer's offered
+// contact is only a candidate).
+func (p *peer) bookAddr() string {
+	if p.outbound {
+		return p.addr
+	}
+	return ""
+}
+
 func (p *peer) info() PeerInfo {
-	cov := make([]string, len(p.hello.Coverage))
-	for i, s := range p.hello.Coverage {
+	vs := p.verifiedList()
+	cov := make([]string, len(vs))
+	for i, s := range vs {
 		cov[i] = s.String()
 	}
+	p.mu.Lock()
+	contact := p.contact
+	p.mu.Unlock()
 	return PeerInfo{
 		ID: p.id, Addr: p.addr, Outbound: p.outbound, Agent: p.hello.Agent,
-		Listen: p.hello.Listen, Coverage: cov, Since: p.since,
+		Listen: contact, Coverage: cov, Since: p.since,
 		Sent: p.sent.Load(), Received: p.received.Load(),
 	}
 }
@@ -154,11 +189,13 @@ func (h *Host) runConn(c net.Conn, outbound bool, addr string) error {
 // runConnNotify runs a connection until it closes, reporting the hello's
 // outcome on ready if it is set.
 func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan error) error {
+	var once sync.Once
 	notify := func(err error) {
-		if ready != nil {
-			ready <- err
-			ready = nil
-		}
+		once.Do(func() {
+			if ready != nil {
+				ready <- err
+			}
+		})
 	}
 	p, err := h.handshake(c, outbound, addr)
 	if err != nil {
@@ -168,15 +205,20 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 	}
 	h.logf("connected to %s at %s (outbound %v)", p.short(), addr, outbound)
 	go p.writeLoop()
-	notify(nil)
-	// Catch up with the new peer on every pool both follow.
-	for _, pi := range h.sortedPools() {
-		if p.covers(pi.section) {
-			h.startChase(pi, p)
+	// The hello proves nothing about what the peer follows: ask it.
+	go func() {
+		err := h.verifyPeer(p)
+		if err != nil {
+			p.close(err)
 		}
-	}
+		notify(err)
+	}()
 	err = h.readLoop(p)
+	notify(err)
 	p.close(err)
+	if p.outbound {
+		h.book.Unverify(p.addr)
+	}
 	h.mu.Lock()
 	if h.peers[p.id] == p {
 		delete(h.peers, p.id)
@@ -195,7 +237,7 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 // handshake exchanges hellos and registers the peer.
 func (h *Host) handshake(c net.Conn, outbound bool, addr string) (*peer, error) {
 	c.SetDeadline(time.Now().Add(helloTimeout))
-	mine := wire.Hello{Protocol: Protocol, NodeID: h.id, Listen: h.cfg.Advertise, Agent: h.cfg.Agent, Coverage: h.coverage}
+	mine := wire.Hello{Protocol: Protocol, NodeID: h.id, Agent: h.cfg.Agent}
 	// Write and read at the same time, so neither side waits on the other.
 	werr := make(chan error, 1)
 	go func() {
@@ -227,17 +269,8 @@ func (h *Host) handshake(c net.Conn, outbound bool, addr string) (*peer, error) 
 		h: h, c: &bufConn{Conn: c, r: r}, id: theirs.NodeID.String(), nodeID: theirs.NodeID,
 		addr: addr, outbound: outbound, hello: theirs, since: time.Now(),
 		sendq: make(chan wire.Message, h.cfg.QueueSize), done: make(chan struct{}),
-		calls: map[hash.Hash]chan wire.Message{},
-	}
-	overlap := false
-	for _, s := range h.coverage {
-		if p.covers(s) {
-			overlap = true
-			break
-		}
-	}
-	if !overlap {
-		return nil, errNoOverlap
+		calls: map[hash.Hash]chan wire.Message{}, verified: map[wire.Section]bool{},
+		misses: map[wire.Section]int{}, limiter: newBucket(h.cfg.RequestRate, time.Now()),
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -308,6 +341,8 @@ func (h *Host) dispatch(p *peer, m wire.Message) error {
 		return fmt.Errorf("%w: second hello", wire.ErrMalformed)
 	case m.Type == wire.TypeTx || m.Type == wire.TypeEntry || m.Type == wire.TypeLayer || m.Type == wire.TypeNotice:
 		return h.handlePushed(p, m)
+	case m.Type.IsDiscovery():
+		return h.discovery(p, m)
 	case m.Type.IsRequest():
 		return h.serve(p, m)
 	case m.Type.IsReply():
@@ -421,4 +456,32 @@ func (h *Host) ownWeight(pi *poolInfo) weight.Weight {
 		return weight.Zero
 	}
 	return st.Weight
+}
+
+// bucket is a token bucket: rate requests a minute, bursting to rate.
+type bucket struct {
+	mu     sync.Mutex
+	rate   float64
+	tokens float64
+	last   time.Time
+}
+
+func newBucket(perMinute int, now time.Time) *bucket {
+	return &bucket{rate: float64(perMinute), tokens: float64(perMinute), last: now}
+}
+
+// take spends a token, reporting false when there is none.
+func (b *bucket) take(now time.Time) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.tokens += now.Sub(b.last).Minutes() * b.rate
+	if b.tokens > b.rate {
+		b.tokens = b.rate
+	}
+	b.last = now
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
 }
