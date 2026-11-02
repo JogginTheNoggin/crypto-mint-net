@@ -351,15 +351,17 @@ export const exploreView = {
     });
     const txForm = form(ctx, { title: 'A transaction', about: 'One transaction and where it stands.', fields: [{ name: 'tid1', label: 'Transaction id' }, series, { name: 'inSerial', label: 'In mint serial', type: 'number', placeholder: 'optional' }],
       args: v => ['tx', ...where.flags(), ...flag('series', v.series1), ...flag('in-serial', v.inSerial), ...(v.tid1 ? [v.tid1] : [])], submit: 'Look up' });
-    const addrForm = form(ctx, { title: 'An address', about: 'Balance, holdings, history and pending.', fields: [{ name: 'addr', label: 'Address' }, series, { name: 'limit', label: 'History entries', type: 'number', placeholder: '50' }, ...filt.slice(1, 3)],
-      args: v => ['address', ...where.flags(), ...flag('series', v.series1), ...flag('limit', v.limit), ...flag('pool', v.pool), ...flag('serial', v.serial), ...(v.addr ? [v.addr] : [])], submit: 'Look up' });
+    // Below and Transaction ids are poo address's -below and -tid, which
+    // the parity check found no form sent (GUI-GREEN-042).
+    const addrForm = form(ctx, { title: 'An address', about: 'Balance, holdings, history and pending.', fields: [{ name: 'addr', label: 'Address' }, series, { name: 'limit', label: 'History entries', type: 'number', placeholder: '50' }, { name: 'below', label: 'Below height', type: 'number', placeholder: 'default: the tip' }, ...filt.slice(1, 3), filt[5]],
+      args: v => ['address', ...where.flags(), ...flag('series', v.series1), ...flag('limit', v.limit), ...flag('below', v.below), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('tid', (v.tid || '').replace(/\s+/g, '')), ...(v.addr ? [v.addr] : [])], submit: 'Look up' });
     // A "look up" link elsewhere opens Explore with #/explore?tid=… or
     // ?address=…, and the form runs as if the user had filled it in.
     const p = ctx.params || new URLSearchParams();
     if (p.get('tid')) setTimeout(() => txForm.run({ tid1: p.get('tid') }));
     else if (p.get('address')) setTimeout(() => addrForm.run({ addr: p.get('address') }));
     return mountAll(root, 'Explore', 'What the node holds, selected with the same filters as Watch. Each is one poo command.', [
-      form(ctx, { title: 'Pools', about: 'Followed pools: tip, height, weight, pending.', fields: filt.slice(0, 3),
+      form(ctx, { title: 'Pools', about: 'Followed pools: tip, height, weight, pending.', fields: filt,
         args: v => ['pools', ...where.flags(), ...filterFlags(v)], submit: 'Show pools' }),
       ledger,
       form(ctx, { title: 'Pending transactions', fields: filt, args: v => ['pending', ...where.flags(), ...filterFlags(v)], submit: 'Show pending' }),
