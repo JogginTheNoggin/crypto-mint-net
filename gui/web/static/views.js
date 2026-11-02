@@ -689,6 +689,15 @@ const cryptoView = {
         args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints)], submit: 'Make series' }),
       form(ctx, { title: 'Series file info', fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json' }],
         args: v => ['series', 'info', ...(v.file ? [v.file] : [])], submit: 'Show' }),
+      // The last two commands poo help lists that no view ran (GREEN-040).
+      form(ctx, { title: 'The worked example\'s series', about: 'The series poo init -example follows, as JSON: a starting point for a series file.', fields: [],
+        args: () => ['series', 'example'], submit: 'Show' }),
+      form(ctx, { title: 'Simulate the network', about: 'The deterministic network simulator, on the worked example\'s series, in this process: it touches no files and no node. The same seed gives the same result. More flags are in the terminal (poo sim load -h).',
+        fields: [{ name: 'scenario', label: 'Scenario', type: 'select', options: ['load', 'partition', 'attack', 'sizing'] },
+          { name: 'seed', label: 'Seed', type: 'number', placeholder: 'default 1' }, { name: 'runs', label: 'Runs', type: 'number', placeholder: 'default 1, seeds from Seed up' },
+          { name: 'nodes', label: 'Nodes', type: 'number', placeholder: 'default 16' }, { name: 'duration', label: 'Duration (ms)', type: 'number', placeholder: 'default 60000' },
+          { name: 'sizes', label: 'Pool sizes', placeholder: 'default 1,2,4,8', only: { field: 'scenario', values: ['sizing'] } }],
+        args: v => ['sim', v.scenario || 'load', ...flag('seed', v.seed), ...flag('runs', v.runs), ...flag('nodes', v.nodes), ...flag('duration', v.duration), ...flag('sizes', v.sizes)], submit: 'Simulate' }),
     ]);
   },
 };
