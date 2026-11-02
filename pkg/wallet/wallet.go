@@ -114,6 +114,9 @@ type Wallet struct {
 	// read is the file as Open read it or Save last wrote it; nil for a
 	// new wallet. Save writes only over these bytes (GUI-019, D145).
 	read []byte
+	// held is set between Hold and its release: the lock beside the file
+	// is this wallet's, so Save does not take it again (RED-039, D146).
+	held bool
 }
 
 // Options are the settings of a new wallet. Zero values mean the defaults.
@@ -277,11 +280,13 @@ func (w *Wallet) Save() error {
 	if err := os.MkdirAll(filepath.Dir(w.path), 0o700); err != nil {
 		return err
 	}
-	unlock, err := lockFile(w.path + ".lock")
-	if err != nil {
-		return err
+	if !w.held {
+		unlock, err := lockFile(w.path + ".lock")
+		if err != nil {
+			return err
+		}
+		defer unlock()
 	}
-	defer unlock()
 	cur, err := os.ReadFile(w.path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -304,6 +309,69 @@ func (w *Wallet) Save() error {
 	}
 	w.read = b
 	return nil
+}
+
+// Hold takes the lock beside the wallet file until release is called,
+// and reads the file again, so what another command saved since Open
+// (a new address, a request, a new passphrase) is what this wallet then
+// changes. A command that acts on the node and then saves, such as a
+// payment or a claim, holds the wallet from before it acts until after
+// it saves: no other Save can come between, so Save never refuses the
+// record of something already sent, and a rerun never repeats it
+// (RED-039, D146). Other commands' Saves wait for release; one that read
+// the file before the hold returns ErrChanged, as D145 says, having
+// sent nothing. The seed stays open: it is the same seed under any
+// passphrase.
+func (w *Wallet) Hold() (release func(), err error) {
+	if w.held {
+		return nil, errors.New("wallet: already held")
+	}
+	if err := os.MkdirAll(filepath.Dir(w.path), 0o700); err != nil {
+		return nil, err
+	}
+	unlock, err := lockFile(w.path + ".lock")
+	if err != nil {
+		return nil, err
+	}
+	cur, err := os.ReadFile(w.path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist) && w.read == nil:
+	case err != nil:
+		unlock()
+		return nil, err
+	case w.read == nil:
+		unlock()
+		return nil, ErrExists
+	case !bytes.Equal(cur, w.read):
+		var f File
+		if err := json.Unmarshal(cur, &f); err != nil {
+			unlock()
+			return nil, fmt.Errorf("wallet: %s: %w", w.path, err)
+		}
+		if f.Format != 1 || f.Alg != w.f.Alg {
+			unlock()
+			return nil, ErrChanged
+		}
+		if f.Gap <= 0 {
+			f.Gap = DefaultGap
+		}
+		if w.seed != nil && len(f.Keys) > 0 {
+			// Another wallet at the same path: not this seed's file.
+			if k, err := derive(w.seed, w.KeyAlg(), f.Keys[0].Index); err != nil || !bytes.Equal(k.Public(), f.Keys[0].Public) {
+				unlock()
+				return nil, ErrChanged
+			}
+		}
+		w.f, w.read = f, cur
+		w.topUp()
+	}
+	w.held = true
+	return func() {
+		if w.held {
+			w.held = false
+			unlock()
+		}
+	}, nil
 }
 
 // topUp derives keys until Gap unused ones follow the last used one. It

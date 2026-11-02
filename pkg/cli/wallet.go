@@ -559,10 +559,15 @@ func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	if err != nil {
 		return err
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	p, err := w.Claim(s, n, *serial)
 	if p != nil {
-		if serr := w.Save(); serr != nil && err == nil {
-			err = serr
+		if serr := saveSent(w, out, "claim", p, err); serr != nil {
+			return serr
 		}
 	}
 	if err != nil {
@@ -598,6 +603,11 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 		sent *wallet.Sent
 		u    *wallet.Unsigned
 	)
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	if *reqFile != "" {
 		var r wallet.Request
 		if err := readJSON(*reqFile, &r); err != nil {
@@ -612,8 +622,8 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 		sent, u, err = w.Pay(s, n, addr, *amount, wallet.PayOptions{Memo: *memo, Mints: mints})
 	}
 	if sent != nil {
-		if serr := w.Save(); serr != nil && err == nil {
-			err = serr
+		if serr := saveSent(w, out, "payment", sent, err); serr != nil {
+			return serr
 		}
 	}
 	if err != nil {
@@ -794,6 +804,11 @@ func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	total := 0
 	for _, p := range w.Sent() {
 		if p.Series != s.ID() {
@@ -930,14 +945,51 @@ func walletSubmit(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	p, err := w.Submit(s, n, &u)
 	if p != nil {
-		if serr := w.Save(); serr != nil && err == nil {
-			err = serr
+		if serr := saveSent(w, out, "payment", p, err); serr != nil {
+			return serr
 		}
 	}
 	if err != nil {
 		return err
 	}
 	return writeJSON(out, p)
+}
+
+// saveSent saves w after a payment or claim p went to the node (sendErr
+// is what sending it returned). The caller holds w (Wallet.Hold), so no
+// other command's save comes between; if the save still fails, the record
+// is printed and the error says what was sent and that it must not be
+// sent again, since running the command again would pay a second time
+// (RED-039, D146).
+func saveSent(w *wallet.Wallet, out io.Writer, what string, p *wallet.Sent, sendErr error) error {
+	err := w.Save()
+	if err == nil {
+		return nil
+	}
+	sent := false
+	for _, l := range p.Legs {
+		if l.State == wallet.StatePending || l.State == wallet.StateSelected {
+			sent = true
+		}
+	}
+	if !sent && sendErr != nil {
+		return fmt.Errorf("%w (and the wallet was not saved: %v)", sendErr, err)
+	}
+	if !sent {
+		return err
+	}
+	writeJSON(out, p)
+	why := err.Error()
+	if errors.Is(err, wallet.ErrChanged) {
+		// ErrChanged says to run the command again, which is wrong here.
+		why = "the wallet file was changed or removed by something else"
+	}
+	return fmt.Errorf("the %s above was sent to the node, but the wallet could not record it (%s). Do not run the command again: that would send it a second time. Keep the record above", what, why)
 }
