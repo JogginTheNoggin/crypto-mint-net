@@ -14,10 +14,11 @@ policy and a store per pool, replayed through the engine on start-up so
 nothing on disk is trusted. `pkg/p2p` connects nodes over the wire protocol
 of `pkg/wire`: it hands what peers send to the node and forwards what the
 node keeps, and it never decides validity. `pkg/rpc` gives the owner local
-control. Peer discovery (milestone 4) lives in `pkg/p2p` too, with the peer
-book in `pkg/peers` and bootstrap lists in `pkg/registry`; peer management
-(milestone 5) will join it there. None of it leaks into the packages below
-the engine.
+control. Peer discovery (milestone 4) and peer management (milestone 5)
+live in `pkg/p2p` too, with the peer book and ranking rules in
+`pkg/peers`, bootstrap lists in `pkg/registry`, the record of what each
+peer does in `pkg/tracking` and the queue of heavier ledgers to check in
+`pkg/chase`. None of it leaks into the packages below the engine.
 
 ## Package layers
 
@@ -35,6 +36,14 @@ graph TD
   p2p --> nodepolicy
   p2p --> peers
   p2p --> registry
+  p2p --> tracking
+  p2p --> chase
+  chase --> peers
+  tracking --> peers
+  tracking --> weight
+  nodepolicy --> tracking
+  rpc --> tracking
+  rpc --> chase
   peers --> wire
   registry --> wire
   rpc --> peers
@@ -77,7 +86,7 @@ project. Every package above `policy` also imports `hash`, and most import
 | Consensus tier | `tx`, `entry`, `layer`, `state`, `ledger` | Validity, weight, selection, switching |
 | Node policy | `mempool`, `engine` (and their `Config`), `nodepolicy` | What to keep, follow and forward |
 | Node | `store`, `node`, `rpc` | Disk, the data directory, local control |
-| Network | `wire`, `peers`, `registry`, `p2p` | Messages between full nodes, the peer book, bootstrap lists, discovery, forwarding, catch-up |
+| Network | `wire`, `peers`, `registry`, `tracking`, `chase`, `p2p` | Messages between full nodes, the peer book and ranking, bootstrap lists, peer tracking, the chase queue, discovery, forwarding, catch-up |
 | Tools | `cmd/poo`, `vectors`, `testutil` | CLI, demo, published vectors, test helpers |
 
 ## The three tiers
@@ -169,8 +178,15 @@ fork point, through an overlay on the current state.
   follow requests, relays discovery requests, and keeps the peer book of
   `pkg/peers` (saved as `peers.json`) filled from peer lists, broadcasts and
   the registries of `pkg/registry`. See [modules/peers.md](modules/peers.md).
-- **Peer management (M5)** ranks and tracks peers. Like discovery, it
-  decides who to talk to and never changes validity.
+- **Peer management (M5, done)**: `pkg/p2p` sorts peers into priority,
+  backup and candidate slots by points from `pkg/tracking`, handles their
+  messages in that order, flags, times out and blocks misbehaving
+  addresses, and chases heavier stated weights through `pkg/chase`,
+  checking the work behind a branch before fetching it. Like discovery,
+  it decides who to talk to and what to fetch, and never changes
+  validity: the engine still switches only on weight it computed. See
+  [modules/tracking.md](modules/tracking.md) and
+  [modules/chase.md](modules/chase.md).
 
 See [roadmap.md](roadmap.md) for the milestones and
 [modules/README.md](modules/README.md) for one page per package.

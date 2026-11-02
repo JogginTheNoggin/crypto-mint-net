@@ -26,6 +26,12 @@ finds peers: a connection is a peer only for what the node verified with
 its own follow request (D40), broadcasts are marked in the request body
 (D41), registries have a provisional format and no default list yet
 (D44), and verification is never carried across a restart (D46).
+Milestone 5 ranks and tracks peers and chases heavier ledgers: flags and
+measures kept by address (D50), bad data costing flags rather than
+connections (D55), deleting that does not ban (D57), priority and backup
+slots in place of a peer count (D58), regular checks that ask for stated
+weight (D59), points with fair comparisons (D61) and provisional defaults
+for all of it (D62).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -437,6 +443,8 @@ coverage, and peers also come from discovery.*
 
 ### D38. Disconnecting misbehaving peers, until ranking exists
 
+Superseded in part by D55 (invalid entries and weak layers are flags).
+
 - **Decision:** A peer is disconnected for a malformed message, a request
   id that does not match, an invalid entry, a layer below the minimum
   strength, a reply that does not fit its request or is out of chain
@@ -588,4 +596,174 @@ coverage, and peers also come from discovery.*
   gives. Turning contact details into candidates only, dialled later by
   the connection manager with backoff and range limits, is the design's
   protection against aiming nodes at a victim.
+- **Tier:** Node policy.
+
+### D50. Tracker keys
+
+- **Decision:** The tracker keeps flags and measures by IP address, so
+  one machine is one record whatever port it connects from. A host name
+  is its own key, lowercased. Loopback keeps the full address and port,
+  unless `LoopbackAsOne` is set.
+- **Why:** The design tracks offences by address so a peer cannot shed
+  its flags by reconnecting. Ports are free to change; addresses are not.
+  Loopback cannot be an outside attacker, and local test networks run
+  many nodes on one machine.
+- **Tier:** Node policy.
+
+### D51. Windows are node-wide
+
+- **Decision:** The windows for budgets, repeats, activity, chases and
+  connections are set once for the node, not per template. A template
+  says only what is recorded.
+- **Why:** The design lets templates choose what to record. Counting the
+  same measure over different windows for different peers would make
+  their points incomparable, and ranking compares points.
+- **Tier:** Node policy.
+
+### D52. Backoff and the known-bad list live in the chase queue
+
+- **Decision:** A sender's chase backoff and the list of entry hashes
+  shown to be false are kept by the chase queue (`pkg/chase`), whatever
+  template the sender is tracked with, and are not saved across a
+  restart.
+- **Why:** They are safety rules, not telemetry: a template that records
+  little must not let a sender be chased again at once or a false branch
+  be fetched twice. Losing them on restart costs at most one more cheap
+  check per sender.
+- **Tier:** Node policy.
+
+### D53. Too little work is not an offence
+
+- **Decision:** A chase whose provisional layers do not beat the weight to
+  beat ends with the sender backed off and a "nowhere" chase outcome, not
+  a flag. Flags are kept for branches that are provably false: a hash
+  listed twice, an entry that does not match its listed hash or does not
+  link, an invalid entry, a layer below the minimum strength.
+- **Why:** Honest peers can be wrong about weight: a ledger may have
+  changed between the stated weight and the chase, or layers may be
+  pruned. Only rule-breaking proves bad faith. The backoff and the
+  points already make a peer that is often wrong cost it.
+- **Tier:** Node policy.
+
+### D54. A node holding nothing fetches the whole ledger
+
+- **Decision:** When a node holds no entry of a pool, a chase fetches the
+  sender's whole ledger with a full ledger request, without finding a
+  common entry or checking work first. When the common entry is beyond
+  the depth limit (16 hash chain pages), the chase stops, unless
+  `FastCatchUp` is set and the sender is a priority peer, in which case
+  its whole ledger is fetched.
+- **Why:** With nothing held there is nothing to beat, so any valid
+  ledger is progress and the engine still checks every entry. A split
+  deeper than the limit is rare and costly to check; fetching a whole
+  ledger is the design's fast catch-up, which it leaves to node policy and
+  which is only reasonable from a peer already relied on.
+- **Tier:** Node policy.
+
+### D55. What each kind of bad data costs
+
+- **Decision:** An invalid pushed entry or layer is an `invalid-item` flag
+  (severity 5), and the connection stays. A message that cannot be
+  decoded or whose request id does not match is an `invalid-message` flag
+  and also closes the connection. The flag limits then time out and block
+  the address. A refused transaction is still not a reason. This
+  supersedes D38's disconnect for invalid entries and weak layers.
+- **Why:** The design moves from disconnecting to flags with limits, so
+  one mistake does not cost a peering and repeated ones do. A connection
+  that sends undecodable frames cannot be resynchronised, so it closes.
+- **Tier:** Node policy.
+
+### D56. Two limits on discovery requests
+
+- **Decision:** Milestone 4's token bucket on follow, peer list and ping
+  requests (`RequestRate`) stays, alongside the tracker's discovery
+  budget. The bucket drops quietly; the budget flags.
+- **Why:** The bucket protects relaying at once, before any tracking, and
+  works with tracking turned down to nothing. The budget is what makes
+  persistent excess cost the sender.
+- **Tier:** Node policy.
+
+### D57. Deleting does not ban
+
+- **Decision:** `Delete` takes a node out of the peer book with no list of
+  deleted addresses; it may return as a new candidate. Keeping an address
+  out is a block in the tracker, which the book honours (`SetRefuse`): a
+  blocked address is not added, dialled or accepted.
+- **Why:** The design separates deleting (forgetting) from blocking
+  (refusing, with an expiry). One mechanism for refusal, with expiries
+  and ranges, is simpler than two.
+- **Tier:** Node policy.
+
+### D58. Slots replace the peer count
+
+- **Decision:** `peers_per_policy` is replaced by priority and backup
+  slots per mint policy (4 and 4). The connection manager dials while a
+  policy has fewer listed peers than its slots. An outbound connection
+  verified with no slot free is closed and retried later with backoff; an
+  inbound one stays a candidate. An inbound connection verified for none
+  of the node's policies stays unlisted, within `unlisted_conns` (8). A
+  peer that loses its last policy is closed.
+- **Why:** The design's categories are what a node relies on; the count
+  of connections follows from them. Dialling a peer and keeping it with
+  no use wastes a slot of the remote node's, while inbound connections
+  cost this node nothing to keep as candidates. Wallets and light nodes
+  are unlisted by nature and must be served.
+- **Tier:** Node policy.
+
+### D59. Regular checks ask for stated weight
+
+- **Decision:** The regular check (`check_seconds`) sends a weight request
+  to each priority peer of each pool, instead of milestone 3's extension
+  request. A heavier stated weight goes to the chase queue.
+- **Why:** The design's chasing rules start every catch-up from a stated
+  weight and check work before data. A weight request is the cheapest
+  way to learn one; the chase decides whether anything is fetched.
+- **Tier:** Node policy.
+
+### D60. When a pushed item starts a chase
+
+- **Decision:** A pushed entry or layer whose parent or entry is unknown,
+  and a notice, start a chase only through their stated weight, and only
+  if it is above this node's own; the item's hash is the group's hash.
+  Items naming a hash on the known-bad list are dropped.
+- **Why:** An unknown parent is the usual sign of a branch this node does
+  not hold, but on its own it is not evidence of weight. Following the
+  stated weight through the queue keeps one path for every chase.
+- **Tier:** Node policy.
+
+### D61. Points and fair comparisons
+
+- **Decision:** Points are a weighted sum of the recorded measures over
+  the activity window (one hour): answered pings, round trip, first
+  deliveries, answered requests, reply timing, chase outcomes, minus
+  denials and cost (weights in `tracking.DefaultConfig`). A backup and a
+  priority peer are compared only on pings, round trip and first
+  deliveries, which both categories have. A peer that follows only part
+  of a policy loses one point.
+- **Why:** The design asks for points from observed behaviour and for
+  fair comparisons between categories that are measured differently
+  (backups are not asked for data). The weights are a starting point for
+  milestone 7's simulator to tune.
+- **Tier:** Node policy.
+
+### D62. Provisional peer management defaults
+
+- **Decision:** 4 priority and 4 backup slots per policy, at most 1
+  priority and 4 listed peers per network range, at most 2 inbound
+  priority peers, a swap margin of 1 point, a review every 10 minutes,
+  archiving after 30 minutes unheard, priority barred after 3 wrong
+  denials in an hour, backups pinged every 6 minutes. Flags: priority lost
+  at 5, a 10-minute timeout at 10, a 24-hour block at 30 or on a fourth
+  timeout within 7 days. Budgets per minute: 1200 transactions, 1200
+  entries, 6000 layers, 600 requests, 120 discovery messages; 600 repeats;
+  30 new stated weights per 10 minutes. Inbox shares 8/4/2/1, 1024 queued
+  per category. The chase queue: 4 chases, 2 per pool, 1 with an unlisted
+  sender, 64 groups per pool, maximum delays 5 s / 30 s / 1 min / 5 min,
+  backoff 30 s doubling to 1 h, known-bad hashes kept 24 h, 16 hash chain
+  pages, 65536 provisional layers. Default template basic, escalating to
+  standard at 5 flags.
+- **Why:** The design leaves every one of these to node policy. They are
+  sized so a single misbehaving peer is noticed within minutes and a
+  burst from honest peers is not punished. Milestone 7's simulator should
+  replace them with measured values.
 - **Tier:** Node policy.

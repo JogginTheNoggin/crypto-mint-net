@@ -357,7 +357,7 @@ func (h *Host) handlePing(p *peer, m wire.Message) error {
 		return err
 	}
 	if pi := h.poolFor(m.Section); pi != nil {
-		h.checkStated(pi, p, m)
+		h.checkStated(pi, p, m.Stated, nil)
 	}
 	if ok, err := h.admit(p, m, q.Time); !ok {
 		return err
@@ -386,19 +386,31 @@ func (h *Host) handleDropped(p *peer, m wire.Message) error {
 	if err := wire.DecodeEmpty(m.Type, m.Body); err != nil {
 		return err
 	}
-	p.mu.Lock()
-	for s := range p.verified {
+	for _, s := range p.policies() {
 		if m.Section.Contains(s) {
-			delete(p.verified, s)
+			h.drop(p, s, "dropped policy update")
+			continue
 		}
+		// A dropped part of a partly followed policy goes; the rest stays.
+		p.mu.Lock()
+		if st := p.pols[s]; st != nil && st.parts != nil {
+			keep := st.parts[:0]
+			for _, part := range st.parts {
+				if !m.Section.Contains(part) {
+					keep = append(keep, part)
+				}
+			}
+			st.parts = keep
+			if len(keep) == 0 {
+				p.mu.Unlock()
+				h.drop(p, s, "dropped policy update")
+				continue
+			}
+		}
+		p.mu.Unlock()
 	}
-	left := len(p.verified)
-	p.mu.Unlock()
 	if a := p.bookAddr(); a != "" {
 		h.book.Archive(a, m.Section)
-	}
-	if left == 0 {
-		p.close(errNoOverlap)
 	}
 	return nil
 }
@@ -501,15 +513,18 @@ func (h *Host) askFollow(p *peer, s wire.Section, v wire.PeerVariant) (followRes
 }
 
 // verifyPeer asks a new connection, for each mint policy this node
-// follows, whether it follows it. The answers make it a peer for those
-// policies; a connection that follows none of them is closed.
+// follows, whether it follows it. The answers place it in a category for
+// those policies. An outbound connection that follows none of them, or
+// finds no slot, is closed; an inbound one may stay as an unlisted node,
+// such as a wallet.
 func (h *Host) verifyPeer(p *peer) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var firstErr error
-	for _, s := range h.coverage {
+	results := make([]followResult, len(h.coverage))
+	for i, s := range h.coverage {
 		wg.Add(1)
-		go func(s wire.Section) {
+		go func(i int, s wire.Section) {
 			defer wg.Done()
 			res, err := h.askFollow(p, s, wire.NoPeers)
 			if err != nil {
@@ -520,43 +535,60 @@ func (h *Host) verifyPeer(p *peer) error {
 				mu.Unlock()
 				return
 			}
-			if res.answered {
-				h.peerFollows(p, res)
-			}
-		}(s)
+			results[i] = res
+		}(i, s)
 	}
 	wg.Wait()
 	if firstErr != nil && (errors.Is(firstErr, wire.ErrMalformed) || errors.Is(firstErr, errClosed)) {
 		return firstErr
 	}
-	if len(p.verifiedList()) == 0 {
+	now := time.Now()
+	held := h.tr.Held(p.key, h.cfg.PingEvery, now)
+	for i, s := range h.coverage {
+		if results[i].answered {
+			h.peerFollows(p, s, results[i], held[s.Text()], now)
+		}
+	}
+	h.tr.SetGroups(p.key, p.groups(), now)
+	if len(p.policies()) == 0 {
+		if h.keepUnlisted(p) {
+			return nil
+		}
 		return errNoOverlap
 	}
-	// Catch up with the new peer on every pool both follow.
+	if p.outbound && !p.covers(wire.All, true) {
+		if a := p.bookAddr(); a != "" {
+			h.book.Tried(a, false, now) // no slot: try it again later
+		}
+		return errNoSlot
+	}
+	// Ask the new peer how heavy its ledgers are; a heavier one is chased.
 	for _, pi := range h.sortedPools() {
-		if p.covers(pi.section) {
-			h.startChase(pi, p)
+		if p.covers(pi.section, false) {
+			h.wg.Add(1)
+			go func(pi *poolInfo) {
+				defer h.wg.Done()
+				h.askWeight(pi, p)
+			}(pi)
 		}
 	}
 	return nil
 }
 
-// peerFollows records what a peer answered for.
-func (h *Host) peerFollows(p *peer, res followResult) {
-	now := time.Now()
-	for _, s := range res.policies {
-		if h.rangeFull(s, p) {
-			continue
-		}
-		if a := p.bookAddr(); a != "" {
-			if err := h.book.Verify(a, s, now); err != nil && !errors.Is(err, peers.ErrRangeFull) {
-				continue
-			}
-		}
-		p.mu.Lock()
-		p.verified[s] = true
-		p.mu.Unlock()
+// peerFollows records what a peer answered for mint policy s and places
+// it in a category.
+func (h *Host) peerFollows(p *peer, s wire.Section, res followResult, held string, now time.Time) {
+	var parts []wire.Section
+	if len(res.policies) != 1 || res.policies[0] != s {
+		parts = append(parts, res.policies...)
+		wire.SortSections(parts)
 	}
+	cat := h.place(p, s, parts, held, now)
+	p.mu.Lock()
+	p.pols[s] = &standing{cat: peers.CatCandidate, parts: parts, since: now}
+	p.mu.Unlock()
+	h.setCategory(p, s, cat, now)
+	h.tr.Heard(p.key, s.Text(), now)
 	if res.contact != "" && !h.isSelf(res.contact) {
 		p.mu.Lock()
 		p.contact = res.contact
@@ -570,29 +602,20 @@ func (h *Host) peerFollows(p *peer, res followResult) {
 // remoteRange is the network range of a peer's connection.
 func remoteRange(p *peer) string { return peers.Range(p.c.RemoteAddr().String()) }
 
-// rangeFull reports whether s already has its share of verified peers
-// from p's network range.
-func (h *Host) rangeFull(s wire.Section, p *peer) bool {
-	rng := remoteRange(p)
-	n := 0
-	for _, o := range h.peersFor(s, p.id) {
-		if remoteRange(o) == rng {
-			n++
-		}
-	}
-	return n >= h.cfg.VerifiedPerRange
-}
-
-// pingLoop pings every peer for every verified mint policy.
+// pingLoop pings priority peers every PingEvery and backup peers every
+// BackupPingEvery, for each mint policy. Candidates and unlisted nodes
+// are not pinged.
 func (h *Host) pingLoop(ctx context.Context) {
 	defer h.wg.Done()
 	t := time.NewTicker(h.cfg.PingEvery)
 	defer t.Stop()
+	last := map[string]time.Time{} // peer and policy → last backup ping
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			now := time.Now()
 			h.mu.Lock()
 			ps := make([]*peer, 0, len(h.peers))
 			for _, p := range h.peers {
@@ -600,7 +623,19 @@ func (h *Host) pingLoop(ctx context.Context) {
 			}
 			h.mu.Unlock()
 			for _, p := range ps {
-				for _, s := range p.verifiedList() {
+				for _, s := range p.policies() {
+					st, _ := p.standingFor(s)
+					switch st.cat {
+					case peers.CatPriority:
+					case peers.CatBackup:
+						k := p.id + " " + s.Text()
+						if now.Sub(last[k]) < h.cfg.BackupPingEvery-h.cfg.PingEvery/2 {
+							continue
+						}
+						last[k] = now
+					default:
+						continue
+					}
 					h.wg.Add(1)
 					go func(p *peer, s wire.Section) {
 						defer h.wg.Done()
@@ -612,17 +647,42 @@ func (h *Host) pingLoop(ctx context.Context) {
 	}
 }
 
-// ping checks that p still runs and follows s, and ends the peering for s
-// after MaxMisses silences in a row.
+// Ping pings every priority and backup peer for each mint policy now and
+// waits for the answers. Tests call it directly.
+func (h *Host) Ping() {
+	var wg sync.WaitGroup
+	h.mu.Lock()
+	ps := make([]*peer, 0, len(h.peers))
+	for _, p := range h.peers {
+		ps = append(ps, p)
+	}
+	h.mu.Unlock()
+	for _, p := range ps {
+		for _, s := range p.policies() {
+			if st, _ := p.standingFor(s); st.cat == peers.CatPriority || st.cat == peers.CatBackup {
+				wg.Add(1)
+				go func(p *peer, s wire.Section) {
+					defer wg.Done()
+					h.ping(p, s)
+				}(p, s)
+			}
+		}
+	}
+	wg.Wait()
+}
+
+// ping checks that p still runs and follows mint policy s, and ends the
+// peering for s after MaxMisses silences in a row.
 func (h *Host) ping(p *peer, s wire.Section) {
 	q := wire.Ping{Nonce: nonce(), Time: uint64(time.Now().Unix())}
 	m := discoveryMsg(wire.TypePing, s, q.Encode(), h.stated(s))
 	h.reqs.add(m.RequestID, time.Now())
 	var narrowed []wire.Section
 	partial := false
+	start := time.Now()
 	answered, err := h.request(p, m, h.cfg.FollowTimeout, func(r wire.Message) error {
 		if pi := h.poolFor(s); pi != nil {
-			h.checkStated(pi, p, r)
+			h.checkStated(pi, p, r.Stated, nil)
 		}
 		switch r.Type {
 		case wire.TypePong:
@@ -646,38 +706,37 @@ func (h *Host) ping(p *peer, s wire.Section) {
 		return
 	}
 	if err != nil {
-		p.close(err)
+		h.misbehave(p, err)
 		return
 	}
+	now := time.Now()
+	h.tr.Ping(p.key, s.Text(), answered, now.Sub(start), now)
+	gone := false
 	p.mu.Lock()
-	if answered {
-		p.misses[s] = 0
-		if partial {
-			delete(p.verified, s)
-			for _, n := range narrowed {
-				p.verified[n] = true
-			}
-		}
-	} else {
-		p.misses[s]++
-		if p.misses[s] >= h.cfg.MaxMisses {
-			delete(p.verified, s)
-			delete(p.misses, s)
-		} else {
-			answered = true // not yet given up on
-		}
-	}
-	left := len(p.verified)
-	p.mu.Unlock()
-	if a := p.bookAddr(); a != "" {
+	if st := p.pols[s]; st != nil {
 		if answered {
-			h.book.Heard(a, s, time.Now())
+			p.misses[s] = 0
+			if partial {
+				if len(narrowed) == 0 {
+					gone = true
+				} else {
+					st.parts = narrowed
+				}
+			} else {
+				st.parts = nil
+			}
 		} else {
-			h.book.Archive(a, s)
+			p.misses[s]++
+			gone = p.misses[s] >= h.cfg.MaxMisses
 		}
 	}
-	if left == 0 {
-		p.close(errNoOverlap)
+	p.mu.Unlock()
+	if gone {
+		h.drop(p, s, "no longer answers pings for it")
+		return
+	}
+	if a := p.bookAddr(); a != "" && answered {
+		h.book.Heard(a, s, now)
 	}
 }
 
@@ -713,7 +772,7 @@ func (h *Host) manage(ctx context.Context) {
 	now := time.Now()
 	for _, s := range h.coverage {
 		have := h.peersFor(s, "")
-		need := h.cfg.PeersPerPolicy - len(have)
+		need := h.cfg.Slots.Priority + h.cfg.Slots.Backup - len(have)
 		if need <= 0 {
 			continue
 		}
@@ -742,13 +801,13 @@ func (h *Host) manage(ctx context.Context) {
 			h.lastReg = now
 		}
 		h.mu.Unlock()
-		if askNow && len(have) > 0 {
+		if p := h.askPeer(s, nil); askNow && p != nil {
 			h.wg.Add(1)
 			go func(s wire.Section, p *peer) {
 				defer h.wg.Done()
 				h.askPeerList(p, s)
 				h.Broadcast(s)
-			}(s, have[0])
+			}(s, p)
 		}
 		if regNow {
 			h.wg.Add(1)
@@ -816,6 +875,9 @@ func (h *Host) dialCandidate(ctx context.Context, addr string) {
 			delete(h.dialing, addr)
 			h.mu.Unlock()
 		}()
+		if !h.tr.Status(addr, time.Now()).Allowed() {
+			return // timed out or blocked: not until it ends
+		}
 		d := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second}
 		c, err := d.DialContext(ctx, "tcp", addr)
 		if err != nil {

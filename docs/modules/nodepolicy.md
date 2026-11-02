@@ -6,7 +6,8 @@ The node policy: every choice a full node makes for itself, as a
 `node.json` file. It lists the known series (series information comes from
 outside the network), which issuers are accepted, what the node follows (an
 issuer, a series, some pools or some mints), K and the other limits, write
-durability, the RPC address and the p2p settings. A `Manager` keeps several node policies side
+durability, the RPC address, the p2p settings (including peer slots and
+chasing) and how peers are tracked. A `Manager` keeps several node policies side
 by side with the design's save, archive and delete operations (decision
 D25). Nothing here changes what is valid.
 
@@ -37,12 +38,28 @@ D25). Nothing here changes what is valid.
     "no_notices": false,
     "check_seconds": 60,
     "registries": ["https://registry.example/poo.json"],
-    "peers_per_policy": 4,
     "max_outbound": 8,
     "no_relay": false,
     "hop_limit": 8,
     "request_rate": 120,
-    "ping_seconds": 120
+    "ping_seconds": 120,
+    "priority_slots": 4, "backup_slots": 4, "margin": 1,
+    "review_seconds": 600,
+    "unlisted_conns": 8,
+    "strict_return": false,
+    "no_confirm": false, "fast_catch_up": false, "depth_limit": 16
+  },
+  "tracking": {
+    "template": "basic",
+    "custom": {"lean": {"from": "basic", "off": ["rtt"]}},
+    "groups": {"priority": "standard", "unlisted": "lean"},
+    "peers": {"203.0.113.5": "detailed"},
+    "escalate_at": 5,
+    "priority_limit": 5, "timeout_limit": 10, "block_limit": 30,
+    "timeout_seconds": 600, "block_seconds": 86400,
+    "weights": {"pings": 2, "rtt": 1, "first_deliveries": 1, "requests": 2, "reply_timing": 1, "chases": 2, "denials": 2, "cost": 0.1, "large": 0.5},
+    "starting_points": 0,
+    "no_timeout_misses": false
   }
 }
 ```
@@ -53,13 +70,19 @@ every branch. `rpc.listen: "off"` disables the interface. `p2p.listen:
 "off"` accepts no connections (listed peers are still dialled);
 `check_seconds: -1` turns off regular checks and `ping_seconds: -1` pings.
 Without `advertise` the node is never offered to others as a contact. The p2p defaults are in
-`p2p.DefaultConfig` (decision D37).
+`p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
+no unlisted connections; `review_seconds: -1` never reviews. In
+`tracking`, `escalate_at: -1` never escalates; every template name must
+be known, custom templates may not form a cycle, and groups must be
+priority, backup, candidate, unlisted, inbound or outbound (see
+[tracking.md](tracking.md)). `peers_per_policy`, from milestone 4, is ignored:
+the slots replace it.
 
 ## API
 
 - `Policy`, `Default`, `Validate`, `Load`, `Save` (atomic),
-  `LedgerConfig`, `ListenAddr`, `P2PListenAddr` (`p2p.FromPolicy` turns
-  the p2p section into host settings).
+  `LedgerConfig`, `TrackingConfig`, `ListenAddr`, `P2PListenAddr`
+  (`p2p.FromPolicy` turns the p2p section into host settings).
 - `Accepted()` builds each listed series and applies the issuer rule,
   returning accepted series (with the verified issuer) and refused ones with
   reasons. One bad series never stops a node.

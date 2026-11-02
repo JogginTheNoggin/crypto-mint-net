@@ -375,4 +375,44 @@ func TestPeers(t *testing.T) {
 	if r.NodeID != host.ID().String() || r.Listen != host.Addr() || len(r.Peers) != 0 {
 		t.Fatalf("%+v", r)
 	}
+
+	// Peer controls, the tracker and the chase queue.
+	const addr = "203.0.113.7:8646"
+	p, err := c.Peer(rpc.PeerRequest{Addr: addr, Action: "block", Seconds: -1})
+	if err != nil || !p.Status.Blocked || p.Key != "203.0.113.7" {
+		t.Fatalf("block: %+v %v", p, err)
+	}
+	tr, err := c.Tracking()
+	if err != nil || !tr.Tracked["203.0.113.7"].Blocked {
+		t.Fatalf("tracking: %+v %v", tr, err)
+	}
+	if p, err = c.Peer(rpc.PeerRequest{Addr: addr, Action: "unblock"}); err != nil || p.Status.Blocked {
+		t.Fatalf("unblock: %+v %v", p, err)
+	}
+	if p, err = c.Peer(rpc.PeerRequest{Addr: addr, Action: "timeout", Seconds: 60}); err != nil || !p.Status.TimedOut {
+		t.Fatalf("timeout: %+v %v", p, err)
+	}
+	if _, err = c.Peer(rpc.PeerRequest{Addr: addr, Action: "template", Template: "detailed"}); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := c.TrackingOf(addr)
+	if err != nil || rep.Template != "detailed" {
+		t.Fatalf("report: %+v %v", rep, err)
+	}
+	if _, err = c.Peer(rpc.PeerRequest{Addr: addr, Action: "template", Template: "nope"}); code(err) != rpc.CodeBadRequest {
+		t.Fatalf("unknown template: %v", err)
+	}
+	if _, err = c.Peer(rpc.PeerRequest{Addr: addr, Action: "clear", What: "some"}); code(err) != rpc.CodeBadRequest {
+		t.Fatalf("bad clear: %v", err)
+	}
+	if _, err = c.Peer(rpc.PeerRequest{Addr: addr, Action: "frobnicate"}); code(err) != rpc.CodeBadRequest {
+		t.Fatalf("unknown action: %v", err)
+	}
+	if p, err = c.Peer(rpc.PeerRequest{Addr: addr, Action: "delete"}); err != nil || p.Held || p.Status.TimedOut {
+		t.Fatalf("delete: %+v %v", p, err)
+	}
+	ch, err := c.Chases()
+	if err != nil || ch.Groups == nil || len(ch.Groups) != 0 {
+		t.Fatalf("chases: %+v %v", ch, err)
+	}
 }

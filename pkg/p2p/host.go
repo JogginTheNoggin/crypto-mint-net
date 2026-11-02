@@ -24,9 +24,15 @@
 // candidates from the peer book, peer lists, follow replies, the archive
 // and address registries.
 //
-// Peer ranking, tracking and the full chasing rules are milestone 5. Until
-// then a peer that sends a malformed message or an invalid entry is
-// disconnected.
+// And it manages them (the design's "Peer Categories and Ranking", "Peer
+// Tracking and Telemetry" and "Chasing Heavier Ledgers"): each verified
+// peer is a priority or backup peer for a mint policy, or waits as a
+// candidate, and moves between them at reviews by points from package
+// tracking; requests and data are handled in queues by the sender's
+// category; offences become flags that can time out or block an address;
+// and a stated weight above the node's own goes to the chase queue of
+// package chase, ordered by evidence, and is chased from cheap to costly:
+// hashes, then provisional layers, then entries.
 package p2p
 
 import (
@@ -40,11 +46,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
@@ -72,8 +80,9 @@ type Config struct {
 	// NoNotices turns off notices: by default a node tells its peers after
 	// switching to a ledger they would not hear of through forwarding.
 	NoNotices bool
-	// CheckEvery is how often to ask a peer for an extension of each pool
-	// (negative: never).
+	// CheckEvery is how often to ask the priority peers of each pool for
+	// their stated weight (negative: never), so a node hears it is behind
+	// in a quiet pool.
 	CheckEvery time.Duration
 	// RequestTimeout bounds the wait for a whole reply.
 	RequestTimeout time.Duration
@@ -95,9 +104,6 @@ type Config struct {
 	Book *peers.Book
 	// Registries are address registry locations (URLs or files).
 	Registries []string
-	// PeersPerPolicy is how many verified peers to keep for each followed
-	// mint policy; the connection manager dials candidates below it.
-	PeersPerPolicy int
 	// MaxOutbound caps connections this node dials itself.
 	MaxOutbound int
 	// ManageEvery is how often the connection manager runs (negative:
@@ -117,14 +123,56 @@ type Config struct {
 	// RequestRate caps the follow, peer list and ping requests a peer may
 	// send per minute; more are dropped.
 	RequestRate int
-	// PingEvery is how often to ping each peer for each verified mint
-	// policy (negative: never); MaxMisses unanswered pings in a row end
-	// the peering for that policy.
-	PingEvery time.Duration
-	MaxMisses int
-	// VerifiedPerRange caps the peers for one mint policy from one network
-	// range (loopback addresses are exempt).
-	VerifiedPerRange int
+	// PingEvery is how often to ping each priority peer for each mint
+	// policy (negative: never), and BackupPingEvery each backup peer;
+	// MaxMisses unanswered pings in a row end the peering for that policy.
+	PingEvery       time.Duration
+	BackupPingEvery time.Duration
+	MaxMisses       int
+
+	// Slots are the priority and backup slots per mint policy and the
+	// ranking rules; the connection manager dials candidates while they
+	// are not full.
+	Slots peers.Slots
+	// ReviewEvery is how often points are compared and peers moved
+	// between priority and backup (negative: never).
+	ReviewEvery time.Duration
+	// InactiveAfter archives a priority or backup peer not heard from for
+	// that long.
+	InactiveAfter time.Duration
+	// DenialLimit denials in the activity window bar a peer from priority.
+	DenialLimit int
+	// StrictReturn returns a timed out peer as a backup, so it must earn
+	// priority again; by default it returns to the categories it had.
+	StrictReturn bool
+	// UnlistedConns caps inbound connections in no category (wallets,
+	// light nodes, unverified full nodes); negative: none.
+	UnlistedConns int
+	// QueueShares are how many messages each queue (priority, backup,
+	// candidate, unlisted) may take in one round, so lower queues are not
+	// starved; QueueLimit is how many may wait in each.
+	QueueShares [4]int
+	QueueLimit  int
+
+	// Tracker records what peers do; nil keeps records in memory with the
+	// default template.
+	Tracker *tracking.Tracker
+	// Chase holds the chase queue's limits.
+	Chase chase.Config
+	// DepthLimit is how many hash chain pages a chase asks for before
+	// giving up on finding the common entry.
+	DepthLimit int
+	// ProvisionalLayers is the most layers a chase fetches before deciding
+	// whether a branch's work is enough.
+	ProvisionalLayers int
+	// NoConfirm stops asking a priority peer to confirm a stated weight
+	// from another sender.
+	NoConfirm bool
+	// FastCatchUp asks a priority peer for its whole ledger when finding
+	// the common entry passes the depth limit; a node holding nothing for a
+	// pool always asks for the whole ledger.
+	FastCatchUp bool
+
 	// Log receives connection events. Nil discards them.
 	Log io.Writer
 }
@@ -145,17 +193,26 @@ func DefaultConfig() Config {
 		QueueSize:      4096,
 		Agent:          "poo",
 
-		PeersPerPolicy:   4,
-		MaxOutbound:      8,
-		ManageEvery:      30 * time.Second,
-		BroadcastEvery:   5 * time.Minute,
-		RegistryEvery:    time.Hour,
-		FollowTimeout:    5 * time.Second,
-		HopLimit:         8,
-		RequestRate:      120,
-		PingEvery:        2 * time.Minute,
-		MaxMisses:        3,
-		VerifiedPerRange: 4,
+		MaxOutbound:     8,
+		ManageEvery:     30 * time.Second,
+		BroadcastEvery:  5 * time.Minute,
+		RegistryEvery:   time.Hour,
+		FollowTimeout:   5 * time.Second,
+		HopLimit:        8,
+		RequestRate:     120,
+		PingEvery:       2 * time.Minute,
+		BackupPingEvery: 6 * time.Minute,
+		MaxMisses:       3,
+
+		Slots:             peers.DefaultSlots(),
+		ReviewEvery:       10 * time.Minute,
+		InactiveAfter:     30 * time.Minute,
+		DenialLimit:       3,
+		UnlistedConns:     8,
+		QueueShares:       [4]int{8, 4, 2, 1},
+		QueueLimit:        1024,
+		DepthLimit:        16,
+		ProvisionalLayers: 1 << 16,
 	}
 }
 
@@ -200,9 +257,6 @@ func (c *Config) fill() {
 	if c.Log == nil {
 		c.Log = io.Discard
 	}
-	if c.PeersPerPolicy == 0 {
-		c.PeersPerPolicy = d.PeersPerPolicy
-	}
 	if c.MaxOutbound == 0 {
 		c.MaxOutbound = d.MaxOutbound
 	}
@@ -227,11 +281,38 @@ func (c *Config) fill() {
 	if c.PingEvery == 0 {
 		c.PingEvery = d.PingEvery
 	}
+	if c.BackupPingEvery == 0 {
+		c.BackupPingEvery = 3 * c.PingEvery
+	}
 	if c.MaxMisses == 0 {
 		c.MaxMisses = d.MaxMisses
 	}
-	if c.VerifiedPerRange == 0 {
-		c.VerifiedPerRange = d.VerifiedPerRange
+	if c.Slots == (peers.Slots{}) {
+		c.Slots = d.Slots
+	}
+	if c.ReviewEvery == 0 {
+		c.ReviewEvery = d.ReviewEvery
+	}
+	if c.InactiveAfter == 0 {
+		c.InactiveAfter = d.InactiveAfter
+	}
+	if c.DenialLimit == 0 {
+		c.DenialLimit = d.DenialLimit
+	}
+	if c.UnlistedConns == 0 {
+		c.UnlistedConns = d.UnlistedConns
+	}
+	if c.QueueShares == ([4]int{}) {
+		c.QueueShares = d.QueueShares
+	}
+	if c.QueueLimit == 0 {
+		c.QueueLimit = d.QueueLimit
+	}
+	if c.DepthLimit == 0 {
+		c.DepthLimit = d.DepthLimit
+	}
+	if c.ProvisionalLayers == 0 {
+		c.ProvisionalLayers = d.ProvisionalLayers
 	}
 }
 
@@ -251,14 +332,18 @@ type Host struct {
 	coverage []wire.Section
 	byPoolID map[hash.Hash]*poolInfo
 	byKey    map[engine.PoolKey]*poolInfo
+	byName   map[string]*poolInfo    // pool section text → pool
 	issuers  map[hash.Hash]hash.Hash // series id → issuer (zero if none)
+
+	tr    *tracking.Tracker
+	cq    *chase.Queue
+	inbox *inbox
+	wake  chan struct{} // the chase loop has work
 
 	mu      sync.Mutex
 	peers   map[string]*peer
 	nodeIDs map[hash.Hash]string
 	seq     int
-	chasing map[engine.PoolKey]bool
-	again   map[engine.PoolKey]*peer
 	reqs    *idCache
 	ln      net.Listener
 	ctx     context.Context
@@ -281,11 +366,13 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 		n: n, cfg: cfg,
 		byPoolID: map[hash.Hash]*poolInfo{},
 		byKey:    map[engine.PoolKey]*poolInfo{},
+		byName:   map[string]*poolInfo{},
 		issuers:  map[hash.Hash]hash.Hash{},
+		tr:       cfg.Tracker,
+		cq:       chase.New(cfg.Chase),
+		wake:     make(chan struct{}, 1),
 		peers:    map[string]*peer{},
 		nodeIDs:  map[hash.Hash]string{},
-		chasing:  map[engine.PoolKey]bool{},
-		again:    map[engine.PoolKey]*peer{},
 		reqs:     newIDCache(cfg.RequestWindow),
 		book:     cfg.Book,
 		dialing:  map[string]bool{},
@@ -299,6 +386,12 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	if h.book == nil {
 		h.book, _ = peers.Open("", peers.Limits{})
 	}
+	if h.tr == nil {
+		h.tr, _ = tracking.New(tracking.Config{}, "")
+	}
+	h.inbox = newInbox(cfg.QueueShares, cfg.QueueLimit)
+	// Blocked addresses never come back as candidates.
+	h.book.SetRefuse(func(addr string) bool { return h.tr.Status(addr, time.Now()).Blocked })
 	if _, err := rand.Read(h.id[:]); err != nil {
 		return nil, err
 	}
@@ -314,6 +407,7 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 		pi := &poolInfo{key: k, s: s, section: wire.PoolSection(iss, s.ID(), s.PoolID(k.Index))}
 		h.byPoolID[s.PoolID(k.Index)] = pi
 		h.byKey[k] = pi
+		h.byName[pi.section.Text()] = pi
 		perSeries[k.Series]++
 	}
 	// Coverage: a whole series where every pool is followed, else pools.
@@ -410,6 +504,13 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 		h.wg.Add(1)
 		go h.pingLoop(ctx)
 	}
+	if h.cfg.ReviewEvery > 0 {
+		h.wg.Add(1)
+		go h.reviewLoop(ctx)
+	}
+	h.wg.Add(2)
+	go h.workLoop(ctx)
+	go h.chaseLoop(ctx)
 	if ready != nil {
 		ready()
 	}
@@ -422,8 +523,13 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 		p.close(errors.New("shutting down"))
 	}
 	h.mu.Unlock()
+	h.inbox.close()
 	h.wg.Wait()
-	return h.book.Save()
+	err := h.book.Save()
+	if terr := h.tr.Save(); err == nil {
+		err = terr
+	}
+	return err
 }
 
 func (h *Host) acceptLoop(ln net.Listener) {
@@ -436,7 +542,9 @@ func (h *Host) acceptLoop(ln net.Listener) {
 		h.mu.Lock()
 		full := len(h.peers) >= h.cfg.MaxPeers
 		h.mu.Unlock()
-		if full {
+		remote := c.RemoteAddr().String()
+		if full || !h.tr.Status(remote, time.Now()).Allowed() {
+			h.tr.Connection(remote, "refused", time.Now())
 			c.Close()
 			continue
 		}
@@ -478,6 +586,9 @@ func (h *Host) dialLoop(ctx context.Context, addr string) {
 
 // dial connects to addr and runs the connection until it closes.
 func (h *Host) dial(ctx context.Context, addr string) error {
+	if st := h.tr.Status(addr, time.Now()); !st.Allowed() {
+		return fmt.Errorf("address is timed out or blocked")
+	}
 	d := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second}
 	c, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
@@ -495,6 +606,9 @@ func (h *Host) Connect(addr string) error {
 	if ctx == nil {
 		return errors.New("p2p: host not running")
 	}
+	if st := h.tr.Status(addr, time.Now()); !st.Allowed() {
+		return errBlocked
+	}
 	d := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second}
 	c, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
@@ -509,6 +623,8 @@ func (h *Host) Connect(addr string) error {
 	return <-ready
 }
 
+// checkLoop asks the priority peers of each pool for their stated weight;
+// a heavier one goes to the chase queue like any other.
 func (h *Host) checkLoop(ctx context.Context) {
 	defer h.wg.Done()
 	t := time.NewTicker(h.cfg.CheckEvery)
@@ -519,8 +635,12 @@ func (h *Host) checkLoop(ctx context.Context) {
 			return
 		case <-t.C:
 			for _, pi := range h.sortedPools() {
-				if p := h.anyPeerFor(pi.section); p != nil {
-					h.startChase(pi, p)
+				for _, p := range h.peersIn(pi.section, peers.CatPriority) {
+					h.wg.Add(1)
+					go func(pi *poolInfo, p *peer) {
+						defer h.wg.Done()
+						h.askWeight(pi, p)
+					}(pi, p)
 				}
 			}
 		}
@@ -529,15 +649,27 @@ func (h *Host) checkLoop(ctx context.Context) {
 
 // PeerInfo describes a connected peer.
 type PeerInfo struct {
-	ID       string    `json:"id"`
-	Addr     string    `json:"addr"`
-	Outbound bool      `json:"outbound"`
-	Agent    string    `json:"agent"`
-	Listen   string    `json:"listen,omitempty"`
-	Coverage []string  `json:"coverage"`
-	Since    time.Time `json:"since"`
-	Sent     uint64    `json:"sent"`
-	Received uint64    `json:"received"`
+	ID       string `json:"id"`
+	Addr     string `json:"addr"`
+	Key      string `json:"key"`
+	Outbound bool   `json:"outbound"`
+	Agent    string `json:"agent"`
+	Listen   string `json:"listen,omitempty"`
+	// Coverage lists what the peer was verified to follow.
+	Coverage []string `json:"coverage"`
+	// Categories maps each of this node's mint policies the peer was
+	// verified for, in full text form, to its category and points.
+	Categories map[string]Standing `json:"categories,omitempty"`
+	Since      time.Time           `json:"since"`
+	Sent       uint64              `json:"sent"`
+	Received   uint64              `json:"received"`
+}
+
+// Standing is a peer's category and points for one mint policy.
+type Standing struct {
+	Category string  `json:"category"`
+	Points   float64 `json:"points"`
+	Partial  bool    `json:"partial,omitempty"`
 }
 
 // Peers lists the connected peers.
@@ -552,38 +684,42 @@ func (h *Host) Peers() []PeerInfo {
 	return out
 }
 
-// peersFor returns the connected peers whose coverage includes s, except
-// the one named skip.
+// peersFor returns the connected priority and backup peers whose verified
+// coverage includes s, except the one named skip: the peers forwarded to.
 func (h *Host) peersFor(s wire.Section, skip string) []*peer {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var out []*peer
 	for id, p := range h.peers {
-		if id != skip && p.covers(s) {
+		if id != skip && p.covers(s, true) {
 			out = append(out, p)
 		}
 	}
 	return out
 }
 
-// anyPeerFor picks a peer to ask about s, preferring one this node dialled
-// itself: those are harder for an attacker to place.
-func (h *Host) anyPeerFor(s wire.Section) *peer {
-	ps := h.peersFor(s, "")
-	if len(ps) == 0 {
-		return nil
-	}
-	sort.Slice(ps, func(i, j int) bool {
-		if ps[i].outbound != ps[j].outbound {
-			return ps[i].outbound
+// verifiedFor returns the connected peers verified for any part of s, in
+// any category.
+func (h *Host) verifiedFor(s wire.Section) []*peer {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var out []*peer
+	for _, p := range h.peers {
+		if p.covers(s, false) {
+			out = append(out, p)
 		}
-		return ps[i].id < ps[j].id
-	})
-	return ps[0]
+	}
+	return out
 }
 
 // Book returns the peer book.
 func (h *Host) Book() *peers.Book { return h.book }
+
+// Tracker returns the tracker.
+func (h *Host) Tracker() *tracking.Tracker { return h.tr }
+
+// ChaseQueue returns the chase queue.
+func (h *Host) ChaseQueue() *chase.Queue { return h.cq }
 
 // idCache remembers request ids for a window.
 type idCache struct {

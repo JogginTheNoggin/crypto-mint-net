@@ -24,12 +24,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 )
 
 // Format is the version of the node.json layout this code reads.
@@ -75,6 +77,41 @@ type Policy struct {
 	RPC RPC `json:"rpc"`
 	// P2P configures connections to other full nodes.
 	P2P P2P `json:"p2p"`
+	// Tracking configures what the node records about its peers.
+	Tracking Tracking `json:"tracking,omitempty"`
+}
+
+// Tracking is what a node records about its peers and how offences are
+// treated. Zero values mean the defaults of package tracking. The records
+// themselves are kept in tracking.json next to the policy, so a saved
+// policy picks up where it left off.
+type Tracking struct {
+	// Template is the default tracking template: basic, standard,
+	// detailed or a custom one.
+	Template string `json:"template,omitempty"`
+	// Custom are the user's own templates.
+	Custom map[string]tracking.Custom `json:"custom,omitempty"`
+	// Groups maps a peer group (priority, backup, candidate, unlisted,
+	// inbound, outbound) to a template.
+	Groups map[string]string `json:"groups,omitempty"`
+	// Peers maps an address to its own template.
+	Peers map[string]string `json:"peers,omitempty"`
+	// EscalateAt is the flag total at which a peer is tracked with the
+	// standard template as well; -1 never.
+	EscalateAt float64 `json:"escalate_at,omitempty"`
+	// The flag totals at which a peer loses priority, is timed out and is
+	// blocked, and how long a timeout and a block last.
+	PriorityLimit  float64 `json:"priority_limit,omitempty"`
+	TimeoutLimit   float64 `json:"timeout_limit,omitempty"`
+	BlockLimit     float64 `json:"block_limit,omitempty"`
+	TimeoutSeconds int     `json:"timeout_seconds,omitempty"`
+	BlockSeconds   int     `json:"block_seconds,omitempty"`
+	// Weights say how much each measure counts towards points.
+	Weights *tracking.Weights `json:"weights,omitempty"`
+	// StartingPoints are what a newly met peer begins with.
+	StartingPoints float64 `json:"starting_points,omitempty"`
+	// NoTimeoutMisses stops pings missed during a timeout counting.
+	NoTimeoutMisses bool `json:"no_timeout_misses,omitempty"`
 }
 
 // SeriesInfo is one known series, with the issuer's witness when the series
@@ -136,25 +173,46 @@ type P2P struct {
 	// NoNotices stops the node telling peers when it switches to a ledger
 	// it asked for.
 	NoNotices bool `json:"no_notices,omitempty"`
-	// CheckSeconds is how often to ask a peer for an extension of each
-	// pool; 0 means the default, -1 never.
+	// CheckSeconds is how often to ask the priority peers of each pool for
+	// their stated weight; 0 means the default, -1 never.
 	CheckSeconds int `json:"check_seconds,omitempty"`
 	// Registries are address registry locations (http(s) URLs or files)
 	// to find first peers from. None by default: there is no project
 	// registry yet.
 	Registries []string `json:"registries,omitempty"`
-	// PeersPerPolicy is how many verified peers to keep per followed mint
-	// policy; MaxOutbound caps the connections the node dials itself.
-	PeersPerPolicy int `json:"peers_per_policy,omitempty"`
-	MaxOutbound    int `json:"max_outbound,omitempty"`
+	// MaxOutbound caps the connections the node dials itself.
+	MaxOutbound int `json:"max_outbound,omitempty"`
 	// NoRelay stops the node relaying other nodes' broadcast follow
 	// requests; HopLimit is the hop count at which it stops relaying.
 	NoRelay  bool `json:"no_relay,omitempty"`
 	HopLimit int  `json:"hop_limit,omitempty"`
 	// RequestRate caps the discovery requests one peer may send per minute.
 	RequestRate int `json:"request_rate,omitempty"`
-	// PingSeconds is how often to ping each peer; 0 the default, -1 never.
+	// PingSeconds is how often to ping each priority peer; 0 the default,
+	// -1 never. Backup peers are pinged a third as often.
 	PingSeconds int `json:"ping_seconds,omitempty"`
+
+	// PrioritySlots and BackupSlots are how many priority and backup peers
+	// each mint policy holds; the node dials candidates until they are
+	// full.
+	PrioritySlots int `json:"priority_slots,omitempty"`
+	BackupSlots   int `json:"backup_slots,omitempty"`
+	// ReviewSeconds is how often points are compared to move peers
+	// between priority and backup; 0 the default, -1 never. Margin is how
+	// far a backup must beat the lowest priority peer to replace it.
+	ReviewSeconds int     `json:"review_seconds,omitempty"`
+	Margin        float64 `json:"margin,omitempty"`
+	// UnlistedConns caps inbound connections in no category, such as
+	// wallets; -1 allows none.
+	UnlistedConns int `json:"unlisted_conns,omitempty"`
+	// StrictReturn returns a timed out peer as a backup.
+	StrictReturn bool `json:"strict_return,omitempty"`
+	// NoConfirm stops asking a priority peer to confirm a stated weight
+	// from another sender; FastCatchUp asks a priority peer for its whole
+	// ledger when a split is deeper than DepthLimit hash chain pages.
+	NoConfirm   bool `json:"no_confirm,omitempty"`
+	FastCatchUp bool `json:"fast_catch_up,omitempty"`
+	DepthLimit  int  `json:"depth_limit,omitempty"`
 }
 
 // Default returns a node policy that knows no series and follows nothing.
@@ -239,9 +297,17 @@ func (p Policy) Validate() error {
 			return fmt.Errorf("%w: p2p peer %q: %v", ErrInvalid, a, err)
 		}
 	}
-	if p.P2P.MaxPeers < 0 || p.P2P.CheckSeconds < -1 || p.P2P.PingSeconds < -1 || p.P2P.PeersPerPolicy < 0 ||
-		p.P2P.MaxOutbound < 0 || p.P2P.HopLimit < 0 || p.P2P.RequestRate < 0 {
+	if p.P2P.MaxPeers < 0 || p.P2P.CheckSeconds < -1 || p.P2P.PingSeconds < -1 || p.P2P.ReviewSeconds < -1 ||
+		p.P2P.MaxOutbound < 0 || p.P2P.HopLimit < 0 || p.P2P.RequestRate < 0 || p.P2P.PrioritySlots < 0 ||
+		p.P2P.BackupSlots < 0 || p.P2P.Margin < 0 || p.P2P.UnlistedConns < -1 || p.P2P.DepthLimit < 0 {
 		return fmt.Errorf("%w: p2p limits must not be negative", ErrInvalid)
+	}
+	if _, err := tracking.New(p.TrackingConfig(), ""); err != nil {
+		return fmt.Errorf("%w: tracking: %v", ErrInvalid, err)
+	}
+	t := p.Tracking
+	if t.PriorityLimit < 0 || t.TimeoutLimit < 0 || t.BlockLimit < 0 || t.TimeoutSeconds < 0 || t.BlockSeconds < 0 || t.EscalateAt < -1 {
+		return fmt.Errorf("%w: tracking limits must not be negative", ErrInvalid)
 	}
 	for _, r := range p.P2P.Registries {
 		if strings.TrimSpace(r) == "" {
@@ -249,6 +315,43 @@ func (p Policy) Validate() error {
 		}
 	}
 	return nil
+}
+
+// TrackingConfig returns the tracking settings this policy asks for.
+func (p Policy) TrackingConfig() tracking.Config {
+	t := p.Tracking
+	c := tracking.Config{
+		Default: t.Template, Custom: t.Custom, Groups: t.Groups, Peers: t.Peers,
+		StartingPoints: t.StartingPoints, NoTimeoutMisses: t.NoTimeoutMisses,
+	}
+	d := tracking.DefaultConfig()
+	c.EscalateAt = d.EscalateAt
+	switch {
+	case t.EscalateAt < 0:
+		c.EscalateAt = 0
+	case t.EscalateAt > 0:
+		c.EscalateAt = t.EscalateAt
+	}
+	c.Limits = d.Limits
+	if t.PriorityLimit > 0 {
+		c.Limits.Priority = t.PriorityLimit
+	}
+	if t.TimeoutLimit > 0 {
+		c.Limits.TimeOut = t.TimeoutLimit
+	}
+	if t.BlockLimit > 0 {
+		c.Limits.Block = t.BlockLimit
+	}
+	if t.TimeoutSeconds > 0 {
+		c.Limits.TimeOutFor = time.Duration(t.TimeoutSeconds) * time.Second
+	}
+	if t.BlockSeconds > 0 {
+		c.Limits.BlockFor = time.Duration(t.BlockSeconds) * time.Second
+	}
+	if t.Weights != nil {
+		c.Weights = *t.Weights
+	}
+	return c
 }
 
 func isLoopback(host string) bool {

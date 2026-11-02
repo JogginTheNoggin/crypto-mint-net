@@ -7,9 +7,10 @@ as one or more pull requests, each stacked on the one before. Milestone 1,
 the consensus core with a transport-independent full-node engine,
 milestone 2, storage and the node daemon with a local RPC, milestone 3,
 the wire protocol with forwarding and ledger data requests, and milestone
-4, peer discovery with relaying and address registries, are done. The next
-milestones add peer ranking and chasing, then a wallet, then large-scale simulation, and
-finally hardening and release. Making the repository public and choosing
+4, peer discovery with relaying and address registries, and milestone 5,
+peer categories, ranking, tracking and chasing, are done. The next
+milestones add a wallet, then large-scale simulation, and finally
+hardening and release. Making the repository public and choosing
 a license are the owner's decisions and are part of milestone 8.
 
 ## Milestones
@@ -20,8 +21,8 @@ a license are the owner's decisions and are part of milestone 8.
 | M2 | Storage and node daemon | Done |
 | M3 | Wire protocol and forwarding | Done |
 | M4 | Peer discovery, relaying, address registries | Done |
-| M5 | Peer categories, ranking, tracking, chasing | Next |
-| M6 | Wallet and user tools | Planned |
+| M5 | Peer categories, ranking, tracking, chasing | Done |
+| M6 | Wallet and user tools | Next |
 | M7 | Network simulator, fuzzing, benchmarks | Planned |
 | M8 | Hardening and open release | Planned |
 
@@ -87,11 +88,31 @@ Left open, as the design leaves them: registry signing and updates to the
 default registry list (there is no project registry yet), and announcing
 dropped policies while running.
 
-### M5: Peer categories, ranking, tracking, chasing
+### M5: Peer categories, ranking, tracking, chasing (done)
 
-Peer categories and ranking from observed behavior, tracking what each peer
-has, flags for misbehavior, and the chasing rules for following stated
-weight without being misled.
+- `pkg/tracking`: flags per address with severities and expiries leading
+  to loss of priority, timeouts and blocks (also of network ranges);
+  measures per mint policy in windows; points; budgets and repeat limits;
+  basic, standard, detailed and custom templates chosen per peer, group
+  and default, with escalation; saved as `tracking.json`.
+- `pkg/peers`: priority and backup states, slots with range and inbound
+  limits, placement and reviews by points with fair comparisons and a
+  margin; blocked addresses refused by the book.
+- `pkg/chase`: the chase queue: stated weights grouped by branch, ordered
+  by evidence and never by weight, with maximum delays, running limits,
+  backoff and a known-bad list.
+- `pkg/p2p`: categories for every verified peer, queues by category,
+  budgets and offences in place of disconnects, reviews, unlisted
+  connections for wallets, pings by category, weight requests as regular
+  checks, and chases that confirm with a priority peer, find the common
+  entry, check the work with provisional layers, and only then fetch the
+  entries; served bytes and repeated requests count against the asker.
+- The node policy's slots, chasing settings and `tracking` section; `poo
+  peer`, `poo tracking`, `poo chases` and their RPC endpoints.
+
+Left for later milestones: tuning the provisional values (M7). Sharing
+what a node records with other nodes is not planned: the design keeps it
+on the node that recorded it.
 
 ### M6: Wallet and user tools
 

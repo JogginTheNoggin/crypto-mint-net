@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
@@ -13,6 +14,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 )
 
 func intp(i int) *int { return &i }
@@ -53,6 +55,21 @@ func TestValidate(t *testing.T) {
 		{"p2p advertise", func(p *nodepolicy.Policy) { p.P2P.Advertise = "node.example:8646" }, true},
 		{"p2p bad advertise", func(p *nodepolicy.Policy) { p.P2P.Advertise = "node.example" }, false},
 		{"p2p ping never", func(p *nodepolicy.Policy) { p.P2P.PingSeconds = -1 }, true},
+		{"p2p slots", func(p *nodepolicy.Policy) { p.P2P.PrioritySlots, p.P2P.BackupSlots = 8, 2 }, true},
+		{"p2p negative slots", func(p *nodepolicy.Policy) { p.P2P.BackupSlots = -1 }, false},
+		{"p2p no unlisted", func(p *nodepolicy.Policy) { p.P2P.UnlistedConns = -1 }, true},
+		{"p2p review never", func(p *nodepolicy.Policy) { p.P2P.ReviewSeconds = -1 }, true},
+		{"tracking detailed", func(p *nodepolicy.Policy) { p.Tracking.Template = "detailed" }, true},
+		{"tracking unknown template", func(p *nodepolicy.Policy) { p.Tracking.Template = "nope" }, false},
+		{"tracking custom", func(p *nodepolicy.Policy) {
+			p.Tracking.Custom = map[string]tracking.Custom{"lean": {From: "basic", Off: []string{"rtt"}}}
+			p.Tracking.Groups = map[string]string{"candidate": "lean"}
+		}, true},
+		{"tracking custom cycle", func(p *nodepolicy.Policy) {
+			p.Tracking.Custom = map[string]tracking.Custom{"x": {From: "y"}, "y": {From: "x"}}
+		}, false},
+		{"tracking unknown group", func(p *nodepolicy.Policy) { p.Tracking.Groups = map[string]string{"friends": "basic"} }, false},
+		{"tracking negative limit", func(p *nodepolicy.Policy) { p.Tracking.BlockLimit = -1 }, false},
 	}
 	for _, c := range cases {
 		p := nodepolicy.Default()
@@ -64,6 +81,25 @@ func TestValidate(t *testing.T) {
 		if err != nil && !errors.Is(err, nodepolicy.ErrInvalid) {
 			t.Errorf("%s: not ErrInvalid: %v", c.name, err)
 		}
+	}
+}
+
+// The tracking section fills a tracker's settings, the defaults standing
+// for whatever it leaves out.
+func TestTrackingConfig(t *testing.T) {
+	p := nodepolicy.Default()
+	d := p.TrackingConfig()
+	if def := tracking.DefaultConfig(); d.Limits != def.Limits || d.EscalateAt != def.EscalateAt {
+		t.Fatalf("defaults %+v", d)
+	}
+	p.Tracking = nodepolicy.Tracking{Template: "detailed", EscalateAt: -1, BlockLimit: 50, TimeoutSeconds: 60}
+	c := p.TrackingConfig()
+	if c.Default != "detailed" || c.EscalateAt != 0 || c.Limits.Block != 50 || c.Limits.TimeOutFor != time.Minute ||
+		c.Limits.TimeOut != d.Limits.TimeOut {
+		t.Fatalf("config %+v", c)
+	}
+	if _, err := tracking.New(c, ""); err != nil {
+		t.Fatal(err)
 	}
 }
 

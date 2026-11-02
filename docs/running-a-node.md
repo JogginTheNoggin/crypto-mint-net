@@ -101,8 +101,24 @@ Two `init` flags help on a real network:
   See [modules/registry.md](modules/registry.md) for the format.
 
 `poo peers` shows the connected peers and the peer book: every address the
-node knows, whether it is a candidate, verified or archived, and what it
-was seen to follow.
+node knows, whether it is a priority peer, a backup, a candidate or
+archived for each mint policy, and its points. The node relies on its
+priority peers, keeps backups ready, and swaps them as their points
+change (see [modules/p2p.md](modules/p2p.md)).
+
+The node also records what each peer does in `tracking.json`. A peer that
+sends invalid data or floods the node is flagged; enough flags time it out
+for 10 minutes or block it for a day. You can look and act yourself:
+
+```sh
+./poo tracking                          # every tracked address and its status
+./poo tracking 203.0.113.5              # one address: flags, measures, points
+./poo peer block -seconds -1 203.0.113.5:8646   # until you unblock it
+./poo peer block -range 203.0.113.5:8646        # its whole network range
+./poo peer unblock 203.0.113.5:8646
+./poo peer template -template detailed 203.0.113.5:8646   # record more
+./poo chases                            # heavier ledgers waiting to be checked
+```
 
 ## Node policies
 
@@ -135,6 +151,10 @@ node holds a lock on its directory.
   addresses it keeps from one network range, and rate-limits each peer's
   requests (decisions D40 to D49). Set `p2p.no_relay` to stop relaying
   other nodes' discovery requests.
+- A peer claiming a heavier ledger is never believed on its word: the node
+  checks the work behind the branch before it fetches any entry, and
+  switches only on weight it computed (decisions D52 to D54). Nothing the
+  tracker records is sent to other nodes.
 - `poo claim` and `poo pay` take a raw seed on the command line, which your
   shell may save in its history. They are developer tools until the wallet
   (milestone 6).

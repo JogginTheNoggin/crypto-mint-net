@@ -3,10 +3,14 @@ package p2p
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
@@ -59,12 +63,17 @@ func (h *Host) poolFor(s wire.Section) *poolInfo {
 }
 
 // handlePushed takes in a transaction, entry, layer or notice a peer sent
-// without being asked. An error disconnects the peer.
+// without being asked. An invalid item is an offence; a malformed message
+// disconnects the peer. A new valid item credits the peer with a first
+// delivery; one already held counts as a repeat.
 func (h *Host) handlePushed(p *peer, m wire.Message) error {
 	pi := h.poolFor(m.Section)
 	if pi == nil {
 		return nil // not a pool this node follows
 	}
+	now := time.Now()
+	text := pi.section.Text()
+	var at *hash.Hash // the branch the message names, for the chase queue
 	switch m.Type {
 	case wire.TypeTx:
 		t, err := wire.DecodeTx(m.Body)
@@ -77,44 +86,82 @@ func (h *Host) handlePushed(p *peer, m wire.Message) error {
 		}
 		// A transaction can be refused for many honest reasons (a race
 		// with a spend, a full pool); none of them is the peer's fault.
-		h.n.HandleTxFrom(t, engine.Pushed, p.id)
+		_, err = h.n.HandleTxFrom(t, engine.Pushed, p.id)
+		h.credit(p, text, "tx", err, now)
 	case wire.TypeEntry:
 		e, err := wire.DecodeEntry(m.Body)
 		if err != nil {
 			return err
 		}
+		eh := e.Hash(pi.s)
+		if h.cq.IsBad(eh, now) || h.cq.IsBad(e.Parent, now) {
+			return nil // a branch shown to be false: dropped at once
+		}
 		_, err = h.n.HandleEntryFrom(pi.key, e, engine.Pushed, p.id)
 		switch {
 		case errors.Is(err, ledger.ErrInvalidEntry):
-			return fmt.Errorf("sent an invalid entry: %w", err)
+			return invalidItem{fmt.Errorf("sent an invalid entry: %w", err)}
 		case errors.Is(err, ledger.ErrUnknownParent):
-			// It builds on something this node lacks: ask the sender.
-			h.startChase(pi, p)
+			// It builds on something this node lacks: the branch to ask
+			// the sender about, if it states a heavier ledger.
+			h.offer(pi, p, m.Stated, &eh)
 			return nil
 		}
+		h.credit(p, text, "entry", err, now)
+		at = &eh
 	case wire.TypeLayer:
 		l, err := wire.DecodeLayer(m.Body)
 		if err != nil {
 			return err
 		}
-		_, err = h.n.HandleLayerFrom(pi.key, l, engine.Pushed, p.id)
-		if errors.Is(err, ledger.ErrUnknownEntry) {
-			h.startChase(pi, p)
+		if h.cq.IsBad(l.Entry, now) {
 			return nil
 		}
+		_, err = h.n.HandleLayerFrom(pi.key, l, engine.Pushed, p.id)
+		switch {
+		case errors.Is(err, ledger.ErrWeakLayer):
+			return invalidItem{fmt.Errorf("sent a layer below the minimum strength: %w", err)}
+		case errors.Is(err, ledger.ErrUnknownEntry):
+			// Not kept or forwarded, but its stated weight can start a
+			// chase for the entry it is on.
+			h.offer(pi, p, m.Stated, &l.Entry)
+			return nil
+		case errors.Is(err, ledger.ErrKnownLayer):
+			err = engine.ErrSeen
+		}
+		h.credit(p, text, "layer", err, now)
+		at = &l.Entry
 	case wire.TypeNotice:
-		if _, err := wire.DecodeNotice(m.Body); err != nil {
+		n, err := wire.DecodeNotice(m.Body)
+		if err != nil {
 			return err
 		}
+		if h.cq.IsBad(n.Tip, now) {
+			return nil
+		}
+		at = &n.Tip
 	}
-	h.checkStated(pi, p, m)
+	h.checkStated(pi, p, m.Stated, at)
 	return nil
 }
 
-// checkStated starts a catch-up when a message states a weight above the
-// node's own. The stated weight is only a reason to ask.
-func (h *Host) checkStated(pi *poolInfo, p *peer, m wire.Message) {
-	if m.Stated.Greater(h.ownWeight(pi)) {
-		h.startChase(pi, p)
+// credit records the outcome of a pushed item: a first delivery when it
+// was new and kept, a repeat when it was held already.
+func (h *Host) credit(p *peer, section, kind string, err error, now time.Time) {
+	switch {
+	case err == nil:
+		h.tr.FirstDelivery(p.key, section, kind, now)
+	case errors.Is(err, engine.ErrSeen) || errors.Is(err, ledger.ErrKnownEntry):
+		h.tr.Item(p.key, section, kind, now)
+		if a := h.tr.Repeat(p.key, now); a != tracking.None {
+			h.act(p, a)
+		}
 	}
+}
+
+// checkStated sends a stated weight above the node's own to the chase
+// queue. The stated weight is only a reason to ask, and never orders the
+// queue.
+func (h *Host) checkStated(pi *poolInfo, p *peer, stated weight.Weight, at *hash.Hash) {
+	h.offer(pi, p, stated, at)
 }

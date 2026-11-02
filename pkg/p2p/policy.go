@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
@@ -17,12 +18,35 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		MaxPeers:  p.P2P.MaxPeers,
 		NoNotices: p.P2P.NoNotices,
 
-		Registries:     append([]string(nil), p.P2P.Registries...),
-		PeersPerPolicy: p.P2P.PeersPerPolicy,
-		MaxOutbound:    p.P2P.MaxOutbound,
-		NoRelay:        p.P2P.NoRelay,
-		HopLimit:       p.P2P.HopLimit,
-		RequestRate:    p.P2P.RequestRate,
+		Registries:  append([]string(nil), p.P2P.Registries...),
+		MaxOutbound: p.P2P.MaxOutbound,
+		NoRelay:     p.P2P.NoRelay,
+		HopLimit:    p.P2P.HopLimit,
+		RequestRate: p.P2P.RequestRate,
+
+		UnlistedConns: p.P2P.UnlistedConns,
+		StrictReturn:  p.P2P.StrictReturn,
+		NoConfirm:     p.P2P.NoConfirm,
+		FastCatchUp:   p.P2P.FastCatchUp,
+		DepthLimit:    p.P2P.DepthLimit,
+	}
+	if p.P2P.PrioritySlots > 0 || p.P2P.BackupSlots > 0 || p.P2P.Margin > 0 {
+		c.Slots = peers.DefaultSlots()
+		if p.P2P.PrioritySlots > 0 {
+			c.Slots.Priority = p.P2P.PrioritySlots
+		}
+		if p.P2P.BackupSlots > 0 {
+			c.Slots.Backup = p.P2P.BackupSlots
+		}
+		if p.P2P.Margin > 0 {
+			c.Slots.Margin = p.P2P.Margin
+		}
+	}
+	switch {
+	case p.P2P.ReviewSeconds < 0:
+		c.ReviewEvery = -1
+	case p.P2P.ReviewSeconds > 0:
+		c.ReviewEvery = time.Duration(p.P2P.ReviewSeconds) * time.Second
 	}
 	d := DefaultConfig().Limits
 	c.Limits = wire.Limits{
