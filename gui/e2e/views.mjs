@@ -190,6 +190,7 @@ try {
   // A file picked in the browser is sent on poo's input: FILE is -.
   await imp.locator('label', { hasText: 'holds every saved policy' }).locator('input').uncheck();
   await imp.locator('input[type=file]').setInputFiles(bundle);
+  await imp.locator('.cmd code', { hasText: / -json -$/ }).waitFor();
   assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json -`);
   await imp.locator('button[type=submit]').click();
   await imp.locator('.import-plan', { hasText: 'already the same' }).waitFor();

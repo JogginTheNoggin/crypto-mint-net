@@ -720,8 +720,7 @@ function importForm(ctx, rootFlag) {
   let picked = null;
   const feed = (args, j) => {
     if (args[args.length - 1] !== '-' || picked === null) return;
-    const text = picked;
-    api.input(j.id, text).then(() => api.eof(j.id)).catch(() => {});
+    picked.then(text => api.input(j.id, text)).then(() => api.eof(j.id)).catch(() => {});
   };
   let last = null;
   const f = form(ctx, { title: 'Import node policies', about: 'Shows what a node policy file would change here: what is new, changed or in conflict. Nothing changes until you press Apply.', fields: [
@@ -749,10 +748,10 @@ function importForm(ctx, rootFlag) {
   } });
   const fileIn = f.inputs.file;
   const pick = el('input', { type: 'file', accept: '.json,application/json', name: 'pick' });
-  pick.onchange = async () => {
+  pick.onchange = () => {
     const file = pick.files && pick.files[0];
     if (!file) return;
-    picked = await file.text();
+    picked = file.text();
     fileIn.value = '-';
     fileIn.dispatchEvent(new Event('input', { bubbles: true }));
   };
