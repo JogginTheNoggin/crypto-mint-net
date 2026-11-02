@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (GUI/Blue, Round 15C); awaiting GUI/Red's verification |
+| Status | fixed (GUI/Blue, Round 15C, PR #68), merged; verified by GUI/Red R16B @ 6a1cdce |
 | Found on | claude/gui-4-watch @ 55cf745 |
 | Component | gui/jobs/jobs.go (`Job.Cancel` closes the job's input, and a read then sees `io.EOF`), pkg/cli/submit.go (`submitHex`: `-f -` reads standard input to its end with `io.ReadAll`), the Pools view's "Submit an entry or layer" form ("From a file": `-`), the GUI terminal's Ctrl-C and Stop |
 | Surface | node (an entry or layer handed to the user's node, which keeps it and serves it to peers) |
@@ -115,3 +115,29 @@ All of it is in the GUI's job layer and page. pkg/cli is unchanged.
   - e2e `terminal.mjs`: the same for Ctrl-C and Ctrl-D.
   - Both e2e checks fail on the old code.
 - docs/gui.md (How it works, and the terminal's keys).
+
+## Notes — Round 16B verification (held up)
+
+These were checked live against poo-gui at main 6a1cdce. Two
+`init -example` data directories, A and B, each ran a node as a GUI job,
+and every step used the GUI's `/api/jobs` requests.
+
+- **Stop no longer submits.** `submit entry -pool 1 -root B -f -`, the
+  hex of an entry built on A sent as one line, then Stop. The job exits
+  1 with "input: the job was stopped: context canceled". B's pool 1 still
+  has 0 entries.
+- **End of input does submit.** The same steps with
+  `POST /api/jobs/{id}/eof` in place of Stop exit 0 with the entry's hash,
+  and B's pool 1 then has 1 entry. This is what Ctrl-D does in a shell.
+- **End of input at a secret prompt fails.** `wallet create` waiting at
+  `new passphrase:` and given an EOF exits 1 with "nothing was entered".
+  No wallet file is written, so an empty passphrase is never taken. The
+  form's "Send and end input" is hidden while the prompt is secret.
+- **Code checks.**
+  - Once the input is closed, `Read` returns `errStopped` before anything
+    buffered. Line readers (`readSecret`, `seed -`) map that error to
+    "no input", so a cancelled prompt never goes ahead.
+  - Input after an EOF is refused with 409, so nothing can be added once
+    the input has ended.
+  - `/eof` is behind the same `X-Poo-GUI` header and Origin check as every
+    other POST, and the token covers it.
