@@ -520,13 +520,24 @@ func readEntryBody(r *http.Request, v any) *Error {
 // bytes (hint when stated is unknown) and doubles the room as it fills,
 // up to stated when that is known and not yet reached, so what it sets
 // aside is never more than twice what has arrived, nor more than the
-// stated size once the room has grown to it.
+// stated size once the room has grown to it. Past the hint it starts
+// with the stated size halved until it fits, so the doublings end at
+// exactly the stated size: starting at the hint itself, the last
+// doubling of a body just over a power of two copied the whole body
+// again for its last few bytes (ORANGE-026).
 func readSized(rd io.Reader, stated, hint int64) ([]byte, error) {
-	room := hint
-	if stated >= 0 {
-		room = min(stated, hint)
+	room := max(hint, 512) + 1 // +1: the read that sees EOF
+	switch {
+	case stated > hint:
+		want := stated + 1
+		for want > room {
+			want = (want + 1) / 2
+		}
+		room = want
+	case stated >= 0:
+		room = max(stated, 512) + 1
 	}
-	buf := make([]byte, 0, max(room, 512)+1) // +1: the read that sees EOF
+	buf := make([]byte, 0, room)
 	for {
 		if len(buf) == cap(buf) {
 			grow := int64(cap(buf)) * 2
