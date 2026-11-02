@@ -63,3 +63,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-023](source/ORANGE-023-probe-throws-the-whole-reply-away.md) | Source | Probing measured; a probe throws the whole reply away | adopted (D142) |
 | [GREEN-038](source/GREEN-038-headless-gui-parity.md) | Source | Keep the command line level with the GUI | adopted (D143) |
 | [GREEN-039](source/GREEN-039-submit-from-the-command-line.md) | Source | Make `poo submit` usable with `poo` alone | proposed (prototyped) |
+| [ORANGE-024](source/ORANGE-024-round-14-room-contention-measured.md) | Source | Contention at the disk reserve measured after D142; no change proposed | measured |
