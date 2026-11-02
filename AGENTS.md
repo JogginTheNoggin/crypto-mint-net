@@ -174,6 +174,13 @@ that would alter what the node accepts, selects or sends is a design
 question for Grey, not an optimization. Orange benchmarks only against
 nodes and simulations it runs itself, like Red.
 
+Features are modular and extensible by default (docs/FEATURES.md). Where
+that really hurts performance for a specific piece or feature, Orange may
+challenge it (owner, 2026-11-02): an Orange proposal can ask for a less
+modular form of that one piece, backed by its measurements, and Grey
+decides. The challenge never covers consensus rules or the rule that the
+GUI runs the headless code.
+
 Threads talk through these files and through thread messages that name
 a branch, a commit and finding ids. Decisions still go in
 `docs/decisions.md`: take the next free number, and check the newest
