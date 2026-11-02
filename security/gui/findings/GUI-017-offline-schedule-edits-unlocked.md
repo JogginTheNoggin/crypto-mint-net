@@ -7,7 +7,7 @@
 | Found on | claude/gui-4-watch @ 4108866 (Source claude/m10-watch @ 72d6f25) |
 | Component | pkg/cli/grind.go (`grindSchedule`: the path without a node), pkg/nodepolicy (`Load`, `Save`, `Lock`) |
 | Surface | node (node.json's grind section) |
-| Fixed by | _(pending — Source, via GUI/Grey; the GUI needs no change)_ |
+| Fixed by | Source: D134 (the data-dir lock on unix) and D147 (`LockFileEx` on Windows). Routed by GUI/Blue via GUI/Grey; the GUI needed no change. Closed in Round 17C. |
 
 ## Summary
 
