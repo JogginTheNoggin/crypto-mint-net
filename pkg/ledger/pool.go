@@ -114,6 +114,10 @@ type Pool struct {
 	st    *state.State // pool state at the selected tip
 	tids  map[hash.Hash]*node
 	seq   uint64
+	// newest is the entry added last. It is never pruned while it is a
+	// leaf, so a branch fetched parent first can take its layers and its
+	// next entry before it is ranked (decision D79).
+	newest *node
 }
 
 // New returns an empty pool: no entries, weight 0, nothing claimed.
@@ -366,6 +370,7 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 		}
 	}
 	p.nodes[h] = n
+	p.newest = n
 
 	res := AddResult{Hash: h}
 	if p.weightOf(n).Greater(p.Weight()) {
@@ -725,7 +730,8 @@ func (p *Pool) offChainLeaves() []*node {
 
 // prune drops inactive branches beyond the top K, ranked by weight and then
 // by first sighting. Leaves whose ledger ties with the selected one are kept
-// separately, up to Ties of them, earliest first. Entries shared with a kept
+// separately, up to Ties of them, earliest first. The newest entry is kept
+// while it is a leaf, beyond those limits (D79). Entries shared with a kept
 // branch or the selected ledger stay. A dropped entry is forgotten, not
 // lost: it can be given again.
 func (p *Pool) prune() []hash.Hash {
@@ -751,6 +757,9 @@ func (p *Pool) prune() []hash.Hash {
 	}
 	var dropped []hash.Hash
 	for _, l := range drop {
+		if l == p.newest {
+			continue
+		}
 		// Remove l and its ancestors up to the first one that is selected
 		// or still has other children.
 		x := l

@@ -496,25 +496,6 @@ func locate(sm *Sim, i int, pool uint64, tid hash.Hash) (bool, hash.Hash) {
 	return ok, h
 }
 
-// descends reports whether entry tip's ledger at node i holds entry h.
-func descends(sm *Sim, i int, pool uint64, tip, h hash.Hash) bool {
-	found := false
-	sm.nodes[i].Eng.Ledger(sm.Pool(pool), func(p *ledger.Pool) {
-		for cur := tip; ; {
-			if cur == h {
-				found = true
-				return
-			}
-			e, ok := p.Entry(cur)
-			if !ok {
-				return
-			}
-			cur = e.Parent
-		}
-	})
-	return found
-}
-
 // SizingRow is one pool size of a sizing sweep.
 type SizingRow struct {
 	PoolSize uint64 `json:"pool_size"`

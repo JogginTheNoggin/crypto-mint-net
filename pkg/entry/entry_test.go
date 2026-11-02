@@ -130,7 +130,7 @@ func TestCheckAgainst(t *testing.T) {
 	spend := k.Spend(4, []testutil.In{k.Out(claim, 0, "alice")}, P("bob", 100))
 	e, _, _ = entry.Build(s, s.PoolID(1), []*tx.Tx{claim, spend}, 0)
 	_, its, _ = entry.CheckStructure(s, 1, e)
-	if err := entry.CheckAgainst(s, state.New(), its); !errors.Is(err, entry.ErrInvalidTx) || !errors.Is(err, entry.ErrInvalidTx) {
+	if err := entry.CheckAgainst(s, state.New(), its); !errors.Is(err, entry.ErrInvalidTx) {
 		t.Errorf("dependency inside an entry: want ErrInvalidTx, got %v", err)
 	}
 

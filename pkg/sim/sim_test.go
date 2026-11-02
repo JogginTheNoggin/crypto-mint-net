@@ -88,6 +88,22 @@ func TestPartitionScenario(t *testing.T) {
 	}
 }
 
+// A larger network split for longer has more stale siblings than K on
+// each side. Each side must still fetch the other's heavier ledger entry
+// by entry after the heal (decision D79: before it, half the network
+// stayed on the lighter side for good).
+func TestLongPartitionLargerNetwork(t *testing.T) {
+	n := sim.DefaultNet()
+	n.Nodes, n.Builders = 24, 6
+	r, err := sim.Partition(1, n, testutil.ExampleSeries(), 60*sim.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Agree || r.Winner != r.HeavierSide || r.Lost != 0 {
+		t.Fatalf("partition: %+v", r)
+	}
+}
+
 func TestAttackScenario(t *testing.T) {
 	c := sim.AttackConfig{Net: sim.DefaultNet(), Share: 0.3, Threshold: weight.FromUint64(2000), HeadStart: 2 * sim.Second, GiveUp: 60 * sim.Second}
 	r, err := sim.Attack(1, c, testutil.ExampleSeries())

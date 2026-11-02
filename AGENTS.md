@@ -32,8 +32,9 @@ a byte form without updating the test vectors on purpose.
   Consensus reads no clock; the ledger records first-seen times only
   through an injected clock that selection never reads.
 - `go test ./pkg/vectors` failing means you changed an encoding or a hash.
-  That changes every id in every series. Do it only on purpose, record it, and
-  regenerate with `go test ./pkg/vectors -update`.
+  That changes every id in every series. Byte form v1 is frozen (D76): do
+  not edit it. A new form is a new format version beside v1, with its own
+  vectors; `TestByteFormV1Frozen` fails otherwise, whatever `-update` does.
 - Prefer extending the randomized model test in `pkg/ledger` over adding only
   hand-written cases when you touch selection, switching or pruning.
 - Keep node policy in configuration with documented, provisional defaults.

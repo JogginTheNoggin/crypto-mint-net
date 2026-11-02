@@ -328,11 +328,17 @@ func TestStoredOrigin(t *testing.T) {
 	if _, _, err := e.Work(key, en.Hash(s), 0, 100); err != nil {
 		t.Fatal(err)
 	}
-	// A lighter sibling: kept, then pruned at once with K = 0.
+	// A lighter sibling: kept while it is the newest entry (D79), then
+	// pruned with K = 0 once another arrives.
 	rival, _, _ := entry.Build(s, s.PoolID(1), []*tx.Tx{k.Claim(4, P("eve", 100))}, 0)
 	res, err := e.HandleEntry(key, rival, engine.Pushed)
-	if err != nil || len(res.Pruned) != 1 {
+	if err != nil || len(res.Pruned) != 0 {
 		t.Fatalf("rival: %v %+v", err, res)
+	}
+	next, _, _ := entry.Build(s, en.Hash(s), []*tx.Tx{k.Claim(5, P("bob", 100))}, 0)
+	res, err = e.HandleEntry(key, next, engine.Pushed)
+	if err != nil || len(res.Pruned) != 1 || res.Pruned[0] != rival.Hash(s) {
+		t.Fatalf("next: %v %+v", err, res)
 	}
 	// Pushed again it is on the seen list; read back from the store it is
 	// taken in again, and not forwarded.

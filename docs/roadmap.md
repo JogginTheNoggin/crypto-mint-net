@@ -8,10 +8,11 @@ the consensus core with a transport-independent full-node engine,
 milestone 2, storage and the node daemon with a local RPC, milestone 3,
 the wire protocol with forwarding and ledger data requests, and milestone
 4, peer discovery with relaying and address registries, and milestone 5,
-peer categories, ranking, tracking and chasing, are done. The next
-milestones add a wallet, then large-scale simulation, and finally
-hardening and release. Making the repository public and choosing
-a license are the owner's decisions and are part of milestone 8.
+peer categories, ranking, tracking and chasing, milestone 6, the wallet,
+and milestone 7, the simulator with fuzzing and benchmarks, are done.
+Milestone 8 has its security review, stable byte form, release builds and
+changelog in place. What is left of it is the owner's: choosing a license,
+tagging the first release, and making the repository public.
 
 ## Milestones
 
@@ -24,7 +25,7 @@ a license are the owner's decisions and are part of milestone 8.
 | M5 | Peer categories, ranking, tracking, chasing | Done |
 | M6 | Wallet and user tools | Done |
 | M7 | Network simulator, fuzzing, benchmarks | Done |
-| M8 | Hardening and open release | Next |
+| M8 | Hardening and open release | In progress (owner steps left) |
 
 ### M1: Consensus core and full-node engine (done)
 
@@ -143,8 +144,9 @@ hand-off), and a wallet over a remote node with TLS.
   could stay waiting forever (decision D72).
 - Fuzz targets for every decoder, run in CI (`scripts/fuzz.sh`).
 - Benchmarks for transactions, layer hashing, the ledger and the store.
-- The provisional defaults are kept; the simulator's K measurement
-  supports K = 8 (decision D74).
+- The provisional defaults are kept (decision D74). The measurement that
+  seemed to favour K = 8 turned out, at milestone 8, to be a pruning bug
+  (decision D79).
 
 Left for later: the remaining "tests to run" that need more workload
 models (uneven activity, one stockpile and several spends, spam and
@@ -154,6 +156,25 @@ chasing, and runs on real series parameters.
 
 ### M8: Hardening and open release
 
-Security review, a stable byte form v1 declaration, release builds, a
-license, and making the repository public. Both the license and the
-visibility change need the owner's explicit approval.
+Done:
+
+- A security review ([security.md](security.md)): threat model, checks,
+  and three fixes. Inbound connections get their own cap (D75), the
+  toolchain moves to a supported Go release (D77), and static-analysis
+  findings are fixed.
+- Byte form v1 and wire version 1 declared stable, with a test that the
+  published vectors never change (D76).
+- Reproducible release builds for seven platforms, a tag workflow that
+  opens a draft release, and [releasing.md](releasing.md) (D78).
+- [SECURITY.md](../SECURITY.md) and [CHANGELOG.md](../CHANGELOG.md).
+- A full re-run on the release candidate: the race-detected test suite
+  three times, every fuzz target for 2 minutes, and every simulation at
+  16 to 128 nodes. It found a bug in pruning that could keep a node on a
+  lighter ledger after a partition, now fixed (decision D79).
+
+Left, each needing the owner's explicit approval:
+
+- A license, then a `LICENSE` file, which release archives pick up.
+- Enabling private vulnerability reporting, which SECURITY.md points to.
+- Tagging `v0.1.0` and publishing the draft release.
+- Making the repository public.

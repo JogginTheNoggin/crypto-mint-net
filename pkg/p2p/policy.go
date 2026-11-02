@@ -20,6 +20,7 @@ func FromPolicy(p nodepolicy.Policy) Config {
 
 		Registries:  append([]string(nil), p.P2P.Registries...),
 		MaxOutbound: p.P2P.MaxOutbound,
+		MaxInbound:  p.P2P.MaxInbound,
 		NoRelay:     p.P2P.NoRelay,
 		HopLimit:    p.P2P.HopLimit,
 		RequestRate: p.P2P.RequestRate,

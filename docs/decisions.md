@@ -40,7 +40,13 @@ co-signing through a file (D69), and light mode as a full node following
 less (D70). Milestone 7 adds a simulator of real engines over a modelled
 network (D71), fixes a pending-pool bug it found (D72), fuzzes every
 decoder for a single encoding per value (D73), and keeps the provisional
-defaults on the evidence so far (D74).
+defaults on the evidence so far (D74). Milestone 8 hardens for release:
+inbound connections cannot take the outbound slots (D75), byte form v1 and
+wire version 1 are frozen (D76), releases build with a supported, patched
+Go toolchain (D77), and release archives are reproducible and published as
+drafts the owner approves (D78). Re-running the simulator at larger sizes
+found that pruning could drop a heavier ledger while it was being fetched,
+fixed by keeping the newest entry (D79).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -49,8 +55,8 @@ entry "Superseded by Dn".
 
 ### D1. Go, standard library only
 
-- **Decision:** The node is written in Go 1.24 and imports nothing outside
-  the standard library.
+- **Decision:** The node is written in Go (1.24 at first, see D77 for the
+  current version) and imports nothing outside the standard library.
 - **Why:** Go builds a single static binary for every platform, has
   first-class concurrency and networking for later milestones, and ships
   SHA-256 and Ed25519. No third-party code means nothing to audit or pin in
@@ -965,4 +971,83 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   defaults of D62 are not exercised, since the simulator does not model
   ranking. They stay provisional until a ranking model or a test network
   measures them.
+- **Revised by D79:** the splits with K = 1 or 2 were D79's pruning bug,
+  not a property of small K. With it fixed, K = 1, 2 and 8 each kept all
+  20 networks in agreement. K stays 8: the measurements no longer argue
+  for it, but nothing argues against it, and it costs little.
 - **Tier:** Node policy.
+
+### D75. Inbound connections cannot take the outbound slots
+
+- **Decision:** A new `MaxInbound` caps connections other nodes open. By
+  default it is `MaxPeers` less `MaxOutbound` (24 of 32), so the slots for
+  peers the node dials itself are always free. Node policy
+  `p2p.max_inbound` sets it; -1 leaves only `MaxPeers`.
+- **Why:** Before this, anyone could open `MaxPeers` connections to a
+  node, answer its follow request, and leave no room for the peers it
+  chose: an eclipse. The security review (docs/security.md) found it.
+  Outbound peers come from the node's own discovery and ranking, which an
+  attacker cannot fill by connecting.
+- **Tier:** Node policy.
+
+### D76. Byte form v1 and wire version 1 are frozen
+
+- **Decision:** From release 0.1.0 the byte forms of
+  [protocol/encoding.md](protocol/encoding.md) never change in place. A
+  change is a new format version, chosen by a series through its
+  parameters' format version byte. `TestByteFormV1Frozen` checks the
+  digest of the published vectors, which `-update` cannot get past. Wire
+  version 1 keeps its message types and bodies; new behaviour comes as
+  new types (ignored by older nodes) or a new wire version in the hello.
+- **Why:** Every id in a series is a hash over these bytes. An in-place
+  change would split every network running the old code, and independent
+  implementations need a fixed target.
+- **Tier:** Consensus (byte form) and protocol (wire).
+
+### D77. A supported, patched toolchain
+
+- **Decision:** `go.mod` says `go 1.26.0` (the oldest supported Go
+  release) and `toolchain go1.27.3` (the newest patch), and CI and release
+  builds use the toolchain line. The security review runs `govulncheck`
+  and `staticcheck` before each release.
+- **Why:** On Go 1.24.7, `govulncheck` reported 37 reachable standard
+  library vulnerabilities (in `net/http`, `crypto/tls`, `crypto/x509` and
+  others), and Go 1.24 no longer gets fixes. With 1.27.3 it reports none.
+  The code needed no change.
+- **Tier:** Implementation.
+
+### D78. Reproducible release archives, published as drafts
+
+- **Decision:** `scripts/release.sh VERSION` builds `poo` for Linux,
+  macOS, Windows (amd64 and arm64) and FreeBSD (amd64) with
+  `CGO_ENABLED=0 -trimpath -buildvcs=false -buildid=`, packs each with
+  fixed times and owners, and writes `SHA256SUMS`. Pushing a tag `vX.Y.Z`
+  runs it in CI and opens a draft release. Only the owner tags and
+  publishes.
+- **Why:** Anyone can rebuild an archive from the tag and compare the
+  digest, so a published binary need not be trusted. A draft keeps
+  publishing, like the license and the repository's visibility, the
+  owner's call.
+- **Tier:** Tooling.
+
+### D79. The newest entry is not pruned while it is a leaf
+
+- **Decision:** Pruning (D12) never drops the entry added last while it has
+  no children. It is ranked again, and dropped if it is still beyond the
+  limits, as soon as another entry arrives. This keeps at most one branch
+  beyond K and Ties.
+- **Why:** A node catching up takes a rival ledger one entry at a time, from
+  the fork, each followed by its layers. Its first entries alone are light,
+  and once a node had K stale siblings heavier than that (more builders, longer
+  partitions), each one was pruned the moment it arrived, before its layers
+  could count. The next entry then had no parent, and the node stayed on
+  the lighter ledger for good. The simulator found it at milestone 8: 24
+  nodes split for 60 seconds left half the network on the losing side
+  after the heal, with every node asking for the same entry forever.
+  `pkg/p2p`'s chase adds entries the same way, so real nodes had the bug
+  too. `TestRivalFetchedEntryByEntryIsKept` and
+  `TestLongPartitionLargerNetwork` pin the fix, and
+  `TestHeavierRivalBeyondKSiblings` shows it over real connections: before
+  the fix, two nodes never agreed.
+- **Tier:** Node policy (what a node keeps). Selection and validity are
+  unchanged.

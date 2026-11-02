@@ -106,6 +106,11 @@ type Config struct {
 	Registries []string
 	// MaxOutbound caps connections this node dials itself.
 	MaxOutbound int
+	// MaxInbound caps connections other nodes open to this one. By
+	// default it is MaxPeers less MaxOutbound, so that inbound connections
+	// cannot take the slots the node keeps for peers it chose itself
+	// (decision D75). Negative: no inbound cap besides MaxPeers.
+	MaxInbound int
 	// ManageEvery is how often the connection manager runs (negative:
 	// never; then only listed peers are dialled).
 	ManageEvery time.Duration
@@ -260,6 +265,12 @@ func (c *Config) fill() {
 	if c.MaxOutbound == 0 {
 		c.MaxOutbound = d.MaxOutbound
 	}
+	if c.MaxInbound == 0 {
+		c.MaxInbound = c.MaxPeers - c.MaxOutbound
+	}
+	if c.MaxInbound <= 0 || c.MaxInbound > c.MaxPeers {
+		c.MaxInbound = c.MaxPeers
+	}
 	if c.ManageEvery == 0 {
 		c.ManageEvery = d.ManageEvery
 	}
@@ -343,7 +354,6 @@ type Host struct {
 	mu      sync.Mutex
 	peers   map[string]*peer
 	nodeIDs map[hash.Hash]string
-	seq     int
 	reqs    *idCache
 	ln      net.Listener
 	ctx     context.Context
@@ -565,7 +575,7 @@ func (h *Host) acceptLoop(ln net.Listener) {
 			return
 		}
 		h.mu.Lock()
-		full := len(h.peers) >= h.cfg.MaxPeers
+		full := h.fullLocked(false)
 		h.mu.Unlock()
 		remote := c.RemoteAddr().String()
 		if full || !h.tr.Status(remote, time.Now()).Allowed() {
@@ -578,6 +588,24 @@ func (h *Host) acceptLoop(ln net.Listener) {
 			return
 		}
 	}
+}
+
+// fullLocked reports whether a new connection, inbound or outbound, would
+// pass a cap. h.mu is held.
+func (h *Host) fullLocked(outbound bool) bool {
+	if len(h.peers) >= h.cfg.MaxPeers {
+		return true
+	}
+	if outbound {
+		return false
+	}
+	in := 0
+	for _, p := range h.peers {
+		if !p.outbound {
+			in++
+		}
+	}
+	return in >= h.cfg.MaxInbound
 }
 
 // dialLoop keeps a listed peer connected, whatever the connection

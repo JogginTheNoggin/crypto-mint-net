@@ -98,17 +98,6 @@ func (b *inbox) close() {
 	}
 }
 
-// lengths reports how many wait in each queue.
-func (b *inbox) lengths() [4]int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	var out [4]int
-	for i := range b.qs {
-		out[i] = len(b.qs[i])
-	}
-	return out
-}
-
 // workLoop handles queued messages one at a time: the engine checks one
 // item at a time anyway, and one worker keeps each queue in order.
 func (h *Host) workLoop(ctx context.Context) {
