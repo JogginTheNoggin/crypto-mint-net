@@ -187,6 +187,30 @@ try {
   const used = new Set(await page.locator('section.panel .cmd code').evaluateAll(cs => cs.map(c => c.textContent.split(' ')[2])));
   const help = execFileSync(bin, ['poo', 'wallet', 'help'], { env }).toString();
   for (const sub of [...help.matchAll(/^  ([a-z]+) /gm)].map(m => m[1])) assert.ok(used.has(sub), `the Wallet view runs poo wallet ${sub}`);
+
+  // Every command poo help lists is run by some view or Getting started
+  // step, or is here with the reason it stays in the terminal (GREEN-040).
+  const TERMINAL_ONLY = {
+    help: 'the terminal\'s own help, and every form shows its line',
+    completion: 'sets up a shell, not this GUI',
+    holdings: 'older form of poo unspent, kept for scripts; Explore runs unspent',
+    payment: 'older form of poo tx, kept for scripts; Explore runs tx',
+    claim: 'claims with a raw key file; the Wallet view claims from the wallet',
+    pay: 'pays with a raw key file; the Wallet view pays from the wallet',
+  };
+  const ran = new Set();
+  for (const v of ['start', 'node', 'pools', 'peers', 'wallet', 'policies', 'crypto', 'work', 'watch', 'explore']) {
+    await page.click(`nav a[data-id=${v}]`);
+    await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
+    await page.locator('#main .cmd code, #main .step-cmd code').first().waitFor();
+    for (const t of await page.locator('#main .cmd code, #main .step-cmd code').allInnerTexts()) ran.add(t.split(' ')[1]);
+  }
+  const top = execFileSync(bin, ['poo', 'help'], { env }).toString();
+  for (const cmd of new Set([...top.matchAll(/^  poo ([a-z]+)/gm)].map(m => m[1]))) {
+    assert.ok(ran.has(cmd) || TERMINAL_ONLY[cmd], `a view runs poo ${cmd}, or TERMINAL_ONLY says why not`);
+  }
+  await page.click('nav a[data-id=wallet]');
+  await page.fill('.wallet-pick input', 'w2.json');
   await page.fill('.wallet-pick input', '');
 
   // A result has a Copy output button for poo's exact output.
