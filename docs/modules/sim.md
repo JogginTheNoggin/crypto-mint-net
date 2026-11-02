@@ -100,7 +100,7 @@ public until the receiver's node drops the payment or `GiveUp` passes.
   with `-short`);
 - the sizing sweep, config errors, and a private node's release.
 
-The scenarios run in seconds. `cmd/poo/sim_test.go` drives `poo sim`.
+The scenarios run in seconds. `pkg/cli/sim_test.go` drives `poo sim`.
 
 ## Extending
 

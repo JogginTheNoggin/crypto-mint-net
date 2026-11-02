@@ -1,7 +1,6 @@
-package main
+package cli
 
 import (
-	"bufio"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -57,10 +56,6 @@ comes from $POO_PASSPHRASE, -passphrase-file, or a line on standard input.
 The series and node come from the node policy flags, as for other commands.
 `
 
-// stdin is where passphrases are read when no other source is given; tests
-// replace it.
-var stdin io.Reader = os.Stdin
-
 // createIterations is the PBKDF2 work factor of new wallets; zero means
 // the default. Tests lower it.
 var createIterations int
@@ -100,7 +95,7 @@ func (f *walletFlags) passphrase(out io.Writer, prompt string) (string, error) {
 		return strings.TrimRight(string(b), "\r\n"), nil
 	}
 	fmt.Fprint(out, prompt)
-	line, err := bufio.NewReader(stdin).ReadString('\n')
+	line, err := inputOf(out).ReadString('\n')
 	if err != nil && (err != io.EOF || line == "") {
 		return "", errors.New("no passphrase: set POO_PASSPHRASE or use -passphrase-file")
 	}
@@ -303,7 +298,7 @@ func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 		p = v
 	default:
 		fmt.Fprint(out, "new passphrase: ")
-		line, _ := bufio.NewReader(stdin).ReadString('\n')
+		line, _ := inputOf(out).ReadString('\n')
 		p = strings.TrimRight(line, "\r\n")
 	}
 	if p == "" {

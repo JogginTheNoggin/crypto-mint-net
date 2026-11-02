@@ -26,7 +26,8 @@ holder's keys and talks to a node only through reads and submissions.
 
 ```mermaid
 graph TD
-  cmd[cmd/poo] --> rpc
+  main[cmd/poo] --> cmd
+  cmd[cli] --> rpc
   cmd --> node
   cmd --> p2p
   rpc --> node
@@ -97,7 +98,7 @@ project. Every package above `policy` also imports `hash`, and most import
 | Node | `store`, `node`, `rpc` | Disk, the data directory, local control |
 | Network | `wire`, `peers`, `registry`, `tracking`, `chase`, `p2p` | Messages between full nodes, the peer book and ranking, bootstrap lists, peer tracking, the chase queue, discovery, forwarding, catch-up |
 | Wallet | `wallet` | Keys from one seed, payments, requests, co-signing, following weight |
-| Tools | `cmd/poo`, `sim`, `vectors`, `testutil` | CLI, demo, network simulator, published vectors, test helpers |
+| Tools | `cmd/poo`, `cli`, `sim`, `vectors`, `testutil` | CLI, demo, network simulator, published vectors, test helpers |
 
 ## The three tiers
 

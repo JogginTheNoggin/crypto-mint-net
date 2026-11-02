@@ -73,7 +73,7 @@ a byte form without updating the test vectors on purpose.
 | What a node records about a peer's behaviour, offences and points | `pkg/tracking` (a setting bit, a measure, an offence rule) |
 | Which heavier ledger to check next | `pkg/chase` (the queue); the steps of a chase are in `pkg/p2p/chase.go` |
 | A new policy type or key algorithm | `pkg/policy` (register it; never reuse a number) |
-| How a holder chooses coins, derives keys, pays or follows a payment | `pkg/wallet` (a decision for each habit), `poo wallet` in `cmd/poo/wallet.go` |
+| How a holder chooses coins, derives keys, pays or follows a payment | `pkg/wallet` (a decision for each habit), `poo wallet` in `pkg/cli/wallet.go` |
 | A network experiment, or one of the design's "tests to run" | `pkg/sim` (a scenario returning a report), `poo sim`, and its numbers in `docs/simulation.md` |
 | A new series setting | `pkg/series` (changes the byte form and so the vectors) |
-| The command-line tool | `cmd/poo` |
+| The command-line tool | `pkg/cli` (every command; the GUI runs it too), `cmd/poo` (the process around it) |

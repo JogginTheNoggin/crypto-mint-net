@@ -32,7 +32,7 @@ Read [docs/architecture.md](docs/architecture.md) first. In short, packages
 form layers, and a package only imports packages below it:
 
 ```
-cmd/poo
+cmd/poo (only calls cli)  cli
   sim
   rpc
     wallet
