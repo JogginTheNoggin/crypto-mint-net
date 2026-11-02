@@ -235,6 +235,10 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 	fs.Func("pool", "pool indices of the series (repeatable, comma-separated; none: the whole series)", nums(&pools))
 	fs.Func("mint", "mint serials of the series, each followed with its pool (repeatable, comma-separated)", nums(&mints))
 	noReload := fs.Bool("no-reload", false, "change node.json only; a running node applies it on its next reload or start")
+	replace := new(bool)
+	if !remove {
+		replace = fs.Bool("replace", false, "with -series: follow exactly these pools and mints of the series in place of what is followed now, in one change (GREEN-038)")
+	}
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -261,7 +265,7 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 	if viewOnlyOf(out) {
 		return errViewOnly(name)
 	}
-	req := rpc.FollowRequest{Remove: remove, Pools: pools, Mints: mints, NoReload: *noReload}
+	req := rpc.FollowRequest{Remove: remove, Replace: *replace, Pools: pools, Mints: mints, NoReload: *noReload}
 	for _, x := range []struct {
 		flag string
 		v    string
@@ -309,9 +313,12 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 		return err
 	}
 	f := nodepolicy.Follow{Issuer: req.Issuer, Series: req.Series, Pools: pools, Mints: mints}
-	if remove {
+	switch {
+	case *replace:
+		err = p.ReplaceFollow(f)
+	case remove:
 		err = p.RemoveFollow(f)
-	} else {
+	default:
 		err = p.AddFollow(f)
 	}
 	if err == nil {

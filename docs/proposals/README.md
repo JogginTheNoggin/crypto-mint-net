@@ -60,3 +60,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-036](source/GREEN-036-doctor-fix-dir-and-live-floor.md) | Source | Doctor fixes that change the checked policy, and a live layer floor | adopted (D138) |
 | [ORANGE-022](source/ORANGE-022-slow-fetches-finish-first-keeps.md) | Source | Turn-taking measured; the fetch that would finish first keeps the room | superseded by D139 and D140 (finding upheld; D141) |
 | [GREEN-037](source/GREEN-037-say-when-a-reload-is-due.md) | Source | Say when a node.json change waits for a reload | adopted (D141) |
+| [GREEN-038](source/GREEN-038-headless-gui-parity.md) | Source | Keep the command line level with the GUI | proposed (prototyped in part) |
