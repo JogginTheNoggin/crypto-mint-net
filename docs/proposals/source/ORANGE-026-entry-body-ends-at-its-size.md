@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D149) |
 | Based on | `main` @ `b502960` |
 | Area | `pkg/rpc` (`readSized`) |
 | Effort | one function |

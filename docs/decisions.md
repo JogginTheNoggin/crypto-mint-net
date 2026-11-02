@@ -2802,3 +2802,71 @@ a chase takes in after checking their work are not charged.
   RPC client). No consensus change and no limit. Tests: `TestWriteFile`,
   `TestSubmitEntryHexSendsItsLength` (fails on b502960),
   `TestHoldSaysWhenBusy`, `TestHeldWalletWaitersSayWhy`.
+
+### D149. Round 17: node policy export and import; GUI-022 fixed; GREEN-041 and ORANGE-026 adopted
+
+- **Decision:**
+  - **Bundles.** One JSON file, a bundle (`nodepolicy.Bundle`, kind
+    `poo-node-policies`, format 1), carries node policies between nodes.
+    Its scope is a series (one series, how it is followed, its issuer),
+    a policy (one node policy) or a node (every saved node policy, each
+    by name, with the current one marked). A `settings` member is
+    reserved for the node's settings, which a later format adds. The
+    owner asked for this on 2026-11-02, for sharing, several machines and
+    backups.
+  - **Export** (`poo policy export`) leaves out the machine-local
+    settings (`nodepolicy.MachineLocal`: `rpc`, `no_sync`, `p2p.listen`,
+    `p2p.advertise`, the grind device and threads) unless `-full`, and
+    always the unused `fast_catch_up` and `depth_limit`. No secret is in
+    a bundle, since none is in node.json.
+  - **Import** (`poo policy import FILE`) prints a plan and changes
+    nothing without `-apply`. The default merge only adds: new series,
+    follows merged as `AddFollow` does, accepted issuers, peers,
+    registries and grind jobs as sets, and every single setting the
+    node leaves unset. Where both set a value and they differ, the node
+    keeps its own and the plan lists the conflict. `-prefer-file` takes
+    the file's, `-replace` takes the file's node policy whole, and
+    `-full` takes machine-local settings too. A series bundle touches
+    only series, follows and accepted issuers. A node bundle goes into
+    each saved node policy by name, creating the missing ones, and is
+    refused before any change if one of those names is archived. The
+    result must validate, or nothing is written.
+  - **Reading** refuses unknown fields rather than dropping them, a
+    newer format, more than 16 MiB or 256 node policies, an invalid
+    node policy or series, and bad or repeated names. A plain node.json
+    imports as a bundle of one.
+  - **A running node** takes an import through `POST /v1/policy/import`
+    under the lock its follow edits use, and reloads. It never takes an
+    `rpc` section, even with `-full`. Where the interface listens and
+    who may reach it changes only in node.json with the node stopped,
+    so a token holder cannot open the interface to the network. With no
+    node running, the CLI edits node.json under the data directory's
+    lock.
+  - **GUI-022 (GUI/Red, medium).** `Wallet.Hold` no longer adopts a
+    file whose seal changed since the command was unlocked: it returns
+    `ErrPassphraseChanged` and the command does nothing. A passphrase
+    rotation then revokes commands already waiting at a prompt, and a
+    stale `passwd` never re-seals over the owner's change, as under
+    D145. Other changes saved meanwhile are still taken in (D146).
+  - **Merged with this round:** BLUE-017 (D148), GREEN-041 (help lists
+    only the flags a command takes), ORANGE-026 (the entry body's buffer
+    ends at its stated size) and Black's Round 16 review (10 clear, 0
+    blocked).
+- **Why:** the owner's feature request, and the Round 16 queue.
+- **Consensus:** none. A bundle holds only node policy and is checked as
+  node.json is. No import can add a depth limit (node.json has none) or
+  make a heavier ledger unacceptable. Black reviews this in Part D.
+- **What is left:** the GUI form (GUI Part A, after this merges); the
+  settings export, when the owner asks; signing a bundle, so that a
+  shared file can be checked against its publisher (not done: there is
+  no key to sign with yet, and the plan already shows every series,
+  peer and registry a file adds).
+- **Tier:** Implementation (node policy, the wallet, the CLI and the
+  local RPC). Tests: `TestExportStripsMachineLocal`, `TestBundleRoundTrip`,
+  `TestReadBundleRefuses`, `TestMergeAddsAndKeepsLocal`,
+  `TestMergeReplace`, `TestMergeSeriesOnly`,
+  `TestMergeWitnessConflictAndRefused`,
+  `TestMergeRefusesWhatWouldNotValidate` (pkg/nodepolicy);
+  `TestPolicyExportImport`, `TestPolicyExportAllImportsEachByName`,
+  `TestPolicyImportIntoRunningNode`, `TestPolicyImportKeepsRunningRPC`
+  (pkg/cli); `TestHoldRefusesAStaleSeal` (pkg/wallet, GUI-022).

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted (D149) |
 | Based on | `main` @ `b502960` |
 | Area | `pkg/filter` (`ItemFlags`), `pkg/cli` (views, `grind start`/`run`), `docs/modules/poo.md`, `docs/modules/filter.md` |
 | Effort | small |
