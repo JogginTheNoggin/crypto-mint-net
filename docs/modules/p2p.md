@@ -200,7 +200,10 @@ little was sent say little about the budget: it doubles each window the
 sender replies in and ends at `RequestPace`. Drops again while probing,
 or with as much sent as the sender dropped at before, show the budget,
 which then holds; drops with less than half of a held pace sent never
-lower it (RED-028, D136). A request that still times out ends the chase as
+lower it (RED-028, D136). Drops while probing show the budget only with
+at least seven eighths of what was sent at the first drops; with less,
+the probe was holding the chase low itself, so the probe halves (not below
+where it began) and goes on rising (RED-034, D139). A request that still times out ends the chase as
 `chase.Stalled`: the sender is backed off but kept, and so is the chase's
 progress, its parts included, so a slow sender or one with a smaller
 budget only delays it (Black's B2, D124; RED-024, D128). A stall after
@@ -214,26 +217,28 @@ layers not read before (RED-026, D131). Once its sender has been
 disconnected for `ProgressGrace` (2 minutes) a kept progress loses its
 parts file and is cut down to its common entry; what it counted is asked
 for again if the sender comes back (RED-023, D128; RED-026, D131). A fetch
-that would wait for disk space first removes, one at a time and lowest
-first, the parts files of kept chases that rank below it, connected or
-not: a departed sender's, then a slow one (its last chase that asked for
-parts took in less than a sixty-fourth of a parts reply, 1 MiB, even if
-a request then timed out; a waiting chase is ranked by its own last
-chase too, so a slow sender whose file was taken cannot take it back:
-RED-029, D136; D137), then
-one that has shown less (C-2's order), then one with
-more bytes still to come. A chase that has shown more keeps its parts,
-and between equals the one nearer its end does, so two fetches never take
-turns throwing each other's away, and a sender that lists the heavier
-ledger, claims a huge entry and trickles it can never hold the room an
-honest fetch needs (RED-027, D131; Black's B4, D132). A slow chase that
-has waited two backoff steps for room has its turn: it ranks as moving
-against a moving file, and above a slow one whose last chase took in no
-more than its own (or any slow one, if its own one request was lost). It
-then asks; if it takes in 1 MiB it keeps the room, and if it is slow
-again the next turn may take it, so a flag set by one lost request always
-clears, and between slow fetches the one that takes in more each turn
-keeps the room (Black's B5, D137). The progress
+that finds no room for a whole part on the disk (a byte of room is not
+room) asks anyway if some other kept parts file may give way, and takes
+room only for the bytes that have actually arrived: each part that comes
+in cuts that many bytes off the end of another kept file, which asks for
+them again later (D139). A file gives way first if its sender has left,
+then if its last chase took in nothing or it has not been chased for two
+backoff steps, then if its sender delivers at least 1.5 times more
+slowly than the waiting fetch's, and, between senders within that
+margin, if it has more still to come. Rates are bytes a second over a
+whole chase, lost requests included, and never a burst: a chase counts
+as measured once a request was lost, a full parts reply (or the rest of
+the entry) arrived, or its slice ended. A fetch with no measure yet goes
+on asking for the part at its offset, throwing it away, until it has
+one. A claim never decides against a much faster sender, so a sender
+that claims a huge entry, one just under the honest one, or a little
+more than it holds keeps the room only by delivering about as fast as
+the honest sender for as long as it holds it; colluders that cut each
+other in bursts never measure fast; and two fetches at about the same
+pace never throw each other's files away: the one nearer its end
+finishes, then the other (RED-027, D131; Black's B4, D132; Black's B5,
+D137; RED-031, RED-032, RED-033 and ORANGE-022, D139; Black's B6,
+D140). The progress
 itself goes once no chase has taken it up for `ProgressTTL` (an hour),
 counted from the end of its sender's backoff, so it always outlasts the
 wait for its next turn (Black's C-6, D129). A chase that waits for disk space logs a warning and

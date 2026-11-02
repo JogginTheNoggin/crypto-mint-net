@@ -102,6 +102,21 @@ func (p *Policy) RemoveFollow(f Follow) error {
 	return nil
 }
 
+// ReplaceFollow puts f in place of whatever the follow list holds for
+// f's series: its pools and mints, or the whole series when f names none.
+// It is one change, so a node that applies it never has the series off
+// its list in between (GUI-018, D139).
+func (p *Policy) ReplaceFollow(f Follow) error {
+	if f.Series == nil || f.Issuer != nil {
+		return fmt.Errorf("%w: a replace names a series and no issuer", ErrInvalid)
+	}
+	if err := p.checkFollow(f); err != nil {
+		return err
+	}
+	p.Follow = append(p.without(*f.Series), Follow{Series: f.Series, Pools: union(nil, f.Pools), Mints: union(nil, f.Mints)})
+	return nil
+}
+
 func (p *Policy) checkFollow(f Follow) error {
 	if (f.Issuer == nil) == (f.Series == nil) {
 		return fmt.Errorf("%w: name exactly one of an issuer and a series", ErrInvalid)

@@ -27,7 +27,7 @@ only watch the node (GREEN-007).
 
 | Method and path | Body or query | Reply |
 | --- | --- | --- |
-| `GET /status` | | every followed pool, and replay stats |
+| `GET /status` | | every followed pool, and replay stats; `policy_changed` when node.json differs, outside the grind section, from the policy the node runs, so a change waits for a reload (GREEN-037) |
 | `GET /series` | | followed series with their params |
 | `POST /tx` | `{tx}` | `{series, pool, tid, forward}` |
 | `POST /entry` | `{series, pool, entry}` | `{hash, switched, pruned, dropped}` |
@@ -69,7 +69,7 @@ when the node follows exactly one series. Reply shapes are in
 | `GET /address` | `series`, `id`, `below`, `limit`, filter (pool, serial) | `Address`: balance, holdings, history, pending, and `next` (per pool, the `below` for the rest); at most 50×`limit` entries looked at per request, stopped if the client goes away (D103) |
 | `GET /watch` | filter | A stream of newline-delimited JSON events with `hello`, `ping`, `missed` and `end` notices; it ends on a reload |
 | `GET /follow` | | `{follow, pools}`: the node policy's follow list and the pools followed now |
-| `POST /follow` | `{remove, issuer, series, pools, mints, no_reload}` | `{follow, pools, reloading}`; saves the changed node policy and, unless `no_reload`, reloads the node after replying |
+| `POST /follow` | `{remove, replace, issuer, series, pools, mints, no_reload}` | `{follow, pools, reloading}`; saves the changed node policy and, unless `no_reload`, reloads the node after replying. `replace` puts `pools` and `mints` in place of the series' rule in one change (GUI-018, D139) |
 | `POST /reload` | `{}` | `{reloading: true}`; the node applies its node policy again. 422 `invalid` when `node.json` does not load, and the node keeps its current policy |
 | `GET /metrics` | | What `/status` and `/peers` report, in Prometheus text format 0.0.4 (`poo_pool_height`, `poo_pool_weight` as a float, `poo_pool_pending`, `poo_peers_connected`, …); a scraper sends the token as a bearer token (GREEN-002) |
 

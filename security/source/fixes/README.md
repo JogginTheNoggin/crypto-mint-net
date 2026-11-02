@@ -20,3 +20,4 @@ added and how Grey checks it. See [AGENTS.md](../../../AGENTS.md#teams-read-firs
 | [BLUE-010](BLUE-010.md) | RED-023, RED-024, RED-025 (D128) | `claude/project-thread-ggo8dt` | |
 | [BLUE-011](BLUE-011.md) | RED-026, RED-027 (D131) | `claude/project-thread-ggo8dt` | |
 | [BLUE-012](BLUE-012.md) | RED-028, RED-029, RED-030 (D136) | `claude/project-thread-ggo8dt` | |
+| [BLUE-013](BLUE-013.md) | RED-031, RED-032, RED-033, RED-034, GUI-018 (D139) | `claude/project-thread-ggo8dt` | |

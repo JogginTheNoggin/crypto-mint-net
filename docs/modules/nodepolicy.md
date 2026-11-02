@@ -143,6 +143,10 @@ applies the change at once without a reload (D113).
   `series`. `poo follow`, `poo unfollow`, `poo wallet follow` and
   `POST /v1/follow` all use them, so the file and the running node always
   agree.
+- `ReplaceFollow(f)` puts f's pools and mints (or the whole series, when
+  f names none) in place of the series' rule in one change, leaving other
+  rules alone; `poo wallet follow` uses it through `POST /follow` with
+  `replace` (GUI-018, D139).
 - `GrindEdit{Remove, RemoveAll, Add, Set, Version}.Apply(g)` changes a
   grind section where it is kept, so two changes made at once both apply.
   A removal names the whole job at its number (`SameJob`), so a stale

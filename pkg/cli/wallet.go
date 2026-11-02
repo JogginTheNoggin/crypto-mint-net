@@ -462,10 +462,9 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	// holds (RED-030, D136).
 	var nodeErr error
 	if cl, err := dialNode(out, dir); err == nil {
-		if _, err = cl.Follow(rpc.FollowRequest{Remove: true, Series: &id, NoReload: true}); err == nil {
-			_, err = cl.Follow(rpc.FollowRequest{Series: &id, Pools: pools})
-		}
-		if err == nil {
+		// One request, so the node never saves the series off its list
+		// between a removal and an add (GUI-018, D139).
+		if _, err = cl.Follow(rpc.FollowRequest{Replace: true, Series: &id, Pools: pools}); err == nil {
 			waitBack(out, dir)
 			fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applied it\n", path, id.Short(), pools)
 			return nil
@@ -485,13 +484,9 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	var follow []nodepolicy.Follow
-	for _, fl := range p.Follow {
-		if fl.Series == nil || *fl.Series != id {
-			follow = append(follow, fl)
-		}
+	if err := p.ReplaceFollow(nodepolicy.Follow{Series: &id, Pools: pools}); err != nil {
+		return err
 	}
-	p.Follow = append(follow, nodepolicy.Follow{Series: &id, Pools: pools})
 	if err := nodepolicy.Save(path, p); err != nil {
 		return err
 	}

@@ -40,7 +40,7 @@ jobs:
         # The P0 tests of docs/consensus-audit.md with an entry over 16 MiB
         # and a 100,000-entry run without layers under the default budgets
         # (D124); they are skipped under -race, so they run here on their own.
-        run: go test -count=1 -timeout 20m -run 'TestHeavierLedgerHuge|TestHeavierLedgerLongBareRun' ./pkg/p2p
+        run: go test -count=1 -timeout 20m -run 'TestHeavierLedgerHuge|TestHeavierLedgerLongBareRun|TestTwoSlowFetchesBothFinish' ./pkg/p2p
       - name: demo
         run: go run ./cmd/poo demo -quiet
       - name: fuzz

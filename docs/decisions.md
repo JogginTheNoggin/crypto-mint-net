@@ -2399,3 +2399,124 @@ a chase takes in after checking their work are not charged.
   0.86–0.95 s on 4 cores.
 - **Tier:** Implementation (the node's start-up, `poo doctor` and the
   grinder).
+
+### D139. Round 12 fixes: RED-031 to RED-034, GUI-018 (BLUE-013)
+
+- **Decision:**
+  - **The disk reserve is shared by paid cuts, not by ranks.** This
+    replaces the reclaim order of D131, D132, D136 and D137
+    (`reclaimParts`, `partsRank`, `partsSlow`, `partsTurn`,
+    `partsMoving` and ORANGE-022's `finishesFirst` are gone).
+    - A chase that finds no room for parts asks anyway if another kept
+      parts file may give way (`mayTake`). Room is then taken only for
+      bytes that have arrived: each part that comes in cuts that many
+      bytes off the end of another kept file (`takeRoom`,
+      `partial.cut`). The cut file asks for them again on its next
+      chase. A part that arrives with no file to cut is dropped and
+      asked for again later.
+    - Which file gives way (`takeFrom`): first one whose sender has
+      left; then one whose last chase took in nothing or that has not
+      been chased for two backoff steps (`partsStale`); then one that
+      would finish later than the waiting fetch. "Finish" is bytes still
+      to come over a rate in bytes a second: the file's from its last
+      chase (`progress.partsRate`, measured at each save), the waiting
+      fetch's from what it is receiving now. Between equal times, the
+      file nearer its end keeps the room.
+  - **RED-034.** Drops while a learned pace is probing show the budget
+    only when at least seven eighths of what was sent at the first drops
+    (`reqWindow.peak`) was sent again. With less, the probe was holding
+    the asker low: the probe halves, not below where it began
+    (`reqWindow.start`), and goes on rising.
+  - **GUI-018.** `POST /v1/follow` takes `replace`, which puts the given
+    pools and mints in place of the series' rule in one change under
+    `policyMu` (`nodepolicy.ReplaceFollow`). `poo wallet follow` sends one
+    such request; with no node it uses the same function under the lock.
+- **Why:** Red's Round 12 findings showed that each rank of D137 had a
+  shape an attacker could hold: a trickler that takes 1 MiB a chase and
+  claims just under the honest size (RED-031), a stream of fresh senders
+  each ranked as moving (RED-032), a trickler one part faster a chase
+  than a slow honest link (RED-033). ORANGE-022 showed two honest slow
+  fetches throwing each other's files away. With paid cuts a sender
+  takes only as much room as it delivers, and keeps it only by
+  delivering faster than the fetch it holds back would finish. A claimed
+  size never decides. The fetch that would finish first keeps the room,
+  as ORANGE-022 asked, and the others resume where they were cut.
+- **What is left:** a sender that delivers as fast as the honest fetch
+  can hold it back; that is a bandwidth contest, which costs the
+  attacker the honest sender's bandwidth for as long as it lasts. A
+  short burst takes only the bytes it sends. Two outages at the same low
+  load still hold the pace at about three quarters of that load, as
+  D133 says of a real budget. No case is left in which a fetch waits for
+  good, and nothing is refused for its size (D115). For Black in Part D:
+  the takeRoom redesign replaces B4's and B5's ranks.
+- **Tier:** Implementation (node policy). It changes only which kept
+  parts file gives way at the disk reserve, the learned pace and how
+  the follow list is edited. No rule of validity or selection, no byte
+  form and no limit changes. Tests (P0): `TestTakeFrom`,
+  `TestMovingTricklerJustUnderCannotHoldTheReserve`,
+  `TestSecondOutageWhileProbingKeepsProbing`, `TestReplaceFollow`, the
+  replace case in `pkg/rpc`'s view test, and the existing B4, B5,
+  ORANGE-022, trickler and slow-sender tests.
+
+### D140. Black's B6: the disk reserve goes by rates over whole chases
+
+- **Decision:** BLUE-013's paid cuts (D139) stay: room is taken only for
+  bytes that arrive, cut from the end of another file, so a cut file
+  resumes rather than starting over. What decides a cut changes, as
+  Black's Round 12 review set out:
+  - **Rates, not times to finish.** A waiting fetch may cut a file whose
+    sender delivers at least `partsMargin` (1.5) times more slowly than
+    it does. Within that margin, the file with more still to come gives
+    way. So a claim, and how much is still to come, never decide against
+    a much faster sender. Departed, idle and stale files give way first,
+    as in D139.
+  - **Whole chases, never bursts.** A rate is the bytes of parts
+    received, kept or not, over the time the requests took, lost ones
+    included. It counts, is saved and decides a cut only once a request
+    was lost, a full parts reply (64 MiB, or the rest of the entry)
+    arrived, or the chase's slice ended. Until then a waiting fetch with
+    no measure keeps asking for the part at its offset and throws it
+    away. A waiting fetch whose measure is older than `partsStale` asks
+    again to measure afresh, so a slow flag from one lost request never
+    lasts (B5).
+  - **One byte of room is not room.** A chase asks without a measure
+    that could take room only when a whole part fits.
+  - The measure is kept on the progress by `fetchParts` itself.
+    `partial.tried`, `seen` and `dur` and `finishIn` are gone.
+  - Black's appendix test is added as
+    `TestBlackColludingTricklersHoldTheReserve`. Only its teardown
+    changed: the raw senders now stop before their connections close, so
+    the test no longer fails while it closes down.
+- **Why:** Black's B6, reproduced: two colluding senders at about
+  4 KB/s each claimed a little more than they held and cut each other in
+  bursts. Each burst's instant rate "finished first", so no file ever
+  completed, and an honest fetch was locked out. That broke D115.
+- **What is left:** a holder keeps the room against an honest fetch
+  only by delivering at least two thirds as fast, for as long as it
+  holds it. That is the bandwidth contest D139 names. A fresh fetch
+  spends up to one parts reply, or one slice, of the sender's bandwidth
+  measuring before it can cut. For Red in Part B: three or more
+  colluders, and a fresh sender at every chase.
+- **Tier:** Implementation (node policy). It changes only which kept
+  parts file gives way at the disk reserve. No rule of validity or
+  selection, no byte form and no limit changes. Tests (P0):
+  `TestBlackColludingTricklersHoldTheReserve`,
+  `TestBlackSlowHonestCannotReclaimFromTrickler`,
+  `TestTwoSlowFetchesBothFinish`, `TestTricklerCannotHoldTheReserve`,
+  `TestTricklerJustUnderCannotHoldTheReserve`,
+  `TestMovingTricklerJustUnderCannotHoldTheReserve` and `TestTakeFrom`.
+
+### D141. Round 13 adoptions: GREEN-037; ORANGE-022 superseded
+
+- **Decision:**
+  - GREEN-037 as written: `/v1/status` reports `policy_changed` when
+    `node.json` differs from the policy the node runs, ignoring the
+    grind section (it applies live; `nodepolicy.Policy.SameApplied`).
+    `poo doctor` warns with the fix `poo reload`.
+  - ORANGE-022 is superseded, as Black ruled. Its finding (two slow
+    fetches taking turns deleting each other's files) is closed by
+    D139's cuts by bytes and D140's margin. Its test,
+    `TestTwoSlowFetchesBothFinish`, is kept, and it runs in CI's long
+    step.
+- **Why:** Found in Round 12 Part B and cleared by Black.
+- **Tier:** Implementation (status, `poo doctor` and node policy).

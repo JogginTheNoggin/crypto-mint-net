@@ -78,6 +78,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -340,6 +341,10 @@ type PoolStatus struct {
 type StatusReply struct {
 	Pools  []PoolStatus     `json:"pools"`
 	Replay node.ReplayStats `json:"replay"`
+	// PolicyChanged says node.json now differs from the policy the node
+	// runs, outside the grind section it applies at once: a change made
+	// with -no-reload or by hand waits for poo reload (GREEN-037).
+	PolicyChanged bool `json:"policy_changed,omitempty"`
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -348,6 +353,9 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		stored[s.Key] = s.Records
 	}
 	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed()}
+	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
+		rep.PolicyChanged = !p.SameApplied(h.n.Policy())
+	}
 	for _, k := range h.n.Engine().FollowedPools() {
 		st, err := h.n.Engine().Status(k)
 		if err != nil {

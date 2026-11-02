@@ -58,3 +58,5 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-035](source/GREEN-035-schedule-room-and-restarts.md) | Source | Leave room for user jobs, and change only what a schedule edit changes | adopted (D135) |
 | [ORANGE-021](source/ORANGE-021-restart-signatures-on-every-core.md) | Source | Restart measured; check the store's signatures on every core | adopted (D138) |
 | [GREEN-036](source/GREEN-036-doctor-fix-dir-and-live-floor.md) | Source | Doctor fixes that change the checked policy, and a live layer floor | adopted (D138) |
+| [ORANGE-022](source/ORANGE-022-slow-fetches-finish-first-keeps.md) | Source | Turn-taking measured; the fetch that would finish first keeps the room | superseded by D139 and D140 (finding upheld; D141) |
+| [GREEN-037](source/GREEN-037-say-when-a-reload-is-due.md) | Source | Say when a node.json change waits for a reload | adopted (D141) |

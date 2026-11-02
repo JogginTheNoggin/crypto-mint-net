@@ -358,3 +358,19 @@ func TestLoadLowersAValueOverALoweredBound(t *testing.T) {
 		t.Fatal("a layer_rate over the most was written")
 	}
 }
+
+// SameApplied ignores the grind section, which a running node applies at
+// once, and sees any other change (GREEN-037).
+func TestSameApplied(t *testing.T) {
+	a := nodepolicy.Policy{Format: 1}
+	b := a
+	b.Grind = &nodepolicy.Grind{Threads: 2}
+	if !a.SameApplied(b) {
+		t.Fatal("a grind change needs a reload")
+	}
+	k := 3
+	b.K = &k
+	if a.SameApplied(b) {
+		t.Fatal("a change of K is applied without a reload")
+	}
+}

@@ -111,10 +111,17 @@ func TestLargeEntryWaitsForDiskSpace(t *testing.T) {
 	}
 	held := len(ls.offsets)
 
-	// Room is made: the fetch goes on from its offset.
+	// Room is made: the fetch goes on from its offset. A part that came
+	// while there was no room was not kept, so it is asked for again
+	// (D139).
 	full.Store(false)
 	ls.serve(t, time.Now().Add(20*time.Second), func() bool { return len(ls.offsets) >= held+10 })
+	repeats := 0
 	for i := 1; i < len(ls.offsets); i++ {
+		if ls.offsets[i] == ls.offsets[i-1] && repeats == 0 {
+			repeats++
+			continue
+		}
 		if ls.offsets[i] != ls.offsets[i-1]+64<<10 {
 			t.Fatalf("parts asked from %v: the fetch did not go on from its offset", ls.offsets)
 		}
