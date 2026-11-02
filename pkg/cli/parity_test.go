@@ -14,11 +14,8 @@ import (
 // that the headless node cannot, which the owner's rule forbids
 // (GREEN-038). Remove an entry when a command gains the call.
 var noCommandYet = map[string]string{
-	"GrindJob":             "poo grind jobs lists every job; one job by id is GREEN-038's proposal",
 	"GrindReplaceSchedule": "poo grind schedule sends edits (D125), which cover every replacement",
 	"GrindSetSchedule":     "the older form of GrindReplaceSchedule",
-	"SubmitEntry":          "no command submits an encoded entry yet: GREEN-038's proposal",
-	"SubmitLayer":          "no command submits an encoded layer yet: GREEN-038's proposal",
 }
 
 // TestEveryClientCallHasACommand fails when an rpc.Client method is

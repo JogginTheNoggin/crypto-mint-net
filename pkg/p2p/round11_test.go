@@ -77,3 +77,13 @@ func TestTricklerCannotHoldTheReserve(t *testing.T) {
 		t.Fatal("setup: the trickler stopped sending")
 	}
 }
+
+// TestRequestTimeoutBelowChaseSlice keeps Black's note on Round 13: a
+// lost request never outlasts the slice a chase's measure is taken in
+// (D143).
+func TestRequestTimeoutBelowChaseSlice(t *testing.T) {
+	c := p2p.DefaultConfig()
+	if c.RequestTimeout >= c.ChaseSlice {
+		t.Fatalf("RequestTimeout %v is not below ChaseSlice %v", c.RequestTimeout, c.ChaseSlice)
+	}
+}

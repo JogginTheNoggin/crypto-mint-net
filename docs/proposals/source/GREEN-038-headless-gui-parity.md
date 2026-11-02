@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (items 1 and 2 prototyped) |
+| Status | adopted (D143): items 1 and 2 as prototyped, item 3 built (`poo submit entry`, `poo submit layer`, `poo grind jobs ID`) |
 | Based on | `claude/m10-watch` @ `97456c1` |
 | Area | `pkg/cli` (`follow`, a new parity test), `docs/modules/poo.md` |
 | Effort | small |

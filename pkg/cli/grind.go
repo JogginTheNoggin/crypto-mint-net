@@ -35,7 +35,7 @@ const grindUsage = `poo grind: the node's hash work (package grind, M11)
                             end) until it ends; the job stops if this
                             command goes away, and an interrupt stops it
                             and exits 0
-  jobs [-o FORMAT]          the node's jobs, running and recently ended
+  jobs [-o FORMAT] [ID]     the node's jobs, running and recently ended (or one)
   stop ID | -all            stop a job, or every job
   schedule [-o FORMAT]      the jobs node.json starts, and its defaults
   schedule add TARGET [SCHEDULE FLAGS]
@@ -80,12 +80,30 @@ func grindCmd(args []string, out io.Writer) error {
 		return grindSchedule(fs, rest, out)
 	case "jobs":
 		w, o := addWhere(fs), addOutput(fs)
-		if err := parseOutput(fs, o, rest, 0); err != nil {
+		if err := fs.Parse(rest); err != nil {
 			return err
+		}
+		if err := o.check(); err != nil {
+			return err
+		}
+		if fs.NArg() > 1 {
+			return errors.New("usage: poo grind jobs [ID]")
 		}
 		cl, err := dialNode(out, w.resolve())
 		if err != nil {
 			return err
+		}
+		if fs.NArg() == 1 {
+			// One job by id, as the GUI's job view asks (GREEN-038, D143).
+			id, err := strconv.Atoi(fs.Arg(0))
+			if err != nil || id < 0 {
+				return fmt.Errorf("poo grind jobs: the job id %q is not a number", fs.Arg(0))
+			}
+			job, err := cl.GrindJob(id)
+			if err != nil {
+				return err
+			}
+			return o.write(out, job)
 		}
 		jobs, err := cl.GrindJobs()
 		if err != nil {

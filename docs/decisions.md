@@ -2486,3 +2486,41 @@ a chase takes in after checking their work are not charged.
   `TestProbeKeepsAnHonestSender` (ORANGE-023), `TestOutageAtLowLoadNeverHolds`,
   `TestMeasureLastsLongerAfterMisses`, and the B5, B6, ORANGE-022,
   trickler and slow-sender tests.
+
+### D143. Round 14: GREEN-038 adopted; three commands for parity; notes on D140
+
+- **Decision:**
+  - **GREEN-038 as written.** `poo follow -series S ... -replace`
+    follows exactly the given pools and mints in place of the series'
+    rule, in one change, through the node or under the lock offline,
+    as the GUI's `POST /v1/follow` with `replace` does (GUI-018, D139).
+    `TestEveryClientCallHasACommand` fails when an `rpc.Client` method
+    has no `poo` command and is not listed with a reason.
+  - **Its three proposals, built.** `poo submit entry` and
+    `poo submit layer` hand the node an entry or a layer made elsewhere,
+    in the hex its API prints. Each is decoded before the node is asked
+    and then checked as one from a peer is: the command adds no rule and
+    skips none. `poo grind jobs ID` prints one job, as the GUI's job view
+    reads it. `submit` is a write command, refused under a view-only
+    token. Three calls remain listed in `noCommandYet`, each with its
+    reason.
+  - **The accepted residual of D140, stated in `docs/modules/p2p.md`.**
+    A holder that delivers at two thirds of the honest rate is inside
+    the 1.5 margin. It keeps the room only by sending at that rate for
+    as long as it holds it. That is a bandwidth contest it pays for, not
+    a hold. The honest node pays for probing: at most one parts reply
+    (64 MiB) or one slice per measure, once per lapse of that measure.
+  - **Black's note on Round 13.** `RequestTimeout` (30 seconds) stays
+    below `ChaseSlice` (2 minutes), so one lost request never outlasts
+    the slice that its chase's measure is taken in. The rule is stated
+    on both fields and checked by `TestRequestTimeoutBelowChaseSlice`.
+    It must hold if either one ever becomes a setting.
+- **Why:** jerry's hard rule is that the headless node and the GUI never
+  diverge. Green's Round 13 sweep found the GUI-only calls, and Black
+  cleared GREEN-038 and asked for the timeout note.
+- **Tier:** Implementation (the command line and docs). No rule of
+  validity or selection, no byte form and no limit changes. Tests:
+  `TestSubmitEntryAndLayer` (an entry and a layer from one node selected
+  on another through `poo submit`), `TestGrindCommands` (`grind jobs
+  ID`), the view-only scope test, `TestFollowReplace` and
+  `TestEveryClientCallHasACommand`.

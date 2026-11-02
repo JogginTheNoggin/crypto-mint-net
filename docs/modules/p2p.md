@@ -250,7 +250,19 @@ other in bursts never measure fast; and two fetches at about the same
 pace never throw each other's files away: the one nearer its end
 finishes, then the other (RED-027, D131; Black's B4, D132; Black's B5,
 D137; RED-031, RED-032, RED-033 and ORANGE-022, D139; Black's B6,
-D140). The progress
+D140). One residual is accepted, and it is not a hold: a holder that
+delivers at, say, two thirds of the honest rate is inside the 1.5 margin,
+so it keeps the room only by really sending at that rate for as long as
+it holds it. That is a bandwidth contest the holder pays for in full,
+and the honest entry still arrives when the held one ends or the holder
+slows; it never makes a heavier ledger unacceptable. Its cost to the
+honest node is the probing that measures each waiting sender: at most
+one parts reply (64 MiB) or one slice per measure, thrown away, and at
+most once per lapse of that measure (D143). The probe's measure ends no
+later than the slice, so `RequestTimeout` (30 seconds) must stay below
+`ChaseSlice` (2 minutes) if either ever becomes a setting: a request
+allowed to wait longer than a slice would let one lost request outlast
+the slice it is measured in (Black's note on Round 13, D143). The progress
 itself goes once no chase has taken it up for `ProgressTTL` (an hour),
 counted from the end of its sender's backoff, so it always outlasts the
 wait for its next turn (Black's C-6, D129). A chase that waits for disk space logs a warning and

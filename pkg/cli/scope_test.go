@@ -72,6 +72,7 @@ func TestViewOnly(t *testing.T) {
 	}
 	for _, args := range [][]string{
 		{"init", "-example"}, {"node"}, {"reload"}, {"build", "-pool", "1"}, {"work", "-pool", "1"},
+		{"submit", "entry", "-pool", "1"}, {"submit", "layer", "-pool", "1"},
 		{"claim", "-serial", "5"}, {"pay", "-serial", "5"}, {"peer", "block", "127.0.0.1:1"},
 		{"unfollow", "-series", id}, {"follow", "-series", id, "-pool", "0"},
 		{"policy", "use", "default"}, {"policy", "delete", "default"},

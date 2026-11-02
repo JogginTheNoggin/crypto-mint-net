@@ -138,3 +138,8 @@ built.
   each other in bursts can hold the room against an honest sender;
   `poo wallet follow` replaces the series' rule in one change; status and
   `poo doctor` say when `node.json` waits for a reload.
+- **Headless and GUI level (D143):** `poo follow -replace` sets a
+  series' followed pools in one change, as the GUI does; `poo submit
+  entry|layer` hands the node an entry or layer made elsewhere;
+  `poo grind jobs ID` shows one job; a test fails when an RPC call has no
+  `poo` command.

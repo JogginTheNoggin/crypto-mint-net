@@ -86,7 +86,10 @@ type Config struct {
 	// their stated weight (negative: never), so a node hears it is behind
 	// in a quiet pool.
 	CheckEvery time.Duration
-	// RequestTimeout bounds the wait for a whole reply.
+	// RequestTimeout bounds the wait for a whole reply. It stays below
+	// ChaseSlice, so a lost request never outlasts the slice a chase's
+	// measure is taken in (Black's note on Round 13, D143); keep it so if
+	// either ever becomes a setting.
 	RequestTimeout time.Duration
 	// RequestWindow is how long request ids are remembered and how old a
 	// request's time may be; ClockSkew is how far ahead it may be.
@@ -176,7 +179,7 @@ type Config struct {
 	// the chase queue. A yielded chase keeps everything it fetched and is
 	// taken up again later; it is never refused for its length, since a
 	// heavier ledger must always be reachable (audit items G1 to G3,
-	// docs/consensus-audit.md).
+	// docs/consensus-audit.md). It stays above RequestTimeout (D143).
 	ChaseSlice time.Duration
 	// WeightlessPages is how many pages of hashes in a row that bring no
 	// work a chase checks before it yields its turn; it goes on later from
