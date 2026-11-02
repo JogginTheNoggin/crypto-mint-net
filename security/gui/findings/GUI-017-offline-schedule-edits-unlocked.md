@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed by Source (D134: offline edits take the node.json lock), merged Round 12; verified by GUI/Red R12B @ c9c9e1f on unix; not on Windows (no lock there) |
+| Status | fixed by Source (D134 on unix, merged Round 12; D147 `LockFileEx` on Windows, merged Round 17); verified R12B on unix, R17B on Windows by code review and `GOOS=windows` build |
 | Found on | claude/gui-4-watch @ 4108866 (Source claude/m10-watch @ 72d6f25) |
 | Component | pkg/cli/grind.go (`grindSchedule`: the path without a node), pkg/nodepolicy (`Load`, `Save`, `Lock`) |
 | Surface | node (node.json's grind section) |
@@ -181,3 +181,13 @@ Source, so the GUI and headless are fixed together:
   still a no-op. The wallet now locks on Windows with `LockFileEx`
   (`pkg/wallet/lock_windows.go`, D145). The same code on the data
   directory's `LOCK` would close this residual.
+
+## Notes — Round 17B
+
+- **The Windows residual is closed (D147).** `pkg/nodepolicy/lock_windows.go`
+  takes `LockFileEx(LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY)` on
+  the data directory's `LOCK`. A lock that is already held maps to
+  `ErrLocked`, so the refusal is immediate, as on unix.
+  `lock_other.go` is now only for platforms that are neither unix nor
+  Windows. Checked by reading the code and by a `GOOS=windows` build of
+  `./pkg/...`. It has not been run on Windows.

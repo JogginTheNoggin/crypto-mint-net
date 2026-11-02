@@ -5,6 +5,33 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 17 Part B reviewed main @ 052d032:
+- GUI-GREEN-042 (the parity check; Explore's address `-below`/`-tid`,
+  and Pools with every filter);
+- GUI ORANGE-013 (a long input line sent in parts, `more: true`);
+- the Source changes merged with them: BLUE-016 / D146 (`Wallet.Hold`),
+  D147 (Windows data-directory lock), `submit` reading build and work
+  replies, and the size-hinted entry reads (ORANGE-025).
+
+There is one new finding, for Source:
+- GUI-022 (Medium): `Hold` merges a file saved meanwhile, seal included.
+  - A command opened before a passphrase change now takes the old
+    passphrase and acts.
+  - A stale `passwd` overrides the owner's rotation. Reproduced: after
+    `old` to `rotated`, a stale `passwd` set `mine`. `rotated` then
+    failed and `mine` worked.
+  - Under D145 both were refused.
+
+Verified:
+- GUI-017's Windows residual is closed by D147 (code review and a
+  `GOOS=windows` build).
+- Input sent in parts holds:
+  - Stop between parts fails the read.
+  - End input waits until every part has arrived.
+  - A secret prompt reads the whole line.
+  - Every part goes through the same POST checks.
+- GUI-GREEN-042's new fields are single argv elements.
+
 Round 16 Part B reviewed main @ 6a1cdce, the first base after the stack
 was merged:
 - GUI/Blue's GUI-021 fix (#68): Stop fails the read, and an explicit end
@@ -236,8 +263,9 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-014](GUI-014-schedule-edits-lost-update.md) | Low | Schedule changes are read, changed and written back by the client, so two at once lose one; `-target` cannot tell jobs with the same target apart | fixed: GUI part (PR #41) and core edits on the node (D125, merged Round 10); the GUI's Remove also sends `-if-version` (GREEN-034, Round 10); verified R10B @ 4108866 with a node; without one, see GUI-017 |
 | [GUI-015](GUI-015-layer-rate-above-peer-budget.md) | Low | Schedule defaults allow a layer rate (up to 1000/s) above what default peers take (~100/s), so a steady grinder is timed out and then blocked, with no warning | fixed (core D127 cap 50; GUI form PR #44, merged Round 10; verified R10B @ 4108866) |
 | [GUI-016](GUI-016-refused-remove-is-silent.md) | Low | A Schedule Remove that poo refuses (`-if-version`, `-target`) shows no message; the job just stays listed | fixed (PR #49, merged Round 11; verified R11B @ 4be2230) |
-| [GUI-017](GUI-017-offline-schedule-edits-unlocked.md) | Low | Schedule changes made without a node still read and write node.json whole with no lock, so they lose each other; any read error also makes poo write behind a running node | fixed by Source (D134), merged Round 12; verified R12B @ c9c9e1f on unix (Windows has no lock) |
+| [GUI-017](GUI-017-offline-schedule-edits-unlocked.md) | Low | Schedule changes made without a node still read and write node.json whole with no lock, so they lose each other; any read error also makes poo write behind a running node | fixed by Source: D134 on unix (verified R12B), D147 on Windows (verified R17B by code review and build) |
 | [GUI-018](GUI-018-wallet-follow-two-step-loses-rule.md) | Low | `poo wallet follow` changes a running node in two requests (remove, then add), so a failure in between drops the series' follow rule while saying "nothing was changed" | fixed by Source (BLUE-013), merged Round 13; verified R13B @ 376e964; GUI terminal e2e check added R13C |
 | [GUI-019](GUI-019-wallet-commands-overwrite-each-other.md) | Medium | Wallet commands read the whole wallet.json and write it back; one waiting at a passphrase prompt in another form undoes the rest, even a passphrase change (the old passphrase works again) | fixed by Source (wallet.Save compare-and-write, D145), merged Round 15; verified R15B @ 55cf745 |
 | [GUI-020](GUI-020-new-passphrase-not-confirmed.md) | Low | A new wallet passphrase is typed once into a masked field and never confirmed, so a typo locks the wallet | fixed by Source (asks twice, D145), merged Round 15; the GUI shows the second ask (State.Asks); verified R15B @ 55cf745 |
 | [GUI-021](GUI-021-stop-submits-pasted-entry.md) | Low | Stop (or Ctrl-C in the terminal) on `poo submit -f -` hands the pasted entry or layer to the node: a cancelled job's input reads as end of input, and the GUI has no other end of input | fixed by GUI/Blue (PR #68), merged Round 15; verified R16B @ 6a1cdce |
+| [GUI-022](GUI-022-hold-adopts-new-seal.md) | Medium | `Wallet.Hold` (D146) adopts a file saved meanwhile, seal included, so a command opened before a passphrase change still works with the old passphrase, and a stale `passwd` re-seals over the owner's rotation | open (Source) |
