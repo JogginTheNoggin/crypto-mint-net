@@ -68,3 +68,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-025](source/ORANGE-025-entry-body-read-once.md) | Source | Wallet lock and entry submit measured; read an entry body once | adopted, with a 64 MiB start that grows (D147) |
 | [GREEN-041](source/GREEN-041-help-lists-only-flags-that-work.md) | Source | Help lists only the flags a command takes | adopted (D149) |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
+| [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured |
