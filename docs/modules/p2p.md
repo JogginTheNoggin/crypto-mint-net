@@ -203,7 +203,11 @@ which then holds; drops with less than half of a held pace sent never
 lower it (RED-028, D136). Drops while probing show the budget only with
 at least seven eighths of what was sent at the first drops; with less,
 the probe was holding the chase low itself, so the probe halves (not below
-where it began) and goes on rising (RED-034, D139). A request that still times out ends the chase as
+where it began) and goes on rising (RED-034, D139). Drops with nothing
+sent in the window answered are an outage, not a budget, since a sender
+over its budget has served the budget first: they never hold or lower a
+pace, so two short outages at low load no longer pin the chase to one
+request a window (RED-036, D142). A request that still times out ends the chase as
 `chase.Stalled`: the sender is backed off but kept, and so is the chase's
 progress, its parts included, so a slow sender or one with a smaller
 budget only delays it (Black's B2, D124; RED-024, D128). A stall after
@@ -230,7 +234,15 @@ whole chase, lost requests included, and never a burst: a chase counts
 as measured once a request was lost, a full parts reply (or the rest of
 the entry) arrived, or its slice ended. A fetch with no measure yet goes
 on asking for the part at its offset, throwing it away, until it has
-one. A claim never decides against a much faster sender, so a sender
+one; once one part of a reply is thrown away the rest of that reply is
+too, each part still checked against the offset it should start at, so
+a sender whose replies hold many parts is never taken for false
+(RED-035 and ORANGE-023, D142). A waiting fetch whose measured chase
+found no room asks again after that measure lapses, two backoff steps
+at first and twice as long after each such chase in a row, up to eight
+times, so a node at the reserve does not throw away a reply from every
+waiting sender every few minutes; a holder that slows, stalls or leaves
+is still cut by its own measure at once (RED-037, D142). A claim never decides against a much faster sender, so a sender
 that claims a huge entry, one just under the honest one, or a little
 more than it holds keeps the room only by delivering about as fast as
 the honest sender for as long as it holds it; colluders that cut each
@@ -238,7 +250,19 @@ other in bursts never measure fast; and two fetches at about the same
 pace never throw each other's files away: the one nearer its end
 finishes, then the other (RED-027, D131; Black's B4, D132; Black's B5,
 D137; RED-031, RED-032, RED-033 and ORANGE-022, D139; Black's B6,
-D140). The progress
+D140). One residual is accepted, and it is not a hold: a holder that
+delivers at, say, two thirds of the honest rate is inside the 1.5 margin,
+so it keeps the room only by really sending at that rate for as long as
+it holds it. That is a bandwidth contest the holder pays for in full,
+and the honest entry still arrives when the held one ends or the holder
+slows; it never makes a heavier ledger unacceptable. Its cost to the
+honest node is the probing that measures each waiting sender: at most
+one parts reply (64 MiB) or one slice per measure, thrown away, and at
+most once per lapse of that measure (D143). The probe's measure ends no
+later than the slice, so `RequestTimeout` (30 seconds) must stay below
+`ChaseSlice` (2 minutes) if either ever becomes a setting: a request
+allowed to wait longer than a slice would let one lost request outlast
+the slice it is measured in (Black's note on Round 13, D143). The progress
 itself goes once no chase has taken it up for `ProgressTTL` (an hour),
 counted from the end of its sender's backoff, so it always outlasts the
 wait for its next turn (Black's C-6, D129). A chase that waits for disk space logs a warning and

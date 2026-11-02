@@ -84,6 +84,8 @@ Usage:
                               build an entry from the pending transactions
   poo work -pool K | -serial N [-entry HASH] [-tries N | -for 30s] [-device D] [-threads N]
                               add a layer (default: on the selected tip)
+  poo submit entry|layer -pool K | -serial N HEX
+                              hand the node an entry or layer made elsewhere
   poo grind devices|bench|start|run|jobs|stop
                               the node's hash work: devices, speed, and jobs
                               by hand, scheduled or automatic (poo grind help)
@@ -285,6 +287,8 @@ func run(args []string, out io.Writer) error {
 		return buildCmd(args[1:], out)
 	case "work":
 		return workCmd(args[1:], out)
+	case "submit":
+		return submitCmd(args[1:], out)
 	case "payment":
 		return paymentCmd(args[1:], out)
 	case "peers":

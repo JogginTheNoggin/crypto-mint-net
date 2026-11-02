@@ -49,7 +49,7 @@ var readCommands = map[string]map[string]bool{
 // writeCommands are the commands that change something, listed so the
 // table test can tell a forgotten command from a refused one.
 var writeCommands = []string{
-	"init", "node", "unfollow", "reload", "claim", "pay", "build", "work", "peer",
+	"init", "node", "unfollow", "reload", "claim", "pay", "build", "work", "submit", "peer",
 }
 
 // viewOnlyOf reports whether the invocation writing to out is view-only.

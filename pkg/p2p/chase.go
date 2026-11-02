@@ -608,9 +608,14 @@ type progress struct {
 	// that asked this sender for parts received them, over the time its
 	// requests took, lost ones included, measured over a whole chase and
 	// never a burst (fetchParts, Black's B6, D140); partsAt is when it
-	// was measured (takeRoom, D139).
+	// was measured (takeRoom, D139). partsMiss counts the measured
+	// chases in a row that, waiting for room, wrote nothing: each doubles
+	// how long the measure lasts before the chase asks again
+	// (measureLasts), so a node at the reserve does not throw away a reply
+	// from each waiting sender every few minutes (RED-037, D142).
 	partsRate float64
 	partsAt   time.Time
+	partsMiss int
 
 	// Topping up layers on entries both hold (topUpLayers).
 	topping  bool
@@ -867,6 +872,16 @@ func (h *Host) partsStale() time.Duration {
 		b = chase.DefaultConfig().Backoff
 	}
 	return 2 * max(b, h.cfg.ChaseSlice)
+}
+
+// measureLasts is how long a waiting chase's own measure decides, in
+// mayTake, that it could take no room: partsStale, doubled for each
+// measured chase in a row that wrote nothing, up to eight times. A holder
+// that slows, stalls or leaves is still cut at once, since its own
+// measure decides that (takeFrom); only a waiting sender that has sped up
+// waits longer to show it (RED-037, D142).
+func (h *Host) measureLasts(st *progress) time.Duration {
+	return h.partsStale() << min(max(st.partsMiss-1, 0), 3)
 }
 
 // partsToCome is how many bytes st's large entry still needs.
@@ -1576,7 +1591,7 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 	began := time.Now()
 	var seen uint64
 	var dur time.Duration
-	lost := false
+	lost, wrote := false, false
 	measured := func() bool {
 		return lost || seen >= min(partsReply, l.Size-pt.off) ||
 			(!deadline.IsZero() && time.Now().After(deadline)) || time.Since(began) >= h.cfg.ChaseSlice
@@ -1590,6 +1605,11 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 	defer func() {
 		if st != nil && (seen > 0 || lost) && measured() {
 			st.partsRate, st.partsAt = rate(0), time.Now()
+			if wrote {
+				st.partsMiss = 0
+			} else if errors.Is(err, errPartsSpace) {
+				st.partsMiss++
+			}
 		}
 	}()
 	// probing: no room, and no measure yet that could take any. The chase
@@ -1615,6 +1635,12 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			return wire.EntryItem{}, errPartsSpace
 		}
 		asked = true
+		// A probe throws a whole reply away, every part of it: a reply
+		// holds up to partsReply bytes in many chunks, each following the
+		// last, and none of them is written once one was thrown away
+		// (ORANGE-023).
+		probing = false
+		want := pt.off
 		start := time.Now()
 		q := wire.PartsReq{RequestCommon: h.common(), Entry: l.Entry, Variant: wire.EntriesWithLayers, Offset: pt.off}
 		var kind wire.Type
@@ -1628,16 +1654,20 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 			if err != nil {
 				return err
 			}
-			if part.Total != l.Size || part.Offset != pt.off || len(part.Data) == 0 || uint64(len(part.Data)) > l.Size-pt.off {
-				return falseErr{err: fmt.Errorf("part %d+%d of %d for entry %s, want %d of %d", part.Offset, len(part.Data), part.Total, l.Entry.Short(), pt.off, l.Size)}
+			if part.Total != l.Size || part.Offset != want || len(part.Data) == 0 || uint64(len(part.Data)) > l.Size-want {
+				return falseErr{err: fmt.Errorf("part %d+%d of %d for entry %s, want %d of %d", part.Offset, len(part.Data), part.Total, l.Entry.Short(), want, l.Size)}
 			}
-			if pt.off == 0 && (len(part.Data) < len(parent) || !bytes.Equal(part.Data[:len(parent)], parent[:])) {
+			if want == 0 && (len(part.Data) < len(parent) || !bytes.Equal(part.Data[:len(parent)], parent[:])) {
 				// An entry item starts with its parent: this one is not
 				// the next entry of the reply (RED-016).
 				return falseErr{err: fmt.Errorf("the parts of entry %s do not start with its parent %s", l.Entry.Short(), parent.Short())}
 			}
 			n := uint64(len(part.Data))
 			seen += n
+			want += n
+			if probing {
+				return nil
+			}
 			if st != nil && !h.partsRoom(pt.f, n) {
 				// Room for what has arrived, paid for by its arrival
 				// (D139), by this chase's measure once it has one, else by
@@ -1661,6 +1691,7 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 				return err
 			}
 			pt.off += n
+			wrote = true
 			return nil
 		})
 		dur += time.Since(start)
@@ -1820,7 +1851,7 @@ func (h *Host) mayTake(st *progress) bool {
 		if o == st || o.part == nil || o.part.off == 0 {
 			continue
 		}
-		if st.partsRate <= 0 || now.Sub(st.partsAt) > h.partsStale() {
+		if st.partsRate <= 0 || now.Sub(st.partsAt) > h.measureLasts(st) {
 			// No measure, or an old one: the chase asks, to measure the
 			// sender again over a whole chase (Black's B5 and B6, D140).
 			return true

@@ -97,6 +97,17 @@ func TestGrindCommands(t *testing.T) {
 	if len(jobs) != 3 || jobs[2].ID != job.ID || jobs[2].Done() {
 		t.Fatalf("jobs %+v", jobs)
 	}
+	// One job by id, the call the GUI's job view makes (GREEN-038, D143).
+	var one grind.Job
+	cli(t, &one, "grind", "jobs", "-root", root, itoa(job.ID))
+	if one.ID != job.ID || one.Done() {
+		t.Fatalf("grind jobs %d: %+v", job.ID, one)
+	}
+	for _, bad := range [][]string{{"grind", "jobs", "-root", root, "x"}, {"grind", "jobs", "-root", root, "1", "2"}, {"grind", "jobs", "-root", root, "999"}} {
+		if err := run(bad, &out); err == nil {
+			t.Fatalf("%v accepted", bad)
+		}
+	}
 	var stopped grind.Job
 	cli(t, &stopped, "grind", "stop", "-root", root, itoa(job.ID))
 	if stopped.State != grind.StateStopped {

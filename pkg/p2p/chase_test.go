@@ -352,6 +352,11 @@ type largeSender struct {
 	// skip, if set, is asked of each parts request by its number from 0;
 	// true leaves it unanswered.
 	skip func(n int) bool
+	// chunks, if set, is how many parts of 64 KiB one reply holds, as a
+	// real sender's reply holds up to partsReply bytes; pause, if set, is
+	// waited before each reply, by its offset.
+	chunks int
+	pause  func(off uint64) time.Duration
 }
 
 func (ls *largeSender) serve(t *testing.T, until time.Time, stop func() bool) {
@@ -391,12 +396,28 @@ func (ls *largeSender) serve(t *testing.T, until time.Time, stop func() bool) {
 			if ls.skip != nil && ls.skip(len(ls.offsets)-1) {
 				continue
 			}
-			data := make([]byte, 64<<10)
-			if q.Offset == 0 {
-				copy(data, ls.first)
+			if ls.pause != nil {
+				time.Sleep(ls.pause(q.Offset))
 			}
-			ls.r.write(wire.Message{Header: wire.Header{Type: wire.TypePart, Section: m.Section, RequestID: m.RequestID,
-				Chunk: 1, Flags: wire.FlagLast | wire.FlagMore, Stated: huge}, Body: wire.Part{Total: ls.size, Offset: q.Offset, Data: data}.Encode()})
+			for i := 0; i < max(ls.chunks, 1); i++ {
+				off := q.Offset + uint64(i)<<16
+				data := make([]byte, 64<<10)
+				if off == 0 {
+					copy(data, ls.first)
+				}
+				end := off+64<<10 >= ls.size
+				flags := uint8(wire.FlagLast | wire.FlagMore)
+				if i < max(ls.chunks, 1)-1 && !end {
+					flags = 0
+				} else if end {
+					flags = wire.FlagLast
+				}
+				ls.r.write(wire.Message{Header: wire.Header{Type: wire.TypePart, Section: m.Section, RequestID: m.RequestID,
+					Chunk: uint32(i + 1), Flags: flags, Stated: huge}, Body: wire.Part{Total: ls.size, Offset: off, Data: data}.Encode()})
+				if flags&wire.FlagLast != 0 {
+					break
+				}
+			}
 			time.Sleep(5 * time.Millisecond)
 		}
 	}
