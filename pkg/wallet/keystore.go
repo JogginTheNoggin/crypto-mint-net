@@ -117,18 +117,21 @@ func open(k KDF, sealed Hex, passphrase string) ([]byte, error) {
 	return seed, nil
 }
 
-// derive returns the Ed25519 signer for key index of seed:
-// HMAC-SHA256(seed, "PoO-wallet-ed25519-v1" ∥ index as U32) as the
-// Ed25519 seed (decision D63).
-func derive(seed []byte, index uint32) *policy.Ed25519Signer {
+// derive returns the signer of algorithm alg for key index of seed. The
+// child seed is HMAC-SHA256(seed, label ∥ index as U32), with label
+// "PoO-wallet-ed25519-v1" for Ed25519 (decision D63, unchanged) and
+// "PoO-wallet-<algorithm name>-v1" for the others; policy.NewSigner turns
+// it into the key (decision D81). A wallet's keys are of one algorithm,
+// so the same seed under two algorithms gives unrelated keys.
+func derive(seed []byte, alg policy.AlgID, index uint32) (policy.Signer, error) {
+	a, ok := policy.Default().Alg(alg)
+	if !ok {
+		return nil, fmt.Errorf("wallet: unknown key algorithm %d", alg)
+	}
 	m := hmac.New(sha256.New, seed)
-	m.Write([]byte("PoO-wallet-ed25519-v1"))
+	m.Write([]byte("PoO-wallet-" + a.Name() + "-v1"))
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], index)
 	m.Write(b[:])
-	s, err := policy.NewEd25519Signer(m.Sum(nil))
-	if err != nil {
-		panic(err) // unreachable: HMAC-SHA256 gives 32 bytes
-	}
-	return s
+	return policy.NewSigner(alg, m.Sum(nil))
 }

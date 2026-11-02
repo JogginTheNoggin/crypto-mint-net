@@ -10,10 +10,16 @@ package hash
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/sha3"
+	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	gohash "hash"
 	"math/bits"
+
+	"github.com/zeebo/blake3"
+	"golang.org/x/crypto/blake2b"
 )
 
 // Size is the output length, in bytes, of every hash function in the list.
@@ -96,10 +102,21 @@ func MustParse(s string) Hash {
 type ID uint32
 
 // Known hash function numbers. Entries in the list are never changed or
-// removed; new functions get new numbers.
+// removed; new functions get new numbers. Every one has a 32-byte output
+// (decision D80).
 const (
 	// SHA256 is SHA-256 (FIPS 180-4).
 	SHA256 ID = 1
+	// SHA512_256 is SHA-512/256 (FIPS 180-4): SHA-512 with its own initial
+	// values, cut to 32 bytes. Faster than SHA-256 on 64-bit processors
+	// without SHA-256 instructions.
+	SHA512_256 ID = 2
+	// SHA3_256 is SHA3-256 (FIPS 202), the Keccak sponge.
+	SHA3_256 ID = 3
+	// BLAKE2b256 is BLAKE2b with a 32-byte output (RFC 7693), unkeyed.
+	BLAKE2b256 ID = 4
+	// BLAKE3 is BLAKE3 with its default 32-byte output, unkeyed.
+	BLAKE3 ID = 5
 )
 
 // Func hashes the concatenation of its arguments.
@@ -109,24 +126,64 @@ type Func func(parts ...[]byte) Hash
 // know. A series that names one is unreadable at this node.
 var ErrUnknown = errors.New("hash: unknown hash function number")
 
-// Lookup returns the hash function for a number.
-func Lookup(id ID) (Func, error) {
-	switch id {
-	case SHA256:
-		return sha256Func, nil
-	default:
-		return nil, fmt.Errorf("%w: %d", ErrUnknown, id)
-	}
+type entry struct {
+	name string
+	new  func() gohash.Hash
 }
 
-func sha256Func(parts ...[]byte) Hash {
-	d := sha256.New()
-	for _, p := range parts {
-		d.Write(p)
+var known = map[ID]entry{
+	SHA256:     {"sha256", sha256.New},
+	SHA512_256: {"sha512-256", sha512.New512_256},
+	SHA3_256:   {"sha3-256", func() gohash.Hash { return sha3.New256() }},
+	BLAKE2b256: {"blake2b-256", func() gohash.Hash {
+		h, err := blake2b.New256(nil)
+		if err != nil {
+			panic(err) // unreachable: no key
+		}
+		return h
+	}},
+	BLAKE3: {"blake3", func() gohash.Hash { return blake3.New() }},
+}
+
+// Lookup returns the hash function for a number.
+func Lookup(id ID) (Func, error) {
+	e, ok := known[id]
+	if !ok {
+		return nil, fmt.Errorf("%w: %d", ErrUnknown, id)
 	}
-	var h Hash
-	d.Sum(h[:0])
-	return h
+	return func(parts ...[]byte) Hash {
+		d := e.new()
+		for _, p := range parts {
+			d.Write(p)
+		}
+		var h Hash
+		d.Sum(h[:0])
+		return h
+	}, nil
+}
+
+// IDs returns every known hash number, in order.
+func IDs() []ID {
+	out := make([]ID, 0, len(known))
+	for id := ID(1); len(out) < len(known); id++ {
+		if _, ok := known[id]; ok {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// Name returns the name of a known hash number, or "" for an unknown one.
+func (id ID) Name() string { return known[id].name }
+
+// ByName returns the number of a hash function by its name.
+func ByName(name string) (ID, bool) {
+	for id, e := range known {
+		if e.name == name {
+			return id, true
+		}
+	}
+	return 0, false
 }
 
 // Domain tags. Each kind of hashed object starts with its own tag, so a hash

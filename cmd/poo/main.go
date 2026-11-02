@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
@@ -59,8 +60,14 @@ Usage:
                               co-signing and light mode (poo wallet help)
 
   poo version                 print the version
-  poo keygen [-seed HEX]      make an Ed25519 key and its 1-of-1 address
+  poo crypto                  list the hashes, key algorithms and policy
+                              types a series can choose from
+  poo keygen [-alg NAME] [-hash NAME] [-seed HEX]
+                              make a key (default Ed25519) and its 1-of-1
+                              address under a hash (default SHA-256)
   poo series example          print the worked example's series as JSON
+  poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
+                              print a new series' params, checked
   poo series info FILE        print the id and pools of a series JSON file
   poo demo [-quiet]           run in-process full nodes through a payment,
                               a double spend and its resolution
@@ -91,6 +98,8 @@ func run(args []string, out io.Writer) error {
 		return nil
 	case "keygen":
 		return keygen(args[1:], out)
+	case "crypto":
+		return cryptoCmd(out)
 	case "series":
 		return seriesCmd(args[1:], out)
 	case "demo":
@@ -143,42 +152,62 @@ func run(args []string, out io.Writer) error {
 func keygen(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
 	seedHex := fs.String("seed", "", "32-byte seed in hex (random if empty)")
+	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")
+	hashName := fs.String("hash", "sha256", "hash of the series the address is for")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	seed := make([]byte, 32)
+	alg, err := parseAlg(*algName)
+	if err != nil {
+		return err
+	}
+	hid, err := parseHash(*hashName)
+	if err != nil {
+		return err
+	}
+	seed := make([]byte, policy.SeedSize)
 	if *seedHex != "" {
 		b, err := hex.DecodeString(*seedHex)
-		if err != nil || len(b) != 32 {
+		if err != nil || len(b) != policy.SeedSize {
 			return fmt.Errorf("seed must be 64 hex digits")
 		}
 		seed = b
 	} else if _, err := rand.Read(seed); err != nil {
 		return err
 	}
-	signer, err := policy.NewEd25519Signer(seed)
+	signer, err := policy.NewSigner(alg, seed)
 	if err != nil {
 		return err
 	}
-	pol := policy.SingleKey(policy.AlgEd25519, signer.Public())
-	// The address depends only on the series' hash; every series using
-	// SHA-256 gives the same address for this policy.
-	s := testutil.ExampleSeries()
-	return writeJSON(out, map[string]string{
-		"seed":           hex.EncodeToString(seed),
-		"public_key":     hex.EncodeToString(signer.Public()),
-		"policy":         hex.EncodeToString(pol.Encode()),
-		"address_sha256": s.Address(pol).String(),
-	})
+	pol := policy.SingleKey(alg, signer.Public())
+	// The address depends only on the series' hash: every series using it
+	// gives the same address for this policy.
+	h, _ := hash.Lookup(hid)
+	addr := policy.Address(h, pol).String()
+	a, _ := policy.Default().Alg(alg)
+	v := map[string]string{
+		"seed":       hex.EncodeToString(seed),
+		"alg":        a.Name(),
+		"public_key": hex.EncodeToString(signer.Public()),
+		"policy":     hex.EncodeToString(pol.Encode()),
+		"hash":       hid.Name(),
+		"address":    addr,
+	}
+	if hid == hash.SHA256 {
+		v["address_sha256"] = addr // the field's name before there was a choice
+	}
+	return writeJSON(out, v)
 }
 
 func seriesCmd(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("series needs a subcommand: example or info")
+		return fmt.Errorf("series needs a subcommand: example, new or info")
 	}
 	switch args[0] {
 	case "example":
 		return writeJSON(out, testutil.ExampleParams())
+	case "new":
+		return seriesNew(args[1:], out)
 	case "info":
 		if len(args) != 2 {
 			return fmt.Errorf("usage: poo series info FILE")

@@ -31,8 +31,10 @@ without a wallet. See
 | `poo policy list\|use\|archive\|unarchive\|delete [-root DIR] [NAME]` | Manages node policies (flags before NAME) |
 | `poo wallet COMMAND` | The wallet; see below |
 | `poo version` | Prints the version |
-| `poo keygen [-seed hex]` | A new Ed25519 key and its 1-of-1 address |
+| `poo crypto` | Lists the hashes, key algorithms (with key and signature sizes) and policy types, with their numbers ([../cryptography.md](../cryptography.md)) |
+| `poo keygen [-alg NAME] [-hash NAME] [-seed hex]` | A new key (default Ed25519) and its 1-of-1 address under a hash (default SHA-256; `address_sha256` is kept for SHA-256) |
 | `poo series example` | The example series parameters as JSON |
+| `poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] [-supply S] [-pool-size P] [-min-layer-strength] [-min-entry-strength] [-entry-hash-credit] [-max-witness]` | Checked parameters of a new series as JSON; names or numbers, lists comma-separated |
 | `poo series info FILE` | Validates a series file and prints its id and pools |
 | `poo sim load\|partition\|attack\|sizing [flags]` | Runs a scenario of the network simulator and prints JSON; `-seed` and `-runs` pick the seeds, other flags shape the network and the attack ([sim.md](sim.md), [../simulation.md](../simulation.md)) |
 | `poo demo [-quiet]` | Four in-process nodes: claims, payments, a rival double spend that wins, a carried payment, and the honest ledger restored |
@@ -54,7 +56,7 @@ stopped. Flags go before positional arguments.
 
 | Command | Does |
 | --- | --- |
-| `create [-restore HEX] [-gap N]` | Makes a wallet with a new random seed, or restores one from its seed |
+| `create [-restore HEX] [-gap N] [-alg NAME]` | Makes a wallet with a new random seed, or restores one from its seed; `-alg` fixes its key algorithm (default Ed25519) |
 | `seed` | Prints the seed: everything needed to restore the wallet |
 | `passwd [-new-passphrase-file FILE]` | Seals the seed under a new passphrase (`$POO_NEW_PASSPHRASE`) |
 | `address [-label TEXT]` | Gives out a fresh address, with its public key for co-signers |
@@ -69,7 +71,7 @@ stopped. Flags go before positional arguments.
 | `receive (-address ADDR \| -request FILE) [-serial N -tid HASH]... [-threshold W]` | What has arrived for a request, and whether it is settled |
 | `status [-threshold W]` | Every payment sent: each leg's state, from(e), rivals, and settled |
 | `resend` | Sends dropped legs again |
-| `policy -name NAME -k K -key self\|ALG:HEX\|HEX... [-label TEXT]` | Records a shared k-of-n policy and prints its address |
+| `policy -name NAME -k K -key self\|ALG:HEX\|HEX... [-label TEXT]` | Records a shared k-of-n policy and prints its address; `ALG` is an algorithm's name or number, plain `HEX` is Ed25519 |
 | `cosign FILE` | Adds this wallet's signatures to a payment file, in place |
 | `submit FILE` | Sends a payment whose signatures are complete |
 
