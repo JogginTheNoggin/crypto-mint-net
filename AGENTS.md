@@ -181,8 +181,9 @@ challenge that for a specific piece or feature when measurements show it
 really hurts performance (the owner's rule, 2026-11-02). Orange makes
 the case in its Part B proposal, with the measurements, what the
 modular form costs, and what a tighter form would save and give up.
-Grey decides, as for any Orange proposal. A challenge never covers
-consensus rules or the rule that the GUI runs the headless code.
+Grey decides, as for any Orange proposal. This applies to both Orange
+teams. It never covers consensus rules, nor the rule that the GUI runs
+exactly the headless code.
 
 Threads talk through these files and through thread messages that name
 a branch, a commit and finding ids. Decisions still go in
