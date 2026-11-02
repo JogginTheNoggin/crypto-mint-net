@@ -211,5 +211,33 @@ func runRandom(t *testing.T, seed int64, steps int) int {
 			}
 		}
 	}
+	checkReplayOrder(t, f)
 	return reorgs
+}
+
+// checkReplayOrder rebuilds the pool from ReplayOrder and checks that it
+// selects the same ledger with the same weight and holds the same entries.
+func checkReplayOrder(t *testing.T, f *fixture) {
+	t.Helper()
+	g := ledger.New(f.s, 1, ledger.Config{K: ledger.Unlimited})
+	order := f.pool.ReplayOrder()
+	if len(order) != f.pool.Len() {
+		t.Fatalf("replay order has %d entries, pool holds %d", len(order), f.pool.Len())
+	}
+	for _, h := range order {
+		e, _ := f.pool.Entry(h)
+		if _, err := g.AddEntry(e); err != nil {
+			t.Fatalf("replay entry %s: %v", h.Short(), err)
+		}
+		for _, l := range f.pool.Layers(h) {
+			if _, err := g.AddLayer(l); err != nil {
+				t.Fatalf("replay layer on %s: %v", h.Short(), err)
+			}
+		}
+	}
+	t1, h1, w1 := f.pool.Tip()
+	t2, h2, w2 := g.Tip()
+	if t1 != t2 || h1 != h2 || w1.Cmp(w2) != 0 || g.Len() != f.pool.Len() {
+		t.Fatalf("replayed pool selects %s (%d, %s), original %s (%d, %s)", t2.Short(), h2, w2, t1.Short(), h1, w1)
+	}
 }

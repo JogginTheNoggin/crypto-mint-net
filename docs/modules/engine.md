@@ -16,13 +16,15 @@ or opens a socket. Calls are safe from multiple goroutines.
   `FollowPool`, `FollowMint` (follows the mint's pool, decision D20),
   `Follows`, `KeyOf(tx)`. `PoolKey{Series, Index}` names a pool.
 - Items: `HandleTx(t, origin)`, `HandleEntry(key, e, origin)`,
-  `HandleLayer(key, l, origin)`. `Origin` is `Pushed`, `Requested` or
-  `Local`. Results carry `Forward` (never true for `Requested`), and for
+  `HandleLayer(key, l, origin)`. `Origin` is `Pushed`, `Requested`,
+  `Local` or `Stored` (read back from the node's store, decision D27).
+  Results carry `Forward` (true only for `Pushed` and `Local`), and for
   entries and layers the `Switch` and pruned hashes.
 - Building: `Build(key, maxTries)` bundles ready pending transactions on the
   tip (`ErrNothingPending`, `ErrAlreadyBuilt`); `Work(key, entryHash, start,
   tries)` grinds and adds a layer (`ErrNoStrongerLayer`).
-- Reading: `Status(key)`, `Payment(key, tid)` (pending, in which entry,
+- Reading: `FollowedPools()`, `Pending(key)` (ready pending transactions,
+  oldest first), `Status(key)`, `Payment(key, tid)` (pending, in which entry,
   weight added since, selected), `Holdings(series, serial)`,
   `Ledger(key, fn)` for read access under the lock.
 - `Seen`: a fixed-size ring of valid item hashes (decision D15: requested

@@ -9,15 +9,25 @@ have a fixed home. The consensus packages are pure: they read no clock, no
 disk and no network, so the same inputs always give the same selected ledger.
 `pkg/engine` is the boundary of the full node. It takes items (transactions,
 entries, layers) from any transport, says whether to forward them, and
-reports what changed. Storage, the wire protocol and peer management
-(milestones 2 to 5) will sit around the engine and must not leak into the
-packages below it.
+reports what changed. `pkg/node` wraps it with a data directory: the node
+policy and a store per pool, replayed through the engine on start-up so
+nothing on disk is trusted. `pkg/rpc` gives the owner local control. The wire
+protocol and peer management (milestones 3 to 5) will sit around the node
+and must not leak into the packages below the engine.
 
 ## Package layers
 
 ```mermaid
 graph TD
-  cmd[cmd/poo] --> engine
+  cmd[cmd/poo] --> rpc
+  cmd --> node
+  rpc --> node
+  node --> engine
+  node --> store
+  node --> nodepolicy
+  nodepolicy --> ledger
+  nodepolicy --> series
+  cmd --> engine
   engine --> ledger
   engine --> mempool
   ledger --> entry
@@ -46,7 +56,8 @@ project. Every package above `policy` also imports `hash`, and most import
 | Primitives | `encoding`, `hash`, `weight` | Byte form, hashes and strength, credit and weight |
 | Series tier | `series`, `policy` | Published rules of a series, addresses, witnesses |
 | Consensus tier | `tx`, `entry`, `layer`, `state`, `ledger` | Validity, weight, selection, switching |
-| Node policy | `mempool`, `engine` (and their `Config`) | What to keep, follow and forward |
+| Node policy | `mempool`, `engine` (and their `Config`), `nodepolicy` | What to keep, follow and forward |
+| Node | `store`, `node`, `rpc` | Disk, the data directory, local control |
 | Tools | `cmd/poo`, `vectors`, `testutil` | CLI, demo, published vectors, test helpers |
 
 ## The three tiers
@@ -125,12 +136,13 @@ fork point, through an overlay on the current state.
 
 ## Where later milestones attach
 
-- **Storage (M2)** wraps the engine: it persists entries, layers and pending
-  transactions and feeds them back through the `Handle*` calls on start-up.
+- **Storage (M2, done)** wraps the engine in `pkg/node`: it appends every
+  kept entry, layer and pending transaction to the pool's log and feeds
+  them back through the `Handle*` calls, as `Stored`, on start-up.
   Consensus packages stay in memory and unaware of disk.
 - **Wire protocol and forwarding (M3)** turn bytes into items, call the
-  engine with `Pushed` or `Requested` and forward what the engine says to
-  forward.
+  node with `Pushed` or `Requested` and forward what the engine says to
+  forward. Serving ledger data reads the engine through `Engine.Ledger`.
 - **Peers (M4, M5)** decide who to talk to. They never change validity.
 
 See [roadmap.md](roadmap.md) for the milestones and

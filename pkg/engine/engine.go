@@ -16,7 +16,8 @@
 //   - only items for followed pools are taken in;
 //   - an item already on the seen list, or already held, is dropped;
 //   - an item is listed as seen only once it has passed every check;
-//   - data the node asked for (Requested) is kept but never forwarded;
+//   - data the node asked for (Requested) or read back from its own store
+//     (Stored) is kept but never forwarded;
 //   - entries and layers are forwarded whatever branch they are on.
 //
 // An Engine is safe for concurrent use.
@@ -25,6 +26,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
@@ -63,7 +65,33 @@ const (
 	Requested
 	// Local: made by this node. Kept items are forwarded.
 	Local
+	// Stored: read back from this node's own store on start-up. Like
+	// Requested, it skips the seen list and is never forwarded.
+	Stored
 )
+
+// forwards reports whether kept items of this origin are forwarded.
+func (o Origin) forwards() bool { return o == Pushed || o == Local }
+
+// checksSeen reports whether entries and layers of this origin are dropped
+// when already on the seen list. Data the node asked for, or reads back
+// from its store, may have been seen and then dropped.
+func (o Origin) checksSeen() bool { return o == Pushed || o == Local }
+
+// String names the origin.
+func (o Origin) String() string {
+	switch o {
+	case Pushed:
+		return "pushed"
+	case Requested:
+		return "requested"
+	case Local:
+		return "local"
+	case Stored:
+		return "stored"
+	}
+	return fmt.Sprintf("origin(%d)", int(o))
+}
 
 // PoolKey names one pool of one series.
 type PoolKey struct {
@@ -231,6 +259,29 @@ func (e *Engine) pool(k PoolKey) (*poolState, error) {
 	return p, nil
 }
 
+// FollowedPools returns every pool the node follows, by series id and then
+// pool index.
+func (e *Engine) FollowedPools() []PoolKey {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []PoolKey
+	for id, f := range e.follows {
+		s := e.series[id]
+		for k := uint64(0); k < s.PoolCount(); k++ {
+			if f.all || f.pools[k] {
+				out = append(out, PoolKey{Series: id, Index: k})
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if c := out[i].Series.Compare(out[j].Series); c != 0 {
+			return c < 0
+		}
+		return out[i].Index < out[j].Index
+	})
+	return out
+}
+
 // KeyOf returns the pool key of a transaction.
 func (e *Engine) KeyOf(t *tx.Tx) (PoolKey, error) {
 	e.mu.Lock()
@@ -273,7 +324,7 @@ func (e *Engine) HandleTx(t *tx.Tx, origin Origin) (TxResult, error) {
 		return res, err
 	}
 	e.seen.Add(tid)
-	res.Forward = origin != Requested
+	res.Forward = origin.forwards()
 	return res, nil
 }
 
@@ -304,7 +355,7 @@ func (e *Engine) HandleEntry(k PoolKey, en *entry.Entry, origin Origin) (EntryRe
 	res := EntryResult{Key: k, Hash: h}
 	// Requested data skips the seen list, so a node can fetch again an
 	// entry it dropped; it is still never forwarded.
-	if p.ledger.Has(h) || (origin != Requested && e.seen.Has(h)) {
+	if p.ledger.Has(h) || (origin.checksSeen() && e.seen.Has(h)) {
 		return res, ErrSeen
 	}
 	ar, err := p.ledger.AddEntry(en)
@@ -312,7 +363,7 @@ func (e *Engine) HandleEntry(k PoolKey, en *entry.Entry, origin Origin) (EntryRe
 		return res, err
 	}
 	e.seen.Add(h)
-	res.Forward = origin != Requested
+	res.Forward = origin.forwards()
 	res.Pruned = ar.Pruned
 	res.Switch = ar.Switch
 	res.Dropped = e.afterSwitch(p, ar.Switch)
@@ -342,7 +393,7 @@ func (e *Engine) HandleLayer(k PoolKey, l layer.Layer, origin Origin) (LayerResu
 	}
 	lh := l.Hash(p.s.Hash())
 	res := LayerResult{Key: k, Hash: lh, Credit: weight.Credit(lh.Strength())}
-	if origin != Requested && e.seen.Has(lh) {
+	if origin.checksSeen() && e.seen.Has(lh) {
 		return res, ErrSeen
 	}
 	ar, err := p.ledger.AddLayer(l)
@@ -350,7 +401,7 @@ func (e *Engine) HandleLayer(k PoolKey, l layer.Layer, origin Origin) (LayerResu
 		return res, err
 	}
 	e.seen.Add(lh)
-	res.Forward = origin != Requested
+	res.Forward = origin.forwards()
 	res.Switch = ar.Switch
 	res.Pruned = ar.Pruned
 	res.Dropped = e.afterSwitch(p, ar.Switch)
@@ -498,6 +549,18 @@ func (e *Engine) Holdings(id hash.Hash, serial uint64) ([]state.Holding, error) 
 		return nil, err
 	}
 	return p.ledger.State().Portions(serial), nil
+}
+
+// Pending returns the pending transactions of pool k that are ready to go
+// into an entry, oldest first.
+func (e *Engine) Pending(k PoolKey) ([]mempool.Item, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	p, err := e.pool(k)
+	if err != nil {
+		return nil, err
+	}
+	return p.pending.Ready(), nil
 }
 
 // Ledger runs fn with the ledger of a followed pool while holding the

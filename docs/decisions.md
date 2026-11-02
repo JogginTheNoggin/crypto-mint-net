@@ -11,7 +11,13 @@ the documents' examples (D2); domain-separated hashes for every object
 (D3, D4); arbitrary-precision weights (D10); and provisional node-policy
 defaults (D12) that milestone 7's simulator is meant to replace with
 measured values. Where the documents disagree with each other, the code
-follows the consolidated main document (D18).
+follows the consolidated main document (D18). Milestone 2 adds storage and
+the node daemon: a per-pool log that is replayed through the engine so
+nothing on disk is trusted (D21), synced writes by default (D22),
+compaction that cannot flip a tie (D23), accepting any issuer until a
+project issuer exists (D24), the save, archive and delete operations for
+node policies (D25), and a local RPC limited to loopback with a token
+(D26).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -205,4 +211,114 @@ entry "Superseded by Dn".
   whole pool of that mint.
 - **Why:** All mints of a pool share one ledger. Checking an entry needs
   every transaction in it, whichever mint it belongs to.
+- **Tier:** Node policy.
+
+### D21. The store is a log replayed through the engine
+
+- **Decision:** Each followed pool has an append-only log of the entries,
+  layers and pending transactions the engine kept, in their canonical byte
+  forms, framed with a length and a CRC-32C. On start-up the node replays
+  the log through the engine as `Stored` items, so every rule is checked
+  again. A torn or corrupt tail is cut off and reported.
+- **Why:** Nothing read from disk is trusted, so a damaged or edited file
+  can lose data but never make the node accept something invalid. Replaying
+  in the original order rebuilds the same tree, selected ledger and pruning
+  as before the restart. One file per pool matches the design: a pool is
+  the unit a node follows, holds and asks for.
+- **Tier:** Node policy (storage is local).
+
+### D22. Write durability
+
+- **Decision:** By default every append is synced to disk before the call
+  returns. `no_sync` in the node policy skips that.
+- **Why:** Safe by default. What a power loss can lose with `no_sync` is
+  only what peers can send again, except a wallet's own pending
+  transactions, which the wallet still has. Milestone 7 benchmarks will show
+  whether the default costs too much.
+- **Tier:** Node policy.
+
+### D23. Compaction keeps the selected ledger first
+
+- **Decision:** A log is rewritten, through a temporary file and a rename,
+  when it holds at least 1024 records and more than twice what the node
+  still needs. The rewrite lists the selected ledger from the pool_id up,
+  then every other held entry by first sighting, each followed by its
+  layers, then the ready pending transactions.
+- **Why:** Pruned branches and transactions now in entries would otherwise
+  grow the log without bound. Writing the selected ledger first means a
+  branch of exactly equal weight cannot take its place on replay, so a
+  restart never changes which side of a tie the node holds.
+- **Tier:** Node policy.
+
+### D24. Accept any issuer by default
+
+- **Decision:** A new node policy accepts every series it lists
+  (`issuers.any`), including series that name no issuer. A listed issuer
+  witness must still be valid. `issuers.accept` restricts acceptance to
+  named issuers, each with a valid witness.
+- **Why:** The design expects the project's own issuer to be the default.
+  There is no project issuer yet, and a node only knows the series written
+  into its node policy, so accepting those is the useful default. Revisit
+  when a project issuer exists.
+- **Tier:** Node policy.
+
+### D25. Saving, archiving and deleting node policies
+
+- **Decision:** Node policies live under one root directory
+  (`$POO_HOME`, default `~/.poo`). A saved policy is
+  `policies/<name>/node.json` with its data beside it, so using it again
+  picks up where it left off. Archiving moves the directory, data included,
+  to `archive/<name>`. `poo policy use` on an archived policy starts from
+  scratch (its data is deleted and its settings are saved again).
+  `poo policy unarchive` takes it out by hand and picks up where it left
+  off (`-fresh` drops the data). Delete removes it for good. A running node
+  holds a lock on its directory, so it cannot be archived or deleted.
+- **Why:** These are the design's expected meanings. What archiving is for
+  is still open in the design; keeping the data costs disk but keeps both
+  choices available.
+- **Tier:** Node policy.
+
+### D26. Local RPC: loopback and a token
+
+- **Decision:** The node's control interface is JSON over HTTP, listening on
+  `127.0.0.1:8645` by default. A non-loopback address is refused unless the
+  node policy sets `allow_remote`. Every request needs the bearer token in
+  `rpc.token` (32 random bytes, file mode 0600). Bodies are capped at 8 MiB
+  and a work request at 2^24 nonces.
+- **Why:** The interface controls the node (it submits, builds and works),
+  so it should be reachable only by the node's owner. HTTP and JSON need
+  nothing outside the standard library and are easy to use from any
+  language. It is not the peer protocol, which is milestone 3.
+- **Tier:** Node policy.
+
+### D27. The Stored origin
+
+- **Decision:** The engine has a fourth origin, `Stored`, for items read
+  back from the node's own store. Like `Requested`, they skip the seen list
+  and are never forwarded.
+- **Why:** On start-up the seen list is empty anyway, but a stored entry may
+  have been pruned and pushed again later; it must be taken in. Forwarding
+  everything on every restart would flood peers with old data.
+- **Tier:** Node policy.
+
+### D28. What is not stored
+
+- **Decision:** The seen list and first-seen times are not stored; after a
+  restart, first-seen times are the replay time. Compaction keeps the ready
+  pending transactions but not carried transactions still waiting on
+  another. (Without compaction, replay reproduces them, since it repeats
+  the switch that carried them.)
+- **Why:** None of them changes which ledger is selected. First-seen times
+  are local and selection never reads them. Waiting transactions are rare
+  (a switch that displaced a chain of payments) and can be sent again.
+- **Tier:** Node policy.
+
+### D29. No expiry yet
+
+- **Decision:** Entries and layers are kept while they are in the selected
+  ledger or a top K branch; nothing expires by age.
+- **Why:** The design makes expiry node policy and leaves defaults open.
+  K already bounds what a node holds per pool. Expiry needs the entry-age
+  questions the design lists as open; it can be added as a node policy
+  setting once they are settled.
 - **Tier:** Node policy.

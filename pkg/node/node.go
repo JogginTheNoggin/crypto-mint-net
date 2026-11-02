@@ -1,0 +1,453 @@
+// Package node is a full node with a data directory: the engine, the node
+// policy that configures it, and a store for every followed pool.
+//
+// Opening a node reads its node policy, makes the accepted series known,
+// applies what it follows, and replays each pool's store through the engine
+// as Stored items, so everything on disk is checked again. Every item the
+// engine then keeps is appended to its pool's store before the call
+// returns. Logs are compacted on start-up and on close when most of their
+// records are no longer needed.
+//
+// Data directory layout:
+//
+//	node.json                      the node policy
+//	LOCK                           held while a node runs
+//	pools/<series_id>/<k>.log      one store per followed pool
+//	rpc.token, rpc.addr            written by the RPC server (package rpc)
+//
+// A Node is safe for concurrent use. Calls that change state are
+// serialized, so each store is in the order the engine accepted items.
+package node
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/store"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
+)
+
+// ErrClosed is returned by calls on a closed node.
+var ErrClosed = errors.New("node: closed")
+
+// A log is compacted when it holds at least CompactMin records and more
+// than compactRatio times the records the node still needs. Provisional,
+// like every storage default.
+const (
+	DefaultCompactMin = 1024
+	compactRatio      = 2
+)
+
+// Options are settings that are not node policy.
+type Options struct {
+	// Log receives progress and warnings. Nil discards them.
+	Log io.Writer
+	// CompactMin is the smallest log that is compacted automatically
+	// (0: DefaultCompactMin).
+	CompactMin int
+}
+
+// Node is a running full node.
+type Node struct {
+	mu     sync.Mutex
+	dir    string
+	pol    nodepolicy.Policy
+	eng    *engine.Engine
+	logs   map[engine.PoolKey]*store.Log
+	out    io.Writer
+	cmin   int
+	unlock func()
+	closed bool
+	replay ReplayStats
+}
+
+// ReplayStats reports what Open read back from the stores.
+type ReplayStats struct {
+	Pools   int `json:"pools"`
+	Records int `json:"records"`
+	// Kept counts records the engine kept again. The rest were valid but
+	// no longer needed (a pruned branch, a transaction now in an entry) or
+	// failed a check, which would mean the files were changed.
+	Kept int `json:"kept"`
+	// Cut is the bytes dropped from the ends of logs after a crash.
+	Cut int64 `json:"cut_bytes"`
+}
+
+// Open opens the node in dir. The directory must hold a node.json.
+func Open(dir string, opt Options) (*Node, error) {
+	out := opt.Log
+	if out == nil {
+		out = io.Discard
+	}
+	pol, err := nodepolicy.Load(filepath.Join(dir, nodepolicy.FileName))
+	if err != nil {
+		return nil, err
+	}
+	if opt.CompactMin <= 0 {
+		opt.CompactMin = DefaultCompactMin
+	}
+	unlock, err := nodepolicy.Lock(dir)
+	if err != nil {
+		return nil, err
+	}
+	n := &Node{
+		dir: dir, pol: pol, out: out, unlock: unlock, cmin: opt.CompactMin,
+		eng: engine.New(engine.Config{
+			Ledger: pol.LedgerConfig(), MaxPending: pol.MaxPending, SeenSize: pol.SeenSize,
+		}),
+		logs: map[engine.PoolKey]*store.Log{},
+	}
+	if err := n.configure(); err != nil {
+		unlock()
+		return nil, err
+	}
+	if err := n.load(); err != nil {
+		n.closeLogs()
+		unlock()
+		return nil, err
+	}
+	return n, nil
+}
+
+// configure makes accepted series known and applies the follow rules.
+func (n *Node) configure() error {
+	accepted, refused := n.pol.Accepted()
+	for _, r := range refused {
+		fmt.Fprintf(n.out, "series %d not accepted: %v\n", r.Index, r.Reason)
+	}
+	byIssuer := map[hash.Hash][]hash.Hash{}
+	for _, a := range accepted {
+		n.eng.AddSeries(a.Series)
+		if a.Issuer != nil {
+			byIssuer[*a.Issuer] = append(byIssuer[*a.Issuer], a.Series.ID())
+		}
+	}
+	for i, f := range n.pol.Follow {
+		var err error
+		switch {
+		case f.Issuer != nil:
+			ids := byIssuer[*f.Issuer]
+			if len(ids) == 0 {
+				fmt.Fprintf(n.out, "follow %d: no accepted series from issuer %s\n", i, f.Issuer.Short())
+			}
+			for _, id := range ids {
+				if err = n.eng.FollowSeries(id); err != nil {
+					break
+				}
+			}
+		case len(f.Pools) == 0 && len(f.Mints) == 0:
+			err = n.eng.FollowSeries(*f.Series)
+		default:
+			for _, k := range f.Pools {
+				if err = n.eng.FollowPool(*f.Series, k); err != nil {
+					break
+				}
+			}
+			for _, s := range f.Mints {
+				if err == nil {
+					err = n.eng.FollowMint(*f.Series, s)
+				}
+			}
+		}
+		if errors.Is(err, engine.ErrUnknownSeries) {
+			// A series that was not accepted is not followed; the node
+			// still starts.
+			fmt.Fprintf(n.out, "follow %d: series %s is not known or not accepted\n", i, f.Series.Short())
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("%w: follow %d: %v", nodepolicy.ErrInvalid, i, err)
+		}
+	}
+	return nil
+}
+
+func (n *Node) logPath(k engine.PoolKey) string {
+	return filepath.Join(n.dir, "pools", k.Series.String(), strconv.FormatUint(k.Index, 10)+".log")
+}
+
+// load opens the store of every followed pool and replays it. Stores of
+// pools no longer followed are left on disk untouched.
+func (n *Node) load() error {
+	for _, k := range n.eng.FollowedPools() {
+		path := n.logPath(k)
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		l, op, err := store.Open(path, store.Options{NoSync: n.pol.NoSync})
+		if err != nil {
+			return fmt.Errorf("node: %s: %w", path, err)
+		}
+		n.logs[k] = l
+		n.replay.Pools++
+		n.replay.Cut += op.Cut
+		if op.Cut > 0 {
+			fmt.Fprintf(n.out, "pool %s: dropped %d bytes of an unfinished write\n", k, op.Cut)
+		}
+		for _, r := range op.Records {
+			n.replay.Records++
+			if n.apply(k, r) {
+				n.replay.Kept++
+			}
+		}
+		if err := n.maybeCompact(k); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// apply replays one stored record and reports whether the engine kept it.
+func (n *Node) apply(k engine.PoolKey, r store.Record) bool {
+	var err error
+	switch r.Kind {
+	case store.KindEntry:
+		var e *entry.Entry
+		if e, err = entry.Decode(r.Data); err == nil {
+			_, err = n.eng.HandleEntry(k, e, engine.Stored)
+		}
+	case store.KindLayer:
+		var l layer.Layer
+		if l, err = layer.Decode(r.Data); err == nil {
+			_, err = n.eng.HandleLayer(k, l, engine.Stored)
+		}
+	case store.KindTx:
+		var t *tx.Tx
+		if t, err = tx.Decode(r.Data); err == nil {
+			_, err = n.eng.HandleTx(t, engine.Stored)
+		}
+	default:
+		err = fmt.Errorf("unknown record kind %d", r.Kind)
+	}
+	return err == nil
+}
+
+// liveRecords returns what pool k still needs: the entries it holds, each
+// followed by its layers, in an order that rebuilds the same selected
+// ledger, then the pending transactions.
+func (n *Node) liveRecords(k engine.PoolKey) ([]store.Record, error) {
+	var recs []store.Record
+	err := n.eng.Ledger(k, func(p *ledger.Pool) {
+		for _, h := range p.ReplayOrder() {
+			e, _ := p.Entry(h)
+			recs = append(recs, store.Record{Kind: store.KindEntry, Data: e.Encode()})
+			for _, l := range p.Layers(h) {
+				recs = append(recs, store.Record{Kind: store.KindLayer, Data: l.Encode()})
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	pending, err := n.eng.Pending(k)
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range pending {
+		recs = append(recs, store.Record{Kind: store.KindTx, Data: it.Tx.Encode()})
+	}
+	return recs, nil
+}
+
+func (n *Node) maybeCompact(k engine.PoolKey) error {
+	l := n.logs[k]
+	if l == nil || l.Records() < n.cmin {
+		return nil
+	}
+	recs, err := n.liveRecords(k)
+	if err != nil {
+		return err
+	}
+	if l.Records() <= compactRatio*len(recs) {
+		return nil
+	}
+	return n.compact(k, recs)
+}
+
+func (n *Node) compact(k engine.PoolKey, recs []store.Record) error {
+	l := n.logs[k]
+	before := l.Records()
+	if err := l.Rewrite(recs); err != nil {
+		return fmt.Errorf("node: compact %s: %w", k, err)
+	}
+	fmt.Fprintf(n.out, "pool %s: compacted store from %d to %d records\n", k, before, len(recs))
+	return nil
+}
+
+// Compact rewrites the store of pool k with only what the node still holds.
+func (n *Node) Compact(k engine.PoolKey) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return ErrClosed
+	}
+	if n.logs[k] == nil {
+		return nil
+	}
+	recs, err := n.liveRecords(k)
+	if err != nil {
+		return err
+	}
+	return n.compact(k, recs)
+}
+
+// record appends an accepted item to the store of pool k, opening the
+// store on first use.
+func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte) error {
+	l := n.logs[k]
+	if l == nil {
+		var err error
+		l, _, err = store.Open(n.logPath(k), store.Options{NoSync: n.pol.NoSync})
+		if err != nil {
+			return err
+		}
+		n.logs[k] = l
+	}
+	if err := l.Append(store.Record{Kind: kind, Data: data}); err != nil {
+		return fmt.Errorf("node: store %s: %w", k, err)
+	}
+	return nil
+}
+
+// HandleTx takes in a transaction and stores it if the engine keeps it.
+func (n *Node) HandleTx(t *tx.Tx, origin engine.Origin) (engine.TxResult, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return engine.TxResult{}, ErrClosed
+	}
+	res, err := n.eng.HandleTx(t, origin)
+	if err != nil {
+		return res, err
+	}
+	return res, n.record(res.Key, store.KindTx, t.Encode())
+}
+
+// HandleEntry takes in an entry of pool k and stores it if kept.
+func (n *Node) HandleEntry(k engine.PoolKey, e *entry.Entry, origin engine.Origin) (engine.EntryResult, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return engine.EntryResult{}, ErrClosed
+	}
+	res, err := n.eng.HandleEntry(k, e, origin)
+	if err != nil {
+		return res, err
+	}
+	return res, n.record(k, store.KindEntry, e.Encode())
+}
+
+// HandleLayer takes in a layer of pool k and stores it if kept.
+func (n *Node) HandleLayer(k engine.PoolKey, l layer.Layer, origin engine.Origin) (engine.LayerResult, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return engine.LayerResult{}, ErrClosed
+	}
+	res, err := n.eng.HandleLayer(k, l, origin)
+	if err != nil {
+		return res, err
+	}
+	return res, n.record(k, store.KindLayer, l.Encode())
+}
+
+// Build makes an entry from the pending transactions of pool k (see
+// engine.Engine.Build) and stores it.
+func (n *Node) Build(k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.EntryResult, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return nil, engine.EntryResult{}, ErrClosed
+	}
+	e, res, err := n.eng.Build(k, maxTries)
+	if err != nil {
+		return e, res, err
+	}
+	return e, res, n.record(k, store.KindEntry, e.Encode())
+}
+
+// Work grinds a layer on an entry of pool k (see engine.Engine.Work) and
+// stores it.
+func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, engine.LayerResult, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return layer.Layer{}, engine.LayerResult{}, ErrClosed
+	}
+	l, res, err := n.eng.Work(k, entryHash, start, tries)
+	if err != nil {
+		return l, res, err
+	}
+	return l, res, n.record(k, store.KindLayer, l.Encode())
+}
+
+// Engine returns the engine, for reading. Changes must go through the
+// node's own Handle calls, or they are not stored.
+func (n *Node) Engine() *engine.Engine { return n.eng }
+
+// Policy returns the node policy in use.
+func (n *Node) Policy() nodepolicy.Policy { return n.pol }
+
+// Dir returns the data directory.
+func (n *Node) Dir() string { return n.dir }
+
+// Replayed reports what Open read back from the stores.
+func (n *Node) Replayed() ReplayStats { return n.replay }
+
+// StoreInfo describes one pool's store.
+type StoreInfo struct {
+	Key     engine.PoolKey
+	Path    string
+	Records int
+}
+
+// Stores lists the open stores, by pool.
+func (n *Node) Stores() []StoreInfo {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	out := make([]StoreInfo, 0, len(n.logs))
+	for k, l := range n.logs {
+		out = append(out, StoreInfo{Key: k, Path: l.Path(), Records: l.Records()})
+	}
+	sort.Slice(out, func(i, j int) bool { return strings.Compare(out[i].Path, out[j].Path) < 0 })
+	return out
+}
+
+func (n *Node) closeLogs() error {
+	var errs []error
+	for _, l := range n.logs {
+		errs = append(errs, l.Close())
+	}
+	return errors.Join(errs...)
+}
+
+// Close compacts stores that need it, closes them and releases the data
+// directory.
+func (n *Node) Close() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.closed {
+		return nil
+	}
+	n.closed = true
+	var errs []error
+	for k := range n.logs {
+		errs = append(errs, n.maybeCompact(k))
+	}
+	errs = append(errs, n.closeLogs())
+	n.unlock()
+	return errors.Join(errs...)
+}

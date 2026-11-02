@@ -1,9 +1,11 @@
 // Command poo is the command-line tool for the Proof of Ownership full node.
 //
-// Milestone 1 ships the consensus core without networking, so the tool
-// offers offline commands: making keys and addresses, computing series ids
-// and pools, and a demo that runs several in-process full nodes through the
-// design's worked example. See docs/roadmap.md for what comes next.
+// It runs the node daemon (poo node), which stores what it accepts and
+// serves a local RPC, and talks to a running node: status, claims and
+// payments from a single key, building entries and adding layers, and
+// reading where a payment stands. It also manages node policies and has
+// offline commands for keys, series and an in-process demo. The node does
+// not talk to peers yet; see docs/roadmap.md.
 package main
 
 import (
@@ -26,12 +28,32 @@ var Version = "0.1.0-dev"
 const usage = `poo: Proof of Ownership full node tool
 
 Usage:
+  poo init [-example] [-series FILE]...   write a node policy and make it current
+  poo node                    run the node until interrupted
+  poo status                  every followed pool of the running node
+  poo claim -seed HEX -serial N
+                              claim a whole mint for a key's address
+  poo pay -seed HEX -serial N -to ADDR -amount A
+                              pay from a key's address, change back to it
+  poo build -pool K           build an entry from the pending transactions
+  poo work -pool K [-entry HASH] [-tries N]
+                              add a layer (default: on the selected tip)
+  poo payment -serial N -tid HASH
+                              where a transaction stands, and its weight
+  poo holdings -serial N      unspent portions of a mint
+  poo policy list|use|archive|unarchive|delete [-root DIR] [NAME]
+                              manage saved and archived node policies
+
   poo version                 print the version
   poo keygen [-seed HEX]      make an Ed25519 key and its 1-of-1 address
   poo series example          print the worked example's series as JSON
   poo series info FILE        print the id and pools of a series JSON file
   poo demo [-quiet]           run in-process full nodes through a payment,
                               a double spend and its resolution
+
+Node commands pick a data directory with -dir, or with -root (default
+$POO_HOME or ~/.poo) and -policy (default: the current node policy).
+Client commands take -series ID when the node follows more than one series.
 `
 
 func main() {
@@ -61,6 +83,26 @@ func run(args []string, out io.Writer) error {
 			return err
 		}
 		return demo(out, *quiet)
+	case "init":
+		return initCmd(args[1:], out)
+	case "node":
+		return nodeCmd(args[1:], out)
+	case "status":
+		return statusCmd(args[1:], out)
+	case "claim":
+		return claimCmd(args[1:], out)
+	case "pay":
+		return payCmd(args[1:], out)
+	case "build":
+		return buildCmd(args[1:], out)
+	case "work":
+		return workCmd(args[1:], out)
+	case "payment":
+		return paymentCmd(args[1:], out)
+	case "holdings":
+		return holdingsCmd(args[1:], out)
+	case "policy":
+		return policyCmd(args[1:], out)
 	case "help", "-h", "--help":
 		fmt.Fprint(out, usage)
 		return nil
