@@ -5,6 +5,7 @@
 import * as api from './api.js';
 import { render } from './render.js';
 import * as where from './where.js';
+import { hintFor } from './hints.js';
 
 export function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
@@ -19,18 +20,27 @@ export function el(tag, attrs = {}, ...kids) {
 }
 
 // runJob runs args as a job and shows it in area: output as it arrives,
-// an input field whenever the command reads input (masked for a
-// passphrase), and the result rendered once it ends. It resolves to
+// an input field whenever the command reads input (masked unless the
+// user shows it), and the result rendered once it ends. It resolves to
 // {code, out, err}.
-export function runJob(args, area, { onStart } = {}) {
+export function runJob(args, area, { onStart, empty } = {}) {
   area.textContent = '';
   const status = el('div', { class: 'run-status live' }, 'running…');
   const live = el('pre', { class: 'live-out' });
   const ask = el('form', { class: 'ask', hidden: true });
   const askLabel = el('label', {});
-  const askInput = el('input', { autocomplete: 'off', spellcheck: 'false' });
+  // The answer is masked unless the user shows it: which prompts read a
+  // secret is not guessed from the output (GUI-003).
+  const askInput = el('input', { type: 'password', autocomplete: 'off', spellcheck: 'false' });
+  const showBtn = el('button', { type: 'button', class: 'small', 'aria-pressed': 'false', title: 'Show what you type' }, 'Show');
+  showBtn.onclick = () => {
+    const show = askInput.type === 'password';
+    askInput.type = show ? 'text' : 'password';
+    showBtn.setAttribute('aria-pressed', String(show));
+    askInput.focus();
+  };
   const stopBtn = el('button', { type: 'button' }, 'Stop');
-  ask.append(askLabel, askInput, el('button', { type: 'submit', class: 'primary' }, 'Send'));
+  ask.append(askLabel, askInput, showBtn, el('button', { type: 'submit', class: 'primary' }, 'Send'));
   area.append(el('div', { class: 'run-bar' }, status, stopBtn), ask, live);
   return new Promise(resolve => {
     api.start(args).then(j => {
@@ -41,6 +51,8 @@ export function runJob(args, area, { onStart } = {}) {
         ev.preventDefault();
         const v = askInput.value;
         askInput.value = '';
+        askInput.type = 'password';
+        showBtn.setAttribute('aria-pressed', 'false');
         ask.hidden = true;
         api.input(j.id, v).catch(e => { err += `poo-gui: ${e.message}\n`; });
       };
@@ -57,7 +69,6 @@ export function runJob(args, area, { onStart } = {}) {
           if (s.waiting) {
             const prompt = tail.split('\n').pop().trim() || 'input:';
             askLabel.textContent = prompt;
-            askInput.type = /passphrase/i.test(prompt) ? 'password' : 'text';
             askInput.focus();
           }
         },
@@ -67,7 +78,7 @@ export function runJob(args, area, { onStart } = {}) {
           status.className = 'run-status ' + (e.code === 0 ? 'ok' : 'bad');
           status.textContent = e.code === 0 ? 'done' : `exit ${e.code}`;
           live.remove();
-          area.append(showResult(out, err));
+          area.append(showResult(out, err, { empty }));
           resolve({ code: e.code, out, err });
         },
         error: () => { status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err }); },
@@ -81,16 +92,22 @@ export function runJob(args, area, { onStart } = {}) {
 }
 
 // showResult renders a command's output: JSON as tables, anything else as
-// the text the command printed. Errors are shown as printed.
-export function showResult(out, err) {
+// the text the command printed. Errors are shown as printed, with a next
+// step under them when one is known (hints.js). empty is what to say when
+// the command printed nothing.
+export function showResult(out, err, { empty } = {}) {
   const box = el('div', { class: 'result' });
   if (out.trim()) {
     let v, ok = false;
     try { v = JSON.parse(out); ok = true; } catch (_) { /* text output */ }
     box.append(ok ? render(v) : el('pre', { class: 'text-out' }, out));
   }
-  if (err.trim()) box.append(el('pre', { class: 'text-out err' }, err));
-  if (!out.trim() && !err.trim()) box.append(el('p', { class: 'hint' }, 'No output.'));
+  if (err.trim()) {
+    box.append(el('pre', { class: 'text-out err' }, err));
+    const h = hintFor(err);
+    if (h) box.append(el('p', { class: 'next-step' }, h.text, ' ', el('a', { href: `#/${h.view}` }, h.label)));
+  }
+  if (!out.trim() && !err.trim()) box.append(el('p', { class: 'hint empty' }, empty || 'No output.'));
   return box;
 }
 
@@ -105,7 +122,7 @@ function cmdLine(args, ctx) {
 }
 
 // panel runs args() when shown (and every refresh ms) and renders it.
-function panel(ctx, { title, about, args, refresh }) {
+function panel(ctx, { title, about, args, refresh, empty }) {
   const area = el('div', { class: 'area' });
   const line = cmdLine(args(), ctx);
   const btn = el('button', { type: 'button' }, 'Refresh');
@@ -117,7 +134,7 @@ function panel(ctx, { title, about, args, refresh }) {
     busy = true;
     const a = args();
     line.set(a);
-    await runJob(a, area);
+    await runJob(a, area, { empty });
     busy = false;
   };
   btn.onclick = go;
@@ -330,7 +347,7 @@ const policiesView = {
     const rootFlag = () => where.get().root ? ['-root', where.get().root] : [];
     const name = { name: 'name', label: 'Policy name' };
     return mountAll(root, 'Node policies', 'Saved and archived node policies; * marks the current one.', [
-      panel(ctx, { title: 'Policies', args: () => ['policy', 'list', ...rootFlag()] }),
+      panel(ctx, { title: 'Policies', args: () => ['policy', 'list', ...rootFlag()], empty: 'No saved node policies yet. Write one on the Node view.' }),
       form(ctx, { title: 'Use, archive, unarchive or delete', fields: [
         { name: 'sub', label: 'Action', type: 'select', options: ['use', 'archive', 'unarchive', 'delete'] }, name,
         { name: 'fresh', label: 'Unarchive fresh (drop stored data)', type: 'check' }],
@@ -384,18 +401,43 @@ const jobsView = {
   mount(root, ctx) {
     const list = el('div', { class: 'jobs' });
     const detail = el('pre', { class: 'term-out job-out' });
+    // The filters only choose which rows to show; every job is still kept.
+    const filter = el('input', { type: 'search', placeholder: 'Filter by command', 'aria-label': 'Filter jobs by command', spellcheck: 'false' });
+    const failed = el('input', { type: 'checkbox' });
+    const repeats = el('input', { type: 'checkbox', checked: true });
+    const tools = el('div', { class: 'job-tools' }, filter,
+      el('label', {}, failed, ' Failed only'),
+      el('label', { title: 'Views refresh their panels, so the same command runs many times. Show it once, with a count.' }, repeats, ' Group repeats'));
+    for (const i of [filter, failed, repeats]) i.addEventListener('input', () => draw());
     root.append(el('h1', {}, 'Jobs'),
       el('p', { class: 'hint' }, 'Every command the GUI has run, from views, forms and the terminal. Each is the poo command line shown.'),
-      list, detail);
+      tools, list, detail);
     let unfollow = null;
+    let js = [];
     async function refresh() {
-      let js;
       try { js = await api.jobs(); } catch (e) { list.textContent = e.message; return; }
-      list.textContent = '';
+      draw();
+    }
+    function draw() {
+      const q = filter.value.trim().toLowerCase();
+      // Newest first. With grouping, a run of the same finished command
+      // line and exit code shows once, as its newest job, with a count.
+      const rows = [];
       for (const j of js.slice().reverse()) {
+        if (q && !j.command.toLowerCase().includes(q)) continue;
+        if (failed.checked && !(j.done && j.code !== 0)) continue;
+        const prev = rows[rows.length - 1];
+        if (repeats.checked && prev && j.done && prev.j.done && prev.j.command === j.command && prev.j.code === j.code) { prev.n++; continue; }
+        rows.push({ j, n: 1 });
+      }
+      list.textContent = '';
+      if (!rows.length) list.append(el('p', { class: 'hint empty' }, js.length ? 'No jobs match the filter.' : 'No commands have run yet. Every view, form and terminal line shows up here.'));
+      for (const { j, n } of rows) {
         const state = j.done ? `exit ${j.code}` : 'running';
         list.append(el('div', { class: 'job' },
           el('code', {}, j.command),
+          el('time', { datetime: j.started, title: j.started }, new Date(j.started).toLocaleTimeString()),
+          n > 1 ? el('span', { class: 'count', title: `${n} runs in a row; the newest is shown` }, `×${n}`) : null,
           el('span', { class: j.done ? (j.code === 0 ? 'ok' : 'bad') : 'live' }, state),
           el('button', { type: 'button', onclick: () => showJob(j) }, 'Output'),
           j.done ? null : el('button', { type: 'button', onclick: () => api.cancel(j.id).then(refresh) }, 'Stop'),

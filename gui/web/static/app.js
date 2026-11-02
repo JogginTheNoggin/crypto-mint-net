@@ -1,7 +1,9 @@
 // The GUI's shell: navigation between views. Every view is a way to build
 // and run poo command lines (views.js); the terminal runs typed ones.
+import * as api from './api.js';
 import * as terminal from './terminal.js';
 import { views } from './views.js';
+import { startView } from './start.js';
 import * as where from './where.js';
 
 where.applyTheme();
@@ -27,7 +29,7 @@ const viewPane = document.createElement('div');
 viewPane.className = 'pane';
 main.append(viewPane);
 
-const all = [...views, { id: 'terminal', title: 'Terminal' }];
+const all = [startView, ...views, { id: 'terminal', title: 'Terminal' }];
 for (const v of all) {
   const a = document.createElement('a');
   a.href = `#/${v.id}`;
@@ -35,6 +37,15 @@ for (const v of all) {
   a.dataset.id = v.id;
   nav.append(a);
 }
+
+// On a narrow window the views are a menu instead of a row of tabs that
+// scrolls out of sight. Both are the same links; CSS shows one of them.
+const menu = document.createElement('select');
+menu.id = 'nav-menu';
+menu.setAttribute('aria-label', 'View');
+for (const v of all) menu.append(new Option(v.title, v.id));
+menu.addEventListener('change', () => { location.hash = `#/${menu.value}`; });
+nav.before(menu);
 
 let stopView = null;
 
@@ -48,7 +59,12 @@ export function openInTerminal(text) {
 function show() {
   const id = location.hash.replace(/^#\//, '') || all[0].id;
   const v = all.find(x => x.id === id) || all[0];
-  for (const a of nav.children) a.classList.toggle('active', a.dataset.id === v.id);
+  for (const a of nav.children) {
+    a.classList.toggle('active', a.dataset.id === v.id);
+    if (a.dataset.id === v.id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  }
+  document.title = `${v.title} · poo GUI`;
+  menu.value = v.id;
   if (stopView) { stopView(); stopView = null; }
   const isTerm = v.id === 'terminal';
   termPane.hidden = !isTerm;
@@ -58,5 +74,11 @@ function show() {
   stopView = v.mount(viewPane, { openInTerminal }) || null;
 }
 
+// The skip link moves focus without touching the hash the views use.
+document.querySelector('.skip').addEventListener('click', ev => {
+  ev.preventDefault();
+  main.focus();
+});
+
 window.addEventListener('hashchange', show);
-show();
+api.loadGrammar().then(show);

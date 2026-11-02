@@ -22,6 +22,10 @@ source, and the GUI is built on top of it:
   address and opens them in the system browser, or in a browser app window
   with `-app`. It needs no CGO, no native toolkit and no JavaScript build
   step, so it builds for every platform the headless tool builds for.
+- The terminal splits a line exactly as the platform's shell would, or
+  refuses it. A browser signs in through a one-time sign-in address, and
+  input to a running command is masked by default. The GUI Red team's
+  findings GUI-001 to GUI-005 (security/gui/findings/) led to these rules.
 
 Decisions D85 to D88 record these choices.
 
@@ -72,8 +76,9 @@ Here is how a request flows:
 
 1. A view, a form or the terminal produces an argv, which is a list of
    strings such as `["status", "-root", "/home/a/.poo"]`. The terminal gets
-   its argv by splitting the typed line with shell-style quoting. A leading
-   `poo` is dropped, so both `status` and `poo status` work.
+   its argv by splitting the typed line the way the platform's shell would
+   (see [The terminal's grammar](#the-terminals-grammar)). A leading `poo`
+   is dropped, so both `status` and `poo status` work.
 2. The server starts a **job**, which is one run of `cli.Main` with its own
    context, its own input and its own output buffer.
 3. The browser follows the job's output as a stream of events: output
@@ -112,8 +117,9 @@ with a button that runs it in the terminal.
 | Terminal | Anything, typed |
 
 When a running command reads input, such as a passphrase prompt, the view
-shows an input field next to it. The field is masked when the prompt asks
-for a passphrase. Actions that move funds or delete something ask for
+shows an input field next to it. The field is masked unless the user
+clicks Show, because the GUI cannot know which prompts read a secret and
+does not guess from the output. Actions that move funds or delete something ask for
 confirmation first, and the confirmation shows the command line. The
 terminal adds no flags: what you type is what runs.
 
@@ -134,6 +140,42 @@ which the headless tool then has too.
 
 The rule is enforced in code. `gui/imports_test.go` fails if any GUI
 package imports a package from the core module other than `pkg/cli`.
+
+### The terminal's grammar
+
+The terminal splits a typed line into an argv exactly as the shell that
+runs `poo` on that platform would, or refuses the line. It never gives a
+line a meaning the shell would not give it. `gui/shell` holds both
+grammars, and table tests pin them.
+
+- **POSIX (Linux, macOS), as `sh` splits a line.** Spaces and tabs
+  separate words. `'...'` is literal. Inside `"..."`, a backslash escapes
+  only `$`, `` ` ``, `"` and `\`. Outside quotes, a backslash escapes any
+  character, so `C:\new` is `C:new`, as in a shell. Quote a Windows path,
+  as in `'C:\Users\a'`. A `#` at the start of a word begins a comment.
+- **Windows, as `cmd.exe` passes a line to `poo.exe`.** Spaces and tabs
+  separate words. `"..."` groups, and `""` inside quotes is a quote.
+  Backslashes are literal except before a quote, so `C:\Users\a` works
+  unquoted. Single quotes are ordinary characters, as they are in `cmd`.
+- **Refused.** A real shell would run anything that is not a single poo
+  command, or would expand it first, so the terminal refuses it with an
+  error that says to quote it. On POSIX that is unquoted `| & ; < > ( ) $`,
+  `` ` ``, `* ? [`, a leading `~`, and `$` or `` ` `` inside `"..."`. On
+  Windows it is unquoted `& | < > ^`. A line holding CR or LF is refused
+  too, because a shell would end the command there.
+- **Not modeled.** Some features belong to interactive shells and not to
+  `sh`, such as bash's `!` history and `{a,b}` brace expansion and
+  PowerShell's own quoting. Those characters pass to poo literally.
+- **One convenience.** A leading `poo` word is dropped, because the prompt
+  already reads `poo`. `poo poo` would be an unknown command in a shell
+  anyway.
+
+Clearing the screen is the Clear button and Ctrl-L, which are display
+controls. `clear` typed as a line goes to poo like any other line, as
+`poo clear` would in a shell. `GET /api/grammar` tells the page which
+grammar the server uses, so the command lines that views show split back
+into the same argv. A test checks that the page's quoting matches
+`shell.Quote`.
 
 ### Same output, byte for byte
 
@@ -157,11 +199,24 @@ server is locked down:
 
 - **Loopback only.** The server listens on `127.0.0.1` on a random port.
   It refuses to listen on any other address.
-- **A secret per launch.** On start, the GUI creates 32 random bytes and
-  opens `http://127.0.0.1:PORT/?t=SECRET`. The first visit swaps the
-  secret for an HttpOnly, SameSite=Strict cookie and redirects to a clean
-  URL. Every API call needs that cookie. Another user on the same machine,
-  or another page, cannot use the server.
+- **One-time sign-in addresses.** A browser signs in by opening
+  `http://127.0.0.1:PORT/?t=TOKEN`, where the token is 32 random bytes. The
+  first visit spends the token. It sets a session cookie that is a
+  separate random value, not derived from the token, and is HttpOnly and
+  SameSite=Strict. Then it redirects to a clean URL. Every request needs
+  that cookie. A token works once, and only within a short time: one
+  minute for the address poo-gui opens itself, and five minutes for one it
+  prints. So an address left in a process list (the browser's arguments),
+  in the browser's history or in a log signs nobody in. By default poo-gui
+  opens the browser and does not print the token it used. With `-no-open`
+  it prints an address. Press Enter in poo-gui's window for a new address,
+  for example to sign in a second browser or after one expires. The
+  server keeps only hashes of tokens and cookies.
+- **Residual exposure.** The address poo-gui opens is in the browser's
+  process arguments until the browser spends it, which is usually under a
+  second. On a host shared with users you do not trust, use `-no-open`
+  and paste the address yourself, so no token ever appears in a process
+  list.
 - **Host and Origin checks.** Requests whose Host is not the loopback
   address and port are refused, which blocks DNS rebinding. API calls that
   change something must be POSTs that carry the `X-Poo-GUI` header and, if
@@ -169,16 +224,30 @@ server is locked down:
   without a preflight, and the server answers no preflight.
 - **A strict Content-Security-Policy.** Only the GUI's own scripts and
   styles run, and no third-party code is loaded.
-- **Secrets stay out of the scrollback.** When a job asks for a
-  passphrase, the terminal's input switches to a masked field, and the
-  line sent is not echoed. Passphrases are never stored, and the job's
-  input is discarded when the job ends.
+- **Secrets stay out of the scrollback.** While a command runs, the
+  terminal's input is masked and what is sent is not echoed, unless the
+  user clicks Show typing. The GUI does not guess from a command's output
+  whether a prompt reads a secret, because a guess can fail open.
+  Passphrases are never stored, and a job's unread input is discarded
+  when the job ends.
+- **Authority.** The session cookie, like a sign-in address before it is
+  spent, gives full control of the node. Whoever holds it can run any
+  poo command, including spending from the wallet and changing its
+  passphrase, just as a shell can. Treat a printed sign-in address like
+  the wallet passphrase, and do not paste it into tickets or chats. View
+  forms that move funds or delete something ask for confirmation, but
+  that is a guard against a stray click, not a security boundary. The
+  terminal, like a shell, asks nothing.
 
 ### Limits
 
 - Job output is kept in a bounded buffer of 4 MiB per job. When a long
   stream runs past that, the oldest output is dropped and the view is told.
-- At most 64 jobs are kept. Finished jobs are dropped oldest first.
+- At most 64 jobs are kept, and finished jobs keep at most 64 MiB of
+  output in total. Finished jobs are dropped oldest first.
+- At most 16 jobs run at once. Starting another is refused (HTTP 503)
+  until one ends.
+- At most 32 event streams are open at once.
 
 ## Technology choice (D85)
 
@@ -229,4 +298,4 @@ The GUI is built in stacked pull requests:
 | G2 | The `gui` module: server, security, job runner, terminal, the import rule and identity tests, and CI |
 | G3 (this) | Views: node (start and stop, status), pools, peers, tracking, chases, node policies, series and crypto, and wallet (create, addresses, balance, pay, request, receive, status) |
 | G4 | Watch and filter views on the node thread's `poo watch` and filter flags: live transactions, a series' or policy's ledger, and pending items |
-| G5 | Packaging: `poo-gui` in the release script and the tag workflow |
+| G5 (done) | Packaging: `poo-gui` in the release script and the tag workflow |
