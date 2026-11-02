@@ -239,6 +239,28 @@ for 10 minutes or block it for a day. You can look and act yourself:
 Stop the node before archiving or deleting the policy it uses; a running
 node holds a lock on its directory.
 
+### Sharing node policies and backups
+
+One file carries node policies to another node or machine:
+
+```sh
+./poo policy export -out shop.json                 # the current node policy
+./poo policy export -series 1a2b... -out s.json    # one series and how it is followed
+./poo policy export -all -full -out backup.json    # every saved policy, this machine's settings too
+./poo policy import shop.json                      # shows the plan; changes nothing
+./poo policy import shop.json -apply               # merges it in
+```
+
+An import adds what the node lacks and keeps the node's own value where
+both set one; the plan lists each such conflict, and `-prefer-file` takes
+the file's instead. `-replace` takes the file's node policy whole. The RPC
+and peer listen addresses, the advertised address, `no_sync` and the grind
+device and threads stay this machine's unless the file was exported with
+`-full` and imported with `-full`. A running node applies an import at once
+and never takes an `rpc` section from one. Read a file from someone else
+before applying it: the plan shows the series, peers and registries it
+adds.
+
 ## Security notes
 
 - The RPC listens on loopback only. Every call needs the token in

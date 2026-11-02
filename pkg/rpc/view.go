@@ -41,6 +41,7 @@ func (h *Handler) viewRoutes() {
 	h.mux.HandleFunc("GET /v1/follow", h.follows)
 	h.mux.HandleFunc("POST /v1/follow", h.changeFollow)
 	h.mux.HandleFunc("POST /v1/reload", h.reloadNow)
+	h.mux.HandleFunc("POST /v1/policy/import", h.importPolicy)
 }
 
 func readFilter(r *http.Request) (filter.Filter, *Error) {

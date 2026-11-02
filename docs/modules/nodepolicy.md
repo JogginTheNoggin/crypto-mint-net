@@ -165,6 +165,62 @@ applies the change at once without a reload (D113).
   holds it: flock on Unix, LockFileEx on Windows (D147), and only a
   directory check on other systems.
 
+## Sharing node policies: bundles
+
+One file, a *bundle*, carries node policies between nodes: a series to
+follow, one node policy, or every saved node policy of a node (decision
+D149). It is JSON:
+
+```json
+{
+  "kind": "poo-node-policies",
+  "format": 1,
+  "scope": "series | policy | node",
+  "exported": "2026-11-02T21:00:00Z",
+  "full": false,
+  "policies": [{"name": "default", "current": true, "policy": {"format": 1, "...": "node.json"}}]
+}
+```
+
+`settings` is reserved for the node's own settings in a later format;
+this version writes none and only notes that a file has them.
+
+- **Export** (`ExportPolicy`, `ExportSeries`, `NewBundle`, `Bundle.Write`)
+  leaves out the machine-local settings, `MachineLocal`: the `rpc`
+  section, `no_sync`, `p2p.listen`, `p2p.advertise` and the grind device
+  and threads (the section's and each job's). A shared file then never
+  opens someone's control interface or picks their GPU. `full` keeps them,
+  for a backup or a clone of the same machine. The settings no longer
+  used (`p2p.fast_catch_up`, `p2p.depth_limit`) are always left out. No
+  token, key or seed is ever in a bundle: they are not in node.json.
+- **Reading** (`ReadBundle`) takes at most 16 MiB and 256 node policies.
+  It refuses a field it does not know rather than dropping it, refuses a
+  newer format, and checks every node policy as `Load` does, every series'
+  parameters, and the names. A plain node.json is read as a bundle of one.
+- **Merging** (`Merge(local, file, MergeOptions)`) returns the result and
+  a `Plan`. By default it only adds:
+  - series new to local (a witness local lacks is added; two different
+    witnesses are a conflict);
+  - followed issuers, series, pools and mints, merged as `AddFollow` does;
+  - accepted issuers, peers, registries and grind jobs, as sets;
+  - every single setting local leaves unset. A custom tracking template
+    and the tracking weights count as one setting each.
+
+  Where both set a value and they differ, local's is kept and the plan
+  lists the conflict; `PreferFile` takes the file's. `Replace` takes the
+  file's node policy whole, keeping local's machine-local settings.
+  `Full` takes the file's machine-local settings too. `SeriesOnly` (how a
+  series bundle imports) takes only series, follows and accepted issuers.
+  The plan lists what is added, changed and removed, the conflicts, the
+  machine-local settings skipped, how many of the file's settings were
+  already the same, and any series the result lists but would not accept
+  (`Accepted`). A result that does not validate is refused, and the inputs
+  are never changed.
+
+Nothing in a bundle changes what is valid, and nothing in a merge can make
+a node refuse a heavier ledger: it writes only node.json, through the same
+checks as any other change, and node.json has no depth limit.
+
 ## Extending
 
 A new setting is a new optional field with a documented default. Bump

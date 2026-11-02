@@ -55,6 +55,8 @@ without a wallet. See
 | `poo unfollow (-issuer HEX \| -series ID) [-pool K]... [-mint N]... [-no-reload]` | Removes from the follow list, the same way |
 | `poo reload` | Makes the running node apply its node policy again (as SIGHUP to `poo node` does) |
 | `poo policy list\|use\|archive\|unarchive\|delete [-root DIR] [NAME]` | Manages node policies (flags before NAME) |
+| `poo policy export [-all \| -series ID] [-full] [-out FILE] [-policy NAME \| -dir DIR]` | Writes one shareable file, a bundle: the node policy, one series of it with how it is followed, or with `-all` every saved node policy. Machine-local settings are left out unless `-full` (D149) |
+| `poo policy import FILE [-apply] [-prefer-file] [-replace] [-full] [-no-reload] [-json] [-policy NAME \| -dir DIR]` | Merges a bundle (or a node.json) into the node policy, or, for an `-all` file, into each saved node policy by name, creating the missing ones. Prints the plan and changes nothing without `-apply`. A running node takes the change through `POST /v1/policy/import` and reloads; otherwise node.json is changed under the directory's lock. Refused in view-only mode |
 | `poo wallet COMMAND` | The wallet; see below |
 | `poo completion bash\|zsh\|fish` | A shell completion script. It asks `poo __complete WORDS... CURRENT` (hidden) for candidates: commands and subcommands from the usage texts, each command's flags from its own flag set, and saved policy names after `-policy` |
 | `poo help [COMMAND]` | The usage, or one command's usage lines; a mistyped command gets the nearest names ("did you mean status?") |

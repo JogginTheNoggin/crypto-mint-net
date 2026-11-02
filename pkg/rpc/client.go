@@ -290,3 +290,10 @@ func (c *Client) Holdings(series hash.Hash, serial uint64) ([]Holding, error) {
 	var r []Holding
 	return r, c.do("GET", "/v1/holdings?"+mintQuery(series, serial).Encode(), nil, &r)
 }
+
+// ImportPolicy merges a node policy from a bundle into the node's, or with
+// req.DryRun only says what it would change (nodepolicy.Merge, D149).
+func (c *Client) ImportPolicy(req PolicyImportRequest) (PolicyImportReply, error) {
+	var out PolicyImportReply
+	return out, c.do("POST", "/v1/policy/import", req, &out)
+}
