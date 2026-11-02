@@ -162,3 +162,25 @@ func TestSubmitEntryAndLayer(t *testing.T) {
 		}
 	}
 }
+
+// A build or work reply made with -bytes can be piped into poo submit as
+// printed (GREEN-040).
+func TestSubmitFromReply(t *testing.T) {
+	build := `{"hash": "aa", "entry": "e1e1", "layer": {"hash": "bb", "layer": "1a1a"}}`
+	work := `{"hash": "bb", "layer": "2b2b"}`
+	for _, c := range []struct{ in, what, want string }{
+		{build, "entry", "e1e1"}, {build, "layer", "1a1a"}, {work, "layer", "2b2b"}, {"c0ffee", "entry", "c0ffee"},
+	} {
+		got, err := fromReply(c.in, c.what)
+		if err != nil || got != c.want {
+			t.Errorf("fromReply(%s, %s) = %q, %v; want %q", c.in, c.what, got, err, c.want)
+		}
+	}
+	for _, c := range []struct{ in, what string }{
+		{`{"hash": "aa"}`, "entry"}, {work, "entry"}, {`{"hash":`, "entry"},
+	} {
+		if _, err := fromReply(c.in, c.what); err == nil {
+			t.Errorf("fromReply(%s, %s) accepted", c.in, c.what)
+		}
+	}
+}

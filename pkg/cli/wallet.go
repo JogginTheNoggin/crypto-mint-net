@@ -115,7 +115,14 @@ func (f *walletFlags) newPassphrase(out io.Writer) (string, error) {
 	return p, err
 }
 
-func (f *walletFlags) open() (*wallet.Wallet, error) { return wallet.Open(f.file()) }
+func (f *walletFlags) open() (*wallet.Wallet, error) {
+	w, err := wallet.Open(f.file())
+	if errors.Is(err, os.ErrNotExist) {
+		// Say what to do, not only which file is missing (GREEN-040).
+		return nil, fmt.Errorf("no wallet (%w): make one with poo wallet create (or -restore), or name another with -wallet", err)
+	}
+	return w, err
+}
 
 func (f *walletFlags) unlocked(out io.Writer) (*wallet.Wallet, error) {
 	w, err := f.open()
