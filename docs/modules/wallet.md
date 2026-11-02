@@ -55,6 +55,12 @@ file before. If the save fails anyway (a full disk, a removed file), the
 command prints the record and says not to run it again, since that would
 pay a second time (RED-039, D146).
 
+The other commands that save (`passwd`, `address`, `watch`, `request`,
+`receive`, `status`, `policy`) also call `Hold` after their prompts, just
+before they change the wallet. So a change saved while one of them waited
+at a prompt is read in and kept, and the command saves without
+`ErrChanged` (D147).
+
 Public keys are in the clear, so a locked wallet still lists its
 addresses, reads balances and follows payments. Only signing, giving out a
 new address, and showing the seed need the passphrase.

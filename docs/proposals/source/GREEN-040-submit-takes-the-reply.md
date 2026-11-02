@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted (D147) |
 | Based on | `claude/m10-watch` @ `46bcb9e` |
 | Area | `pkg/cli` (`submit`, `wallet`), `docs/modules/poo.md` |
 | Effort | small |

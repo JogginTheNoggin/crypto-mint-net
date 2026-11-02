@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D147): read once as proposed; the buffer starts at 64 MiB and grows toward the stated length instead of reserving up to 1 GiB |
 | Based on | `claude/m10-watch` @ `46bcb9e` |
 | Area | `pkg/rpc` (`submitEntry`, new `readEntryBody`) |
 | Effort | small |

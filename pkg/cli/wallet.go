@@ -333,6 +333,11 @@ func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if p == "" {
 		return errors.New("the new passphrase must not be empty")
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	if err := w.Rekey(p); err != nil {
 		return err
 	}
@@ -356,6 +361,11 @@ func walletAddress(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	if err != nil {
 		return err
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	o, err := w.NewAddress(s, *label)
 	if err != nil {
 		return err
@@ -439,6 +449,11 @@ func walletWatch(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	if err != nil {
 		return err
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	for _, k := range pools {
 		if k >= s.PoolCount() {
 			return fmt.Errorf("pool %d out of range", k)
@@ -662,6 +677,11 @@ func walletRequest(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	if err != nil {
 		return err
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	r, err := w.Request(s, *amount, *memo)
 	if err != nil {
 		return err
@@ -713,6 +733,11 @@ func walletReceive(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	default:
 		return errors.New("name the request with -address or -request")
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	e, ok := w.Find(addr)
 	if !ok {
 		return fmt.Errorf("no request to %s in this wallet", addr.Short())
@@ -778,6 +803,11 @@ func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	rows := []sentStatus{}
 	for _, p := range w.Sent() {
 		if p.Series != s.ID() {
@@ -887,6 +917,11 @@ func walletPolicy(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
+	release, err := w.Hold()
+	if err != nil {
+		return err
+	}
+	defer release()
 	pi, err := w.AddPolicy(*name, uint16(*k), pks, *label)
 	if err != nil {
 		return err
