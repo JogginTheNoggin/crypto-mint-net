@@ -66,3 +66,5 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-024](source/ORANGE-024-round-14-room-contention-measured.md) | Source | Contention at the disk reserve measured after D142; no change proposed | measured |
 | [GREEN-040](source/GREEN-040-submit-takes-the-reply.md) | Source | `poo submit` takes the reply as printed; a missing wallet says what to do | adopted (D147) |
 | [ORANGE-025](source/ORANGE-025-entry-body-read-once.md) | Source | Wallet lock and entry submit measured; read an entry body once | adopted, with a 64 MiB start that grows (D147) |
+| [GREEN-041](source/GREEN-041-help-lists-only-flags-that-work.md) | Source | Help lists only the flags a command takes | adopted (D149) |
+| [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |

@@ -1,106 +1,150 @@
 # Features
 
-This is a plain list of what the project offers. It is kept up to date
-every round and will later feed the full docs and the website. Each
-feature is listed once, in its own entry.
+## Summary
 
-There are two sections:
+This is the list of what the project offers today, one feature per row, in
+two parts:
 
-- **Source** is the headless node and the `poo` command. Everything
-  starts there.
-- **GUI** (`poo-gui`) is a visual layer on the same code. Every GUI
-  feature runs a `poo` command line through `cli.Main`, so anything the
-  GUI can do, `poo` can do too (docs/gui.md).
+- **Source** is the headless node, `poo`.
+- **GUI** is `poo-gui`, a visual layer over the same `poo` commands.
 
-Each section is kept by its own team's Grey: Source/Grey keeps Source
-and GUI/Grey keeps GUI. When a feature lands on main, its Grey adds it
-in that Part A.
+The GUI never has a feature the Source lacks. Every GUI feature runs a
+`poo` command (see [gui.md](gui.md)).
 
-## Source (headless node and `poo`)
+It is a plain list, kept for the later docs site and download page:
 
-Source/Grey keeps this section. Until it is filled in, see
-docs/running-a-node.md and `poo help`.
+- Source/Grey updates the Source part at the end of each Source Part A.
+- GUI/Grey updates the GUI part at the end of each GUI Part A.
+
+Each row names the command, the package that holds the code, and the
+decision that records it. Each package has its own document in
+[modules/](modules/), which says how it can be extended.
+
+## Source (headless node and poo)
+
+### Node and node policies
+
+| Feature | Commands | Code | Decisions |
+| --- | --- | --- | --- |
+| Full node: follows series, pools and mints, keeps their ledgers, takes and forwards transactions, entries and layers | `poo init`, `poo node`, `poo status` | `pkg/engine`, `pkg/node`, `pkg/daemon` | M1, M2 |
+| Node policies: what a node knows, accepts and follows, how many branches it keeps, its limits, logs and ports, in `node.json` | `poo init`, `poo follow`, `poo unfollow`, `poo reload` | `pkg/nodepolicy` | D93, D139 |
+| Several node policies side by side: save, use, archive, unarchive, delete | `poo policy list` and the `use`, `archive`, `unarchive` and `delete` subcommands | `pkg/nodepolicy` (Manager) | M2 |
+| **Policy export and import:** one shareable JSON file holding a series, a node policy or every saved policy. Import shows a plan first, merges, and lists conflicts. A running node applies it live | `poo policy export`, `poo policy import` | `pkg/nodepolicy` (bundle.go), `pkg/cli` (policyport.go), `POST /v1/policy/import` | D149 |
+| Live reload of a changed policy without stopping the node | `poo reload` | `pkg/daemon`, `pkg/rpc` | GREEN-011 |
+| Setup check that says what to fix | `poo doctor` | `pkg/cli` | GREEN-035 |
+| Structured logs: plain, text or JSON | `poo node -log-format json` | `pkg/logging` | D104 |
+
+### Network
+
+| Feature | Commands | Code | Decisions |
+| --- | --- | --- | --- |
+| Framed binary wire protocol, forwarding and catch-up from any depth | | `pkg/wire`, `pkg/p2p`, `pkg/chase` | M3, D116 |
+| Peer discovery, relaying, address registries | | `pkg/p2p`, `pkg/registry` | M4 |
+| Peer categories, ranking, tracking, timeouts and blocks | `poo peers`, `poo peer`, `poo tracking`, `poo chases` | `pkg/peers`, `pkg/tracking` | M5 |
+
+### Viewing and watching
+
+| Feature | Commands | Code | Decisions |
+| --- | --- | --- | --- |
+| One filter (series, pool, mint, address, address policy, transaction, kind) for every view | the `-series`, `-pool`, `-serial`, `-address`, `-tid` flags | `pkg/filter` | M10 |
+| Views: pools, ledger pages, pending, unspent, one transaction, an address | `poo pools`, `poo ledger`, `poo pending`, `poo unspent`, `poo tx`, `poo address` | `pkg/watch`, `pkg/rpc` | M10 |
+| Live events, one JSON object per line | `poo watch` | `pkg/watch` | M10 |
+| Table output for reading | `poo pools -o table` | `pkg/cli` | |
+| View-only mode: reads only, with a separate token | `poo -view-only status` | `pkg/cli`, `pkg/rpc` | D101 |
+| Prometheus metrics | `GET /v1/metrics` | `pkg/rpc` | GREEN-002 |
+
+### Work (grinding)
+
+| Feature | Commands | Code | Decisions |
+| --- | --- | --- | --- |
+| Building entries and adding layers | `poo build`, `poo work`, `poo submit` | `pkg/engine`, `pkg/grind` | M1, D143 |
+| Grinders on any hardware, for any hash: devices, benchmarks, jobs | `poo grind devices`, `poo grind bench`, `poo grind run`, `poo grind jobs` | `pkg/grind` | M11, D109 |
+| Scheduled and automatic jobs in the node policy, applied live | `poo grind schedule` | `pkg/nodepolicy` (grindedit.go) | D113, D125 |
+| Layer floor: keep every layer above a strength (node policy) | `poo grind schedule` (set, with a layer floor) | `pkg/grind` | D118 |
+
+### Wallet
+
+| Feature | Commands | Code | Decisions |
+| --- | --- | --- | --- |
+| Keys from one sealed seed, any allowed key algorithm | `poo wallet create`, `poo wallet seed`, `poo wallet passwd` | `pkg/wallet` | M6 |
+| Claims, payments with coin selection, change | `poo wallet claim`, `poo wallet pay` | `pkg/wallet` | M6 |
+| Payment requests and receiving | `poo wallet request`, `poo wallet receive`, `poo wallet status` | `pkg/wallet` | M6 |
+| Co-signing and light mode | `poo wallet cosign`, `poo wallet watch` | `pkg/wallet` | M6 |
+| Safe concurrent use: no command undoes another's change, and a passphrase change cancels commands that were already waiting | | `pkg/wallet` | D145, D146, D149 |
+
+### Series and cryptography
+
+| Feature | Commands | Code | Decisions |
+| --- | --- | --- | --- |
+| Series of mints and pools, with an issuer witness | `poo series new`, `poo series info`, `poo series example` | `pkg/series` | M1 |
+| Choice of hash, key algorithms and address policy types per series | `poo crypto`, `poo keygen` | `pkg/hash`, `pkg/policy` | M9 |
+
+### Tools
+
+| Feature | Commands | Code | Decisions |
+| --- | --- | --- | --- |
+| In-process demo of a payment, a double spend and its resolution | `poo demo` | `pkg/cli`, `pkg/sim` | M1 |
+| Deterministic network simulator: load, partition, attack, sizing | `poo sim load` | `pkg/sim` | M7 |
+| Shell completion | `poo completion bash` | `pkg/cli` | |
+| Fuzzing of every decoder, benchmarks, reproducible release builds | `scripts/fuzz.sh`, `scripts/release.sh` | | M7, M8 |
 
 ## GUI (`poo-gui`)
 
+GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
+(D84). The views are listed in [gui.md](gui.md#views).
+
 ### Foundation
 
-- **Same code as headless.** Every action is a `poo` command line run
-  through `cli.Main`. The GUI module may import only `pkg/cli`, and a test
-  enforces this (D84 to D89).
-- **Shows its command.** Every panel and form shows the exact command
-  line it runs, with a button to run it in the terminal or copy it to a
-  shell.
-- **Built-in terminal.** It is identical to `poo` in a shell. It splits a
-  line the way the platform's shell would, keeps history, and supports
-  Ctrl-C and Ctrl-D (end of input).
-- **Local web app.** One Go binary serves on loopback only and opens the
-  system browser, or an app window with `-app`. It needs no CGO and no
-  JavaScript build, and it runs on every platform the headless tool
-  builds for.
-- **Secure sign-in.** A browser signs in once through a one-time address.
-  A session cookie is required, cross-origin requests are refused, and every page has
-  a strict content security policy.
-- **View-only mode.** `poo-gui -view-only` runs every command in the core's
-  view-only mode, so anything that changes state is refused by `poo`
-  itself.
-- **Secret prompts.** A passphrase or seed field is masked exactly when
-  `poo` reads a secret. A second prompt, such as "again", is asked for
-  again.
-- **Jobs.** Every command run is a job, with live output, Stop, Run again
-  and bounded scrollback. Long-running jobs, such as the node, watch and
-  grind, keep running when you switch views.
-- **Long input.** A pasted entry of any size reaches `poo`: it is sent in
-  parts, and end of input waits until the whole paste has arrived.
-- **Settings.** `-root` and `-policy` are set once and added by the views
-  to their commands.
+| Feature | What it does | Code | Decisions |
+| --- | --- | --- | --- |
+| Same code as headless | Every action is a `poo` command line run through `cli.Main`. The GUI may import only `pkg/cli`, and a test enforces it | `gui/`, `gui/imports_test.go` | D84 to D89 |
+| Shows its command | Each panel and form shows the exact line it runs, with a button to run it in the terminal | `gui/web/static/views.js` | |
+| Terminal | Runs `poo` itself: a typed line runs exactly as in a shell, split the way the platform's shell splits it, with history, Ctrl-C and Ctrl-D | `gui/shell`, `gui/web/static/terminal.js` | D86, GUI-021 |
+| Local web app | One Go binary on loopback that opens the system browser, or an app window with `-app`. No CGO and no JavaScript build | `gui/cmd/poo-gui`, `gui/server` | D85 |
+| Locked down | One-time sign-in address, session cookie, cross-origin requests refused, strict content security policy | `gui/server` | GUI-001 to GUI-005 |
+| View-only mode | `poo-gui -view-only` runs every command in the core's view-only mode | `gui/server` | D101 |
+| Masked secrets | A passphrase or seed is masked exactly when `poo` reads one, and asked for again on a second prompt | `gui/jobs` | D101, GUI-020 |
+| Jobs | Every command run, with live output, Stop, Run again and bounded scrollback. Node, Watch and grind jobs keep running across views | `gui/jobs`, `gui/server` | ORANGE-001 to ORANGE-003 |
+| Long input | A pasted entry of any size reaches `poo`: it is sent in parts, and end of input waits for all of it | `gui/jobs`, `gui/web/static/api.js` | ORANGE-013 |
+| Settings | `-root` and `-policy`, set once and added by every view | `gui/web/static/where.js` | |
 
 ### Views
 
-- **Getting started.** First steps, each one a command line to run.
-- **Node.** Start and stop the node, its status, follow and unfollow
-  (including `-replace`), reload and init. It also shows a notice when a
-  node.json change is waiting for a reload, with a Reload now button.
-- **Doctor checks.** `poo doctor`'s report, where each problem offers its fix command
-  exactly as `poo` printed it.
-- **Watch.** Live events, newest first, with the filter flags, pause,
-  counts and each event in full.
-- **Work (grinding).** Devices, jobs and benchmarks. A live run shows the
-  plan, the rate and each layer or entry found. Start and stop jobs.
-- **Grind schedule.** The schedule is shown as a table with Remove on each
-  job, guarded against stale changes. You can add a job, and set the
-  defaults: device, threads, layer floor and layer rate. Hints show the
-  node's limits.
-- **Explore.** Pools, the ledger page by page, pending, unspent, a
-  transaction, and an address (with paging and transaction filters). Ids
-  and addresses link to each other.
-- **Pools and payments.** Status, holdings, payment, build an entry or
-  add a layer (optionally printing the hex), and submit an entry or layer
-  as hex or from a file.
-- **Wallet.** Create, balance, addresses, address, pay, request, receive,
-  status, watch, claim, shared policy, co-sign, submit, resend, follow,
-  passphrase change and seed. One series choice is shared by every wallet
-  command.
-- **Peers.** Peers, peer actions, tracking and chases.
-- **Node policies.** List, use, archive, unarchive and delete.
-- **Series and keys.** Crypto choices, keygen, new series (with an
-  example) and series info.
-- **Simulate.** Runs `poo sim` scenarios.
+| Feature | What it does | Commands |
+| --- | --- | --- |
+| Getting started | First steps, each a command line to run | |
+| Node | Start and stop the node, status, follow (with `-replace`), unfollow, reload, init; a notice when a node.json change waits for a reload, with Reload now | `poo node`, `status`, `follow`, `unfollow`, `reload`, `init` |
+| Doctor | `poo doctor`'s report, where each problem offers its fix command exactly as printed | `poo doctor` |
+| Watch | Live events, newest first, with the filter flags, pause, counts and each event in full | `poo watch` |
+| Work | Devices, benchmarks and jobs; a live run shows the plan, the rate and each layer or entry found | `poo grind` |
+| Grind schedule | A table of scheduled jobs with Remove (guarded against stale changes), Add a job, and the defaults: device, threads, layer floor and rate, with the node's limits as hints | `poo grind schedule` |
+| Explore | Pools, the ledger page by page, pending, unspent, a transaction and an address, with the shared filter. Ids and addresses link to each other | `poo pools`, `ledger`, `pending`, `unspent`, `tx`, `address` |
+| Pools and payments | Status, holdings, payment, build an entry or add a layer (optionally printing the hex), submit as hex or from a file | `poo build`, `work`, `submit` |
+| Wallet | Every wallet command, with one series choice shared by all of them | `poo wallet` |
+| Peers | Peers, peer actions, tracking and chases | `poo peers`, `peer`, `tracking`, `chases` |
+| Node policies | List, use, archive, unarchive and delete saved policies | `poo policy` |
+| Policy export and import | Export to a file or the screen; import a file with a preview of what is new, changed, conflicting or refused, then Apply | `poo policy export`, `poo policy import` |
+| Series and keys | Crypto choices, keygen, new series (with an example) and series info | `poo crypto`, `keygen`, `series` |
+| Simulate | The network simulator's scenarios | `poo sim` |
 
 ### Quality checks
 
-- **Flag parity.** CI fails if a flag that `poo CMD -h` lists is not sent
-  by any form, unless the flag is listed with a reason. It also checks
-  each field's stated default against the default `poo -h` prints.
-- **End-to-end tests.** Nine browser scripts (gui/e2e) run in CI against
-  real nodes.
-- **Performance re-checks.** GUI/Orange measures every round: a 5-minute
-  soak, page load, Watch and Work at high rates, and large results
-  (docs/proposals/gui/README.md).
+| Feature | What it does | Code |
+| --- | --- | --- |
+| Flag parity | CI fails if a flag `poo CMD -h` lists is sent by no form (unless listed with a reason), or if a field's stated default differs from `poo -h` | `gui/e2e/parity.mjs` (GUI-GREEN-042, 043) |
+| End-to-end tests | Nine browser scripts run in CI against real nodes | `gui/e2e` |
+| Performance re-checks | GUI/Orange measures a soak, page load, Watch and Work at high rates and large results every round | `gui/perf`, `docs/proposals/gui/README.md` |
 
-### Coming next
+## Adding a feature
 
-- **Node policy export and import.** A form to export the node's policies
-  to one file, and to import a shared file with a preview of duplicates
-  and conflicts. It builds on Source's `poo` command once that is on
-  main.
+Each feature lives in its own package or file behind a small API. The CLI
+command and the RPC endpoint are thin layers over it, and the GUI is a
+form over the CLI command. A new feature follows the same pattern:
+
+1. Write the code in the package that owns the data, with tests.
+2. Add a `poo` command, and an RPC endpoint if a running node must apply
+   it. A test fails when an RPC call has no command.
+3. Add a row here, the module doc, and a decision.
+
+The policy bundle is built to grow in the same way: its format carries a
+version, and it has a reserved slot for the node's settings.

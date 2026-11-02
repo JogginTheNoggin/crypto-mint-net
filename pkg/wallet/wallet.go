@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -44,6 +45,11 @@ var (
 	// ErrChanged: the wallet file changed since it was read, so Save
 	// wrote nothing rather than undo the other change (GUI-019, D145).
 	ErrChanged = errors.New("wallet: the file changed since it was read (another command saved it), so nothing was saved; run the command again")
+	// ErrPassphraseChanged: the passphrase was changed after this
+	// command was unlocked, so Hold refuses to go on with the old one
+	// (GUI-022, D149). Nothing has been done; run the command again with
+	// the current passphrase.
+	ErrPassphraseChanged = errors.New("wallet: the wallet's passphrase was changed meanwhile, so nothing was done; run the command again and give the current passphrase")
 )
 
 // KeyInfo is one derived key. Public keys are kept in the clear so the
@@ -117,6 +123,9 @@ type Wallet struct {
 	// held is set between Hold and its release: the lock beside the file
 	// is this wallet's, so Save does not take it again (RED-039, D146).
 	held bool
+	// busy, if set, is called when Save or Hold finds the lock taken by
+	// another command, before it waits (OnBusy, RED-042, D148).
+	busy func()
 }
 
 // Options are the settings of a new wallet. Zero values mean the defaults.
@@ -281,7 +290,7 @@ func (w *Wallet) Save() error {
 		return err
 	}
 	if !w.held {
-		unlock, err := lockFile(w.path + ".lock")
+		unlock, err := lockFile(w.path+".lock", w.busy)
 		if err != nil {
 			return err
 		}
@@ -300,16 +309,22 @@ func (w *Wallet) Save() error {
 	case !bytes.Equal(cur, w.read):
 		return ErrChanged
 	}
-	tmp := w.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, w.path); err != nil {
+	// Synced, file and directory, before Save returns: the file is the
+	// one record of what the wallet sent (RED-041, D148).
+	if err := fsutil.WriteFile(w.path, b, 0o600); err != nil {
 		return err
 	}
 	w.read = b
 	return nil
 }
+
+// OnBusy sets what Save and Hold call when another command holds the
+// wallet, before they wait for it, so a command can say why it waits
+// (RED-042, D148). The wait has no limit: the holder is a command
+// sending a payment, whose every request to the node is bounded by the
+// client's timeout, and giving up would leave this command's change, or
+// its record of a payment, unsaved.
+func (w *Wallet) OnBusy(f func()) { w.busy = f }
 
 // Hold takes the lock beside the wallet file until release is called,
 // and reads the file again, so what another command saved since Open
@@ -321,7 +336,8 @@ func (w *Wallet) Save() error {
 // (RED-039, D146). Other commands' Saves wait for release; one that read
 // the file before the hold returns ErrChanged, as D145 says, having
 // sent nothing. The seed stays open: it is the same seed under any
-// passphrase.
+// passphrase, but a command unlocked before the passphrase changed is
+// refused with ErrPassphraseChanged (GUI-022, D149).
 func (w *Wallet) Hold() (release func(), err error) {
 	if w.held {
 		return nil, errors.New("wallet: already held")
@@ -329,7 +345,7 @@ func (w *Wallet) Hold() (release func(), err error) {
 	if err := os.MkdirAll(filepath.Dir(w.path), 0o700); err != nil {
 		return nil, err
 	}
-	unlock, err := lockFile(w.path + ".lock")
+	unlock, err := lockFile(w.path+".lock", w.busy)
 	if err != nil {
 		return nil, err
 	}
@@ -354,6 +370,13 @@ func (w *Wallet) Hold() (release func(), err error) {
 		}
 		if f.Gap <= 0 {
 			f.Gap = DefaultGap
+		}
+		if w.seed != nil && !sameSeal(f, w.f) {
+			// Unlocked against a seal that is no longer the file's: a
+			// passphrase rotation revokes waiting commands too, and a
+			// stale passwd never re-seals over it (GUI-022, D149).
+			unlock()
+			return nil, ErrPassphraseChanged
 		}
 		if w.seed != nil && len(f.Keys) > 0 {
 			// Another wallet at the same path: not this seed's file.
@@ -592,3 +615,10 @@ func (w *Wallet) Pools(s *series.Series) []uint64 {
 }
 
 func now() time.Time { return time.Now().UTC().Truncate(time.Second) }
+
+// sameSeal reports whether a and b seal the seed the same way: the same
+// key derivation, salt included, and the same sealed bytes.
+func sameSeal(a, b File) bool {
+	return a.KDF.Name == b.KDF.Name && a.KDF.Iterations == b.KDF.Iterations && a.KDF.Memory == b.KDF.Memory &&
+		a.KDF.Threads == b.KDF.Threads && bytes.Equal(a.KDF.Salt, b.KDF.Salt) && bytes.Equal(a.Sealed, b.Sealed)
+}

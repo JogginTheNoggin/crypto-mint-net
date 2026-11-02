@@ -17,12 +17,12 @@ import (
 	"math"
 	"net"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
@@ -479,14 +479,7 @@ func (t *Tracker) Save() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(t.path), 0o700); err != nil {
-		return err
-	}
-	tmp := t.path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, t.path)
+	return fsutil.WriteFile(t.path, append(data, '\n'), 0o600) // RED-041, D148
 }
 
 // Key is the address a peer is tracked by: the IP of a connection or

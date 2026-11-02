@@ -35,7 +35,7 @@ the source teams as a finding, not as a patch.
 | Grey | Builds features and general mitigation and hardening, owns the integration line, merges Blue's fixes, decides on Green's and Orange's proposals | The integration line (below) |
 | Red | Breaks things: finds exploits from outside (peers, the wire, registries, anything a remote party sends) and inside (local RPC, files, wallet, CLI, resource limits), writes findings and suggested fixes. Never implements them | Reads the integration line; writes only findings, on its own branch |
 | Blue | Implements fixes for Red's findings, with tests | Its own branch, started from the integration line |
-| Orange | Performance and optimization: measures where time, memory, allocations, disk and network go, finds slow paths and waste, and proposes improvements backed by benchmarks or profiles, with an optional prototype. Grey decides whether to adopt each one | `claude/<layer>-orange` (or `claude/<layer>-orange-<topic>`), started from the integration line |
+| Orange | Performance and optimization: measures where time, memory, allocations, disk and network go, finds slow paths and waste, and proposes improvements backed by benchmarks or profiles, with an optional prototype. May challenge a feature's modular form where measurements show it really hurts performance (see Orange proposals). Grey decides whether to adopt each one | `claude/<layer>-orange` (or `claude/<layer>-orange-<topic>`), started from the integration line |
 | Green | Explores: quality-of-life improvements, nice-to-haves and new ideas, as written proposals with an optional prototype. Grey decides whether to adopt each one | `claude/<layer>-green` (or `claude/<layer>-green-<topic>`), started from the integration line |
 | Black | Guards consensus (added 2026-10-31): checks that no consensus rule is broken or changed, filters out any suggestion that adds or changes a consensus rule without the owner's approval, and checks every change extensively for a way to make a hard fork possible, including through node policy. Never implements fixes | Reads the integration line, Blue's branches and the proposals; writes only reviews under `docs/consensus/<layer>/`, on `claude/<layer>-black` |
 
@@ -174,12 +174,15 @@ that would alter what the node accepts, selects or sends is a design
 question for Grey, not an optimization. Orange benchmarks only against
 nodes and simulations it runs itself, like Red.
 
-Features are modular and extensible by default (docs/FEATURES.md). Where
-that really hurts performance for a specific piece or feature, Orange may
-challenge it (owner, 2026-11-02): an Orange proposal can ask for a less
-modular form of that one piece, backed by its measurements, and Grey
-decides. The challenge never covers consensus rules or the rule that the
-GUI runs the headless code.
+Features are modular and extensible by default: each lives in its own
+package behind a small API, with thin CLI, RPC and GUI layers over it
+([docs/FEATURES.md](docs/FEATURES.md)). Where it applies, Orange may
+challenge that for a specific piece or feature when measurements show it
+really hurts performance (the owner's rule, 2026-11-02). Orange makes
+the case in its Part B proposal, with the measurements, what the
+modular form costs, and what a tighter form would save and give up.
+Grey decides, as for any Orange proposal. A challenge never covers
+consensus rules or the rule that the GUI runs the headless code.
 
 Threads talk through these files and through thread messages that name
 a branch, a commit and finding ids. Decisions still go in
