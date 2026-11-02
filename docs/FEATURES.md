@@ -123,7 +123,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Wallet | Every wallet command, with one series choice shared by all of them | `poo wallet` |
 | Peers | Peers, peer actions, tracking and chases | `poo peers`, `peer`, `tracking`, `chases` |
 | Node policies | List, use, archive, unarchive and delete saved policies | `poo policy` |
-| Policy export and import | Export to a file or the screen; import a file with a preview of what is new, changed, conflicting or refused, then Apply | `poo policy export`, `poo policy import` |
+| Policy export and import | Export this policy, one series or every saved policy, to a file or the screen with Save as file. Import a path or a file picked in the browser: a preview of what is new, changed, in conflict or refused, then Apply | `poo policy export`, `poo policy import` (D149) |
 | Series and keys | Crypto choices, keygen, new series (with an example) and series info | `poo crypto`, `keygen`, `series` |
 | Simulate | The network simulator's scenarios | `poo sim` |
 

@@ -3,6 +3,7 @@
 //
 //   node gui/e2e/views.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { launch, nodeStopped } from './lib.mjs';
 
@@ -148,6 +149,50 @@ try {
   await section('Peers').locator('.run-status').first().waitFor();
   await page.click('nav a[data-id=policies]');
   await section('Policies').locator('.result', { hasText: 'default' }).waitFor();
+  // Export and import (D149): export every policy as printed, with Save as
+  // file; export this one to a file; preview its import, then Apply.
+  const exp = section('Export node policies');
+  await exp.locator('select[name=scope]').selectOption('all');
+  assert.equal(await exp.locator('.cmd code').innerText(), `poo policy export -all -root ${home}`);
+  await exp.locator('button[type=submit]').click();
+  await exp.locator('.run-status.ok').waitFor();
+  const [dl] = await Promise.all([page.waitForEvent('download'), exp.locator('button.save-as').click()]);
+  assert.equal(dl.suggestedFilename(), 'node-policies.json');
+  const bundle = join(home, 'shared-policy.json');
+  await exp.locator('select[name=scope]').selectOption('policy');
+  await fill(exp, 'To a file', bundle);
+  assert.equal(await exp.locator('.cmd code').innerText(), `poo policy export -root ${home} -out ${bundle}`);
+  await exp.locator('button[type=submit]').click();
+  await exp.locator('.result', { hasText: 'exported 1 node policy' }).waitFor();
+  const imp = section('Import node policies');
+  await fill(imp, 'File', bundle);
+  assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json ${bundle}`);
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.import-plan', { hasText: 'Nothing changed yet' }).waitFor();
+  assert.match(await imp.locator('.import-plan').innerText(), /already the same/);
+  page.once('dialog', d => d.accept());
+  await imp.locator('button.danger:has-text("Apply")').click();
+  await imp.locator('.area .area .import-plan', { hasText: 'Nothing needed changing.' }).waitFor();
+  // A file of every policy, renamed: each goes in under its own name, so
+  // only -root is sent, and the plan says a new policy is made.
+  const every = join(home, 'every-policy.json');
+  writeFileSync(every, (await dl.path().then(f => readFileSync(f, 'utf8'))).replace('"name": "default"', '"name": "copy"').replace('"current": true', '"current": false'));
+  await fill(imp, 'File', every);
+  await imp.locator('label', { hasText: 'holds every saved policy' }).locator('input').check();
+  assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json ${every}`);
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.import-plan', { hasText: 'A new node policy.' }).waitFor();
+  page.once('dialog', d => d.accept());
+  await imp.locator('button.danger:has-text("Apply")').click();
+  await imp.locator('.area .area .import-plan', { hasText: 'Saved.' }).waitFor();
+  await section('Policies').locator('button:has-text("Refresh")').click();
+  await section('Policies').locator('.result', { hasText: 'copy' }).waitFor();
+  // A file picked in the browser is sent on poo's input: FILE is -.
+  await imp.locator('label', { hasText: 'holds every saved policy' }).locator('input').uncheck();
+  await imp.locator('input[type=file]').setInputFiles(bundle);
+  assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json -`);
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.import-plan', { hasText: 'already the same' }).waitFor();
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');

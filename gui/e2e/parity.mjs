@@ -41,6 +41,7 @@ const LEFT_OUT = {
   tx: { kind: 'poo refuses -kind outside poo watch', ...Object.fromEntries(['address', 'address-policy', 'pool', 'serial', 'tid'].map(f => [f, 'one transaction by its id: In mint serial (-in-serial) is the narrowing that helps'])) },
   address: { kind: 'poo refuses -kind outside poo watch', address: 'the address is the command\'s own argument', 'address-policy': 'the address is the command\'s own argument' },
   'grind schedule': { 'if-version': 'add and set are applied as edits under the node\'s lock and keep changes made meanwhile (D125); Remove sends it' },
+  'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
@@ -83,7 +84,7 @@ try {
           for (let pass = 0; pass < 3; pass++) {
             // Any other select takes its last choice, which is not empty.
             for (const o of form.querySelectorAll('label:not([hidden]) select')) if (o !== sel) o.value = o.options[o.options.length - 1].value;
-            for (const i of form.querySelectorAll('label:not([hidden]) input')) {
+            for (const i of form.querySelectorAll('label:not([hidden]) input:not([type=file])')) {
               if (i.type === 'checkbox') i.checked = true;
               else i.value = i.inputMode === 'numeric' ? '1' : 'x';
             }
