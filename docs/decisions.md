@@ -2854,7 +2854,9 @@ a chase takes in after checking their work are not charged.
     Source/Grey updates each Part A, and a GUI part, which GUI/Grey
     updates. It feeds the later docs site. Each feature stays in its own
     package behind a small API, with thin CLI and RPC layers over it, so
-    it can be extended.
+    it can be extended. Orange may challenge that for one piece where
+    measurements show it really hurts performance, in a Part B proposal
+    (AGENTS.md, Orange proposals; the owner, 2026-11-02).
   - **Merged with this round:** BLUE-017 (D148), GREEN-041 (help lists
     only the flags a command takes), ORANGE-026 (the entry body's buffer
     ends at its stated size) and Black's Round 16 review (10 clear, 0
