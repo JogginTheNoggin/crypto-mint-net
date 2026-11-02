@@ -45,6 +45,11 @@ var (
 	// ErrChanged: the wallet file changed since it was read, so Save
 	// wrote nothing rather than undo the other change (GUI-019, D145).
 	ErrChanged = errors.New("wallet: the file changed since it was read (another command saved it), so nothing was saved; run the command again")
+	// ErrPassphraseChanged: the passphrase was changed after this
+	// command was unlocked, so Hold refuses to go on with the old one
+	// (GUI-022, D149). Nothing has been done; run the command again with
+	// the current passphrase.
+	ErrPassphraseChanged = errors.New("wallet: the wallet's passphrase was changed meanwhile, so nothing was done; run the command again and give the current passphrase")
 )
 
 // KeyInfo is one derived key. Public keys are kept in the clear so the
@@ -331,7 +336,8 @@ func (w *Wallet) OnBusy(f func()) { w.busy = f }
 // (RED-039, D146). Other commands' Saves wait for release; one that read
 // the file before the hold returns ErrChanged, as D145 says, having
 // sent nothing. The seed stays open: it is the same seed under any
-// passphrase.
+// passphrase, but a command unlocked before the passphrase changed is
+// refused with ErrPassphraseChanged (GUI-022, D149).
 func (w *Wallet) Hold() (release func(), err error) {
 	if w.held {
 		return nil, errors.New("wallet: already held")
@@ -364,6 +370,13 @@ func (w *Wallet) Hold() (release func(), err error) {
 		}
 		if f.Gap <= 0 {
 			f.Gap = DefaultGap
+		}
+		if w.seed != nil && !sameSeal(f, w.f) {
+			// Unlocked against a seal that is no longer the file's: a
+			// passphrase rotation revokes waiting commands too, and a
+			// stale passwd never re-seals over it (GUI-022, D149).
+			unlock()
+			return nil, ErrPassphraseChanged
 		}
 		if w.seed != nil && len(f.Keys) > 0 {
 			// Another wallet at the same path: not this seed's file.
@@ -602,3 +615,10 @@ func (w *Wallet) Pools(s *series.Series) []uint64 {
 }
 
 func now() time.Time { return time.Now().UTC().Truncate(time.Second) }
+
+// sameSeal reports whether a and b seal the seed the same way: the same
+// key derivation, salt included, and the same sealed bytes.
+func sameSeal(a, b File) bool {
+	return a.KDF.Name == b.KDF.Name && a.KDF.Iterations == b.KDF.Iterations && a.KDF.Memory == b.KDF.Memory &&
+		a.KDF.Threads == b.KDF.Threads && bytes.Equal(a.KDF.Salt, b.KDF.Salt) && bytes.Equal(a.Sealed, b.Sealed)
+}

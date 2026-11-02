@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wallet"
 )
 
@@ -97,4 +98,58 @@ func TestConcurrentSavesOneWins(t *testing.T) {
 	if won != 1 {
 		t.Fatalf("%d saves wrote, want 1", won)
 	}
+}
+
+// TestHoldRefusesAStaleSeal is GUI-022: a command unlocked with the old
+// passphrase before a rotation is refused at Hold, so the rotation
+// revokes it, and a stale passwd never re-seals over the owner's change
+// (D149). A change that leaves the seal alone is still taken in (D146).
+func TestHoldRefusesAStaleSeal(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "w.json")
+	if _, err := wallet.Create(path, "old", wallet.Options{Iterations: 1, Gap: 2}); err != nil {
+		t.Fatal(err)
+	}
+	stale, err := wallet.Open(path) // a passwd waiting at "new passphrase:"
+	must(t, err)
+	must(t, stale.Unlock("old"))
+	owner, err := wallet.Open(path)
+	must(t, err)
+	must(t, owner.Unlock("old"))
+	release, err := owner.Hold()
+	must(t, err)
+	must(t, owner.Rekey("rotated"))
+	must(t, owner.Save())
+	release()
+
+	if _, err := stale.Hold(); !errors.Is(err, wallet.ErrPassphraseChanged) {
+		t.Fatalf("stale hold: %v, want ErrPassphraseChanged", err)
+	}
+	w, err := wallet.Open(path)
+	must(t, err)
+	if err := w.Unlock("rotated"); err != nil {
+		t.Fatalf("the rotation was undone: %v", err)
+	}
+	// The refused hold released the lock.
+	release, err = w.Hold()
+	must(t, err)
+	release()
+
+	// A change that keeps the seal is still merged.
+	a, err := wallet.Open(path)
+	must(t, err)
+	must(t, a.Unlock("rotated"))
+	b, err := wallet.Open(path)
+	must(t, err)
+	must(t, b.Unlock("rotated"))
+	release, err = b.Hold()
+	must(t, err)
+	_, err = b.NewAddress(testutil.ExampleSeries(), "other")
+	must(t, err)
+	must(t, b.Save())
+	release()
+	release, err = a.Hold()
+	if err != nil {
+		t.Fatalf("a change without a new seal: %v", err)
+	}
+	release()
 }

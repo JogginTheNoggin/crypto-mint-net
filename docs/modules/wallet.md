@@ -61,6 +61,12 @@ before they change the wallet. So a change saved while one of them waited
 at a prompt is read in and kept, and the command saves without
 `ErrChanged` (D147).
 
+The one change `Hold` does not take in is a new passphrase. If the file's
+seal changed after the command was unlocked, `Hold` returns
+`ErrPassphraseChanged` and the command does nothing, so changing the
+passphrase also revokes commands already waiting with the old one, and a
+stale `passwd` never re-seals over it (GUI-022, D149).
+
 `status` and `receive` ask the node without holding the wallet: `status`
 holds it only to save the legs whose state changed, each only where the
 file still has the state it read, and `receive` only to note the
