@@ -23,8 +23,8 @@ a license are the owner's decisions and are part of milestone 8.
 | M4 | Peer discovery, relaying, address registries | Done |
 | M5 | Peer categories, ranking, tracking, chasing | Done |
 | M6 | Wallet and user tools | Done |
-| M7 | Network simulator, fuzzing, benchmarks | Next |
-| M8 | Hardening and open release | Planned |
+| M7 | Network simulator, fuzzing, benchmarks | Done |
+| M8 | Hardening and open release | Next |
 
 ### M1: Consensus core and full-node engine (done)
 
@@ -132,11 +132,25 @@ Left for later milestones: verifying only some mints of a pool (not
 planned, decision D70), hardware signers (the unsigned file is the
 hand-off), and a wallet over a remote node with TLS.
 
-### M7: Network simulator, fuzzing, benchmarks
+### M7: Network simulator, fuzzing, benchmarks (done)
 
-A deterministic many-node simulator to run the design's "tests to run"
-(attack weight, latency, partitions), fuzz tests for every decoder, and
-benchmarks to set the provisional defaults (K, limits, seen size) from data.
+- `pkg/sim`: real engines over a simulated network in virtual time, with
+  latency, partitions and heals, flooding, fetching, notices and stated
+  weights; scenarios for load, partitions, attacks with a head start and
+  the sizing sweep; `poo sim`. Results in
+  [simulation.md](simulation.md).
+- A bug it found, fixed: a pending payment waiting on a carried parent
+  could stay waiting forever (decision D72).
+- Fuzz targets for every decoder, run in CI (`scripts/fuzz.sh`).
+- Benchmarks for transactions, layer hashing, the ledger and the store.
+- The provisional defaults are kept; the simulator's K measurement
+  supports K = 8 (decision D74).
+
+Left for later: the remaining "tests to run" that need more workload
+models (uneven activity, one stockpile and several spends, spam and
+sibling flooding, light followers with invalid unchecked mints, proof
+size, settlement time with services), simulating peer ranking and
+chasing, and runs on real series parameters.
 
 ### M8: Hardening and open release
 

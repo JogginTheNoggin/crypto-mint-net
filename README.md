@@ -26,8 +26,10 @@ heavier ledgers that check the work behind a branch before fetching it.
 Milestone 6 adds the wallet: keys from one sealed seed, a fresh address
 per payment, shared k-of-n policies with co-signing, payment requests
 that carry the receiver's policy, and following every payment's weight
-against known rivals (`poo wallet`). A simulator, fuzzing and benchmarks
-come next ([roadmap](docs/roadmap.md)). Every design decision and every place this code
+against known rivals (`poo wallet`). Milestone 7 adds a deterministic
+network simulator, fuzzing and benchmarks: see [docs/simulation.md](docs/simulation.md) for
+what they measured. Hardening and the open release come next
+([roadmap](docs/roadmap.md)). Every design decision and every place this code
 departs from the design documents is recorded in
 [docs/decisions.md](docs/decisions.md).
 
@@ -105,6 +107,7 @@ go build -o poo ./cmd/poo
 | `pkg/p2p` | Peer connections: discovery, ranking, forwarding, ledger data requests, chasing |
 | `pkg/rpc` | The local control interface (JSON over HTTP, loopback, token) |
 | `pkg/wallet` | Keys from one sealed seed, payments, requests, co-signing, following weight |
+| `pkg/sim` | A deterministic many-node simulator over real engines |
 | `pkg/vectors` | Published test vectors for independent implementations |
 | `pkg/testutil` | Deterministic keys and builders for tests and the demo |
 | `docs/` | Architecture, roadmap, decisions, protocol formats, module guides |
@@ -126,8 +129,11 @@ go build -o poo ./cmd/poo
 Pre-release. The consensus core, a node with storage and a local RPC, and
 the wire protocol between full nodes (forwarding, ledger data requests and
 catch-up), peer discovery, and peer ranking, tracking and chasing are
-implemented and tested. The provisional defaults have not yet been tuned
-by simulation (milestone 7). Do not use it
+implemented and tested, with a wallet. Every decoder is fuzzed, the hot
+paths are benchmarked, and a deterministic network simulator runs the
+design's tests ([docs/simulation.md](docs/simulation.md)); its numbers
+support the provisional defaults but come from a model, not a real
+network. Do not use it
 with anything of value. Keys made by the test helpers are derived from public
 labels and must never hold real funds.
 

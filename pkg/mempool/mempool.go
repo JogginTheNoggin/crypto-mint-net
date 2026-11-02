@@ -58,6 +58,8 @@ type pending struct {
 	tx   *tx.Tx
 	seq  uint64
 	wait bool // a carried transaction waiting for its parent to be selected
+	// checked marks a transaction found valid during one Revalidate.
+	checked bool
 }
 
 // Pool is the pending transactions of one ledger pool.
@@ -227,35 +229,52 @@ func (p *Pool) removeWithDependents(tid hash.Hash) {
 // valid at the tip, are dropped. Waiting transactions whose inputs now exist
 // become pending. It returns the tids dropped as invalid.
 func (p *Pool) Revalidate(l Ledger) (dropped []hash.Hash) {
-	// Oldest first, so first come, first served survives revalidation and
-	// a waiting transaction is checked after what it depends on.
+	// Oldest first, so first come, first served survives revalidation.
 	order := make([]*pending, 0, len(p.byTID))
 	for _, e := range p.byTID {
 		order = append(order, e)
 	}
 	sortBySeq(order)
+	// Drop what the ledger now holds first: a waiting transaction may be
+	// older in the pool than the parent it waits on (a parent carried
+	// back after a switch), and must see that parent gone.
 	for _, e := range order {
-		if _, ok := p.byTID[e.tid]; !ok {
-			continue
-		}
 		if _, in := l.Locate(e.tid); in {
 			p.Remove(e.tid)
-			continue
 		}
-		if p.dependsOnPending(e.tx) {
-			if !e.wait {
+	}
+	// Then check the rest until nothing changes: dropping or releasing
+	// one transaction can release or invalidate the ones that spend it.
+	for changed := true; changed; {
+		changed = false
+		for _, e := range order {
+			if _, ok := p.byTID[e.tid]; !ok {
+				continue
+			}
+			if p.dependsOnPending(e.tx) {
 				// It became dependent because a parent it spends was
 				// re-added as carried; let it wait.
 				e.wait = true
+				continue
 			}
-			continue
+			if !e.wait && e.checked {
+				continue
+			}
+			if err := tx.CheckAgainst(p.s, l, e.tx, e.tid); err != nil {
+				p.Remove(e.tid)
+				dropped = append(dropped, e.tid)
+				changed = true
+				continue
+			}
+			if e.wait {
+				e.wait = false
+				changed = true
+			}
+			e.checked = true
 		}
-		if err := tx.CheckAgainst(p.s, l, e.tx, e.tid); err != nil {
-			p.Remove(e.tid)
-			dropped = append(dropped, e.tid)
-			continue
-		}
-		e.wait = false
+	}
+	for _, e := range order {
+		e.checked = false
 	}
 	return dropped
 }

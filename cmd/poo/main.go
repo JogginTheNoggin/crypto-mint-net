@@ -64,6 +64,9 @@ Usage:
   poo series info FILE        print the id and pools of a series JSON file
   poo demo [-quiet]           run in-process full nodes through a payment,
                               a double spend and its resolution
+  poo sim load|partition|attack|sizing [flags]
+                              run the deterministic network simulator
+                              (poo sim help)
 
 Node commands pick a data directory with -dir, or with -root (default
 $POO_HOME or ~/.poo) and -policy (default: the current node policy).
@@ -127,6 +130,8 @@ func run(args []string, out io.Writer) error {
 		return policyCmd(args[1:], out)
 	case "wallet":
 		return walletCmd(args[1:], out)
+	case "sim":
+		return simCmd(args[1:], out)
 	case "help", "-h", "--help":
 		fmt.Fprint(out, usage)
 		return nil

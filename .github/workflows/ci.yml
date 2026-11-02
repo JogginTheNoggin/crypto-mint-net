@@ -32,3 +32,5 @@ jobs:
         run: go test -race -count=1 ./...
       - name: demo
         run: go run ./cmd/poo demo -quiet
+      - name: fuzz
+        run: FUZZTIME=5s ./scripts/fuzz.sh

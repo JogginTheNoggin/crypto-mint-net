@@ -51,6 +51,8 @@ graph TD
   rpc --> peers
   rpc --> wallet
   cmd --> wallet
+  cmd --> sim
+  sim --> engine
   wallet --> policy
   wallet --> tx
   wallet --> series
@@ -95,7 +97,7 @@ project. Every package above `policy` also imports `hash`, and most import
 | Node | `store`, `node`, `rpc` | Disk, the data directory, local control |
 | Network | `wire`, `peers`, `registry`, `tracking`, `chase`, `p2p` | Messages between full nodes, the peer book and ranking, bootstrap lists, peer tracking, the chase queue, discovery, forwarding, catch-up |
 | Wallet | `wallet` | Keys from one seed, payments, requests, co-signing, following weight |
-| Tools | `cmd/poo`, `vectors`, `testutil` | CLI, demo, published vectors, test helpers |
+| Tools | `cmd/poo`, `sim`, `vectors`, `testutil` | CLI, demo, network simulator, published vectors, test helpers |
 
 ## The three tiers
 
@@ -203,6 +205,12 @@ fork point, through an overlay on the current state.
   read for it: the rivals of a transaction on inactive branches
   (`Ledger.Rivals`). Light mode is a node policy that follows only the
   wallet's pools. See [modules/wallet.md](modules/wallet.md).
+
+- **Simulation, fuzzing, benchmarks (M7, done)**: `pkg/sim` runs real
+  engines over a simulated network in virtual time, so the design's tests
+  run on the real rules; fuzz targets cover every decoder and benchmarks
+  the hot paths. See [modules/sim.md](modules/sim.md) and
+  [simulation.md](simulation.md).
 
 See [roadmap.md](roadmap.md) for the milestones and
 [modules/README.md](modules/README.md) for one page per package.

@@ -37,7 +37,10 @@ seed with a gap limit (D63), the seed sealed with PBKDF2 and AES-GCM
 states that tell a dropped payment from a void one (D66), rivals and the
 settled rule (D67), payment requests that carry the policy (D68),
 co-signing through a file (D69), and light mode as a full node following
-less (D70).
+less (D70). Milestone 7 adds a simulator of real engines over a modelled
+network (D71), fixes a pending-pool bug it found (D72), fuzzes every
+decoder for a single encoding per value (D73), and keeps the provisional
+defaults on the evidence so far (D74).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -900,4 +903,66 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   pool's entries carry every mint of the pool, so a pool is the smallest
   unit a node can check on its own; anything lighter means trusting a
   peer's word, which the design avoids.
+- **Tier:** Node policy.
+
+### D71. The simulator runs real engines over a modelled network
+
+- **Decision:** `pkg/sim` runs one real `engine.Engine` per node and
+  models only the network: fixed link latencies, partitions, flooding of
+  what the engine says to forward, fetching missing parents and entries,
+  a notice and a layer request after a switch on requested data, and
+  stated weights after requested work. Time is virtual, and every random
+  choice comes from the run's seed, including each builder's starting
+  nonce. Peer ranking, chasing and the byte form are not modelled.
+- **Why:** The design's tests are about the rules (selection, switching,
+  displaced transactions, weight) under network conditions. Running the
+  real engine means a simulated result is a result about this code. A
+  model of `pkg/p2p` on top would be slower and would test the model.
+  `pkg/p2p` is tested over real connections instead. Seeding the nonces
+  matters: with fixed nonce ranges every seed drew the same layers, and
+  the attack results did not vary.
+- **Tier:** Tooling.
+
+### D72. Revalidate releases chains whatever their order in the pool
+
+- **Decision:** `mempool.Revalidate` first drops every transaction the
+  selected ledger now holds, then rechecks the rest oldest first, again
+  and again until nothing changes. A waiting transaction becomes pending
+  as soon as nothing it spends is still pending.
+- **Why:** The simulator found a payment lost after a partition healed.
+  It was pending, spending a parent that the switch displaced and carried
+  back, so it waited on the parent. When the parent was bundled and
+  selected again, Revalidate checked the child first (it was older in the
+  pool) while the parent was still held, then removed the parent. No
+  later call came, so the child waited forever and was never bundled. The
+  design asks that chains of displaced payments come back one entry per
+  link. `TestOlderChildOfCarriedParent` pins the fix.
+- **Tier:** Node policy (what a node keeps pending). No validity rule
+  changed.
+
+### D73. Fuzzing checks one encoding per value
+
+- **Decision:** Every decoder has a fuzz target: transactions, entries,
+  layers, series params, witnesses, threshold params and data, store
+  logs, registry documents, wire messages and bodies. Each checks that
+  decoding never panics and that whatever decodes re-encodes to exactly
+  the same bytes. Entries are also checked, witnesses verified, and store
+  logs reopened after their cut. CI runs each target for 5 seconds;
+  `scripts/fuzz.sh` runs them for longer.
+- **Why:** Hashes are taken over the byte form (D2). Two encodings of one
+  value would let two nodes hash the same transaction differently, and a
+  panic on hostile input would let any peer stop a node.
+- **Tier:** Tooling (it guards consensus byte forms).
+
+### D74. Provisional defaults kept on the evidence so far
+
+- **Decision:** K stays 8 and the other defaults of D12 and D62 stay as
+  they are.
+- **Why:** In 20 simulated partitions with payments on both sides, K = 8
+  kept every node in agreement and lost no uncontested payment. K = 1 or
+  2 left 3 of 20 networks split ([simulation.md](simulation.md)). No run
+  hit the pending limit or the seen list size. The peer management
+  defaults of D62 are not exercised, since the simulator does not model
+  ranking. They stay provisional until a ranking model or a test network
+  measures them.
 - **Tier:** Node policy.
