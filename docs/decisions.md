@@ -2555,3 +2555,46 @@ a chase takes in after checking their work are not charged.
   `TestSubmitEntryAndLayer` (file, standard input, 300 KB, `-f` with an
   argument), `TestSubmitEntryBodySize` (full token over `MaxBody`
   decoded; view token 403; a layer over `MaxBody` refused; no token 401).
+
+### D145. Round 15: wallet saves never undo another change; new passphrases confirmed; GREEN-039 adopted
+
+- **Decision:**
+  - **GUI-019.** `wallet.Save` is a compare-and-write under a short
+    lock. It locks `wallet.json.lock` beside the file (flock on Unix,
+    LockFileEx on Windows, and no lock elsewhere), reads the file again,
+    and writes only if the bytes are those `Open` read or the last
+    `Save` wrote. Otherwise it writes nothing and returns `ErrChanged`,
+    which tells the user to run the command again. A new wallet whose
+    file appeared meanwhile gets `ErrExists`. So a `poo wallet` command
+    left waiting at its prompt can no longer undo another command's
+    change, a new passphrase included. Refusing was chosen over merging:
+    the wallet file has no merge rule, and a merge that guessed could
+    bring back the old sealed seed.
+  - **GUI-020.** `poo wallet create` and `poo wallet passwd` ask for a
+    new passphrase twice when it is typed through `Stdio.Secret` (a
+    hidden terminal, or the GUI's masked field), and change nothing if
+    the two differ. A passphrase piped on standard input, or given by an
+    environment variable or a file, is read once, so scripts work as
+    before.
+  - **GREEN-039 as written,** merged with BLUE-015 (D144). `build` and
+    `work` take `-bytes`, which keeps the hex that `poo submit` reads. A
+    missing parent is named in the error, with what to do. `grind jobs
+    ID` reads its flags after the id.
+  - **Black's Round 14 note on memory.** `POST /v1/entry` decodes the hex
+    straight from the body into bytes (`hexBytes`), so a large entry is
+    no longer also held as a string twice its size. The JSON is
+    unchanged.
+  - **Not taken: Black's optional note that a waiting file's staleness
+    should follow `measureLasts`.** A file whose chase writes nothing
+    would then keep its measure up to eight times longer against a fetch
+    that pays for every byte. Black and ORANGE-024 showed the current
+    rule is a delay paid for in bytes, never a hold. Lengthening it would
+    favour the file that is not moving, so the two clocks stay apart.
+- **Why:** GUI-019 (medium) and GUI-020 (low) came from GUI/Red, PR #63,
+  routed by GUI/Blue. GREEN-039 and the memory note came from Round 14,
+  and Black cleared both.
+- **Tier:** Implementation (the wallet file, the CLI and the local RPC).
+  No rule of validity or selection, no byte form and no limit changes.
+  Tests: `TestSaveNeverUndoesAnotherChange` and
+  `TestConcurrentSavesOneWins` (pkg/wallet), `TestNewPassphraseIsConfirmed`
+  (pkg/cli), and the hex cases in `TestSubmitEntryBodySize` (pkg/rpc).

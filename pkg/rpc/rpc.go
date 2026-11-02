@@ -55,6 +55,7 @@
 package rpc
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -455,18 +456,49 @@ func entryReply(res engine.EntryResult) EntryReply {
 	return EntryReply{Hash: res.Hash, Switched: res.Switch != nil, Pruned: len(res.Pruned), Dropped: len(res.Dropped)}
 }
 
+// entryBody is EntryRequest as the handler reads it: the same JSON, with
+// the hex decoded straight from the body into bytes, so a large entry is
+// not also held as a string of twice its size (Black's Round 14 note,
+// D145).
+type entryBody struct {
+	PoolRef
+	Entry hexBytes `json:"entry"`
+}
+
+// hexBytes is a JSON string of hex, decoded as it is read.
+type hexBytes []byte
+
+func (b *hexBytes) UnmarshalJSON(data []byte) error {
+	if len(data) < 2 || data[0] != '"' || data[len(data)-1] != '"' || bytes.IndexByte(data, '\\') >= 0 {
+		// Not a plain string: decode it the usual way, so an escaped
+		// string still reads and anything else gives the usual error.
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		data = []byte(`"` + s + `"`)
+	}
+	src := data[1 : len(data)-1]
+	out := make([]byte, hex.DecodedLen(len(src)))
+	if _, err := hex.Decode(out, src); err != nil {
+		return errNotHex
+	}
+	*b = out
+	return nil
+}
+
+var errNotHex = errors.New("not hex")
+
 func (h *Handler) submitEntry(w http.ResponseWriter, r *http.Request) {
-	var req EntryRequest
+	var req entryBody
 	if e := decodeBody(r, &req); e != nil {
+		if strings.Contains(e.Message, errNotHex.Error()) {
+			e = badRequest("entry: not hex")
+		}
 		writeError(w, e)
 		return
 	}
-	b, e := decodeHex("entry", req.Entry)
-	if e != nil {
-		writeError(w, e)
-		return
-	}
-	en, err := entry.Decode(b)
+	en, err := entry.Decode(req.Entry)
 	if err != nil {
 		writeError(w, badRequest("%v", err))
 		return

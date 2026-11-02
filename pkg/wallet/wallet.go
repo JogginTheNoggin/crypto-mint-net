@@ -13,10 +13,12 @@
 package wallet
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -39,6 +41,9 @@ var (
 	ErrLocked  = errors.New("wallet: locked; unlock it with its passphrase")
 	ErrExists  = errors.New("wallet: file exists")
 	ErrNoFunds = errors.New("wallet: not enough spendable units")
+	// ErrChanged: the wallet file changed since it was read, so Save
+	// wrote nothing rather than undo the other change (GUI-019, D145).
+	ErrChanged = errors.New("wallet: the file changed since it was read (another command saved it), so nothing was saved; run the command again")
 )
 
 // KeyInfo is one derived key. Public keys are kept in the clear so the
@@ -106,6 +111,9 @@ type Wallet struct {
 	path string
 	f    File
 	seed []byte // nil while locked
+	// read is the file as Open read it or Save last wrote it; nil for a
+	// new wallet. Save writes only over these bytes (GUI-019, D145).
+	read []byte
 }
 
 // Options are the settings of a new wallet. Zero values mean the defaults.
@@ -174,7 +182,7 @@ func Open(path string) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &Wallet{path: path}
+	w := &Wallet{path: path, read: b}
 	if err := json.Unmarshal(b, &w.f); err != nil {
 		return nil, fmt.Errorf("wallet: %s: %w", path, err)
 	}
@@ -254,20 +262,48 @@ func (w *Wallet) Rekey(passphrase string) error {
 	return nil
 }
 
-// Save writes the wallet atomically, readable only by its owner.
+// Save writes the wallet atomically, readable only by its owner. It
+// takes a short lock beside the file (path + ".lock") and writes only if
+// the file is still what this wallet read or last wrote, so a command
+// that waited at a prompt never undoes another's change, such as a new
+// passphrase: it returns ErrChanged instead, and a new wallet whose file
+// appeared meanwhile returns ErrExists (GUI-019, D145).
 func (w *Wallet) Save() error {
 	b, err := json.MarshalIndent(w.f, "", "  ")
 	if err != nil {
 		return err
 	}
+	b = append(b, '\n')
 	if err := os.MkdirAll(filepath.Dir(w.path), 0o700); err != nil {
 		return err
 	}
-	tmp := w.path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+	unlock, err := lockFile(w.path + ".lock")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, w.path)
+	defer unlock()
+	cur, err := os.ReadFile(w.path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		if w.read != nil {
+			return ErrChanged
+		}
+	case err != nil:
+		return err
+	case w.read == nil:
+		return ErrExists
+	case !bytes.Equal(cur, w.read):
+		return ErrChanged
+	}
+	tmp := w.path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, w.path); err != nil {
+		return err
+	}
+	w.read = b
+	return nil
 }
 
 // topUp derives keys until Gap unused ones follow the last used one. It

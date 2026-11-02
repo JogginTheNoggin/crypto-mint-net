@@ -102,6 +102,19 @@ func (f *walletFlags) passphrase(out io.Writer, prompt string) (string, error) {
 	return p, err
 }
 
+// newPassphrase reads a new wallet's passphrase as passphrase does,
+// asking for it twice when it is typed (GUI-020, D145).
+func (f *walletFlags) newPassphrase(out io.Writer) (string, error) {
+	if _, ok := os.LookupEnv("POO_PASSPHRASE"); ok || *f.passFile != "" {
+		return f.passphrase(out, "")
+	}
+	p, err := readNewSecret(out, "new passphrase: ")
+	if errors.Is(err, errNoInput) {
+		return "", errors.New("no passphrase: set POO_PASSPHRASE or use -passphrase-file")
+	}
+	return p, err
+}
+
 func (f *walletFlags) open() (*wallet.Wallet, error) { return wallet.Open(f.file()) }
 
 func (f *walletFlags) unlocked(out io.Writer) (*wallet.Wallet, error) {
@@ -253,7 +266,7 @@ func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if _, err := os.Stat(f.file()); err == nil {
 		return fmt.Errorf("%s exists", f.file())
 	}
-	p, err := f.passphrase(out, "new passphrase: ")
+	p, err := f.newPassphrase(out)
 	if err != nil {
 		return err
 	}
@@ -306,7 +319,9 @@ func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	case ok:
 		p = v
 	default:
-		p, _ = readSecret(out, "new passphrase: ")
+		if p, err = readNewSecret(out, "new passphrase: "); err != nil && !errors.Is(err, errNoInput) {
+			return err
+		}
 	}
 	if p == "" {
 		return errors.New("the new passphrase must not be empty")

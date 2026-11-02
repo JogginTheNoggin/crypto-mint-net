@@ -36,6 +36,14 @@ and atomically) holds:
 | `sent` | payments and claims made, with each leg's transaction and state |
 | `expected` | payment requests given out, and transactions payers named |
 
+`Save` writes only over the file it read. It takes a short lock beside
+the file (`wallet.json.lock`; flock on Unix, LockFileEx on Windows), reads
+the file again, and writes only if the bytes are those `Open` read or the
+last `Save` wrote. Otherwise it writes nothing and returns `ErrChanged`,
+so a command left waiting at its passphrase prompt never undoes another
+command's change, such as a new passphrase. A new wallet whose file
+appeared meanwhile returns `ErrExists` (GUI-019, D145).
+
 Public keys are in the clear, so a locked wallet still lists its
 addresses, reads balances and follows payments. Only signing, giving out a
 new address, and showing the seed need the passphrase.
@@ -51,7 +59,12 @@ new address, and showing the seed need the passphrase.
   make an unlock exhaust memory. The additional data `PoO-wallet-seed-v1`
   binds the ciphertext to its purpose. A wrong passphrase fails
   authentication: `ErrPassphrase`. `Rekey` seals the same seed under a
-  new passphrase, moving a PBKDF2 wallet to Argon2id.
+  new passphrase, moving a PBKDF2 wallet to Argon2id. When `poo wallet
+  create` or `poo wallet passwd` reads a new passphrase as it is typed (a
+  hidden terminal, or the GUI's masked field), it asks for it again and
+  changes nothing if the two differ; one piped on standard input, or
+  given by `$POO_PASSPHRASE`, `$POO_NEW_PASSPHRASE` or a file, is read
+  once (GUI-020, D145).
 - **Key algorithm (decision D81).** Every key of a wallet uses the
   algorithm chosen at creation (`Options.Alg`, `poo wallet create -alg`),
   Ed25519 by default. It cannot change later. A series must allow it, or

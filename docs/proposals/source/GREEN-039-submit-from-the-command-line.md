@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototyped) |
+| Status | adopted (D145), merged with BLUE-015 |
 | Based on | `claude/m10-watch` @ `184bc54` |
 | Area | `pkg/cli` (`build`, `work`, `submit`, `grind jobs`), `docs/modules/poo.md` |
 | Effort | small |

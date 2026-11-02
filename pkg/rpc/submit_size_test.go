@@ -50,4 +50,19 @@ func TestSubmitEntryBodySize(t *testing.T) {
 	if code, _ := post("/v1/entry", "", big); code != http.StatusUnauthorized {
 		t.Fatalf("no token: %d", code)
 	}
+	// The hex is decoded as the body is read (D145): what is not hex, or
+	// is odd, says so; an escaped string still reads, and a non-string is
+	// a body error.
+	ref := `{"series":"` + s.ID().String() + `","pool":1,"entry":`
+	for _, c := range []struct{ entry, want string }{
+		{`"zz"`, "entry: not hex"},
+		{`"000"`, "entry: not hex"},
+		{`"\u0030\u0030"`, "entry"}, // hex 00, escaped: decoded, then not an entry
+		{`5`, "body"},
+	} {
+		code, body := post("/v1/entry", tok, ref+c.entry+`}`)
+		if code != http.StatusBadRequest || !strings.Contains(body, c.want) || (c.want != "entry: not hex" && strings.Contains(body, "not hex")) {
+			t.Fatalf("entry %s: %d %s, want %q", c.entry, code, body, c.want)
+		}
+	}
 }
