@@ -60,10 +60,21 @@ func TestPolicyExportImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Series) != 1 || len(p.Follow) != 1 || len(p.P2P.Peers) != 1 || p.P2P.Listen != "off" {
+	// What to follow only: the peer is a node setting (RED-043, D150).
+	if len(p.Series) != 1 || len(p.Follow) != 1 || len(p.P2P.Peers) != 0 || p.P2P.Listen != "off" {
 		t.Fatalf("imported: %+v", p)
 	}
-	out = runOut(t, "policy", "import", bundle, "-apply", "-root", dst)
+	if !strings.Contains(out, "skipped, node settings (-settings takes them): p2p.peers.[a.example:1]") {
+		t.Fatalf("apply did not say what it skipped:\n%s", out)
+	}
+	out = runOut(t, "policy", "import", bundle, "-apply", "-settings", "-root", dst)
+	if !strings.Contains(out, "read first") || !strings.Contains(out, "p2p.peers.[a.example:1]") {
+		t.Fatalf("-settings did not name the peer first:\n%s", out)
+	}
+	if p, _ = nodepolicy.Load(dstPath); len(p.P2P.Peers) != 1 || p.P2P.Listen != "off" {
+		t.Fatalf("imported with -settings: %+v", p)
+	}
+	out = runOut(t, "policy", "import", bundle, "-apply", "-settings", "-root", dst)
 	if !strings.Contains(out, "nothing to change") {
 		t.Fatalf("second import:\n%s", out)
 	}

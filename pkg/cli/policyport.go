@@ -132,7 +132,8 @@ func policyImportCmd(args []string, out io.Writer) error {
 	apply := fs.Bool("apply", false, "make the change (default: only show the plan)")
 	prefer := fs.Bool("prefer-file", false, "where both set a value and they differ, take the file's (default: keep this node's)")
 	replace := fs.Bool("replace", false, "put the file's node policy in place of this one's instead of merging, keeping this machine's machine-local settings")
-	full := fs.Bool("full", false, "take the file's machine-local settings too (rpc, no_sync, p2p listen and advertise, grind device and threads): restoring a backup on this machine")
+	settings := fs.Bool("settings", false, "take the file's node settings too (peers, registries, grind jobs, tracking, the p2p switches and limits); by default only what to follow is taken")
+	full := fs.Bool("full", false, "take every setting, machine-local ones too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): restoring a backup on this machine")
 	noReload := fs.Bool("no-reload", false, "change node.json only; a running node applies it on its next reload or start")
 	asJSON := fs.Bool("json", false, "print the plan as JSON")
 	// The file may come before the flags: poo policy import FILE -apply.
@@ -146,7 +147,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if file == "" && fs.NArg() == 1 {
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 || file == "" {
-		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-full] [-policy NAME | -dir DIR]")
+		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-policy NAME | -dir DIR]")
 	}
 	if *apply && viewOnlyOf(out) {
 		return errViewOnly("policy import -apply")
@@ -171,7 +172,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
+	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
 	if opt.SeriesOnly && *replace {
 		return errors.New("a series bundle adds one series: -replace is for a node policy")
 	}
@@ -208,16 +209,37 @@ func policyImportCmd(args []string, out io.Writer) error {
 		targets = []target{{name, w.resolve(), b.Policies[0].Policy, false}}
 	}
 
+	// Every plan first, so a node policy that cannot be imported stops
+	// the import before any is changed (RED-045, D150).
 	var results []importResult
 	for _, t := range targets {
-		r, err := importOne(out, t.dir, t.name, *w.dir == "", t.p, opt, *apply, *noReload, m)
+		r, err := importOne(out, t.dir, t.name, *w.dir == "", t.p, opt, false, *noReload, m)
 		if err != nil {
 			if t.name != "" {
-				return fmt.Errorf("node policy %q: %w", t.name, err)
+				err = fmt.Errorf("node policy %q: %w", t.name, err)
 			}
-			return err
+			return fmt.Errorf("%w; nothing was changed", err)
 		}
 		results = append(results, r)
+	}
+	if *apply {
+		var saved []string
+		for i, t := range targets {
+			r, err := importOne(out, t.dir, t.name, *w.dir == "", t.p, opt, true, *noReload, m)
+			if err != nil {
+				if t.name != "" {
+					err = fmt.Errorf("node policy %q: %w", t.name, err)
+				}
+				if len(saved) == 0 {
+					return fmt.Errorf("%w; nothing was changed", err)
+				}
+				return fmt.Errorf("%w; already saved: %s (importing again is safe: it changes nothing twice)", err, strings.Join(saved, ", "))
+			}
+			results[i] = r
+			if r.Saved {
+				saved = append(saved, fmt.Sprintf("%q", t.name))
+			}
+		}
 	}
 	if *apply && b.Scope == nodepolicy.ScopeNode {
 		if _, err := m.Current(); err != nil {
@@ -336,6 +358,9 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		}
 		return s
 	}
+	if len(p.Defences) > 0 {
+		fmt.Fprintf(out, "  read first: these change a defence of this node or where it reaches out: %s\n", listSome(p.Defences, 20))
+	}
 	for _, c := range p.Added {
 		fmt.Fprintf(out, "  + %s\n", c.Field)
 	}
@@ -354,6 +379,9 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 	}
 	if len(p.Skipped) > 0 {
 		fmt.Fprintf(out, "  skipped, machine-local (-full takes them): %s\n", strings.Join(p.Skipped, ", "))
+	}
+	if len(p.SkippedSettings) > 0 {
+		fmt.Fprintf(out, "  skipped, node settings (-settings takes them): %s\n", listSome(p.SkippedSettings, 20))
 	}
 	for _, s := range p.Refused {
 		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", s)
@@ -375,4 +403,13 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 	if r.Current {
 		fmt.Fprintln(out, "  made current")
 	}
+}
+
+// listSome joins the first n of list, and says how many more there are
+// (-json prints them all).
+func listSome(list []string, n int) string {
+	if len(list) <= n {
+		return strings.Join(list, ", ")
+	}
+	return fmt.Sprintf("%s and %d more (-json lists them all)", strings.Join(list[:n], ", "), len(list)-n)
 }

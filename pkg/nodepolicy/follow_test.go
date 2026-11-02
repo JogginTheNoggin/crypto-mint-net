@@ -3,6 +3,7 @@ package nodepolicy
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -83,4 +84,60 @@ func TestReplaceFollow(t *testing.T) {
 	if want := []Follow{{Issuer: &iss}, {Series: &id, Pools: []uint64{1}}}; !reflect.DeepEqual(p.Follow, want) {
 		t.Fatalf("a refused replace changed the list: %+v", p.Follow)
 	}
+}
+
+// RED-044, D150: addFollows, the linear merge an import uses, follows
+// exactly what AddFollow one by one does.
+func TestAddFollowsMatchesAddFollow(t *testing.T) {
+	var p Policy
+	var ids []hash.Hash
+	for i := 0; i < 3; i++ {
+		prm := testutil.ExampleParams()
+		prm.Mints = uint64(8 + 4*i)
+		s := testutil.MustSeries(prm)
+		p.Series = append(p.Series, SeriesInfo{Params: prm})
+		ids = append(ids, s.ID())
+	}
+	iss := hash.Hash{7}
+	cases := [][]Follow{
+		{{Series: &ids[0], Pools: []uint64{0}}, {Series: &ids[0], Pools: []uint64{1}, Mints: []uint64{7}}},
+		{{Series: &ids[1], Pools: []uint64{0}}, {Series: &ids[1]}, {Series: &ids[1], Pools: []uint64{1}}},
+		{{Issuer: &iss}, {Issuer: &iss}, {Series: &ids[2], Mints: []uint64{3}}},
+		{{Series: &ids[0]}, {Series: &ids[2], Pools: []uint64{1}}, {Series: &ids[0], Mints: []uint64{1}}},
+	}
+	starts := [][]Follow{nil, {{Series: &ids[0], Pools: []uint64{2}}}, {{Series: &ids[1]}, {Issuer: &iss}}}
+	for _, start := range starts {
+		for i, fs := range cases {
+			a, b := p, p
+			a.Follow = append([]Follow(nil), start...)
+			b.Follow = append([]Follow(nil), start...)
+			for _, f := range fs {
+				if err := a.AddFollow(f); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := b.addFollows(fs, p.series); err != nil {
+				t.Fatal(err)
+			}
+			if x, y := followSet(a), followSet(b); x != y {
+				t.Errorf("case %d from %v: AddFollow %s, addFollows %s", i, start, x, y)
+			}
+		}
+	}
+	bad := hash.Hash{9}
+	b := p
+	if err := b.addFollows([]Follow{{Series: &ids[0]}, {Series: &bad}}, p.series); err == nil || b.Follow != nil {
+		t.Fatalf("an unlisted series: %v, follow %v", err, b.Follow)
+	}
+}
+
+func followSet(p Policy) string {
+	flat := flatAll(p)
+	var out []string
+	for _, k := range sortedKeys(flat) {
+		if strings.HasPrefix(k, "follow") {
+			out = append(out, show(k)+"="+flat[k])
+		}
+	}
+	return strings.Join(out, " ")
 }

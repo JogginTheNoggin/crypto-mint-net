@@ -98,12 +98,21 @@ func (h *Host) candidateDialer(addr string) *net.Dialer {
 	if h.cfg.AllowLocalPeers || h.configured[addr] {
 		return d
 	}
-	d.ControlContext = func(_ context.Context, _, address string, _ syscall.RawConn) error {
-		ap, err := netip.ParseAddrPort(address)
-		if err != nil || !publicIP(ap.Addr()) {
-			return errNotPublic
-		}
-		return nil
-	}
+	d.ControlContext = publicOnly
 	return d
+}
+
+// publicDialer returns a dialer that connects to public addresses only.
+func publicDialer() *net.Dialer {
+	return &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second, ControlContext: publicOnly}
+}
+
+// publicOnly refuses, after name resolution and before connecting, an
+// address that is not public.
+func publicOnly(_ context.Context, _, address string, _ syscall.RawConn) error {
+	ap, err := netip.ParseAddrPort(address)
+	if err != nil || !publicIP(ap.Addr()) {
+		return errNotPublic
+	}
+	return nil
 }
