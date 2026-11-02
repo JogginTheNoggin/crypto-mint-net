@@ -41,6 +41,7 @@ type tnode struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	log    *syncBuf
+	key    engine.PoolKey
 
 	mu     sync.Mutex
 	events []node.Event
@@ -67,9 +68,15 @@ func (s *syncBuf) String() string {
 // runs a host for it on a loopback port.
 func startNode(t *testing.T, name string, edit func(*p2p.Config)) *tnode {
 	t.Helper()
-	id := exSeries.ID()
+	return startNodeIn(t, name, exSeries, edit)
+}
+
+// startNodeIn is startNode for pool 1 of series s.
+func startNodeIn(t *testing.T, name string, s *series.Series, edit func(*p2p.Config)) *tnode {
+	t.Helper()
+	id := s.ID()
 	pol := nodepolicy.Default()
-	pol.Series = []nodepolicy.SeriesInfo{{Params: exSeries.Params()}}
+	pol.Series = []nodepolicy.SeriesInfo{{Params: s.Params()}}
 	pol.Follow = []nodepolicy.Follow{{Series: &id, Pools: []uint64{1}}}
 	pol.RPC.Listen = "off"
 	pol.NoSync = true
@@ -81,14 +88,15 @@ func startNode(t *testing.T, name string, edit func(*p2p.Config)) *tnode {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tn := &tnode{t: t, name: name, n: n, done: make(chan struct{}), log: &syncBuf{}}
+	tn := &tnode{t: t, name: name, n: n, done: make(chan struct{}), log: &syncBuf{}, key: engine.PoolKey{Series: id, Index: 1}}
 	n.Observe(func(ev node.Event) {
 		tn.mu.Lock()
 		tn.events = append(tn.events, ev)
 		tn.mu.Unlock()
 	})
 	addr := freeAddr(t)
-	cfg := p2p.Config{Listen: addr, Advertise: addr, CheckEvery: -1, ManageEvery: -1, PingEvery: -1,
+	// Every test node is on loopback, so peers must be allowed to name it.
+	cfg := p2p.Config{Listen: addr, Advertise: addr, AllowLocalPeers: true, CheckEvery: -1, ManageEvery: -1, PingEvery: -1,
 		RequestTimeout: 5 * time.Second, FollowTimeout: 500 * time.Millisecond, Log: tn.log}
 	if edit != nil {
 		edit(&cfg)
@@ -144,7 +152,7 @@ func (tn *tnode) connect(o *tnode) {
 }
 
 func (tn *tnode) status() engine.PoolStatus {
-	st, err := tn.n.Engine().Status(exKey)
+	st, err := tn.n.Engine().Status(tn.key)
 	if err != nil {
 		tn.t.Fatal(err)
 	}

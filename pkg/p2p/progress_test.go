@@ -1,0 +1,68 @@
+package p2p
+
+import (
+	"testing"
+	"time"
+
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
+)
+
+// Black's C-2 (D121): past maxProgress the host forgets the yielded chase
+// that has shown least, and never a worked one for one that is not.
+func TestProgressForgetsLeastShown(t *testing.T) {
+	// The senders are not connected: a long grace keeps their progress.
+	kept := Config{ProgressGrace: time.Hour, ProgressTTL: time.Hour}
+	h := &Host{cfg: kept}
+	worked := newProgress(hash.Hash{}, nil, false)
+	worked.worked = true
+	h.saveProgress(progressKey{group: 1}, worked)
+	heavy := newProgress(hash.Hash{}, nil, false)
+	heavy.total = weight.FromUint64(1 << 20)
+	h.saveProgress(progressKey{group: 2}, heavy)
+	for i := 0; i < maxProgress; i++ {
+		h.saveProgress(progressKey{group: uint64(10 + i)}, newProgress(hash.Hash{}, nil, false))
+	}
+	if len(h.prog) != maxProgress {
+		t.Fatalf("%d remembered", len(h.prog))
+	}
+	if h.prog[progressKey{group: 1}] != worked || h.prog[progressKey{group: 2}] != heavy {
+		t.Fatal("a chase that showed work was forgotten for ones that showed none")
+	}
+	// Full of worked chases, a new unworked one is the one let go.
+	h = &Host{cfg: kept}
+	for i := 0; i < maxProgress; i++ {
+		st := newProgress(hash.Hash{}, nil, false)
+		st.worked = true
+		h.saveProgress(progressKey{group: uint64(i)}, st)
+	}
+	h.saveProgress(progressKey{group: 9999}, newProgress(hash.Hash{}, nil, false))
+	if _, ok := h.prog[progressKey{group: 9999}]; ok || len(h.prog) != maxProgress {
+		t.Fatal("a worked chase was forgotten for an unworked one")
+	}
+}
+
+// Black's C-6 (D129): kept progress lives for ProgressTTL after its
+// sender's backoff ends, so a stalled chase's progress outlasts the wait
+// for its next turn, however long the backoff grew.
+func TestProgressOutlastsTheBackoff(t *testing.T) {
+	cq := chase.New(chase.Config{Backoff: time.Hour, MaxBackoff: time.Hour})
+	h := &Host{cfg: Config{ProgressGrace: time.Hour, ProgressTTL: time.Minute}, cq: cq}
+	g, _, _ := cq.Offer("p", chase.Sender{ID: "s", Range: "r"}, &hash.Hash{1}, time.Now())
+	if _, ok := cq.Next(time.Now()); !ok {
+		t.Fatal("no job")
+	}
+	k := progressKey{group: g, sender: "s"}
+	h.saveProgress(k, newProgress(hash.Hash{}, nil, false))
+	now := time.Now()
+	cq.Finish(g, chase.Stalled, nil, now) // backed off for an hour
+	h.sweepProgress(now.Add(50 * time.Minute))
+	if h.prog[k] == nil {
+		t.Fatal("progress forgotten during its sender's backoff")
+	}
+	h.sweepProgress(now.Add(time.Hour + 2*time.Minute))
+	if h.prog[k] != nil {
+		t.Fatal("progress kept past its time to live after the backoff")
+	}
+}

@@ -195,6 +195,10 @@ const (
 	KindLayer     = "layer"
 	KindRequest   = "request"
 	KindDiscovery = "discovery"
+	// KindRevert counts the selected entries a pushed entry makes the
+	// node revert to check it against the state after its parent
+	// (RED-011, decision D111).
+	KindRevert = "revert"
 )
 
 // DefaultConfig returns the provisional defaults.
@@ -218,6 +222,7 @@ func DefaultConfig() Config {
 		Retain: Retention{FlagHistory: 7 * 24 * time.Hour, Log: time.Hour, LogSize: 256, MaxAddresses: 8192},
 		Budgets: map[string]int{
 			KindTx: 1200, KindEntry: 1200, KindLayer: 6000, KindRequest: 600, KindDiscovery: 120,
+			KindRevert: 200_000,
 		},
 		RepeatLimit: 600,
 		ChaseBudget: 30,
@@ -865,8 +870,13 @@ func (t *Tracker) Settings(addr string, now time.Time) Setting {
 // one past it in each window adds an over-budget flag, whose action is
 // returned.
 func (t *Tracker) Budget(addr, kind string, now time.Time) (bool, Action) {
+	return t.Spend(addr, kind, 1, now)
+}
+
+// Spend is Budget for a message that costs n units of kind.
+func (t *Tracker) Spend(addr, kind string, n uint64, now time.Time) (bool, Action) {
 	limit := t.cfg.Budgets[kind]
-	if limit <= 0 {
+	if limit <= 0 || n == 0 {
 		return true, None
 	}
 	key := t.Key(addr)
@@ -885,8 +895,14 @@ func (t *Tracker) Budget(addr, kind string, now time.Time) (bool, Action) {
 		r.Budget[kind] = c
 	}
 	w := t.cfg.Windows.Budget
-	c.Add(now, w, 1)
-	if c.Sum(now, w) <= uint64(limit) {
+	// One spend larger than the whole budget passes when nothing else was
+	// spent in the window, so no single item is too costly to take from
+	// any peer at all (consensus audit P2, D116).
+	// Only what is taken is counted: a message dropped over the budget
+	// adds nothing, so a steady sender gets through at the budget's rate
+	// and is never starved for good (ORANGE-016, Black's B1 note; D121).
+	if sum := c.Sum(now, w); sum == 0 || sum+n <= uint64(limit) {
+		c.Add(now, w, n)
 		return true, None
 	}
 	e := epoch(now, w) / slots

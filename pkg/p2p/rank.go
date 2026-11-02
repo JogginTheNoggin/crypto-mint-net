@@ -153,7 +153,7 @@ func (h *Host) review(s wire.Section) {
 	for _, id := range ids {
 		if p := byID[id]; p != nil {
 			h.setCategory(p, s, changes[id], now)
-			h.logf("%s is now %s for %s", p.short(), changes[id], s)
+			h.log.Info("category changed", "peer", p.short(), "category", changes[id], "section", s)
 		}
 	}
 }
@@ -177,7 +177,7 @@ func (h *Host) drop(p *peer, s wire.Section, why string) {
 		}
 		h.book.Archive(a, secs...)
 	}
-	h.logf("%s archived for %s: %s", p.short(), s, why)
+	h.log.Warn("peer archived", "peer", p.short(), "section", s, "why", why)
 	if left == 0 {
 		p.close(errNoOverlap)
 		return

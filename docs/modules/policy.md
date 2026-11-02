@@ -38,6 +38,11 @@ sizes, in [../cryptography.md](../cryptography.md).
 - A valid witness has exactly one form: exactly K signatures in strictly
   increasing key order.
 - Signature checks run only after every cheap check passes.
+- `CheckCached` with a `Verified` list (each series keeps
+  one, 16384 keys) skip the satisfaction function for a witness that
+  already passed for the same policy, data and tid. Only passes are
+  remembered, and the size, address and allowed checks run every time
+  (ORANGE-002, D105).
 - Every algorithm refuses the second encoding of a valid signature.
 - A k-of-policies witness checks each listed policy at most once, and
   nesting is at most `MaxPolicyDepth` (4).

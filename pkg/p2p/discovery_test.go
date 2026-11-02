@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/registry"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
@@ -355,4 +357,123 @@ func pipe(c net.Conn, to string) {
 	defer d.Close()
 	go io.Copy(d, c)
 	io.Copy(c, d)
+}
+
+// countAccepts listens on a fresh loopback address that is not a node
+// and counts the connections made to it.
+func countAccepts(t *testing.T) (string, func() int) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	var mu sync.Mutex
+	n := 0
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			n++
+			mu.Unlock()
+			c.Close()
+		}
+	}()
+	return ln.Addr().String(), func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return n
+	}
+}
+
+// RED-001: a peer cannot make a node connect into its own network, by a
+// follow request's contact, a peer list entry, a planted book record or a
+// host name that resolves to loopback (decision D96).
+func TestPeerCannotPlantLocalDialTarget(t *testing.T) {
+	a := startNode(t, "a", func(c *p2p.Config) { c.AllowLocalPeers = false })
+	target, accepts := countAccepts(t)
+	r := dialRaw(t, a, nil)
+	q := wire.FollowReq{Nonce: 1, Time: now(), Contact: wire.Contact{Addr: target}}
+	if ms := r.rawAsk(wire.TypeFollowReq, poolSection(), q.Encode()); len(ms) != 1 {
+		t.Fatalf("follow request not answered: %v", ms)
+	}
+	if _, ok := a.bookState(target); ok {
+		t.Fatal("a follow request's loopback contact went into the book")
+	}
+	// Records that reach the book another way (an older peer file, a
+	// host name) are refused when dialled.
+	_, port, _ := net.SplitHostPort(target)
+	for _, addr := range []string{target, net.JoinHostPort("localhost", port)} {
+		must(t, a.h.Book().Add(addr, []wire.Section{poolSection()}, peers.FromPeerList, time.Now()))
+	}
+	a.h.Manage()
+	time.Sleep(300 * time.Millisecond)
+	if n := accepts(); n != 0 {
+		t.Fatalf("a dialled the local target %d times", n)
+	}
+
+	// The control: with local peers allowed, the same contact is dialled.
+	b := startNode(t, "b", nil)
+	rb := dialRaw(t, b, nil)
+	rb.rawAsk(wire.TypeFollowReq, poolSection(), wire.FollowReq{Nonce: 2, Time: now(), Contact: wire.Contact{Addr: target}}.Encode())
+	if _, ok := b.bookState(target); !ok {
+		t.Fatal("with local peers allowed the contact is not a candidate")
+	}
+	b.h.Manage()
+	eventually(t, "b to dial the allowed target", func() bool { return accepts() > 0 })
+}
+
+// RED-001: an address the owner lists is dialled whatever its range.
+func TestConfiguredLocalPeerIsDialled(t *testing.T) {
+	a := startNode(t, "a", nil)
+	d := startNode(t, "d", func(c *p2p.Config) {
+		c.AllowLocalPeers = false
+		c.Peers = []string{a.addr()}
+	})
+	eventually(t, "d to reach its configured loopback peer", func() bool { return len(d.h.Peers()) == 1 })
+}
+
+// RED-002: a missing chunks request resends each chunk at most once,
+// however often it lists it, and the resend is the peer's cost.
+func TestMissingChunksResentOnce(t *testing.T) {
+	tr, err := tracking.New(tracking.Config{Default: tracking.StandardName}, "")
+	must(t, err)
+	a := startNode(t, "a", func(c *p2p.Config) { c.Tracker = tr })
+	b, c := startNode(t, "b", nil), startNode(t, "c", nil)
+	a.connect(b)
+	a.connect(c)
+	r := dialRaw(t, a, []wire.Section{poolSection()})
+	q := wire.PeerListReq{Nonce: 1, Time: now(), Variant: wire.AllPeers, Limits: wire.DiscoveryLimits{ChunkSize: 1, PeerListLimit: 10}}
+	body := q.Encode()
+	if ms := r.rawAsk(wire.TypePeerListReq, poolSection(), body); len(ms) != 2 {
+		t.Fatalf("%d chunks", len(ms))
+	}
+	id := wire.RequestID(wire.TypePeerListReq, poolSection(), body)
+	pos := []uint32{1, 9}
+	for range 5000 {
+		pos = append(pos, 2)
+	}
+	r.write(wire.Message{Header: wire.Header{Type: wire.TypeMissingChunksReq, Section: poolSection(), RequestID: id},
+		Body: wire.MissingChunksReq{Positions: pos}.Encode()})
+	got := map[uint32]int{}
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		m, _, err := r.readUntil(deadline)
+		if err != nil {
+			break
+		}
+		if m.RequestID == id {
+			got[m.Chunk]++
+		}
+	}
+	if len(got) != 2 || got[1] != 1 || got[2] != 1 {
+		t.Fatalf("resent %v, want chunks 1 and 2 once each", got)
+	}
+	rep, ok := a.h.TrackerReport(r.c.LocalAddr().String())
+	if !ok || rep.Policies[poolSection().Text()].Served == 0 {
+		t.Fatalf("no cost recorded for the resend: %+v", rep.Policies)
+	}
 }

@@ -3,15 +3,19 @@ package p2p_test
 import (
 	"bufio"
 	"crypto/rand"
+	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
@@ -27,6 +31,10 @@ type rawPeer struct {
 	n        uint64
 	coverage []wire.Section
 	silent   bool // do not answer the node's follow requests and pings
+	// closing is set by the test's cleanup before it closes the
+	// connection: a sender goroutine still writing then stops quietly
+	// instead of failing a test that has passed (B5's CI flake).
+	closing atomic.Bool
 }
 
 func poolSection() wire.Section {
@@ -42,11 +50,11 @@ func dialRaw(t *testing.T, tn *tnode, coverage []wire.Section) *rawPeer {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
 	var id hash.Hash
 	rand.Read(id[:])
 	hello := wire.Hello{Protocol: 1, NodeID: id, Agent: "raw"}
 	r := &rawPeer{t: t, c: c, r: bufio.NewReader(c), coverage: coverage}
+	t.Cleanup(func() { r.closing.Store(true); c.Close() })
 	r.write(wire.Message{Header: wire.Header{Type: wire.TypeHello}, Body: hello.Encode()})
 	m, _, err := r.read()
 	if err != nil || m.Type != wire.TypeHello {
@@ -57,7 +65,7 @@ func dialRaw(t *testing.T, tn *tnode, coverage []wire.Section) *rawPeer {
 
 func (r *rawPeer) write(m wire.Message) {
 	r.t.Helper()
-	if err := wire.WriteFrame(r.c, m); err != nil {
+	if err := wire.WriteFrame(r.c, m); err != nil && !r.closing.Load() {
 		r.t.Fatal(err)
 	}
 }
@@ -362,5 +370,114 @@ func TestServedCostAndRepeats(t *testing.T) {
 	}
 	if st := tr.Status("127.0.0.1", time.Now()); st.FlagTotal == 0 {
 		t.Fatalf("repeats past the limit not flagged: %+v", st)
+	}
+}
+
+// RED-009: a transaction whose witness does not satisfy its input is an
+// offence, unlike the honest reasons a transaction is refused for.
+func TestBadWitnessTxIsOffence(t *testing.T) {
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true}, "")
+	must(t, err)
+	a := startNode(t, "a", func(c *p2p.Config) { c.Tracker = tr })
+	prev, owner := grow(t, a, nil, "alice", 1, 32)
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	push := func(t2 *tx.Tx) {
+		r.write(wire.Message{Header: wire.Header{Type: wire.TypeTx, Section: sec}, Body: t2.Encode()})
+	}
+	// A spend of a portion that does not exist is refused, honestly.
+	push(exKeys.Spend(4, []testutil.In{{Input: tx.Input{TID: hash.Hash{9}}, Owner: owner}}, P("bob", 100)))
+	time.Sleep(200 * time.Millisecond)
+	if st := tr.Status("127.0.0.1:1", time.Now()); st.FlagTotal != 0 {
+		t.Fatalf("a refused spend was an offence: %+v", st)
+	}
+	// A spend whose witness signs another transaction is an offence.
+	bad := exKeys.Spend(4, []testutil.In{exKeys.Out(prev, 0, owner)}, P("bob", 100))
+	other := exKeys.Spend(4, []testutil.In{exKeys.Out(prev, 0, owner)}, P("carol", 100))
+	bad.Witnesses[0] = other.Witnesses[0]
+	push(bad)
+	eventually(t, "a flag for a bad witness", func() bool { return tr.Status("127.0.0.1:1", time.Now()).FlagTotal > 0 })
+}
+
+// RED-011: the selected entries a pushed entry makes the node revert are
+// drawn from the sender's revert budget; past it the entry is dropped and
+// flagged once, while an entry on the tip costs nothing.
+func TestDeepForkSpendsRevertBudget(t *testing.T) {
+	depth := 8 // entries of one claim or spend: two units each to revert
+	tr, err := tracking.New(tracking.Config{LoopbackAsOne: true, Budgets: map[string]int{tracking.KindRevert: 2*2*depth + 4}}, "")
+	must(t, err)
+	a := startNode(t, "a", func(c *p2p.Config) { c.Tracker = tr })
+	grow(t, a, nil, "alice", depth, 32)
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	held := func(h hash.Hash) (ok bool) {
+		a.n.Engine().Ledger(exKey, func(l *ledger.Pool) { _, ok = l.Entry(h) })
+		return ok
+	}
+	var forks []hash.Hash
+	for i := 0; i < 3; i++ {
+		claim := exKeys.Claim(4, P(fmt.Sprintf("mallory-%d", i), 100))
+		e, _, err := entry.Build(exSeries, exSeries.PoolID(exKey.Index), []*tx.Tx{claim}, 0)
+		must(t, err)
+		forks = append(forks, e.Hash(exSeries))
+		r.write(wire.Message{Header: wire.Header{Type: wire.TypeEntry, Section: sec}, Body: e.Encode()})
+	}
+	eventually(t, "an over-budget flag", func() bool { return tr.Status("127.0.0.1:1", time.Now()).FlagTotal == 1 })
+	if !held(forks[0]) || !held(forks[1]) || held(forks[2]) {
+		t.Fatalf("held %v %v %v, want the first two forks only", held(forks[0]), held(forks[1]), held(forks[2]))
+	}
+}
+
+// Black's C-3 (D121): an entry with more layers than a reply carries
+// whole is named by a many-layers reply, and its layers are paged from
+// any index, strongest first, until all have come.
+func TestServeManyLayers(t *testing.T) {
+	a := startNode(t, "a", func(c *p2p.Config) { c.LayersWhole = 3 })
+	grow(t, a, nil, "alice", 2, 16)
+	chain := chainOf(t, a)
+	for i := uint64(1); i <= 6; i++ {
+		_, _, err := a.n.Work(exKey, chain[1], i<<20, 64)
+		must(t, err)
+	}
+	sec := poolSection()
+	r := dialRaw(t, a, []wire.Section{sec})
+	none := wire.Limits{}
+	ms := r.ask(sec, wire.LayersReq{RequestCommon: r.common(none), Hashes: []hash.Hash{chain[1], chain[0]}})
+	if len(ms) != 1 || ms[0].Type != wire.TypeManyLayers {
+		t.Fatalf("got %d messages, %s", len(ms), ms[0].Type)
+	}
+	ml, err := wire.DecodeManyLayers(ms[0].Body)
+	if err != nil || ml.Entry != chain[1] || ml.Count < 4 {
+		t.Fatalf("many layers %+v %v", ml, err)
+	}
+	// After the first entry, a reply stops before a many-layered one.
+	ms = r.ask(sec, wire.LayersReq{RequestCommon: r.common(none), Hashes: []hash.Hash{chain[0], chain[1]}})
+	lc, err := wire.DecodeLayersChunk(ms[0].Body)
+	if err != nil || ms[0].Type != wire.TypeLayers || len(lc.Items) != 1 || !ms[len(ms)-1].More() {
+		t.Fatalf("layers before a many-layered entry: %s %v", ms[0].Type, err)
+	}
+	var got []uint64
+	for from := uint32(0); ; {
+		ms := r.ask(sec, wire.LayersFromReq{RequestCommon: r.common(none), Entry: chain[1], From: from})
+		for _, m := range ms {
+			c, err := wire.DecodeLayersFrom(m.Body)
+			if err != nil || c.From != uint32(len(got)) || c.Total != ml.Count {
+				t.Fatalf("layers from %d: %+v %v", from, c, err)
+			}
+			got = append(got, c.Nonces...)
+		}
+		if !ms[len(ms)-1].More() {
+			break
+		}
+		from = uint32(len(got))
+	}
+	if uint32(len(got)) != ml.Count {
+		t.Fatalf("paged %d of %d layers", len(got), ml.Count)
+	}
+	fn := exSeries.Hash()
+	for i := 1; i < len(got); i++ {
+		if (layer.Layer{Entry: chain[1], Nonce: got[i]}).Strength(fn) > (layer.Layer{Entry: chain[1], Nonce: got[i-1]}).Strength(fn) {
+			t.Fatal("layers not strongest first")
+		}
 	}
 }

@@ -25,11 +25,11 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		HopLimit:    p.P2P.HopLimit,
 		RequestRate: p.P2P.RequestRate,
 
+		AllowLocalPeers: p.P2P.AllowLocalPeers,
+
 		UnlistedConns: p.P2P.UnlistedConns,
 		StrictReturn:  p.P2P.StrictReturn,
 		NoConfirm:     p.P2P.NoConfirm,
-		FastCatchUp:   p.P2P.FastCatchUp,
-		DepthLimit:    p.P2P.DepthLimit,
 	}
 	if p.P2P.PrioritySlots > 0 || p.P2P.BackupSlots > 0 || p.P2P.Margin > 0 {
 		c.Slots = peers.DefaultSlots()

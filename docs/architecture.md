@@ -27,6 +27,20 @@ holder's keys and talks to a node only through reads and submissions.
 ```mermaid
 graph TD
   main[cmd/poo] --> cmd
+  cmd[cli] --> daemon
+  cmd --> watch
+  daemon --> rpc
+  daemon --> p2p
+  daemon --> watch
+  rpc --> watch
+  rpc --> filter
+  rpc --> grind
+  daemon --> grind
+  cmd --> grind
+  grind --> node
+  watch --> filter
+  watch --> node
+  filter --> policy
   cmd[cli] --> rpc
   cmd --> node
   cmd --> p2p
@@ -95,7 +109,8 @@ project. Every package above `policy` also imports `hash`, and most import
 | Series tier | `series`, `policy` | Published rules of a series, addresses, witnesses |
 | Consensus tier | `tx`, `entry`, `layer`, `state`, `ledger` | Validity, weight, selection, switching |
 | Node policy | `mempool`, `engine` (and their `Config`), `nodepolicy` | What to keep, follow and forward |
-| Node | `store`, `node`, `rpc` | Disk, the data directory, local control |
+| Node | `store`, `node`, `rpc`, `daemon`, `grind` | Disk, the data directory, local control, running and reloading a node, devices and grind jobs |
+| Viewing | `filter`, `watch` | One filter for every front end; views of what the node holds and a live event stream |
 | Network | `wire`, `peers`, `registry`, `tracking`, `chase`, `p2p` | Messages between full nodes, the peer book and ranking, bootstrap lists, peer tracking, the chase queue, discovery, forwarding, catch-up |
 | Wallet | `wallet` | Keys from one seed, payments, requests, co-signing, following weight |
 | Tools | `cmd/poo`, `cli`, `sim`, `vectors`, `testutil` | CLI, demo, network simulator, published vectors, test helpers |
@@ -212,6 +227,23 @@ fork point, through an overlay on the current state.
   run on the real rules; fuzz targets cover every decoder and benchmarks
   the hot paths. See [modules/sim.md](modules/sim.md) and
   [simulation.md](simulation.md).
+
+- **Viewing and watching (M10, done)**: `pkg/watch` reads the engine
+  (through `Engine.Ledger` and the pending pool) for its views and
+  observes the node for its event stream; `pkg/filter` is the one way
+  every view, the stream, the RPC and the command line select items.
+  `pkg/daemon` runs the node and reloads it in place when its node policy
+  changes, so following is set and forget. None of it changes validity.
+  See [modules/watch.md](modules/watch.md),
+  [modules/filter.md](modules/filter.md) and
+  [modules/daemon.md](modules/daemon.md).
+- **Grinders (M11, done)**: `pkg/grind` detects devices, keeps one
+  grinder per hash and kind of device, chooses a plan (a device by name
+  or auto) and runs jobs on targets (`tip`, `pending`, an entry), by hand,
+  within hours or from the node policy. The search loops in `pkg/entry`
+  and `pkg/layer` take any hasher, so a new device or hash needs no change
+  elsewhere, and every search finds what the plain one finds. See
+  [modules/grind.md](modules/grind.md).
 
 See [roadmap.md](roadmap.md) for the milestones and
 [modules/README.md](modules/README.md) for one page per package.

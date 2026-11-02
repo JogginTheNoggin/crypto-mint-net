@@ -15,18 +15,19 @@
 package entry
 
 import (
+	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
+	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
-
-// MaxTxs bounds decoding only. The design sets no limit on bundle size.
-const MaxTxs = 1 << 20
 
 // Errors returned by entry checks. One failing check makes the whole entry
 // invalid, and an invalid entry is thrown out together with its hash.
@@ -80,9 +81,17 @@ func (e *Entry) Hash(s *series.Series) hash.Hash {
 // Encode returns the wire form: parent, nonce (always written; it must be 0
 // in a series with no minimum entry strength), and the full transactions.
 func (e *Entry) Encode() []byte {
-	w := encoding.NewWriter(64 + 256*len(e.Txs))
+	w := encoding.NewWriter(e.Size())
 	e.EncodeTo(w)
 	return w.Bytes()
+}
+
+// Size returns len(e.Encode()) without building it, so a large entry's
+// size is known without copying it (ORANGE-017).
+func (e *Entry) Size() int {
+	c := encoding.NewCounter()
+	e.EncodeTo(c)
+	return c.Len()
 }
 
 // EncodeTo writes the wire form to w.
@@ -103,12 +112,15 @@ func Decode(b []byte) (*Entry, error) {
 	return e, nil
 }
 
-// DecodeFrom reads one entry from r. Check r.Err afterwards.
+// DecodeFrom reads one entry from r. Check r.Err afterwards. The design
+// sets no limit on bundle size, so the transaction count is not capped
+// (consensus audit C1, D117); Reader.Count refuses a count the bytes left
+// could not hold.
 func DecodeFrom(r *encoding.Reader) *Entry {
 	e := &Entry{}
 	r.Into(e.Parent[:])
 	e.Nonce = r.U64()
-	n := r.Count(MaxTxs, 60)
+	n := r.Count(0, 60)
 	e.Txs = make([]*tx.Tx, 0, n)
 	for i := 0; i < n && r.Err() == nil; i++ {
 		e.Txs = append(e.Txs, tx.DecodeFrom(r))
@@ -149,6 +161,23 @@ func SortItems(items []Item) {
 // hash meets the series' minimum entry strength. It returns the entry hash
 // and the bundle items so callers need not recompute them.
 func CheckStructure(s *series.Series, pool uint64, e *Entry) (hash.Hash, []Item, error) {
+	h, items, err := CheckShape(s, pool, e)
+	if err != nil {
+		return hash.Zero, nil, err
+	}
+	for _, it := range items {
+		if err := tx.CheckStateless(s, it.Tx, it.TID); err != nil {
+			return hash.Zero, nil, fmt.Errorf("%w %s: %v", ErrInvalidTx, it.TID.Short(), err)
+		}
+	}
+	return h, items, nil
+}
+
+// CheckShape is CheckStructure without the transactions' stateless checks:
+// the cheap rules, above all the entry's strength, that an entry must pass
+// before any of its signatures is verified, so an entry without the work
+// costs a node no signature checks (decision D105).
+func CheckShape(s *series.Series, pool uint64, e *Entry) (hash.Hash, []Item, error) {
 	if !s.EntriesHaveNonce() && e.Nonce != 0 {
 		return hash.Zero, nil, ErrNonce
 	}
@@ -171,11 +200,6 @@ func CheckStructure(s *series.Series, pool uint64, e *Entry) (hash.Hash, []Item,
 	h := HashOf(s, e.Parent, tids, e.Nonce)
 	if h.Strength() < s.MinEntryStrength() {
 		return hash.Zero, nil, ErrWeak
-	}
-	for _, it := range items {
-		if err := tx.CheckStateless(s, it.Tx, it.TID); err != nil {
-			return hash.Zero, nil, fmt.Errorf("%w %s: %v", ErrInvalidTx, it.TID.Short(), err)
-		}
 	}
 	return h, items, nil
 }
@@ -211,12 +235,73 @@ func CheckAgainst(s *series.Series, v tx.View, items []Item) error {
 	return nil
 }
 
+// Owners runs CheckStructure and CheckAgainst short of every witness
+// signature, against v, the pool state after the entry's parent, and
+// returns for each item the addresses its witnesses must satisfy
+// (tx.Owners). It verifies nothing.
+func Owners(s *series.Series, v tx.View, items []Item) ([][]hash.Hash, error) {
+	spent := map[tx.Input]struct{}{}
+	claims := map[uint64]struct{}{}
+	for _, it := range items {
+		if err := tx.CheckForm(s, it.Tx); err != nil {
+			return nil, fmt.Errorf("%w %s: %v", ErrInvalidTx, it.TID.Short(), err)
+		}
+		if it.Tx.IsClaim() {
+			if _, dup := claims[it.Tx.Mint.Serial]; dup {
+				return nil, ErrConflict
+			}
+			claims[it.Tx.Mint.Serial] = struct{}{}
+		}
+		for _, in := range it.Tx.Inputs {
+			if _, dup := spent[in]; dup {
+				return nil, ErrConflict
+			}
+			spent[in] = struct{}{}
+		}
+	}
+	out := make([][]hash.Hash, len(items))
+	for i, it := range items {
+		o, err := tx.Owners(v, it.Tx)
+		if err != nil {
+			return nil, fmt.Errorf("%w %s: %v", ErrInvalidTx, it.TID.Short(), err)
+		}
+		out[i] = o
+	}
+	return out, nil
+}
+
 // Build makes an entry from transactions that the caller has checked are
 // valid against the state after parent, do not conflict and do not depend on
 // one another. It sorts them into canonical order and, where the series sets
 // a minimum entry strength, tries nonces from 0 until the hash reaches it or
 // maxTries nonces have been tried (0 means no limit).
 func Build(s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64) (*Entry, hash.Hash, error) {
+	return BuildContext(context.Background(), s, parent, txs, maxTries)
+}
+
+// cancelEvery is how many nonces BuildContext tries between looks at its
+// context.
+const cancelEvery = 1 << 12
+
+// BuildContext is Build that stops searching for a nonce, with ctx's
+// error, once ctx is done (RED-006).
+func BuildContext(ctx context.Context, s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64) (*Entry, hash.Hash, error) {
+	return BuildWorkers(ctx, s, parent, txs, maxTries, 1)
+}
+
+// BuildWorkers is BuildContext searching with workers goroutines, with the
+// same result: the lowest nonce whose hash reaches the minimum (ORANGE-007).
+// Each try hashes only the nonce after the saved state of the tag, parent
+// and tids (a hash.Grinder, ORANGE-006), so its cost does not grow with the
+// number of transactions where the hash allows it.
+func BuildWorkers(ctx context.Context, s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64, workers int) (*Entry, hash.Hash, error) {
+	return BuildWith(ctx, hash.GrinderFor(s.Params().HashID), s, parent, txs, maxTries, workers, nil)
+}
+
+// BuildWith is BuildWorkers with any hasher for the series' hash (package
+// grind chooses one per device, decision D109), adding the nonces tried to
+// tried, if not nil, as it goes.
+func BuildWith(ctx context.Context, newHasher hash.NewHasher, s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64, workers int, tried *atomic.Uint64) (*Entry, hash.Hash, error) {
 	items := make([]Item, len(txs))
 	for i, t := range txs {
 		items[i] = Item{TID: t.TID(s.Hash()), Tx: t}
@@ -229,18 +314,99 @@ func Build(s *series.Series, parent hash.Hash, txs []*tx.Tx, maxTries uint64) (*
 		tids[i] = it.TID
 	}
 	if !s.EntriesHaveNonce() {
+		if tried != nil {
+			tried.Add(1) // the one hash, so a rate shows work was done
+		}
 		return e, HashOf(s, parent, tids, 0), nil
 	}
-	min := s.MinEntryStrength()
-	for nonce := uint64(0); maxTries == 0 || nonce < maxTries; nonce++ {
-		h := HashOf(s, parent, tids, nonce)
-		if h.Strength() >= min {
-			e.Nonce = nonce
-			return e, h, nil
+	prefix := make([][]byte, 0, len(tids)+2)
+	prefix = append(prefix, hash.TagEntry, parent[:])
+	for i := range tids {
+		prefix = append(prefix, tids[i][:])
+	}
+	if workers < 1 {
+		workers = 1
+	}
+	grinders := make([]hash.Hasher, workers)
+	for w := range grinders {
+		g, err := newHasher(prefix...)
+		if err != nil {
+			return nil, hash.Zero, err
 		}
-		if nonce == ^uint64(0) {
-			break
+		grinders[w] = g
+	}
+	min := s.MinEntryStrength()
+	// search tries the nonces [from, to) in order with grinder g and
+	// returns the first that reaches min.
+	search := func(g hash.Hasher, from, to uint64) (uint64, hash.Hash, bool) {
+		var buf [8]byte
+		for n := from; n < to; n++ {
+			binary.BigEndian.PutUint64(buf[:], n)
+			if h := g.Hash(buf[:]); h.Strength() >= min {
+				if tried != nil {
+					tried.Add(n - from + 1)
+				}
+				return n, h, true
+			}
+		}
+		if tried != nil {
+			tried.Add(to - from)
+		}
+		return 0, hash.Zero, false
+	}
+	// The nonces go in rounds of cancelEvery per worker, worker w taking
+	// the w-th run of the round. A round's lowest find is the lowest
+	// overall, since every lower nonce was tried in this or an earlier
+	// round. Nonce 2^64-1 is never tried, a bound no search reaches.
+	limit := ^uint64(0)
+	if maxTries != 0 {
+		limit = maxTries
+	}
+	type found struct {
+		n  uint64
+		h  hash.Hash
+		ok bool
+	}
+	res := make([]found, workers)
+	for base := uint64(0); base < limit; {
+		if workers == 1 {
+			to := base + min64(cancelEvery, limit-base)
+			if n, h, ok := search(grinders[0], base, to); ok {
+				e.Nonce = n
+				return e, h, nil
+			}
+			base = to
+		} else {
+			var wg sync.WaitGroup
+			for w := 0; w < workers; w++ {
+				from := base + min64(uint64(w)*cancelEvery, limit-base)
+				to := from + min64(cancelEvery, limit-from)
+				wg.Add(1)
+				go func(w int, from, to uint64) {
+					defer wg.Done()
+					n, h, ok := search(grinders[w], from, to)
+					res[w] = found{n, h, ok}
+				}(w, from, to)
+			}
+			wg.Wait()
+			for _, r := range res {
+				if r.ok {
+					e.Nonce = r.n
+					return e, r.h, nil
+				}
+			}
+			base += min64(uint64(workers)*cancelEvery, limit-base)
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, hash.Zero, err
 		}
 	}
 	return nil, hash.Zero, ErrNotFound
+}
+
+func min64(a, b uint64) uint64 {
+	if a < b {
+		return a
+	}
+	return b
 }

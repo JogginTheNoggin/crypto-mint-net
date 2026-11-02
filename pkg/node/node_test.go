@@ -2,15 +2,20 @@ package node_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
@@ -381,5 +386,184 @@ func TestAutomaticCompaction(t *testing.T) {
 	before.entries += ledger.DefaultK // K branches and the newest kept; one was already held
 	if got != before {
 		t.Fatalf("got %+v\nwant %+v", got, before)
+	}
+}
+
+// RED-006: the search for an entry's nonce holds neither the node's lock
+// nor the engine's, so the node keeps taking items, and the search stops
+// when its context is cancelled.
+func TestBuildSearchHoldsNoLock(t *testing.T) {
+	pr := testutil.ExampleParams()
+	pr.MinEntryStrength = series.MaxStrength // never met: the search runs until cancelled
+	s := testutil.MustSeries(pr)
+	id := s.ID()
+	p := nodepolicy.Default()
+	p.Series = []nodepolicy.SeriesInfo{{Params: pr}}
+	p.Follow = []nodepolicy.Follow{{Series: &id, Pools: []uint64{1}}}
+	p.RPC.Listen = "off"
+	dir := t.TempDir()
+	if err := nodepolicy.Save(filepath.Join(dir, nodepolicy.FileName), p); err != nil {
+		t.Fatal(err)
+	}
+	n, err := node.Open(dir, node.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer n.Close()
+	k := testutil.NewKeys(s)
+	key := engine.PoolKey{Series: id, Index: 1}
+	if _, err := n.HandleTx(k.Claim(4, P("alice", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := n.BuildContext(ctx, key, 0)
+		done <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+	start := time.Now()
+	if _, err := n.HandleTx(k.Claim(5, P("bob", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("a transaction waited %v for the build", d)
+	}
+	n.Engine().Status(key)
+	select {
+	case err := <-done:
+		t.Fatalf("the search ended by itself: %v", err)
+	default:
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("want context.Canceled, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the search did not stop when cancelled")
+	}
+}
+
+// A floor keeps the other layers a search found, so the same tries give
+// the entry at least as much weight, and only ever more (ORANGE-010).
+func TestWorkWithFloor(t *testing.T) {
+	f := newFixture(t)
+	n := f.open()
+	defer n.Close()
+	_, err := n.HandleTx(f.k.Claim(4, P("alice", 100)), engine.Local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _, err := n.Build(f.key, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eh := e.Hash(f.s)
+	var kept atomic.Uint64
+	if _, _, err := n.WorkWith(context.Background(), f.key, eh, 0, 1<<16, engine.Grind{Floor: 4, KeptCount: &kept}); err != nil {
+		t.Fatal(err)
+	}
+	if kept.Load() == 0 {
+		t.Fatal("no layer kept besides the strongest")
+	}
+	if got := len(layersOn(n, f, eh)); got != int(kept.Load())+1 {
+		t.Fatalf("%d layers held, %d kept", got, kept.Load())
+	}
+}
+
+func layersOn(n *node.Node, f *fixture, eh hash.Hash) (out []layer.Layer) {
+	n.Engine().Ledger(f.key, func(l *ledger.Pool) { out = l.Layers(eh) })
+	return out
+}
+
+// RED-018: a search with a low floor over many ranges sends at most
+// MaxKeptLayers besides its strongest, the strongest first, and searches
+// together no more than about KeptPerSecond a second.
+func TestWorkWithFloorIsCapped(t *testing.T) {
+	f := newFixture(t)
+	n := f.open()
+	defer n.Close()
+	_, err := n.HandleTx(f.k.Claim(4, P("alice", 100)), engine.Local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _, err := n.Build(f.key, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eh := e.Hash(f.s)
+	var kept atomic.Uint64
+	// 256 ranges of 4,096 nonces, each reaching a floor of 1.
+	if _, _, err := n.WorkWith(context.Background(), f.key, eh, 0, 1<<20, engine.Grind{Floor: 1, KeptCount: &kept}); err != nil {
+		t.Fatal(err)
+	}
+	if kept.Load() != node.MaxKeptLayers {
+		t.Fatalf("kept %d, want %d", kept.Load(), node.MaxKeptLayers)
+	}
+	ls := layersOn(n, f, eh)
+	fn := f.s.Hash()
+	weakest := 256
+	for _, l := range ls {
+		weakest = min(weakest, l.Hash(fn).Strength())
+	}
+	// The 17 strongest of 256 ranges are all well above the floor.
+	if weakest < 8 {
+		t.Fatalf("a layer of strength %d was sent", weakest)
+	}
+	// More searches at once: the bucket holds a second's worth.
+	start := time.Now()
+	for i := 1; i <= 6; i++ {
+		if _, _, err := n.WorkWith(context.Background(), f.key, eh, uint64(i)<<20, 1<<20, engine.Grind{Floor: 1, KeptCount: &kept}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	limit := uint64(node.KeptPerSecond) + uint64(time.Since(start).Seconds()*node.KeptPerSecond) + 1
+	if got := kept.Load(); got > limit {
+		t.Fatalf("kept %d in %v, want at most %d", got, time.Since(start), limit)
+	}
+}
+
+// KeepMax bounds the layers kept besides the strongest, and keeps the
+// strongest of them (ORANGE-016).
+func TestWorkWithFloorKeepMax(t *testing.T) {
+	f := newFixture(t)
+	n := f.open()
+	defer n.Close()
+	if _, err := n.HandleTx(f.k.Claim(4, P("alice", 100)), engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	e, _, err := n.Build(f.key, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eh := e.Hash(f.s)
+	h := f.s.Hash()
+	// The strengths a search of these nonces finds with no cap, one per
+	// range of 4,096, strongest first.
+	var all []int
+	for from := uint64(0); from < 1<<16; from += 1 << 12 {
+		_, s := layer.Grind(h, eh, from, 1<<12)
+		all = append(all, s)
+	}
+	slices.Sort(all)
+	slices.Reverse(all)
+	var kept atomic.Uint64
+	if _, _, err := n.WorkWith(context.Background(), f.key, eh, 0, 1<<16, engine.Grind{Floor: 1, KeepMax: 3, KeptCount: &kept}); err != nil {
+		t.Fatal(err)
+	}
+	if kept.Load() != 3 {
+		t.Fatalf("kept %d, want 3", kept.Load())
+	}
+	var got []int
+	for _, l := range layersOn(n, f, eh) {
+		got = append(got, l.Strength(h))
+	}
+	slices.Sort(got)
+	slices.Reverse(got)
+	if !slices.Equal(got, all[:4]) {
+		t.Fatalf("held strengths %v, want the strongest four of %v", got, all)
 	}
 }

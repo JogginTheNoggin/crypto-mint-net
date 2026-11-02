@@ -8,6 +8,9 @@ import "github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 // O(log n), so a layer on an old entry does not touch every entry after it.
 type fenwick struct {
 	t []weight.Weight // t[0] unused
+	// total is prefix(len(t)-1), the selected ledger's weight, kept so
+	// asking for it costs nothing (ORANGE-008).
+	total weight.Weight
 }
 
 func newFenwick() *fenwick { return &fenwick{t: make([]weight.Weight, 1, 64)} }
@@ -21,6 +24,7 @@ func (f *fenwick) push(w weight.Weight) {
 		sum = sum.Add(f.t[j])
 	}
 	f.t = append(f.t, sum)
+	f.total = f.total.Add(w)
 }
 
 // truncate keeps heights 1..n. Entries at or below n depend only on
@@ -30,20 +34,35 @@ func (f *fenwick) truncate(n int) {
 		f.t[i] = weight.Zero
 	}
 	f.t = f.t[:n+1]
+	var sum weight.Sum
+	for i := n; i > 0; i -= i & -i {
+		sum.Add(f.t[i])
+	}
+	f.total = sum.Weight()
 }
 
 // add adds w to the own weight at height i.
 func (f *fenwick) add(i int, w weight.Weight) {
+	if i < len(f.t) {
+		f.total = f.total.Add(w)
+	}
 	for ; i < len(f.t); i += i & -i {
 		f.t[i] = f.t[i].Add(w)
 	}
 }
 
 // prefix returns the sum of own weights at heights 1..i.
-func (f *fenwick) prefix(i int) weight.Weight {
-	sum := weight.Zero
-	for ; i > 0; i -= i & -i {
-		sum = sum.Add(f.t[i])
+func (f *fenwick) prefix(i int) weight.Weight { return f.prefixPlus(i, weight.Zero) }
+
+// prefixPlus returns prefix(i) + extra, with one allocation.
+func (f *fenwick) prefixPlus(i int, extra weight.Weight) weight.Weight {
+	if i == len(f.t)-1 && extra.IsZero() {
+		return f.total
 	}
-	return sum
+	var sum weight.Sum
+	sum.Add(extra)
+	for ; i > 0; i -= i & -i {
+		sum.Add(f.t[i])
+	}
+	return sum.Weight()
 }

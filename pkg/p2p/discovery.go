@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/registry"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
@@ -128,7 +128,7 @@ func (h *Host) handleFollow(p *peer, m wire.Message) error {
 	}
 	if q.Contact.Reachable() && !h.isSelf(q.Contact.Addr) {
 		// The asker asks only about what it follows: a candidate.
-		h.book.Add(q.Contact.Addr, []wire.Section{m.Section}, peers.FromReply, time.Now())
+		h.learn(q.Contact.Addr, []wire.Section{m.Section}, peers.FromReply, time.Now())
 	}
 	h.replyFollow(p, m, q, full, parts)
 	if q.Broadcast && !h.cfg.NoRelay && int(m.Hops) < h.cfg.HopLimit {
@@ -343,9 +343,28 @@ func (h *Host) handleMissing(p *peer, m wire.Message) error {
 	if !ok || time.Now().After(s.until) {
 		return nil // no longer held: silence
 	}
+	// Each chunk at most once per request, whatever the list repeats; a
+	// repeat counts against the peer, and what is resent is its cost
+	// (RED-002).
+	now := time.Now()
+	resent := make(map[uint32]bool, len(s.chunks))
+	repeated, bytes := false, 0
 	for _, pos := range q.Positions {
-		if int(pos) <= len(s.chunks) {
+		switch {
+		case resent[pos]:
+			repeated = true
+		case int(pos) <= len(s.chunks):
+			resent[pos] = true
+			bytes += len(s.chunks[pos-1].Body)
 			p.send(s.chunks[pos-1])
+		}
+	}
+	if bytes > 0 {
+		h.tr.Cost(p.key, m.Section.Text(), bytes, 0, false, now)
+	}
+	if repeated {
+		if a := h.tr.Repeat(p.key, now); a != tracking.None {
+			h.act(p, a)
 		}
 	}
 	return nil
@@ -592,7 +611,7 @@ func (h *Host) peerFollows(p *peer, s wire.Section, res followResult, held strin
 		p.contact = res.contact
 		p.mu.Unlock()
 		if !p.outbound {
-			h.book.Add(res.contact, res.policies, peers.FromReply, now)
+			h.learn(res.contact, res.policies, peers.FromReply, now)
 		}
 	}
 }
@@ -762,7 +781,7 @@ func (h *Host) manage(ctx context.Context) {
 	}
 	defer func() {
 		if err := h.book.Save(); err != nil {
-			h.logf("saving the peer book: %v", err)
+			h.log.Error("saving the peer book", "err", err)
 		}
 	}()
 	now := time.Now()
@@ -868,8 +887,7 @@ func (h *Host) dialCandidate(ctx context.Context, addr string) {
 		if !h.tr.Status(addr, time.Now()).Allowed() {
 			return // timed out or blocked: not until it ends
 		}
-		d := net.Dialer{Timeout: 10 * time.Second, KeepAlive: 15 * time.Second}
-		c, err := d.DialContext(ctx, "tcp", addr)
+		c, err := h.candidateDialer(addr).DialContext(ctx, "tcp", addr)
 		if err != nil {
 			h.book.Tried(addr, false, time.Now())
 			return
@@ -938,7 +956,7 @@ func (h *Host) Broadcast(s wire.Section) int {
 					}
 				}
 			}
-			if len(pols) > 0 && h.book.Add(rep.Contact.Addr, pols, peers.FromReply, time.Now()) == nil {
+			if len(pols) > 0 && h.learn(rep.Contact.Addr, pols, peers.FromReply, time.Now()) == nil {
 				added++
 			}
 		}
@@ -974,7 +992,7 @@ func (h *Host) askPeerList(p *peer, s wire.Section) int {
 					}
 				}
 			}
-			if len(pols) > 0 && h.book.Add(pe.Contact.Addr, pols, peers.FromPeerList, time.Now()) == nil {
+			if len(pols) > 0 && h.learn(pe.Contact.Addr, pols, peers.FromPeerList, time.Now()) == nil {
 				added++
 			}
 		}
@@ -991,7 +1009,7 @@ func (h *Host) LoadRegistries(ctx context.Context) int {
 	for _, loc := range h.cfg.Registries {
 		es, err := registry.Fetch(ctx, client, loc)
 		if err != nil {
-			h.logf("registry %s: %v", loc, err)
+			h.log.Warn("registry failed", "location", loc, "err", err)
 			continue
 		}
 		for _, e := range es {
@@ -1006,7 +1024,7 @@ func (h *Host) LoadRegistries(ctx context.Context) int {
 					}
 				}
 			}
-			if len(pols) > 0 && h.book.Add(e.Addr, pols, peers.FromRegistry, time.Now()) == nil {
+			if len(pols) > 0 && h.learn(e.Addr, pols, peers.FromRegistry, time.Now()) == nil {
 				added++
 			}
 		}

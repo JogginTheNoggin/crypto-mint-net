@@ -58,7 +58,11 @@ and by default counts the pings it missed while away, one per ping period
 
 `Budget(addr, kind, now)` counts items of one kind per window (one minute
 by default): transactions 1200, entries 1200, layers 6000, requests 600,
-discovery messages 120. Over budget, the message is dropped and the
+discovery messages 120. `Spend(addr, kind, n, now)` counts a message
+that costs n units: the `revert` budget (200,000 a minute) counts what a
+pushed or requested entry makes the node revert and apply to check it,
+one unit per entry and one per transaction (RED-011, RED-012, D111,
+D114). Over budget, the message is dropped and the
 address flagged once per window. `Repeat` counts held items and repeated
 request ids against `RepeatLimit` (600 a minute). `StartChase` counts new
 stated weights above this node's own against `ChaseBudget` (30 per ten
@@ -115,7 +119,7 @@ recently seen dropped first.
 
 `New(cfg, path)`, `Save`, `Key`, `Status`, `Offend`, `TimeOutFor`,
 `BlockFor`, `BlockRange`, `Lift`, `Hold`, `Held`, `Clear`, `Forget`,
-`SetGroups`, `SetTemplate`, `Settings`, `Budget`, `Repeat`, `StartChase`,
+`SetGroups`, `SetTemplate`, `Settings`, `Budget`, `Spend`, `Repeat`, `StartChase`,
 `Connection`, `Message`, `Heard`, `Ping`, `FirstDelivery`, `Item`,
 `Request`, `Stated`, `ChaseOutcome`, `Denial`, `Denials`, `Cost`, `Points`,
 `LastHeard`, `Report`, `Keys`, `Ranges`. `Counter` is a windowed counter

@@ -131,6 +131,9 @@ type Series struct {
 	types  map[policy.TypeID]bool
 	algs   map[policy.AlgID]bool
 	reg    *policy.Registry
+	// verified remembers witnesses already satisfied, a local cache that
+	// never changes a result (see policy.Verified).
+	verified *policy.Verified
 }
 
 // New validates params against the default policy registry and returns the
@@ -148,7 +151,7 @@ func NewWithRegistry(p Params, reg *policy.Registry) (*Series, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnreadable, err)
 	}
-	s := &Series{params: p, h: h, reg: reg, types: map[policy.TypeID]bool{}, algs: map[policy.AlgID]bool{}}
+	s := &Series{params: p, h: h, reg: reg, verified: policy.NewVerified(0), types: map[policy.TypeID]bool{}, algs: map[policy.AlgID]bool{}}
 	for _, t := range p.PolicyTypes {
 		if !reg.HasType(t) {
 			return nil, fmt.Errorf("%w: policy type %d", ErrUnreadable, t)
@@ -247,8 +250,25 @@ func (s *Series) MaxWitnessSize() int { return int(s.params.MaxWitness) }
 // CheckWitness checks a witness against an address for a tid under this
 // series' hash and rules.
 func (s *Series) CheckWitness(w policy.Witness, addr, tid hash.Hash) error {
-	return s.reg.Check(s.h, s, w, addr, tid)
+	return s.reg.CheckCached(s.h, s, w, addr, tid, s.verified)
 }
+
+// CheckWitnesses checks ws[i] against addrs[i] for a tid, in order, and
+// returns the index and error of the first that fails (-1 and nil when
+// all pass): CheckWitness on each, faster for many (ORANGE-014).
+func (s *Series) CheckWitnesses(ws []policy.Witness, addrs []hash.Hash, tid hash.Hash) (int, error) {
+	return s.reg.CheckAll(s.h, s, ws, addrs, tid, s.verified)
+}
+
+// WarmWitness checks w for tid and remembers a pass, without the address
+// it must satisfy, which CheckWitness checks later (ORANGE-021).
+func (s *Series) WarmWitness(w policy.Witness, tid hash.Hash) bool {
+	return s.reg.Warm(s, w, tid, s.verified)
+}
+
+// Remembered returns how many satisfied witnesses the series remembers
+// (ORANGE-002), for tests and metrics.
+func (s *Series) Remembered() int { return s.verified.Len() }
 
 // Address returns the address of a policy under this series' hash.
 func (s *Series) Address(p policy.Policy) hash.Hash { return policy.Address(s.h, p) }

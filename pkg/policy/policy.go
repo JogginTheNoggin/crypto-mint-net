@@ -96,9 +96,14 @@ type Policy struct {
 // Encode returns encode(policy), the bytes an address hashes.
 func (p Policy) Encode() []byte {
 	w := encoding.NewWriter(12 + len(p.Params))
+	p.EncodeTo(w)
+	return w.Bytes()
+}
+
+// EncodeTo writes Encode's bytes to w, without a slice of its own.
+func (p Policy) EncodeTo(w *encoding.Writer) {
 	w.U32(4).U32(uint32(p.Type))
 	w.VarBytes(p.Params)
-	return w.Bytes()
 }
 
 // Address returns H("PoO-address" ∥ encode(policy)).
@@ -126,7 +131,7 @@ type Witness struct {
 // Encode writes the witness: the encoded policy followed by the data as
 // variable-length bytes.
 func (w Witness) Encode(enc *encoding.Writer) {
-	enc.Raw(w.Policy.Encode())
+	w.Policy.EncodeTo(enc)
 	enc.VarBytes(w.Data)
 }
 
@@ -294,6 +299,14 @@ func (r *Registry) HasAlg(id AlgID) bool { _, ok := r.algs[id]; return ok }
 // Check verifies witness w against address addr for transaction tid under
 // the series rules. A nil error means the witness is valid.
 func (r *Registry) Check(h hash.Func, rules Rules, w Witness, addr, tid hash.Hash) error {
+	return r.CheckCached(h, rules, w, addr, tid, nil)
+}
+
+// CheckCached is Check that skips the satisfaction function when v
+// remembers it passing for the same policy, data and tid, and remembers
+// each new pass. The size, address and allowed checks always run. A nil v
+// remembers nothing.
+func (r *Registry) CheckCached(h hash.Func, rules Rules, w Witness, addr, tid hash.Hash, v *Verified) error {
 	if max := rules.MaxWitnessSize(); max > 0 && w.Size() > max {
 		return ErrTooLarge
 	}
@@ -304,7 +317,43 @@ func (r *Registry) Check(h hash.Func, rules Rules, w Witness, addr, tid hash.Has
 	if err != nil {
 		return err
 	}
-	return t.Satisfy(r, w.Policy.Params, w.Data, Message(tid))
+	if v == nil {
+		return t.Satisfy(r, w.Policy.Params, w.Data, Message(tid))
+	}
+	k := verifiedKey(w, tid)
+	if v.has(k) {
+		return nil
+	}
+	if err := t.Satisfy(r, w.Policy.Params, w.Data, Message(tid)); err != nil {
+		return err
+	}
+	v.add(k)
+	return nil
+}
+
+// Warm runs w's satisfaction function for tid and remembers a pass in v,
+// without the address it must satisfy. CheckCached later still runs the
+// size, address and allowed checks and finds the pass remembered: a pass
+// depends only on the policy, the data and the tid, which the key covers.
+// It is for data whose owners are not known yet, such as a node's own
+// store on start-up (ORANGE-021). It reports whether w passed.
+func (r *Registry) Warm(rules Rules, w Witness, tid hash.Hash, v *Verified) bool {
+	if max := rules.MaxWitnessSize(); max > 0 && w.Size() > max {
+		return false
+	}
+	t, err := r.allowed(rules, w.Policy)
+	if err != nil {
+		return false
+	}
+	k := verifiedKey(w, tid)
+	if v.has(k) {
+		return true
+	}
+	if t.Satisfy(r, w.Policy.Params, w.Data, Message(tid)) != nil {
+		return false
+	}
+	v.add(k)
+	return true
 }
 
 // allowed checks that the series allows policy p's type and key

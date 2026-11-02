@@ -22,8 +22,16 @@ Kinds: 1 entry, 2 layer, 3 transaction. Numbers are never reused.
 - `Open(path, Options{NoSync})` returns the log and `Opened{Records, Cut}`.
   It creates the file and directory if needed (modes 0600 and 0700).
 - `Append(Record)` writes and, unless `NoSync`, fsyncs.
+- `AppendLater(Record)` writes and returns a ticket; `Durable(ticket)`
+  waits until that record is on disk. `Durable` may run beside the other
+  methods, and callers waiting together share one fsync (group commit,
+  ORANGE-005, D105).
 - `Rewrite(records)` replaces the contents through a temporary file, fsync
   and rename, so a crash leaves the old log or the new one.
+- A failed write or fsync stops the log (`ErrFailed`, `Err`): it takes no
+  more appends, `Durable` never reports a later record durable and never
+  retries the sync, and `Rewrite` and `Close` return the error. Only
+  reopening, which replays what is on disk, brings it back (RED-010, D108).
 - `Records`, `Path`, `Close`. `ErrNotLog` for a file without the header.
 
 ## Guarantees
@@ -33,6 +41,10 @@ Kinds: 1 entry, 2 layer, 3 transaction. Numbers are never reused.
   and reports how many bytes it cut.
 - A corrupt length never causes a large allocation (`MaxRecordSize`, and
   the length must fit in the file).
+- No item is too large to store: one larger than `MaxRecordSize` is written
+  as `KindPart` records and a last record of its own kind, read back as
+  one record. A crash that leaves only some parts loses that item and cuts
+  the log before them (D117).
 
 ## Tests
 

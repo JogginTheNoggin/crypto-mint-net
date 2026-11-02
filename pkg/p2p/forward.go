@@ -10,6 +10,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
@@ -24,7 +25,17 @@ func (h *Host) onKept(ev node.Event) {
 	hdr := wire.Header{Section: pi.section, Stated: ev.Weight}
 	if ev.Forward {
 		m := wire.Message{Header: hdr}
+		// The size first, so an item too large to push is never encoded
+		// here (ORANGE-017).
 		switch {
+		case ev.Tx != nil && ev.Tx.Size() > h.cfg.PartsOver:
+			// A pending transaction this large travels only inside an
+			// entry (D117).
+			return
+		case ev.Entry != nil && ev.Entry.Size() > h.cfg.PartsOver:
+			// Too large to push whole: an entry is announced by a notice,
+			// and peers fetch it in parts when they chase it (D117).
+			m.Type, m.Body = wire.TypeNotice, wire.Notice{Tip: ev.Entry.Hash(pi.s)}.Encode()
 		case ev.Tx != nil:
 			m.Type, m.Body = wire.TypeTx, ev.Tx.Encode()
 		case ev.Entry != nil:
@@ -85,8 +96,13 @@ func (h *Host) handlePushed(p *peer, m wire.Message) error {
 			return fmt.Errorf("%w: transaction outside the section it was sent in", wire.ErrMalformed)
 		}
 		// A transaction can be refused for many honest reasons (a race
-		// with a spend, a full pool); none of them is the peer's fault.
+		// with a spend, a full pool); none of them is the peer's fault. A
+		// witness that does not satisfy its address is: no honest node
+		// forwards one (RED-009).
 		_, err = h.n.HandleTxFrom(t, engine.Pushed, p.id)
+		if errors.Is(err, tx.ErrWitness) {
+			return invalidItem{fmt.Errorf("sent a transaction with a bad witness: %w", err)}
+		}
 		h.credit(p, text, "tx", err, now)
 	case wire.TypeEntry:
 		e, err := wire.DecodeEntry(m.Body)
@@ -96,6 +112,17 @@ func (h *Host) handlePushed(p *peer, m wire.Message) error {
 		eh := e.Hash(pi.s)
 		if h.cq.IsBad(eh, now) || h.cq.IsBad(e.Parent, now) {
 			return nil // a branch shown to be false: dropped at once
+		}
+		// The selected entries the node reverts to check it are the
+		// sender's cost, drawn from its revert budget (RED-011, D111).
+		// Over it the entry is not dropped for good: the branch goes to
+		// the chase queue, which checks its work before it fetches
+		// anything (D116).
+		if err := h.spendRevert(pi, p, e); errors.Is(err, errRevertBudget) {
+			h.offer(pi, p, m.Stated, &eh)
+			return nil
+		} else if err != nil {
+			return err
 		}
 		_, err = h.n.HandleEntryFrom(pi.key, e, engine.Pushed, p.id)
 		switch {

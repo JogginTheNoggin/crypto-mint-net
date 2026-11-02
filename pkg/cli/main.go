@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -35,12 +36,17 @@ import (
 // Version is the tool's version, set at build time with -ldflags.
 var Version = "0.1.0-dev"
 
+// Commit is the source commit, set by scripts/release.sh with -X, where
+// the build info has none (GREEN-013).
+var Commit = ""
+
 const usage = `poo: Proof of Ownership full node tool
 
 Usage:
   poo init [-example] [-series FILE]... [-p2p ADDR] [-peer ADDR]...
                               write a node policy and make it current
-  poo node                    run the node until interrupted
+  poo node [-log-level L] [-log-format F]
+                              run the node until interrupted
   poo peers                   the running node's peers, their categories
                               and points, and its peer book
   poo peer timeout|block|unblock|clear|template|delete ADDR
@@ -50,25 +56,54 @@ Usage:
                               status, or one address's record
   poo chases                  the chase queue of heavier stated weights
   poo status                  every followed pool of the running node
-  poo claim -seed HEX -serial N
+  poo doctor [-json]          check the node's setup and say what to fix
+  poo follow [-issuer ID | -series ID [-pool K]... [-mint N]...] [-no-reload]
+                              follow more; applied by a running node at once
+                              (no flags: show what is followed)
+  poo unfollow -issuer ID | -series ID [-pool K]... [-mint N]...
+                              follow less, the same way
+  poo reload                  make the running node apply its node policy
+  poo pools [FILTER]          followed pools: tip, height, weight, pending
+  poo ledger -pool K [-below H] [-limit N] [FILTER]
+                              the selected ledger, newest entry first
+  poo pending [FILTER]        pending transactions
+  poo unspent [FILTER]        unspent portions
+  poo tx [-series ID] [-in-serial N] TID
+                              one transaction and where it stands
+  poo address [-series ID] [-below H] [-limit N] [FILTER] ADDRESS
+                              an address's balance, history and pending
+  poo watch [-notices] [-once] [FILTER]
+                              live events, one JSON object per line
+                              FILTER: -series -pool -serial -address
+                              -address-policy -tid -kind (repeatable, comma lists)
+  poo claim -seed-file FILE -serial N
                               claim a whole mint for a key's address
-  poo pay -seed HEX -serial N -to ADDR -amount A
+  poo pay -seed-file FILE -serial N -to ADDR -amount A
                               pay from a key's address, change back to it
-  poo build -pool K           build an entry from the pending transactions
-  poo work -pool K [-entry HASH] [-tries N]
+  poo build -pool K | -serial N [-work N] [-device D] [-threads N] [-for 30s]
+                              build an entry from the pending transactions
+  poo work -pool K | -serial N [-entry HASH] [-tries N | -for 30s] [-device D] [-threads N]
                               add a layer (default: on the selected tip)
+  poo submit entry|layer -pool K | -serial N HEX
+                              hand the node an entry or layer made elsewhere
+  poo grind devices|bench|start|run|jobs|stop
+                              the node's hash work: devices, speed, and jobs
+                              by hand, scheduled or automatic (poo grind help)
   poo payment -serial N -tid HASH
-                              where a transaction stands, and its weight
-  poo holdings -serial N      unspent portions of a mint
+                              where a transaction stands (older form of
+                              poo tx, kept for scripts)
+  poo holdings -serial N      unspent portions of a mint (older form of
+                              poo unspent -serial N, kept for scripts)
   poo policy list|use|archive|unarchive|delete [-root DIR] [NAME]
                               manage saved and archived node policies
   poo wallet COMMAND          keys from one seed, payments, requests,
                               co-signing and light mode (poo wallet help)
 
-  poo version                 print the version
+  poo version [-v]            print the version (-v: Go, platform, commit
+                              and dependencies, for a bug report)
   poo crypto                  list the hashes, key algorithms and policy
                               types a series can choose from
-  poo keygen [-alg NAME] [-hash NAME] [-seed HEX]
+  poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE]
                               make a key (default Ed25519) and its 1-of-1
                               address under a hash (default SHA-256)
   poo series example          print the worked example's series as JSON
@@ -80,10 +115,18 @@ Usage:
   poo sim load|partition|attack|sizing [flags]
                               run the deterministic network simulator
                               (poo sim help)
+  poo help [COMMAND]          this text, or one command's usage
+  poo completion bash|zsh|fish
+                              print a shell completion script
 
 Node commands pick a data directory with -dir, or with -root (default
 $POO_HOME or ~/.poo) and -policy (default: the current node policy).
 Client commands take -series ID when the node follows more than one series.
+Read commands print JSON; -o table prints columns for reading (-wide: full hashes).
+
+poo -view-only COMMAND (or POO_VIEW_ONLY=1) only looks: it dials the node
+with rpc.view-token, which the node lets read and nothing else, and refuses
+every command that would change something.
 `
 
 // Stdio is where a command reads and writes. In is read for passphrases
@@ -91,6 +134,13 @@ Client commands take -series ID when the node follows more than one series.
 type Stdio struct {
 	In       io.Reader
 	Out, Err io.Writer
+	// Secret, if set, reads a passphrase or a seed in place of In, so the
+	// caller can hide what is typed: a terminal with echo off, a GUI's
+	// masked field. prompt says what is asked for. Nil reads a line of In.
+	Secret func(prompt string) (string, error)
+	// ViewOnly runs the invocation in view-only mode (see scope.go), as
+	// $POO_VIEW_ONLY=1 or a leading -view-only argument also do.
+	ViewOnly bool
 }
 
 // Main runs the command line args (without the program name) and returns
@@ -111,7 +161,22 @@ func Run(ctx context.Context, args []string, s Stdio) error {
 	if in == nil {
 		in = strings.NewReader("")
 	}
-	return run(args, &stdio{Writer: s.Out, in: bufio.NewReader(in), ctx: ctx})
+	view := s.ViewOnly || viewOnlyEnv()
+	if len(args) > 0 && (args[0] == "-view-only" || args[0] == "--view-only") {
+		view, args = true, args[1:]
+	}
+	if view {
+		if err := checkViewOnly(args); err != nil {
+			return err
+		}
+	}
+	err := run(args, &stdio{Writer: s.Out, err: s.Err, in: bufio.NewReader(in), ctx: ctx, secret: s.Secret, viewOnly: view})
+	if errors.Is(err, flag.ErrHelp) {
+		// -h printed the usage the person asked for: that is not a failure,
+		// so it neither exits 1 nor adds "flag: help requested" (GREEN-032).
+		return nil
+	}
+	return err
 }
 
 // stdio is the out of one invocation: commands write to it, and the few
@@ -120,8 +185,34 @@ func Run(ctx context.Context, args []string, s Stdio) error {
 // leaves no state shared between invocations.
 type stdio struct {
 	io.Writer
+	err io.Writer     // where flag errors and -h go; nil: os.Stderr
 	in  *bufio.Reader // one reader, so successive lines are not lost
 	ctx context.Context
+	// probe, when set, is given every flag set a command makes, and the
+	// flag sets print nothing: poo __complete runs a command with -h to
+	// learn its flags (completion.go).
+	probe func(*flag.FlagSet)
+	// secret reads a secret (Stdio.Secret); nil reads a line of in.
+	secret func(prompt string) (string, error)
+	// viewOnly: the invocation may only look (scope.go).
+	viewOnly bool
+}
+
+// newFlagSet is the flag set of a command writing to out. Its usage and
+// errors go to the invocation's Err, so the GUI's terminal shows them as a
+// shell does, rather than the GUI process's own stderr.
+func newFlagSet(name string, out io.Writer) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	if s, ok := out.(*stdio); ok {
+		if s.err != nil {
+			fs.SetOutput(s.err)
+		}
+		if s.probe != nil {
+			fs.SetOutput(io.Discard)
+			s.probe(fs)
+		}
+	}
+	return fs
 }
 
 // inputOf returns the input of the invocation writing to out.
@@ -140,6 +231,15 @@ func contextOf(out io.Writer) context.Context {
 	return context.Background()
 }
 
+// errOf returns where the invocation writing to out sends warnings: its
+// Err, as a shell's stderr, or os.Stderr.
+func errOf(out io.Writer) io.Writer {
+	if s, ok := out.(*stdio); ok && s.err != nil {
+		return s.err
+	}
+	return os.Stderr
+}
+
 func run(args []string, out io.Writer) error {
 	if len(args) == 0 {
 		fmt.Fprint(out, usage)
@@ -147,8 +247,7 @@ func run(args []string, out io.Writer) error {
 	}
 	switch args[0] {
 	case "version":
-		fmt.Fprintln(out, Version)
-		return nil
+		return versionCmd(args[1:], out)
 	case "keygen":
 		return keygen(args[1:], out)
 	case "crypto":
@@ -156,7 +255,7 @@ func run(args []string, out io.Writer) error {
 	case "series":
 		return seriesCmd(args[1:], out)
 	case "demo":
-		fs := flag.NewFlagSet("demo", flag.ContinueOnError)
+		fs := newFlagSet("demo", out)
 		quiet := fs.Bool("quiet", false, "print only the summary")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
@@ -168,6 +267,18 @@ func run(args []string, out io.Writer) error {
 		return nodeCmd(args[1:], out)
 	case "status":
 		return statusCmd(args[1:], out)
+	case "doctor":
+		return doctorCmd(args[1:], out)
+	case "pools", "ledger", "pending", "unspent", "tx", "address":
+		return viewCmd(args[0], args[1:], out)
+	case "watch":
+		return watchCmd(args[1:], out)
+	case "follow":
+		return followCmd(false, args[1:], out)
+	case "unfollow":
+		return followCmd(true, args[1:], out)
+	case "reload":
+		return reloadCmd(args[1:], out)
 	case "claim":
 		return claimCmd(args[1:], out)
 	case "pay":
@@ -176,12 +287,16 @@ func run(args []string, out io.Writer) error {
 		return buildCmd(args[1:], out)
 	case "work":
 		return workCmd(args[1:], out)
+	case "submit":
+		return submitCmd(args[1:], out)
 	case "payment":
 		return paymentCmd(args[1:], out)
 	case "peers":
 		return peersCmd(args[1:], out)
 	case "peer":
 		return peerCmd(args[1:], out)
+	case "grind":
+		return grindCmd(args[1:], out)
 	case "tracking":
 		return trackingCmd(args[1:], out)
 	case "chases":
@@ -194,17 +309,21 @@ func run(args []string, out io.Writer) error {
 		return walletCmd(args[1:], out)
 	case "sim":
 		return simCmd(args[1:], out)
+	case "completion":
+		return completionCmd(args[1:], out)
+	case "__complete":
+		return completeCmd(args[1:], out)
 	case "help", "-h", "--help":
-		fmt.Fprint(out, usage)
-		return nil
+		return helpCmd(args[1:], out)
 	default:
-		return fmt.Errorf("unknown command %q\n\n%s", args[0], usage)
+		return unknownCommand(args[0])
 	}
 }
 
 func keygen(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("keygen", flag.ContinueOnError)
-	seedHex := fs.String("seed", "", "32-byte seed in hex (random if empty)")
+	fs := newFlagSet("keygen", out)
+	seedHex := fs.String("seed", "", "32-byte seed in hex, for test vectors only: other users can read the command line (random if empty)")
+	seedFile := fs.String("seed-file", "", "file holding the seed in hex, - for standard input (random if neither)")
 	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")
 	hashName := fs.String("hash", "sha256", "hash of the series the address is for")
 	if err := fs.Parse(args); err != nil {
@@ -217,6 +336,17 @@ func keygen(args []string, out io.Writer) error {
 	hid, err := parseHash(*hashName)
 	if err != nil {
 		return err
+	}
+	if *seedHex != "" && *seedFile != "" {
+		return errors.New("give -seed or -seed-file, not both")
+	}
+	if *seedFile != "" {
+		f := &seedFlags{file: seedFile, flag: new(string)}
+		s, err := f.read(out, false)
+		if err != nil {
+			return err
+		}
+		*seedHex = s
 	}
 	seed := make([]byte, policy.SeedSize)
 	if *seedHex != "" {

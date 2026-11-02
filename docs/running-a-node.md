@@ -15,6 +15,15 @@ for testing, never for anything of value.
 go build -o poo ./cmd/poo
 ```
 
+Optionally, turn on tab completion of commands, subcommands, flags and
+policy names. With `poo` on your `PATH`:
+
+```sh
+source <(poo completion bash)                          # bash, this shell
+poo completion zsh > "${fpath[1]}/_poo"                # zsh
+poo completion fish > ~/.config/fish/completions/poo.fish   # fish
+```
+
 ## 2. Write a node policy
 
 ```sh
@@ -44,14 +53,20 @@ Ctrl-C; it compacts its stores and exits.
 ```sh
 ./poo keygen > alice.json          # note "seed"
 ./poo keygen > bob.json            # note "address_sha256"
-./poo claim -seed ALICE_SEED -serial 5
+export POO_SEED=ALICE_SEED        # or -seed-file FILE; never on the command line
+./poo claim -serial 5
 ./poo build -pool 1 -work 100000   # an entry, then a layer that selects it
-./poo pay -seed ALICE_SEED -serial 5 -to BOB_ADDRESS -amount 30
+./poo pay -serial 5 -to BOB_ADDRESS -amount 30
 ./poo build -pool 1 -work 100000
-./poo payment -serial 5 -tid TID_FROM_PAY
-./poo holdings -serial 5
-./poo status
+./poo tx -in-serial 5 TID_FROM_PAY  # where the payment stands
+./poo unspent -serial 5
+./poo pools
 ```
+
+`claim` and `pay` read the key's seed from `POO_SEED` or `-seed-file`
+(`-` for standard input), never from an argument: other users of the
+machine can read a command line, and the shell keeps it in its history
+(D98). For everyday spending use `poo wallet`, which keeps the seed sealed.
 
 Mint 5 is in pool 1 (pools hold serials 0 to 3 and 4 to 7). A new entry
 has no weight until a layer lands on it, so it is held but not selected;
@@ -99,8 +114,50 @@ A shared policy needs every co-signer's signature:
 ```
 
 For a lighter node, `poo wallet follow` rewrites the node policy to follow
-only the pools of the mints the wallet watches; restart the node to apply
-it. See [modules/wallet.md](modules/wallet.md).
+only the pools of the mints the wallet watches, and a running node applies
+it at once. See [modules/wallet.md](modules/wallet.md).
+
+## 4c. View, watch and change what the node follows
+
+Every view takes the same filter flags: `-series`, `-pool`, `-serial`,
+`-address`, `-address-policy`, `-tid` and, for `watch`, `-kind`. Values
+are comma-separated; fields combine with "and" ([modules/filter.md](modules/filter.md)).
+
+```sh
+./poo pools                               # every followed pool: tip, height, weight, pending
+./poo ledger -pool 1 -limit 10            # the newest ten entries of pool 1, with their transactions
+./poo ledger -pool 1 -serial 5            # only entries holding mint 5's transactions
+./poo pending -address ADDR               # pending transactions paying or spending ADDR
+./poo tx TID                              # where a transaction stands, its rivals and contents
+./poo address ADDR                        # balance, holdings, history, pending
+./poo unspent -serial 5                   # unspent portions of mint 5
+```
+
+`poo watch` prints events as they happen, one JSON line each, until you
+stop it. In another terminal:
+
+```sh
+./poo watch -serial 5 -kind tx,selected,reverted
+```
+
+then pay from mint 5 and build an entry: the watcher prints the `tx`
+line, then `selected` once the entry is built. The event lines are
+described in [modules/watch.md](modules/watch.md).
+
+What the node follows can change while it runs:
+
+```sh
+./poo follow                              # what node.json follows, and what the node follows now
+./poo unfollow -series SERIES_ID -pool 0  # stop following pool 0
+./poo follow -series SERIES_ID -pool 0    # follow it again: its store replays from disk
+```
+
+The node applies each change at once by reloading its node policy in
+place (`poo reload` or SIGHUP does the same after a hand edit of
+`node.json`). A running `poo watch` reconnects by itself; events during
+the reload, which takes a moment, are not replayed, so look at the views
+for anything that happened then. With the node stopped, `poo follow`
+edits `node.json` and the node applies it when it starts.
 
 ## 5. Restart
 
@@ -121,7 +178,11 @@ as a peer:
 ```
 
 `init` makes the new policy current, so give the first node's commands
-`-policy default` from now on. On connecting, the second node asks the first for its whole ledger of each
+`-policy default` from now on. A listed peer such as `127.0.0.1:8646` is
+always dialled, but a node does not take loopback or private addresses
+it hears of from other nodes (D96): for several nodes on one machine to
+find each other, set `"allow_local_peers": true` in each policy's `p2p`
+section. On connecting, the second node asks the first for its whole ledger of each
 pool. From then on, whatever either node keeps is forwarded to the other:
 claim, pay and build on the first node and `./poo status -policy second`
 shows the same tips and weights a moment later. To let the first node dial

@@ -23,15 +23,18 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
 
 // Format is the version of the node.json layout this code reads.
@@ -53,6 +56,9 @@ var ErrInvalid = errors.New("nodepolicy: invalid")
 // Policy is one node policy.
 type Policy struct {
 	Format int `json:"format"`
+	// Lowered says what Load brought down to a bound lowered since the
+	// file was written, for the caller to warn of; it is not saved.
+	Lowered []Lowered `json:"-"`
 	// Series lists the series this node knows. Series information comes
 	// from outside the network, never from peers.
 	Series []SeriesInfo `json:"series"`
@@ -79,6 +85,166 @@ type Policy struct {
 	P2P P2P `json:"p2p"`
 	// Tracking configures what the node records about its peers.
 	Tracking Tracking `json:"tracking,omitempty"`
+	// Log chooses how much the node logs and in which form (GREEN-006).
+	Log *Log `json:"log,omitempty"`
+	// Grind says how the node grinds and which jobs it runs by itself
+	// (package grind, M11).
+	Grind *Grind `json:"grind,omitempty"`
+}
+
+// Grind configures the node's grinding (package grind, decision D109).
+type Grind struct {
+	// Device is the device grinding uses unless a job names one: "auto"
+	// (the default) or an id from poo grind devices ("cpu", "gpu:0").
+	Device string `json:"device,omitempty"`
+	// Threads is how many threads a search takes (0: the device's
+	// default, every CPU core but one).
+	Threads int `json:"threads,omitempty"`
+	// LayerFloor, when above 0, keeps every layer the node's own grinding
+	// finds at or above this strength, not only the strongest of each
+	// search, so more of its work counts (ORANGE-010, decision D118). It
+	// is raised to the series' minimum layer strength where that is
+	// higher. 0, the default, keeps only the strongest. It changes what
+	// this node sends, never what any node accepts.
+	LayerFloor int `json:"layer_floor,omitempty"`
+	// LayerRate bounds the layers a second that layer_floor adds, the
+	// strongest of each search kept first, so peers' layer budgets (6,000
+	// a minute by default) take every one; 0 means DefaultLayerRate
+	// (ORANGE-016).
+	LayerRate int `json:"layer_rate,omitempty"`
+	// Jobs start when the node starts and run until it stops: automatic
+	// work, or scheduled with hours.
+	Jobs []GrindJob `json:"jobs,omitempty"`
+}
+
+// IsZero reports whether the section sets nothing, so a node policy can
+// leave it out. Every field counts: a section of only layer_floor was
+// dropped when it was saved (GREEN-032).
+func (g Grind) IsZero() bool {
+	return g.Device == "" && g.Threads == 0 && g.LayerFloor == 0 && g.LayerRate == 0 && len(g.Jobs) == 0
+}
+
+// GrindJob is a job the node runs by itself (grind.Spec).
+type GrindJob struct {
+	// Target is "tip" (layers on the selected tip), "pending" (entries
+	// from pending transactions), "tx:" and a TID (one payment, until
+	// UntilFrom), or an entry hash.
+	Target string     `json:"target"`
+	Series *hash.Hash `json:"series,omitempty"`
+	Pools  []uint64   `json:"pools,omitempty"`
+	Device string     `json:"device,omitempty"`
+	// Threads 0 takes the section's.
+	Threads int `json:"threads,omitempty"`
+	// Hours is a window of the node's local hours, "22-06".
+	Hours string `json:"hours,omitempty"`
+	// UntilFrom ends a job on one entry or payment once from(e) reaches
+	// it.
+	UntilFrom string `json:"until_from,omitempty"`
+}
+
+// MaxLayerFloor is the strongest layer_floor a grind section may set.
+const MaxLayerFloor = 256
+
+// GrindLimits are the bounds a grind section is checked against, so a
+// front end can offer exactly what validates (GUI/Blue's ask, D130).
+type GrindLimits struct {
+	MaxJobs          int `json:"max_jobs"`
+	MaxThreads       int `json:"max_threads"`
+	MaxLayerFloor    int `json:"max_layer_floor"`
+	MaxLayerRate     int `json:"max_layer_rate"`
+	DefaultLayerRate int `json:"default_layer_rate"`
+}
+
+// Limits returns the bounds Grind.Validate checks.
+func Limits() GrindLimits {
+	return GrindLimits{MaxJobs: MaxGrindJobs, MaxThreads: MaxGrindThreads, MaxLayerFloor: MaxLayerFloor,
+		MaxLayerRate: MaxLayerRate, DefaultLayerRate: DefaultLayerRate}
+}
+
+// MaxGrindJobs bounds the jobs a node policy may list.
+const MaxGrindJobs = 16
+
+// MaxGrindThreads bounds the threads a grind setting may ask for.
+const MaxGrindThreads = 1024
+
+// The layers a second layer_floor adds by default, and at most. Peers
+// take 6,000 layers a minute from one node by default (tracking), 100 a
+// second, and drop the rest, the strongest too, while it sends more
+// (ORANGE-016); a node that keeps sending more is flagged once a minute,
+// timed out and then blocked. The most is half that budget, so the
+// floor's layers leave room for the node's other layers and those it
+// forwards (GUI-015, D127). It bounds only what this node sends.
+const (
+	DefaultLayerRate = 10
+	MaxLayerRate     = 50
+)
+
+// ParseHours reads a window "FROM-TO" of whole local hours, 0 to 23; TO
+// may be below FROM, for a window across midnight. "" is every hour.
+func ParseHours(s string) (from, to int, err error) {
+	if s == "" {
+		return 0, 0, nil
+	}
+	a, b, ok := strings.Cut(s, "-")
+	from, e1 := strconv.Atoi(strings.TrimSpace(a))
+	to, e2 := strconv.Atoi(strings.TrimSpace(b))
+	if !ok || e1 != nil || e2 != nil || from < 0 || from > 23 || to < 0 || to > 23 || from == to {
+		return 0, 0, fmt.Errorf("hours %q: give FROM-TO in whole hours 0 to 23, such as 22-06", s)
+	}
+	return from, to, nil
+}
+
+func (g *Grind) validate() error {
+	if g == nil {
+		return nil
+	}
+	if g.Threads < 0 || g.Threads > MaxGrindThreads {
+		return fmt.Errorf("threads must be 0 to %d", MaxGrindThreads)
+	}
+	if g.LayerFloor < 0 || g.LayerFloor > MaxLayerFloor {
+		return errors.New("layer_floor must be 0 (off) to 256")
+	}
+	if g.LayerRate < 0 || g.LayerRate > MaxLayerRate {
+		return fmt.Errorf("layer_rate must be 0 (the default, %d) to %d", DefaultLayerRate, MaxLayerRate)
+	}
+	if len(g.Jobs) > MaxGrindJobs {
+		return fmt.Errorf("at most %d jobs", MaxGrindJobs)
+	}
+	for i, j := range g.Jobs {
+		entry := false
+		switch {
+		case j.Target == "tip", j.Target == "pending":
+		case strings.HasPrefix(j.Target, "tx:"):
+			if _, err := hash.Parse(strings.TrimPrefix(j.Target, "tx:")); err != nil {
+				return fmt.Errorf("job %d: tx:TID: %v", i, err)
+			}
+			if j.UntilFrom == "" {
+				return fmt.Errorf("job %d: a tx:TID target needs until_from", i)
+			}
+			entry = true
+		default:
+			if _, err := hash.Parse(j.Target); err != nil {
+				return fmt.Errorf("job %d: target is tip, pending, tx:TID or an entry hash", i)
+			}
+			entry = true
+		}
+		if j.Threads < 0 || j.Threads > MaxGrindThreads {
+			return fmt.Errorf("job %d: threads must be 0 to %d", i, MaxGrindThreads)
+		}
+		if _, _, err := ParseHours(j.Hours); err != nil {
+			return fmt.Errorf("job %d: %v", i, err)
+		}
+		if j.UntilFrom != "" {
+			if !entry {
+				return fmt.Errorf("job %d: until_from needs an entry as the target", i)
+			}
+			var w weight.Weight
+			if err := w.UnmarshalText([]byte(j.UntilFrom)); err != nil {
+				return fmt.Errorf("job %d: until_from: %v", i, err)
+			}
+		}
+	}
+	return nil
 }
 
 // Tracking is what a node records about its peers and how offences are
@@ -143,6 +309,23 @@ type Follow struct {
 	Mints  []uint64   `json:"mints,omitempty"`
 }
 
+// Log configures the node's log (package logging).
+type Log struct {
+	// Level is debug, info (the default), warn or error.
+	Level string `json:"level,omitempty"`
+	// Format is plain (the default: one readable line per event), text
+	// (key=value with time and level) or json (one object per line).
+	Format string `json:"format,omitempty"`
+}
+
+// LogSettings returns the log level and format, empty for the defaults.
+func (p Policy) LogSettings() (level, format string) {
+	if p.Log == nil {
+		return "", ""
+	}
+	return p.Log.Level, p.Log.Format
+}
+
 // RPC configures the local control interface.
 type RPC struct {
 	// Listen is the TCP address; empty means DefaultListen, "off" disables
@@ -182,6 +365,11 @@ type P2P struct {
 	Registries []string `json:"registries,omitempty"`
 	// MaxOutbound caps the connections the node dials itself.
 	MaxOutbound int `json:"max_outbound,omitempty"`
+	// AllowLocalPeers lets addresses learned from peers and registries be
+	// loopback, private or otherwise not public, and dials them. Off by
+	// default (decision D96); turn it on for a network on one machine or
+	// one LAN. Addresses in Peers are always dialled.
+	AllowLocalPeers bool `json:"allow_local_peers,omitempty"`
 	// MaxInbound caps the connections other nodes open to this one; by
 	// default MaxPeers less MaxOutbound, -1 for no separate cap.
 	MaxInbound int `json:"max_inbound,omitempty"`
@@ -211,9 +399,11 @@ type P2P struct {
 	// StrictReturn returns a timed out peer as a backup.
 	StrictReturn bool `json:"strict_return,omitempty"`
 	// NoConfirm stops asking a priority peer to confirm a stated weight
-	// from another sender; FastCatchUp asks a priority peer for its whole
-	// ledger when a split is deeper than DepthLimit hash chain pages.
-	NoConfirm   bool `json:"no_confirm,omitempty"`
+	// from another sender.
+	NoConfirm bool `json:"no_confirm,omitempty"`
+	// FastCatchUp and DepthLimit are no longer used: a chase finds the
+	// common entry at any depth by halving (audit item G3, decision D116).
+	// They are kept so older policy files still load, and are ignored.
 	FastCatchUp bool `json:"fast_catch_up,omitempty"`
 	DepthLimit  int  `json:"depth_limit,omitempty"`
 }
@@ -267,6 +457,12 @@ func (p Policy) Validate() error {
 	}
 	if p.Ties < 0 || p.MaxPending < 0 || p.SeenSize < 0 {
 		return fmt.Errorf("%w: limits must not be negative", ErrInvalid)
+	}
+	if err := logging.Check(p.LogSettings()); err != nil {
+		return fmt.Errorf("%w: log: %v", ErrInvalid, err)
+	}
+	if err := p.Grind.validate(); err != nil {
+		return fmt.Errorf("%w: grind: %v", ErrInvalid, err)
 	}
 	for i, f := range p.Follow {
 		if (f.Issuer == nil) == (f.Series == nil) {
@@ -442,7 +638,51 @@ func DecodeWitness(s string) (policy.Witness, error) {
 	return w, nil
 }
 
-// Load reads and validates a node policy file.
+// lower brings a value over a bound that was lowered since it was
+// written down to the new bound, and says what it changed. A file that
+// was valid when it was written stays one a node opens: a lowered bound
+// is enforced on every write (Save, the RPC, the CLI, the GUI) and only
+// clamped on a read (RED-025, D128).
+func (p *Policy) lower() []Lowered {
+	var notes []Lowered
+	if g := p.Grind; g != nil && g.LayerRate > MaxLayerRate {
+		notes = append(notes, Lowered{Field: "grind.layer_rate", Was: g.LayerRate, Now: MaxLayerRate,
+			FixArgs: []string{"grind", "schedule", "set", "-layer-rate", strconv.Itoa(MaxLayerRate)}})
+		g.LayerRate = MaxLayerRate
+	}
+	return notes
+}
+
+// Lowered is one value Load brought down to a bound lowered since the
+// file was written: the field, as named in node.json, the value written
+// and the value used. FixArgs, when set, is the poo command line that
+// writes the value used, for `poo doctor`'s fix_args (GREEN-035).
+type Lowered struct {
+	Field   string   `json:"field"`
+	Was     int      `json:"was"`
+	Now     int      `json:"now"`
+	FixArgs []string `json:"fix_args,omitempty"`
+}
+
+// String says what was lowered, for a warning.
+func (l Lowered) String() string {
+	return fmt.Sprintf("%s %d is over the most, %d: %d is used", l.Field, l.Was, l.Now, l.Now)
+}
+
+// SameApplied reports whether p and q differ only in what a running node
+// takes in without a reload: the grind section, which the schedule
+// commands apply at once (D125). Anything else that differs needs a
+// reload to take effect (GREEN-037).
+func (p Policy) SameApplied(q Policy) bool {
+	p.Grind, q.Grind = nil, nil
+	a, errA := json.Marshal(p)
+	b, errB := json.Marshal(q)
+	return errA == nil && errB == nil && string(a) == string(b)
+}
+
+// Load reads and validates a node policy file. A value over a bound
+// lowered since the file was written is brought down to it, and noted in
+// Lowered.
 func Load(path string) (Policy, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -452,6 +692,7 @@ func Load(path string) (Policy, error) {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return Policy{}, fmt.Errorf("%w: %s: %v", ErrInvalid, path, err)
 	}
+	p.Lowered = p.lower()
 	if err := p.Validate(); err != nil {
 		return Policy{}, fmt.Errorf("%s: %w", path, err)
 	}
@@ -470,9 +711,35 @@ func Save(path string, p Policy) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+	// Each writer has its own temporary file, synced before the rename,
+	// so concurrent writers never tear the file, and a crash leaves the old
+	// or the new one (RED-013, decision D114).
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmp := f.Name()
+	_, err = f.Write(append(b, '\n'))
+	if err == nil {
+		err = f.Chmod(0o600)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if d, err := os.Open(dir); err == nil {
+		d.Sync()
+		d.Close()
+	}
+	return nil
 }

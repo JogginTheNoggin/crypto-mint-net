@@ -24,16 +24,20 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/state"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
@@ -296,6 +300,214 @@ func (e *Engine) KeyOf(t *tx.Tx) (PoolKey, error) {
 	return PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}, nil
 }
 
+// PreverifyTx verifies the witness signatures of t ahead of HandleTx,
+// holding the engine's lock only for the checks HandleTx runs before any
+// signature (a followed pool, not seen, not pending or in the selected
+// ledger, no conflict, every input unspent at the tip, the amounts) and to
+// find the address each witness must satisfy. A caller that serializes
+// items under its own lock calls it first, so items from several peers are
+// checked on several cores and the checks under the lock find them
+// remembered (ORANGE-004). A transaction HandleTx would refuse before its
+// signatures costs none here, and one with a bad witness costs one
+// (RED-009, decision D107). It changes no result.
+func (e *Engine) PreverifyTx(t *tx.Tx) {
+	k, err := e.KeyOf(t)
+	if err != nil {
+		return
+	}
+	e.mu.Lock()
+	p, err := e.pool(k)
+	if err != nil {
+		e.mu.Unlock()
+		return
+	}
+	tid := t.TID(p.s.Hash())
+	var owners []hash.Hash
+	if !e.seen.Has(tid) {
+		owners, err = p.pending.Owners(view{p.ledger}, t, tid)
+	}
+	e.mu.Unlock()
+	if owners != nil && err == nil {
+		tx.Preverify(p.s, t, tid, owners)
+	}
+}
+
+// MaxCountedCost is the most EntryCost counts.
+const MaxCountedCost = 1 << 20
+
+// EntryCost is how many entries HandleEntry would revert and apply to
+// check en against the state after its parent (ledger.Pool.ViewCost), at
+// most about MaxCountedCost; 0 when pool k or the parent is not held. The
+// network charges it to the sender (RED-011, decision D111).
+func (e *Engine) EntryCost(k PoolKey, en *entry.Entry) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	p, err := e.pool(k)
+	if err != nil {
+		return 0
+	}
+	return p.ledger.ViewCost(en, MaxCountedCost)
+}
+
+// PreverifyEntry is PreverifyTx for the transactions of an entry of pool
+// k. It verifies signatures only for an entry that passes every check
+// HandleEntry runs before a signature: not held or seen, its shape and
+// strength, its parent held, and every transaction valid but for its
+// witnesses against the state after that parent. It stops at the first
+// transaction with a bad witness (RED-009, decisions D105, D107). It does
+// nothing for a parent far from the selected tip (ledger.ErrDeepParent):
+// that state costs a revert, which HandleEntry pays once (RED-011, D111).
+func (e *Engine) PreverifyEntry(k PoolKey, en *entry.Entry, origin Origin) {
+	e.mu.Lock()
+	p, err := e.pool(k)
+	if err != nil {
+		e.mu.Unlock()
+		return
+	}
+	var items []entry.Item
+	var owners [][]hash.Hash
+	if !(origin.checksSeen() && e.seen.Has(en.Hash(p.s))) {
+		items, owners, err = p.ledger.EntryOwners(en)
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return
+	}
+	for i, it := range items {
+		if tx.Preverify(p.s, it.Tx, it.TID, owners[i]) != nil {
+			return
+		}
+	}
+}
+
+// PreverifyPage is PreverifyEntry for a run of entries, each the parent
+// of the next, as a chase receives them in one reply. It finds every
+// entry's owners under the lock, against the state after the entries
+// before it (Pool.PageOwners), then checks all their witnesses outside
+// the lock on every core, so taking the entries in order afterwards finds
+// each witness verified. Entries it cannot preview, and every entry after
+// them, are left to PreverifyEntry. Like PreverifyEntry it only fills the
+// list of verified witnesses and never changes what any check returns.
+// Witnesses are only checked once their addresses match (RED-009); the
+// workers stop at the first that fails, so a bad one costs at most about
+// one check per core (ORANGE-014, ORANGE-020).
+func (e *Engine) PreverifyPage(k PoolKey, es []*entry.Entry) {
+	if len(es) < 2 {
+		return
+	}
+	e.mu.Lock()
+	p, err := e.pool(k)
+	if err != nil {
+		e.mu.Unlock()
+		return
+	}
+	items, owners := p.ledger.PageOwners(es)
+	e.mu.Unlock()
+	type job struct {
+		it     entry.Item
+		owners []hash.Hash
+	}
+	var jobs []job
+	for i := range items {
+		for j, it := range items[i] {
+			jobs = append(jobs, job{it, owners[i][j]})
+		}
+	}
+	workers := min(runtime.GOMAXPROCS(0), len(jobs))
+	if workers < 2 {
+		for _, j := range jobs {
+			if tx.Preverify(p.s, j.it.Tx, j.it.TID, j.owners) != nil {
+				return
+			}
+		}
+		return
+	}
+	var next atomic.Int64
+	var failed atomic.Bool
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for !failed.Load() {
+				i := int(next.Add(1) - 1)
+				if i >= len(jobs) {
+					return
+				}
+				if tx.Preverify(p.s, jobs[i].it.Tx, jobs[i].it.TID, jobs[i].owners) != nil {
+					failed.Store(true)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// MaxWarm is the most witnesses WarmStored checks in one call, well under
+// the series' list of verified witnesses (policy.DefaultVerifiedSize), so
+// what it remembers is still there when the records are taken in.
+const MaxWarm = policy.DefaultVerifiedSize / 2
+
+// WarmStored checks the witnesses of transactions read back from this
+// node's own store, on every core, and remembers each that passes, so
+// replaying them in order (HandleTx, HandleEntry) finds them verified. It
+// needs no owners, so it works ahead of the state the records build; each
+// witness's address is still checked when the record is replayed, and a
+// witness that fails is simply not remembered, so a tampered store is
+// refused as before. It checks at most MaxWarm witnesses and never changes
+// what any check returns (ORANGE-021).
+func (e *Engine) WarmStored(txs []*tx.Tx) {
+	type job struct {
+		s   *series.Series
+		w   policy.Witness
+		tid hash.Hash
+	}
+	var jobs []job
+	seen := map[hash.Hash]bool{} // a stored transaction and the entry holding it
+	e.mu.Lock()
+	for _, t := range txs {
+		s, ok := e.series[t.Mint.Series]
+		if !ok || t.Mint.Serial >= s.Mints() {
+			continue
+		}
+		if _, err := e.pool(PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}); err != nil {
+			continue
+		}
+		tid := t.TID(s.Hash())
+		if seen[tid] {
+			continue
+		}
+		seen[tid] = true
+		for _, w := range t.Witnesses {
+			if len(jobs) == MaxWarm {
+				break
+			}
+			jobs = append(jobs, job{s, w, tid})
+		}
+	}
+	e.mu.Unlock()
+	workers := min(runtime.GOMAXPROCS(0), len(jobs))
+	if workers < 2 {
+		return // on one core, replaying checks them anyway
+	}
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				i := int(next.Add(1) - 1)
+				if i >= len(jobs) {
+					return
+				}
+				jobs[i].s.WarmWitness(jobs[i].w, jobs[i].tid)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 // TxResult reports what HandleTx did.
 type TxResult struct {
 	Key     PoolKey
@@ -396,7 +608,7 @@ func (e *Engine) HandleLayer(k PoolKey, l layer.Layer, origin Origin) (LayerResu
 	if origin.checksSeen() && e.seen.Has(lh) {
 		return res, ErrSeen
 	}
-	ar, err := p.ledger.AddLayer(l)
+	ar, err := p.ledger.AddLayerHashed(l, lh)
 	if err != nil {
 		return res, err
 	}
@@ -431,55 +643,144 @@ func (e *Engine) afterSwitch(p *poolState, sw *ledger.Switch) []hash.Hash {
 // sets a minimum entry strength it tries up to maxTries nonces (0: no
 // limit).
 func (e *Engine) Build(k PoolKey, maxTries uint64) (*entry.Entry, EntryResult, error) {
+	en, err := e.BuildEntry(context.Background(), k, maxTries)
+	if err != nil {
+		return en, EntryResult{Key: k}, err
+	}
+	res, err := e.HandleEntry(k, en, Local)
+	return en, res, err
+}
+
+// BuildEntry makes the entry Build would make but does not take it in.
+// Only choosing the transactions and the tip holds the engine's lock: the
+// search for a nonce runs without it, so a long search never stalls the
+// engine, and it stops with ctx's error once ctx is done (RED-006). The
+// caller hands the entry to HandleEntry; if the tip moved meanwhile it is
+// kept as a branch like any other entry.
+func (e *Engine) BuildEntry(ctx context.Context, k PoolKey, maxTries uint64) (*entry.Entry, error) {
+	return e.BuildEntryWith(ctx, k, maxTries, Grind{})
+}
+
+// Grind says how a build or a layer searches: with which hasher, on how
+// many goroutines, counting tries where. Package grind fills it from a
+// device and the pool's hash (decision D109); the zero value is the CPU
+// grinder for the series' hash on one goroutine.
+type Grind struct {
+	New     hash.NewHasher
+	Workers int
+	Tried   *atomic.Uint64
+	// Search, when set, searches layers a range of nonces at a time
+	// instead of hashing each with New (ORANGE-012).
+	Search layer.Search
+	// Floor, when above 0, also hands Keep the other layers found at or
+	// above it, and at or above the series' minimum layer strength
+	// (ORANGE-010, D118). Keep runs on the search's workers at once.
+	Floor int
+	Keep  func(layer.Layer, int)
+	// KeepMax, when above 0, is how many of those layers the node takes
+	// in after a search, strongest first (ORANGE-016).
+	KeepMax int
+	// KeptCount, if not nil, counts the layers besides the strongest that
+	// the node took in (node.Node.WorkWith).
+	KeptCount *atomic.Uint64
+}
+
+func (g Grind) hasher(s *series.Series) hash.NewHasher {
+	if g.New != nil {
+		return g.New
+	}
+	return hash.GrinderFor(s.Params().HashID)
+}
+
+// BuildEntryWith is BuildEntry searching as g says.
+func (e *Engine) BuildEntryWith(ctx context.Context, k PoolKey, maxTries uint64, g Grind) (*entry.Entry, error) {
 	e.mu.Lock()
 	p, err := e.pool(k)
 	if err != nil {
 		e.mu.Unlock()
-		return nil, EntryResult{Key: k}, err
+		return nil, err
 	}
 	ready := p.pending.Ready()
 	if len(ready) == 0 {
 		e.mu.Unlock()
-		return nil, EntryResult{Key: k}, ErrNothingPending
+		return nil, ErrNothingPending
 	}
 	txs := make([]*tx.Tx, len(ready))
 	for i, r := range ready {
 		txs[i] = r.Tx
 	}
 	parent, _, _ := p.ledger.Tip()
-	en, h, err := entry.Build(p.s, parent, txs, maxTries)
-	if err == nil && p.ledger.Has(h) {
-		err = ErrAlreadyBuilt
-	}
+	s := p.s
 	e.mu.Unlock()
+	en, h, err := entry.BuildWith(ctx, g.hasher(s), s, parent, txs, maxTries, g.Workers, g.Tried)
 	if err != nil {
-		return en, EntryResult{Key: k, Hash: h}, err
+		return nil, err
 	}
-	res, err := e.HandleEntry(k, en, Local)
-	return en, res, err
+	e.mu.Lock()
+	held := p.ledger.Has(h)
+	e.mu.Unlock()
+	if held {
+		return en, ErrAlreadyBuilt
+	}
+	return en, nil
 }
 
 // Work tries tries nonces on an entry hash of pool k, starting at start,
 // and adds the strongest layer found.
 func (e *Engine) Work(k PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, LayerResult, error) {
+	l, err := e.GrindLayer(k, entryHash, start, tries)
+	if err != nil {
+		return l, LayerResult{Key: k}, err
+	}
+	res, err := e.HandleLayer(k, l, Local)
+	return l, res, err
+}
+
+// GrindLayer finds the layer Work would add but does not take it in. The
+// grinding runs without the engine's lock.
+func (e *Engine) GrindLayer(k PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, error) {
+	if tries == 0 {
+		return layer.Layer{}, ErrNoStrongerLayer
+	}
+	return e.GrindLayerWith(context.Background(), k, entryHash, start, tries, Grind{})
+}
+
+// GrindLayerWith is GrindLayer searching as g says. tries 0 grinds until
+// ctx is done. When ctx ends the search early, the strongest layer found
+// so far is returned without error, so a search bounded by time (a
+// deadline on ctx) or stopped by its user keeps its work; only when no
+// nonce was tried is it ErrNoStrongerLayer.
+func (e *Engine) GrindLayerWith(ctx context.Context, k PoolKey, entryHash hash.Hash, start, tries uint64, g Grind) (layer.Layer, error) {
 	e.mu.Lock()
 	p, err := e.pool(k)
 	if err != nil {
 		e.mu.Unlock()
-		return layer.Layer{}, LayerResult{Key: k}, err
+		return layer.Layer{}, err
 	}
-	h := p.s.Hash()
+	s := p.s
 	held := p.ledger.Has(entryHash)
 	e.mu.Unlock()
 	if !held {
-		return layer.Layer{}, LayerResult{Key: k}, ledger.ErrUnknownEntry
+		return layer.Layer{}, ledger.ErrUnknownEntry
 	}
-	l, strength := layer.Grind(h, entryHash, start, tries)
+	var keep *layer.Keep
+	if g.Floor > 0 && g.Keep != nil {
+		keep = &layer.Keep{Floor: max(g.Floor, s.MinLayerStrength()), Func: g.Keep}
+	}
+	var l layer.Layer
+	var strength int
+	if g.Search != nil {
+		l, strength, err = layer.GrindSearchKeep(ctx, g.Search, entryHash, start, tries, g.Workers, g.Tried, keep)
+	} else {
+		l, strength, err = layer.GrindWithKeep(ctx, g.hasher(s), entryHash, start, tries, g.Workers, g.Tried, keep)
+	}
+	if err != nil && ctx.Err() == nil {
+		return l, err
+	}
 	if strength < 0 {
-		return l, LayerResult{Key: k}, ErrNoStrongerLayer
+		return l, ErrNoStrongerLayer
 	}
-	res, err := e.HandleLayer(k, l, Local)
-	return l, res, err
+	return l, nil
 }
 
 // PoolStatus summarizes one pool.
@@ -507,6 +808,20 @@ func (e *Engine) Status(k PoolKey) (PoolStatus, error) {
 		Key: k, Tip: tip, Height: h, Weight: w, Entries: p.ledger.Len(),
 		Branches: p.ledger.Branches(), Pending: p.pending.Len(), Waiting: p.pending.Waiting(),
 	}, nil
+}
+
+// Tip returns pool k's selected tip, height and weight: Status without
+// the inactive branches, whose listing walks every off-chain branch back
+// to the selected ledger (ORANGE-015).
+func (e *Engine) Tip(k PoolKey) (hash.Hash, int, weight.Weight, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	p, err := e.pool(k)
+	if err != nil {
+		return hash.Hash{}, 0, weight.Zero, err
+	}
+	tip, h, w := p.ledger.Tip()
+	return tip, h, w, nil
 }
 
 // Payment is what a receiver reads about one transaction.

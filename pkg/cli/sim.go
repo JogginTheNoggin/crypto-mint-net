@@ -84,9 +84,17 @@ func simCmd(args []string, out io.Writer) error {
 		fmt.Fprint(out, simUsage)
 		return nil
 	}
-	fs := flag.NewFlagSet("sim "+args[0], flag.ContinueOnError)
+	fs := newFlagSet("sim "+args[0], out)
 	f := addSim(fs)
 	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if err := flagsFor(fs, args[0], map[string][]string{
+		"duration": {"load", "sizing"}, "pay-every": {"load", "sizing"},
+		"share": {"attack", "sizing"}, "threshold": {"attack", "sizing"},
+		"head-start": {"attack", "sizing"}, "give-up": {"attack", "sizing"},
+		"split": {"partition"}, "sizes": {"sizing"},
+	}); err != nil {
 		return err
 	}
 	if *f.runs < 1 {

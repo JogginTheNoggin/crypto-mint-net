@@ -2,10 +2,12 @@ package p2p
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -80,6 +82,8 @@ type peer struct {
 	err       error
 
 	sent, received atomic.Uint64
+	// reqs counts the requests sent to the peer in the last minute.
+	reqs reqWindow
 
 	mu    sync.Mutex
 	calls map[hash.Hash]chan wire.Message
@@ -320,7 +324,7 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 		notify(err)
 		return err
 	}
-	h.logf("connected to %s at %s (outbound %v)", p.short(), addr, outbound)
+	h.log.Info("connected", "peer", p.short(), "addr", addr, "outbound", outbound)
 	go p.writeLoop()
 	// The hello proves nothing about what the peer follows: ask it.
 	go func() {
@@ -354,8 +358,10 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 	}
 	p.mu.Unlock()
 	h.cq.Drop(p.id)
+	// What its chases left starts its grace now (RED-023).
+	h.sweepProgress(time.Now())
 	h.tr.Connection(p.key, "closed", time.Now())
-	h.logf("disconnected from %s: %v", p.short(), p.closeErr())
+	h.log.Info("disconnected", "peer", p.short(), "err", p.closeErr())
 	// A freed slot is filled at once from the peers waiting as candidates.
 	if len(freed) > 0 && h.ctx.Err() == nil {
 		for _, s := range freed {
@@ -462,6 +468,18 @@ func (h *Host) readLoop(p *peer) error {
 		}
 		p.received.Add(1)
 		p.active.Store(time.Now().UnixNano())
+		if h.log.Enabled(context.Background(), slog.LevelDebug) {
+			// Only the type and size: never a payload a peer chose. At
+			// most debugReceivedPerSecond lines a second, so a flood of
+			// messages cannot stall the read loops on the log.
+			ok, dropped := h.recvLines.allow(time.Now(), debugReceivedPerSecond)
+			if dropped > 0 {
+				h.log.Debug("received lines dropped", "lines", dropped)
+			}
+			if ok {
+				h.log.Debug("received", "peer", p.short(), "type", m.Type.String(), "bytes", n)
+			}
+		}
 		if err := h.dispatch(p, m, n); err != nil {
 			h.misbehave(p, err)
 			return p.closeErr()
@@ -552,7 +570,7 @@ func (h *Host) misbehave(p *peer, err error) {
 	var inv invalidItem
 	switch {
 	case errors.As(err, &inv):
-		h.logf("%s: %v", p.short(), err)
+		h.log.Warn("invalid item", "peer", p.short(), "err", err)
 		if e := h.act(p, h.tr.Offend(p.key, tracking.InvalidItem, err.Error(), now)); e != nil {
 			p.close(e)
 		}
@@ -597,7 +615,7 @@ func (h *Host) act(p *peer, a tracking.Action) error {
 		}
 		h.tr.Hold(p.key, held, time.Now())
 	}
-	h.logf("%s at %s: %v", p.short(), p.key, err)
+	h.log.Warn("peer offence", "peer", p.short(), "key", p.key, "err", err)
 	for _, o := range same {
 		o.close(err)
 	}
@@ -641,6 +659,8 @@ func (h *Host) ask(p *peer, pi *poolInfo, q wire.Request, f func(wire.Message) e
 		delete(p.calls, id)
 		p.mu.Unlock()
 	}()
+	sent := time.Now()
+	p.reqs.add(sent, h.cfg.RequestPaceWindow)
 	p.send(wire.Message{Header: wire.Header{
 		Type: q.Type(), Section: pi.section, RequestID: id, Stated: h.ownWeight(pi),
 	}, Body: body})
@@ -657,11 +677,20 @@ func (h *Host) ask(p *peer, pi *poolInfo, q wire.Request, f func(wire.Message) e
 				return errClosed
 			}
 		case <-t.C:
+			if pos == 0 {
+				// Not a byte of a reply: twice in a row, most likely
+				// dropped over the peer's budget, so the pace to it is
+				// learned (D133).
+				p.reqs.dropped(sent, time.Now(), h.cfg.RequestPaceWindow)
+			}
 			return errTimeout
 		case <-p.done:
 			return errClosed
 		}
 		pos++
+		if pos == 1 {
+			p.reqs.answered(time.Now(), h.cfg.RequestPace, h.cfg.RequestPaceWindow)
+		}
 		if !replyFits(q.Type(), m.Type) || (pos > 1 && m.Type != first) || m.Chunk != pos {
 			err := fmt.Errorf("%w: %s chunk %d in reply to %s", wire.ErrMalformed, m.Type, m.Chunk, q.Type())
 			h.misbehave(p, err)
@@ -694,15 +723,19 @@ func replyFits(q, r wire.Type) bool {
 	}
 	switch q {
 	case wire.TypeExtensionReq:
-		return r == wire.TypeExtension || r == wire.TypeNothingHeavier || r == wire.TypeNotFromHere
+		return r == wire.TypeExtension || r == wire.TypeNothingHeavier || r == wire.TypeNotFromHere || r == wire.TypeLarge
 	case wire.TypeFullLedgerReq:
-		return r == wire.TypeExtension
+		return r == wire.TypeExtension || r == wire.TypeLarge
+	case wire.TypePartsReq:
+		return r == wire.TypePart
+	case wire.TypeLayersFromReq:
+		return r == wire.TypeLayersFrom
 	case wire.TypeHashChainReq:
 		return r == wire.TypeHashChain || r == wire.TypeAnchorNotHeld
 	case wire.TypeEntriesReq:
-		return r == wire.TypeEntries
+		return r == wire.TypeEntries || r == wire.TypeLarge
 	case wire.TypeLayersReq:
-		return r == wire.TypeLayers
+		return r == wire.TypeLayers || r == wire.TypeManyLayers
 	case wire.TypeWeightReq:
 		return r == wire.TypeWeight
 	}
@@ -716,11 +749,11 @@ func (h *Host) common() wire.RequestCommon {
 
 // ownWeight is the node's computed weight of its active ledger for pi.
 func (h *Host) ownWeight(pi *poolInfo) weight.Weight {
-	st, err := h.n.Engine().Status(pi.key)
+	_, _, w, err := h.n.Engine().Tip(pi.key)
 	if err != nil {
 		return weight.Zero
 	}
-	return st.Weight
+	return w
 }
 
 // bucket is a token bucket: rate requests a minute, bursting to rate.

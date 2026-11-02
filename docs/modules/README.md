@@ -23,6 +23,7 @@ together. When you change a package, update its page.
 | `pkg/mempool` | [mempool.md](mempool.md) | Node policy |
 | `pkg/engine` | [engine.md](engine.md) | Node |
 | `pkg/store` | [store.md](store.md) | Node (storage) |
+| `pkg/logging` | [logging.md](logging.md) | Node (logs) |
 | `pkg/nodepolicy` | [nodepolicy.md](nodepolicy.md) | Node policy |
 | `pkg/node` | [node.md](node.md) | Node |
 | `pkg/wire` | [wire.md](wire.md) | Node (network) |
@@ -31,7 +32,11 @@ together. When you change a package, update its page.
 | `pkg/tracking` | [tracking.md](tracking.md) | Node policy (network) |
 | `pkg/chase` | [chase.md](chase.md) | Node policy (network) |
 | `pkg/p2p` | [p2p.md](p2p.md) | Node (network) |
+| `pkg/filter` | [filter.md](filter.md) | Node (viewing) |
+| `pkg/watch` | [watch.md](watch.md) | Node (viewing) |
+| `pkg/grind` | [grind.md](grind.md) | Node (hash work) |
 | `pkg/rpc` | [rpc.md](rpc.md) | Node (local control) |
+| `pkg/daemon` | [daemon.md](daemon.md) | Node (running a node) |
 | `pkg/wallet` | [wallet.md](wallet.md) | Wallet (holder's habits) |
 | `pkg/sim` | [sim.md](sim.md) | Tooling (network simulator) |
 | `pkg/vectors`, `pkg/testutil` | [vectors-and-testutil.md](vectors-and-testutil.md) | Tooling |

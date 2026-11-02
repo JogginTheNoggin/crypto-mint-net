@@ -36,18 +36,35 @@ and atomically) holds:
 | `sent` | payments and claims made, with each leg's transaction and state |
 | `expected` | payment requests given out, and transactions payers named |
 
+`Save` writes only over the file it read. It takes a short lock beside
+the file (`wallet.json.lock`; flock on Unix, LockFileEx on Windows), reads
+the file again, and writes only if the bytes are those `Open` read or the
+last `Save` wrote. Otherwise it writes nothing and returns `ErrChanged`,
+so a command left waiting at its passphrase prompt never undoes another
+command's change, such as a new passphrase. A new wallet whose file
+appeared meanwhile returns `ErrExists` (GUI-019, D145).
+
 Public keys are in the clear, so a locked wallet still lists its
 addresses, reads balances and follows payments. Only signing, giving out a
 new address, and showing the seed need the passphrase.
 
 ## Keys and the seed
 
-- **Sealing (decision D64).** The 32-byte seed is sealed with AES-256-GCM
-  under a key from PBKDF2-HMAC-SHA256 of the passphrase, a random 16-byte
-  salt and 600,000 iterations (stored with the file, so they can be raised
-  later). The additional data `PoO-wallet-seed-v1` binds the ciphertext to
-  its purpose. A wrong passphrase fails authentication: `ErrPassphrase`.
-  `Rekey` seals the same seed under a new passphrase.
+- **Sealing (decisions D64, D95).** The 32-byte seed is sealed with
+  AES-256-GCM under a key from Argon2id of the passphrase: a random 16-byte
+  salt, 3 passes over 64 MiB in 4 lanes (stored with the file, so they can
+  be raised later). Wallets made before D95 use PBKDF2-HMAC-SHA256 at
+  600,000 iterations and still open; `Options.KDF` can still choose it.
+  Opening refuses settings outside fixed limits, so a damaged file cannot
+  make an unlock exhaust memory. The additional data `PoO-wallet-seed-v1`
+  binds the ciphertext to its purpose. A wrong passphrase fails
+  authentication: `ErrPassphrase`. `Rekey` seals the same seed under a
+  new passphrase, moving a PBKDF2 wallet to Argon2id. When `poo wallet
+  create` or `poo wallet passwd` reads a new passphrase as it is typed (a
+  hidden terminal, or the GUI's masked field), it asks for it again and
+  changes nothing if the two differ; one piped on standard input, or
+  given by `$POO_PASSPHRASE`, `$POO_NEW_PASSPHRASE` or a file, is read
+  once (GUI-020, D145).
 - **Key algorithm (decision D81).** Every key of a wallet uses the
   algorithm chosen at creation (`Options.Alg`, `poo wallet create -alg`),
   Ed25519 by default. It cannot change later. A series must allow it, or
@@ -158,6 +175,10 @@ wallet's watched mints. The node still checks every rule for what it
 follows, so the wallet trusts no one for the pools it uses. Verifying only
 some mints of a pool is not done: a pool's entries carry every mint of the
 pool, so the pool is the smallest unit a node can follow on its own.
+When the node is running, `poo wallet follow` makes it apply the new list
+at once ([daemon.md](daemon.md)), in one replace request, so the series is
+never off the node's list in between (GUI-018, D139); otherwise the node
+applies it when it starts.
 
 ## Tests
 

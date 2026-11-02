@@ -9,20 +9,20 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/daemon"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
-	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
-	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
-	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
-	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
 
@@ -80,7 +80,7 @@ func (s *stringList) Set(v string) error { *s = append(*s, v); return nil }
 
 // initCmd writes a new node policy and makes it current.
 func initCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("init", flag.ContinueOnError)
+	fs := newFlagSet("init", out)
 	w := addWhere(fs)
 	var files stringList
 	fs.Var(&files, "series", "series parameters JSON file to know and follow (repeatable)")
@@ -131,6 +131,13 @@ func initCmd(args []string, out io.Writer) error {
 		return fmt.Errorf("%s exists; use -force to replace its settings", path)
 	}
 	if *w.dir != "" {
+		// Not behind a running node, nor while another command writes
+		// (RED-030, D136).
+		unlock, err := lockPolicy(w.resolve(), "node policy", nil)
+		if err != nil {
+			return err
+		}
+		defer unlock()
 		if err := nodepolicy.Save(path, p); err != nil {
 			return err
 		}
@@ -149,79 +156,81 @@ func initCmd(args []string, out io.Writer) error {
 
 // nodeCmd runs the node until interrupted.
 func nodeCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("node", flag.ContinueOnError)
+	fs := newFlagSet("node", out)
 	w := addWhere(fs)
+	level := fs.String("log-level", "", "debug, info, warn or error (default: the node policy's log.level, else info)")
+	format := fs.String("log-format", "", "plain, text or json (default: the node policy's log.format, else plain)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return runNode(contextOf(out), w.resolve(), out, nil)
-}
-
-// runNode opens the node in dir, serves its RPC until ctx is done, and
-// closes it. ready, if set, is called once the RPC accepts connections.
-func runNode(ctx context.Context, dir string, out io.Writer, ready func(string)) error {
-	out = &lockedWriter{w: out}
-	n, err := node.Open(dir, node.Options{Log: out})
-	if err != nil {
+	if err := logging.Check(*level, *format); err != nil {
 		return err
 	}
-	rs := n.Replayed()
-	fmt.Fprintf(out, "node %s: %d pools followed; replayed %d records from %d stores (%d kept)\n",
-		dir, len(n.Engine().FollowedPools()), rs.Records, rs.Pools, rs.Kept)
-	cfg := p2p.FromPolicy(n.Policy())
-	cfg.Log = out
-	book, err := peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{})
-	if err != nil {
-		return errors.Join(err, n.Close())
-	}
-	cfg.Book = book
-	tr, err := tracking.New(n.Policy().TrackingConfig(), filepath.Join(dir, tracking.FileName))
-	if err != nil {
-		return errors.Join(err, n.Close())
-	}
-	cfg.Tracker = tr
-	host, err := p2p.New(n, cfg)
-	if err != nil {
-		return errors.Join(err, n.Close())
-	}
+	return runNode(contextOf(out), w.resolve(), out, nil, daemon.Options{LogLevel: *level, LogFormat: *format})
+}
+
+// runNode runs the node in dir with pkg/daemon until ctx is done,
+// reloading its node policy on SIGHUP. ready, if set, is called once the
+// RPC first accepts connections.
+func runNode(ctx context.Context, dir string, out io.Writer, ready func(string), opt daemon.Options) error {
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	defer signal.Stop(hup)
+	reload := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	// The node runs while both the host and the interface do.
-	p2pUp := make(chan struct{})
-	herr := make(chan error, 1)
 	go func() {
-		err := host.Run(ctx, func() { close(p2pUp) })
-		cancel()
-		herr <- err
-	}()
-	select {
-	case <-p2pUp: // the host logs its address
-	case err := <-herr:
-		return errors.Join(err, n.Close())
-	}
-	serr := rpc.ServeHost(ctx, n, host, func(addr string) {
-		fmt.Fprintf(out, "rpc listening on %s\n", addr)
-		if ready != nil {
-			ready(addr)
+		for {
+			select {
+			case <-hup:
+				select {
+				case reload <- struct{}{}:
+				case <-ctx.Done():
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
 		}
-	})
-	cancel()
-	perr := <-herr
-	cerr := n.Close()
-	fmt.Fprintln(out, "node stopped")
-	return errors.Join(serr, perr, cerr)
+	}()
+	var once sync.Once
+	opt.Log, opt.Reload = out, reload
+	opt.Ready = func(addr string) {
+		if ready != nil {
+			once.Do(func() { ready(addr) })
+		}
+	}
+	return daemon.Run(ctx, dir, opt)
 }
 
-// lockedWriter lets the node's goroutines share one output.
-type lockedWriter struct {
-	mu sync.Mutex
-	w  io.Writer
+// poolFlags pick a pool by its index or by a mint in it, so commands
+// about pools take the -serial that claim and pay take (GREEN-009).
+type poolFlags struct {
+	pool, serial *uint64
 }
 
-func (l *lockedWriter) Write(p []byte) (int, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.w.Write(p)
+func addPool(fs *flag.FlagSet) *poolFlags {
+	return &poolFlags{
+		pool:   fs.Uint64("pool", 0, "pool index"),
+		serial: fs.Uint64("serial", 0, "a mint's serial, for the pool holding it (instead of -pool)"),
+	}
+}
+
+// resolve returns the pool the flags name in s.
+func (p *poolFlags) resolve(fs *flag.FlagSet, s *series.Series) (uint64, error) {
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	if !set["serial"] {
+		return *p.pool, nil
+	}
+	if *p.serial >= s.Mints() {
+		return 0, fmt.Errorf("-serial %d: the series has %d mints", *p.serial, s.Mints())
+	}
+	k := s.PoolOf(*p.serial)
+	if set["pool"] && *p.pool != k {
+		return 0, fmt.Errorf("-serial %d is in pool %d, not -pool %d", *p.serial, k, *p.pool)
+	}
+	return k, nil
 }
 
 // clientFlags are the flags shared by commands that talk to a running node.
@@ -234,7 +243,7 @@ func addClient(fs *flag.FlagSet) *clientFlags {
 	return &clientFlags{w: addWhere(fs), series: fs.String("series", "", "series id (default: the only followed series)")}
 }
 
-func (c *clientFlags) dial() (*rpc.Client, error) { return rpc.Dial(c.w.resolve()) }
+func (c *clientFlags) dial(out io.Writer) (*rpc.Client, error) { return dialNode(out, c.w.resolve()) }
 
 // seriesOf returns the chosen series, as the node knows it.
 func (c *clientFlags) seriesOf(cl *rpc.Client) (*series.Series, error) {
@@ -266,12 +275,16 @@ func (c *clientFlags) seriesOf(cl *rpc.Client) (*series.Series, error) {
 }
 
 func statusCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs := newFlagSet("status", out)
 	c := addClient(fs)
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	if err := o.check(); err != nil {
+		return err
+	}
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -279,31 +292,86 @@ func statusCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, st)
+	return o.write(out, st)
 }
 
-func signerFrom(seedHex string) (*policy.Ed25519Signer, error) {
+// errSeedFlag refuses a seed on the command line, where other users of
+// the machine can read it in the process list and it stays in the shell's
+// history (RED-005, decision D98).
+var errSeedFlag = errors.New("-seed is not accepted: other users can read the command line; set POO_SEED or use -seed-file")
+
+// seedFlags say where a command reads a key's seed: $POO_SEED, or a file
+// (-seed-file, "-" for standard input), never the command line.
+type seedFlags struct {
+	file, flag *string
+}
+
+func addSeed(fs *flag.FlagSet, use string) *seedFlags {
+	return &seedFlags{
+		file: fs.String("seed-file", "", "file holding "+use+" in hex, - for standard input (or set POO_SEED)"),
+		flag: fs.String("seed", "", "not accepted: use POO_SEED or -seed-file"),
+	}
+}
+
+// read returns the seed in hex, or "" when none is given.
+func (f *seedFlags) read(out io.Writer, env bool) (string, error) {
+	if *f.flag != "" {
+		return "", errSeedFlag
+	}
+	switch {
+	case *f.file == "-":
+		if s, ok := out.(*stdio); ok && s.secret != nil {
+			v, err := s.secret("seed: ")
+			return strings.TrimSpace(v), err
+		}
+		line, err := inputOf(out).ReadString('\n')
+		if err != nil && (err != io.EOF || line == "") {
+			return "", errors.New("no seed on standard input")
+		}
+		return strings.TrimSpace(line), nil
+	case *f.file != "":
+		b, err := os.ReadFile(*f.file)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	if v, ok := os.LookupEnv("POO_SEED"); ok && env {
+		return strings.TrimSpace(v), nil
+	}
+	return "", nil
+}
+
+// signer reads the seed and returns its Ed25519 key.
+func (f *seedFlags) signer(out io.Writer) (*policy.Ed25519Signer, error) {
+	seedHex, err := f.read(out, true)
+	if err != nil {
+		return nil, err
+	}
+	if seedHex == "" {
+		return nil, errors.New("no seed: set POO_SEED or use -seed-file (see poo keygen)")
+	}
 	seed, err := hex.DecodeString(seedHex)
 	if err != nil || len(seed) != 32 {
-		return nil, fmt.Errorf("-seed must be 64 hex digits (see poo keygen)")
+		return nil, fmt.Errorf("the seed must be 64 hex digits (see poo keygen)")
 	}
 	return policy.NewEd25519Signer(seed)
 }
 
 // claimCmd claims a whole mint for a key's 1-of-1 address and submits it.
 func claimCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("claim", flag.ContinueOnError)
+	fs := newFlagSet("claim", out)
 	c := addClient(fs)
-	seed := fs.String("seed", "", "the claiming key's seed in hex")
+	seed := addSeed(fs, "the claiming key's seed")
 	serial := fs.Uint64("serial", 0, "the mint's serial")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	signer, err := signerFrom(*seed)
+	signer, err := seed.signer(out)
 	if err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -327,16 +395,16 @@ func claimCmd(args []string, out io.Writer) error {
 // payCmd pays an amount of one mint from a key's 1-of-1 address, with
 // change back to the same address, and submits it.
 func payCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("pay", flag.ContinueOnError)
+	fs := newFlagSet("pay", out)
 	c := addClient(fs)
-	seed := fs.String("seed", "", "the paying key's seed in hex")
+	seed := addSeed(fs, "the paying key's seed")
 	serial := fs.Uint64("serial", 0, "the mint's serial")
 	to := fs.String("to", "", "the receiving address")
 	amount := fs.Uint64("amount", 0, "units to pay")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	signer, err := signerFrom(*seed)
+	signer, err := seed.signer(out)
 	if err != nil {
 		return err
 	}
@@ -347,7 +415,7 @@ func payCmd(args []string, out io.Writer) error {
 	if *amount == 0 {
 		return fmt.Errorf("-amount must be at least 1")
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -392,15 +460,17 @@ func payCmd(args []string, out io.Writer) error {
 }
 
 func buildCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("build", flag.ContinueOnError)
+	fs := newFlagSet("build", out)
 	c := addClient(fs)
-	pool := fs.Uint64("pool", 0, "pool index")
-	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: no limit)")
+	pf := addPool(fs)
+	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: the node's limit, 16777216)")
 	work := fs.Uint64("work", 0, "then add the strongest layer found in this many nonces")
+	g := addGrindOptions(fs)
+	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -408,42 +478,61 @@ func buildCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	ref := rpc.PoolRef{Series: s.ID(), Pool: *pool}
-	r, err := cl.Build(ref, *tries)
+	pool, err := pf.resolve(fs, s)
 	if err != nil {
 		return err
 	}
-	r.Entry = "" // the hash is what a user needs; the bytes are for tools
+	ref := rpc.PoolRef{Series: s.ID(), Pool: pool}
+	r, err := cl.BuildWith(ref, *tries, g.options())
+	if err != nil {
+		return err
+	}
+	if !*keep {
+		r.Entry = "" // the hash is what a user needs; the bytes are for tools
+	}
 	rep := struct {
 		rpc.EntryReply
 		Layer *rpc.LayerReply `json:"layer,omitempty"`
 	}{EntryReply: r}
 	if *work > 0 {
-		l, err := cl.Work(ref, r.Hash, 0, *work)
+		l, err := cl.WorkWith(ref, r.Hash, 0, *work, rpc.GrindOptions{Device: *g.device, Threads: *g.threads})
 		if err != nil {
 			return err
 		}
-		l.Layer = ""
+		if !*keep {
+			l.Layer = ""
+		}
 		rep.Layer = &l
 	}
 	return writeJSON(out, rep)
 }
 
 func workCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("work", flag.ContinueOnError)
+	fs := newFlagSet("work", out)
 	c := addClient(fs)
-	pool := fs.Uint64("pool", 0, "pool index")
+	pf := addPool(fs)
 	entryHex := fs.String("entry", "", "entry hash (default: the pool's selected tip)")
 	start := fs.Uint64("start", 0, "first nonce")
-	tries := fs.Uint64("tries", 1<<16, "nonces to try")
+	tries := fs.Uint64("tries", 1<<16, "nonces to try (with -for: 0, as many as fit)")
+	g := addGrindOptions(fs)
+	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	triesSet := false
+	fs.Visit(func(f *flag.Flag) { triesSet = triesSet || f.Name == "tries" })
+	if *g.dur != "" && !triesSet {
+		*tries = 0
+	}
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
 	s, err := c.seriesOf(cl)
+	if err != nil {
+		return err
+	}
+	pool, err := pf.resolve(fs, s)
 	if err != nil {
 		return err
 	}
@@ -458,35 +547,47 @@ func workCmd(args []string, out io.Writer) error {
 			return err
 		}
 		for _, p := range st.Pools {
-			if p.Series == s.ID() && p.Pool == *pool {
+			if p.Series == s.ID() && p.Pool == pool {
 				target = p.Tip
 			}
 		}
-		if target == (hash.Hash{}) || target == s.PoolID(*pool) {
-			return fmt.Errorf("pool %d has no selected entry; name one with -entry (a new entry has no weight until a layer lands on it)", *pool)
+		if target == (hash.Hash{}) || target == s.PoolID(pool) {
+			return fmt.Errorf("pool %d has no selected entry; name one with -entry (a new entry has no weight until a layer lands on it)", pool)
 		}
 	}
-	r, err := cl.Work(rpc.PoolRef{Series: s.ID(), Pool: *pool}, target, *start, *tries)
+	r, err := cl.WorkWith(rpc.PoolRef{Series: s.ID(), Pool: pool}, target, *start, *tries, g.options())
 	if err != nil {
 		return err
 	}
-	r.Layer = ""
+	if !*keep {
+		r.Layer = ""
+	}
 	return writeJSON(out, r)
 }
 
+// addBytes is -bytes, which keeps the encoded entry or layer in a build
+// or work reply, as poo submit takes it on another node (GREEN-039).
+func addBytes(fs *flag.FlagSet) *bool {
+	return fs.Bool("bytes", false, "also print the encoded entry or layer (hex), for poo submit on another node")
+}
+
 func paymentCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("payment", flag.ContinueOnError)
+	fs := newFlagSet("payment", out)
 	c := addClient(fs)
 	serial := fs.Uint64("serial", 0, "the mint's serial")
 	tidHex := fs.String("tid", "", "the transaction id")
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	tid, err := hash.Parse(*tidHex)
 	if err != nil {
 		return fmt.Errorf("-tid: %w", err)
 	}
-	cl, err := c.dial()
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -498,17 +599,21 @@ func paymentCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 func holdingsCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("holdings", flag.ContinueOnError)
+	fs := newFlagSet("holdings", out)
 	c := addClient(fs)
 	serial := fs.Uint64("serial", 0, "the mint's serial")
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := c.dial()
+	if err := o.check(); err != nil {
+		return err
+	}
+	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
@@ -520,16 +625,20 @@ func holdingsCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 func peersCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("peers", flag.ContinueOnError)
+	fs := newFlagSet("peers", out)
 	w := addWhere(fs)
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := rpc.Dial(w.resolve())
+	if err := o.check(); err != nil {
+		return err
+	}
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
@@ -537,7 +646,7 @@ func peersCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 // peerCmd acts on one peer of the running node: a timeout, a block, lifting
@@ -547,7 +656,7 @@ func peerCmd(args []string, out io.Writer) error {
 	if len(args) == 0 {
 		return errors.New(use)
 	}
-	fs := flag.NewFlagSet("peer", flag.ContinueOnError)
+	fs := newFlagSet("peer", out)
 	w := addWhere(fs)
 	secs := fs.Int("seconds", 0, "timeout or block: how long (0: the policy's length; block -1: until unblocked)")
 	rng := fs.Bool("range", false, "block: the address's whole network range")
@@ -557,10 +666,15 @@ func peerCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
+	if err := flagsFor(fs, action, map[string][]string{
+		"seconds": {"timeout", "block"}, "range": {"block"}, "what": {"clear"}, "template": {"template"},
+	}); err != nil {
+		return err
+	}
 	if fs.NArg() != 1 {
 		return errors.New(use)
 	}
-	cl, err := rpc.Dial(w.resolve())
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
@@ -574,15 +688,19 @@ func peerCmd(args []string, out io.Writer) error {
 // trackingCmd shows what the running node's tracker keeps: every tracked
 // address's status, or one address's whole record.
 func trackingCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("tracking", flag.ContinueOnError)
+	fs := newFlagSet("tracking", out)
 	w := addWhere(fs)
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	if fs.NArg() > 1 {
 		return errors.New("usage: poo tracking [ADDR]")
 	}
-	cl, err := rpc.Dial(w.resolve())
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
@@ -591,23 +709,27 @@ func trackingCmd(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return writeJSON(out, r)
+		return o.write(out, r)
 	}
 	r, err := cl.Tracking()
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 // chasesCmd shows the running node's chase queue.
 func chasesCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("chases", flag.ContinueOnError)
+	fs := newFlagSet("chases", out)
 	w := addWhere(fs)
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cl, err := rpc.Dial(w.resolve())
+	if err := o.check(); err != nil {
+		return err
+	}
+	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
@@ -615,13 +737,13 @@ func chasesCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return writeJSON(out, r)
+	return o.write(out, r)
 }
 
 // policyCmd lists, switches, archives, takes out of the archive and deletes
 // node policies.
 func policyCmd(args []string, out io.Writer) error {
-	fs := flag.NewFlagSet("policy", flag.ContinueOnError)
+	fs := newFlagSet("policy", out)
 	root := fs.String("root", defaultRoot(), "directory holding the node policies ($POO_HOME)")
 	fresh := fs.Bool("fresh", false, "unarchive: drop the stored data and start from scratch")
 	if len(args) == 0 {
@@ -629,6 +751,9 @@ func policyCmd(args []string, out io.Writer) error {
 	}
 	sub := args[0]
 	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if err := flagsFor(fs, sub, map[string][]string{"fresh": {"unarchive"}}); err != nil {
 		return err
 	}
 	m := nodepolicy.Manager{Root: *root}
@@ -672,4 +797,24 @@ func policyCmd(args []string, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "%s: %s\n", sub, name)
 	return nil
+}
+
+// grindOptions are the flags that choose how build and work grind
+// (package grind, M11).
+type grindOptions struct {
+	device  *string
+	threads *int
+	dur     *string
+}
+
+func addGrindOptions(fs *flag.FlagSet) *grindOptions {
+	return &grindOptions{
+		device:  fs.String("device", "", "device: auto, cpu, gpu:0, ... (poo grind devices; default: node.json's grind section, else auto)"),
+		threads: fs.Int("threads", 0, "threads (default: every core but one)"),
+		dur:     fs.String("for", "", "grind for this long, up to 4m (30s), instead of a number of tries"),
+	}
+}
+
+func (g *grindOptions) options() rpc.GrindOptions {
+	return rpc.GrindOptions{Device: *g.device, Threads: *g.threads, For: *g.dur}
 }

@@ -1,6 +1,7 @@
 package layer
 
 import (
+	"context"
 	"testing"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -63,5 +64,37 @@ func TestGrindTo(t *testing.T) {
 	}
 	if _, ok := GrindTo(h, e, 0, 200, 10); ok {
 		t.Fatal("impossible strength found")
+	}
+}
+
+// With a floor, a search also hands over the strongest layer of each
+// range that reaches it: all at or above the floor, the strongest among
+// them, and together worth at least the strongest alone (ORANGE-010).
+func TestGrindKeepFloor(t *testing.T) {
+	e := sha()([]byte("entry"))
+	var kept []Layer
+	keep := &Keep{Floor: 8, Func: func(l Layer, s int) {
+		if s < 8 {
+			t.Errorf("kept strength %d below the floor", s)
+		}
+		kept = append(kept, l)
+	}}
+	best, s, err := GrindWithKeep(context.Background(), hash.GrinderFor(hash.SHA256), e, 0, 1<<16, 1, nil, keep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, ps, _ := GrindWith(context.Background(), hash.GrinderFor(hash.SHA256), e, 0, 1<<16, 1, nil)
+	if best != plain || s != ps {
+		t.Fatal("a floor changed the strongest layer")
+	}
+	if len(kept) < 2 {
+		t.Fatalf("kept %d layers", len(kept))
+	}
+	found := false
+	for _, l := range kept {
+		found = found || l == best
+	}
+	if !found {
+		t.Fatal("the strongest layer was not kept")
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +48,24 @@ func TestValidate(t *testing.T) {
 		{"p2p bad address", func(p *nodepolicy.Policy) { p.P2P.Listen = "nonsense" }, false},
 		{"p2p peers", func(p *nodepolicy.Policy) { p.P2P.Peers = []string{"example.org:8646", "[::1]:1"} }, true},
 		{"p2p bad peer", func(p *nodepolicy.Policy) { p.P2P.Peers = []string{"example.org"} }, false},
+		{"grind auto", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{Device: "auto", Jobs: []nodepolicy.GrindJob{{Target: "tip", Hours: "22-06"}, {Target: "pending", Series: &id}, {Target: id.String(), UntilFrom: "1000"}}}
+		}, true},
+		{"grind bad target", func(p *nodepolicy.Policy) { p.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tips"}}} }, false},
+		{"grind bad hours", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tip", Hours: "25-1"}}}
+		}, false},
+		{"grind until on tip", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tip", UntilFrom: "5"}}}
+		}, false},
+		{"grind threads", func(p *nodepolicy.Policy) { p.Grind = &nodepolicy.Grind{Threads: -1} }, false},
+		{"grind layer floor", func(p *nodepolicy.Policy) { p.Grind = &nodepolicy.Grind{LayerFloor: 20, LayerRate: 50} }, true},
+		{"grind layer rate", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{LayerFloor: 20, LayerRate: nodepolicy.MaxLayerRate + 1}
+		}, false},
+		{"grind too many", func(p *nodepolicy.Policy) {
+			p.Grind = &nodepolicy.Grind{Jobs: make([]nodepolicy.GrindJob, nodepolicy.MaxGrindJobs+1)}
+		}, false},
 		{"p2p negative", func(p *nodepolicy.Policy) { p.P2P.MaxPeers = -1 }, false},
 		{"p2p never check", func(p *nodepolicy.Policy) { p.P2P.CheckSeconds = -1 }, true},
 		{"p2p check too low", func(p *nodepolicy.Policy) { p.P2P.CheckSeconds = -2 }, false},
@@ -245,5 +265,112 @@ func TestWitnessHex(t *testing.T) {
 	}
 	if _, err := nodepolicy.DecodeWitness(si.IssuerWitness + "00"); err == nil {
 		t.Fatal("trailing bytes accepted")
+	}
+}
+
+func TestLogSection(t *testing.T) {
+	p := nodepolicy.Default()
+	if l, f := p.LogSettings(); l != "" || f != "" {
+		t.Fatal(l, f)
+	}
+	p.Log = &nodepolicy.Log{Level: "debug", Format: "json"}
+	if err := p.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []nodepolicy.Log{{Level: "loud"}, {Format: "xml"}} {
+		p.Log = &bad
+		if err := p.Validate(); !errors.Is(err, nodepolicy.ErrInvalid) {
+			t.Errorf("%+v: %v", bad, err)
+		}
+	}
+}
+
+// RED-013: concurrent saves of documents of different lengths always
+// leave a file that loads, and no temporary files.
+func TestConcurrentSavesNeverTear(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, nodepolicy.FileName)
+	short := nodepolicy.Default()
+	long := nodepolicy.Default()
+	for i := 0; i < 40; i++ {
+		long.Grind = &nodepolicy.Grind{}
+		long.Grind.Jobs = append(long.Grind.Jobs, nodepolicy.GrindJob{Target: "tip", Hours: "0-23"})
+	}
+	for round := 0; round < 200; round++ {
+		var wg sync.WaitGroup
+		for i := 0; i < 4; i++ {
+			p := short
+			if i%2 == 1 {
+				p = long
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := nodepolicy.Save(path, p); err != nil {
+					t.Error(err)
+				}
+			}()
+		}
+		wg.Wait()
+		if _, err := nodepolicy.Load(path); err != nil {
+			t.Fatalf("round %d: %v", round, err)
+		}
+	}
+	es, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(es) != 1 {
+		t.Fatalf("%d files left in the directory", len(es))
+	}
+}
+
+// RED-025: a node.json written while a bound was higher still opens; the
+// value is brought down to the bound and noted, and a write of it is
+// still refused.
+func TestLoadLowersAValueOverALoweredBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), nodepolicy.FileName)
+	p := nodepolicy.Default()
+	p.Grind = &nodepolicy.Grind{LayerFloor: 8, LayerRate: 10}
+	if err := nodepolicy.Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = []byte(strings.Replace(string(b), `"layer_rate": 10`, `"layer_rate": 200`, 1))
+	if !strings.Contains(string(b), `"layer_rate": 200`) {
+		t.Fatalf("setup: %s", b)
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	q, err := nodepolicy.Load(path)
+	if err != nil {
+		t.Fatalf("an older valid node.json is refused: %v", err)
+	}
+	if q.Grind.LayerRate != nodepolicy.MaxLayerRate || len(q.Lowered) != 1 {
+		t.Fatalf("layer_rate %d, notes %q", q.Grind.LayerRate, q.Lowered)
+	}
+	q.Grind.LayerRate = 200
+	if err := nodepolicy.Save(path, q); err == nil {
+		t.Fatal("a layer_rate over the most was written")
+	}
+}
+
+// SameApplied ignores the grind section, which a running node applies at
+// once, and sees any other change (GREEN-037).
+func TestSameApplied(t *testing.T) {
+	a := nodepolicy.Policy{Format: 1}
+	b := a
+	b.Grind = &nodepolicy.Grind{Threads: 2}
+	if !a.SameApplied(b) {
+		t.Fatal("a grind change needs a reload")
+	}
+	k := 3
+	b.K = &k
+	if a.SameApplied(b) {
+		t.Fatal("a change of K is applied without a reload")
 	}
 }

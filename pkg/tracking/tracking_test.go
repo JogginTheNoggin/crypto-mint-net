@@ -224,6 +224,32 @@ func TestBudgetsAndRepeats(t *testing.T) {
 	}
 }
 
+// RED-011: Spend draws a cost of many units from one budget.
+func TestSpend(t *testing.T) {
+	cfg := tracking.DefaultConfig()
+	cfg.Budgets = map[string]int{tracking.KindRevert: 100}
+	tr := newTracker(t, cfg)
+	a := "10.0.0.1:1"
+	if ok, _ := tr.Spend(a, tracking.KindRevert, 0, t0); !ok {
+		t.Fatal("a free message was refused")
+	}
+	if ok, _ := tr.Spend(a, tracking.KindRevert, 60, t0); !ok {
+		t.Fatal("60 of 100 refused")
+	}
+	if ok, _ := tr.Spend(a, tracking.KindRevert, 60, t0); ok {
+		t.Fatal("120 of 100 allowed")
+	}
+	if st := tr.Status(a, t0); st.FlagTotal != 1 {
+		t.Fatalf("flag total %v, want one over-budget flag", st.FlagTotal)
+	}
+	if ok, _ := tr.Spend("10.1.0.1:1", tracking.KindRevert, 100, t0); !ok {
+		t.Fatal("another address shares the budget")
+	}
+	if ok, _ := tr.Spend(a, tracking.KindRevert, 60, t0.Add(2*time.Minute)); !ok {
+		t.Fatal("budget did not recover")
+	}
+}
+
 func TestPoints(t *testing.T) {
 	tr := newTracker(t, tracking.Config{})
 	good, bad := "10.0.0.1:1", "10.1.0.1:1"
@@ -449,4 +475,23 @@ func itoa(i int) string {
 		return string(rune('0' + i))
 	}
 	return itoa(i/10) + string(rune('0'+i%10))
+}
+
+// Only what is taken counts against a budget (D121): a sender at twice
+// the budget's rate still gets the budget's rate through, minute after
+// minute, instead of being starved by its own dropped messages.
+func TestSteadySenderIsNotStarved(t *testing.T) {
+	cfg := tracking.DefaultConfig()
+	cfg.Budgets = map[string]int{tracking.KindLayer: 30}
+	tr := newTracker(t, cfg)
+	a := "10.0.0.1:1"
+	took := 0
+	for i := 0; i < 360; i++ { // two a second for three minutes
+		if ok, _ := tr.Budget(a, tracking.KindLayer, t0.Add(time.Duration(i)*500*time.Millisecond)); ok {
+			took++
+		}
+	}
+	if took < 75 {
+		t.Fatalf("took %d of 360 in three minutes at a budget of 30 a minute", took)
+	}
 }

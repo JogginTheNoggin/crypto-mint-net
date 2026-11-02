@@ -29,5 +29,123 @@ built.
   ([docs/cryptography.md](docs/cryptography.md)). Wallets choose their key
   algorithm (`poo wallet create -alg`); `poo crypto`, `poo keygen -alg
   -hash` and `poo series new` are new. Requires Go 1.27.
+- **Viewing and watching:** one filter (series, pool, mint, address,
+  address policy, transaction, event kind) for views of pools, ledger
+  pages, pending transactions, unspent portions, a transaction and an
+  address, and for a live event stream (`poo pools`, `ledger`, `pending`,
+  `unspent`, `tx`, `address`, `watch`; `GET /v1/watch` as NDJSON).
+- **Live following:** `poo follow` and `poo unfollow` (and
+  `POST /v1/follow`) change what a running node follows and apply it at
+  once by reloading the node in place; `poo reload` and SIGHUP do the
+  same after a hand edit. `poo wallet follow` applies at once too.
+- **Wallet:** new wallets seal the seed with Argon2id (D95); older
+  PBKDF2 wallets still open, and `poo wallet passwd` upgrades them.
+- **Read-only use:** `rpc.view-token` reads and nothing else (D100), and
+  `poo -view-only` / `POO_VIEW_ONLY=1` runs only the commands that read
+  (D101). `poo help`, typo suggestions, `poo doctor`, `-o table`, shell
+  completion (`poo completion`) and `GET /v1/metrics` are new. A
+  passphrase typed at a terminal is no longer echoed.
+- **Logs and diagnostics:** levelled, structured node logs (`poo node
+  -log-level -log-format`, plain, text or JSON; D104), and `poo version -v`
+  with the Go version, platform, commit and dependencies.
+- **Performance:** signatures are verified once per witness and before
+  the node's lock, items share fsyncs, and branch ranking and hashing
+  are cheaper (D105): several times the transactions a second, with no
+  rule change.
+- **Safer operation:** a reload onto a broken `node.json` is refused and
+  the node keeps running (D106); `poo wallet create -restore -` reads
+  the seed hidden.
+- **Grinding:** `pkg/grind` detects the CPU (and its hashing features)
+  and GPUs, picks a grinder for the series' hash on a chosen device or
+  auto, and runs jobs in the node on the tip, pending transactions or an
+  entry, by hand, within hours or from `node.json` (D109). `poo grind`
+  (devices, bench, start, run, jobs, stop), `/v1/grind`, watch kind
+  `grind`, and `-device`, `-threads`, `-for` on `poo build` and `poo work`
+  are new; grinding uses every core but one, with the same result.
+- **Grind jobs, refined (D112, D113):** a `tx:TID` target grinds for one
+  payment until it is safe; a job can carry a lease, and `poo grind run`
+  keeps one, so a job whose follower dies stops; a hangup stops a `poo`
+  command as an interrupt does (but reloads `poo node`); a device that
+  cannot grind is refused at start; progress comes at most once a second
+  with a steadier rate; one `start` per job, then a `plan` per pool;
+  waiting jobs say what would help; job-wide events reach watchers of
+  their series. `poo grind schedule` (list, add, remove, set) and
+  `/v1/grind/schedule` change the jobs `node.json` starts, applied at once
+  with no reload. A native BLAKE3 grinder keeps chaining values (5 times
+  faster entry tries), and `-o table` spreads nested objects into columns.
+- **For front ends:** `poo doctor -o json|table` and a `fix_args` per
+  check, and `cli.ErrorCode` and `cli.SecretOutput` so the GUI handles
+  errors and secret output the way `poo` does (D110).
+- **Library:** the commands are package `pkg/cli`, so the GUI runs the
+  same code as `poo` (D84).
 - **Fixed:** a node catching up a heavier ledger one entry at a time could
   prune each entry before its work arrived and never switch (D79).
+- **A heavier ledger is always reachable (D115 to D117):** no node policy
+  can stop a node reaching a heavier valid ledger. A chase finds a split
+  at any depth by halving, takes in any run of entries without layers,
+  and yields and resumes past its time slice instead of giving up; only
+  hashes shown false are bad-listed. Entries and transactions have no
+  size or count cap: an entry larger than a frame travels in parts (new
+  wire types: parts request, large, part), and the store splits large
+  records. `p2p.depth_limit` and `fast_catch_up` are ignored.
+- **Grinding (D118, D119):** `grind.layer_floor` keeps every layer above a
+  floor (off by default; several times the credit for the same work);
+  SIMD lane grinders in a `GOEXPERIMENT=simd` build; jobs stop at once
+  and report progress each second; `poo grind schedule remove -target`
+  guards against a stale row number.
+- **Held branches and many layers (D121, D122):** a node that holds a
+  heavier branch's entries without their layers now switches to it; layers
+  added deep in a shared ledger are fetched; an entry with any number of
+  layers is counted (wire types 27, 52, 53); budgets count only what they
+  let through. Witnesses of large transactions are checked on every core,
+  events no longer walk every branch, and `grind.layer_rate` bounds what
+  `layer_floor` sends (`poo grind schedule set -layer-rate`).
+- **Long chases always go on (D124 to D126):** a chase paces its requests
+  under the sender's budget and keeps its progress through a timeout;
+  paging one entry's layers yields each page and checks their order; step
+  4 moves on only past what it counted; a chase waiting for disk space
+  shows in `poo chases`, `poo doctor` and the metrics. Grind schedule
+  changes are made on the node (`POST /v1/grind/schedule/edit`, `If-Match`
+  on `PUT`), so two at once both apply. Large items are encoded once, and
+  large-entry parts live in the data directory; `grind.layer_rate` is at most 50
+  a second, so a node's own layers stay inside peers' default budget
+  (D127).
+- **Slow senders and larger pages (D128 to D130):** kept progress and
+  parts files of departed senders are cleaned up, while a stalled chase's
+  progress outlasts its sender's backoff and a stall that made progress
+  does not double it; chases ask for hashes in pages of 4,096; the grind
+  schedule shows its version and limits, and edits take `-if-version`.
+- **The disk reserve and paced askers (D131 to D135):** kept progress
+  holds nothing per layer, and a fetch at the disk reserve reclaims the
+  parts of an idle sender, a departed one, or one with more still to come,
+  so a sender trickling a huge claim never holds the room an honest entry
+  needs; an asker learns a sender's request budget from dropped requests
+  and stays under it; catch-up checks signatures on every core; a full
+  grind schedule leaves room for four user jobs, an edit restarts only the
+  jobs it changes, and offline edits take the data directory's lock; `poo
+  doctor` offers a command for a lowered value.
+- **Turns at the disk reserve and faster restarts (D136 to D138):** a
+  learned pace is probed back up; a slow fetch waiting for disk gets its
+  turn, so one lost request or a slow honest link never leaves an entry
+  of the heavier ledger waiting for good behind a trickler; `node.json`
+  writes from the CLI take the data directory's lock; restart checks the
+  store's signatures on every core; `poo doctor`'s fixes name the policy
+  they checked, and floor or rate changes restart no grinding job.
+- **Paid cuts at the disk reserve (D139 to D141):** a fetch waiting for
+  disk takes room only for the bytes that arrive, cut from the end of a
+  file whose sender left, stalled, or delivers at least 1.5 times more
+  slowly over a whole chase, so neither a trickler nor colluders cutting
+  each other in bursts can hold the room against an honest sender;
+  `poo wallet follow` replaces the series' rule in one change; status and
+  `poo doctor` say when `node.json` waits for a reload.
+- **Headless and GUI level (D143):** `poo follow -replace` sets a
+  series' followed pools in one change, as the GUI does; `poo submit
+  entry|layer` hands the node an entry or layer made elsewhere;
+  `poo grind jobs ID` shows one job; a test fails when an RPC call has no
+  `poo` command.
+- **Safer wallet writes (D144, D145):** a `poo wallet` command never undoes
+  another's change, a new passphrase included (it saves only over the file
+  it read, under a short lock); a typed new passphrase is asked for twice;
+  `poo submit` reads a file or standard input, `build`/`work -bytes` print
+  what it reads, and the node's own RPC takes an entry of any size with the
+  full token.

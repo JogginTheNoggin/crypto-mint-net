@@ -20,21 +20,27 @@
 package node
 
 import (
+	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/store"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
@@ -56,6 +62,11 @@ const (
 type Options struct {
 	// Log receives progress and warnings. Nil discards them.
 	Log io.Writer
+	// LogLevel and LogFormat override the node policy's log section for
+	// this run ("" keeps the policy's; package logging).
+	LogLevel, LogFormat string
+	// Logger, if set, is used as it is instead of one made from Log.
+	Logger *slog.Logger
 	// CompactMin is the smallest log that is compacted automatically
 	// (0: DefaultCompactMin).
 	CompactMin int
@@ -68,7 +79,10 @@ type Node struct {
 	pol    nodepolicy.Policy
 	eng    *engine.Engine
 	logs   map[engine.PoolKey]*store.Log
-	out    io.Writer
+	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
+	failed sync.Map     // pool keys whose store stopped, logged once
+	// kept paces the extra layers a layer floor keeps (RED-018).
+	kept   keptBucket
 	cmin   int
 	unlock func()
 	closed bool
@@ -91,13 +105,25 @@ type ReplayStats struct {
 
 // Open opens the node in dir. The directory must hold a node.json.
 func Open(dir string, opt Options) (*Node, error) {
-	out := opt.Log
-	if out == nil {
-		out = io.Discard
-	}
 	pol, err := nodepolicy.Load(filepath.Join(dir, nodepolicy.FileName))
 	if err != nil {
 		return nil, err
+	}
+	lg := opt.Logger
+	if lg == nil {
+		level, format := pol.LogSettings()
+		if opt.LogLevel != "" {
+			level = opt.LogLevel
+		}
+		if opt.LogFormat != "" {
+			format = opt.LogFormat
+		}
+		if lg, err = logging.New(opt.Log, level, format); err != nil {
+			return nil, err
+		}
+	}
+	for _, n := range pol.Lowered {
+		lg.With(logging.Component, "node").Warn("policy value lowered", "file", nodepolicy.FileName, "note", n.String())
 	}
 	if opt.CompactMin <= 0 {
 		opt.CompactMin = DefaultCompactMin
@@ -107,7 +133,7 @@ func Open(dir string, opt Options) (*Node, error) {
 		return nil, err
 	}
 	n := &Node{
-		dir: dir, pol: pol, out: out, unlock: unlock, cmin: opt.CompactMin,
+		dir: dir, pol: pol, log: lg, unlock: unlock, cmin: opt.CompactMin,
 		eng: engine.New(engine.Config{
 			Ledger: pol.LedgerConfig(), MaxPending: pol.MaxPending, SeenSize: pol.SeenSize,
 		}),
@@ -125,11 +151,17 @@ func Open(dir string, opt Options) (*Node, error) {
 	return n, nil
 }
 
+// Logger returns the node's logger. Packages that serve the node (p2p,
+// rpc, daemon) log through it, each under its own component.
+func (n *Node) Logger() *slog.Logger { return n.log }
+
+func (n *Node) logger() *slog.Logger { return n.log.With(logging.Component, "node") }
+
 // configure makes accepted series known and applies the follow rules.
 func (n *Node) configure() error {
 	accepted, refused := n.pol.Accepted()
 	for _, r := range refused {
-		fmt.Fprintf(n.out, "series %d not accepted: %v\n", r.Index, r.Reason)
+		n.logger().Warn("series not accepted", "index", r.Index, "err", r.Reason)
 	}
 	byIssuer := map[hash.Hash][]hash.Hash{}
 	for _, a := range accepted {
@@ -144,7 +176,7 @@ func (n *Node) configure() error {
 		case f.Issuer != nil:
 			ids := byIssuer[*f.Issuer]
 			if len(ids) == 0 {
-				fmt.Fprintf(n.out, "follow %d: no accepted series from issuer %s\n", i, f.Issuer.Short())
+				n.logger().Warn("follow rule matches no accepted series", "follow", i, "issuer", f.Issuer.Short())
 			}
 			for _, id := range ids {
 				if err = n.eng.FollowSeries(id); err != nil {
@@ -168,7 +200,7 @@ func (n *Node) configure() error {
 		if errors.Is(err, engine.ErrUnknownSeries) {
 			// A series that was not accepted is not followed; the node
 			// still starts.
-			fmt.Fprintf(n.out, "follow %d: series %s is not known or not accepted\n", i, f.Series.Short())
+			n.logger().Warn("follow rule names a series not known or not accepted", "follow", i, "series", f.Series.Short())
 			continue
 		}
 		if err != nil {
@@ -198,12 +230,28 @@ func (n *Node) load() error {
 		n.replay.Pools++
 		n.replay.Cut += op.Cut
 		if op.Cut > 0 {
-			fmt.Fprintf(n.out, "pool %s: dropped %d bytes of an unfinished write\n", k, op.Cut)
+			n.logger().Warn("dropped an unfinished write", "pool", k.String(), "bytes", op.Cut)
 		}
-		for _, r := range op.Records {
-			n.replay.Records++
-			if n.apply(k, r) {
-				n.replay.Kept++
+		// A window of records is decoded, its witnesses are checked on
+		// every core, and then it is replayed in order, finding them
+		// verified (ORANGE-021).
+		for i := 0; i < len(op.Records); i += replayWindow {
+			win := decodeAll(op.Records[i:min(i+replayWindow, len(op.Records))])
+			var txs []*tx.Tx
+			for _, d := range win {
+				switch {
+				case d.t != nil:
+					txs = append(txs, d.t)
+				case d.e != nil:
+					txs = append(txs, d.e.Txs...)
+				}
+			}
+			n.eng.WarmStored(txs)
+			for _, d := range win {
+				n.replay.Records++
+				if n.apply(k, d) {
+					n.replay.Kept++
+				}
 			}
 		}
 		if err := n.maybeCompact(k); err != nil {
@@ -213,27 +261,51 @@ func (n *Node) load() error {
 	return nil
 }
 
-// apply replays one stored record and reports whether the engine kept it.
-func (n *Node) apply(k engine.PoolKey, r store.Record) bool {
+// replayWindow is how many stored records are decoded and warmed at a
+// time on start-up (ORANGE-021).
+const replayWindow = 1024
+
+// decoded is one stored record, decoded.
+type decoded struct {
+	kind store.Kind
+	e    *entry.Entry
+	l    layer.Layer
+	t    *tx.Tx
+	err  error
+}
+
+func decodeAll(rs []store.Record) []decoded {
+	out := make([]decoded, len(rs))
+	for i, r := range rs {
+		d := decoded{kind: r.Kind}
+		switch r.Kind {
+		case store.KindEntry:
+			d.e, d.err = entry.Decode(r.Data)
+		case store.KindLayer:
+			d.l, d.err = layer.Decode(r.Data)
+		case store.KindTx:
+			d.t, d.err = tx.Decode(r.Data)
+		default:
+			d.err = fmt.Errorf("unknown record kind %d", r.Kind)
+		}
+		out[i] = d
+	}
+	return out
+}
+
+// apply replays one decoded record and reports whether the engine kept it.
+func (n *Node) apply(k engine.PoolKey, d decoded) bool {
+	if d.err != nil {
+		return false
+	}
 	var err error
-	switch r.Kind {
+	switch d.kind {
 	case store.KindEntry:
-		var e *entry.Entry
-		if e, err = entry.Decode(r.Data); err == nil {
-			_, err = n.eng.HandleEntry(k, e, engine.Stored)
-		}
+		_, err = n.eng.HandleEntry(k, d.e, engine.Stored)
 	case store.KindLayer:
-		var l layer.Layer
-		if l, err = layer.Decode(r.Data); err == nil {
-			_, err = n.eng.HandleLayer(k, l, engine.Stored)
-		}
+		_, err = n.eng.HandleLayer(k, d.l, engine.Stored)
 	case store.KindTx:
-		var t *tx.Tx
-		if t, err = tx.Decode(r.Data); err == nil {
-			_, err = n.eng.HandleTx(t, engine.Stored)
-		}
-	default:
-		err = fmt.Errorf("unknown record kind %d", r.Kind)
+		_, err = n.eng.HandleTx(d.t, engine.Stored)
 	}
 	return err == nil
 }
@@ -286,7 +358,7 @@ func (n *Node) compact(k engine.PoolKey, recs []store.Record) error {
 	if err := l.Rewrite(recs); err != nil {
 		return fmt.Errorf("node: compact %s: %w", k, err)
 	}
-	fmt.Fprintf(n.out, "pool %s: compacted store from %d to %d records\n", k, before, len(recs))
+	n.logger().Info("compacted store", "pool", k.String(), "from", before, "to", len(recs))
 	return nil
 }
 
@@ -308,25 +380,50 @@ func (n *Node) Compact(k engine.PoolKey) error {
 }
 
 // record appends an accepted item to the store of pool k, opening the
-// store on first use.
-func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte) error {
+// store on first use. It returns once the item is written, with a function
+// that waits until it is on disk. The caller calls that after releasing
+// the node's lock, so items taken in from many peers share one fsync
+// instead of each holding the lock through its own (ORANGE-005).
+func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte) (func() error, error) {
 	l := n.logs[k]
 	if l == nil {
 		var err error
 		l, _, err = store.Open(n.logPath(k), store.Options{NoSync: n.pol.NoSync})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		n.logs[k] = l
 	}
-	if err := l.Append(store.Record{Kind: kind, Data: data}); err != nil {
-		return fmt.Errorf("node: store %s: %w", k, err)
+	t, err := l.AppendLater(store.Record{Kind: kind, Data: data})
+	if err != nil {
+		return nil, n.storeFailed(k, err)
 	}
-	return nil
+	return func() error {
+		if err := l.Durable(t); err != nil {
+			return n.storeFailed(k, err)
+		}
+		return nil
+	}, nil
 }
 
-// Event reports an item the node kept, after it is stored. Exactly one of
-// Tx, Entry and Layer is set.
+// storeFailed wraps an error of pool k's store. A store stopped by a
+// failed write takes nothing more for the pool, so from then on every item
+// of the pool fails with this error and is neither stored nor forwarded.
+// The node says so once, as an error, since only a restart, which replays
+// what is really on disk, brings the pool back (RED-010, decision D108).
+func (n *Node) storeFailed(k engine.PoolKey, err error) error {
+	if errors.Is(err, store.ErrFailed) {
+		if _, told := n.failed.LoadOrStore(k, true); !told {
+			n.logger().Error("pool store stopped after a failed write; restart the node to replay what is on disk", "pool", k.String(), "err", err)
+		}
+	}
+	return fmt.Errorf("node: store %s: %w", k, err)
+}
+
+// Event reports an item the node kept, after it is written to the store.
+// The fsync that makes it survive a power loss may still be running: the
+// Handle method that kept the item returns only after it (ORANGE-005).
+// Exactly one of Tx, Entry and Layer is set.
 type Event struct {
 	Key    engine.PoolKey
 	Tx     *tx.Tx
@@ -339,6 +436,8 @@ type Event struct {
 	Forward bool
 	// Switch is set when the item changed the selected ledger.
 	Switch *ledger.Switch
+	// Dropped lists pending transactions the item made invalid.
+	Dropped []hash.Hash
 	// Weight is the selected ledger's weight after the item: the node's
 	// stated weight for the pool.
 	Weight weight.Weight
@@ -357,8 +456,8 @@ func (n *Node) emit(ev Event) {
 	if len(n.observers) == 0 {
 		return
 	}
-	if st, err := n.eng.Status(ev.Key); err == nil {
-		ev.Weight = st.Weight
+	if _, _, w, err := n.eng.Tip(ev.Key); err == nil {
+		ev.Weight = w
 	}
 	for _, f := range n.observers {
 		f(ev)
@@ -372,20 +471,28 @@ func (n *Node) HandleTx(t *tx.Tx, origin engine.Origin) (engine.TxResult, error)
 
 // HandleTxFrom is HandleTx for an item sent by the named peer.
 func (n *Node) HandleTxFrom(t *tx.Tx, origin engine.Origin, from string) (engine.TxResult, error) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.closed {
-		return engine.TxResult{}, ErrClosed
-	}
-	res, err := n.eng.HandleTx(t, origin)
+	n.eng.PreverifyTx(t)
+	var durable func() error
+	res, err := func() (engine.TxResult, error) {
+		n.mu.Lock()
+		defer n.mu.Unlock()
+		if n.closed {
+			return engine.TxResult{}, ErrClosed
+		}
+		res, err := n.eng.HandleTx(t, origin)
+		if err != nil {
+			return res, err
+		}
+		if durable, err = n.record(res.Key, store.KindTx, t.Encode()); err != nil {
+			return res, err
+		}
+		n.emit(Event{Key: res.Key, Tx: t, Origin: origin, From: from, Forward: res.Forward})
+		return res, nil
+	}()
 	if err != nil {
 		return res, err
 	}
-	if err := n.record(res.Key, store.KindTx, t.Encode()); err != nil {
-		return res, err
-	}
-	n.emit(Event{Key: res.Key, Tx: t, Origin: origin, From: from, Forward: res.Forward})
-	return res, nil
+	return res, durable()
 }
 
 // HandleEntry takes in an entry of pool k and stores it if kept.
@@ -395,20 +502,28 @@ func (n *Node) HandleEntry(k engine.PoolKey, e *entry.Entry, origin engine.Origi
 
 // HandleEntryFrom is HandleEntry for an item sent by the named peer.
 func (n *Node) HandleEntryFrom(k engine.PoolKey, e *entry.Entry, origin engine.Origin, from string) (engine.EntryResult, error) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.closed {
-		return engine.EntryResult{}, ErrClosed
-	}
-	res, err := n.eng.HandleEntry(k, e, origin)
+	n.eng.PreverifyEntry(k, e, origin)
+	var durable func() error
+	res, err := func() (engine.EntryResult, error) {
+		n.mu.Lock()
+		defer n.mu.Unlock()
+		if n.closed {
+			return engine.EntryResult{}, ErrClosed
+		}
+		res, err := n.eng.HandleEntry(k, e, origin)
+		if err != nil {
+			return res, err
+		}
+		if durable, err = n.record(k, store.KindEntry, e.Encode()); err != nil {
+			return res, err
+		}
+		n.emit(Event{Key: k, Entry: e, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
+		return res, nil
+	}()
 	if err != nil {
 		return res, err
 	}
-	if err := n.record(k, store.KindEntry, e.Encode()); err != nil {
-		return res, err
-	}
-	n.emit(Event{Key: k, Entry: e, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch})
-	return res, nil
+	return res, durable()
 }
 
 // HandleLayer takes in a layer of pool k and stores it if kept.
@@ -418,58 +533,157 @@ func (n *Node) HandleLayer(k engine.PoolKey, l layer.Layer, origin engine.Origin
 
 // HandleLayerFrom is HandleLayer for an item sent by the named peer.
 func (n *Node) HandleLayerFrom(k engine.PoolKey, l layer.Layer, origin engine.Origin, from string) (engine.LayerResult, error) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.closed {
-		return engine.LayerResult{}, ErrClosed
-	}
-	res, err := n.eng.HandleLayer(k, l, origin)
+	var durable func() error
+	res, err := func() (engine.LayerResult, error) {
+		n.mu.Lock()
+		defer n.mu.Unlock()
+		if n.closed {
+			return engine.LayerResult{}, ErrClosed
+		}
+		res, err := n.eng.HandleLayer(k, l, origin)
+		if err != nil {
+			return res, err
+		}
+		if durable, err = n.record(k, store.KindLayer, l.Encode()); err != nil {
+			return res, err
+		}
+		n.emit(Event{Key: k, Layer: &l, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
+		return res, nil
+	}()
 	if err != nil {
 		return res, err
 	}
-	if err := n.record(k, store.KindLayer, l.Encode()); err != nil {
-		return res, err
-	}
-	n.emit(Event{Key: k, Layer: &l, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch})
-	return res, nil
+	return res, durable()
 }
 
 // Build makes an entry from the pending transactions of pool k (see
 // engine.Engine.Build) and stores it.
 func (n *Node) Build(k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.EntryResult, error) {
+	return n.BuildContext(context.Background(), k, maxTries)
+}
+
+// BuildContext is Build that gives up, with ctx's error, once ctx is
+// done. The search for a nonce holds neither the node's lock nor the
+// engine's, so a long build never stalls peers or the RPC (RED-006).
+func (n *Node) BuildContext(ctx context.Context, k engine.PoolKey, maxTries uint64) (*entry.Entry, engine.EntryResult, error) {
+	return n.BuildWith(ctx, k, maxTries, engine.Grind{})
+}
+
+// BuildWith is BuildContext searching as g says (package grind).
+func (n *Node) BuildWith(ctx context.Context, k engine.PoolKey, maxTries uint64, g engine.Grind) (*entry.Entry, engine.EntryResult, error) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.closed {
+	closed := n.closed
+	n.mu.Unlock()
+	if closed {
 		return nil, engine.EntryResult{}, ErrClosed
 	}
-	e, res, err := n.eng.Build(k, maxTries)
+	e, err := n.eng.BuildEntryWith(ctx, k, maxTries, g)
 	if err != nil {
-		return e, res, err
+		return e, engine.EntryResult{Key: k}, err
 	}
-	if err := n.record(k, store.KindEntry, e.Encode()); err != nil {
-		return e, res, err
-	}
-	n.emit(Event{Key: k, Entry: e, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch})
-	return e, res, nil
+	res, err := n.HandleEntry(k, e, engine.Local)
+	return e, res, err
 }
 
 // Work grinds a layer on an entry of pool k (see engine.Engine.Work) and
 // stores it.
 func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, engine.LayerResult, error) {
+	if tries == 0 {
+		return layer.Layer{}, engine.LayerResult{Key: k}, engine.ErrNoStrongerLayer
+	}
+	return n.WorkWith(context.Background(), k, entryHash, start, tries, engine.Grind{})
+}
+
+// WorkWith is Work searching as g says (package grind); tries 0 grinds
+// until ctx is done, and the strongest layer found by then is kept (see
+// engine.Engine.GrindLayerWith).
+func (n *Node) WorkWith(ctx context.Context, k engine.PoolKey, entryHash hash.Hash, start, tries uint64, g engine.Grind) (layer.Layer, engine.LayerResult, error) {
 	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.closed {
+	closed := n.closed
+	n.mu.Unlock()
+	if closed {
 		return layer.Layer{}, engine.LayerResult{}, ErrClosed
 	}
-	l, res, err := n.eng.Work(k, entryHash, start, tries)
+	// Grinding holds neither lock, so it never stalls peers or the RPC.
+	type found struct {
+		l layer.Layer
+		s int
+	}
+	var mu sync.Mutex
+	var kept []found
+	if g.Floor > 0 {
+		g.Keep = func(l layer.Layer, s int) {
+			mu.Lock()
+			kept = append(kept, found{l, s})
+			mu.Unlock()
+		}
+	}
+	l, err := n.eng.GrindLayerWith(ctx, k, entryHash, start, tries, g)
 	if err != nil {
-		return l, res, err
+		return l, engine.LayerResult{Key: k}, err
 	}
-	if err := n.record(k, store.KindLayer, l.Encode()); err != nil {
-		return l, res, err
+	res, err := n.HandleLayer(k, l, engine.Local)
+	// With a floor, the other layers found above it go in too: each adds
+	// its own credit, and none takes any away (ORANGE-010, D118). The
+	// strongest go first: at most KeepMax of a search (ORANGE-016's
+	// layer_rate), at most MaxKeptLayers, and no more than KeptPerSecond
+	// across searches, under the rate peers accept; the rest are dropped,
+	// which loses only credit the node chose not to send (RED-018, D120).
+	slices.SortFunc(kept, func(a, b found) int {
+		if a.s != b.s {
+			return b.s - a.s
+		}
+		return cmp.Compare(a.l.Nonce, b.l.Nonce)
+	})
+	took := 0
+	for _, o := range kept {
+		if g.KeepMax > 0 && took >= g.KeepMax {
+			break
+		}
+		if o.l.Nonce == l.Nonce {
+			continue
+		}
+		if took == MaxKeptLayers || !n.kept.take(time.Now()) {
+			break
+		}
+		took++
+		if _, kerr := n.HandleLayer(k, o.l, engine.Local); kerr == nil && g.KeptCount != nil {
+			g.KeptCount.Add(1)
+		}
 	}
-	n.emit(Event{Key: k, Layer: &l, Origin: engine.Local, Forward: res.Forward, Switch: res.Switch})
-	return l, res, nil
+	return l, res, err
+}
+
+// MaxKeptLayers is the most layers above the floor one search sends
+// besides its strongest, and KeptPerSecond the most a node sends a second
+// across searches: half what a peer accepts from one address (100 a
+// second, tracking's layer budget), so an honest grinder is never flagged.
+const (
+	MaxKeptLayers = 16
+	KeptPerSecond = 50
+)
+
+// keptBucket is a token bucket of KeptPerSecond, holding a second's worth.
+type keptBucket struct {
+	mu     sync.Mutex
+	tokens float64
+	at     time.Time
+}
+
+func (b *keptBucket) take(now time.Time) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.at.IsZero() {
+		b.tokens = KeptPerSecond
+	} else {
+		b.tokens = min(KeptPerSecond, b.tokens+now.Sub(b.at).Seconds()*KeptPerSecond)
+	}
+	b.at = now
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
 }
 
 // Engine returns the engine, for reading. Changes must go through the

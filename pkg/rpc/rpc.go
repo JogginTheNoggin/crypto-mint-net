@@ -5,7 +5,9 @@
 //
 // Every request must carry the node's token, "Authorization: Bearer
 // <token>". The token is 32 random bytes in hex, created on first start in
-// the data directory as rpc.token, readable only by the node's user. The
+// the data directory as rpc.token, readable only by the node's user. A
+// second token, rpc.view-token, made the same way, opens the GET endpoints
+// only: give it to a monitor or a read-only tool, never rpc.token. The
 // address the server actually listens on is written to rpc.addr, so a
 // client on the same machine needs only the data directory (see Dial).
 //
@@ -20,8 +22,8 @@
 //	POST /tx       {tx}                   submit a transaction
 //	POST /entry    {series, pool, entry}  submit an entry
 //	POST /layer    {series, pool, layer}  submit a layer
-//	POST /build    {series, pool, max_tries}
-//	POST /work     {series, pool, entry, start, tries}
+//	POST /build    {series, pool, max_tries, device, threads, for}
+//	POST /work     {series, pool, entry, start, tries, device, threads, for}
 //	GET  /payment?series=&serial=&tid=    where a transaction stands, the
 //	                                      transaction, and known rivals
 //	GET  /holdings?series=&serial=        unspent portions of a mint
@@ -30,11 +32,30 @@
 //	GET  /chases                          the chase queue
 //	POST /peer     {addr, action, ...}    time out, block, unblock, clear,
 //	                                      set a template for or delete a peer
+//	GET  /pools?FILTER                    followed pools the filter covers
+//	GET  /ledger?series=&pool=&below=&limit=&FILTER
+//	                                      a page of the selected ledger
+//	GET  /pending?FILTER                  pending transactions
+//	GET  /unspent?FILTER                  unspent portions
+//	GET  /tx?series=&id=[&serial=]        one transaction and its status
+//	GET  /address?series=&id=&limit=&FILTER
+//	                                      an address's balance and history
+//	GET  /watch?FILTER                    a live event stream (NDJSON)
+//	GET  /follow                          what the node follows
+//	POST /follow   {remove, issuer, series, pools, mints, no_reload}
+//	                                      change it and apply it
+//	POST /reload                          apply the node policy again
+//	GET  /metrics                         status and peer counts in
+//	                                      Prometheus text format
+//
+// FILTER is the parameters of pkg/filter: series, pool, serial, address,
+// policy, tid and kind, each comma-separated.
 //
 // Errors are {"error": message, "code": code} with a matching HTTP status.
 package rpc
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -46,33 +67,44 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/watch"
 )
 
 // File names in the data directory.
 const (
 	TokenFile = "rpc.token"
 	AddrFile  = "rpc.addr"
+	// ViewTokenFile holds the view token: it opens every GET endpoint and
+	// nothing else, for a monitor or a read-only tool (GREEN-007).
+	ViewTokenFile = "rpc.view-token"
 )
 
-// MaxBody bounds a request body.
+// MaxBody bounds a request body, except an entry's submitted with the
+// full token (RED-038, D144).
 const MaxBody = 8 << 20
 
 // Error codes.
 const (
 	CodeBadRequest     = "bad_request"
 	CodeUnauthorized   = "unauthorized"
+	CodeForbidden      = "forbidden"
 	CodeNotFound       = "not_found"
 	CodeConflict       = "conflict"
 	CodeInvalid        = "invalid"
@@ -92,7 +124,16 @@ func (e *Error) Error() string { return e.Message }
 
 // LoadOrCreateToken returns the token in dir, creating it if missing.
 func LoadOrCreateToken(dir string) (string, error) {
-	path := filepath.Join(dir, TokenFile)
+	return loadOrCreateToken(filepath.Join(dir, TokenFile))
+}
+
+// LoadOrCreateViewToken returns the view token in dir, creating it if
+// missing.
+func LoadOrCreateViewToken(dir string) (string, error) {
+	return loadOrCreateToken(filepath.Join(dir, ViewTokenFile))
+}
+
+func loadOrCreateToken(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	if err == nil {
 		tok := strings.TrimSpace(string(b))
@@ -122,10 +163,17 @@ func LoadOrCreateToken(dir string) (string, error) {
 
 // Handler serves the interface for one node.
 type Handler struct {
-	n     *node.Node
-	host  *p2p.Host
-	token []byte
-	mux   *http.ServeMux
+	n      *node.Node
+	host   *p2p.Host
+	hub    *watch.Hub
+	reload func()
+	grind  *grind.Manager
+	token  []byte
+	view   []byte // the view token, or nil for none
+	mux    *http.ServeMux
+	// policyMu serialises the edits of node.json (follow, unfollow, the
+	// grind schedule), each a read, a change and a write (RED-013).
+	policyMu sync.Mutex
 }
 
 // NewHandler returns the HTTP handler for n, accepting only token.
@@ -144,8 +192,15 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("GET /v1/tracking", h.tracking)
 	h.mux.HandleFunc("GET /v1/chases", h.chases)
 	h.mux.HandleFunc("POST /v1/peer", h.peer)
+	h.mux.HandleFunc("GET /v1/metrics", h.metrics)
+	h.viewRoutes()
+	h.grindRoutes()
 	return h
 }
+
+// SetViewToken makes the interface also accept tok, for GET requests
+// only. Call it before serving.
+func (h *Handler) SetViewToken(tok string) { h.view = []byte(tok) }
 
 // SetHost lets the interface report on the node's p2p host. Call it before
 // serving.
@@ -173,11 +228,24 @@ func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok || subtle.ConstantTimeCompare([]byte(got), h.token) != 1 {
+	full := ok && subtle.ConstantTimeCompare([]byte(got), h.token) == 1
+	view := ok && len(h.view) > 0 && subtle.ConstantTimeCompare([]byte(got), h.view) == 1
+	switch {
+	case full:
+	case view && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+	case view:
+		writeError(w, &Error{Message: "the view token only reads; this needs " + TokenFile, Code: CodeForbidden, Status: http.StatusForbidden})
+		return
+	default:
 		writeError(w, &Error{Message: "missing or wrong token", Code: CodeUnauthorized, Status: http.StatusUnauthorized})
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, MaxBody)
+	if !(full && r.Method == http.MethodPost && r.URL.Path == "/v1/entry") {
+		// An entry has no size bound: the node takes one of any size from
+		// a peer, in parts (D117), so the full token may hand it one of
+		// any size too, as poo submit and the GUI do (RED-038, D144).
+		r.Body = http.MaxBytesReader(w, r.Body, MaxBody)
+	}
 	h.mux.ServeHTTP(w, r)
 }
 
@@ -280,6 +348,10 @@ type PoolStatus struct {
 type StatusReply struct {
 	Pools  []PoolStatus     `json:"pools"`
 	Replay node.ReplayStats `json:"replay"`
+	// PolicyChanged says node.json now differs from the policy the node
+	// runs, outside the grind section it applies at once: a change made
+	// with -no-reload or by hand waits for poo reload (GREEN-037).
+	PolicyChanged bool `json:"policy_changed,omitempty"`
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -288,6 +360,9 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		stored[s.Key] = s.Records
 	}
 	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed()}
+	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
+		rep.PolicyChanged = !p.SameApplied(h.n.Policy())
+	}
 	for _, k := range h.n.Engine().FollowedPools() {
 		st, err := h.n.Engine().Status(k)
 		if err != nil {
@@ -373,24 +448,57 @@ type EntryReply struct {
 	Switched bool      `json:"switched"`
 	Pruned   int       `json:"pruned"`
 	Dropped  int       `json:"dropped"`
+	// Grind, for a build: how it ground.
+	Grind *GrindStats `json:"grind,omitempty"`
 }
 
 func entryReply(res engine.EntryResult) EntryReply {
 	return EntryReply{Hash: res.Hash, Switched: res.Switch != nil, Pruned: len(res.Pruned), Dropped: len(res.Dropped)}
 }
 
+// entryBody is EntryRequest as the handler reads it: the same JSON, with
+// the hex decoded straight from the body into bytes, so a large entry is
+// not also held as a string of twice its size (Black's Round 14 note,
+// D145).
+type entryBody struct {
+	PoolRef
+	Entry hexBytes `json:"entry"`
+}
+
+// hexBytes is a JSON string of hex, decoded as it is read.
+type hexBytes []byte
+
+func (b *hexBytes) UnmarshalJSON(data []byte) error {
+	if len(data) < 2 || data[0] != '"' || data[len(data)-1] != '"' || bytes.IndexByte(data, '\\') >= 0 {
+		// Not a plain string: decode it the usual way, so an escaped
+		// string still reads and anything else gives the usual error.
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		data = []byte(`"` + s + `"`)
+	}
+	src := data[1 : len(data)-1]
+	out := make([]byte, hex.DecodedLen(len(src)))
+	if _, err := hex.Decode(out, src); err != nil {
+		return errNotHex
+	}
+	*b = out
+	return nil
+}
+
+var errNotHex = errors.New("not hex")
+
 func (h *Handler) submitEntry(w http.ResponseWriter, r *http.Request) {
-	var req EntryRequest
+	var req entryBody
 	if e := decodeBody(r, &req); e != nil {
+		if strings.Contains(e.Message, errNotHex.Error()) {
+			e = badRequest("entry: not hex")
+		}
 		writeError(w, e)
 		return
 	}
-	b, e := decodeHex("entry", req.Entry)
-	if e != nil {
-		writeError(w, e)
-		return
-	}
-	en, err := entry.Decode(b)
+	en, err := entry.Decode(req.Entry)
 	if err != nil {
 		writeError(w, badRequest("%v", err))
 		return
@@ -415,6 +523,8 @@ type LayerReply struct {
 	Layer    string    `json:"layer,omitempty"`
 	Strength int       `json:"strength"`
 	Switched bool      `json:"switched"`
+	// Grind, for work: how it ground.
+	Grind *GrindStats `json:"grind,omitempty"`
 }
 
 func (h *Handler) submitLayer(w http.ResponseWriter, r *http.Request) {
@@ -441,11 +551,16 @@ func (h *Handler) submitLayer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, LayerReply{Hash: res.Hash, Strength: res.Hash.Strength(), Switched: res.Switch != nil})
 }
 
+// MaxBuildTries bounds the nonces one build request may try for an entry,
+// and is what a request that names none gets.
+const MaxBuildTries = 1 << 24
+
 // BuildRequest asks the node to build an entry from its pending
 // transactions.
 type BuildRequest struct {
 	PoolRef
 	MaxTries uint64 `json:"max_tries,omitempty"`
+	GrindOptions
 }
 
 func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
@@ -454,13 +569,32 @@ func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	en, res, err := h.n.Build(req.key(), req.MaxTries)
+	// Bounded like work, and given up when the client goes away
+	// (RED-006, decision D99).
+	switch {
+	case req.MaxTries > MaxBuildTries:
+		writeError(w, badRequest("max_tries must be at most %d", MaxBuildTries))
+		return
+	case req.MaxTries == 0 && req.For == "":
+		req.MaxTries = MaxBuildTries
+	}
+	p, d, e := h.plan(req.key(), req.GrindOptions)
+	if e != nil {
+		writeError(w, e)
+		return
+	}
+	var tried atomic.Uint64
+	ctx, cancel, g := grindCtx(r, p, d, &tried)
+	defer cancel()
+	t0 := time.Now()
+	en, res, err := h.n.BuildWith(ctx, req.key(), req.MaxTries, g)
 	if err != nil {
 		writeError(w, classify(err))
 		return
 	}
 	rep := entryReply(res)
 	rep.Entry = hex.EncodeToString(en.Encode())
+	rep.Grind = stats(p, tried.Load(), t0)
 	writeJSON(w, rep)
 }
 
@@ -473,7 +607,10 @@ type WorkRequest struct {
 	PoolRef
 	Entry hash.Hash `json:"entry"`
 	Start uint64    `json:"start,omitempty"`
-	Tries uint64    `json:"tries"`
+	// Tries is how many nonces to try, 1 to MaxWorkTries; 0 with for
+	// tries as many as fit in that time.
+	Tries uint64 `json:"tries,omitempty"`
+	GrindOptions
 }
 
 func (h *Handler) work(w http.ResponseWriter, r *http.Request) {
@@ -482,16 +619,25 @@ func (h *Handler) work(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	if req.Tries == 0 || req.Tries > MaxWorkTries {
-		writeError(w, badRequest("tries must be 1 to %d", MaxWorkTries))
+	if req.Tries > MaxWorkTries || (req.Tries == 0 && req.For == "") {
+		writeError(w, badRequest("tries must be 1 to %d, or 0 with for", MaxWorkTries))
 		return
 	}
-	l, res, err := h.n.Work(req.key(), req.Entry, req.Start, req.Tries)
+	p, d, e := h.plan(req.key(), req.GrindOptions)
+	if e != nil {
+		writeError(w, e)
+		return
+	}
+	var tried atomic.Uint64
+	ctx, cancel, g := grindCtx(r, p, d, &tried)
+	defer cancel()
+	t0 := time.Now()
+	l, res, err := h.n.WorkWith(ctx, req.key(), req.Entry, req.Start, req.Tries, g)
 	if err != nil {
 		writeError(w, classify(err))
 		return
 	}
-	writeJSON(w, LayerReply{Hash: res.Hash, Layer: hex.EncodeToString(l.Encode()), Strength: res.Hash.Strength(), Switched: res.Switch != nil})
+	writeJSON(w, LayerReply{Hash: res.Hash, Layer: hex.EncodeToString(l.Encode()), Strength: res.Hash.Strength(), Switched: res.Switch != nil, Grind: stats(p, tried.Load(), t0)})
 }
 
 func queryHash(r *http.Request, name string) (hash.Hash, *Error) {

@@ -188,11 +188,61 @@ func TestKindString(t *testing.T) {
 	}
 }
 
+// A record over MaxRecordSize is kept: no item is too large to store.
 func TestTooLarge(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "p.log")
 	l, _ := open(t, path)
-	defer l.Close()
-	if err := l.Append(store.Record{Kind: 1, Data: make([]byte, store.MaxRecordSize+1)}); err == nil {
-		t.Fatal("oversized record accepted")
+	big := store.Record{Kind: 1, Data: make([]byte, store.MaxRecordSize+1)}
+	big.Data[len(big.Data)-1] = 7
+	if err := l.Append(big); err != nil {
+		t.Fatal(err)
 	}
+	l.Close()
+	l, op := open(t, path)
+	defer l.Close()
+	same(t, op.Records, []store.Record{big})
+}
+
+// A record larger than one on disk may be is written in parts and read
+// back whole; a crash that leaves only some of its parts loses the record,
+// and the log is cut before them (D117).
+func TestLargeRecordInParts(t *testing.T) {
+	defer store.SetPieceSize(4)()
+	path := filepath.Join(t.TempDir(), "p.log")
+	l, _ := open(t, path)
+	want := []store.Record{
+		{Kind: store.KindEntry, Data: []byte("a record of many pieces")},
+		{Kind: store.KindTx, Data: []byte("abcd")},
+		{Kind: store.KindLayer, Data: []byte("abcdefgh")},
+	}
+	for _, r := range want {
+		if err := l.Append(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(l.Close())
+	l, op := open(t, path)
+	same(t, op.Records, want)
+	must(l.Close())
+
+	// Drop the last piece of the last record: its parts are cut off.
+	info, err := os.Stat(path)
+	must(err)
+	must(os.Truncate(path, info.Size()-(9+4)))
+	l, op = open(t, path)
+	same(t, op.Records, want[:2])
+	if op.Cut == 0 {
+		t.Fatal("the torn record's parts were not cut")
+	}
+	must(l.Append(want[2]))
+	must(l.Close())
+	l, op = open(t, path)
+	same(t, op.Records, want)
+	must(l.Close())
 }

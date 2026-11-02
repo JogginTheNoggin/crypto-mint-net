@@ -27,12 +27,19 @@ again picks up its history.
 - `Open(dir, Options{Log, CompactMin})`, `Close`.
 - `HandleTx`, `HandleEntry`, `HandleLayer`, `Build`, `Work`: the engine's
   calls, plus storing what is kept. Calls are serialized so each log is in
-  the order the engine accepted items.
+  the order the engine accepted items. `Build`, `BuildContext` and `Work`
+  search without the node's lock and then take the result in like
+  `HandleEntry` (D99), so a long search never stalls peers or the RPC.
+  `BuildWith(ctx, k, maxTries, g)` and `WorkWith(ctx, k, entry, start,
+  tries, g)` take an `engine.Grind`: the hasher and workers a
+  [grind](grind.md) plan chose, and a counter of tries. `Work` with tries
+  0 grinds until ctx ends and keeps the strongest layer (M11, D109).
 - `HandleTxFrom`, `HandleEntryFrom`, `HandleLayerFrom`: the same, naming
   the peer that sent the item.
 - `Observe(f)`: f receives an `Event{Key, Tx|Entry|Layer, Origin, From,
-  Forward, Switch, Weight}` for every item kept from then on, after it is
-  stored, in order. It runs under the node's lock: it must not block or
+  Forward, Switch, Dropped, Weight}` for every item kept from then on, after it is
+  written to the store, in order. The fsync may still be running; the
+  `Handle` call returns only after it (D105). It runs under the node's lock: it must not block or
   call the node.
 - `Engine()` for reads (changes made directly on the engine are not
   stored), `Policy`, `Dir`, `Replayed` (`ReplayStats`), `Stores`,

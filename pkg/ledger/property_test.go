@@ -86,7 +86,7 @@ func snapshotOf(st *state.State) string {
 func TestRandomAgainstModel(t *testing.T) {
 	total := 0
 	for seed := int64(1); seed <= 12; seed++ {
-		t.Run(fmt.Sprint(seed), func(t *testing.T) { total += runRandom(t, seed, 150) })
+		t.Run(fmt.Sprint(seed), func(t *testing.T) { total += runRandom(t, seed, 150, ledger.Unlimited) })
 	}
 	// Guard against the test silently getting weaker.
 	if total < 12 {
@@ -95,9 +95,20 @@ func TestRandomAgainstModel(t *testing.T) {
 	t.Logf("%d reorganizations checked", total)
 }
 
-func runRandom(t *testing.T, seed int64, steps int) int {
+// TestRandomPruned runs the random steps with pruning on. Pruned entries
+// leave the model behind, so it checks only the pool's own bookkeeping.
+func TestRandomPruned(t *testing.T) {
+	for seed := int64(1); seed <= 12; seed++ {
+		t.Run(fmt.Sprint(seed), func(t *testing.T) { runRandom(t, seed, 150, 1) })
+	}
+}
+
+// runRandom makes random entries and layers. With k Unlimited it checks
+// the pool against a model after every step; otherwise it checks only the
+// pool's own bookkeeping, since pruned entries leave the model behind.
+func runRandom(t *testing.T, seed int64, steps int, k int) int {
 	rng := rand.New(rand.NewSource(seed))
-	f := newFixture(t, ledger.Config{K: ledger.Unlimited})
+	f := newFixture(t, ledger.Config{K: k, Ties: 2})
 	owners := map[hash.Hash]string{}
 	for i := 0; i < 6; i++ {
 		l := fmt.Sprintf("o%d", i)
@@ -187,6 +198,12 @@ func runRandom(t *testing.T, seed int64, steps int) int {
 			m.parent[h], m.entries[h], m.seq[h] = parent, e, m.n
 			held = append(held, h)
 		}
+		if err := ledger.CheckOff(f.pool); err != nil {
+			t.Fatalf("step %d: %v", step, err)
+		}
+		if k != ledger.Unlimited {
+			continue
+		}
 		m.reselect()
 
 		tip, height, w := f.pool.Tip()
@@ -211,7 +228,9 @@ func runRandom(t *testing.T, seed int64, steps int) int {
 			}
 		}
 	}
-	checkReplayOrder(t, f)
+	if k == ledger.Unlimited {
+		checkReplayOrder(t, f)
+	}
 	return reorgs
 }
 

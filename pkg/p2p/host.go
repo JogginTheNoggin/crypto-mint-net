@@ -41,6 +41,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sort"
 	"sync"
@@ -49,6 +50,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -84,7 +86,10 @@ type Config struct {
 	// their stated weight (negative: never), so a node hears it is behind
 	// in a quiet pool.
 	CheckEvery time.Duration
-	// RequestTimeout bounds the wait for a whole reply.
+	// RequestTimeout bounds the wait for a whole reply. It stays below
+	// ChaseSlice, so a lost request never outlasts the slice a chase's
+	// measure is taken in (Black's note on Round 13, D143); keep it so if
+	// either ever becomes a setting.
 	RequestTimeout time.Duration
 	// RequestWindow is how long request ids are remembered and how old a
 	// request's time may be; ClockSkew is how far ahead it may be.
@@ -106,6 +111,12 @@ type Config struct {
 	Registries []string
 	// MaxOutbound caps connections this node dials itself.
 	MaxOutbound int
+	// AllowLocalPeers lets addresses learned from peers and registries be
+	// loopback, private, link-local or otherwise not public, and lets the
+	// connection manager dial them. Off by default, so another party cannot
+	// make the node connect into its own network (decision D96). Addresses
+	// in Peers are always dialled. Local test networks turn it on.
+	AllowLocalPeers bool
 	// MaxInbound caps connections other nodes open to this one. By
 	// default it is MaxPeers less MaxOutbound, so that inbound connections
 	// cannot take the slots the node keeps for peers it chose itself
@@ -164,29 +175,67 @@ type Config struct {
 	Tracker *tracking.Tracker
 	// Chase holds the chase queue's limits.
 	Chase chase.Config
-	// DepthLimit is how many hash chain pages a chase asks for before
-	// giving up on finding the common entry.
-	DepthLimit int
-	// ProvisionalLayers is the most layers a chase fetches before deciding
-	// whether a branch's work is enough.
-	ProvisionalLayers int
+	// ChaseSlice is how long one chase runs before it yields its turn in
+	// the chase queue. A yielded chase keeps everything it fetched and is
+	// taken up again later; it is never refused for its length, since a
+	// heavier ledger must always be reachable (audit items G1 to G3,
+	// docs/consensus-audit.md). It stays above RequestTimeout (D143).
+	ChaseSlice time.Duration
+	// WeightlessPages is how many pages of hashes in a row that bring no
+	// work a chase checks before it yields its turn; it goes on later from
+	// where it stopped, so a listing is paced, never refused (RED-015,
+	// D120).
+	WeightlessPages int
+	// RequestPace is how many requests a chase sends one peer in
+	// RequestPaceWindow before it yields its turn and goes on later from
+	// where it stopped. It is under the request budget peers keep by
+	// default (tracking budget "request", 600 a minute): over that budget
+	// a peer drops requests unanswered, the chase times out and loses what
+	// it took in, and a long enough branch is never reached (D115,
+	// ORANGE-018). Negative: no pacing.
+	RequestPace int
+	// RequestPaceWindow is the window RequestPace counts over: the
+	// default request budget's window (one minute).
+	RequestPaceWindow time.Duration
+	// PartsDir is where large entries are put together from their parts
+	// ("": the system's temporary directory; RED-016).
+	PartsDir string
+	// PartsReserve is the free space a large entry's parts never take
+	// from their disk; the reserve is the larger of it and 2% of the
+	// disk. At the reserve a fetch waits and goes on later (RED-022,
+	// D123). 0: 1 GiB.
+	PartsReserve uint64
+	// ProgressGrace is how long a yielded chase's parts file is kept
+	// after its sender disconnects; ProgressTTL is how long any progress
+	// is kept with no chase taking it up, counted from the end of its
+	// sender's backoff, so it always outlasts the wait (RED-023, D128;
+	// Black's C-6, D129). 0: 2 minutes and 1 hour.
+	ProgressGrace, ProgressTTL time.Duration
+	// LayersWhole is the most layers of one entry a layers reply carries;
+	// an entry with more has them paged (D121). It is at most, and by
+	// default, what one frame can hold.
+	LayersWhole int
+	// PartsOver is the largest entry item a reply carries whole; a larger
+	// one is sent in parts on request (consensus audit P1, D117). It is at
+	// most, and by default, what one frame can hold.
+	PartsOver int
 	// NoConfirm stops asking a priority peer to confirm a stated weight
 	// from another sender.
 	NoConfirm bool
-	// FastCatchUp asks a priority peer for its whole ledger when finding
-	// the common entry passes the depth limit; a node holding nothing for a
-	// pool always asks for the whole ledger.
-	FastCatchUp bool
 
 	// Log receives connection events. Nil discards them.
 	Log io.Writer
+	// Logger, if set, is used instead of a plain logger on Log; the
+	// daemon passes the node's (node.Logger), which follows the node
+	// policy's log section.
+	Logger *slog.Logger
 }
 
 // DefaultConfig returns the provisional defaults.
 func DefaultConfig() Config {
 	return Config{
 		MaxPeers:       32,
-		Limits:         wire.Limits{ChunkSize: 1 << 20, EntryLimit: 512, HashLimit: 256, LayerLimit: 1 << 16},
+		Limits:         wire.Limits{ChunkSize: 1 << 20, EntryLimit: 512, HashLimit: 4096, LayerLimit: 1 << 16},
 		ServeEntries:   1024,
 		ServeHashes:    4096,
 		CheckEvery:     time.Minute,
@@ -216,8 +265,10 @@ func DefaultConfig() Config {
 		UnlistedConns:     8,
 		QueueShares:       [4]int{8, 4, 2, 1},
 		QueueLimit:        1024,
-		DepthLimit:        16,
-		ProvisionalLayers: 1 << 16,
+		ChaseSlice:        2 * time.Minute,
+		WeightlessPages:   64,
+		RequestPace:       480,
+		RequestPaceWindow: time.Minute,
 	}
 }
 
@@ -319,11 +370,32 @@ func (c *Config) fill() {
 	if c.QueueLimit == 0 {
 		c.QueueLimit = d.QueueLimit
 	}
-	if c.DepthLimit == 0 {
-		c.DepthLimit = d.DepthLimit
+	if c.ChaseSlice == 0 {
+		c.ChaseSlice = d.ChaseSlice
 	}
-	if c.ProvisionalLayers == 0 {
-		c.ProvisionalLayers = d.ProvisionalLayers
+	if c.RequestPace == 0 {
+		c.RequestPace = d.RequestPace
+	}
+	if c.RequestPaceWindow < paceBuckets {
+		c.RequestPaceWindow = d.RequestPaceWindow
+	}
+	if c.WeightlessPages <= 0 {
+		c.WeightlessPages = d.WeightlessPages
+	}
+	if c.LayersWhole <= 0 || c.LayersWhole > maxNonces {
+		c.LayersWhole = maxNonces
+	}
+	if c.PartsOver <= 0 || c.PartsOver > maxWhole {
+		c.PartsOver = maxWhole
+	}
+	if c.PartsReserve == 0 {
+		c.PartsReserve = 1 << 30
+	}
+	if c.ProgressGrace <= 0 {
+		c.ProgressGrace = 2 * time.Minute
+	}
+	if c.ProgressTTL <= 0 {
+		c.ProgressTTL = time.Hour
 	}
 }
 
@@ -336,9 +408,20 @@ type poolInfo struct {
 
 // Host runs the p2p side of one node.
 type Host struct {
+	// prog holds what yielded chases learned (see progress).
+	progMu    sync.Mutex
+	prog      map[progressKey]*progress
+	progOrder []progressKey
+	// encoded keeps the last large items encoded for parts requests
+	// (RED-017).
+	encoded partsCache
+
 	n   *node.Node
 	cfg Config
 	id  hash.Hash
+	log *slog.Logger
+	// recvLines caps the debug line for each received message.
+	recvLines lineCap
 
 	coverage []wire.Section
 	byPoolID map[hash.Hash]*poolInfo
@@ -371,6 +454,9 @@ type Host struct {
 	lastBcast map[wire.Section]time.Time
 	lastReg   time.Time
 	selfAddrs map[string]bool // addresses found to lead back to this node
+	// configured are the addresses in cfg.Peers, dialled whatever their
+	// range; read-only after New.
+	configured map[string]bool
 }
 
 // New prepares a host for n. Run starts it.
@@ -396,7 +482,14 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 
 		lastBcast: map[wire.Section]time.Time{},
 		selfAddrs: map[string]bool{},
+
+		configured: map[string]bool{},
 	}
+	h.log = cfg.Logger
+	if h.log == nil {
+		h.log, _ = logging.New(cfg.Log, "", "")
+	}
+	h.log = h.log.With(logging.Component, "p2p")
 	if h.book == nil {
 		h.book, _ = peers.Open("", peers.Limits{})
 	}
@@ -446,6 +539,7 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 		return nil, fmt.Errorf("p2p: following %d separate pools; follow whole series instead", len(h.coverage))
 	}
 	for _, a := range cfg.Peers {
+		h.configured[a] = true
 		h.book.Add(a, h.coverage, peers.FromConfig, time.Now())
 	}
 	n.Observe(h.onKept)
@@ -464,10 +558,6 @@ func (h *Host) sortedPools() []*poolInfo {
 		return out[i].key.Index < out[j].key.Index
 	})
 	return out
-}
-
-func (h *Host) logf(format string, args ...any) {
-	fmt.Fprintf(h.cfg.Log, "p2p: "+format+"\n", args...)
 }
 
 // ID returns this run's random node id.
@@ -498,7 +588,7 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 		h.mu.Lock()
 		h.ln = ln
 		h.mu.Unlock()
-		h.logf("listening on %s", ln.Addr())
+		h.log.Info("listening", "addr", ln.Addr().String())
 		h.wg.Add(1)
 		go h.acceptLoop(ln)
 	}
@@ -542,6 +632,13 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 	h.stopping = true
 	h.wgMu.Unlock()
 	h.wg.Wait()
+	// Parts of large entries fetched so far are not kept past a run.
+	h.progMu.Lock()
+	for _, st := range h.prog {
+		st.drop()
+	}
+	h.prog, h.progOrder = nil, nil
+	h.progMu.Unlock()
 	err := h.book.Save()
 	if terr := h.tr.Save(); err == nil {
 		err = terr
@@ -620,7 +717,7 @@ func (h *Host) dialLoop(ctx context.Context, addr string) {
 		start := time.Now()
 		err := h.dial(ctx, addr)
 		if err != nil {
-			h.logf("peer %s: %v", addr, err)
+			h.log.Info("dial failed", "addr", addr, "err", err)
 		}
 		if time.Since(start) > h.cfg.MaxRedial {
 			wait = h.cfg.Redial // it was up for a good while; retry soon
@@ -685,6 +782,7 @@ func (h *Host) checkLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			h.sweepProgress(time.Now())
 			for _, pi := range h.sortedPools() {
 				for _, p := range h.peersIn(pi.section, peers.CatPriority) {
 					h.spawn(func() {
@@ -799,4 +897,36 @@ func (c *idCache) add(id hash.Hash, now time.Time) bool {
 	}
 	c.seen[id] = now
 	return true
+}
+
+// lineCap bounds how many lines of one kind a host logs per second, so
+// a debug line written for every message a peer sends cannot let a flood
+// of messages, or a slow log sink, hold up every peer's read loop. Lines
+// over the cap are counted, and the count is logged when the next second
+// begins.
+type lineCap struct {
+	mu      sync.Mutex
+	second  int64
+	n       int
+	dropped int
+}
+
+// debugReceivedPerSecond caps the debug line for received messages.
+const debugReceivedPerSecond = 200
+
+// allow reports whether one more line may be logged now, and how many
+// were dropped in the second before, if this is the first line of a new
+// second.
+func (c *lineCap) allow(now time.Time, max int) (ok bool, dropped int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if s := now.Unix(); s != c.second {
+		c.second, c.n, dropped, c.dropped = s, 0, c.dropped, 0
+	}
+	if c.n >= max {
+		c.dropped++
+		return false, dropped
+	}
+	c.n++
+	return true, dropped
 }

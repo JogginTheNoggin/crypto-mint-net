@@ -13,10 +13,12 @@
 package wallet
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -39,6 +41,9 @@ var (
 	ErrLocked  = errors.New("wallet: locked; unlock it with its passphrase")
 	ErrExists  = errors.New("wallet: file exists")
 	ErrNoFunds = errors.New("wallet: not enough spendable units")
+	// ErrChanged: the wallet file changed since it was read, so Save
+	// wrote nothing rather than undo the other change (GUI-019, D145).
+	ErrChanged = errors.New("wallet: the file changed since it was read (another command saved it), so nothing was saved; run the command again")
 )
 
 // KeyInfo is one derived key. Public keys are kept in the clear so the
@@ -106,14 +111,22 @@ type Wallet struct {
 	path string
 	f    File
 	seed []byte // nil while locked
+	// read is the file as Open read it or Save last wrote it; nil for a
+	// new wallet. Save writes only over these bytes (GUI-019, D145).
+	read []byte
 }
 
 // Options are the settings of a new wallet. Zero values mean the defaults.
 type Options struct {
 	// Seed restores a wallet from its seed; nil makes a new random one.
 	Seed []byte
-	// Iterations is the PBKDF2 work factor.
+	// KDF names the key derivation sealing the seed: KDFArgon2id (the
+	// default) or KDFPBKDF2.
+	KDF string
+	// Iterations is the work factor: Argon2id passes or PBKDF2 iterations.
 	Iterations int
+	// Memory is Argon2id's memory in KiB.
+	Memory uint32
 	// Gap is how many unused keys to keep ahead.
 	Gap int
 	// Alg is the key algorithm of the wallet's keys; 0 means Ed25519. It
@@ -138,8 +151,9 @@ func Create(path, passphrase string, o Options) (*Wallet, error) {
 	if len(seed) != SeedSize {
 		return nil, fmt.Errorf("wallet: a seed is %d bytes", SeedSize)
 	}
-	if o.Iterations == 0 {
-		o.Iterations = DefaultIterations
+	kdf, err := newKDF(o.KDF, o.Iterations, o.Memory)
+	if err != nil {
+		return nil, err
 	}
 	if o.Gap <= 0 {
 		o.Gap = DefaultGap
@@ -150,7 +164,7 @@ func Create(path, passphrase string, o Options) (*Wallet, error) {
 	if _, err := derive(seed, o.Alg, 0); err != nil {
 		return nil, err
 	}
-	kdf, sealed, err := seal(seed, passphrase, o.Iterations)
+	kdf, sealed, err := seal(seed, passphrase, kdf)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +182,7 @@ func Open(path string) (*Wallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &Wallet{path: path}
+	w := &Wallet{path: path, read: b}
 	if err := json.Unmarshal(b, &w.f); err != nil {
 		return nil, fmt.Errorf("wallet: %s: %w", path, err)
 	}
@@ -226,12 +240,21 @@ func (w *Wallet) Seed() ([]byte, error) {
 	return append([]byte(nil), w.seed...), nil
 }
 
-// Rekey seals the seed again under a new passphrase.
+// Rekey seals the seed again under a new passphrase. A wallet sealed with
+// Argon2id keeps its settings; one sealed with PBKDF2 moves to Argon2id
+// with the default settings (decision D95).
 func (w *Wallet) Rekey(passphrase string) error {
 	if w.seed == nil {
 		return ErrLocked
 	}
-	kdf, sealed, err := seal(w.seed, passphrase, w.f.KDF.Iterations)
+	k := w.f.KDF
+	if k.Name != KDFArgon2id {
+		var err error
+		if k, err = newKDF(KDFArgon2id, 0, 0); err != nil {
+			return err
+		}
+	}
+	kdf, sealed, err := seal(w.seed, passphrase, k)
 	if err != nil {
 		return err
 	}
@@ -239,20 +262,48 @@ func (w *Wallet) Rekey(passphrase string) error {
 	return nil
 }
 
-// Save writes the wallet atomically, readable only by its owner.
+// Save writes the wallet atomically, readable only by its owner. It
+// takes a short lock beside the file (path + ".lock") and writes only if
+// the file is still what this wallet read or last wrote, so a command
+// that waited at a prompt never undoes another's change, such as a new
+// passphrase: it returns ErrChanged instead, and a new wallet whose file
+// appeared meanwhile returns ErrExists (GUI-019, D145).
 func (w *Wallet) Save() error {
 	b, err := json.MarshalIndent(w.f, "", "  ")
 	if err != nil {
 		return err
 	}
+	b = append(b, '\n')
 	if err := os.MkdirAll(filepath.Dir(w.path), 0o700); err != nil {
 		return err
 	}
-	tmp := w.path + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+	unlock, err := lockFile(w.path + ".lock")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, w.path)
+	defer unlock()
+	cur, err := os.ReadFile(w.path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		if w.read != nil {
+			return ErrChanged
+		}
+	case err != nil:
+		return err
+	case w.read == nil:
+		return ErrExists
+	case !bytes.Equal(cur, w.read):
+		return ErrChanged
+	}
+	tmp := w.path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, w.path); err != nil {
+		return err
+	}
+	w.read = b
+	return nil
 }
 
 // topUp derives keys until Gap unused ones follow the last used one. It

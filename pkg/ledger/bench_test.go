@@ -137,3 +137,46 @@ func BenchmarkLayerOnOldEntry(b *testing.B) {
 		mustLayer(b, p, layer.Layer{Entry: h, Nonce: uint64(i) + 1<<40})
 	}
 }
+
+// BenchmarkExtendLong measures BenchmarkExtend's step (an entry on the tip,
+// then a layer that selects it) on a selected ledger that is already n
+// entries long. Its cost should not grow with n.
+func BenchmarkExtendLong(b *testing.B) {
+	for _, n := range []int{100, 1000, 10000} {
+		b.Run(fmt.Sprintf("len=%d", n), func(b *testing.B) {
+			s := testutil.ExampleSeries()
+			k := testutil.NewKeys(s)
+			p, e0, claim := base(b, s, k)
+			es := chain(b, s, k, e0.Hash(s), claim, 4, "alice", n+b.N)
+			for _, e := range es[:n] {
+				mustAdd(b, p, e)
+			}
+			b.ResetTimer()
+			for i, e := range es[n:] {
+				mustAdd(b, p, e)
+				mustLayer(b, p, layer.Layer{Entry: e.Hash(s), Nonce: uint64(i)})
+			}
+		})
+	}
+}
+
+// BenchmarkOffChainBranch takes in a branch of b.N empty entries with no
+// layers, parent first: the time per entry must not grow with b.N
+// (RED-012).
+func BenchmarkOffChainBranch(b *testing.B) {
+	s := testutil.ExampleSeries()
+	p := ledger.New(s, 1, ledger.Config{K: ledger.DefaultK})
+	parent := p.ID()
+	es := make([]*entry.Entry, b.N)
+	for i := range es {
+		e, _, err := entry.Build(s, parent, nil, 0)
+		if err != nil {
+			b.Fatal(err)
+		}
+		es[i], parent = e, e.Hash(s)
+	}
+	b.ResetTimer()
+	for _, e := range es {
+		mustAdd(b, p, e)
+	}
+}

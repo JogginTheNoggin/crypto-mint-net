@@ -77,6 +77,9 @@ type Config struct {
 	// BadFor and BadSize bound the known-bad list.
 	BadFor  time.Duration
 	BadSize int
+	// YieldWait is how long a sender whose chase yielded waits before it
+	// goes on.
+	YieldWait time.Duration
 }
 
 // DefaultConfig returns the provisional defaults.
@@ -91,6 +94,7 @@ func DefaultConfig() Config {
 		Chases:        4, PerPool: 2, Unlisted: 1,
 		Backoff: 30 * time.Second, MaxBackoff: time.Hour,
 		BadFor: 24 * time.Hour, BadSize: 4096,
+		YieldWait: 5 * time.Second,
 	}
 }
 
@@ -131,6 +135,9 @@ func (c *Config) fill() {
 	if c.BadSize <= 0 {
 		c.BadSize = d.BadSize
 	}
+	if c.YieldWait <= 0 {
+		c.YieldWait = d.YieldWait
+	}
 }
 
 // Group is every stated weight that points at one branch of one pool.
@@ -147,6 +154,12 @@ type Group struct {
 	Asked bool `json:"asked,omitempty"`
 	// Denied lists priority peers that answered nothing heavier.
 	Denied []string `json:"denied,omitempty"`
+	// Waiting is why the group's last chase stopped for a while (it
+	// yielded or stalled), and WaitingSince when it first stopped for
+	// that reason, so an operator sees a chase that waits, such as one
+	// waiting for disk space (Black's RED-022 condition, D124).
+	Waiting      string    `json:"waiting,omitempty"`
+	WaitingSince time.Time `json:"waiting_since,omitzero"`
 
 	running string // the sender a chase of it runs with, if any
 }
@@ -583,8 +596,8 @@ type Outcome int
 const (
 	// Switched: the node switched to the branch, on weight it computed.
 	Switched Outcome = iota
-	// Nowhere: an honest failure (refused, stalled, not held, the depth
-	// limit, not heavier once checked). The sender is backed off and the
+	// Nowhere: an honest failure (refused, stalled, not held, not heavier
+	// once checked). The sender is backed off and the
 	// group carries on with its other senders.
 	Nowhere
 	// False: data that breaks the rules or contradicts itself. The hashes
@@ -600,10 +613,31 @@ const (
 	// Requeue: a priority peer confirmed the group, which waits for its
 	// next step with the priority peer as its best sender.
 	Requeue
+	// Yield: the chase stopped for a while, not for a fault: its time
+	// slice ran out, or the sender's budget is spent for now. The group
+	// keeps its senders and evidence, and the sender waits YieldWait with
+	// no backoff, so a long chase goes on later instead of being dropped
+	// (consensus audit P2, P4; D116).
+	Yield
+	// Stalled: a request to the sender timed out. The sender is backed off
+	// as after Nowhere, but it stays in the group and the chase's progress
+	// is kept, so a slow sender, or one whose budget is below this node's
+	// pace, only delays the chase (Black's B2, D124).
+	Stalled
+	// Slowed: a request timed out, but the chase took something in first
+	// (entries, layers, parts or counted work). The sender waits the first
+	// backoff step and its doubling starts again, it stays in the group,
+	// and the progress is kept, so a steady slow sender is not pushed to
+	// an hour between slices (Black's C-6, D129).
+	Slowed
 )
 
+// Keeps reports whether a chase that ended so keeps its progress for the
+// next chase of its group with the same sender.
+func (o Outcome) Keeps() bool { return o == Yield || o == Stalled || o == Slowed }
+
 func (o Outcome) String() string {
-	return [...]string{"switched", "nowhere", "false", "gone", "caught", "requeue"}[o]
+	return [...]string{"switched", "nowhere", "false", "gone", "caught", "requeue", "yield", "stalled", "slowed"}[o]
 }
 
 // Finish ends the running chase of group id and returns the group as it
@@ -636,8 +670,34 @@ func (q *Queue) Finish(id uint64, o Outcome, bad []hash.Hash, now time.Time) Gro
 		q.leaveLocked(id, sender)
 	case Requeue:
 		g.Evidence = q.evidenceLocked(g)
+	case Yield:
+		b := q.backoff[sender]
+		b.until = now.Add(q.cfg.YieldWait)
+		q.backoff[sender] = b
+		g.Evidence = q.evidenceLocked(g)
+	case Stalled:
+		q.backoffLocked(sender, now)
+		g.Evidence = q.evidenceLocked(g)
+	case Slowed:
+		q.backoff[sender] = backoff{until: now.Add(q.cfg.Backoff)}
+		g.Evidence = q.evidenceLocked(g)
 	}
 	return out
+}
+
+// Note records why group id's chase stopped for a while. A new reason
+// restarts WaitingSince; an empty one clears it.
+func (q *Queue) Note(id uint64, why string, now time.Time) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	g := q.groups[id]
+	if g == nil || g.Waiting == why {
+		return
+	}
+	g.Waiting, g.WaitingSince = why, now
+	if why == "" {
+		g.WaitingSince = time.Time{}
+	}
 }
 
 func (q *Queue) dropLocked(g *Group) {

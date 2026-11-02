@@ -26,7 +26,8 @@ const walletUsage = `poo wallet: keys, payments and requests from one seed
 
 Usage: poo wallet COMMAND [flags]
 
-  create [-restore HEX] [-gap N]   make a wallet (or restore one from its seed)
+  create [-restore -|HEX] [-gap N] make a wallet (or restore one from its seed;
+                                  - reads it hidden)
   seed                             print the seed (keep it secret)
   passwd                           seal the seed under a new passphrase
   address [-label TEXT]            give out a fresh address
@@ -56,8 +57,8 @@ comes from $POO_PASSPHRASE, -passphrase-file, or a line on standard input.
 The series and node come from the node policy flags, as for other commands.
 `
 
-// createIterations is the PBKDF2 work factor of new wallets; zero means
-// the default. Tests lower it.
+// createIterations is the work factor of new wallets (Argon2id passes,
+// decision D95); zero means the default. Tests lower it.
 var createIterations int
 
 // walletFlags are the flags shared by wallet commands.
@@ -94,12 +95,24 @@ func (f *walletFlags) passphrase(out io.Writer, prompt string) (string, error) {
 		}
 		return strings.TrimRight(string(b), "\r\n"), nil
 	}
-	fmt.Fprint(out, prompt)
-	line, err := inputOf(out).ReadString('\n')
-	if err != nil && (err != io.EOF || line == "") {
+	p, err := readSecret(out, prompt)
+	if errors.Is(err, errNoInput) {
 		return "", errors.New("no passphrase: set POO_PASSPHRASE or use -passphrase-file")
 	}
-	return strings.TrimRight(line, "\r\n"), nil
+	return p, err
+}
+
+// newPassphrase reads a new wallet's passphrase as passphrase does,
+// asking for it twice when it is typed (GUI-020, D145).
+func (f *walletFlags) newPassphrase(out io.Writer) (string, error) {
+	if _, ok := os.LookupEnv("POO_PASSPHRASE"); ok || *f.passFile != "" {
+		return f.passphrase(out, "")
+	}
+	p, err := readNewSecret(out, "new passphrase: ")
+	if errors.Is(err, errNoInput) {
+		return "", errors.New("no passphrase: set POO_PASSPHRASE or use -passphrase-file")
+	}
+	return p, err
 }
 
 func (f *walletFlags) open() (*wallet.Wallet, error) { return wallet.Open(f.file()) }
@@ -142,8 +155,8 @@ func (f *walletFlags) series() (*series.Series, error) {
 }
 
 // node dials the running node as the wallet's Node.
-func (f *walletFlags) node(s *series.Series) (wallet.Node, error) {
-	cl, err := f.c.dial()
+func (f *walletFlags) node(out io.Writer, s *series.Series) (wallet.Node, error) {
+	cl, err := f.c.dial(out)
 	if err != nil {
 		return nil, err
 	}
@@ -218,12 +231,12 @@ func walletCmd(args []string, out io.Writer) error {
 	if !ok {
 		return fmt.Errorf("unknown wallet command %q\n\n%s", args[0], walletUsage)
 	}
-	fs := flag.NewFlagSet("wallet "+args[0], flag.ContinueOnError)
+	fs := newFlagSet("wallet "+args[0], out)
 	return cmd(fs, addWallet(fs), args[1:], out)
 }
 
 func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
-	restore := fs.String("restore", "", "restore from this seed (64 hex digits)")
+	restore := fs.String("restore", "", "restore from a seed: - to type it hidden (or read a line of standard input), or 64 hex digits, which other users can read on the command line")
 	gap := fs.Int("gap", 0, fmt.Sprintf("unused keys to keep ahead (default %d)", wallet.DefaultGap))
 	algName := fs.String("alg", "ed25519", "key algorithm of every key, by name or number (poo crypto); fixed for the wallet's life")
 	if err := fs.Parse(args); err != nil {
@@ -235,7 +248,16 @@ func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	}
 	o := wallet.Options{Gap: *gap, Iterations: createIterations, Alg: alg}
 	if *restore != "" {
-		seed, err := hex.DecodeString(*restore)
+		text := *restore
+		if text == "-" {
+			// Read like a passphrase, so a terminal or the GUI hides it
+			// (GUI-006).
+			if text, err = readSecret(out, "seed: "); err != nil {
+				return err
+			}
+			text = strings.TrimSpace(text)
+		}
+		seed, err := hex.DecodeString(text)
 		if err != nil || len(seed) != wallet.SeedSize {
 			return fmt.Errorf("-restore must be %d hex digits", 2*wallet.SeedSize)
 		}
@@ -244,7 +266,7 @@ func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if _, err := os.Stat(f.file()); err == nil {
 		return fmt.Errorf("%s exists", f.file())
 	}
-	p, err := f.passphrase(out, "new passphrase: ")
+	p, err := f.newPassphrase(out)
 	if err != nil {
 		return err
 	}
@@ -297,9 +319,9 @@ func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	case ok:
 		p = v
 	default:
-		fmt.Fprint(out, "new passphrase: ")
-		line, _ := inputOf(out).ReadString('\n')
-		p = strings.TrimRight(line, "\r\n")
+		if p, err = readNewSecret(out, "new passphrase: "); err != nil && !errors.Is(err, errNoInput) {
+			return err
+		}
 	}
 	if p == "" {
 		return errors.New("the new passphrase must not be empty")
@@ -354,7 +376,11 @@ type ownerInfo struct {
 }
 
 func walletAddresses(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	s, err := f.series()
@@ -370,7 +396,7 @@ func walletAddresses(fs *flag.FlagSet, f *walletFlags, args []string, out io.Wri
 		rows = append(rows, ownerInfo{o.Address, o.Key, o.Shared, o.Label, o.Used})
 	}
 	sortOwners(rows)
-	return writeJSON(out, rows)
+	return o.write(out, rows)
 }
 
 // sortOwners orders keys by index, then shared policies by name.
@@ -442,28 +468,53 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if len(pools) == 0 {
 		return errors.New("the wallet watches no mints of this series (poo wallet watch)")
 	}
-	path := filepath.Join(f.c.w.resolve(), nodepolicy.FileName)
+	dir := f.c.w.resolve()
+	path := filepath.Join(dir, nodepolicy.FileName)
+	id := s.ID()
+	// A running node changes its own node.json: the series' rule is
+	// replaced by the wallet's pools, then applied. Only with no node
+	// answering is the file written here, under the lock a running node
+	// holds (RED-030, D136).
+	var nodeErr error
+	if cl, err := dialNode(out, dir); err == nil {
+		// One request, so the node never saves the series off its list
+		// between a removal and an add (GUI-018, D139).
+		if _, err = cl.Follow(rpc.FollowRequest{Replace: true, Series: &id, Pools: pools}); err == nil {
+			waitBack(out, dir)
+			fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applied it\n", path, id.Short(), pools)
+			return nil
+		}
+		var re *rpc.Error
+		if errors.As(err, &re) {
+			return err
+		}
+		nodeErr = err
+	}
+	unlock, err := lockPolicy(dir, "follow list", nodeErr)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	p, err := nodepolicy.Load(path)
 	if err != nil {
 		return err
 	}
-	id := s.ID()
-	var follow []nodepolicy.Follow
-	for _, fl := range p.Follow {
-		if fl.Series == nil || *fl.Series != id {
-			follow = append(follow, fl)
-		}
+	if err := p.ReplaceFollow(nodepolicy.Follow{Series: &id, Pools: pools}); err != nil {
+		return err
 	}
-	p.Follow = append(follow, nodepolicy.Follow{Series: &id, Pools: pools})
 	if err := nodepolicy.Save(path, p); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "wrote %s: series %s follows pools %v; restart the node to apply\n", path, id.Short(), pools)
+	fmt.Fprintf(out, "wrote %s: series %s follows pools %v; the node applies it when it starts\n", path, id.Short(), pools)
 	return nil
 }
 
 func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	s, err := f.series()
@@ -474,7 +525,7 @@ func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -488,7 +539,7 @@ func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 		mints[strconv.FormatUint(serial, 10)] = a
 		total += a
 	}
-	return writeJSON(out, map[string]any{"mints": mints, "total": total})
+	return o.write(out, map[string]any{"mints": mints, "total": total})
 }
 
 func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
@@ -504,7 +555,7 @@ func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -539,7 +590,7 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -661,7 +712,7 @@ func walletReceive(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 			return err
 		}
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -687,7 +738,11 @@ type sentStatus struct {
 
 func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
 	threshold := fs.String("threshold", "", "from(e) needed for settled (default 0)")
+	o := addOutput(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
 		return err
 	}
 	th, err := parseThreshold(*threshold)
@@ -702,7 +757,7 @@ func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -720,7 +775,7 @@ func walletStatus(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err := w.Save(); err != nil {
 		return err
 	}
-	return writeJSON(out, rows)
+	return o.write(out, rows)
 }
 
 func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
@@ -735,7 +790,7 @@ func walletResend(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
@@ -871,7 +926,7 @@ func walletSubmit(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
-	n, err := f.node(s)
+	n, err := f.node(out, s)
 	if err != nil {
 		return err
 	}
