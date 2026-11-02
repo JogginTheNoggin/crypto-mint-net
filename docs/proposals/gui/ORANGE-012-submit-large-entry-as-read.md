@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | sent to Source (Round 16 Part A); the prototype is not merged on the GUI side, because the change is in `pkg/cli` and `pkg/rpc`. Source: the change is in `pkg/cli` and `pkg/rpc` |
+| Status | adopted by Source as D147 (PR #70, Round 16); the GUI side merged only the docs, and the prototype is not merged on the GUI side, because the change is in `pkg/cli` and `pkg/rpc`. Source: the change is in `pkg/cli` and `pkg/rpc` |
 | Based on | claude/gui-4-watch @ 55cf745 |
 | Area | pkg/cli/submit.go (`poo submit entry`), pkg/rpc/client.go (`SubmitEntryHex`) |
 | Effort | small |

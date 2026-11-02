@@ -10,7 +10,8 @@
 //	GET  /api/jobs                                the kept jobs
 //	GET  /api/jobs/{id}/events?from=N             the job's output as server-sent
 //	                                              events: chunk, dropped, state, exit
-//	POST /api/jobs/{id}/input   {line}            send a line to the job's input
+//	POST /api/jobs/{id}/input   {line, more}      send a line to the job's input;
+//	                                              more: a part of it, no end of line
 //	POST /api/jobs/{id}/eof                       end the job's input, as Ctrl-D does
 //	POST /api/jobs/{id}/cancel                    stop the job
 //	POST /api/run               {args} or {line}  run to the end: {code, out, err, command}
@@ -342,14 +343,21 @@ func (s *Server) input(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// more marks a part of a line longer than one request may carry
+	// (MaxBody): it is added with no end of line (ORANGE-013).
 	var body struct {
 		Line string `json:"line"`
+		More bool   `json:"more"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := j.Input(body.Line); err != nil {
+	add := j.Input
+	if body.More {
+		add = j.InputPart
+	}
+	if err := add(body.Line); err != nil {
 		writeErr(w, http.StatusConflict, err.Error())
 		return
 	}

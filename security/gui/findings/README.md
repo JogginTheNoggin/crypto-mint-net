@@ -5,6 +5,29 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 16 Part B reviewed main @ 6a1cdce, the first base after the stack
+was merged:
+- GUI/Blue's GUI-021 fix (#68): Stop fails the read, and an explicit end
+  of input is added (`/eof`, Ctrl-D, End input, "Send and end input").
+- GUI-GREEN-041:
+  - the build and work grind fields (`-device`, `-threads`, `-for`,
+    `-max-tries`, `-start`, `-serial`);
+  - the Wallet view's shared `-series` picker;
+  - `receive -serial/-tid` pairs.
+
+GUI-021 is verified live:
+- Stop exits 1 and the node does not get the entry.
+- End of input submits it.
+- End of input at a passphrase prompt fails with "nothing was entered".
+
+GUI-GREEN-041 is safe:
+- Each new field is one argv element.
+- build and work stay write commands, refused in view-only mode.
+- The series picker keeps only a series id in browser storage, never a
+  secret.
+
+There are no new findings. GUI-017's Windows residual is unchanged (Source).
+
 Round 15 Part B reviewed `claude/gui-4-watch @ 55cf745`:
 - Source 46bcb9e: the wallet's compare-and-write lock and the new
   passphrase confirm (D145).
@@ -217,4 +240,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-018](GUI-018-wallet-follow-two-step-loses-rule.md) | Low | `poo wallet follow` changes a running node in two requests (remove, then add), so a failure in between drops the series' follow rule while saying "nothing was changed" | fixed by Source (BLUE-013), merged Round 13; verified R13B @ 376e964; GUI terminal e2e check added R13C |
 | [GUI-019](GUI-019-wallet-commands-overwrite-each-other.md) | Medium | Wallet commands read the whole wallet.json and write it back; one waiting at a passphrase prompt in another form undoes the rest, even a passphrase change (the old passphrase works again) | fixed by Source (wallet.Save compare-and-write, D145), merged Round 15; verified R15B @ 55cf745 |
 | [GUI-020](GUI-020-new-passphrase-not-confirmed.md) | Low | A new wallet passphrase is typed once into a masked field and never confirmed, so a typo locks the wallet | fixed by Source (asks twice, D145), merged Round 15; the GUI shows the second ask (State.Asks); verified R15B @ 55cf745 |
-| [GUI-021](GUI-021-stop-submits-pasted-entry.md) | Low | Stop (or Ctrl-C in the terminal) on `poo submit -f -` hands the pasted entry or layer to the node: a cancelled job's input reads as end of input, and the GUI has no other end of input | fixed by GUI/Blue in Round 15C (Stop fails the read; `/eof`, Ctrl-D, "Send and end input"); awaiting verification |
+| [GUI-021](GUI-021-stop-submits-pasted-entry.md) | Low | Stop (or Ctrl-C in the terminal) on `poo submit -f -` hands the pasted entry or layer to the node: a cancelled job's input reads as end of input, and the GUI has no other end of input | fixed by GUI/Blue (PR #68), merged Round 15; verified R16B @ 6a1cdce |

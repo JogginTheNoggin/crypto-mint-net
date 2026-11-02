@@ -71,10 +71,12 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
         askInput.type = 'password';
         showBtn.setAttribute('aria-pressed', 'false');
         ask.hidden = true;
-        return api.input(j.id, v).catch(e => { err += `poo-gui: ${e.message}\n`; });
+        return api.input(j.id, v).then(() => true, e => { err += `poo-gui: ${e.message}\n`; return false; });
       };
+      // The input is ended only once what is typed has arrived whole: a
+      // send that failed must not leave the command reading half of it.
       endBtn.onclick = async () => {
-        if (askInput.value !== '') await ask.onsubmit(new Event('submit'));
+        if (askInput.value !== '' && !(await ask.onsubmit(new Event('submit')))) return;
         ask.hidden = true;
         api.eof(j.id).catch(e => { err += `poo-gui: ${e.message}\n`; });
       };
