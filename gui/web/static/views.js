@@ -441,7 +441,18 @@ const nodeView = {
       setTimeout(showRunning, 200);
     };
     showRunning();
-    const status = panel(ctx, { title: 'Followed pools', about: 'What the running node follows, and where each pool stands.', args: () => ['status', ...where.flags()], refresh: 5000 });
+    // poo status says when node.json changed since the node loaded it and
+    // the change waits for a reload (Source GREEN-037). The panel says so
+    // above what it shows, with the Reload form's own button (GREEN-038).
+    const status = panel(ctx, { title: 'Followed pools', about: 'What the running node follows, and where each pool stands.', args: () => ['status', ...where.flags()], refresh: 5000,
+      onResult: (r, area) => {
+        let st;
+        try { st = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        if (!st || !st.policy_changed) return;
+        area.prepend(el('p', { class: 'next-step policy-changed', role: 'status' },
+          'The node policy file has changed since the node loaded it, and the change waits for a reload. ',
+          el('button', { type: 'button', class: 'small', onclick: () => reload.run({}) }, 'Reload now')));
+      } });
     const init = form(ctx, {
       title: 'Write a node policy',
       about: 'Creates the node policy (settings, series to follow) and makes it current.',
@@ -472,7 +483,7 @@ const nodeView = {
     const unfollow = form(ctx, { title: 'Follow less', fields: [...followFields, { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
       args: v => followArgs('unfollow', v), submit: 'Unfollow', danger: true });
     const reload = form(ctx, { title: 'Reload the node policy', about: 'Makes the running node apply its node policy file as it now stands.', fields: [],
-      args: () => ['reload', ...where.flags()], submit: 'Reload' });
+      args: () => ['reload', ...where.flags()], submit: 'Reload', onResult: r => { if (r.code === 0) status.reload(); } });
     const t = setInterval(showRunning, 3000);
     // poo doctor checks the policy, files, series, RPC and P2P in one go.
     // Its report is drawn as a checklist; the raw output stays one click away.
