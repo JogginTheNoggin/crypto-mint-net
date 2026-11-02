@@ -7,7 +7,8 @@
 // offline commands for keys, series and an in-process demo. The node
 // finds peers from its node policy, address registries and its peers, ranks
 // them, and tracks how they behave; the owner can inspect and act on them
-// (poo peers, poo peer, poo tracking, poo chases).
+// (poo peers, poo peer, poo tracking, poo chases). poo wallet keeps a
+// holder's keys and pays, requests and watches payments through the node.
 package main
 
 import (
@@ -54,6 +55,8 @@ Usage:
   poo holdings -serial N      unspent portions of a mint
   poo policy list|use|archive|unarchive|delete [-root DIR] [NAME]
                               manage saved and archived node policies
+  poo wallet COMMAND          keys from one seed, payments, requests,
+                              co-signing and light mode (poo wallet help)
 
   poo version                 print the version
   poo keygen [-seed HEX]      make an Ed25519 key and its 1-of-1 address
@@ -122,6 +125,8 @@ func run(args []string, out io.Writer) error {
 		return holdingsCmd(args[1:], out)
 	case "policy":
 		return policyCmd(args[1:], out)
+	case "wallet":
+		return walletCmd(args[1:], out)
 	case "help", "-h", "--help":
 		fmt.Fprint(out, usage)
 		return nil

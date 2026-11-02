@@ -5,8 +5,10 @@
 The command-line tool. `poo node` runs the full node daemon with its store,
 its peer connections, its peer tracker (`tracking.json`) and local RPC; client commands talk to it; `poo policy` manages node
 policies; offline commands make keys, inspect series and run an in-process
-demo. `claim` and `pay` sign with a single raw key and exist so a node can
-be exercised end to end; the wallet comes in milestone 6. See
+demo. `poo wallet` keeps a holder's keys and pays, requests, co-signs and
+follows payments through the node ([wallet.md](wallet.md)). `claim` and
+`pay` sign with a single raw key and exist so a node can be exercised
+without a wallet. See
 [../running-a-node.md](../running-a-node.md) for a walk-through.
 
 ## Commands
@@ -27,6 +29,7 @@ be exercised end to end; the wallet comes in milestone 6. See
 | `poo payment -serial N -tid HASH` | Where a transaction stands, and the weight behind it |
 | `poo holdings -serial N` | Unspent portions of a mint |
 | `poo policy list\|use\|archive\|unarchive\|delete [-root DIR] [NAME]` | Manages node policies (flags before NAME) |
+| `poo wallet COMMAND` | The wallet; see below |
 | `poo version` | Prints the version |
 | `poo keygen [-seed hex]` | A new Ed25519 key and its 1-of-1 address |
 | `poo series example` | The example series parameters as JSON |
@@ -38,10 +41,41 @@ Node and client commands choose a data directory with `-dir`, or with
 node policy, else `default`). Client commands take `-series ID` when the
 node follows more than one series.
 
+## Wallet commands
+
+The wallet file is `-wallet FILE`, default `wallet.json` in `-root`. The
+passphrase is read from `$POO_PASSPHRASE`, `-passphrase-file FILE`, or a
+line on standard input (which is echoed: prefer the file or the
+variable in scripts). The series comes from the node policy, so commands
+that do not need the node (`create`, `seed`, `address`, `addresses`,
+`watch`, `request`, `policy`, `cosign`, `follow`) work with the node
+stopped. Flags go before positional arguments.
+
+| Command | Does |
+| --- | --- |
+| `create [-restore HEX] [-gap N]` | Makes a wallet with a new random seed, or restores one from its seed |
+| `seed` | Prints the seed: everything needed to restore the wallet |
+| `passwd [-new-passphrase-file FILE]` | Seals the seed under a new passphrase (`$POO_NEW_PASSPHRASE`) |
+| `address [-label TEXT]` | Gives out a fresh address, with its public key for co-signers |
+| `addresses` | Every address the wallet watches: derived keys (the gap included) and shared policies |
+| `watch [-serial N]... [-pool K]...` | Adds mints to look for portions in |
+| `follow` | Rewrites the node policy to follow only the pools of the watched mints (light mode); restart the node to apply |
+| `balance` | Spendable units per watched mint |
+| `claim -serial N` | Claims a whole mint for a fresh address |
+| `pay -to ADDR -amount A [-mint N]... [-memo TEXT] [-out FILE]` | Pays an address; with a shared policy, writes the payment for co-signers to `-out` |
+| `pay -request FILE [-out FILE]` | Checks a payment request and pays it |
+| `request -amount A [-memo TEXT] [-out FILE]` | Writes a payment request to a fresh address |
+| `receive (-address ADDR \| -request FILE) [-serial N -tid HASH]... [-threshold W]` | What has arrived for a request, and whether it is settled |
+| `status [-threshold W]` | Every payment sent: each leg's state, from(e), rivals, and settled |
+| `resend` | Sends dropped legs again |
+| `policy -name NAME -k K -key self\|ALG:HEX\|HEX... [-label TEXT]` | Records a shared k-of-n policy and prints its address |
+| `cosign FILE` | Adds this wallet's signatures to a payment file, in place |
+| `submit FILE` | Sends a payment whose signatures are complete |
+
 ## Code
 
 `main.go` dispatches through `run(args, out)` so tests can call it
 directly; `node.go` holds the daemon, client and policy commands;
-`demo.go` holds the demo. `node_test.go` runs a daemon in-process and drives
+`wallet.go` holds the wallet commands; `demo.go` holds the demo. `node_test.go` runs a daemon in-process and drives
 it only through the commands, across a restart; `TestTwoNodes` runs two
 daemons where the second lists the first as a peer.

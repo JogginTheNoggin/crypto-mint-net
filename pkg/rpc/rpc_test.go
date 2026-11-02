@@ -2,6 +2,7 @@ package rpc_test
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -98,7 +99,7 @@ func TestPaymentFlow(t *testing.T) {
 	if r.TID != claim.TID(f.s.Hash()) || r.Pool != 1 || !r.Forward {
 		t.Fatalf("%+v", r)
 	}
-	if p, _ := f.c.Payment(f.s.ID(), 4, r.TID); !p.Pending || p.Selected {
+	if p, _ := f.c.Payment(f.s.ID(), 4, r.TID); !p.Pending || p.Selected || p.Tx != hex.EncodeToString(claim.Encode()) {
 		t.Fatalf("payment %+v", p)
 	}
 	b, err := f.c.Build(f.pool, 0)

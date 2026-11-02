@@ -59,6 +59,49 @@ has no weight until a layer lands on it, so it is held but not selected;
 would have to beat to reverse the payment. That is the number a receiver
 compares with its threshold.
 
+## 4b. The same with a wallet
+
+`poo claim` and `poo pay` sign with a raw key. A wallet keeps every key
+behind one seed and a passphrase, uses a fresh address for every payment,
+and follows each payment's weight:
+
+```sh
+export POO_PASSPHRASE='a long passphrase'   # or -passphrase-file FILE
+./poo wallet create -wallet alice.wallet     # then: poo wallet seed, and back it up
+./poo wallet create -wallet bob.wallet
+./poo wallet watch -wallet alice.wallet -serial 5
+./poo wallet watch -wallet bob.wallet -pool 1
+./poo wallet claim -wallet alice.wallet -serial 4
+./poo build -pool 1 -work 100000
+./poo wallet request -wallet bob.wallet -amount 30 -memo lunch -out req.json
+./poo wallet pay -wallet alice.wallet -request req.json   # note each leg's tid
+./poo wallet receive -wallet bob.wallet -request req.json -serial 4 -tid TID
+./poo build -pool 1 -work 100000
+./poo wallet receive -wallet bob.wallet -request req.json -threshold 50000
+./poo wallet status -wallet alice.wallet
+```
+
+The request carries the policy behind Bob's address, so Alice's wallet
+checks it before paying. `receive` shows each leg as pending, then
+selected with its `from` and any known rival; `settled` is true once
+every leg is selected, ahead of every rival and at the threshold. A leg
+the node no longer holds is `dropped` (send it again with `poo wallet
+resend`) or `void` if another transaction spent its input.
+
+A shared policy needs every co-signer's signature:
+
+```sh
+./poo wallet address -wallet bob.wallet          # note "public"
+./poo wallet policy -wallet alice.wallet -name joint -k 2 -key self -key BOB_PUBLIC
+./poo wallet pay -wallet alice.wallet -to JOINT_OR_OTHER_ADDRESS -amount 10 -out pay.json
+./poo wallet cosign -wallet bob.wallet pay.json
+./poo wallet submit -wallet alice.wallet pay.json
+```
+
+For a lighter node, `poo wallet follow` rewrites the node policy to follow
+only the pools of the mints the wallet watches; restart the node to apply
+it. See [modules/wallet.md](modules/wallet.md).
+
 ## 5. Restart
 
 Stop the node and start it again. `poo status` shows the same tips and
@@ -156,5 +199,9 @@ node holds a lock on its directory.
   switches only on weight it computed (decisions D52 to D54). Nothing the
   tracker records is sent to other nodes.
 - `poo claim` and `poo pay` take a raw seed on the command line, which your
-  shell may save in its history. They are developer tools until the wallet
-  (milestone 6).
+  shell may save in its history; use `poo wallet` instead. The wallet file
+  holds the seed sealed with your passphrase (decision D64) and is
+  readable only by your user, but the seed printed by `poo wallet seed`
+  restores every key: keep it offline. Reading the passphrase from
+  standard input echoes it; prefer `-passphrase-file` or
+  `POO_PASSPHRASE` in a private shell.

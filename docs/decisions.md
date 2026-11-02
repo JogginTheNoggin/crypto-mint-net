@@ -31,7 +31,13 @@ measures kept by address (D50), bad data costing flags rather than
 connections (D55), deleting that does not ban (D57), priority and backup
 slots in place of a peer count (D58), regular checks that ask for stated
 weight (D59), points with fair comparisons (D61) and provisional defaults
-for all of it (D62).
+for all of it (D62). Milestone 6 adds the wallet: keys derived from one
+seed with a gap limit (D63), the seed sealed with PBKDF2 and AES-GCM
+(D64), coin selection that keeps a payment in one mint or pool (D65), leg
+states that tell a dropped payment from a void one (D66), rivals and the
+settled rule (D67), payment requests that carry the policy (D68),
+co-signing through a file (D69), and light mode as a full node following
+less (D70).
 
 Add a new entry for every new decision. Never renumber; mark a replaced
 entry "Superseded by Dn".
@@ -766,4 +772,132 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   sized so a single misbehaving peer is noticed within minutes and a
   burst from honest peers is not punished. Milestone 7's simulator should
   replace them with measured values.
+- **Tier:** Node policy.
+
+### D63. Keys from one seed, with a gap limit
+
+- **Decision:** A wallet holds one random 32-byte seed. Key *i* is the
+  Ed25519 key with seed HMAC-SHA256(seed, `PoO-wallet-ed25519-v1` ∥
+  U32(i)), and its address is the 1-of-1 threshold policy of that key.
+  Each payment, request and change output takes the next unused key. The
+  wallet derives and watches 20 unused keys past the last one used (the
+  gap), so a wallet restored from the seed finds payments to every address
+  it gave out unless more than 20 in a row went unused.
+- **Why:** The design's section 17.6 asks for one address per payment so
+  payments are not linked by address, and for a backup that does not
+  change as addresses are made. One seed and a deterministic derivation
+  give both. HMAC-SHA256 with a domain label is a standard KDF from the
+  standard library; a hierarchical scheme (BIP32-style) adds public
+  derivation the wallet does not need yet. The derivation is a wallet
+  convention, not a protocol rule; another wallet may derive differently.
+- **Tier:** Wallet (none of the three tiers: invisible to the network).
+
+### D64. The seed is sealed with PBKDF2 and AES-GCM
+
+- **Decision:** The wallet file holds the seed encrypted with AES-256-GCM
+  under a key from PBKDF2-HMAC-SHA256 of the passphrase with a random
+  16-byte salt and 600,000 iterations, with the additional data
+  `PoO-wallet-seed-v1`. The work factor and salt are stored in the file.
+  Public keys, labels, watched mints and payments are kept in the clear,
+  so a locked wallet lists addresses and follows payments. The file is
+  written atomically with mode 0600.
+- **Why:** Standard library only (decision D1) rules out scrypt and
+  Argon2; PBKDF2-SHA256 at 600,000 iterations is the current OWASP
+  guidance for it. GCM authenticates, so a wrong passphrase or a damaged
+  file is detected rather than producing a wrong seed. Keeping the public
+  parts clear lets watching run without the passphrase in memory.
+- **Tier:** Wallet.
+
+### D65. Coin selection: one mint, else one pool, else fewest pools
+
+- **Decision:** A payment is paid from one mint when one mint can cover
+  it, choosing the mint needing the fewest inputs, then the least change.
+  Otherwise from the one pool needing the fewest mints. Otherwise across
+  pools, largest totals first. Within a mint, the smallest single portion
+  that covers the amount, else portions largest first. Each mint used is
+  one transaction (a leg) with change to a fresh address.
+- **Why:** A transaction spends only one mint (the design's transaction rules), so a
+  payment across mints must be several transactions. Legs in one pool
+  settle under one ledger's weight; legs across pools settle separately
+  (section 7.6), so fewer pools means fewer things to wait for. The design
+  also advises keeping value in few mints; preferring one mint and the
+  least change does that.
+- **Tier:** Wallet.
+
+### D66. Leg states: dropped and void
+
+- **Decision:** Each leg is `unsigned`, `pending`, `selected`, `dropped`
+  or `void`. When the node holds neither the leg nor an entry with it, the
+  wallet reads the inputs' mint: if every input is still unspent the leg
+  is `dropped` and can be sent again (`Resend`); otherwise another
+  transaction spent an input and the leg is `void`. For a claim, a mint
+  that already has portions means void. The wallet reserves the inputs of
+  its own unsigned and pending legs so it does not spend them twice.
+- **Why:** The design's section 6.6 distinguishes a carried transaction
+  (still valid after a switch) from a void one (it conflicts). A node may
+  also simply drop a pending transaction (the pending limits of decision D12).
+  The holder needs to know which, because only a dropped one can be
+  resent. The node reports holdings at its selected tip only, so the
+  wallet must remember what it already spent.
+- **Tier:** Wallet.
+
+### D67. Rivals and settled
+
+- **Decision:** The ledger reports, for a transaction, every inactive
+  branch with an entry holding another transaction that spends one of its
+  inputs, with that branch's weight after its fork (`Ledger.Rivals`); the
+  engine and the RPC return it with the payment. A leg is ahead when its
+  from(e) is greater than the heaviest rival's weight after its fork. A
+  payment is settled when every leg is selected, ahead, and has from(e)
+  at least the receiver's threshold (default 0).
+- **Why:** The design's section 7.3 measures a payment's safety by the
+  margin a rival must overcome, and 7.4 leaves the threshold to the
+  receiver by the payment's value. A node that keeps the top K branches
+  (decision D12) already knows the rivals that matter; showing them turns
+  "how much weight is behind it" into "how far ahead is it". A rival the
+  node does not hold cannot be shown, so the threshold still matters.
+- **Tier:** Node policy (what is reported); the rule itself is the
+  receiver's.
+
+### D68. Payment requests carry the policy
+
+- **Decision:** A payment request is JSON: series, a fresh address, the
+  amount, a memo and the encoded policy behind the address. The payer's
+  wallet checks the policy hashes to the address, that the series allows
+  its type and key algorithms, and declines unknown policy types, before
+  paying. The receiver records the request and the tids the payer names,
+  and finds legs both by those tids and by portions at the address.
+- **Why:** The design's section 17.6 asks that a payer can check an
+  address is spendable under the series' rules before paying, which needs
+  the policy, not just its hash. Only the payer learns it; the network
+  sees the policy only when the receiver spends.
+- **Tier:** Wallet.
+
+### D69. Co-signing through a file
+
+- **Decision:** A payment from a shared policy that this wallet cannot
+  complete is written as an `Unsigned` JSON file: each leg's transaction
+  and, per input, the policy and the signatures gathered. Co-signers add
+  theirs (`poo wallet cosign`) and the payer submits it (`poo wallet
+  submit`); submission only accepts a payment the wallet recorded, so its
+  inputs stay reserved and followed.
+- **Why:** The tid leaves out witnesses (the design's transaction id), so every
+  co-signer signs the same tid independently and signatures can be
+  gathered in any order and by any channel. A plain file keeps the wallet
+  free of a network protocol of its own; an external or hardware signer
+  can use the same hand-off.
+- **Tier:** Wallet.
+
+### D70. Light mode is a full node following less
+
+- **Decision:** Light mode is not a separate client: it is a full node
+  whose node policy follows only the pools of the mints the wallet
+  watches (`poo wallet follow`). It checks every rule for those pools.
+  Verifying only some mints of a pool, or trusting another node's
+  answers, is not done.
+- **Why:** The design's following model already lets a node keep less,
+  and a node that follows a pool verifies it without trusting anyone. A
+  pool's entries carry every mint of the pool, so a pool is the smallest
+  unit a node can check on its own; anything lighter means trusting a
+  peer's word, which the design avoids.
 - **Tier:** Node policy.

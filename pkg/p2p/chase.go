@@ -65,11 +65,9 @@ func (h *Host) chaseLoop(ctx context.Context) {
 			if !ok {
 				break
 			}
-			h.wg.Add(1)
-			go func() {
-				defer h.wg.Done()
+			h.spawn(func() {
 				h.runJob(j)
-			}()
+			})
 		}
 		wait := h.cq.Wait(time.Now())
 		if wait <= 0 || wait > time.Second {

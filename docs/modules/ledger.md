@@ -21,6 +21,12 @@ plus the top K other branches. It reproduces the design's worked example
 - Queries: `Tip`, `Weight`, `Height`, `Len`, `State`, `Has`, `Entry`,
   `Info`, `Layers`, `InSelected`, `From(h)` (weight added since entry h),
   `Locate(tid)`, `Chain`, `HeightOf`, `Branches`, `SetK`.
+- `Rivals(t, tid)`: for each inactive branch, the first entry from its tip
+  down to its fork that holds a transaction other than `tid` spending one
+  of `t`'s inputs, as `Rival{Branch, Conflict, Entry, After}`; `After` is
+  the branch's weight after its fork, the margin a receiver compares
+  from(e) against (design section 7.3). Wallets read it through the
+  engine's `Payment`.
 - `ReplayOrder()`: every held entry in an order that rebuilds the same tree
   and selected ledger in an empty pool (the selected ledger first, then the
   rest by first sighting). Stores use it to compact (decision D23).

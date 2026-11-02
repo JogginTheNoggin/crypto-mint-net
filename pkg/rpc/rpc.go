@@ -22,7 +22,8 @@
 //	POST /layer    {series, pool, layer}  submit a layer
 //	POST /build    {series, pool, max_tries}
 //	POST /work     {series, pool, entry, start, tries}
-//	GET  /payment?series=&serial=&tid=    where a transaction stands
+//	GET  /payment?series=&serial=&tid=    where a transaction stands, the
+//	                                      transaction, and known rivals
 //	GET  /holdings?series=&serial=        unspent portions of a mint
 //	GET  /peers                           connected peers (when p2p runs)
 //	GET  /tracking[?addr=]                tracked peers, or one peer's record
@@ -536,6 +537,23 @@ type PaymentReply struct {
 	Entry    *hash.Hash `json:"entry,omitempty"`
 	// From is the weight a challenger must beat to reverse the payment.
 	From string `json:"from"`
+	// Tx is the transaction's byte form in hex, when the node holds it, so
+	// a receiver can check what it pays.
+	Tx string `json:"tx,omitempty"`
+	// Rivals are known inactive branches spending one of the same
+	// portions.
+	Rivals []RivalInfo `json:"rivals,omitempty"`
+}
+
+// RivalInfo is one known rival of a payment.
+type RivalInfo struct {
+	Tip      hash.Hash `json:"tip"`
+	Fork     hash.Hash `json:"fork"`
+	Entry    hash.Hash `json:"entry"`
+	Conflict hash.Hash `json:"conflict"`
+	// After is the rival's weight after its fork: the payment is ahead
+	// while From is greater.
+	After string `json:"after"`
 }
 
 func (h *Handler) payment(w http.ResponseWriter, r *http.Request) {
@@ -557,6 +575,12 @@ func (h *Handler) payment(w http.ResponseWriter, r *http.Request) {
 	rep := PaymentReply{Pending: p.Pending, Selected: p.Selected, From: p.From.String()}
 	if p.Selected {
 		rep.Entry = &p.Entry
+	}
+	if p.Tx != nil {
+		rep.Tx = hex.EncodeToString(p.Tx.Encode())
+	}
+	for _, rv := range p.Rivals {
+		rep.Rivals = append(rep.Rivals, RivalInfo{Tip: rv.Tip, Fork: rv.Fork, Entry: rv.Entry, Conflict: rv.Conflict, After: rv.After.String()})
 	}
 	writeJSON(w, rep)
 }

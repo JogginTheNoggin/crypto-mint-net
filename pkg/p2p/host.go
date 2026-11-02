@@ -348,6 +348,10 @@ type Host struct {
 	ln      net.Listener
 	ctx     context.Context
 	wg      sync.WaitGroup
+	// wgMu guards stopping, set once Run waits for its goroutines, so no
+	// goroutine is added while it waits (see spawn).
+	wgMu     sync.Mutex
+	stopping bool
 
 	book      *peers.Book
 	dialing   map[string]bool                 // addresses being dialled
@@ -524,12 +528,33 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 	}
 	h.mu.Unlock()
 	h.inbox.close()
+	h.wgMu.Lock()
+	h.stopping = true
+	h.wgMu.Unlock()
 	h.wg.Wait()
 	err := h.book.Save()
 	if terr := h.tr.Save(); err == nil {
 		err = terr
 	}
 	return err
+}
+
+// spawn runs f in a goroutine Run waits for, unless Run is already
+// waiting: a goroutine started from outside one Run tracks (Connect, from
+// the RPC) must not be added once the count may have reached zero. It
+// reports whether f was started.
+func (h *Host) spawn(f func()) bool {
+	h.wgMu.Lock()
+	defer h.wgMu.Unlock()
+	if h.stopping {
+		return false
+	}
+	h.wg.Add(1)
+	go func() {
+		defer h.wg.Done()
+		f()
+	}()
+	return true
 }
 
 func (h *Host) acceptLoop(ln net.Listener) {
@@ -548,11 +573,10 @@ func (h *Host) acceptLoop(ln net.Listener) {
 			c.Close()
 			continue
 		}
-		h.wg.Add(1)
-		go func() {
-			defer h.wg.Done()
-			h.runConn(c, false, c.RemoteAddr().String())
-		}()
+		if !h.spawn(func() { h.runConn(c, false, c.RemoteAddr().String()) }) {
+			c.Close()
+			return
+		}
 	}
 }
 
@@ -615,11 +639,10 @@ func (h *Host) Connect(addr string) error {
 		return err
 	}
 	ready := make(chan error, 1)
-	h.wg.Add(1)
-	go func() {
-		defer h.wg.Done()
-		h.runConnNotify(c, true, addr, ready)
-	}()
+	if !h.spawn(func() { h.runConnNotify(c, true, addr, ready) }) {
+		c.Close()
+		return errors.New("p2p: host shutting down")
+	}
 	return <-ready
 }
 
@@ -636,11 +659,9 @@ func (h *Host) checkLoop(ctx context.Context) {
 		case <-t.C:
 			for _, pi := range h.sortedPools() {
 				for _, p := range h.peersIn(pi.section, peers.CatPriority) {
-					h.wg.Add(1)
-					go func(pi *poolInfo, p *peer) {
-						defer h.wg.Done()
+					h.spawn(func() {
 						h.askWeight(pi, p)
-					}(pi, p)
+					})
 				}
 			}
 		}

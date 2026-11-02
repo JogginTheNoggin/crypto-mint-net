@@ -628,6 +628,64 @@ func (p *Pool) Branches() []Branch {
 	return out
 }
 
+// Rival is an inactive branch holding a transaction that spends one of
+// the same portions as a payment: a known rival of the payment.
+type Rival struct {
+	Branch
+	// Conflict is the rival transaction's tid, and Entry the entry that
+	// holds it.
+	Conflict hash.Hash
+	Entry    hash.Hash
+	// After is the branch's weight after its fork point: what it has to
+	// set against the payment's from(e).
+	After weight.Weight
+}
+
+// Rivals returns the inactive branches that hold a spend of any input of
+// t other than t itself, heaviest first. Only the entries after each
+// branch's fork point are searched: below it the branch is the selected
+// ledger. A claim has no inputs and so no rivals here.
+func (p *Pool) Rivals(t *tx.Tx, tid hash.Hash) []Rival {
+	if len(t.Inputs) == 0 {
+		return nil
+	}
+	spends := make(map[tx.Input]bool, len(t.Inputs))
+	for _, in := range t.Inputs {
+		spends[in] = true
+	}
+	h := p.s.Hash()
+	var out []Rival
+	for _, b := range p.Branches() {
+		for x := p.nodes[b.Tip]; x != nil && !x.onChain; x = x.parent {
+			found := false
+			for _, o := range x.entry.Txs {
+				if o.IsClaim() {
+					continue
+				}
+				otid := o.TID(h)
+				if otid == tid {
+					continue
+				}
+				for _, in := range o.Inputs {
+					if spends[in] {
+						to, _ := p.WeightTo(b.Fork)
+						out = append(out, Rival{Branch: b, Conflict: otid, Entry: x.hash, After: b.Weight.Sub(to)})
+						found = true
+						break
+					}
+				}
+				if found {
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+	}
+	return out
+}
+
 // ReplayOrder returns every held entry in an order that, given with its
 // layers to an empty pool with the same configuration, rebuilds the same
 // tree and the same selected ledger: the selected ledger from the pool_id

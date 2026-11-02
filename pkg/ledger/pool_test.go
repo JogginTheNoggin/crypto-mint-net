@@ -173,6 +173,16 @@ func TestAppendixA3RivalLedger(t *testing.T) {
 	if info.Ledger.String() != "17408" { // 4,096 shared + 13,312
 		t.Fatalf("rival ledger weight %s", info.Ledger)
 	}
+	// Carol, paid in E2, sees the rival: 13,312 after the fork against
+	// from(E2) = 14,336, a margin of 1,024 (the design's section 7.3).
+	rs := f.pool.Rivals(x["alice-carol"], f.tid(x["alice-carol"]))
+	if len(rs) != 1 || rs[0].Conflict != f.tid(rivalTx) || rs[0].Entry != r2h || rs[0].Fork != hs[0] || rs[0].After.String() != "13312" {
+		t.Fatalf("rivals of alice-carol: %+v", rs)
+	}
+	// Bob's payment conflicts with nothing in the rival.
+	if rs := f.pool.Rivals(x["bob-dave"], f.tid(x["bob-dave"])); len(rs) != 0 {
+		t.Fatalf("rivals of bob-dave: %+v", rs)
+	}
 
 	// Case B: 2,048 and a lucky 16,384 more: 31,744 after E1.
 	sw := f.layers(r2h, 11, 14)
