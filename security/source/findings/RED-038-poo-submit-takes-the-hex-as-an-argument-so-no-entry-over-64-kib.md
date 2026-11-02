@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
 | Found on | `claude/m10-watch` @ 184bc54 (Source Round 14 Part B) |
 | Component | pkg/cli/submit.go (`submitCmd`) |
 | Surface | local operator (CLI) |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ 7771b72 (BLUE-015) |
 
 ## Summary
 
@@ -52,4 +52,13 @@ short ones. Test: a hex of 300 KB through standard input.
 
 ## Resolution
 
-Open.
+Fixed (D144). `poo submit entry|layer` takes the hex from `-f FILE` or
+standard input (`-`, or `-f -`), read whole and trimmed, as well as from
+one argument. Testing a large body through the real RPC found a second
+bound: `MaxBody` (8 MiB) refused any entry over about 4 MiB, from `poo` and
+the GUI alike. `POST /v1/entry` with the full token is no longer bounded,
+since the node takes an entry of any size from a peer; the view token is
+still refused (403) before the body is read. Tests: `TestSubmitEntryAndLayer`
+(standard input, `-f`, 300 KB of hex on standard input, `-f` with an
+argument) and `TestSubmitEntryBodySize` (fails on 184bc54). Not run with a
+valid entry over 64 KiB.

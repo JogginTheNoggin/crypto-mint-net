@@ -2524,3 +2524,34 @@ a chase takes in after checking their work are not charged.
   on another through `poo submit`), `TestGrindCommands` (`grind jobs
   ID`), the view-only scope test, `TestFollowReplace` and
   `TestEveryClientCallHasACommand`.
+
+### D144. Round 14 fix: RED-038 (BLUE-015)
+
+- **Decision:**
+  - `poo submit entry|layer` takes the hex as its one argument, as
+    before, or from a file (`-f FILE`) or standard input (`-`, or
+    `-f -`), whole and trimmed (`submitHex`).
+  - The RPC's `MaxBody` (8 MiB) no longer bounds `POST /v1/entry` with
+    the full token. Every other request, and every request with the view
+    token, is bounded as before; the view token is refused before the
+    body is read.
+- **Why:** Red's Round 14 finding. Linux limits one argument to 128 KiB,
+  so an entry over 64 KiB could not be submitted with `poo`, while the
+  GUI could. Testing a large body through the real RPC, as the
+  coordinator asked, showed a second bound: `MaxBody` refused any entry
+  over about 4 MiB from both `poo submit` and the GUI. The node takes an
+  entry of any size from a peer, in parts (D117), so its owner must be
+  able to hand it one too (jerry's headless-and-GUI rule; D115's spirit:
+  no size cap on what the node can take). Consistent with GREEN-039's
+  `-bytes`, whose output is what `poo submit` reads.
+- **What is left:** the node decodes a submitted entry whole in memory,
+  as it does one from a peer (D117), and only the full token can send
+  one. Not run with a valid entry over 64 KiB: the tests use the real
+  path with built entries through a file and standard input, 300 KB of
+  hex on standard input, and an entry body over `MaxBody` through the
+  real RPC.
+- **Tier:** Implementation (the CLI and the local RPC). No rule of
+  validity or selection, no byte form and no consensus change. Tests:
+  `TestSubmitEntryAndLayer` (file, standard input, 300 KB, `-f` with an
+  argument), `TestSubmitEntryBodySize` (full token over `MaxBody`
+  decoded; view token 403; a layer over `MaxBody` refused; no token 401).
