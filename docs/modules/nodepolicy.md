@@ -134,6 +134,10 @@ its range, or `Validate` refuses the policy and names the setting
 | `tracking.log_seconds` | 3600 | 60 to 86400 | how long each address's detailed log keeps events |
 | `tracking.log_size` | 256 | 16 to 4096 | events in each address's detailed log |
 
+`Policy.Limits` lists them with the value node.json sets and the value used,
+from the one list `Validate` checks; `poo policy limits` prints it
+(GREEN-047).
+
 None of them changes which ledger a node selects: a smaller book or a
 shorter memory only means the node knows fewer peers, which is a lack of
 information (AGENTS.md). In

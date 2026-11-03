@@ -40,7 +40,7 @@ var readCommands = map[string]map[string]bool{
 	"pools": nil, "ledger": nil, "pending": nil, "unspent": nil, "tx": nil, "address": nil,
 	"watch":  nil,
 	"follow": nil, // without flags it only shows; followCmd refuses a change
-	"policy": {"list": true},
+	"policy": {"list": true, "limits": true},
 	// Grinding: devices, bench and jobs only look; start, run and stop
 	// change what the node does. schedule only shows without add, remove
 	// or set, and refuses those itself.

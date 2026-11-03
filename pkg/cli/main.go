@@ -109,6 +109,8 @@ Usage:
                               poo unspent -serial N, kept for scripts)
   poo policy list|use|archive|unarchive|delete [-root DIR] [NAME]
                               manage saved and archived node policies
+  poo policy limits [-o FORMAT]
+                              the settable limits: range, default, value
   poo policy export [-all | -series ID] [-full] [-out FILE]
                               write node policies to one shareable file
   poo policy import FILE|- [-apply] [-settings | -full] [-if-digest D]

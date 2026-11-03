@@ -823,7 +823,7 @@ func policyCmd(args []string, out io.Writer) error {
 	root := fs.String("root", defaultRoot(), "directory holding the node policies ($POO_HOME)")
 	fresh := fs.Bool("fresh", false, "unarchive: drop the stored data and start from scratch")
 	if len(args) == 0 {
-		return fmt.Errorf("usage: poo policy list|use|archive|unarchive|delete [-root DIR] [NAME], or poo policy export|import")
+		return fmt.Errorf("usage: poo policy list|use|archive|unarchive|delete [-root DIR] [NAME], or poo policy export|import|limits")
 	}
 	sub := args[0]
 	switch sub {
@@ -831,6 +831,8 @@ func policyCmd(args []string, out io.Writer) error {
 		return policyExportCmd(args[1:], out)
 	case "import":
 		return policyImportCmd(args[1:], out)
+	case "limits":
+		return policyLimitsCmd(args[1:], out)
 	}
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
@@ -899,4 +901,28 @@ func addGrindOptions(fs *flag.FlagSet) *grindOptions {
 
 func (g *grindOptions) options() rpc.GrindOptions {
 	return rpc.GrindOptions{Device: *g.device, Threads: *g.threads, For: *g.dur}
+}
+
+// policyLimitsCmd lists the node policy's bounded settings (D159): each
+// one's place in node.json, its range, its default, what node.json sets
+// and what the node uses, so a person can tailor them without reading
+// the decisions (GREEN-047). It only reads node.json.
+func policyLimitsCmd(args []string, out io.Writer) error {
+	fs := newFlagSet("policy limits", out)
+	w := addWhere(fs)
+	o := addOutput(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := o.check(); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return errors.New("usage: poo policy limits [-o FORMAT] [-policy NAME | -dir DIR]")
+	}
+	p, err := nodepolicy.Load(filepath.Join(w.resolve(), nodepolicy.FileName))
+	if err != nil {
+		return err
+	}
+	return o.write(out, p.Limits())
 }
