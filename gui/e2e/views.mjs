@@ -274,6 +274,25 @@ try {
   for (let i = 0; i < 2; i++) await imp.locator('.plan-more button').click();
   await imp.locator('.plan-more').waitFor({ state: 'detached' });
   assert.equal(await imp.locator('.import-plan tbody tr').count(), 2000);
+  // Settings export and import (D155): the same form over poo settings,
+  // with -map-path for registry files from another machine.
+  const sexp = section('Export node settings');
+  const sfile = join(home, 'node-settings.json');
+  await fill(sexp, 'To a file', sfile);
+  assert.equal(await sexp.locator('.cmd code').innerText(), `poo settings export -root ${home} -out ${sfile}`);
+  await sexp.locator('button[type=submit]').click();
+  await sexp.locator('.result', { hasText: 'exported the settings' }).waitFor();
+  const simp = section('Import node settings');
+  await fill(simp, 'File', sfile);
+  await fill(simp, 'Registry paths', '/old/home=/new/home');
+  assert.equal(await simp.locator('.cmd code').innerText(), `poo settings import -root ${home} -map-path /old/home=/new/home -json ${sfile}`);
+  await simp.locator('button[type=submit]').click();
+  await simp.locator('.import-plan', { hasText: 'already the same' }).waitFor();
+  let sasked = '';
+  page.once('dialog', d => { sasked = d.message(); d.accept(); });
+  await simp.locator('button.danger:has-text("Apply")').click();
+  await simp.locator('.area .area .import-plan', { hasText: 'Nothing needed changing.' }).waitFor();
+  assert.match(sasked, /^Run poo settings import .* -apply -if-digest [0-9a-f]{64} /);
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');

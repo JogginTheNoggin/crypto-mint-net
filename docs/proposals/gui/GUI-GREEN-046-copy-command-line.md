@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 20) |
+| Status | adopted (Round 21 Part A) |
 | Based on | main @ 9628426 |
 | Area | gui/web/static/views.js (cmdLine, a shared copyButton), docs/FEATURES.md |
 | Effort | small |

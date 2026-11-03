@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 21 Part A) |
 | Based on | main @ 9628426 |
 | Area | gui/web/static/views/policies.js (`showPlan`, new `planTable`), gui/e2e/views.mjs |
 | Effort | small |

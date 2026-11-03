@@ -1,7 +1,7 @@
 // The Node policies view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { el, flag, form, mountAll, panel, runJob } from '../views.js';
+import { el, flag, flags, form, mountAll, panel, runJob } from '../views.js';
 
 export const policiesView = {
   id: 'policies',
@@ -25,7 +25,15 @@ export const policiesView = {
         { name: 'out', label: 'To a file', placeholder: 'a path on this machine (default: print it)' }],
       args: v => ['policy', 'export', ...(v.scope === 'all' ? ['-all', ...rootFlag()] : where.flags()), ...flag('series', v.series), ...flag('full', v.full), ...flag('out', v.out)], submit: 'Export',
       onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'node-policies.json')); } }),
-      importForm(ctx, rootFlag),
+      importForm(ctx, POLICY_IMPORT(rootFlag)),
+      // Settings travel the same way, without what the node follows
+      // (D155): a backup, or a second machine run like this one.
+      form(ctx, { title: 'Export node settings', about: 'Writes this node policy\'s settings (peers, registries, grind jobs, tracking, p2p switches and limits), without what it follows, to one file. Without a file, it is printed here, with Save as file.', fields: [
+        { name: 'full', label: 'Keep machine-local settings (rpc, p2p addresses, grind device and threads): for a backup, or a new machine that should run the same way', type: 'check' },
+        { name: 'out', label: 'To a file', placeholder: 'a path on this machine (default: print it)' }],
+      args: v => ['settings', 'export', ...where.flags(), ...flag('full', v.full), ...flag('out', v.out)], submit: 'Export',
+      onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'node-settings.json')); } }),
+      importForm(ctx, SETTINGS_IMPORT),
     ]);
   },
 };
@@ -44,11 +52,41 @@ function saveAs(text, name) {
   return el('div', { class: 'actions' }, b);
 }
 
-// importForm previews poo policy import (it changes nothing without
-// -apply), draws the plan poo printed, and offers Apply with the same
-// flags. poo makes the plan; the GUI only lays it out.
-function importForm(ctx, rootFlag) {
-  const importArgs = v => ['policy', 'import', ...(v.every ? rootFlag() : where.flags()), ...flag('prefer-file', v.prefer), ...flag('replace', v.replace), ...flag('settings', v.settings), ...flag('full', v.full), ...flag('no-reload', v.noReload), '-json', ...(v.file ? [v.file] : [])];
+// mapField is -map-path OLD=NEW, for registry file paths in a file made
+// on another machine (D155); poo reads the paths, the GUI only sends them.
+const mapField = { name: 'map', label: 'Registry paths from the other machine (OLD=NEW)', type: 'list', placeholder: '/home/a/.poo=/home/b/.poo' };
+
+// The two imports: one form, different commands and options. Each
+// spec gives the form's title and fields and builds the preview line.
+const POLICY_IMPORT = rootFlag => ({
+  title: 'Import node policies', about: 'Shows what a node policy file would change here: what is new, changed or in conflict. Nothing changes until you press Apply.',
+  fields: [
+    { name: 'every', label: 'The file holds every saved policy (exported with "every saved node policy"): each goes under its own name', type: 'check' },
+    { name: 'prefer', label: 'Where both set a value differently, take the file\'s (default: keep this node\'s)', type: 'check' },
+    { name: 'replace', label: 'Replace this node policy with the file\'s instead of merging (machine-local settings stay)', type: 'check' },
+    { name: 'settings', label: 'Take the file\'s node settings too (peers, registries, grind jobs, tracking, p2p limits); by default only what to follow is taken', type: 'check' },
+    { name: 'full', label: 'Take every setting, machine-local ones too (rpc, p2p addresses, grind device, registry files): restoring a backup on this machine', type: 'check' },
+    mapField,
+    { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
+  args: v => ['policy', 'import', ...(v.every ? rootFlag() : where.flags()), ...flag('prefer-file', v.prefer), ...flag('replace', v.replace), ...flag('settings', v.settings), ...flag('full', v.full), ...flags('map-path', v.map), ...flag('no-reload', v.noReload), '-json', ...(v.file ? [v.file] : [])],
+});
+const SETTINGS_IMPORT = {
+  title: 'Import node settings', about: 'Shows what a settings file would change in this node policy (what it follows stays as it is), with what may not fit this machine. Nothing changes until you press Apply.',
+  fields: [
+    { name: 'prefer', label: 'Where both set a value differently, take the file\'s (default: keep this node\'s)', type: 'check' },
+    { name: 'replace', label: 'Replace this node\'s settings with the file\'s instead of merging (what it follows and machine-local settings stay)', type: 'check' },
+    { name: 'full', label: 'Take the machine-local settings too (rpc, p2p addresses, grind device and threads, registry files): moving to a new machine or restoring a backup', type: 'check' },
+    mapField,
+    { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
+  args: v => ['settings', 'import', ...where.flags(), ...flag('prefer-file', v.prefer), ...flag('replace', v.replace), ...flag('full', v.full), ...flags('map-path', v.map), ...flag('no-reload', v.noReload), '-json', ...(v.file ? [v.file] : [])],
+};
+
+// importForm previews poo policy import or poo settings import (neither
+// changes anything without -apply), draws the plan poo printed, and
+// offers Apply with the same flags. poo makes the plan; the GUI only
+// lays it out.
+function importForm(ctx, spec) {
+  const importArgs = spec.args;
   // A file picked in the browser goes to poo on its standard input:
   // FILE is -, and the job is sent the file's text, then end of input,
   // as typing it and Ctrl-D would. poo reads and checks it (D149).
@@ -65,14 +103,9 @@ function importForm(ctx, rootFlag) {
   // now. Any change to the form after a preview takes its Apply away, so
   // the plan on show is always the plan Apply carries out.
   let last = null, previewing = null, dropApply = () => {};
-  const f = form(ctx, { title: 'Import node policies', about: 'Shows what a node policy file would change here: what is new, changed or in conflict. Nothing changes until you press Apply.', fields: [
+  const f = form(ctx, { title: spec.title, about: spec.about, fields: [
     { name: 'file', label: 'File', placeholder: 'a path on this machine, or pick one below', required: true },
-    { name: 'every', label: 'The file holds every saved policy (exported with "every saved node policy"): each goes under its own name', type: 'check' },
-    { name: 'prefer', label: 'Where both set a value differently, take the file\'s (default: keep this node\'s)', type: 'check' },
-    { name: 'replace', label: 'Replace this node policy with the file\'s instead of merging (machine-local settings stay)', type: 'check' },
-    { name: 'settings', label: 'Take the file\'s node settings too (peers, registries, grind jobs, tracking, p2p limits); by default only what to follow is taken', type: 'check' },
-    { name: 'full', label: 'Take every setting, machine-local ones too (rpc, p2p addresses, grind device, registry files): restoring a backup on this machine', type: 'check' },
-    { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
+    ...spec.fields],
   args: v => { last = importArgs(v); return last; }, submit: 'Preview',
   onStart: j => { dropApply(); previewing = { args: last, file: picked }; feed(last, j, picked); },
   onResult: (r, area) => {
@@ -172,14 +205,20 @@ function showPlan(r, area, applied) {
       `${p.same || 0} already the same.`,
       (p.skipped || []).length ? `Machine-local settings left alone: ${p.skipped.join(', ')}.` : null,
       (p.refused || []).length ? `Not accepted here: ${p.refused.join('; ')}.` : null,
+      (p.follows || []).length ? `Follows: ${p.follows.map(c => `series ${c.series.slice(0, 12)}: ${c.followed} of ${c.pools} pools${c.whole ? ' (the whole series)' : ''}`).join('; ')}.` : null,
+      (p.fit || []).length ? `May not fit this machine: ${p.fit.join('; ')}.` : null,
       t.saved ? (t.reloading ? 'Saved; the running node is reloading it.' : 'Saved.') : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',
     ].filter(Boolean).join(' ');
     // Read first: lines that change a defence of this node or where it
     // reaches out (D150), as poo prints them first.
     const defences = (p.defences || []).length ? el('p', { class: 'next-step plan-defences', role: 'alert' },
       `Read first: these change a defence of this node or where it reaches out: ${p.defences.join(', ')}`) : null;
+    // Series listed but not accepted before that the result uses: the
+    // node will follow, mine into and relay them (RED-056, D156).
+    const nowUsed = (p.now_used || []).length ? el('p', { class: 'next-step plan-now-used', role: 'alert' },
+      `Now used: series ${p.now_used.join(', ')}, listed but not accepted before. The node will follow, mine into and relay ${p.now_used.length === 1 ? 'it' : 'them'}.`) : null;
     return el('div', { class: 'import-plan' },
-      el('h3', {}, `${t.name || t.dir} (${t.mode}${t.running ? ', running' : ''})`), defences,
+      el('h3', {}, `${t.name || t.dir} (${t.mode}${t.running ? ', running' : ''})`), defences, nowUsed,
       lines.length ? planTable(lines) : el('p', {}, 'No settings change.'),
       el('p', { class: 'hint' }, notes));
   });
