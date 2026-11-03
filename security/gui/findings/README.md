@@ -5,6 +5,31 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 19 Part B reviewed main @ e71e317 (PR #97):
+- the import form's `-settings` option;
+- Apply pinned by `-if-digest` (D151), with the picked file streamed to
+  poo (ORANGE-014);
+- views split into one file each;
+- Source's D151 `Unlock` seal check.
+
+There are no new findings.
+
+Verified:
+- GUI-022 is fixed. A stale `wallet seed` after a rotation is now
+  refused, and `cosign` uses the same `Unlock`.
+- GUI-023 is fixed:
+  - In the GUI (Playwright), picking another file removes Apply, and
+    Apply names the previewed file and carries its digest.
+  - In the CLI, a path changed on disk after its preview is refused by
+    `-if-digest`.
+
+Held up:
+- The plan, including the new "read first" defence line, is drawn as
+  text.
+- `policy import` is still refused to the view token.
+- The view split changed no argv building that Red checked before; the
+  parity e2e test covers it.
+
 Round 18 Part B reviewed main @ 3804c55:
 - the new Export and Import node policies forms (PR #81, D149): a browser
   file picker sent as `poo policy import -`, the plan preview, and Apply;
@@ -293,5 +318,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-019](GUI-019-wallet-commands-overwrite-each-other.md) | Medium | Wallet commands read the whole wallet.json and write it back; one waiting at a passphrase prompt in another form undoes the rest, even a passphrase change (the old passphrase works again) | fixed by Source (wallet.Save compare-and-write, D145), merged Round 15; verified R15B @ 55cf745 |
 | [GUI-020](GUI-020-new-passphrase-not-confirmed.md) | Low | A new wallet passphrase is typed once into a masked field and never confirmed, so a typo locks the wallet | fixed by Source (asks twice, D145), merged Round 15; the GUI shows the second ask (State.Asks); verified R15B @ 55cf745 |
 | [GUI-021](GUI-021-stop-submits-pasted-entry.md) | Low | Stop (or Ctrl-C in the terminal) on `poo submit -f -` hands the pasted entry or layer to the node: a cancelled job's input reads as end of input, and the GUI has no other end of input | fixed by GUI/Blue (PR #68), merged Round 15; verified R16B @ 6a1cdce |
-| [GUI-022](GUI-022-hold-adopts-new-seal.md) | Medium | `Wallet.Hold` (D146) adopts a file saved meanwhile, seal included, so a command opened before a passphrase change still works with the old passphrase, and a stale `passwd` re-seals over the owner's rotation | partly fixed by Source (D149, merged Round 18; verified R18B @ 3804c55); **open** for `wallet seed` and `wallet cosign` (no `Hold`): routed to Source in Round 18C |
-| [GUI-023](GUI-023-import-apply-other-file.md) | Low | Import's Apply sends whatever file is picked now, not the one previewed, so a file never reviewed is applied; the confirm shows only `-apply -` | fixed by GUI/Blue in Round 18C (Apply sends only what was previewed; any change removes it); awaiting verification |
+| [GUI-022](GUI-022-hold-adopts-new-seal.md) | Medium | `Wallet.Hold` (D146) adopts a file saved meanwhile, seal included, so a command opened before a passphrase change still works with the old passphrase, and a stale `passwd` re-seals over the owner's rotation | fixed by Source (D149 + D151), merged Round 19; verified R19B @ e71e317 |
+| [GUI-023](GUI-023-import-apply-other-file.md) | Low | Import's Apply sends whatever file is picked now, not the one previewed, so a file never reviewed is applied; the confirm shows only `-apply -` | fixed by GUI/Blue (Round 18C) and Source `-if-digest` (D151), merged Round 19; verified R19B @ e71e317 |
