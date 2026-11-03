@@ -584,13 +584,13 @@ func (h *Host) verifyPeer(p *peer) error {
 		return errNoSlot
 	}
 	// Ask the new peer how heavy its ledgers are; a heavier one is chased.
+	var mine []*poolInfo
 	for _, pi := range h.sortedPools() {
 		if p.covers(pi.section, false) {
-			h.spawn(func() {
-				h.askWeight(pi, p)
-			})
+			mine = append(mine, pi)
 		}
 	}
+	h.sweepWeights(p, mine)
 	return nil
 }
 

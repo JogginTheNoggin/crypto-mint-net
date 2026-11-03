@@ -895,12 +895,18 @@ func (h *Host) checkLoop(ctx context.Context) {
 			return
 		case <-t.C:
 			h.sweepProgress(time.Now())
+			var order []*peer
+			per := map[*peer][]*poolInfo{}
 			for _, pi := range h.sortedPools() {
 				for _, p := range h.peersIn(pi.section, peers.CatPriority) {
-					h.spawn(func() {
-						h.askWeight(pi, p)
-					})
+					if per[p] == nil {
+						order = append(order, p)
+					}
+					per[p] = append(per[p], pi)
 				}
+			}
+			for _, p := range order {
+				h.sweepWeights(p, per[p])
 			}
 		}
 	}
