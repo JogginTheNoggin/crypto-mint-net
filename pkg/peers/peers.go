@@ -477,7 +477,7 @@ func (b *Book) unlistedLocked() int {
 func (b *Book) evictImportedLocked(rng string) bool {
 	var old *Record
 	for a, r := range b.recs {
-		if !r.imported() || (rng != "" && Range(a) != rng) {
+		if !r.imported() || (rng != "" && b.rangeLocked(a) != rng) {
 			continue
 		}
 		if old == nil || r.Added.Before(old.Added) || (r.Added.Equal(old.Added) && r.Addr < old.Addr) {
