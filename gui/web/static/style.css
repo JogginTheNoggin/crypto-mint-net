@@ -89,6 +89,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .fields label.check { flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 6px; }
 .fields small { color: var(--muted); }
 .fields .actions { grid-column: 1 / -1; }
+.fields .limit-fields { display: contents; }
 .area:empty { display: none; }
 .run-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 12px; }
 .run-status { font-size: 12px; }

@@ -380,13 +380,24 @@ try {
   const lim = section('Settable limits');
   await lim.locator('table.data', { hasText: 'p2p.max_book' }).waitFor();
   const setLim = section('Set limits');
-  await fill(setLim, 'Limits', 'p2p.max_book=8192 tracking.log_size=512');
+  // A field for each limit poo listed, showing the value in effect, its
+  // range and default, so no name is typed (GUI-GREEN-049).
+  const maxBook = setLim.locator('input[data-limit="p2p.max_book"]');
+  await maxBook.waitFor();
+  assert.equal(await maxBook.getAttribute('placeholder'), '4096', 'the field shows the value in effect');
+  assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /256 to 65536, default 4096/);
+  await maxBook.fill('8192');
+  await setLim.locator('input[data-limit="tracking.log_size"]').fill('512');
   assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home} -set p2p.max_book=8192 -set tracking.log_size=512`);
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
   await setLim.locator('.run-status.ok').waitFor();
   await lim.locator('table.data tr', { hasText: 'p2p.max_book' }).filter({ hasText: '8192' }).first().waitFor();
-  await fill(setLim, 'Limits', 'p2p.max_book=1');
+  // Redrawn from the new list: empty again, showing the new value.
+  await setLim.locator('input[data-limit="p2p.max_book"][placeholder="8192"]').waitFor();
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home}`, 'nothing is sent again after a save');
+  // A name the list lacks can still be typed, and poo checks it.
+  await fill(setLim, 'Other limits', 'p2p.max_book=1');
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
   await setLim.locator('.run-status.bad').waitFor();
