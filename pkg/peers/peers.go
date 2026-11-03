@@ -210,6 +210,12 @@ type Book struct {
 	recs   map[string]*Record
 	refuse func(addr string) bool
 	dirty  bool
+	// rng caches Range by address. Range is a function of the address
+	// alone, so an entry never goes stale; rangeLocked drops the cache
+	// when addresses no longer in the book make up most of it. Counting a
+	// range parsed every address in the book for each address added,
+	// which made an import of 4,096 addresses take 1.9 s (ORANGE-031).
+	rng map[string]string
 }
 
 type file struct {
@@ -335,10 +341,23 @@ func Range(addr string) string {
 	}
 }
 
+// rangeLocked returns Range(addr), from the book's cache.
+func (b *Book) rangeLocked(addr string) string {
+	if r, ok := b.rng[addr]; ok {
+		return r
+	}
+	if b.rng == nil || len(b.rng) > 2*len(b.recs)+64 {
+		b.rng = make(map[string]string, len(b.recs))
+	}
+	r := Range(addr)
+	b.rng[addr] = r
+	return r
+}
+
 func (b *Book) inRangeLocked(rng string) int {
 	n := 0
 	for a := range b.recs {
-		if Range(a) == rng {
+		if b.rangeLocked(a) == rng {
 			n++
 		}
 	}
@@ -386,7 +405,7 @@ func (b *Book) add(addr string, sections []wire.Section, src Source, st State, n
 		if len(b.recs) >= b.lim.MaxRecords {
 			return ErrFull
 		}
-		if b.inRangeLocked(Range(addr)) >= b.lim.PerRange {
+		if b.inRangeLocked(b.rangeLocked(addr)) >= b.lim.PerRange {
 			return ErrRangeFull
 		}
 		r = &Record{Addr: addr, Source: src, Added: now}
@@ -405,7 +424,7 @@ func (b *Book) add(addr string, sections []wire.Section, src Source, st State, n
 func (b *Book) verifiedInRangeLocked(s wire.Section, rng, except string) int {
 	n := 0
 	for a, r := range b.recs {
-		if a == except || Range(a) != rng {
+		if a == except || b.rangeLocked(a) != rng {
 			continue
 		}
 		if p := r.policy(s); p != nil && p.State.Listed() {
@@ -429,7 +448,7 @@ func (b *Book) Verify(addr string, s wire.Section, st State, now time.Time) erro
 	defer b.mu.Unlock()
 	r := b.recs[addr]
 	p := r.policy(s)
-	if !p.State.Listed() && b.verifiedInRangeLocked(s, Range(addr), addr) >= b.lim.VerifiedPerRange {
+	if !p.State.Listed() && b.verifiedInRangeLocked(s, b.rangeLocked(addr), addr) >= b.lim.VerifiedPerRange {
 		return ErrRangeFull
 	}
 	p.State, p.LastHeard = st, now

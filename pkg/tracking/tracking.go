@@ -383,6 +383,12 @@ type Tracker struct {
 	recs   map[string]*record
 	ranges map[string]time.Time // blocked network ranges
 	dirty  bool
+	// trimAt, when above MaxAddresses, is the record count the next trim
+	// waits for: set when a trim could not get under the bound because
+	// the records it must keep (flagged, blocked, timed out) are most of
+	// them. Without it every new address scanned and sorted every record,
+	// so taking in 65,536 blocks took 53 s (ORANGE-031).
+	trimAt int
 }
 
 type file struct {
@@ -504,7 +510,7 @@ func (t *Tracker) Key(addr string) string {
 func (t *Tracker) get(key string, now time.Time) *record {
 	r := t.recs[key]
 	if r == nil {
-		if len(t.recs) >= t.cfg.Retain.MaxAddresses {
+		if len(t.recs) >= max(t.cfg.Retain.MaxAddresses, t.trimAt) {
 			t.trimLocked(now)
 		}
 		r = &record{Seen: now}
@@ -559,6 +565,12 @@ func (t *Tracker) trimLocked(now time.Time) {
 	n := len(t.recs) - t.cfg.Retain.MaxAddresses + 1 + t.cfg.Retain.MaxAddresses/16
 	for i := 0; i < n && i < len(drop); i++ {
 		delete(t.recs, drop[i].k)
+	}
+	t.trimAt = 0
+	if len(t.recs) >= t.cfg.Retain.MaxAddresses {
+		// What must stay fills the bound: trim again only after as many
+		// new records as a trim leaves room for.
+		t.trimAt = len(t.recs) + 1 + t.cfg.Retain.MaxAddresses/16
 	}
 	t.dirty = true
 }
