@@ -5,6 +5,7 @@
 | Fixes | RED-049 (medium), RED-050 (medium), RED-051 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `4240d32` (Source Round 19 Part C) |
+| Code | `a38ca97` |
 | Decisions | D154 |
 | Review | No consensus change and no limit on what can be followed. For Black: the engine change (RED-049 point 1) and the 4096-section check (RED-050). |
 

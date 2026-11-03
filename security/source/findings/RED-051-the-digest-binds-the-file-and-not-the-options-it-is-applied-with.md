@@ -7,7 +7,7 @@
 | Found on | `main` @ 4240d32 (Source Round 19 Part B) |
 | Component | pkg/cli/policyport.go (`-if-digest`) |
 | Surface | local operator or script (CLI, GUI) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-020) |
+| Fixed by | `claude/project-thread-ggo8dt` @ a38ca97 (BLUE-020) |
 
 ## Summary
 

@@ -7,7 +7,7 @@
 | Found on | `main` @ 4240d32 (Source Round 19 Part B) |
 | Component | pkg/engine/engine.go (state made on first item), pkg/p2p/host.go (`New`, `sortedPools`), pkg/p2p/discovery.go, pkg/p2p/peer.go |
 | Surface | a series from a bundle (RED-046), a peer's items |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-020) |
+| Fixed by | `claude/project-thread-ggo8dt` @ a38ca97 (BLUE-020) |
 
 ## Summary
 

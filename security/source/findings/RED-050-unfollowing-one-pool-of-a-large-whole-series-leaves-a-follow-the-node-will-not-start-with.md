@@ -7,7 +7,7 @@
 | Found on | `main` @ 4240d32 (Source Round 19 Part B) |
 | Component | pkg/nodepolicy/follow.go (`RemoveFollow`), pkg/p2p/host.go (`New`, the 4096 coverage check) |
 | Surface | local operator (`poo unfollow -pool`, the GUI, `POST /v1/follow`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-020) |
+| Fixed by | `claude/project-thread-ggo8dt` @ a38ca97 (BLUE-020) |
 
 ## Summary
 
