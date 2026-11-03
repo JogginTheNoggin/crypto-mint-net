@@ -5,6 +5,34 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 20 Part B reviewed main @ 9628426 (PR #107: Red #99,
+GUI-GREEN-045's subcommand parity check, Orange #101, and the Source
+changes merged with them: D152 `-if-digest` checks, BLUE-019 followed
+series and pools, and the plan's follow lines).
+
+There are no new findings. No file under gui/web changed this round. The
+GUI's surface moved only through poo.
+
+Held up:
+- **Import is still pinned.** I re-ran the R19B Playwright check on
+  9628426:
+  - picking another file after Preview removes Apply;
+  - Apply's dialog names A.json and carries `-if-digest <64 hex>`;
+  - nothing from B reaches node.json.
+- **An empty digest is no longer a missing one (D152).**
+  `-apply -if-digest ""` exits 1 with "nothing was changed".
+  `-if-digest` without `-apply` is refused.
+- The `views`, `viewonly` and `parity` e2e tests pass locally. The new
+  subcommand parity check lists every subcommand `poo help` shows, and
+  the only ones left out are `completion bash|zsh|fish`.
+
+Hardening note for GUI/Blue (optional, not a finding): the GUI fails
+open on the digest. `importForm` adds `-if-digest` only when it could
+read a digest from the preview's JSON. If it ever read none, Apply would
+run unpinned, without saying so. poo always prints one with `-json`
+today, so this can't happen now. Showing no Apply when the digest is
+missing would keep it that way.
+
 Round 19 Part B reviewed main @ e71e317 (PR #97):
 - the import form's `-settings` option;
 - Apply pinned by `-if-digest` (D151), with the picked file streamed to
