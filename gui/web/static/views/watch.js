@@ -2,7 +2,7 @@
 // same filter flags as poo watch, poo pools, poo ledger and the rest. The
 // filter is only turned into flags here; poo applies it (pkg/filter).
 import * as api from '../api.js';
-import { el, cmdLine, panel, form, flag, mountAll } from '../views.js';
+import { el, choices, cmdLine, panel, form, flag, mountAll } from '../views.js';
 import { render } from '../render.js';
 import * as where from '../where.js';
 
@@ -88,13 +88,12 @@ function buildWatch(ctx) {
   }
   // Kinds are boxes to tick rather than words to remember. None ticked
   // means every kind, as an empty -kind does.
-  const kindBoxes = KINDS.map(k => el('input', { type: 'checkbox', name: 'kind', value: k }));
-  f.append(el('fieldset', { class: 'kinds' }, el('legend', {}, 'Kinds (none ticked: all)'),
-    ...KINDS.map((k, i) => el('label', { class: 'check' }, kindBoxes[i], ` ${k}`))));
+  const kinds = choices('kind', KINDS, 'Kinds (none ticked: all)', 'kind');
+  f.append(kinds);
   const notices = el('input', { type: 'checkbox', name: 'notices' });
   f.append(el('label', { class: 'check' }, el('span', {}, 'Show stream notices (hello, ping, missed, end)'), notices));
   const values = () => ({ ...Object.fromEntries(fields.map(fd => [fd.name, inputs[fd.name].value.trim()])),
-    kind: kindBoxes.filter(b => b.checked).map(b => b.value).join(',') });
+    kind: kinds.value() });
   const args = () => ['watch', ...where.flags(), ...flag('notices', notices.checked), ...filterFlags(values())];
   const line = cmdLine(args(), ctx);
   f.addEventListener('input', () => line.set(args()));

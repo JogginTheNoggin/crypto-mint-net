@@ -164,6 +164,9 @@ try {
   const find = section('Find peers');
   await fill(find, 'Label holds', 'friend');
   assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -label friend`);
+  // The book states are boxes, as Watch's kinds are (GUI-GREEN-048).
+  for (const c of ['unlisted', 'candidate']) await find.locator(`fieldset[data-flag=category] input[value=${c}]`).check();
+  assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -category candidate,unlisted -label friend`);
   await find.locator('button[type=submit]').click();
   await find.locator('.result', { hasText: '1.0.0.9' }).waitFor();
   const trk = section('Tracking records');
