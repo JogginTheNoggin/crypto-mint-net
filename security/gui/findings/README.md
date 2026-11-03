@@ -5,6 +5,31 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 23 Part B reviewed main @ 2cacdd5 (PR #146: the Settable limits
+panel and Set limits (D159-D161), Build's `-parent`, "Build a rival
+claim", GUI-GREEN-048's tick boxes, and Blue's GUI-025 fix). GitHub
+Actions is off, so everything was checked locally: `views`, `viewonly`,
+`parity` and `qol` e2e pass at this base.
+
+New:
+- GUI-026 (Low): "Build a rival claim" with Parent left empty runs plain
+  `poo claim`, which **submits** the claim and forwards it to peers,
+  instead of building it. `required: true` is in the field spec, but
+  `form()` never applies it. Shown with Playwright and a node: pending
+  for serial 5 went from `[]` to the claim, with `forward: yes`.
+
+Held up:
+- **The rival claim's seed.** It goes only through poo's masked prompt
+  (`-seed-file -` reads through `Stdio.Secret`). It was not on the line,
+  in the page, or in any job's output afterwards. `secretLine` doesn't
+  need to catch `-seed-file`, since its value is `-`.
+- **Set limits.** poo checks each value against its range (`p2p.max_book=1`
+  and `=999999999999` are refused, as is an unknown name), saves under
+  the policy lock, or sends it to the running node. View-only can list
+  limits, but `policy limits -set` is refused.
+- **GUI-025 is fixed.** The blocks are read first and lead the table (see
+  its notes).
+
 Round 22 Part B reviewed main @ f4f7945 (PR #129: the Peers view over
 D157, with filters, add/remove/label/connect, tracking `-blocked` and
 `-timed-out`, and peer export and import; Blue's GUI-024 fix #123;
@@ -399,4 +424,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-022](GUI-022-hold-adopts-new-seal.md) | Medium | `Wallet.Hold` (D146) adopts a file saved meanwhile, seal included, so a command opened before a passphrase change still works with the old passphrase, and a stale `passwd` re-seals over the owner's rotation | fixed by Source (D149 + D151), merged Round 19; verified R19B @ e71e317 |
 | [GUI-023](GUI-023-import-apply-other-file.md) | Low | Import's Apply sends whatever file is picked now, not the one previewed, so a file never reviewed is applied; the confirm shows only `-apply -` | fixed by GUI/Blue (Round 18C) and Source `-if-digest` (D151), merged Round 19; verified R19B @ e71e317 |
 | [GUI-024](GUI-024-copied-line-runs-in-windows-shell.md) | Medium | On Windows, Copy quotes the command line for `CommandLineToArgvW`, not a shell, so a field value (one a link can fill) runs other commands when the line is pasted into PowerShell or cmd.exe | fixed by GUI/Blue (Round 21C, #123), merged Round 22; verified R22B @ f4f7945 |
-| [GUI-025](GUI-025-peer-import-hides-blocks.md) | Low | The Import peers preview lists the file's blocks after every added address, with no "Read first" line, so with over 500 addresses no block is on show before Apply | fixed by GUI/Blue (Round 22C) |
+| [GUI-025](GUI-025-peer-import-hides-blocks.md) | Low | The Import peers preview lists the file's blocks after every added address, with no "Read first" line, so with over 500 addresses no block is on show before Apply | fixed by GUI/Blue (Round 22C), merged Round 23; verified R23B @ 2cacdd5 |
+| [GUI-026](GUI-026-rival-claim-without-parent-submits.md) | Low | "Build a rival claim" with Parent empty submits the claim to the node and peers instead of building it: `required` is never applied by `form()` | open |
