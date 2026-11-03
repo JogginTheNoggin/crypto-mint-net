@@ -7,16 +7,18 @@ byte-form rule, and no team proposed a consensus change. **This round's
 changes are all clear.**
 
 Answering Red's RED-048 question, Black found and reproduced one
-hard-fork case **already on `main`**. It was not added this round. It is
-**B7, blocked: hard fork**:
+information gap **already on `main`**. It was not added this round. It is
+**B7**. Black first marked it blocked: hard fork. The owner's definition
+of a hard fork (2026-11-03, below) makes it **clear: an information gap,
+not a hard fork**:
 - A node with `check_seconds: -1` never asks its peers for their weight
   again after it connects to them.
 - If its peers run `no_notices` and the pool is quiet, it stays on a
   lighter ledger for good. It does so while it is connected to a peer
   that holds the heavier one.
 
-The fix is node policy only and needs no consensus change, so it goes to
-Blue or Grey, not to the owner for approval.
+A node-policy improvement would close the gap. It is optional, needs no
+consensus change, and is for Blue or Grey.
 
 Blue's question on carrying the pool index on the wire is **a protocol
 change, not a consensus rule**. Black neither pre-approves nor filters
@@ -32,7 +34,7 @@ message type, never a change to wire version 1. The conditions are below.
 | Blue branches | PR #95 @ `057badb` (BLUE-019, D152: RED-046 in part, RED-047, RED-048) |
 | Red findings | PR #94 @ `e66a00f` (RED-046 to RED-048) |
 | Proposals | GREEN-043 (PR #93 @ `3e8beea`); ORANGE-028 (PR #92 @ `cd4ab09`, measurements only) |
-| Result | 8 clear, 0 with conditions, 1 blocked: hard fork (B7, on `main` since D59, reproduced) |
+| Result | 9 clear, 0 with conditions, 0 blocked. B7 (on `main` since D59, reproduced) is an information gap, not a hard fork |
 
 ## Round 17's items
 
@@ -41,7 +43,20 @@ message type, never a change to wire version 1. The conditions are below.
 | Black's extreme-settings test | Adopted as `pkg/p2p/settings_extremes_test.go` (D151) |
 | BLUE-018, GREEN-042, ORANGE-027 | Merged as cleared (D151) |
 
-## B7: `check_seconds: -1` with peers that send no notices (blocked: hard fork)
+## What a hard fork is (the owner, 2026-11-03)
+
+> A hard fork is when nodes that have the same information cannot decide
+> universally which ledger is valid, or which is heavier. Any set of
+> nodes, given any set of ledgers, must pick the same one. A voluntary or
+> involuntary lack of information is not a hard fork, and neither is a
+> node being slow.
+
+So **blocked: hard fork** is for a rule, setting or input that makes nodes
+holding the same ledgers disagree on validity or weight. A node that has
+not been given a ledger yet is not in that case, however long it waits
+and whatever its settings. AGENTS.md now says this.
+
+## B7: `check_seconds: -1` with peers that send no notices (clear: an information gap)
 
 **How a node learns of a heavier ledger.** It learns of one in four ways:
 1. Its weight request to each peer when the peer connects
@@ -63,10 +78,12 @@ message type, never a change to wire version 1. The conditions are below.
 5. In a quiet pool nothing new is pushed. b stays on the lighter ledger
    for good, connected to a peer that serves the heavier one.
 
-That breaks D115 and the owner's rule that no node policy may ever make
-a heavier ledger unacceptable. It matches the AGENTS.md meaning of
-blocked: hard fork: "some setting could leave a node unable to take in
-and select a heavier valid ledger for good".
+**Not a hard fork.** b lacks the heavier ledger because nobody tells it.
+That is a lack of information. As soon as b is given the ledger, it
+takes it and selects it: the third control shows this. So b and a do
+not disagree about validity or weight. Black first marked this
+blocked: hard fork under the older reading of D115 ("must in the end be
+taken"). Under the owner's definition it is clear.
 
 **Reproduced.** `TestBlackNoCheckStillReachesLaterHeavier/a-no-notices`
 (appendix) times out on `main` @ `533dbcd` (2 of 2) and on `057badb`
@@ -77,24 +94,24 @@ and select a heavier valid ledger for good".
   (`TestBlackNoCheckCaughtByNextEntry`). This shows what clears it, and
   that it is not an acceptance fault.
 
-**Why it is b's to fix.** b cannot control its peers' policy. A peer that
+**Still worth closing, as node policy.** b cannot control its peers' policy. A peer that
 holds a heavier ledger may be honest and quiet, so b's own guarantee has
 to come from b. `no_notices` on its own is fine, since a node that checks
 hears of a heavier ledger within `check_seconds`.
 
-**A node-policy shape that keeps the rule** (for Blue or Grey; no
-consensus change):
+**A node-policy improvement** (optional, for Blue or Grey; no consensus
+change):
 - `check_seconds` may not turn the check off. A negative value, or one
   past a ceiling, is treated as the longest interval allowed, for example
   one hour. Load can note the change in `Lowered`, as `grind.layer_rate`
   does.
-- Any finite interval satisfies D115. The ceiling only bounds how long
-  "in the end" can take. It is not a depth or size limit.
+- The ceiling only bounds how long a quiet node can stay uninformed. It
+  is not a depth or size limit, and it refuses nothing.
 - `docs/modules/nodepolicy.md` line 98 ("`check_seconds: -1` turns off
   regular checks") changes with it.
 - `ping_seconds: -1` can stay, since a ping carries no weight.
-- B7's test, with `-1` in b's policy, then passes. That is the
-  acceptance test.
+- B7's test, with `-1` in b's policy, then passes and can serve as its
+  test.
 
 **Since when.** D59, which made the regular check a weight request with
 `-1` meaning never. No change in this round makes it worse. RED-048 asked
@@ -167,11 +184,11 @@ heavier ledger is there at connection (`settings_extremes_test.go`, on
 
 - **No consensus change is proposed this round.** Nothing needs your
   approval.
-- **B7 is a hard-fork case on `main`. It is a node-policy bug, not a
-  rule change.** A node set never to check its peers' weight can stay
-  on a lighter ledger if its peers send no notices. The fix keeps the
-  check from being turned off, which needs no approval. Black will clear
-  B7 once a fix makes its test pass.
+- **B7 is not a hard fork under your definition.** A node set never to
+  check its peers' weight can stay uninformed of a heavier ledger if its
+  peers send no notices. That is a lack of information. An optional
+  node-policy improvement, which needs no approval, keeps the check from
+  being turned off.
 - **The pool index on the wire** is a protocol feature, not consensus.
   If a team wants it, it is yours to approve, with the conditions above.
 
@@ -189,8 +206,8 @@ How this was checked:
 Not in the repository. It uses `pkg/p2p`'s test helpers and
 `startNodePol` from `settings_extremes_test.go`. `startNodePolKeep` is
 `startNodePol` without forcing `check_seconds` and `ping_seconds` off.
-`TestBlackNoCheckStillReachesLaterHeavier/a-no-notices` fails on `main`
-and is the acceptance test for a fix.
+`TestBlackNoCheckStillReachesLaterHeavier/a-no-notices` fails on `main`.
+It can be the test for the optional improvement.
 
 ```go
 package p2p_test

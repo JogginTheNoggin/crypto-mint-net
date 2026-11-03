@@ -17,9 +17,12 @@ questions for each item:
    pre-approves it and passes it to the owner for final approval, or
    filters it out (see [The consensus gate](#the-consensus-gate)).
 2. **Can it make a hard fork possible?** Under any setting, input or
-   peer behaviour, could a node end up unable to take in and select a
-   heavier valid ledger that a reachable peer serves? If so it is
-   *blocked: hard fork*.
+   peer behaviour, could nodes that hold the same ledgers disagree on
+   which is valid or heavier, so that a node refuses for good a heavier
+   valid ledger it has been given? If so it is *blocked: hard fork*. A
+   lack of information, voluntary or involuntary, and slowness are not
+   hard forks (the owner, 2026-11-03; AGENTS.md, Black reviews). Black
+   may still note them as node-policy improvements.
 
 Black never edits code or other teams' files. It flags, filters and
 explains, and suggests a node-policy shape that keeps the rule. Grey may
@@ -34,6 +37,7 @@ decisions recorded in it.
 | No new consensus rules outside the design documents without the owner's explicit approval | Owner, 2026-10-30; AGENTS.md Rules |
 | Prefer node policy, but no node policy may ever make a heavier valid ledger unacceptable | Owner, 2026-10-31; consensus audit |
 | Hard forks must be impossible under any condition, whatever the settings | Owner, 2026-10-31 |
+| A hard fork is nodes with the same information that cannot agree on the valid or heavier ledger; a lack of information or slowness is not one | Owner, 2026-11-03 |
 | No depth limits, not even as node policy (the main document wins over the chasing document) | Owner, 2026-10-31 (G3) |
 | No size limit that every peer would hit (no entry or transaction size cap) | Owner, 2026-10-31 (C1, C2) |
 | No extra proof of work for deep forks (Red's deep-fork PoW idea) | Owner, 2026-10-30 |
@@ -217,4 +221,4 @@ in plain words.
 | Source Round 15 | [ROUND-15.md](ROUND-15.md) | 7 clear, 0 with conditions, 0 blocked; wallet, CLI and local RPC only; the entry body has no size bound; no consensus suggestions |
 | Source Round 16 | [ROUND-16.md](ROUND-16.md) | 10 clear, 0 with conditions, 0 blocked; wallet, CLI, local RPC and durable writes only; the entry body is still a hint with no size bound (64 MiB start, D147); no consensus suggestions |
 | Source Round 17 | [ROUND-17.md](ROUND-17.md) | 9 clear, 0 with conditions, 0 blocked; node policy export and import; Red's question answered: k, the reply limits and max_pending cannot refuse a heavier ledger (tested at both extremes); no consensus suggestions |
-| Source Round 18 | [ROUND-18.md](ROUND-18.md) | 8 clear, 0 with conditions, 1 blocked: hard fork (B7, on main since D59, reproduced: check_seconds -1 with peers that send no notices leaves a node on a lighter ledger in a quiet pool); lazy pool state cannot change what is accepted; the wire pool index is a protocol change for the owner, not consensus; no consensus suggestions |
+| Source Round 18 | [ROUND-18.md](ROUND-18.md) | 9 clear, 0 with conditions, 0 blocked; B7 (check_seconds -1 with peers that send no notices) reproduced, an information gap and not a hard fork under the owner's definition (2026-11-03), optional node-policy fix; lazy pool state cannot change what is accepted; the wire pool index is a protocol change for the owner; no consensus suggestions |

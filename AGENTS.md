@@ -78,7 +78,17 @@ verdicts:
 | clear | Changes no validity, weight, selection or byte-form rule, and no setting can make a heavier valid ledger unacceptable | May adopt or merge as usual |
 | clear with conditions | Clear only if the stated conditions hold (for example, "keep each entry's counted credit") | Adopts only with the conditions, and records them in the decision |
 | blocked: consensus | Adds or changes a consensus rule that is not in the design documents or the owner's approvals | Must not adopt it. If Black pre-approved the suggestion it waits for the owner's decision; if Black filtered it out it is dropped |
-| blocked: hard fork | Some setting or input could leave a node unable to take in and select a heavier valid ledger for good (a depth limit, a size limit every peer would hit, a permanent refusal) | Must not adopt it as is. Black names the failing case and the rule it breaks |
+| blocked: hard fork | Some rule, setting or input could make nodes that hold the same ledgers disagree on which is valid or heavier, so a node refuses for good a heavier valid ledger it has been given (a depth limit, a size limit every peer would hit, a permanent refusal). A lack of information or slowness is not a hard fork (definition below) | Must not adopt it as is. Black names the failing case and the rule it breaks |
+
+**What a hard fork is** (the owner, 2026-11-03). A hard fork is when
+nodes that have the same information cannot decide universally which
+ledger is valid, or which is heavier. Any set of nodes, given any set of
+ledgers, must pick the same one. A voluntary or involuntary lack of
+information is not a hard fork, and neither is a node being slow. So a
+setting that only leaves a node uninformed or slow (it never asks, it
+waits, its peers stay quiet) is not *blocked: hard fork*, though it may
+still be worth fixing as node policy. A rule, setting or input that makes
+nodes holding the same ledgers disagree on validity or weight is.
 
 **Consensus suggestions go to Black first** (the owner, 2026-10-31).
 Any team that wants to add or change a consensus rule, in a finding, a
@@ -250,7 +260,10 @@ fixes, what changed, the tests added, and how Grey can check it.
   setting may delay, pace, order, choose peers or ask for work first. It
   may never refuse such a ledger for good, and it may never be a depth
   limit or a size limit that every peer would hit. The `pkg/sim` scenario
-  for this (consensus-audit P0) must keep passing.
+  for this (consensus-audit P0) must keep passing. What counts as a hard
+  fork is the owner's definition under
+  [Black reviews](#black-reviews-part-d): nodes with the same information
+  that cannot agree; a lack of information is not one.
 - Do not import anything outside the Go standard library without recording
   the reason in `docs/decisions.md`.
 - Do not add network, disk or clock access to `tx`, `entry`, `layer`,
