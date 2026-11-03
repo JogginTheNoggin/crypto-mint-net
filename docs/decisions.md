@@ -3269,3 +3269,63 @@ a chase takes in after checking their work are not charged.
     `pkg/cli/peersport_test.go` (`TestPeersExportImport`,
     `TestPeerActionsOffline`, `TestPeersRunning`).
   - Also adopts GREEN-045 and ORANGE-030 as merged this round.
+
+### D158. Round 21 fixes: RED-058 to RED-062 (BLUE-022)
+
+- **Decision:**
+  - **RED-058.**
+    - The peer book keeps at most `MaxUnlisted` records known only from
+      an imported file: a quarter of `MaxRecords` (1024) by default. An
+      import is refused past it, and the plan says so.
+    - An address learned any other way takes the place of the oldest
+      such record when the book or its range is full, so a file never
+      blocks discovery.
+    - `poo peer remove -imported` (`POST /v1/peers/forget-imported`,
+      `Book.ForgetImported`) takes them all out. A record the node learned, promoted or verified
+      stays, and so do blocks.
+  - **RED-059.**
+    - The plan's notes total the blocks and ranges, and say how much of
+      IPv4 the ranges cover.
+    - The trim that made 65,536 blocks take a minute is ORANGE-031's (PR
+      #126), and is not repeated here.
+  - **RED-060.** `peers.Range` of a host name is the name in lower case
+    without the root's trailing dot, as the tracker keys it. A listed name
+    in capitals meets a file's `host:` range block. The plan says a
+    listed host name is protected by name only.
+  - **RED-061.**
+    - A new package, `plain`, is the one text check: no control, format
+      (direction marks, zero-width characters) or separator character,
+      and valid UTF-8.
+    - `peers.CheckLabel`, `nodepolicy`'s `checkText` and the CLI's
+      `termSafe` use it.
+    - Table cells and keys are escaped (`termSafe`).
+  - **RED-062.**
+    - `peerport.ImportIf` plans and applies in one call, only when the plan
+      has the given digest. `poo peers import -apply -if-digest` and the
+      node's `if_digest` use it.
+    - The preview says the addresses will be tried when the node is short
+      of peers, and how `p2p.no_dial_imported` stops that.
+    - Points 1 and 2, offline `peer add -keep -label`, are GREEN-046's (PR
+      #124).
+- **Why:** Red's Round 21 findings on D157:
+  - One shared file could fill the peer book for good.
+  - A large block list took a minute and its effect was not shown.
+  - A listed name in capitals was not protected.
+  - Labels could hold invisible and direction characters.
+  - The peer import applied a plan other than the one checked.
+- **Consensus:** none. The peer book and the tracker are node policy,
+  local to one node.
+  - `MaxUnlisted` limits what one file puts in the book, not what the node
+    can learn or follow. Every limit of the book gives way to an address
+    the node learns.
+  - Nothing here touches which ledger a node selects.
+- **Tier:** peers, peerport, plain, the CLI and RPC.
+  - `pkg/peers/blue022_test.go`: `TestImportedAddressesGiveWay`,
+    `TestRangeOfAHostName`, `TestLabelRefusesInvisibleText`.
+  - `pkg/peerport/blue022_test.go`: `TestImportTakesAShareOfTheBook`,
+    `TestListedHostNameInCapitalsIsProtected`,
+    `TestPlanCountsRangeBlocks`,
+    `TestImportIfAppliesOnlyThePreviewedPlan`.
+  - `pkg/plain`: `TestTextAndSafe`.
+  - `pkg/cli/blue022_test.go`: `TestPeersForgetImported`,
+    `TestTableEscapesText`.

@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
@@ -70,6 +72,12 @@ type Plan struct {
 	Refused []Line `json:"refused"`
 	// Same counts the file's addresses and blocks the node already has.
 	Same int `json:"same"`
+	// Notes say what the plan does beyond its lines: that imported
+	// addresses will be dialled, how many places of the book they take,
+	// how much of the address space the range blocks cover, and that a
+	// listed host name is checked by name only (RED-058, RED-059, RED-060,
+	// RED-062, D158).
+	Notes []string `json:"notes"`
 }
 
 // Empty reports whether the import changes nothing.
@@ -93,13 +101,34 @@ type op struct {
 // longer than what the node holds. It never removes, unblocks or shortens
 // anything, and it saves the book and the tracker when it changed them.
 func Import(f File, opt Options, n Node, apply bool, now time.Time) (Plan, error) {
+	return importWith(f, opt, n, apply, nil, now)
+}
+
+// ErrNotPreviewed is returned by ImportIf when the plan made now is not
+// the one whose digest was given.
+var ErrNotPreviewed = errors.New("peerport: this is not the one previewed")
+
+// ImportIf is Import with apply, but it applies only if the plan it makes
+// has the import digest want (Digest of the file's digest, the options and
+// the plan). The plan checked is the plan applied: a running node's book
+// can change between a preview and an apply (RED-062, D158).
+func ImportIf(f File, opt Options, n Node, want string, now time.Time) (Plan, error) {
+	return importWith(f, opt, n, true, func(p Plan) error {
+		if dg := Digest(f.Digest, opt, p); !strings.EqualFold(dg, want) {
+			return fmt.Errorf("%w: the file, -blocks, -ranges or what it would change differ (digest %s, not %s), so nothing was changed: preview it again", ErrNotPreviewed, dg, want)
+		}
+		return nil
+	}, now)
+}
+
+func importWith(f File, opt Options, n Node, apply bool, check func(Plan) error, now time.Time) (Plan, error) {
 	if opt.Ranges && !opt.Blocks {
 		return Plan{}, fmt.Errorf("peerport: range blocks come with blocks: take both")
 	}
 	if err := f.Check(); err != nil {
 		return Plan{}, err
 	}
-	plan := Plan{Added: []Line{}, More: []Line{}, Labels: []Line{}, LabelConflicts: []Line{}, Blocks: []Line{}, Skipped: []Line{}, Refused: []Line{}}
+	plan := Plan{Added: []Line{}, More: []Line{}, Labels: []Line{}, LabelConflicts: []Line{}, Blocks: []Line{}, Skipped: []Line{}, Refused: []Line{}, Notes: []string{}}
 	var ops []op
 	listed := map[string]bool{}
 	listedKey := map[string]bool{}
@@ -119,6 +148,7 @@ func Import(f File, opt Options, n Node, apply bool, now time.Time) (Plan, error
 	}
 	lim := n.Book.Limits()
 	total := len(have)
+	unlisted := n.Book.Unlisted()
 	seen := map[string]bool{}
 	for _, p := range f.Peers {
 		if seen[p.Addr] {
@@ -143,6 +173,11 @@ func Import(f File, opt Options, n Node, apply bool, now time.Time) (Plan, error
 		if !known {
 			rng := peers.Range(p.Addr)
 			switch {
+			case unlisted >= lim.MaxUnlisted:
+				// A file takes at most a share of the book, so it never
+				// fills it against what the node learns (RED-058, D158).
+				plan.Refused = append(plan.Refused, Line{p.Addr, fmt.Sprintf("the book keeps at most %d imported addresses (of its %d places)", lim.MaxUnlisted, lim.MaxRecords)})
+				continue
 			case total >= lim.MaxRecords:
 				plan.Refused = append(plan.Refused, Line{p.Addr, fmt.Sprintf("the peer book is full (%d)", lim.MaxRecords)})
 				continue
@@ -151,6 +186,7 @@ func Import(f File, opt Options, n Node, apply bool, now time.Time) (Plan, error
 				continue
 			}
 			total++
+			unlisted++
 			perRange[rng]++
 			plan.Added = append(plan.Added, Line{p.Addr, fmt.Sprintf("unlisted, %d mint %s", len(secs), plural(len(secs), "policy", "policies"))})
 			ops = append(ops, op{addr: p.Addr, sections: secs, label: p.Label})
@@ -230,8 +266,14 @@ func Import(f File, opt Options, n Node, apply bool, now time.Time) (Plan, error
 			ops = append(ops, op{block: b.Addr, d: d})
 		}
 	}
+	plan.Notes = notes(plan, opt, n, unlisted, lim)
 	if !apply || plan.Empty() {
 		return plan, nil
+	}
+	if check != nil {
+		if err := check(plan); err != nil {
+			return plan, err
+		}
 	}
 	booked, blocked := false, false
 	for _, o := range ops {
@@ -297,4 +339,40 @@ func Digest(file string, opt Options, p Plan) string {
 	}{file, opt, p})
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// notes says what plan does beyond its lines (Plan.Notes).
+func notes(plan Plan, opt Options, n Node, unlisted int, lim peers.Limits) []string {
+	out := []string{}
+	if len(plan.Added) > 0 || len(plan.More) > 0 {
+		out = append(out, fmt.Sprintf("once applied, the node tries these addresses when it is short of peers, after its own candidates and before registries (p2p.no_dial_imported stops that); imported addresses take %d of the %d places the book keeps for them (of %d), and poo peer remove -imported takes them all out", unlisted, lim.MaxUnlisted, lim.MaxRecords))
+	}
+	ranges, v4 := 0, map[string]bool{}
+	for _, l := range plan.Blocks {
+		if r, ok := strings.CutPrefix(l.Addr, "range "); ok {
+			ranges++
+			if strings.HasPrefix(r, "v4:") {
+				v4[r] = true
+			}
+		}
+	}
+	if blocks := len(plan.Blocks); blocks > 0 {
+		line := fmt.Sprintf("%d %s", blocks, plural(blocks, "block", "blocks"))
+		if ranges > 0 {
+			line += fmt.Sprintf(", %d of them network %s", ranges, plural(ranges, "range", "ranges"))
+		}
+		if len(v4) > 0 {
+			line += fmt.Sprintf("; the IPv4 ranges cover %.2f%% of IPv4", float64(len(v4))*100/65536)
+		}
+		out = append(out, line)
+	}
+	if opt.Blocks {
+		for _, a := range n.Listed {
+			if strings.HasPrefix(peers.Range(a), "host:") {
+				out = append(out, "a listed host name is protected by its name only: a block on the address it resolves to is not seen here")
+				break
+			}
+		}
+	}
+	return out
 }

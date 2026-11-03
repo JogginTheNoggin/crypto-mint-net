@@ -68,11 +68,22 @@ beyond the slots become candidates. Peers this node dialled win ties.
   range before a second from any range, and skips a candidate that failed
   until `Retry` doubled per failure has passed.
 - `MaxRecords` bounds the book.
+- `MaxUnlisted` (a quarter of `MaxRecords` by default) bounds the
+  records known only from an imported file: from `import`, unlisted for
+  every policy. `AddUnlisted` refuses one more with `ErrUnlistedFull`.
+  An address learned any other way (a peer list, a reply, an inbound
+  connection, a registry, by hand) takes the place of the oldest such
+  record when the book or its range is full. So a file can never fill
+  the book against discovery (RED-058, D158). `ForgetImported` takes
+  them all out (`poo peer remove -imported`), and `Unlisted` counts them.
+- `Range` of a host name is the name in lower case without the root's
+  trailing dot, as the tracker keys it (RED-060).
 
 ## Labels and imported addresses
 
 A record may carry the owner's `Label` (`SetLabel`, at most `MaxLabel`
-bytes, no control character: `CheckLabel`). It is local: it changes
+bytes, and no control, format or separator character: `CheckLabel`, the
+same check as `plain.Text`, RED-061). It is local: it changes
 nothing about how the node treats the address and is never sent to a
 peer. An address added by hand has source `hand`, one from a peer file
 `import` (D157).
@@ -88,6 +99,7 @@ and `poo peer connect -imported` does it for all of them.
 ## API
 
 `Open(path, Limits)`, `Save`, `SetRefuse`, `Add`, `AddUnlisted`,
+`ForgetImported`, `Unlisted`,
 `SetLabel`, `CheckLabel`, `PromoteImported`, `Limits`, `Verify`, `Heard`,
 `Unverify`, `Archive`, `Unarchive`, `Delete`, `Tried`, `Pick`,
 `VerifiedFor(section, full, within)` (for peer list replies), `Count`,

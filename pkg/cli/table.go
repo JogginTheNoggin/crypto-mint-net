@@ -142,7 +142,7 @@ func (t tabler) top(out io.Writer, n *jnode) error {
 				}
 				continue
 			}
-			fmt.Fprintf(tw, "%s\t%s\n", k, t.cell(v))
+			fmt.Fprintf(tw, "%s\t%s\n", termSafe(k), t.cell(v))
 		}
 		if err := tw.Flush(); err != nil {
 			return err
@@ -218,7 +218,7 @@ func (t tabler) table(out io.Writer, rows []*jnode) error {
 
 func (t tabler) flatten(prefix string, n *jnode, m map[string]string, cols *[]string, seen map[string]bool) {
 	for i, k := range n.keys {
-		name := prefix + k
+		name := prefix + termSafe(k)
 		v := n.vals[i]
 		if v.isObj && t.flat(v) && len(v.keys) <= maxFlatKeys {
 			t.flatten(name+".", v, m, cols, seen)
@@ -251,7 +251,9 @@ func (t tabler) cell(n *jnode) string {
 	case n.isObj:
 		return fmt.Sprintf("{%d}", len(n.keys))
 	}
-	s := n.text
+	// Text from a file or a peer (a label, an address, a reason) is
+	// escaped, as every value a plan prints is (RED-061, D158).
+	s := termSafe(n.text)
 	if s == "" {
 		return `""`
 	}

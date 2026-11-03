@@ -638,7 +638,7 @@ func holdingsCmd(args []string, out io.Writer) error {
 // peerCmd acts on one peer of the running node: a timeout, a block, lifting
 // them, clearing its records, choosing its tracking template, deleting it.
 func peerCmd(args []string, out io.Writer) error {
-	const use = "usage: poo peer timeout|block|unblock|clear|template|delete|add|remove|label|connect ADDR [-seconds N] [-range] [-what flags|measures|all] [-template NAME] [-label TEXT] [-keep], or poo peer connect -imported"
+	const use = "usage: poo peer timeout|block|unblock|clear|template|delete|add|remove|label|connect ADDR [-seconds N] [-range] [-what flags|measures|all] [-template NAME] [-label TEXT] [-keep], or poo peer connect|remove -imported"
 	if len(args) == 0 {
 		return errors.New(use)
 	}
@@ -650,7 +650,7 @@ func peerCmd(args []string, out io.Writer) error {
 	tpl := fs.String("template", "", "template: the tracking template (empty: its groups and the default)")
 	label := fs.String("label", "", "add and label: the owner's own note on the address (label with none clears it)")
 	keep := fs.Bool("keep", false, "add: also list it in node.json (p2p.peers), so it is always dialled, even with the node stopped")
-	imported := fs.Bool("imported", false, "connect: with no address, try every unlisted address an imported peer file gave")
+	imported := fs.Bool("imported", false, "with no address: connect tries every unlisted address an imported peer file gave; remove forgets them all (RED-058)")
 	action := args[0]
 	rest, addr := args[1:], ""
 	// The address may come before the flags: poo peer add ADDR -label X.
@@ -662,7 +662,7 @@ func peerCmd(args []string, out io.Writer) error {
 	}
 	if err := flagsFor(fs, action, map[string][]string{
 		"seconds": {"timeout", "block"}, "range": {"block"}, "what": {"clear"}, "template": {"template"},
-		"label": {"add", "label"}, "keep": {"add"}, "imported": {"connect"},
+		"label": {"add", "label"}, "keep": {"add"}, "imported": {"connect", "remove"},
 	}); err != nil {
 		return err
 	}
@@ -671,8 +671,11 @@ func peerCmd(args []string, out io.Writer) error {
 	} else if fs.NArg() != 0 {
 		return errors.New(use)
 	}
-	if (addr == "") != (action == "connect" && *imported) {
+	if (addr == "") != ((action == "connect" || action == "remove") && *imported) {
 		return errors.New(use)
+	}
+	if action == "remove" && *imported {
+		return forgetImported(out, w.resolve())
 	}
 	req := rpc.PeerRequest{Addr: addr, Action: action, Seconds: *secs, Range: *rng, What: *what, Template: *tpl, Label: *label, Keep: *keep, Imported: *imported}
 	cl, err := dialNode(out, w.resolve())

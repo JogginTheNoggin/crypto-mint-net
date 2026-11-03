@@ -12,16 +12,14 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/plain"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
 
@@ -407,33 +405,7 @@ func planLine(field, value string, short func(string) string) string {
 // bidirectional override becomes its Go escape (\x1b, \n, \u202e), so text
 // from a file can neither move the cursor, erase what was printed, start a
 // line of its own nor reorder what is shown (RED-053, D156).
-func termSafe(s string) string {
-	ok := true
-	for _, r := range s {
-		if unsafeRune(r) {
-			ok = false
-			break
-		}
-	}
-	if ok {
-		return s
-	}
-	var b strings.Builder
-	for _, r := range s {
-		if unsafeRune(r) {
-			q := strconv.QuoteRune(r)
-			b.WriteString(q[1 : len(q)-1])
-			continue
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
-
-// unsafeRune reports whether r must not reach a terminal as it is.
-func unsafeRune(r rune) bool {
-	return r == utf8.RuneError || unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) || r == '\u2028' || r == '\u2029'
-}
+func termSafe(s string) string { return plain.Safe(s) }
 
 // importOne plans, and with apply makes, the import into one node policy:
 // through the running node when there is one, so the change is made

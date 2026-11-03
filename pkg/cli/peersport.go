@@ -350,9 +350,11 @@ func peersImportCmd(args []string, out io.Writer) error {
 		return err
 	}
 	defer pb.close()
-	run := func(apply bool) (peerport.Plan, error) {
+	// want, with an apply, is the digest the plan made in the same call
+	// must have, so what is applied is what was checked (RED-062, D158).
+	run := func(apply bool, want string) (peerport.Plan, error) {
 		if pb.cl != nil {
-			rep, err := pb.cl.ImportPeers(rpc.PeersImportRequest{File: f, Options: opt, DryRun: !apply})
+			rep, err := pb.cl.ImportPeers(rpc.PeersImportRequest{File: f, Options: opt, DryRun: !apply, IfDigest: want})
 			return rep.Plan, err
 		}
 		listed := append([]string(nil), pb.pol.P2P.Peers...)
@@ -360,9 +362,12 @@ func peersImportCmd(args []string, out io.Writer) error {
 			listed = append(listed, pb.pol.P2P.Advertise)
 		}
 		n := peerport.Node{Book: pb.book, Tracker: pb.tr, AllowLocal: pb.pol.P2P.AllowLocalPeers, Listed: listed}
+		if apply && want != "" {
+			return peerport.ImportIf(f, opt, n, want, time.Now())
+		}
 		return peerport.Import(f, opt, n, apply, time.Now())
 	}
-	plan, err := run(false)
+	plan, err := run(false, "")
 	if err != nil {
 		return fmt.Errorf("%w; nothing was changed", err)
 	}
@@ -372,7 +377,11 @@ func peersImportCmd(args []string, out io.Writer) error {
 	}
 	rep := peersImportReport{Running: pb.cl != nil, Plan: plan, Digest: dg}
 	if *apply && !plan.Empty() {
-		if rep.Plan, err = run(true); err != nil {
+		want := ""
+		if digestGiven {
+			want = *ifDigest
+		}
+		if rep.Plan, err = run(true, want); err != nil {
 			return err
 		}
 		rep.Applied = true
@@ -427,6 +436,9 @@ func printPeersPlan(out io.Writer, r peersImportReport, apply bool) {
 	if p.Same > 0 {
 		fmt.Fprintf(out, "  %d of the file's entries are already here\n", p.Same)
 	}
+	for _, n := range p.Notes {
+		fmt.Fprintf(out, "  note: %s\n", n)
+	}
 	switch {
 	case p.Empty():
 		fmt.Fprintln(out, "  nothing to change")
@@ -435,4 +447,32 @@ func printPeersPlan(out io.Writer, r peersImportReport, apply bool) {
 	default:
 		fmt.Fprintln(out, "  applied: the addresses are unlisted; the node tries them when it is short of peers, or now with poo peer connect -imported")
 	}
+}
+
+// forgetImported is poo peer remove -imported: it takes out every
+// address known only from an imported peer file, which an import may have
+// put there by the thousand, in one step (RED-058, D158). Blocks, and
+// addresses the node learned, promoted or verified, stay.
+func forgetImported(out io.Writer, dir string) error {
+	if viewOnlyOf(out) {
+		return errViewOnly("peer remove -imported")
+	}
+	pb, err := openPeerBook(out, dir, true)
+	if err != nil {
+		return err
+	}
+	defer pb.close()
+	var rep rpc.ForgetImportedReply
+	if pb.cl != nil {
+		if rep, err = pb.cl.ForgetImported(rpc.ForgetImportedRequest{}); err != nil {
+			return err
+		}
+	} else {
+		rep.Imported = pb.book.Unlisted()
+		rep.Forgotten = pb.book.ForgetImported()
+		if err := pb.book.Save(); err != nil {
+			return err
+		}
+	}
+	return writeJSON(out, rep)
 }
