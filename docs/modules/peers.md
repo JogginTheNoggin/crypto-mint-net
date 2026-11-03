@@ -21,6 +21,7 @@ directory.
 | Priority | Verified and relied on: asked, forwarded to, pinged often | `Verify(addr, s, Priority, now)` |
 | Backup | Verified and kept ready: forwarded to, pinged less, asked as a fallback | `Verify(addr, s, Backup, now)` |
 | Archived | Not in use; kept as a starting point | `Archive` (silence, a dropped policy, its own address) |
+| Unlisted | Known only from a peer file the owner imported; in no category and not a candidate | `AddUnlisted` (`poo peers import`, D157); `PromoteImported` makes it a candidate |
 
 `Delete` removes a node from the book. It may come back as a new
 candidate; keeping an address out is a block in the tracker, which the
@@ -68,9 +69,26 @@ beyond the slots become candidates. Peers this node dialled win ties.
   until `Retry` doubled per failure has passed.
 - `MaxRecords` bounds the book.
 
+## Labels and imported addresses
+
+A record may carry the owner's `Label` (`SetLabel`, at most `MaxLabel`
+bytes, no control character: `CheckLabel`). It is local: it changes
+nothing about how the node treats the address and is never sent to a
+peer. An address added by hand has source `hand`, one from a peer file
+`import` (D157).
+
+`AddUnlisted` records an imported address as `Unlisted` for the mint
+policies it is not known for yet, and leaves a known policy's state as it
+is. `Pick` never returns it. `PromoteImported(s, n)` makes up to `n`
+unlisted nodes for policies overlapping `s` candidates, the longest known
+first; `n <= 0` promotes all. The connection manager does this when a
+policy is short of peers, unless the node policy sets `no_dial_imported`,
+and `poo peer connect -imported` does it for all of them.
+
 ## API
 
-`Open(path, Limits)`, `Save`, `SetRefuse`, `Add`, `Verify`, `Heard`,
+`Open(path, Limits)`, `Save`, `SetRefuse`, `Add`, `AddUnlisted`,
+`SetLabel`, `CheckLabel`, `PromoteImported`, `Limits`, `Verify`, `Heard`,
 `Unverify`, `Archive`, `Unarchive`, `Delete`, `Tried`, `Pick`,
 `VerifiedFor(section, full, within)` (for peer list replies), `Count`,
 `Records`, `Record`, `State`, `Range`, `DefaultLimits`; `Slots`,

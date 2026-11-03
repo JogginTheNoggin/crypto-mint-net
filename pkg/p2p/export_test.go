@@ -52,3 +52,10 @@ func (h *Host) Coverage() []wire.Section { return h.coverage }
 
 // IndexedPools returns how many pools the host has indexed.
 func (h *Host) IndexedPools() int { return len(h.sortedPools()) }
+
+// Chasing counts the records of pools held only for a chase (RED-057).
+func (h *Host) Chasing() int {
+	h.idxMu.RLock()
+	defer h.idxMu.RUnlock()
+	return len(h.chasing)
+}

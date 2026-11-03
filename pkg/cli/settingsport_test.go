@@ -20,7 +20,7 @@ func TestSettingsExportImport(t *testing.T) {
 	cli(t, nil, "init", "-example", "-root", src, "-listen", "127.0.0.1:7111", "-p2p", "off", "-peer", "a.example:1", "-registry", "/old/home/reg.txt")
 	cli(t, nil, "init", "-root", dst, "-p2p", "off")
 	file := filepath.Join(t.TempDir(), "settings.json")
-	runOut(t, "settings", "export", "-root", src, "-out", file)
+	said := runOut(t, "settings", "export", "-root", src, "-out", file)
 	b, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
@@ -28,6 +28,13 @@ func TestSettingsExportImport(t *testing.T) {
 	if strings.Contains(string(b), "7111") || !strings.Contains(string(b), `"scope": "settings"`) || strings.Contains(string(b), `"params"`) {
 		t.Fatalf("export kept the RPC address or a series, or is not a settings bundle:\n%s", b)
 	}
+	// The registry file names the owner's folders: only -full keeps it,
+	// and the export says so and what the file holds (RED-052, D156).
+	if strings.Contains(string(b), "reg.txt") || !strings.Contains(said, "left out 1 registry") || !strings.Contains(said, "the file holds 1 peer address (p2p.peers)") {
+		t.Fatalf("a plain export kept the registry file, or said:\n%s\n%s", said, b)
+	}
+	// The rest of this test carries the registry file: a full export.
+	runOut(t, "settings", "export", "-root", src, "-full", "-out", file)
 
 	dstPath := filepath.Join(dst, "policies", "default", nodepolicy.FileName)
 	before, _ := os.ReadFile(dstPath)
@@ -45,7 +52,7 @@ func TestSettingsExportImport(t *testing.T) {
 	// With -full the file is taken, and the preview says it is not here,
 	// until -map-path points it at this machine's.
 	out = runOut(t, "settings", "import", file, "-full", "-root", dst)
-	if !strings.Contains(out, "may not fit this machine: p2p.registries[/old/home/reg.txt]: no such file here") {
+	if !strings.Contains(out, "may not fit this machine: p2p.registries: /old/home/reg.txt: no such file here") {
 		t.Fatalf("-full did not say the file is missing:\n%s", out)
 	}
 	here := t.TempDir()
@@ -110,5 +117,33 @@ func TestSettingsImportIntoRunningNode(t *testing.T) {
 	p, err := nodepolicy.Load(filepath.Join(root, "policies", "default", nodepolicy.FileName))
 	if err != nil || len(p.P2P.Peers) != 1 {
 		t.Fatalf("running import: %v %+v", err, p.P2P)
+	}
+}
+
+// A -map-path that cannot change anything says so: without -full no
+// registry file is taken, and a map matching no registry file of the
+// file is most likely mistyped (GREEN-045).
+func TestMapPathNotes(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off", "-registry", "/old/home/reg.txt")
+	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	file := filepath.Join(t.TempDir(), "settings.json")
+	// A plain export leaves local registry files out (RED-052), so the
+	// file that carries one is a full export.
+	runOut(t, "settings", "export", "-full", "-root", src, "-out", file)
+
+	out := runOut(t, "settings", "import", file, "-map-path", "/old/home=/new", "-root", dst)
+	if !strings.Contains(out, "note: -map-path rewrites registry files, which only -full takes") || strings.Contains(out, "matches no registry file") {
+		t.Fatalf("without -full:\n%s", out)
+	}
+	out = runOut(t, "settings", "import", file, "-full", "-map-path", "/old/hom=/new", "-root", dst)
+	if !strings.Contains(out, "note: -map-path /old/hom=/new matches no registry file in the file") || strings.Contains(out, "only -full takes") {
+		t.Fatalf("a mistyped map:\n%s", out)
+	}
+	if out = runOut(t, "settings", "import", file, "-full", "-map-path", "/old/home=/new", "-root", dst); strings.Contains(out, "note: -map-path") {
+		t.Fatalf("a map that is used:\n%s", out)
+	}
+	if (nodepolicy.PathMap{From: "https://a", To: "/x"}).Maps("https://a/reg") {
+		t.Error("a map rewrote a registry URL")
 	}
 }

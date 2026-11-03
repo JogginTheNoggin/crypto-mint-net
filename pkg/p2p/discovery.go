@@ -801,6 +801,10 @@ func (h *Host) manage(ctx context.Context) {
 		if len(cands) == 0 && h.book.Unarchive(s) > 0 {
 			cands = h.book.Pick(s, need, skip, now)
 		}
+		// Then what an imported peer file gave, a few at a time (D157).
+		if len(cands) < need && !h.cfg.NoDialImported && h.book.PromoteImported(s, need-len(cands)) > 0 {
+			cands = h.book.Pick(s, need, skip, now)
+		}
 		for _, a := range cands {
 			h.dialCandidate(ctx, a)
 		}

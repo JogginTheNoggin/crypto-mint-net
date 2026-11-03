@@ -26,6 +26,7 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		RequestRate: p.P2P.RequestRate,
 
 		AllowLocalPeers: p.P2P.AllowLocalPeers,
+		NoDialImported:  p.P2P.NoDialImported,
 
 		UnlistedConns: p.P2P.UnlistedConns,
 		StrictReturn:  p.P2P.StrictReturn,

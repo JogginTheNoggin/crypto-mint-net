@@ -31,7 +31,11 @@ var readCommands = map[string]map[string]bool{
 	"version": nil, "help": nil, "-h": nil, "--help": nil,
 	"crypto": nil, "keygen": nil, "series": nil, "sim": nil, "demo": nil,
 	"completion": nil, "__complete": nil, "doctor": nil,
-	"status": nil, "peers": nil, "tracking": nil, "chases": nil,
+	"status": nil, "tracking": nil, "chases": nil,
+	// poo peers with its filters only looks; export writes a file and
+	// import changes the book (D157). "-" stands for a first argument
+	// that is a flag.
+	"peers":   {"-": true},
 	"payment": nil, "holdings": nil,
 	"pools": nil, "ledger": nil, "pending": nil, "unspent": nil, "tx": nil, "address": nil,
 	"watch":  nil,
@@ -108,7 +112,7 @@ func checkViewOnly(args []string) error {
 	if len(args) > 1 {
 		sub = args[1]
 	}
-	if sub == "" || subs[sub] {
+	if sub == "" || subs[sub] || (strings.HasPrefix(sub, "-") && subs["-"]) {
 		return nil // no subcommand: the command prints its usage
 	}
 	return errViewOnly(args[0] + " " + sub)

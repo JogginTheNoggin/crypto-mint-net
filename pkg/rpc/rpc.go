@@ -201,6 +201,7 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("GET /v1/tracking", h.tracking)
 	h.mux.HandleFunc("GET /v1/chases", h.chases)
 	h.mux.HandleFunc("POST /v1/peer", h.peer)
+	h.mux.HandleFunc("POST /v1/peers/import", h.importPeers)
 	h.mux.HandleFunc("GET /v1/metrics", h.metrics)
 	h.viewRoutes()
 	h.grindRoutes()
@@ -256,6 +257,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// any size too, as poo submit and the GUI do (RED-038, D144).
 	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/policy/import":
 		r.Body = http.MaxBytesReader(w, r.Body, MaxImportBody)
+	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/peers/import":
+		r.Body = http.MaxBytesReader(w, r.Body, MaxPeerImportBody)
 	default:
 		r.Body = http.MaxBytesReader(w, r.Body, MaxBody)
 	}

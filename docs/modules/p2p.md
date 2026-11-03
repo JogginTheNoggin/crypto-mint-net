@@ -73,7 +73,9 @@ sequenceDiagram
    first deliveries) beat it by the margin.
 4. The connection manager (`Manage`, every 30 seconds) dials candidates
    while a policy has fewer listed peers than its slots, then the archive,
-   then asks a peer for its peer list, broadcasts a follow request and
+   then the unlisted addresses of an imported peer file, a few at a time
+   (`peers.Book.PromoteImported`; not with `NoDialImported`, D157), then
+   asks a peer for its peer list, broadcasts a follow request and
    loads the registries. Everything learned is a candidate; a blocked or
    timed-out address is never dialled or accepted.
 5. Pings: every 2 minutes to priority peers, every 6 to backups; 3 missed
@@ -340,10 +342,18 @@ The host indexes every pool it follows by pool id, since the wire names a
 pool only by its id. A series of `engine.ListAll` (65,536) pools or more
 followed whole is the exception: it is announced as one series section,
 and its pools are indexed as they come into use. That means pools with
-state at start, a pool an item is kept in, and a pool a branch is chased
-in. A pushed transaction or entry for a pool not yet indexed is found by
-its first mint serial, checked against the section's pool id. Other
-messages for such a pool are not answered until it is in use. That is
-lack of information, never a different rule. The sorted list of pools is
-built once and again only when a pool is added (RED-049, D154).
+state at start, and a pool an item is kept in, also by a chase. A pushed transaction or entry for
+a pool not yet indexed is found by its first mint serial, checked
+against the section's pool id. Other messages for such a pool are not
+answered until it is in use. That is lack of information, never a
+different rule. The sorted list of pools is built once and again only
+when a pool is added (RED-049, D154).
+
+A stated weight is only the sender's claim, so a branch offered in a
+pool that is not indexed does not index it. The pool's record is held in
+`chasing` for the chase alone, and `sweepChasing` drops it at the next
+check once the chase queue holds no group for the pool. A chase that
+keeps something indexes the pool then (`onKept`). This limits no ledger
+and no follow: a pool offered again gets its record again (RED-057,
+D156).
 

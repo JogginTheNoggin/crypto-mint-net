@@ -377,6 +377,10 @@ type P2P struct {
 	// default (decision D96); turn it on for a network on one machine or
 	// one LAN. Addresses in Peers are always dialled.
 	AllowLocalPeers bool `json:"allow_local_peers,omitempty"`
+	// NoDialImported stops the node trying, when it is short of peers,
+	// the unlisted addresses an imported peer file gave it; they are then
+	// tried only by poo peer connect (D157).
+	NoDialImported bool `json:"no_dial_imported,omitempty"`
 	// MaxInbound caps the connections other nodes open to this one; by
 	// default MaxPeers less MaxOutbound, -1 for no separate cap.
 	MaxInbound int `json:"max_inbound,omitempty"`
@@ -464,6 +468,9 @@ func (p Policy) P2PListenAddr() string {
 func (p Policy) Validate() error {
 	if p.Format != Format {
 		return fmt.Errorf("%w: format %d, this node reads %d", ErrInvalid, p.Format, Format)
+	}
+	if err := checkText(p); err != nil {
+		return err
 	}
 	if p.K != nil && *p.K < ledger.Unlimited {
 		return fmt.Errorf("%w: k must be -1 (keep all) or more", ErrInvalid)

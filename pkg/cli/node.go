@@ -19,6 +19,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -634,31 +635,10 @@ func holdingsCmd(args []string, out io.Writer) error {
 	return o.write(out, r)
 }
 
-func peersCmd(args []string, out io.Writer) error {
-	fs := newFlagSet("peers", out)
-	w := addWhere(fs)
-	o := addOutput(fs)
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if err := o.check(); err != nil {
-		return err
-	}
-	cl, err := dialNode(out, w.resolve())
-	if err != nil {
-		return err
-	}
-	r, err := cl.Peers()
-	if err != nil {
-		return err
-	}
-	return o.write(out, r)
-}
-
 // peerCmd acts on one peer of the running node: a timeout, a block, lifting
 // them, clearing its records, choosing its tracking template, deleting it.
 func peerCmd(args []string, out io.Writer) error {
-	const use = "usage: poo peer timeout|block|unblock|clear|template|delete ADDR [-seconds N] [-range] [-what flags|measures|all] [-template NAME]"
+	const use = "usage: poo peer timeout|block|unblock|clear|template|delete|add|remove|label|connect ADDR [-seconds N] [-range] [-what flags|measures|all] [-template NAME] [-label TEXT] [-keep], or poo peer connect -imported"
 	if len(args) == 0 {
 		return errors.New(use)
 	}
@@ -668,27 +648,97 @@ func peerCmd(args []string, out io.Writer) error {
 	rng := fs.Bool("range", false, "block: the address's whole network range")
 	what := fs.String("what", "all", "clear: flags, measures or all")
 	tpl := fs.String("template", "", "template: the tracking template (empty: its groups and the default)")
+	label := fs.String("label", "", "add and label: the owner's own note on the address (label with none clears it)")
+	keep := fs.Bool("keep", false, "add: also list it in node.json (p2p.peers), so it is always dialled, even with the node stopped")
+	imported := fs.Bool("imported", false, "connect: with no address, try every unlisted address an imported peer file gave")
 	action := args[0]
-	if err := fs.Parse(args[1:]); err != nil {
+	rest, addr := args[1:], ""
+	// The address may come before the flags: poo peer add ADDR -label X.
+	if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
+		addr, rest = rest[0], rest[1:]
+	}
+	if err := fs.Parse(rest); err != nil {
 		return err
 	}
 	if err := flagsFor(fs, action, map[string][]string{
 		"seconds": {"timeout", "block"}, "range": {"block"}, "what": {"clear"}, "template": {"template"},
+		"label": {"add", "label"}, "keep": {"add"}, "imported": {"connect"},
 	}); err != nil {
 		return err
 	}
-	if fs.NArg() != 1 {
+	if addr == "" && fs.NArg() == 1 {
+		addr = fs.Arg(0)
+	} else if fs.NArg() != 0 {
 		return errors.New(use)
 	}
+	if (addr == "") != (action == "connect" && *imported) {
+		return errors.New(use)
+	}
+	req := rpc.PeerRequest{Addr: addr, Action: action, Seconds: *secs, Range: *rng, What: *what, Template: *tpl, Label: *label, Keep: *keep, Imported: *imported}
 	cl, err := dialNode(out, w.resolve())
-	if err != nil {
+	if err == nil {
+		var r rpc.PeerReply
+		if r, err = cl.Peer(req); err == nil {
+			return writeJSON(out, r)
+		}
+		var re *rpc.Error
+		if errors.As(err, &re) {
+			return err
+		}
+	}
+	// No node answered: what can be done on the files is (D157).
+	r, ok, oerr := peerOffline(w.resolve(), req, err)
+	if !ok {
 		return err
 	}
-	r, err := cl.Peer(rpc.PeerRequest{Addr: fs.Arg(0), Action: action, Seconds: *secs, Range: *rng, What: *what, Template: *tpl})
-	if err != nil {
-		return err
+	if oerr != nil {
+		return oerr
 	}
 	return writeJSON(out, r)
+}
+
+// peerOffline makes a peer action on the data directory's files when no
+// node answered: add with -keep lists the address in node.json, remove
+// takes it out of node.json and the book, and label labels it in the
+// book. It reports whether the action can be made so.
+func peerOffline(dir string, req rpc.PeerRequest, nodeErr error) (rpc.PeerReply, bool, error) {
+	var out rpc.PeerReply
+	switch {
+	case req.Action == "add" && req.Keep, req.Action == "remove", req.Action == "label":
+	default:
+		return out, false, nil
+	}
+	unlock, err := lockPolicy(dir, "node policy", nodeErr)
+	if err != nil {
+		return out, true, err
+	}
+	defer unlock()
+	if req.Action != "label" {
+		path := filepath.Join(dir, nodepolicy.FileName)
+		p, err := nodepolicy.Load(path)
+		if err != nil {
+			return out, true, err
+		}
+		if nodepolicy.KeepPeer(&p, req.Addr, req.Action == "add") {
+			if err := nodepolicy.Save(path, p); err != nil {
+				return out, true, err
+			}
+			out.Kept = true
+		}
+		if req.Action == "add" {
+			return out, true, peers.CheckLabel(req.Label)
+		}
+	}
+	book, err := peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{})
+	if err != nil {
+		return out, true, err
+	}
+	if req.Action == "remove" {
+		out.Held = book.Delete(req.Addr)
+	} else if out.Held, err = book.SetLabel(req.Addr, req.Label); err != nil {
+		return out, true, err
+	}
+	return out, true, book.Save()
 }
 
 // trackingCmd shows what the running node's tracker keeps: every tracked
@@ -697,6 +747,8 @@ func trackingCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("tracking", out)
 	w := addWhere(fs)
 	o := addOutput(fs)
+	blocked := fs.Bool("blocked", false, "only the blocked addresses and network ranges")
+	timedOut := fs.Bool("timed-out", false, "only the timed-out addresses")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -721,7 +773,7 @@ func trackingCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return o.write(out, r)
+	return o.write(out, filterTracking(r, *blocked, *timedOut))
 }
 
 // chasesCmd shows the running node's chase queue.

@@ -187,3 +187,10 @@ built.
   within each peer's budget. A whole-series follow of a huge series costs
   little in p2p. Taking a pool off a large follow writes `except`. The
   import digest covers the options too.
+- **Peer book (D156, D157):** `poo peer add|remove|label|connect` edit the
+  peer book by hand; `poo peers` filters by category, mint policy, label
+  or address and `poo tracking` by blocked or timed-out; `poo peers
+  export|import` carry the book or chosen categories, landing unlisted,
+  with blocks only on `-blocks`. The manager dials imported addresses when
+  short of peers, unless `p2p.no_dial_imported`. A plain export leaves out
+  personal registries and grind jobs (D156).

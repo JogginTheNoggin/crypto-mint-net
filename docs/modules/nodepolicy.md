@@ -41,6 +41,7 @@ D25). Nothing here changes what is valid.
     "max_outbound": 8,
     "max_inbound": 24,
     "allow_local_peers": false,
+    "no_dial_imported": false,
     "no_relay": false,
     "hop_limit": 8,
     "request_rate": 120,
@@ -107,7 +108,10 @@ connections cannot take the outbound slots (D75); `-1` caps inbound only
 by `max_peers`. `allow_local_peers` (off by default, D96) lets addresses
 learned from peers and registries be loopback, private, link-local or
 otherwise not public; turn it on only for a network on one machine or LAN.
-Addresses in `peers` are always dialled. In
+Addresses in `peers` are always dialled. `no_dial_imported` (off by
+default, D157) keeps the unlisted addresses an imported peer file gave
+out of the connection manager, so only `poo peer connect -imported`
+tries them. In
 `tracking`, `escalate_at: -1` never escalates; every template name must
 be known, custom templates may not form a cycle, and groups must be
 priority, backup, candidate, unlisted, inbound or outbound (see
@@ -260,8 +264,13 @@ A node's *settings* are everything in its node policy but what it follows
 (`Followed`): peers, registries, limits, the p2p switches, tracking, logs,
 the grind defaults and jobs, and `issuers.any` (decision D155). They are
 there to be carried to another machine, kept as a backup, or shared.
-None of them is personal: node.json has no key, seed, passphrase or
-token.
+node.json has no key, seed, passphrase or token. What else in it is
+personal stays out of a plain export (`Personal`, RED-052, D156): a
+registry that is a local file, a registry URL with a user name,
+password, query or fragment, and a grind job on one payment or entry.
+`-full` keeps them. Peers and `tracking.peers` are exported, as a setup
+is made of them, and `ExportNotes` says what the file holds and left
+out, so the person sharing it sees that first.
 
 - **Export** (`ExportSettings(p, full)`) is `ExportPolicy` without the
   series, follows and accepted issuers. It goes in a bundle of scope
@@ -277,11 +286,31 @@ token.
 - **Paths** (`MapPaths`, `ParsePathMap`). The only local paths in
   node.json are registry files. Each `PathMap{From, To}` rewrites one
   that starts with `From` at a path boundary (`/data` never rewrites
-  `/database`), before the merge. URLs are never rewritten.
+  `/database`), before the merge. URLs are never rewritten. The rest of
+  the path is joined to `To` with one separator, `To`'s own, and a
+  `From` written the Windows way (a drive letter or a backslash) matches
+  in any case and with either separator. A registry file a map rewrote
+  is taken without `-full`; one it did not is skipped, as before
+  (RED-055, D156).
+- **Text** (`checkText`, in `Validate`). No text in a node policy may
+  hold a control character, a bidirectional override or bytes that are
+  not UTF-8: none is valid there, and a file's text reaches a terminal
+  in the preview and the log. The error quotes the value escaped. The
+  CLI also prints every value from a file through `termSafe` (RED-053,
+  D156).
+- **Series now used** (`Plan.NowUsed`). A series local lists but refuses
+  (`Accepted`) that the result uses, because a setting such as
+  `issuers.any` changed, is named in `NowUsed` and under the lines to
+  read first (RED-056, D156).
+- **Empty** (`Plan.Empty`). A conflict where the file's value was taken
+  is a change, so a plan made of such conflicts alone is saved (RED-054,
+  D156).
 - **Fit** (`Fit(before, after, Machine)`) lists what the import brings
   in that may not fit the machine:
   - a grind device it lacks, or more threads than it runs;
-  - a registry file that is not there;
+  - a registry file that is not there (a network or device path, such
+    as `\\host\share`, is named but never opened: a preview reaches
+    nothing, RED-053);
   - an RPC or p2p listen address that is none of its interfaces';
   - an advertised address from another machine;
   - a grind job for a series the node policy does not list.

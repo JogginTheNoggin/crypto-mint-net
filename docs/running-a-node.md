@@ -258,8 +258,13 @@ One file carries node policies to another node or machine:
 A node's settings are everything in its node policy but what it
 follows: its peers, registries, limits, p2p switches, tracking, logs and
 grind jobs. `poo settings` writes them to one file and reads them back
-(D155). The file holds nothing personal: node.json has no key, seed,
-passphrase or token, and the wallet is a file of its own.
+(D155). node.json has no key, seed, passphrase or token, and the wallet
+is a file of its own. A plain export also leaves out what names you or
+opens a door: registry files, registry URLs with a user name, password
+or query, and grind jobs on one of your payments or entries (`-full`
+keeps them). It still holds your peer addresses and `tracking.peers`,
+since a setup is made of them; the export says how many, so check them
+before you share the file (D156).
 
 ```sh
 ./poo settings export -out settings.json            # the settings, without this machine's own
@@ -273,7 +278,8 @@ The preview lists, as "may not fit this machine", anything the file
 brings that the new machine may lack:
 
 - a grind device, or more threads than it has;
-- a registry file that is not there (`-map-path OLD=NEW` points it at one);
+- a registry file that is not there (`-map-path OLD=NEW` points it at one,
+  and a mapped file is taken without `-full`);
 - a listen address that is not one of its own;
 - an advertised address from the old machine;
 - a grind job for a series this node does not list.
@@ -298,6 +304,41 @@ exported with `-full` and imported with `-full`. A bundle of several node
 policies is planned whole first; if one cannot be imported, none is
 changed. A running node applies an import at once and never takes an
 `rpc` section from one.
+
+### Adding and sharing peers
+
+`poo peer add ADDR` puts an address in the peer book by hand, as a
+candidate the manager may dial; `-label TEXT` names it and `-keep` also
+lists it in the node policy's `p2p.peers`. `poo peer remove ADDR` takes it
+out of both, `poo peer label ADDR -label TEXT` renames it, and `poo peer
+connect ADDR` dials it now. `poo peers` filters the book with `-category`,
+`-mint-policy`, `-label` and `-addr`, and `poo tracking -blocked` or
+`-timed-out` lists only those addresses (D157).
+
+```sh
+./poo peers export -out peers.json                         # the whole book, labels and blocks
+./poo peers export -category priority,backup -out good.json
+./poo peers export -category blocked -out blocklist.json   # a block list to share
+./poo peers import good.json                               # on the other node: shows the plan
+./poo peers import good.json -apply                        # adds every address as unlisted
+./poo peers import blocklist.json -blocks -apply           # takes the blocks too
+```
+
+An imported address always lands unlisted: the node knows it but has not
+picked it. When a mint policy is short of peers, the manager promotes the
+oldest imported addresses to candidates and dials them before it asks its
+peers and registries for more, so a new node with an imported book finds
+peers by itself. `poo peer connect -imported` does that at once, and
+`p2p.no_dial_imported: true` in node.json turns it off, leaving imported
+addresses for you to promote by hand.
+
+An import never removes, unblocks or shortens anything. It takes the
+file's blocks only with `-blocks`, and only where they are longer than
+what the node holds; it never blocks an address the node policy lists,
+and network range blocks need `-ranges` as well. It refuses addresses
+blocked here, local addresses unless `p2p.allow_local_peers` is on, and
+anything past the book's limits. Labels are yours: an export holds them,
+so read the file before you share it.
 
 ## Security notes
 

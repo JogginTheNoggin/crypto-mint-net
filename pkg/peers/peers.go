@@ -23,6 +23,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
@@ -46,7 +48,15 @@ const (
 	Backup
 	// Archived: not in use; details kept as a starting point.
 	Archived
+	// Unlisted: known only from a file the owner imported, in none of
+	// this node's categories, and not a candidate yet (D157). The node
+	// tries it only when it is short of peers and the node policy lets it
+	// (p2p.no_dial_imported), or when the owner asks (PromoteImported).
+	Unlisted
 )
+
+// States lists every state.
+var States = []State{Candidate, Priority, Backup, Archived, Unlisted}
 
 // Listed reports whether the state is priority or backup: verified, with a
 // slot.
@@ -62,6 +72,8 @@ func (s State) String() string {
 		return "backup"
 	case Archived:
 		return "archived"
+	case Unlisted:
+		return "unlisted"
 	}
 	return fmt.Sprintf("state(%d)", int(s))
 }
@@ -71,7 +83,7 @@ func (s State) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
 
 // UnmarshalText reads a state's name.
 func (s *State) UnmarshalText(b []byte) error {
-	for _, v := range []State{Candidate, Priority, Backup, Archived} {
+	for _, v := range States {
 		if v.String() == string(b) {
 			*s = v
 			return nil
@@ -93,7 +105,15 @@ const (
 	FromPeerList Source = "peer-list"
 	FromReply    Source = "reply"
 	FromInbound  Source = "inbound"
+	// FromHand is an address the owner added (poo peer add, D157).
+	FromHand Source = "hand"
+	// FromImport is an address from a peer file the owner imported
+	// (poo peers import, D157).
+	FromImport Source = "import"
 )
+
+// MaxLabel bounds a record's label, in bytes.
+const MaxLabel = 128
 
 // Policy is a node's state for one mint policy.
 type Policy struct {
@@ -111,6 +131,38 @@ type Record struct {
 	LastTried time.Time `json:"last_tried,omitempty"`
 	Failures  int       `json:"failures,omitempty"`
 	Policies  []Policy  `json:"policies"`
+	// Label is the owner's own note on the node (poo peer label, D157).
+	// It is local: it never changes how the node is treated, and is
+	// never sent to a peer.
+	Label string `json:"label,omitempty"`
+}
+
+// CheckLabel checks a label: at most MaxLabel bytes of valid UTF-8 with
+// no control character, so a label from a file cannot rewrite the
+// terminal it is printed on (RED-053).
+func CheckLabel(l string) error {
+	if len(l) > MaxLabel {
+		return fmt.Errorf("peers: a label is at most %d bytes", MaxLabel)
+	}
+	if !utf8.ValidString(l) {
+		return errors.New("peers: a label must be UTF-8")
+	}
+	for _, r := range l {
+		if unicode.IsControl(r) {
+			return errors.New("peers: a label has no control characters")
+		}
+	}
+	return nil
+}
+
+// Has reports whether the record is in state st for any mint policy.
+func (r Record) Has(st State) bool {
+	for _, p := range r.Policies {
+		if p.State == st {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Record) policy(s wire.Section) *Policy {
@@ -306,6 +358,18 @@ func (b *Book) SetRefuse(f func(addr string) bool) {
 // addresses the refuse filter turns away, a full book and a full network
 // range.
 func (b *Book) Add(addr string, sections []wire.Section, src Source, now time.Time) error {
+	return b.add(addr, sections, src, Candidate, now)
+}
+
+// AddUnlisted records addr as unlisted for the sections it is not known
+// for yet, as an import does (D157): it is in no category and not a
+// candidate until PromoteImported. Known sections keep their state. It
+// refuses what Add refuses.
+func (b *Book) AddUnlisted(addr string, sections []wire.Section, now time.Time) error {
+	return b.add(addr, sections, FromImport, Unlisted, now)
+}
+
+func (b *Book) add(addr string, sections []wire.Section, src Source, st State, now time.Time) error {
 	if err := wire.CheckAddr(addr); err != nil {
 		return err
 	}
@@ -331,7 +395,7 @@ func (b *Book) Add(addr string, sections []wire.Section, src Source, now time.Ti
 	}
 	for _, s := range sections {
 		if r.policy(s) == nil {
-			r.Policies = append(r.Policies, Policy{Section: s, Text: s.Text(), State: Candidate})
+			r.Policies = append(r.Policies, Policy{Section: s, Text: s.Text(), State: st})
 			b.dirty = true
 		}
 	}
@@ -456,6 +520,66 @@ func (b *Book) Delete(addr string) bool {
 	b.dirty = true
 	return true
 }
+
+// SetLabel sets addr's label ("" clears it). It reports whether the
+// book holds addr.
+func (b *Book) SetLabel(addr, label string) (bool, error) {
+	if err := CheckLabel(label); err != nil {
+		return false, err
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	r := b.recs[addr]
+	if r == nil {
+		return false, nil
+	}
+	if r.Label != label {
+		r.Label = label
+		b.dirty = true
+	}
+	return true, nil
+}
+
+// PromoteImported makes up to n unlisted nodes for mint policies
+// overlapping s candidates, the longest known first, so the connection
+// logic tries them (D157); n <= 0 promotes every one. It returns how
+// many nodes it promoted.
+func (b *Book) PromoteImported(s wire.Section, n int) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var list []*Record
+	for _, r := range b.recs {
+		for _, p := range r.Policies {
+			if p.State == Unlisted && overlaps(p.Section, s) {
+				list = append(list, r)
+				break
+			}
+		}
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if !list[i].Added.Equal(list[j].Added) {
+			return list[i].Added.Before(list[j].Added)
+		}
+		return list[i].Addr < list[j].Addr
+	})
+	if n > 0 && len(list) > n {
+		list = list[:n]
+	}
+	for _, r := range list {
+		for i := range r.Policies {
+			if p := &r.Policies[i]; p.State == Unlisted && overlaps(p.Section, s) {
+				p.State = Candidate
+			}
+		}
+	}
+	if len(list) > 0 {
+		b.dirty = true
+	}
+	return len(list)
+}
+
+// Limits returns the book's bounds.
+func (b *Book) Limits() Limits { return b.lim }
 
 // Tried notes a connection attempt and whether it failed.
 func (b *Book) Tried(addr string, ok bool, now time.Time) {
