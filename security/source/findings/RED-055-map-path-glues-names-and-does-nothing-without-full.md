@@ -7,7 +7,7 @@
 | Found | Source Round 20 Part B, on `main` @ `522e891` (D155) |
 | Area | `pkg/nodepolicy/settings.go` (`PathMap.apply`, `mapPaths`, `Fit`), `pkg/nodepolicy/bundle.go` (`Merge`) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-021) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 63e37ed (BLUE-021) |
 
 ## What is wrong
 

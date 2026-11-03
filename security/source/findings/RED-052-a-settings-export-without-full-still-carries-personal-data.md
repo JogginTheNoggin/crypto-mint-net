@@ -8,7 +8,7 @@
 | Area | `pkg/nodepolicy` (`ExportSettings`, `Strip`, `MachineLocal`), `pkg/cli` (`settings export`) |
 | Raised by | Red, and Source Green (GREEN-045, PR #111) saw the file paths |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-021) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 63e37ed (BLUE-021) |
 
 ## What is wrong
 

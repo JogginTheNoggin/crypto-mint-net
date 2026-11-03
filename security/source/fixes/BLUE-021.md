@@ -5,6 +5,7 @@
 | Fixes | RED-052 (medium), RED-053 (medium), RED-054 (low), RED-055 (low), RED-056 (low), RED-057 (medium) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `522e891` (Source Round 20 Part C) |
+| Code | `63e37ed` |
 | Decisions | D156 |
 | Review | No consensus change and no limit on what can be followed. For Black: RED-057 (index records for chases) and the `Validate` text check (RED-053). |
 
