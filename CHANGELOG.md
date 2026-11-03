@@ -199,3 +199,10 @@ built.
   range, retry and registry pacing, and the tracker's address count and
   memory, each with a floor and a ceiling. Imports take at most a quarter
   of the book, and `poo peer remove -imported` forgets them (D158).
+- **Rival claims and settable limits (D160, D161):** `poo claim -parent
+  before-claim` claims a mint the selected ledger has claimed on a branch
+  from before that claim, to grind until it outweighs the other; `poo
+  build -parent` builds on any held entry. `poo policy limits` lists the
+  bounded settings and `-set` changes them, live in a running node.
+  `seen_size`, `max_pending` and `ties` have bounds, and a full book makes
+  room by the oldest unreached candidate (D160).

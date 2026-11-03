@@ -202,6 +202,7 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("GET /v1/chases", h.chases)
 	h.mux.HandleFunc("POST /v1/peer", h.peer)
 	h.mux.HandleFunc("POST /v1/peers/import", h.importPeers)
+	h.mux.HandleFunc("POST /v1/policy/limits", h.setLimits)
 	h.mux.HandleFunc("POST /v1/peers/forget-imported", h.forgetImported)
 	h.mux.HandleFunc("GET /v1/metrics", h.metrics)
 	h.viewRoutes()
@@ -290,7 +291,7 @@ func classify(err error) *Error {
 	code, status := CodeInternal, http.StatusInternalServerError
 	switch {
 	case errors.Is(err, engine.ErrUnknownSeries), errors.Is(err, engine.ErrNotFollowed),
-		errors.Is(err, ledger.ErrUnknownEntry), errors.Is(err, ledger.ErrUnknownParent):
+		errors.Is(err, ledger.ErrUnknownEntry), errors.Is(err, ledger.ErrUnknownParent), errors.Is(err, ledger.ErrNotHeld), errors.Is(err, ledger.ErrNoClaim):
 		code, status = CodeNotFound, http.StatusNotFound
 	case errors.Is(err, engine.ErrSeen), errors.Is(err, mempool.ErrKnown), errors.Is(err, mempool.ErrConflict),
 		errors.Is(err, mempool.ErrInSelected), errors.Is(err, mempool.ErrDependsOnPending),
@@ -462,6 +463,10 @@ type EntryReply struct {
 	Dropped  int       `json:"dropped"`
 	// Grind, for a build: how it ground.
 	Grind *GrindStats `json:"grind,omitempty"`
+	// Parent, for a build: the entry it was built on. Refused are the
+	// transactions it left out (D161).
+	Parent  hash.Hash   `json:"parent,omitzero"`
+	Refused []RefusedTx `json:"refused,omitempty"`
 }
 
 func entryReply(res engine.EntryResult) EntryReply {
@@ -639,6 +644,23 @@ type BuildRequest struct {
 	PoolRef
 	MaxTries uint64 `json:"max_tries,omitempty"`
 	GrindOptions
+	// Parent, when set, is where to build instead of the selected tip
+	// (D161): an entry hash, "root" for the pool's first entry, or
+	// "before-claim:N" for the parent of the selected entry that holds
+	// mint N's claim, to build a rival claim on.
+	Parent string `json:"parent,omitempty"`
+	// Txs, when set, are the transactions to build from instead of the
+	// pending ones, each hex-encoded (at most MaxBuildTxs).
+	Txs []string `json:"txs,omitempty"`
+}
+
+// MaxBuildTxs bounds the transactions one build request may name.
+const MaxBuildTxs = 1024
+
+// RefusedTx is a transaction a build left out, and why.
+type RefusedTx struct {
+	TID   hash.Hash `json:"tid"`
+	Error string    `json:"error"`
 }
 
 func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
@@ -665,12 +687,24 @@ func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel, g := grindCtx(r, p, d, &tried)
 	defer cancel()
 	t0 := time.Now()
-	en, res, err := h.n.BuildWith(ctx, req.key(), req.MaxTries, g)
+	on, e := h.buildOn(req)
+	if e != nil {
+		writeError(w, e)
+		return
+	}
+	en, res, refused, err := h.n.BuildOn(ctx, req.key(), req.MaxTries, g, on)
 	if err != nil {
+		if len(refused) > 0 && errors.Is(err, engine.ErrNothingPending) {
+			err = fmt.Errorf("%w: every transaction was left out; %s: %v", err, refused[0].TID.Short(), refused[0].Err)
+		}
 		writeError(w, classify(err))
 		return
 	}
 	rep := entryReply(res)
+	rep.Parent = en.Parent
+	for _, r := range refused {
+		rep.Refused = append(rep.Refused, RefusedTx{TID: r.TID, Error: r.Err.Error()})
+	}
 	rep.Entry = hex.EncodeToString(en.Encode())
 	rep.Grind = stats(p, tried.Load(), t0)
 	writeJSON(w, rep)
@@ -833,4 +867,50 @@ func (h *Handler) holdings(w http.ResponseWriter, r *http.Request) {
 		out[i] = Holding{TID: x.Input.TID, Index: x.Input.Index, Address: x.Portion.Address, Amount: x.Portion.Amount}
 	}
 	writeJSON(w, out)
+}
+
+// buildOn reads a build request's parent and transactions (D161).
+func (h *Handler) buildOn(req BuildRequest) (engine.BuildOn, *Error) {
+	var on engine.BuildOn
+	eng := h.n.Engine()
+	switch par := req.Parent; {
+	case par == "":
+	case par == "root":
+		id, err := eng.PoolID(req.key())
+		if err != nil {
+			return on, classify(err)
+		}
+		on.Parent = &id
+	case strings.HasPrefix(par, "before-claim:"):
+		serial, err := strconv.ParseUint(strings.TrimPrefix(par, "before-claim:"), 10, 64)
+		if err != nil {
+			return on, badRequest("parent %q: before-claim:N takes a mint serial", par)
+		}
+		ph, err := eng.ClaimParent(req.key(), serial)
+		if err != nil {
+			return on, classify(err)
+		}
+		on.Parent = &ph
+	default:
+		ph, err := hash.Parse(par)
+		if err != nil {
+			return on, badRequest("parent %q: an entry hash, root or before-claim:N", par)
+		}
+		on.Parent = &ph
+	}
+	if len(req.Txs) > MaxBuildTxs {
+		return on, badRequest("at most %d transactions", MaxBuildTxs)
+	}
+	for i, x := range req.Txs {
+		b, err := hex.DecodeString(x)
+		if err != nil {
+			return on, badRequest("transaction %d: not hex", i)
+		}
+		t, err := tx.Decode(b)
+		if err != nil {
+			return on, badRequest("transaction %d: %v", i, err)
+		}
+		on.Txs = append(on.Txs, t)
+	}
+	return on, nil
 }

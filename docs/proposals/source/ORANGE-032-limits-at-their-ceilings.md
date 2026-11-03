@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D161) |
 | Based on | `main` @ `b997eb0` |
 | Area | `pkg/peers` (`Book` counts), `pkg/tracking` (`logLocked`) |
 | Effort | two changes and two tests |

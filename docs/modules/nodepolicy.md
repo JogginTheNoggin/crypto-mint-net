@@ -141,6 +141,16 @@ its range, or `Validate` refuses the policy and names the setting
 `Policy.Limits` lists them with the value node.json sets and the value used,
 from the one list `Validate` checks; `poo policy limits` prints it
 (GREEN-047).
+`poo policy limits -set NAME=VALUE` (`Policy.SetLimits`,
+`POST /v1/policy/limits`) changes them, checked whole first (D161).
+
+What the ceilings cost, as Orange measured them (ORANGE-032): a tracker
+at `tracking.max_addresses` 131072 takes about 420 MiB (3.3 KB an
+address), a 171 MiB `tracking.json`, and 6.9 s to save, holding the
+tracker meanwhile (at shutdown, and on a peer import with `-blocks`); a
+book at `p2p.max_book` 65536 takes 0.7 to 0.9 s for each save of the
+manager's pass. The defaults cost a small part of that. Raise a limit
+toward its ceiling only on a machine that has the memory and disk.
 
 None of them changes which ledger a node selects: a smaller book or a
 shorter memory only means the node knows fewer peers, which is a lack of

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (part 1 prototyped) |
+| Status | adopted (D161): part 1; part 2 is a survey for Black |
 | Based on | `main` @ `b997eb0` |
 | Area | `pkg/nodepolicy` (`Policy.Limits`), `pkg/cli` (`poo policy limits`, view-only scope), `gui/e2e/parity.mjs` (one `LEFT_OUT_SUBS` line), docs |
 | Effort | small (part 1); part 2 is a list for Grey and Black |

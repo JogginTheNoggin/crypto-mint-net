@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -371,8 +372,14 @@ func claimCmd(args []string, out io.Writer) error {
 	c := addClient(fs)
 	seed := addSeed(fs, "the claiming key's seed")
 	serial := fs.Uint64("serial", 0, "the mint's serial")
+	parent := fs.String("parent", "", "build the claim into an entry on this parent instead of submitting it: an entry hash, root, or before-claim (the parent of the entry holding the mint's claim now), for a rival claim to grind (D161)")
+	tries := fs.Uint64("max-tries", 0, "with -parent: nonces to try when the series sets a minimum entry strength (0: the node's limit)")
+	work := fs.Uint64("work", 0, "with -parent: then add the strongest layer found in this many nonces")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *parent == "" && (*tries != 0 || *work != 0) {
+		return errors.New("-max-tries and -work go with -parent; a claim submitted to the pending pool is built with poo build")
 	}
 	signer, err := seed.signer(out)
 	if err != nil {
@@ -392,11 +399,60 @@ func claimCmd(args []string, out io.Writer) error {
 	addr := s.Address(policy.SingleKey(policy.AlgEd25519, signer.Public()))
 	t := &tx.Tx{Mint: s.Mint(*serial), Outputs: []tx.Output{{Address: addr, Amount: s.Params().Supply}}}
 	t.Witnesses = []policy.Witness{policy.SingleKeyWitness(signer, t.TID(s.Hash()))}
+	if *parent != "" {
+		ref := rpc.PoolRef{Series: s.ID(), Pool: s.PoolOf(*serial)}
+		return buildOnParent(out, cl, ref, *serial, *parent, []*tx.Tx{t}, *tries, *work, rpc.GrindOptions{})
+	}
 	r, err := cl.SubmitTx(t)
 	if err != nil {
 		return err
 	}
 	return writeJSON(out, r)
+}
+
+// parentSpec turns a -parent value into the RPC's form: before-claim
+// takes the mint serial the command names.
+func parentSpec(spec string, serial uint64, haveSerial bool) (string, error) {
+	switch {
+	case spec == "before-claim" && !haveSerial:
+		return "", errors.New("-parent before-claim needs -serial N, the mint whose claim to build before")
+	case spec == "before-claim":
+		return fmt.Sprintf("before-claim:%d", serial), nil
+	}
+	return spec, nil
+}
+
+// buildOnParent builds an entry on a chosen parent (D161), from txs or
+// the pending transactions, optionally adds a layer, and prints the result
+// with the next step: an entry on a branch counts only once it outweighs
+// the selected ledger.
+func buildOnParent(out io.Writer, cl *rpc.Client, ref rpc.PoolRef, serial uint64, spec string, txs []*tx.Tx, tries, work uint64, o rpc.GrindOptions) error {
+	par, err := parentSpec(spec, serial, true)
+	if err != nil {
+		return err
+	}
+	r, err := cl.BuildOn(ref, tries, o, par, txs)
+	if err != nil {
+		return err
+	}
+	r.Entry = ""
+	rep := struct {
+		rpc.EntryReply
+		Layer *rpc.LayerReply `json:"layer,omitempty"`
+		Next  string          `json:"next,omitempty"`
+	}{EntryReply: r}
+	if work > 0 {
+		l, err := cl.WorkWith(ref, r.Hash, 0, work, rpc.GrindOptions{Device: o.Device, Threads: o.Threads})
+		if err != nil {
+			return err
+		}
+		l.Layer = ""
+		rep.Layer = &l
+	}
+	if !r.Switched && (rep.Layer == nil || !rep.Layer.Switched) {
+		rep.Next = fmt.Sprintf("the entry is kept as a branch; add weight with poo grind start %s -serial %d (or poo work -serial %d -entry %s) until it outweighs the selected ledger, and keep node.json's k high enough that it is not pruned meanwhile", r.Hash, serial, serial, r.Hash)
+	}
+	return writeJSON(out, rep)
 }
 
 // payCmd pays an amount of one mint from a key's 1-of-1 address, with
@@ -472,6 +528,7 @@ func buildCmd(args []string, out io.Writer) error {
 	pf := addPool(fs)
 	tries := fs.Uint64("max-tries", 0, "nonces to try when the series sets a minimum entry strength (0: the node's limit, 16777216)")
 	work := fs.Uint64("work", 0, "then add the strongest layer found in this many nonces")
+	parent := fs.String("parent", "", "build on this parent instead of the selected tip, from the pending transactions that fit there: an entry hash, root (the pool's first entry), or before-claim with -serial N (D161)")
 	g := addGrindOptions(fs)
 	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {
@@ -490,6 +547,15 @@ func buildCmd(args []string, out io.Writer) error {
 		return err
 	}
 	ref := rpc.PoolRef{Series: s.ID(), Pool: pool}
+	if *parent != "" {
+		set := map[string]bool{}
+		fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+		spec, err := parentSpec(*parent, *pf.serial, set["serial"])
+		if err != nil {
+			return err
+		}
+		return buildOnParent(out, cl, ref, *pf.serial, spec, nil, *tries, *work, g.options())
+	}
 	r, err := cl.BuildWith(ref, *tries, g.options())
 	if err != nil {
 		return err
@@ -906,11 +972,15 @@ func (g *grindOptions) options() rpc.GrindOptions {
 // policyLimitsCmd lists the node policy's bounded settings (D159): each
 // one's place in node.json, its range, its default, what node.json sets
 // and what the node uses, so a person can tailor them without reading
-// the decisions (GREEN-047). It only reads node.json.
+// the decisions (GREEN-047). With -set NAME=VALUE it changes them (D161):
+// through the running node, which applies them at once, or in node.json
+// when no node runs. Without -set it only reads node.json.
 func policyLimitsCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("policy limits", out)
 	w := addWhere(fs)
 	o := addOutput(fs)
+	var sets stringList
+	fs.Var(&sets, "set", "set a limit, NAME=VALUE (repeatable; 0 puts it back to its default), checked against its range before anything is saved")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -918,11 +988,58 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: poo policy limits [-o FORMAT] [-policy NAME | -dir DIR]")
+		return errors.New("usage: poo policy limits [-set NAME=VALUE]... [-o FORMAT] [-policy NAME | -dir DIR]")
 	}
-	p, err := nodepolicy.Load(filepath.Join(w.resolve(), nodepolicy.FileName))
+	dir := w.resolve()
+	path := filepath.Join(dir, nodepolicy.FileName)
+	if len(sets) == 0 {
+		p, err := nodepolicy.Load(path)
+		if err != nil {
+			return err
+		}
+		return o.write(out, p.Limits())
+	}
+	if viewOnlyOf(out) {
+		return errViewOnly("policy limits -set")
+	}
+	set := map[string]int{}
+	for _, kv := range sets {
+		name, val, ok := strings.Cut(kv, "=")
+		v, err := strconv.Atoi(strings.TrimSpace(val))
+		if !ok || err != nil {
+			return fmt.Errorf("-set %q: want NAME=VALUE, such as p2p.max_book=8192", kv)
+		}
+		set[strings.TrimSpace(name)] = v
+	}
+	var nodeErr error
+	if cl, err := dialNode(out, dir); err == nil {
+		r, err := cl.SetLimits(rpc.LimitsRequest{Set: set})
+		if err == nil {
+			return o.write(out, r)
+		}
+		var re *rpc.Error
+		if errors.As(err, &re) {
+			return err
+		}
+		nodeErr = err
+	}
+	unlock, err := lockPolicy(dir, "node policy", nodeErr)
 	if err != nil {
 		return err
 	}
-	return o.write(out, p.Limits())
+	defer unlock()
+	p, err := nodepolicy.Load(path)
+	if err != nil {
+		return err
+	}
+	changed, err := p.SetLimits(set)
+	if err != nil {
+		return err
+	}
+	if changed {
+		if err := nodepolicy.Save(path, p); err != nil {
+			return err
+		}
+	}
+	return o.write(out, rpc.LimitsReply{Limits: p.Limits(), Saved: changed})
 }

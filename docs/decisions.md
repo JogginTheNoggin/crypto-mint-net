@@ -3435,3 +3435,53 @@ a chase takes in after checking their work are not charged.
   - `pkg/nodepolicy/limits_test.go`: the four new bounds;
     `pkg/p2p/settings_extremes_test.go` now runs Black's heavier-ledger
     check with the three engine limits at their floors and ceilings.
+
+### D161. Rival claims, building on a chosen parent, and setting limits
+
+- **Decision:** jerry's Round 23 request: a user can claim a mint the
+  selected ledger has already claimed, and choose where the node builds.
+  - `engine.BuildOn{Parent, Txs}` and `Engine.BuildEntryOn` build an entry
+    on any held entry of the pool, or on the pool_id, from chosen
+    transactions or the pending ones. `ledger.Pool.CheckOn` checks them
+    against the state after the parent, as `AddEntry` will, and leaves
+    out the ones that do not fit (one claim of a mint, no input twice, no
+    output of the same entry spent), returning each with its error.
+  - `Pool.ClaimEntry` and `Engine.ClaimParent` find the selected entry
+    that holds a mint's claim and its parent: the place to build a rival
+    claim. `Engine.PoolID` gives the pool_id.
+  - `POST /v1/build` takes `parent` (an entry hash, `root` or
+    `before-claim:N`) and `txs`, and replies with `parent` and `refused`.
+  - `poo claim -parent HASH|root|before-claim [-max-tries N] [-work N]`
+    builds the claim into an entry on that parent instead of submitting it
+    as pending, and prints the command that adds weight to it. `poo build
+    -parent` builds the pending transactions that fit there.
+  - `poo policy limits -set NAME=VALUE` (repeatable) and `POST
+    /v1/policy/limits` set the bounded settings (`Policy.SetLimits`),
+    checked whole first: through the running node, which saves node.json
+    under its lock and reloads, or in node.json with the node stopped.
+    `Policy.Limits` is now built from `Bounds` and `limitField`, so a new
+    bound is listed, checked and settable from one place.
+  - Merges GREEN-047 (`poo policy limits`), ORANGE-032 (the book's kept
+    counts, the tracker log re-slice; its ceiling costs are in
+    nodepolicy.md), BLUE-023 (D160) and Black's Round 22 review.
+- **Left out:** a grind target that names a mint's rival claim: a rival
+  claim is an entry, and `poo grind start ENTRY` already grinds it, with
+  `-until-from` for a goal. A pin that keeps a lighter local branch from
+  pruning: `k: -1` keeps every branch.
+- **Why:** jerry: "go back to an existing claim and work on making our
+  own", "lets include that and anything else related that is missing".
+  The GUI needs a command to set limits, since it only runs poo.
+- **Consensus:** none. A rival entry is checked by `AddEntry` like any
+  entry from a peer, and selection is by weight as before. Building on a
+  parent other than the tip was always valid (a rival branch,
+  `TestDoubleSpendResolvedByWeight`); this only lets the node build one.
+  No rule, check or selection changes, and the bounds `-set` writes are
+  D159's and D160's.
+- **Tier:** Engine, ledger, RPC and the CLI.
+  - `pkg/engine/rivalclaim_test.go`: `TestRivalClaimOnBranch` (a second
+    claim refused as pending, built before the first claim, kept by every
+    node, selected once heavier, the mint then the rival's),
+    `TestBuildOnRefusals`.
+  - `pkg/cli/rivalclaim_test.go`: `TestRivalClaimCLI`,
+    `TestPolicyLimitsSet`.
+  - `pkg/nodepolicy/limits_test.go`: `TestSetLimits`.

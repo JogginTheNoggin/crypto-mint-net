@@ -22,6 +22,11 @@ plus the top K other branches. It reproduces the design's worked example
   `Info`, `Layers`, `LayerCount`, `LayerNonces` (unsorted, for sorting
   outside the engine lock, RED-020), `InSelected`, `From(h)` (weight added
   since entry h), `Locate(tid)`, `Chain`, `HeightOf`, `Branches`, `SetK`.
+- Building on a branch (D161): `CheckOn(parent, txs)` returns the
+  transactions valid together on the state after a held entry or the
+  pool_id, as `AddEntry` would find them, and the others as `Refused{TID,
+  Err}`; `ClaimEntry(serial)` the selected entry holding a mint's claim and
+  its tid (`ErrNoClaim`); `ParentOf(h)`. A parent not held is `ErrNotHeld`.
 - `Rivals(t, tid)`: for each inactive branch, the first entry from its tip
   down to its fork that holds a transaction other than `tid` spending one
   of `t`'s inputs, as `Rival{Branch, Conflict, Entry, After}`; `After` is

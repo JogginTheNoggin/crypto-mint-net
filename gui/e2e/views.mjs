@@ -343,6 +343,8 @@ try {
   await sdef.locator('[role=alert]', { hasText: /and \d+ more\.$/ }).waitFor();
   assert.ok(!(await sdef.locator('[role=alert]').innerText()).includes(peers30[29]), 'the line names only the first ones');
   await sdef.locator('summary', { hasText: /^Show all \d+$/ }).click();
+  // The list is drawn on the toggle event, after the click returns.
+  await sdef.locator('details p').waitFor();
   for (const pr of peers30) assert.ok((await sdef.locator('details').innerText()).includes(pr), `Show all lists ${pr}`);
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();

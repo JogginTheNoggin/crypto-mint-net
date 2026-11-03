@@ -2,6 +2,7 @@ package nodepolicy
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -129,5 +130,37 @@ func TestLimitsListsEveryBound(t *testing.T) {
 	p.Tracking.LogSize = 5
 	if err := p.Validate(); err == nil {
 		t.Error("Validate took a value Limits shows out of range")
+	}
+}
+
+// Every bound has a field SetLimits reaches, and a bad name, a value out
+// of range or a pair out of step changes nothing.
+func TestSetLimits(t *testing.T) {
+	var p Policy
+	for _, l := range p.Limits() {
+		q := p
+		if ok, err := q.SetLimits(map[string]int{l.Name: l.Max}); err != nil || !ok {
+			if !(l.Name == BoundBookPerRange.Name) {
+				t.Errorf("%s = %d: %v %v", l.Name, l.Max, ok, err)
+			}
+		}
+	}
+	if ok, err := p.SetLimits(map[string]int{"p2p.max_book": 300, "p2p.book_per_range": 300}); err != nil || !ok {
+		t.Fatalf("a pair: %v %v", ok, err)
+	}
+	before := p
+	for _, bad := range []map[string]int{{"p2p.nope": 1}, {"p2p.max_book": 1}, {"p2p.max_book": 256}} {
+		if _, err := p.SetLimits(bad); err == nil {
+			t.Errorf("%v taken", bad)
+		}
+		if !reflect.DeepEqual(p, before) {
+			t.Fatalf("%v changed the policy", bad)
+		}
+	}
+	if ok, err := p.SetLimits(map[string]int{"p2p.max_book": 300}); err != nil || ok {
+		t.Errorf("the same value: %v %v", ok, err)
+	}
+	if ok, err := p.SetLimits(map[string]int{"p2p.max_book": 0, "p2p.book_per_range": 0}); err != nil || !ok || p.P2P.MaxBook != 0 {
+		t.Errorf("back to the defaults: %v %v %+v", ok, err, p.P2P)
 	}
 }

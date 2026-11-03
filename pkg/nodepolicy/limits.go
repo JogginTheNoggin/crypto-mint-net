@@ -96,18 +96,9 @@ type Limit struct {
 // here is both checked and shown by poo policy limits (GREEN-047).
 func (p Policy) Limits() []Limit {
 	var out []Limit
-	for _, c := range []struct {
-		b Bound
-		v int
-	}{
-		{BoundMaxBook, p.P2P.MaxBook}, {BoundBookPerRange, p.P2P.BookPerRange},
-		{BoundVerifiedPerRange, p.P2P.VerifiedPerRange}, {BoundRetrySeconds, p.P2P.RetrySeconds},
-		{BoundRegistrySeconds, p.P2P.RegistrySeconds}, {BoundCandidateSeconds, p.P2P.CandidateSeconds},
-		{BoundSeenSize, p.SeenSize}, {BoundMaxPending, p.MaxPending}, {BoundTies, p.Ties},
-		{BoundMaxAddresses, p.Tracking.MaxAddresses}, {BoundFlagHistory, p.Tracking.FlagHistorySeconds},
-		{BoundLogSeconds, p.Tracking.LogSeconds}, {BoundLogSize, p.Tracking.LogSize},
-	} {
-		out = append(out, Limit{Name: c.b.Name, Min: c.b.Min, Max: c.b.Max, Default: c.b.Default, Set: c.v, Used: c.b.Or(c.v)})
+	for _, b := range Bounds() {
+		v := *p.limitField(b.Name)
+		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v)})
 	}
 	return out
 }
@@ -152,4 +143,62 @@ func (p Policy) retention() tracking.Retention {
 		LogSize:      BoundLogSize.Or(t.LogSize),
 		MaxAddresses: BoundMaxAddresses.Or(t.MaxAddresses),
 	}
+}
+
+// limitField returns the field of p a bounded setting is kept in; every
+// bound of Bounds has one (TestSetLimits).
+func (p *Policy) limitField(name string) *int {
+	switch name {
+	case BoundMaxBook.Name:
+		return &p.P2P.MaxBook
+	case BoundBookPerRange.Name:
+		return &p.P2P.BookPerRange
+	case BoundVerifiedPerRange.Name:
+		return &p.P2P.VerifiedPerRange
+	case BoundRetrySeconds.Name:
+		return &p.P2P.RetrySeconds
+	case BoundRegistrySeconds.Name:
+		return &p.P2P.RegistrySeconds
+	case BoundCandidateSeconds.Name:
+		return &p.P2P.CandidateSeconds
+	case BoundSeenSize.Name:
+		return &p.SeenSize
+	case BoundMaxPending.Name:
+		return &p.MaxPending
+	case BoundTies.Name:
+		return &p.Ties
+	case BoundMaxAddresses.Name:
+		return &p.Tracking.MaxAddresses
+	case BoundFlagHistory.Name:
+		return &p.Tracking.FlagHistorySeconds
+	case BoundLogSeconds.Name:
+		return &p.Tracking.LogSeconds
+	case BoundLogSize.Name:
+		return &p.Tracking.LogSize
+	}
+	return nil
+}
+
+// SetLimits sets bounded settings by name (D161; poo policy limits -set):
+// 0 puts one back to its default. The result is checked whole, so a
+// setting that goes with another (p2p.book_per_range and p2p.max_book)
+// may be set in the same call; on an error p is unchanged. It reports
+// whether anything changed.
+func (p *Policy) SetLimits(set map[string]int) (bool, error) {
+	q := *p
+	changed := false
+	for name, v := range set {
+		f := q.limitField(name)
+		if f == nil {
+			return false, fmt.Errorf("%w: %q is not a settable limit (poo policy limits lists them)", ErrInvalid, name)
+		}
+		if *f != v {
+			*f, changed = v, true
+		}
+	}
+	if err := q.checkBounds(); err != nil {
+		return false, err
+	}
+	*p = q
+	return changed, nil
 }
