@@ -59,6 +59,7 @@ const commandOf = line => {
 };
 
 const seen = new Map(); // command words -> flags the GUI can send
+const panelCmds = new Set(); // the first two words of each panel's line
 const add = line => {
   const c = commandOf(line).join(' ');
   if (!seen.has(c)) seen.set(c, new Set());
@@ -81,7 +82,8 @@ try {
       for (const i of document.querySelectorAll('#main .wallet-pick input')) { i.value = 'x'; i.dispatchEvent(new Event('input', { bubbles: true })); }
       for (const sec of document.querySelectorAll('#main section.panel')) {
         const form = sec.querySelector('form.fields');
-        if (!form) continue;
+        // A panel runs one fixed line; it counts for the subcommand check.
+        if (!form) { for (const c of sec.querySelectorAll('.cmd code')) out.push('panel ' + c.textContent); continue; }
         const sel = form.querySelector('select');
         for (const choice of sel ? [...sel.options].map(o => o.value) : [null]) {
           if (sel) { sel.value = choice; form.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -99,7 +101,10 @@ try {
       }
       return out;
     });
-    lines.forEach(add);
+    // A panel's line has no fields to fill, so only the subcommand check
+    // counts it; the flag check is about what forms can send.
+    lines.filter(l => !l.startsWith('panel ')).forEach(add);
+    lines.filter(l => l.startsWith('panel ')).forEach(l => panelCmds.add(commandOf(l.slice(6)).slice(0, 2).join(' ')));
   }
 
   // A field that states poo's default in its placeholder ("default 16")
@@ -150,6 +155,28 @@ try {
   }
   assert.ok(stated.length > 5, 'fields that state a default were found');
   assert.deepEqual([...new Set(drift)], [], 'a stated default is poo\'s');
+
+  // Every subcommand poo lists is run by some view, or LEFT_OUT_SUBS says
+  // why not. An action select is a copy of poo's list of subcommands, and
+  // a new action would carry flags the family already has, so the flag
+  // check alone would miss it (GUI-GREEN-045). The lists come from poo
+  // help ("poo peer timeout|block|…", "poo policy export …") and from the
+  // help of each command that has its own (poo grind help, poo wallet help).
+  const LEFT_OUT_SUBS = {
+    'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
+  };
+  const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
+  const subs = new Set();
+  for (const m of helpOf(['help']).matchAll(/^ {2}poo ([a-z]+) ([a-z][a-z|-]*)(?= |$)/gm)) {
+    for (const sub of m[2].split('|')) subs.add(`${m[1]} ${sub}`);
+  }
+  for (const cmd of ['grind', 'wallet']) {
+    for (const m of helpOf([cmd, 'help']).matchAll(/^ {2}([a-z]+)(?= )/gm)) subs.add(`${cmd} ${m[1]}`);
+  }
+  assert.ok(subs.has('peer block') && subs.has('grind schedule') && subs.has('wallet pay'), 'the subcommands were read from poo help');
+  const ranSubs = new Set([...seen.keys()].map(c => c.split(' ').slice(0, 2).join(' ')).concat([...panelCmds]));
+  const missingSubs = [...subs].filter(c => !ranSubs.has(c) && !LEFT_OUT_SUBS[c]).map(c => `poo ${c}`);
+  assert.deepEqual(missingSubs, [], 'every subcommand poo lists is run by a view, or LEFT_OUT_SUBS says why not');
 
   const gaps = [];
   for (const [cmd, sent] of seen) {

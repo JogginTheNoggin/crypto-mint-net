@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (GUI/Blue, Round 18C; Round 19A adds Source's -if-digest, D151, so a file changed on disk after its preview is refused too); awaiting GUI/Red's verification |
+| Status | fixed (GUI/Blue Round 18C; Source -if-digest D151, Round 19A), merged; verified by GUI/Red R19B @ e71e317 |
 | Found on | main @ 3804c55 (PR #81, the Policies view's "Import node policies" form, D149) |
 | Component | gui/web/static/views.js (`importForm`: `feed` sends whatever `picked` holds when a job starts; the Apply button made by a preview stays after the file changes) |
 | Surface | node (node.json of one or every saved node policy, from a file someone else made) |
@@ -106,3 +106,24 @@ again at Apply, so the file could change on disk between Preview and
 Apply. The GUI can't see that without reading the file itself. Red's
 suggested bundle digest (`-expect DIGEST` on `-apply`) would close it in
 poo, for the terminal too.
+
+## Notes — Round 19B verification (held up)
+
+- **The GUI, checked with Playwright on e71e317.**
+  - Preview A, then pick B: the Apply button is gone.
+  - Preview A again and press Apply. The dialog reads
+    `Run poo policy import -settings -json -apply -if-digest 3da1d4eb… -
+    with the previewed file A.json?`.
+  - node.json gets nothing from B.
+- **Apply sends the previewed file, pinned by digest.** It streams the
+  same browser `File` and passes the digest that the preview's plan
+  printed. A file that changed after Preview gives another digest and is
+  refused.
+- **Paths, checked in the CLI.** I previewed X.json with `-json`, which
+  printed digest `edef3a18…`. Then I changed a peer in X.json on disk and
+  ran `-apply -if-digest edef3a18…`. It exited 1 with "the file is not the
+  one previewed … nothing was changed", and node.json is unchanged.
+- **Any form change drops Apply.** That covers `input` or `change` on any
+  field, checkbox or pick, so the options Apply runs with are the ones
+  previewed.
+- The digest is read from poo's own `-json` plan, not from the file.
