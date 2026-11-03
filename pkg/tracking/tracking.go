@@ -621,7 +621,12 @@ func (t *Tracker) logLocked(r *record, s Setting, now time.Time, kind, section, 
 		cut++
 	}
 	if cut > 0 {
-		r.Log = append([]Event(nil), r.Log[cut:]...)
+		// Re-sliced, not copied: copying the whole log for each event
+		// cost 655 µs an event under the tracker's lock at log_size 4096
+		// (ORANGE-032). append moves the live events to a new array when
+		// the old one is full, so it holds at most about twice LogSize,
+		// and what was cut goes with the old array.
+		r.Log = r.Log[cut:]
 	}
 }
 

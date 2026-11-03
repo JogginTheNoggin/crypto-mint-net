@@ -6,12 +6,15 @@ import "github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 const DefaultSeenSize = 1 << 16
 
 // Seen is the seen list: the tids and hashes of valid items received
-// recently, held as a fixed-size ring that overwrites its oldest item. An
+// recently, held as a ring of at most size items that overwrites its oldest
+// item. The ring and its set grow with the items held, not with the size
+// set, so a large seen_size costs memory only as items arrive (RED-063). An
 // item that drops out and arrives again is checked and forwarded once more,
 // which keeps the cost small and bounded. Only valid items are listed, so an
 // invalid copy can never block a valid one with the same id.
 type Seen struct {
 	ring []hash.Hash
+	size int
 	next int
 	full bool
 	set  map[hash.Hash]int // value: how many ring slots hold the hash
@@ -22,7 +25,7 @@ func NewSeen(size int) *Seen {
 	if size <= 0 {
 		size = DefaultSeenSize
 	}
-	return &Seen{ring: make([]hash.Hash, size), set: make(map[hash.Hash]int, size)}
+	return &Seen{size: size, set: map[hash.Hash]int{}}
 }
 
 // Has reports whether h is on the list.
@@ -36,10 +39,14 @@ func (s *Seen) Add(h hash.Hash) {
 			delete(s.set, old)
 		}
 	}
-	s.ring[s.next] = h
+	if len(s.ring) < s.size {
+		s.ring = append(s.ring, h)
+	} else {
+		s.ring[s.next] = h
+	}
 	s.set[h]++
 	s.next++
-	if s.next == len(s.ring) {
+	if s.next == s.size {
 		s.next, s.full = 0, true
 	}
 }

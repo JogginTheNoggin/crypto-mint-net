@@ -634,6 +634,24 @@ func (n *Node) BuildWith(ctx context.Context, k engine.PoolKey, maxTries uint64,
 	return e, res, err
 }
 
+// BuildOn is BuildWith built as o says (engine.BuildOn, D161): on a
+// chosen parent, from chosen transactions. It also returns the
+// transactions left out and why.
+func (n *Node) BuildOn(ctx context.Context, k engine.PoolKey, maxTries uint64, g engine.Grind, o engine.BuildOn) (*entry.Entry, engine.EntryResult, []ledger.Refused, error) {
+	n.mu.Lock()
+	closed := n.closed
+	n.mu.Unlock()
+	if closed {
+		return nil, engine.EntryResult{}, nil, ErrClosed
+	}
+	e, refused, err := n.eng.BuildEntryOn(ctx, k, maxTries, g, o)
+	if err != nil {
+		return e, engine.EntryResult{Key: k}, refused, err
+	}
+	res, err := n.HandleEntry(k, e, engine.Local)
+	return e, res, refused, err
+}
+
 // Work grinds a layer on an entry of pool k (see engine.Engine.Work) and
 // stores it.
 func (n *Node) Work(k engine.PoolKey, entryHash hash.Hash, start, tries uint64) (layer.Layer, engine.LayerResult, error) {

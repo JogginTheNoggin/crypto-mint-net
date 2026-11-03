@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 )
@@ -34,12 +37,31 @@ var (
 	BoundFlagHistory      = Bound{"tracking.flag_history_seconds", 3600, 365 * 86400, int(tracking.DefaultConfig().Retain.FlagHistory / time.Second)}
 	BoundLogSeconds       = Bound{"tracking.log_seconds", 60, 86400, int(tracking.DefaultConfig().Retain.Log / time.Second)}
 	BoundLogSize          = Bound{"tracking.log_size", 16, 4096, tracking.DefaultConfig().Retain.LogSize}
+	// BoundCandidateSeconds is how long an address learned from the
+	// network that this node has never reached keeps its place against a
+	// newer address when the book or its range is full (RED-064, D160).
+	BoundCandidateSeconds = Bound{"p2p.candidate_seconds", 60, 365 * 86400, int(peers.DefaultLimits().CandidateAge / time.Second)}
+)
+
+// The bounds of the engine's and the pools' memory limits (RED-063, D160).
+// The seen list only saves checking an item twice, the pending pool holds
+// transactions not yet in an entry, and ties bounds the off-chain entries
+// kept that tie with the selected ledger's weight: an entry that is
+// dropped or forgotten can be sent again. None of them bounds the weight,
+// depth or length of a ledger a node takes, so a smaller value is a lack of
+// information, never a hard fork. The ceilings keep one setting from
+// taking the machine's memory at start or under a flood.
+var (
+	BoundSeenSize   = Bound{"seen_size", 1024, 1 << 22, engine.DefaultSeenSize}
+	BoundMaxPending = Bound{"max_pending", 16, 1 << 20, mempool.DefaultLimit}
+	BoundTies       = Bound{"ties", 1, 4096, ledger.DefaultTies}
 )
 
 // Bounds lists every bounded setting, for docs, the CLI and the GUI.
 func Bounds() []Bound {
 	return []Bound{BoundMaxBook, BoundBookPerRange, BoundVerifiedPerRange, BoundRetrySeconds, BoundRegistrySeconds,
-		BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize}
+		BoundCandidateSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
+		BoundSeenSize, BoundMaxPending, BoundTies}
 }
 
 // Check refuses v when it is neither zero (the default) nor in range.
@@ -58,20 +80,37 @@ func (b Bound) Or(v int) int {
 	return v
 }
 
+// Limit is one bounded setting of a node policy: its bound, the value
+// node.json gives (0: left out) and the value the node uses.
+type Limit struct {
+	Name    string `json:"name"`
+	Min     int    `json:"min"`
+	Max     int    `json:"max"`
+	Default int    `json:"default"`
+	Set     int    `json:"set"`
+	Used    int    `json:"used"`
+}
+
+// Limits lists every bounded setting of p with its value, in the order
+// of Bounds. It is the one list checkBounds checks, so a new bound added
+// here is both checked and shown by poo policy limits (GREEN-047).
+func (p Policy) Limits() []Limit {
+	var out []Limit
+	for _, b := range Bounds() {
+		v := *p.limitField(b.Name)
+		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v)})
+	}
+	return out
+}
+
+// bound returns the Bound a Limit came from.
+func (l Limit) bound() Bound { return Bound{l.Name, l.Min, l.Max, l.Default} }
+
 // checkBounds checks every bounded setting of p, and that a range never
 // holds more than the whole book.
 func (p Policy) checkBounds() error {
-	for _, c := range []struct {
-		b Bound
-		v int
-	}{
-		{BoundMaxBook, p.P2P.MaxBook}, {BoundBookPerRange, p.P2P.BookPerRange},
-		{BoundVerifiedPerRange, p.P2P.VerifiedPerRange}, {BoundRetrySeconds, p.P2P.RetrySeconds},
-		{BoundRegistrySeconds, p.P2P.RegistrySeconds},
-		{BoundMaxAddresses, p.Tracking.MaxAddresses}, {BoundFlagHistory, p.Tracking.FlagHistorySeconds},
-		{BoundLogSeconds, p.Tracking.LogSeconds}, {BoundLogSize, p.Tracking.LogSize},
-	} {
-		if err := c.b.Check(c.v); err != nil {
+	for _, l := range p.Limits() {
+		if err := l.bound().Check(l.Set); err != nil {
 			return err
 		}
 	}
@@ -91,6 +130,7 @@ func (p Policy) BookLimits() peers.Limits {
 		VerifiedPerRange: BoundVerifiedPerRange.Or(p.P2P.VerifiedPerRange),
 		Retry:            time.Duration(BoundRetrySeconds.Or(p.P2P.RetrySeconds)) * time.Second,
 		MaxUnlisted:      max(1, book/4),
+		CandidateAge:     time.Duration(BoundCandidateSeconds.Or(p.P2P.CandidateSeconds)) * time.Second,
 	}
 }
 
@@ -103,4 +143,62 @@ func (p Policy) retention() tracking.Retention {
 		LogSize:      BoundLogSize.Or(t.LogSize),
 		MaxAddresses: BoundMaxAddresses.Or(t.MaxAddresses),
 	}
+}
+
+// limitField returns the field of p a bounded setting is kept in; every
+// bound of Bounds has one (TestSetLimits).
+func (p *Policy) limitField(name string) *int {
+	switch name {
+	case BoundMaxBook.Name:
+		return &p.P2P.MaxBook
+	case BoundBookPerRange.Name:
+		return &p.P2P.BookPerRange
+	case BoundVerifiedPerRange.Name:
+		return &p.P2P.VerifiedPerRange
+	case BoundRetrySeconds.Name:
+		return &p.P2P.RetrySeconds
+	case BoundRegistrySeconds.Name:
+		return &p.P2P.RegistrySeconds
+	case BoundCandidateSeconds.Name:
+		return &p.P2P.CandidateSeconds
+	case BoundSeenSize.Name:
+		return &p.SeenSize
+	case BoundMaxPending.Name:
+		return &p.MaxPending
+	case BoundTies.Name:
+		return &p.Ties
+	case BoundMaxAddresses.Name:
+		return &p.Tracking.MaxAddresses
+	case BoundFlagHistory.Name:
+		return &p.Tracking.FlagHistorySeconds
+	case BoundLogSeconds.Name:
+		return &p.Tracking.LogSeconds
+	case BoundLogSize.Name:
+		return &p.Tracking.LogSize
+	}
+	return nil
+}
+
+// SetLimits sets bounded settings by name (D161; poo policy limits -set):
+// 0 puts one back to its default. The result is checked whole, so a
+// setting that goes with another (p2p.book_per_range and p2p.max_book)
+// may be set in the same call; on an error p is unchanged. It reports
+// whether anything changed.
+func (p *Policy) SetLimits(set map[string]int) (bool, error) {
+	q := *p
+	changed := false
+	for name, v := range set {
+		f := q.limitField(name)
+		if f == nil {
+			return false, fmt.Errorf("%w: %q is not a settable limit (poo policy limits lists them)", ErrInvalid, name)
+		}
+		if *f != v {
+			*f, changed = v, true
+		}
+	}
+	if err := q.checkBounds(); err != nil {
+		return false, err
+	}
+	*p = q
+	return changed, nil
 }

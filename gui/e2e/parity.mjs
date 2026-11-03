@@ -46,6 +46,8 @@ const LEFT_OUT = {
   'settings import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, D155); a preview has none to send' },
   'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, GUI-023); a preview has none to send' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
+  build: { parent: 'new in Source Round 23 (D161); GUI/Grey adds it next' },
+  claim: Object.fromEntries(['parent', 'max-tries', 'work'].map(f => [f, 'new in Source Round 23 (D161); GUI/Grey adds it next'])),
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
 // action select shows each action only the ones poo takes for it (only:,
@@ -167,6 +169,7 @@ try {
   // help of each command that has its own (poo grind help, poo wallet help).
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
+    'policy limits': 'new in Source R22 (GREEN-047); the terminal runs it, and a GUI view is GUI Grey\'s call',
   };
   const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();

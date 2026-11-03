@@ -433,13 +433,16 @@ type P2P struct {
 	// peers from one range for one mint policy. RetrySeconds is the first
 	// wait before trying a candidate again after a failure, doubled with
 	// each one. RegistrySeconds is the least time between two loads of the
-	// registries. Zero means the default; see Bounds for each one's range
-	// (D159).
+	// registries. CandidateSeconds is how long an address learned from
+	// the network and never reached keeps its place against a newer one
+	// when the book or its range is full (D160). Zero means the default;
+	// see Bounds for each one's range (D159).
 	MaxBook          int `json:"max_book,omitempty"`
 	BookPerRange     int `json:"book_per_range,omitempty"`
 	VerifiedPerRange int `json:"verified_per_range,omitempty"`
 	RetrySeconds     int `json:"retry_seconds,omitempty"`
 	RegistrySeconds  int `json:"registry_seconds,omitempty"`
+	CandidateSeconds int `json:"candidate_seconds,omitempty"`
 }
 
 // MaxCheckSeconds is the longest a node waits between asking its
@@ -497,9 +500,6 @@ func (p Policy) Validate() error {
 	}
 	if p.K != nil && *p.K < ledger.Unlimited {
 		return fmt.Errorf("%w: k must be -1 (keep all) or more", ErrInvalid)
-	}
-	if p.Ties < 0 || p.MaxPending < 0 || p.SeenSize < 0 {
-		return fmt.Errorf("%w: limits must not be negative", ErrInvalid)
 	}
 	if err := logging.Check(p.LogSettings()); err != nil {
 		return fmt.Errorf("%w: log: %v", ErrInvalid, err)

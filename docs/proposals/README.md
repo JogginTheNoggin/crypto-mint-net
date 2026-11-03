@@ -72,9 +72,11 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-044](source/GREEN-044-help-names-grind-schedule-and-doctor-fix-for-check-seconds.md) | Source | Help names grind schedule, and doctor's fix for check_seconds | adopted (D155) |
 | [GREEN-045](source/GREEN-045-subcommand-help-and-map-path-notes.md) | Source | "poo CMD -h" for every command with subcommands, and -map-path notes | adopted (D157) |
 | [GREEN-046](source/GREEN-046-offline-peer-add-label-and-zero-times.md) | Source | Offline peer add checks its label first, and zero times read "-" | adopted (D159) |
+| [GREEN-047](source/GREEN-047-policy-limits-and-other-limits.md) | Source | poo policy limits, and which other limits could be settable | adopted (D161) |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
 | [ORANGE-029](source/ORANGE-029-weight-checks-within-the-budget.md) | Source | Round 19 measured; ask weights within the peer's request budget | adopted (D155) |
 | [ORANGE-030](source/ORANGE-030-status-reads-make-no-state.md) | Source | Round 20 measured; read an unused pool without making its state | adopted (D157) |
 | [ORANGE-031](source/ORANGE-031-peer-import-at-its-limits.md) | Source | Round 21 measured; peer imports at their limits | adopted (D159) |
+| [ORANGE-032](source/ORANGE-032-limits-at-their-ceilings.md) | Source | Round 22 measured; the settable limits at their ceilings | adopted (D161) |

@@ -910,35 +910,101 @@ func (g Grind) hasher(s *series.Series) hash.NewHasher {
 
 // BuildEntryWith is BuildEntry searching as g says.
 func (e *Engine) BuildEntryWith(ctx context.Context, k PoolKey, maxTries uint64, g Grind) (*entry.Entry, error) {
+	en, _, err := e.BuildEntryOn(ctx, k, maxTries, g, BuildOn{})
+	return en, err
+}
+
+// BuildOn says where an entry is built and from what (D161). The zero
+// value builds on the selected tip from the ready pending transactions.
+type BuildOn struct {
+	// Parent, when set, is the entry to build on: any held entry of the
+	// pool, or the pool_id for a first entry, so a user can build a rival
+	// branch, such as another claim of a mint the selected ledger has
+	// claimed. The entry is then kept as a branch like any other, and
+	// weight decides between them.
+	Parent *hash.Hash
+	// Txs, when set, are the transactions to build from instead of the
+	// pending ones. They need not be pending: a claim of a mint the
+	// selected ledger has claimed is refused by the pending pool, but is
+	// valid on a parent from before that claim.
+	Txs []*tx.Tx
+}
+
+// BuildEntryOn is BuildEntryWith built as o says. The transactions are
+// checked against the state after the parent and those that do not fit
+// are left out, with their errors in the result; with none left it is
+// ErrNothingPending. The checks are AddEntry's, which takes the entry in
+// after.
+func (e *Engine) BuildEntryOn(ctx context.Context, k PoolKey, maxTries uint64, g Grind, o BuildOn) (*entry.Entry, []ledger.Refused, error) {
 	e.mu.Lock()
 	p, err := e.pool(k)
 	if err != nil {
 		e.mu.Unlock()
-		return nil, err
+		return nil, nil, err
 	}
-	ready := p.pending.Ready()
-	if len(ready) == 0 {
-		e.mu.Unlock()
-		return nil, ErrNothingPending
-	}
-	txs := make([]*tx.Tx, len(ready))
-	for i, r := range ready {
-		txs[i] = r.Tx
+	txs := o.Txs
+	if txs == nil {
+		for _, r := range p.pending.Ready() {
+			txs = append(txs, r.Tx)
+		}
 	}
 	parent, _, _ := p.ledger.Tip()
+	var refused []ledger.Refused
+	if o.Parent != nil || o.Txs != nil {
+		if o.Parent != nil {
+			parent = *o.Parent
+		}
+		if txs, refused, err = p.ledger.CheckOn(parent, txs); err != nil {
+			e.mu.Unlock()
+			return nil, nil, err
+		}
+	}
+	if len(txs) == 0 {
+		e.mu.Unlock()
+		return nil, refused, ErrNothingPending
+	}
 	s := p.s
 	e.mu.Unlock()
 	en, h, err := entry.BuildWith(ctx, g.hasher(s), s, parent, txs, maxTries, g.Workers, g.Tried)
 	if err != nil {
-		return nil, err
+		return nil, refused, err
 	}
 	e.mu.Lock()
 	held := p.ledger.Has(h)
 	e.mu.Unlock()
 	if held {
-		return en, ErrAlreadyBuilt
+		return en, refused, ErrAlreadyBuilt
 	}
-	return en, nil
+	return en, refused, nil
+}
+
+// ClaimParent returns the parent of the entry of the selected ledger of
+// pool k that holds mint serial's claim: the place to build a rival claim
+// on (D161).
+func (e *Engine) ClaimParent(k PoolKey, serial uint64) (hash.Hash, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	p, err := e.pool(k)
+	if err != nil {
+		return hash.Zero, err
+	}
+	eh, _, err := p.ledger.ClaimEntry(serial)
+	if err != nil {
+		return hash.Zero, err
+	}
+	parent, _ := p.ledger.ParentOf(eh)
+	return parent, nil
+}
+
+// PoolID returns the pool_id of pool k: the parent of its first entry.
+func (e *Engine) PoolID(k PoolKey) (hash.Hash, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	p, err := e.pool(k)
+	if err != nil {
+		return hash.Zero, err
+	}
+	return p.ledger.ID(), nil
 }
 
 // Work tries tries nonces on an entry hash of pool k, starting at start,
