@@ -222,6 +222,20 @@ try {
   await page.fill('.wallet-pick input', 'w2.json');
   await page.fill('.wallet-pick input', '');
 
+  // Each command line has Copy, for a shell; never with a secret on it
+  // (GUI-GREEN-046).
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.click('nav a[data-id=crypto]');
+  const key = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Make a key' }) });
+  await key.locator('input[name=alg]').fill('ed25519');
+  await key.locator('button.copy-cmd').click();
+  await key.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await key.locator('.cmd code').innerText());
+  await key.locator('input[name=seed]').fill('ab'.repeat(32));
+  assert.ok(await key.locator('button.copy-cmd').isDisabled(), 'a line with -seed is not copied');
+  await key.locator('input[name=seed]').fill('');
+  assert.ok(!(await key.locator('button.copy-cmd').isDisabled()), 'Copy is back once the secret is gone');
+
   // A result has a Copy output button for poo's exact output.
   await page.click('nav a[data-id=crypto]');
   await page.locator('section.panel button.copy-out').first().waitFor();
