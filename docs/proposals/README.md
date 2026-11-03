@@ -71,3 +71,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-043](source/GREEN-043-import-plan-notes-read-like-its-lines.md) | Source | Import plan notes read like its lines, and help names the new flags | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
+| [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured |
