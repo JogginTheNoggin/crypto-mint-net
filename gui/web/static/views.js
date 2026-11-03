@@ -148,13 +148,7 @@ export function showResult(out, err, { empty, secretOutput } = {}) {
       box.append(el('pre', { class: 'text-out' }, cut ? out.slice(cut) : out));
     }
     // The output exactly as poo printed it, for a script or a bug report.
-    const copy = el('button', { type: 'button', class: 'small copy-out' }, 'Copy output');
-    copy.onclick = () => {
-      if (!navigator.clipboard) return;
-      navigator.clipboard.writeText(out).then(() => { copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy output'; }, 1200); },
-        () => { copy.textContent = 'Copy refused'; });
-    };
-    if (!secretOutput) box.append(copy);
+    if (!secretOutput) box.append(copyButton('Copy output', () => out, 'small copy-out'));
   }
   if (err.trim()) {
     box.append(el('pre', { class: 'text-out err' }, err));
@@ -166,12 +160,32 @@ export function showResult(out, err, { empty, secretOutput } = {}) {
 }
 
 // cmdLine shows a command line with a button that runs it in the terminal.
+// copyButton copies text() to the clipboard and says whether it worked.
+export function copyButton(label, text, cls = 'small') {
+  const b = el('button', { type: 'button', class: cls }, label);
+  b.onclick = () => {
+    if (!navigator.clipboard) { b.textContent = 'Copy refused'; return; }
+    navigator.clipboard.writeText(text()).then(() => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = label; }, 1200); },
+      () => { b.textContent = 'Copy refused'; });
+  };
+  return b;
+}
+
+// cmdLine shows the command a panel or form runs, quoted as the
+// platform's shell takes it, with Run in terminal and Copy: the line
+// pasted into a shell runs the same poo command (GUI-GREEN-046). Copy is
+// off while the line holds a secret flag, as the terminal keeps such a
+// line out of its history (GUI-006).
 export function cmdLine(args, ctx) {
   const code = el('code', {}, api.quote(args));
+  const copy = copyButton('Copy', () => api.quote(row.args), 'small copy-cmd');
+  copy.title = 'Copy this command line, to run it in a shell';
   const row = el('div', { class: 'cmd' }, el('span', { class: 'cmd-label' }, 'Runs'), code,
-    el('button', { type: 'button', class: 'small', title: 'Type this command into the terminal and run it', onclick: () => ctx.openInTerminal(api.quote(row.args).replace(/^poo /, '')) }, 'Run in terminal'));
+    el('button', { type: 'button', class: 'small', title: 'Type this command into the terminal and run it', onclick: () => ctx.openInTerminal(api.quote(row.args).replace(/^poo /, '')) }, 'Run in terminal'), ' ', copy);
+  const secret = () => { copy.disabled = api.secretLine(api.quote(row.args)); copy.title = copy.disabled ? 'The line holds a secret, so it is not copied' : 'Copy this command line, to run it in a shell'; };
   row.args = args;
-  row.set = a => { row.args = a; code.textContent = api.quote(a); };
+  row.set = a => { row.args = a; code.textContent = api.quote(a); secret(); };
+  secret();
   return row;
 }
 

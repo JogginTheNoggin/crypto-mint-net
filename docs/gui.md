@@ -145,7 +145,7 @@ with a button that runs it in the terminal.
 | Pools and payments | `status`, `holdings`, `payment`, `build`, `work` (with `-bytes`), `submit` (hex or `-f`) |
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
 | Peers | `peers`, `peer ACTION`, `tracking`, `chases` |
-| Node policies | `policy list`, `use`, `archive`, `unarchive`, `delete`, `policy export` (printed, with Save as file, or `-out`), `policy import` (a preview of the plan, defences first, with `-settings` and `-full`; then Apply with `-if-digest`; a path or a file picked in the browser, sent as `-`) |
+| Node policies | `settings export`, `settings import` (the same preview and Apply), `policy list`, `use`, `archive`, `unarchive`, `delete`, `policy export` (printed, with Save as file, or `-out`), `policy import` (a preview of the plan, defences first, with `-settings` and `-full`; then Apply with `-if-digest`; a path or a file picked in the browser, sent as `-`) |
 | Series and keys | `crypto`, `keygen`, `series new`, `series info` |
 | Jobs | Every command run, its output, stop, run again |
 | Settings | `-root` and `-policy`, which views add to their commands |

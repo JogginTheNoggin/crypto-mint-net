@@ -101,7 +101,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Feature | What it does | Code | Decisions |
 | --- | --- | --- | --- |
 | Same code as headless | Every action is a `poo` command line run through `cli.Main`. The GUI may import only `pkg/cli`, and a test enforces it | `gui/`, `gui/imports_test.go` | D84 to D89 |
-| Shows its command | Each panel and form shows the exact line it runs, with a button to run it in the terminal | `gui/web/static/views.js` | |
+| Shows its command | Each panel and form shows the exact line it runs, quoted for the platform's shell, with Run in terminal and Copy (off while the line holds a secret flag) | `gui/web/static/views.js` | GUI-GREEN-046 |
 | One file per view | Each view is a module in `views/` listed once in `views/index.js`; navigation and the e2e walks read that list | `gui/web/static/views/` | GUI-GREEN-044 |
 | Terminal | Runs `poo` itself: a typed line runs exactly as in a shell, split the way the platform's shell splits it, with history, Ctrl-C and Ctrl-D | `gui/shell`, `gui/web/static/terminal.js` | D86, GUI-021 |
 | Local web app | One Go binary on loopback that opens the system browser, or an app window with `-app`. No CGO and no JavaScript build | `gui/cmd/poo-gui`, `gui/server` | D85 |
@@ -127,7 +127,8 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Wallet | Every wallet command, with one series choice shared by all of them | `poo wallet` |
 | Peers | Peers, peer actions, tracking and chases | `poo peers`, `peer`, `tracking`, `chases` |
 | Node policies | List, use, archive, unarchive and delete saved policies | `poo policy` |
-| Policy export and import | Export this policy, one series or every saved policy, to a file or the screen with Save as file. Import a path or a file picked in the browser (streamed as it is read): a preview that shows first what changes a defence, then what is new, changed, in conflict, refused or left alone. Only what to follow is taken unless node settings (`-settings`) or every setting (`-full`) is asked for. Apply carries out exactly the previewed file (`-if-digest`), and any change to the form takes Apply away | `poo policy export`, `poo policy import` (D149, D150, D151, GUI-023, ORANGE-014) |
+| Policy export and import | Export this policy, one series or every saved policy, to a file or the screen with Save as file. Import a path or a file picked in the browser (streamed as it is read): a preview that shows first what changes a defence, then what is new, changed, in conflict, refused or left alone. Only what to follow is taken unless node settings (`-settings`) or every setting (`-full`) is asked for. Apply carries out exactly the previewed file (`-if-digest`), and any change to the form takes Apply away. Registry paths from another machine are mapped (`-map-path`). Long plans draw 500 lines at a time | `poo policy export`, `poo policy import` (D149, D150, D151, GUI-023, ORANGE-014) |
+| Settings export and import | Export this node's settings (not what it follows) to a file or the screen, with Save as file; `-full` keeps machine-local ones. Import shows the same preview, with what may not fit this machine, series now used and defences first, then Apply pinned with `-if-digest` | `poo settings export`, `poo settings import` (D155, D156) |
 | Series and keys | Crypto choices, keygen, new series (with an example) and series info | `poo crypto`, `keygen`, `series` |
 | Simulate | The network simulator's scenarios | `poo sim` |
 
