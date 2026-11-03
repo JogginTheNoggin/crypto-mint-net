@@ -32,6 +32,9 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		StrictReturn:  p.P2P.StrictReturn,
 		NoConfirm:     p.P2P.NoConfirm,
 	}
+	if p.P2P.RegistrySeconds > 0 {
+		c.RegistryEvery = time.Duration(p.P2P.RegistrySeconds) * time.Second
+	}
 	if p.P2P.PrioritySlots > 0 || p.P2P.BackupSlots > 0 || p.P2P.Margin > 0 {
 		c.Slots = peers.DefaultSlots()
 		if p.P2P.PrioritySlots > 0 {

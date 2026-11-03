@@ -18,12 +18,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/plain"
 	"net"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
@@ -138,8 +139,9 @@ type Record struct {
 }
 
 // CheckLabel checks a label: at most MaxLabel bytes of valid UTF-8 with
-// no control character, so a label from a file cannot rewrite the
-// terminal it is printed on (RED-053).
+// no control, format or separator character (plain.Text), so a label from
+// a file can neither rewrite the terminal it is printed on (RED-053) nor
+// reorder or hide text on its line (RED-061).
 func CheckLabel(l string) error {
 	if len(l) > MaxLabel {
 		return fmt.Errorf("peers: a label is at most %d bytes", MaxLabel)
@@ -147,10 +149,11 @@ func CheckLabel(l string) error {
 	if !utf8.ValidString(l) {
 		return errors.New("peers: a label must be UTF-8")
 	}
-	for _, r := range l {
-		if unicode.IsControl(r) {
-			return errors.New("peers: a label has no control characters")
-		}
+	if !plain.Text(l) {
+		// The same check as every other text (plain.Text): no control
+		// character, and no direction mark or invisible one either
+		// (RED-061, D158).
+		return errors.New("peers: a label has no control characters, direction marks or invisible characters")
 	}
 	return nil
 }
@@ -195,11 +198,18 @@ type Limits struct {
 	// Retry is the first wait before trying a candidate again after a
 	// failed attempt; it doubles with each failure.
 	Retry time.Duration
+	// MaxUnlisted bounds the records known only from an imported file
+	// (Unlisted, from FromImport): a quarter of MaxRecords by default. An
+	// import takes at most these places, and an address learned any other
+	// way takes the place of the oldest of them when the book or its range
+	// is full, so a file can never fill the book against discovery
+	// (RED-058, D158).
+	MaxUnlisted int
 }
 
 // DefaultLimits returns the provisional defaults.
 func DefaultLimits() Limits {
-	return Limits{MaxRecords: 4096, PerRange: 16, VerifiedPerRange: 4, Retry: time.Minute}
+	return Limits{MaxRecords: 4096, PerRange: 16, VerifiedPerRange: 4, Retry: time.Minute, MaxUnlisted: 1024}
 }
 
 // Book is the peer book. It is safe for concurrent use.
@@ -210,6 +220,12 @@ type Book struct {
 	recs   map[string]*Record
 	refuse func(addr string) bool
 	dirty  bool
+	// rng caches Range by address. Range is a function of the address
+	// alone, so an entry never goes stale; rangeLocked drops the cache
+	// when addresses no longer in the book make up most of it. Counting a
+	// range parsed every address in the book for each address added,
+	// which made an import of 4,096 addresses take 1.9 s (ORANGE-031).
+	rng map[string]string
 }
 
 type file struct {
@@ -227,6 +243,10 @@ var ErrRangeFull = errors.New("peers: too many from this network range")
 // ErrFull is returned when the book holds MaxRecords.
 var ErrFull = errors.New("peers: book full")
 
+// ErrUnlistedFull is returned when an import would hold more than
+// MaxUnlisted records (RED-058).
+var ErrUnlistedFull = errors.New("peers: the book's places for imported addresses are taken")
+
 // Open loads the book at path, or starts an empty one. An empty path keeps
 // the book in memory only.
 func Open(path string, lim Limits) (*Book, error) {
@@ -242,6 +262,9 @@ func Open(path string, lim Limits) (*Book, error) {
 	}
 	if lim.Retry == 0 {
 		lim.Retry = d.Retry
+	}
+	if lim.MaxUnlisted == 0 {
+		lim.MaxUnlisted = max(1, lim.MaxRecords/4)
 	}
 	b := &Book{path: path, lim: lim, recs: map[string]*Record{}}
 	if path == "" {
@@ -324,7 +347,10 @@ func Range(addr string) string {
 	ip := net.ParseIP(host)
 	switch {
 	case ip == nil:
-		return "host:" + host
+		// A host name in any case, with or without the root's trailing
+		// dot, is one name: as the tracker keys it, so a range block of a
+		// file and a listed name in capitals meet (RED-060, D158).
+		return "host:" + strings.TrimSuffix(strings.ToLower(host), ".")
 	case ip.IsLoopback():
 		return "loopback:" + addr
 	case ip.To4() != nil:
@@ -335,10 +361,23 @@ func Range(addr string) string {
 	}
 }
 
+// rangeLocked returns Range(addr), from the book's cache.
+func (b *Book) rangeLocked(addr string) string {
+	if r, ok := b.rng[addr]; ok {
+		return r
+	}
+	if b.rng == nil || len(b.rng) > 2*len(b.recs)+64 {
+		b.rng = make(map[string]string, len(b.recs))
+	}
+	r := Range(addr)
+	b.rng[addr] = r
+	return r
+}
+
 func (b *Book) inRangeLocked(rng string) int {
 	n := 0
 	for a := range b.recs {
-		if Range(a) == rng {
+		if b.rangeLocked(a) == rng {
 			n++
 		}
 	}
@@ -383,10 +422,15 @@ func (b *Book) add(addr string, sections []wire.Section, src Source, st State, n
 	defer b.mu.Unlock()
 	r := b.recs[addr]
 	if r == nil {
-		if len(b.recs) >= b.lim.MaxRecords {
+		if st == Unlisted && b.unlistedLocked() >= b.lim.MaxUnlisted {
+			return ErrUnlistedFull
+		}
+		// An address learned any other way takes the place of the oldest
+		// imported one when the book or the range is full (RED-058).
+		if len(b.recs) >= b.lim.MaxRecords && (st == Unlisted || !b.evictImportedLocked("")) {
 			return ErrFull
 		}
-		if b.inRangeLocked(Range(addr)) >= b.lim.PerRange {
+		if b.inRangeLocked(b.rangeLocked(addr)) >= b.lim.PerRange && (st == Unlisted || !b.evictImportedLocked(b.rangeLocked(addr))) {
 			return ErrRangeFull
 		}
 		r = &Record{Addr: addr, Source: src, Added: now}
@@ -402,10 +446,83 @@ func (b *Book) add(addr string, sections []wire.Section, src Source, st State, n
 	return nil
 }
 
+// imported reports whether r is known only from an imported file: from
+// FromImport, and unlisted for every mint policy it has.
+func (r *Record) imported() bool {
+	if r.Source != FromImport {
+		return false
+	}
+	for _, p := range r.Policies {
+		if p.State != Unlisted {
+			return false
+		}
+	}
+	return true
+}
+
+// unlistedLocked counts the records known only from an imported file.
+func (b *Book) unlistedLocked() int {
+	n := 0
+	for _, r := range b.recs {
+		if r.imported() {
+			n++
+		}
+	}
+	return n
+}
+
+// evictImportedLocked deletes the record known only from an imported file
+// that was added first, in range rng ("" for any), and reports whether it
+// found one. It never touches a record the node learned or verified.
+func (b *Book) evictImportedLocked(rng string) bool {
+	var old *Record
+	for a, r := range b.recs {
+		if !r.imported() || (rng != "" && b.rangeLocked(a) != rng) {
+			continue
+		}
+		if old == nil || r.Added.Before(old.Added) || (r.Added.Equal(old.Added) && r.Addr < old.Addr) {
+			old = r
+		}
+	}
+	if old == nil {
+		return false
+	}
+	delete(b.recs, old.Addr)
+	b.dirty = true
+	return true
+}
+
+// ForgetImported deletes every record known only from an imported file
+// (poo peer remove -imported, RED-058) and returns how many. A record the
+// node learned another way, or promoted, verified or tried, stays; so do
+// blocks, which are the tracker's.
+func (b *Book) ForgetImported() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	n := 0
+	for a, r := range b.recs {
+		if r.imported() {
+			delete(b.recs, a)
+			n++
+		}
+	}
+	if n > 0 {
+		b.dirty = true
+	}
+	return n
+}
+
+// Unlisted counts the records known only from an imported file.
+func (b *Book) Unlisted() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.unlistedLocked()
+}
+
 func (b *Book) verifiedInRangeLocked(s wire.Section, rng, except string) int {
 	n := 0
 	for a, r := range b.recs {
-		if a == except || Range(a) != rng {
+		if a == except || b.rangeLocked(a) != rng {
 			continue
 		}
 		if p := r.policy(s); p != nil && p.State.Listed() {
@@ -429,7 +546,7 @@ func (b *Book) Verify(addr string, s wire.Section, st State, now time.Time) erro
 	defer b.mu.Unlock()
 	r := b.recs[addr]
 	p := r.policy(s)
-	if !p.State.Listed() && b.verifiedInRangeLocked(s, Range(addr), addr) >= b.lim.VerifiedPerRange {
+	if !p.State.Listed() && b.verifiedInRangeLocked(s, b.rangeLocked(addr), addr) >= b.lim.VerifiedPerRange {
 		return ErrRangeFull
 	}
 	p.State, p.LastHeard = st, now

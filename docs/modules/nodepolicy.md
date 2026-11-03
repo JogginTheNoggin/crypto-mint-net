@@ -50,7 +50,9 @@ D25). Nothing here changes what is valid.
     "review_seconds": 600,
     "unlisted_conns": 8,
     "strict_return": false,
-    "no_confirm": false
+    "no_confirm": false,
+    "max_book": 4096, "book_per_range": 16, "verified_per_range": 4,
+    "retry_seconds": 60, "registry_seconds": 3600
   },
   "tracking": {
     "template": "basic",
@@ -62,7 +64,9 @@ D25). Nothing here changes what is valid.
     "timeout_seconds": 600, "block_seconds": 86400,
     "weights": {"pings": 2, "rtt": 1, "first_deliveries": 1, "requests": 2, "reply_timing": 1, "chases": 2, "denials": 2, "cost": 0.1, "large": 0.5},
     "starting_points": 0,
-    "no_timeout_misses": false
+    "no_timeout_misses": false,
+    "max_addresses": 8192, "flag_history_seconds": 604800,
+    "log_seconds": 3600, "log_size": 256
   },
   "log": {"level": "info", "format": "plain"},
   "grind": {
@@ -111,7 +115,28 @@ otherwise not public; turn it on only for a network on one machine or LAN.
 Addresses in `peers` are always dialled. `no_dial_imported` (off by
 default, D157) keeps the unlisted addresses an imported peer file gave
 out of the connection manager, so only `poo peer connect -imported`
-tries them. In
+tries them.
+
+The peer book, tracker and discovery limits are the user's to set
+(D159). Left out or 0, each is its default; any other value must lie in
+its range, or `Validate` refuses the policy and names the setting
+(`nodepolicy.Bounds`):
+
+| Setting | Default | Range | What it bounds |
+| --- | --- | --- | --- |
+| `p2p.max_book` | 4096 | 256 to 65536 | addresses in the peer book; a quarter of it is for imported ones (D158) |
+| `p2p.book_per_range` | 16 | 1 to 4096, at most `max_book` | addresses from one network range |
+| `p2p.verified_per_range` | 4 | 1 to 64 | priority and backup peers from one range, per mint policy |
+| `p2p.retry_seconds` | 60 | 1 to 86400 | the first wait before trying a failed candidate again, doubled each failure |
+| `p2p.registry_seconds` | 3600 | 60 to 86400 | the least time between two loads of the registries |
+| `tracking.max_addresses` | 8192 | 1024 to 131072 | addresses the tracker keeps records for |
+| `tracking.flag_history_seconds` | 604800 | 3600 to 31536000 | how long an expired flag is remembered |
+| `tracking.log_seconds` | 3600 | 60 to 86400 | how long each address's detailed log keeps events |
+| `tracking.log_size` | 256 | 16 to 4096 | events in each address's detailed log |
+
+None of them changes which ledger a node selects: a smaller book or a
+shorter memory only means the node knows fewer peers, which is a lack of
+information (AGENTS.md). In
 `tracking`, `escalate_at: -1` never escalates; every template name must
 be known, custom templates may not form a cycle, and groups must be
 priority, backup, candidate, unlisted, inbound or outbound (see

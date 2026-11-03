@@ -215,7 +215,7 @@ func TestImportRules(t *testing.T) {
 // D157: a full book or network range refuses more, and a digest changes
 // with the options.
 func TestImportGuards(t *testing.T) {
-	b, tr := node(t, peers.Limits{MaxRecords: 2, PerRange: 1})
+	b, tr := node(t, peers.Limits{MaxRecords: 2, PerRange: 1, MaxUnlisted: 2})
 	f := peerport.File{Kind: peerport.Kind, Format: peerport.Format}
 	for _, a := range []string{"8.8.1.1:1", "8.8.2.2:1", "8.9.1.1:1", "8.10.1.1:1"} {
 		f.Peers = append(f.Peers, peerport.Peer{Addr: a, Policies: []peerport.Policy{{Section: sec.Text()}}})

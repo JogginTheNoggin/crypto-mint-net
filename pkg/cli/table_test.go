@@ -154,3 +154,16 @@ func TestTablePrefixedHashAndTime(t *testing.T) {
 		t.Errorf("-wide shortens:\n%s", wide)
 	}
 }
+
+// Go's zero time, a peer never tried, reads as "-" in a table and stays
+// as it is with -wide and in JSON (GREEN-046).
+func TestTableZeroTime(t *testing.T) {
+	row := []map[string]string{{"addr": "8.8.8.8:8646", "last_tried": "0001-01-01T00:00:00Z", "added": "2026-11-03T05:15:54.177614515Z"}}
+	got := render(t, row, "-o", "table")
+	if strings.Contains(got, "0001-01-01") || !strings.Contains(got, "2026-11-03T05:15:54Z") {
+		t.Errorf("zero time in a table:\n%s", got)
+	}
+	if wide := render(t, row, "-o", "table", "-wide"); !strings.Contains(wide, "0001-01-01T00:00:00Z") {
+		t.Errorf("-wide hid the zero time:\n%s", wide)
+	}
+}

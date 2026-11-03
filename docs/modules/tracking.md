@@ -113,7 +113,9 @@ which both have (the design's fair comparison). A new peer starts at
 
 Expired flags go after the flag history (7 days); the detailed log keeps
 an hour, at most 256 events; at most 8192 addresses are kept, the least
-recently seen dropped first.
+recently seen dropped first. A node policy sets each one
+(`tracking.flag_history_seconds`, `tracking.log_seconds`,
+`tracking.log_size`, `tracking.max_addresses`, D159).
 
 ## API
 

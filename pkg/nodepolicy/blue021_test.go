@@ -63,7 +63,7 @@ func TestControlCharactersRefused(t *testing.T) {
 		p := Default()
 		edit(&p)
 		err := p.Validate()
-		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "control character") {
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "control or invisible character") {
 			t.Fatalf("took it: %v", err)
 		}
 		if strings.ContainsAny(err.Error(), "\x1b\n\r\u202e") {

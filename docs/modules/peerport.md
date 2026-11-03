@@ -54,22 +54,43 @@ and a range. A bad entry refuses the whole file.
   conflict, and the book's is kept.
 - **The book's guards hold.** An address blocked here is refused, a
   local one unless the node allows local peers or lists it, and so are
-  addresses past the book's size or a network range's share.
+  addresses past the book's size or a network range's share. Imported
+  addresses take at most the book's `MaxUnlisted` places, and the plan
+  refuses the rest (RED-058, D158).
 - **Blocks only when asked.** Without `Options.Blocks` the plan counts
   them and leaves them. With it, a block is taken only when it is longer
   than what the node holds, so a file never unblocks or shortens one; one
   more than 50 years away is taken as until unblocked; an ended one is
   skipped. An address the node policy lists (`p2p.peers`, the node's
   own) is never blocked. A range block needs `Options.Ranges` too, and is
-  skipped when a listed address is in the range.
+  skipped when a listed address is in the range. A listed host name is
+  compared in lower case without its trailing dot (`peers.Range`), and by
+  name only: a block on the address it resolves to is not seen
+  (RED-060).
+- **Notes** (`Plan.Notes`) say what the lines do not:
+  - that the node will try the imported addresses when it is short of
+    peers, before registries, unless `p2p.no_dial_imported`;
+  - how many of the book's places for imported addresses they take, and
+    that `poo peer remove -imported` takes them out;
+  - how many blocks and ranges there are, and how much of IPv4 the
+    ranges cover;
+  - that a listed host name is protected by name only.
+
+  (RED-058, RED-059, RED-060, RED-062, D158.)
 
 `Digest(file, Options, Plan)` is what `-if-digest` checks, as for policy
-import (D151, D154).
+import (D151, D154). `ImportIf(file, Options, Node, digest, now)` plans
+and applies in one call, and only when the plan it just made has that
+digest (`ErrNotPreviewed` otherwise). The CLI and the node's
+`if_digest` use it, so the plan checked is the plan applied (RED-062).
 
 ## Tests
 
 `TestExportCategories`, `TestReadRefuses`, `TestImportRules` and
-`TestImportGuards`; `TestPeersExportImport`, `TestPeerActionsOffline`
+`TestImportGuards`; `TestImportTakesAShareOfTheBook`,
+`TestListedHostNameInCapitalsIsProtected`, `TestPlanCountsRangeBlocks`
+and `TestImportIfAppliesOnlyThePreviewedPlan` (D158);
+`TestPeersExportImport`, `TestPeersForgetImported`, `TestPeerActionsOffline`
 and `TestPeersRunning` in `pkg/cli`; `TestManagerDialsImported` and
 `TestAddPeerByHand` in `pkg/p2p`; `TestUnlistedAndLabels` in
 `pkg/peers`.

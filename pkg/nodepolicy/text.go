@@ -2,10 +2,9 @@ package nodepolicy
 
 import (
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/plain"
 	"reflect"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 )
 
 // checkText refuses a control character, a bidirectional override or bytes
@@ -22,7 +21,7 @@ func walkText(v reflect.Value, path string) error {
 	switch v.Kind() {
 	case reflect.String:
 		if s := v.String(); !plainText(s) {
-			return fmt.Errorf("%w: %s %q holds a control character or bytes that are not UTF-8", ErrInvalid, fieldName(path), s)
+			return fmt.Errorf("%w: %s %q holds a control or invisible character, or bytes that are not UTF-8", ErrInvalid, fieldName(path), s)
 		}
 	case reflect.Pointer, reflect.Interface:
 		if !v.IsNil() {
@@ -61,7 +60,7 @@ func walkText(v reflect.Value, path string) error {
 		for it.Next() {
 			k := it.Key()
 			if k.Kind() == reflect.String && !plainText(k.String()) {
-				return fmt.Errorf("%w: %s has a key %q with a control character or bytes that are not UTF-8", ErrInvalid, fieldName(path), k.String())
+				return fmt.Errorf("%w: %s has a key %q with a control or invisible character, or bytes that are not UTF-8", ErrInvalid, fieldName(path), k.String())
 			}
 			if err := walkText(it.Value(), fmt.Sprintf("%s[%v]", path, k)); err != nil {
 				return err
@@ -71,19 +70,9 @@ func walkText(v reflect.Value, path string) error {
 	return nil
 }
 
-// plainText reports whether s is UTF-8 without a control character, a
-// bidirectional formatting character or a line or paragraph separator.
-func plainText(s string) bool {
-	if !utf8.ValidString(s) {
-		return false
-	}
-	for _, r := range s {
-		if unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) || r == '\u2028' || r == '\u2029' {
-			return false
-		}
-	}
-	return true
-}
+// plainText reports whether s may be shown as it is (plain.Text): UTF-8
+// with no control, format or separator character (RED-053, RED-061).
+func plainText(s string) bool { return plain.Text(s) }
 
 func join(path, name string) string {
 	if path == "" {

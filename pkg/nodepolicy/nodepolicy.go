@@ -278,6 +278,15 @@ type Tracking struct {
 	StartingPoints float64 `json:"starting_points,omitempty"`
 	// NoTimeoutMisses stops pings missed during a timeout counting.
 	NoTimeoutMisses bool `json:"no_timeout_misses,omitempty"`
+	// MaxAddresses bounds the addresses the tracker keeps records for; the
+	// oldest with no flag, block or timeout go first. FlagHistorySeconds is
+	// how long an expired flag is remembered, so a repeat offence counts
+	// more; LogSeconds and LogSize bound each address's detailed log. Zero
+	// means the default; see Bounds for each one's range (D159).
+	MaxAddresses       int `json:"max_addresses,omitempty"`
+	FlagHistorySeconds int `json:"flag_history_seconds,omitempty"`
+	LogSeconds         int `json:"log_seconds,omitempty"`
+	LogSize            int `json:"log_size,omitempty"`
 }
 
 // SeriesInfo is one known series, with the issuer's witness when the series
@@ -417,6 +426,20 @@ type P2P struct {
 	// They are kept so older policy files still load, and are ignored.
 	FastCatchUp bool `json:"fast_catch_up,omitempty"`
 	DepthLimit  int  `json:"depth_limit,omitempty"`
+
+	// MaxBook bounds the addresses the peer book holds, and BookPerRange
+	// those from one network range; a quarter of the book is for imported
+	// addresses (D158). VerifiedPerRange bounds the priority and backup
+	// peers from one range for one mint policy. RetrySeconds is the first
+	// wait before trying a candidate again after a failure, doubled with
+	// each one. RegistrySeconds is the least time between two loads of the
+	// registries. Zero means the default; see Bounds for each one's range
+	// (D159).
+	MaxBook          int `json:"max_book,omitempty"`
+	BookPerRange     int `json:"book_per_range,omitempty"`
+	VerifiedPerRange int `json:"verified_per_range,omitempty"`
+	RetrySeconds     int `json:"retry_seconds,omitempty"`
+	RegistrySeconds  int `json:"registry_seconds,omitempty"`
 }
 
 // MaxCheckSeconds is the longest a node waits between asking its
@@ -524,6 +547,9 @@ func (p Policy) Validate() error {
 		p.P2P.BackupSlots < 0 || p.P2P.Margin < 0 || p.P2P.UnlistedConns < -1 || p.P2P.DepthLimit < 0 {
 		return fmt.Errorf("%w: p2p limits must not be negative", ErrInvalid)
 	}
+	if err := p.checkBounds(); err != nil {
+		return err
+	}
 	if _, err := tracking.New(p.TrackingConfig(), ""); err != nil {
 		return fmt.Errorf("%w: tracking: %v", ErrInvalid, err)
 	}
@@ -573,6 +599,7 @@ func (p Policy) TrackingConfig() tracking.Config {
 	if t.Weights != nil {
 		c.Weights = *t.Weights
 	}
+	c.Retain = p.retention()
 	return c
 }
 
