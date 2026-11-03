@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D153) |
 | Based on | `main` @ `533dbcd` |
 | Area | `pkg/cli` (`policy import` text plan, `poo help`), `docs/modules/poo.md` |
 | Effort | small |

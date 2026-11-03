@@ -3000,3 +3000,46 @@ a chase takes in after checking their work are not charged.
   change) is put to Black. It is not built.
 - **Tier:** Implementation (node start-up, engine listings, the p2p index,
   node policy import, the CLI). Tests are listed in BLUE-019.
+
+### D153. Round 19: the weight check cannot be turned off; GREEN-043 adopted
+
+- **Decision:**
+  - **The weight check is never off (Black's B7, as node policy).**
+    - The problem: `check_seconds: -1` turned off the regular check of
+      priority peers' stated weight. With peers that send no notices, a
+      node in a quiet pool never learned of a heavier ledger they held.
+    - Under the owner's definition (2026-11-03) this is a lack of
+      information, not a hard fork. The node takes the heavier ledger as
+      soon as it hears of it. The change is an improvement, not a rule.
+    - Now `nodepolicy.MaxCheckSeconds` is 3600. A negative value, or one
+      over that, is read as one hour. `Load` notes it in `Lowered`, as it
+      does for `grind.layer_rate`, so `poo doctor` shows it. `p2p.FromPolicy`
+      reads it the same way.
+    - `ping_seconds: -1` stays as it is. No consensus rule changes.
+  - **Merged with this round:**
+    - BLUE-019 (D152: RED-046 in part, RED-047, RED-048), with Red's
+      findings (PR #94).
+    - GREEN-043: plan notes read like the plan's lines, and help names
+      `-settings` and `-if-digest`.
+    - ORANGE-028: imports are linear, and Unlock's check costs nothing.
+      No cap is needed.
+    - Black's Round 18 review: 8 clear, and B7 cleared as an information
+      gap. It also writes the owner's hard-fork definition into
+      AGENTS.md.
+  - **FEATURES.md:**
+    - It now says a node bundle is planned whole before anything is
+      saved. A failed save names what was already saved, which is weaker
+      than "all or nothing" (Green's note).
+    - The weight check has its own row.
+- **Why:** the Round 19 queue, and Black's optional B7 improvement.
+- **Not taken:** Black's B7 test as written. With `-1` the first check
+  now comes after an hour, so a 60 s test cannot wait for it. Instead:
+  - `TestCheckSecondsNeverOff` checks that -1 and every value over the
+    most give the hour, through both `FromPolicy` and `Load`.
+  - Black's `TestBlackCheckFindsLaterHeavier` shows that the check finds
+    a heavier ledger a no-notices peer holds.
+  - `TestBlackNoCheckCaughtByNextEntry` shows that a new entry is
+    enough.
+  Wire protocol v2 is not built: the owner has not decided on it.
+- **Tier:** Node policy and p2p configuration. Tests are in
+  `pkg/p2p/check_never_off_test.go`.

@@ -95,7 +95,10 @@ Every field but `format` may be left out; the defaults are the provisional
 ones in [decisions.md](../decisions.md) (D12, D22, D24, D26). `k: -1` keeps
 every branch. `rpc.listen: "off"` disables the interface. `p2p.listen:
 "off"` accepts no connections (listed peers are still dialled);
-`check_seconds: -1` turns off regular checks and `ping_seconds: -1` pings.
+`ping_seconds: -1` turns off pings. The weight check cannot be turned off:
+`check_seconds: -1`, or a value over 3600 (`MaxCheckSeconds`), is read as
+one hour and noted as lowered, so a node whose peers send no notices still
+finds a heavier ledger they hold (D153).
 Without `advertise` the node is never offered to others as a contact. The p2p defaults are in
 `p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
 no unlisted connections; `review_seconds: -1` never reviews.

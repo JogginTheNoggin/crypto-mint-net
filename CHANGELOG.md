@@ -171,7 +171,12 @@ built.
   only the flags a command takes; a large entry's buffer ends at its size.
 - **Safer imports (D150, D151):** a default import takes only what to
   follow, `-settings` the node's settings with the lines that switch off
-  defences listed first; a node bundle applies whole or not at all;
+  defences listed first; a node bundle is planned whole before anything is saved;
   `-if-digest` applies only the file that was previewed; plans show
   values; and a wallet command opened before a passphrase change, `seed`
   and `cosign` included, no longer unlocks with the old one.
+- **Round 19 (D152, D153):** plans count the pools a follow takes on and
+  list every node setting first under `-settings`; `-if-digest` needs
+  `-apply` and a full digest; a node finds its stores from disk; and the
+  weight check of priority peers can no longer be turned off (at most an
+  hour apart).

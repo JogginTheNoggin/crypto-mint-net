@@ -68,7 +68,7 @@ func TestPolicyExportImport(t *testing.T) {
 		t.Fatalf("apply did not say what it skipped:\n%s", out)
 	}
 	out = runOut(t, "policy", "import", bundle, "-apply", "-settings", "-root", dst)
-	if !strings.Contains(out, "read first") || !strings.Contains(out, "reaches out: p2p.peers: a.example:1") {
+	if !strings.Contains(out, "read first") || !strings.Contains(out, "many pools: p2p.peers: a.example:1") {
 		t.Fatalf("-settings did not name the peer first:\n%s", out)
 	}
 	if p, _ = nodepolicy.Load(dstPath); len(p.P2P.Peers) != 1 || p.P2P.Listen != "off" {
@@ -267,7 +267,7 @@ func TestPlanNotesReadLikeItsLines(t *testing.T) {
 	runOut(t, "policy", "export", "-root", src, "-out", bundle)
 
 	out := runOut(t, "policy", "import", bundle, "-settings", "-root", dst)
-	if !strings.Contains(out, "reaches out: p2p.peers: a.example:1") || strings.Contains(out, ".[") || !strings.Contains(out, "file digest") {
+	if !strings.Contains(out, "many pools: p2p.peers: a.example:1") || strings.Contains(out, ".[") || !strings.Contains(out, "file digest") {
 		t.Fatalf("preview:\n%s", out)
 	}
 	if !strings.Contains(out, "1 of the file's settings is already the same") {

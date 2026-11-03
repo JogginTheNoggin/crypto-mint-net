@@ -56,11 +56,13 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		HashLimit:  pick(p.P2P.HashLimit, d.HashLimit),
 		LayerLimit: pick(p.P2P.LayerLimit, d.LayerLimit),
 	}
-	switch {
-	case p.P2P.CheckSeconds < 0:
-		c.CheckEvery = -1
-	case p.P2P.CheckSeconds > 0:
-		c.CheckEvery = time.Duration(p.P2P.CheckSeconds) * time.Second
+	// The weight check is never off (D153): -1 or a value over the
+	// most, as Load also reads them, is the longest interval.
+	switch cs := p.P2P.CheckSeconds; {
+	case cs < 0 || cs > nodepolicy.MaxCheckSeconds:
+		c.CheckEvery = nodepolicy.MaxCheckSeconds * time.Second
+	case cs > 0:
+		c.CheckEvery = time.Duration(cs) * time.Second
 	}
 	switch {
 	case p.P2P.PingSeconds < 0:
