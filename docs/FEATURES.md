@@ -134,7 +134,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 
 | Feature | What it does | Code |
 | --- | --- | --- |
-| Flag parity | CI fails if a flag `poo CMD -h` lists is sent by no form (unless listed with a reason), or if a field's stated default differs from `poo -h` | `gui/e2e/parity.mjs` (GUI-GREEN-042, 043) |
+| Flag parity | CI fails if a subcommand `poo help` lists is run by no view, a flag `poo CMD -h` lists is sent by no form (unless listed with a reason), or a field's stated default differs from `poo -h` | `gui/e2e/parity.mjs` (GUI-GREEN-042, 043, 045) |
 | End-to-end tests | Nine browser scripts run in CI against real nodes | `gui/e2e` |
 | Performance re-checks | GUI/Orange measures a soak, page load, Watch and Work at high rates and large results every round | `gui/perf`, `docs/proposals/gui/README.md` |
 
