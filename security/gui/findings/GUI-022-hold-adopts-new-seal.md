@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open (with Source) |
+| Status | partly fixed by Source (D149: `Hold` refuses a changed seal), merged Round 18; **open** for `wallet seed` and `wallet cosign`, which never `Hold` (R18B @ 3804c55) |
 | Found on | main @ 052d032 (Source BLUE-016 / D146, `Wallet.Hold`) |
 | Component | pkg/wallet/wallet.go (`Hold`: on a changed file it adopts the new file, seal included, and keeps the seed unlocked from the old one), pkg/cli/wallet.go (`unlocked` checks the passphrase against the copy `Open` read, before `Hold`); the GUI's Wallet forms, which can wait at a passphrase prompt for as long as the page is open |
 | Surface | local (the wallet's passphrase seal) |
-| Fixed by | _(pending — routed to Source by GUI/Blue in Round 17C via GUI/Grey; already flagged to Source/Grey for its Round 17. The GUI needs no change.)_ |
+| Fixed by | Source, in part: D149 (`Hold` refuses a changed seal). The rest (`wallet seed` and `wallet cosign`) was routed to Source by GUI/Blue in Round 18C via GUI/Grey and queued for Source Round 18. The GUI needs no change. |
 
 ## Summary
 
@@ -127,3 +127,52 @@ to Source through GUI/Grey. Once Source's fix lands, GUI/Blue can add a
 GUI e2e check: leave one wallet form at its passphrase prompt, change the
 passphrase in another, and expect the waiting one to be refused with the
 old passphrase.
+
+## Notes — Round 18B verification (partly held)
+
+Checked on main @ 3804c55 with the same two-process scripts.
+
+- **D149 holds for every command that `Hold`s.**
+  - Stale `passwd`: the owner rotates `old` to `rotated`, then a `passwd`
+    that unlocked with `old` is answered with `mine`. It is refused:
+    "the wallet's passphrase was changed meanwhile, so nothing was done".
+    `rotated` still unlocks the wallet; `mine` and `old` don't.
+  - Stale `address` answered with `old` after a rotation: refused the
+    same way, and the new passphrase stands.
+  - `sameSeal` compares every `KDF` field (name, iterations, memory,
+    threads, salt) and the sealed bytes, so any re-seal is caught.
+  - Every saving command (`passwd`, `address`, `watch`, `claim`, `pay`,
+    `request`, `receive`, `status`, `resend`, `policy`, `submit`) goes
+    through `holdWallet`.
+- **Still open: commands that unlock without `Hold`.**
+  - `wallet seed` and `wallet cosign` check the passphrase against the
+    copy `Open` read, and never `Hold`, so D149 never runs for them.
+  - Reproduced: `wallet seed` started before the rotation, waiting at
+    `passphrase:`. The owner rotates `old` to `rotated`. Answered with
+    `old`, the stale `seed` **prints the seed**. A fresh `seed` with
+    `old` fails with "wrong passphrase".
+  - So, after a passphrase leak and a rotation, a `seed` form that was
+    left open still gives the seed (the whole wallet) to whoever knows
+    the leaked passphrase. A stale `cosign` still signs a co-signing file
+    with the old passphrase.
+  - The GUI's "Show seed" form, like every Wallet form, can wait at its
+    masked prompt for as long as the page is open.
+- **Recommendation (Source).** Check the passphrase against the current
+  file in one place, for every command:
+  - In `walletFlags.unlocked`, re-read the file after the passphrase is
+    answered and refuse with `ErrPassphraseChanged` if its seal differs
+    from the copy unlocked. Or open the file only after the prompt, for
+    commands that need a passphrase.
+  - Or give `seed` and `cosign` the same short `Hold` (or a read-only
+    seal check under the lock) before they use the seed.
+  - Test: stale `seed` and stale `cosign` after a rotation are refused.
+
+## Routing (GUI/Blue, Round 18C)
+
+The part still open is in pkg/cli: `wallet seed` and `wallet cosign`
+unlock the copy `Open` read and never call `Hold`, so a stale passphrase
+still works for them. GUI/Blue passed it to Source through GUI/Grey, as
+Red suggested: check the seal in `walletFlags.unlocked`, or `Hold` in
+those two commands. Source/Grey has it queued for Round 18. The GUI's
+"Show seed" and cosign forms run these commands as they are, and need no
+change.

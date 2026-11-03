@@ -41,7 +41,7 @@ const LEFT_OUT = {
   tx: { kind: 'poo refuses -kind outside poo watch', ...Object.fromEntries(['address', 'address-policy', 'pool', 'serial', 'tid'].map(f => [f, 'one transaction by its id: In mint serial (-in-serial) is the narrowing that helps'])) },
   address: { kind: 'poo refuses -kind outside poo watch', address: 'the address is the command\'s own argument', 'address-policy': 'the address is the command\'s own argument' },
   'grind schedule': { 'if-version': 'add and set are applied as edits under the node\'s lock and keep changes made meanwhile (D125); Remove sends it' },
-  'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', settings: 'new in Source R18 (D150); the form adds it in the next GUI Part A', 'if-digest': 'new in Source R18 (D151); the form adds it in the next GUI Part A, with GUI-023' },
+  'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, GUI-023); a preview has none to send' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
@@ -66,7 +66,11 @@ const add = line => {
 };
 
 try {
-  for (const v of ['node', 'pools', 'peers', 'wallet', 'policies', 'crypto', 'work', 'watch', 'explore']) {
+  // Every view the navigation lists (gui/web/static/views/index.js), so a
+  // new view is checked without being named here (GUI-GREEN-044).
+  const views = await page.locator('nav a[data-id]').evaluateAll(as => as.map(a => a.dataset.id).filter(id => id !== 'terminal'));
+  assert.ok(views.includes('wallet') && views.length > 8, 'the views were read from the navigation');
+  for (const v of views) {
     await page.click(`nav a[data-id=${v}]`);
     await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
     // In the page, so a field that shows once another is filled (only:)
@@ -103,7 +107,7 @@ try {
   // cannot drift from poo (GUI-GREEN-043). Each such field is filled
   // alone, so the preview says which flag it is.
   const stated = [];
-  for (const v of ['node', 'pools', 'peers', 'wallet', 'policies', 'crypto', 'work', 'watch', 'explore']) {
+  for (const v of views) {
     await page.click(`nav a[data-id=${v}]`);
     await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
     stated.push(...await page.evaluate(() => {

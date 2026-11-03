@@ -33,6 +33,22 @@ export async function input(id, line) {
   for (; line.length - i > PART; i += PART) await post(`/api/jobs/${id}/input`, { line: line.slice(i, i + PART), more: true });
   return post(`/api/jobs/${id}/input`, { line: line.slice(i) });
 }
+
+// inputFile sends a file picked in the browser to a job's input as it is
+// read, PART bytes at a time, then ends the input. Only what the command
+// reads is read: once it stops (it refused the file, or ended), the next
+// send fails and nothing more of the file is read (ORANGE-014). Text split
+// inside a character is joined again by the streaming decoder.
+export async function inputFile(id, file) {
+  const dec = new TextDecoder();
+  for (let off = 0; off < file.size; off += PART) {
+    const text = dec.decode(await file.slice(off, off + PART).arrayBuffer(), { stream: true });
+    await post(`/api/jobs/${id}/input`, { line: text, more: true });
+  }
+  const rest = dec.decode();
+  if (rest) await post(`/api/jobs/${id}/input`, { line: rest, more: true });
+  return eof(id);
+}
 // eof ends a job's input, as Ctrl-D does in a shell; cancel is Ctrl-C,
 // and is never read as an end of input (GUI-021).
 export function eof(id) { return post(`/api/jobs/${id}/eof`); }

@@ -207,10 +207,11 @@ try {
     pay: 'pays with a raw key file; the Wallet view pays from the wallet',
   };
   const ran = new Set();
-  for (const v of ['start', 'node', 'pools', 'peers', 'wallet', 'policies', 'crypto', 'work', 'watch', 'explore']) {
+  // Every view in the navigation, so a new one is walked too (GUI-GREEN-044).
+  for (const v of await page.locator('nav a[data-id]').evaluateAll(as => as.map(a => a.dataset.id).filter(id => id !== 'terminal'))) {
     await page.click(`nav a[data-id=${v}]`);
     await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
-    await page.locator('#main .cmd code, #main .step-cmd code').first().waitFor();
+    await page.locator('#main h1').first().waitFor();
     for (const t of await page.locator('#main .cmd code, #main .step-cmd code').allInnerTexts()) ran.add(t.split(' ')[1]);
   }
   const top = execFileSync(bin, ['poo', 'help'], { env }).toString();

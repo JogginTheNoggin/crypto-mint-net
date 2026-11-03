@@ -145,7 +145,7 @@ with a button that runs it in the terminal.
 | Pools and payments | `status`, `holdings`, `payment`, `build`, `work` (with `-bytes`), `submit` (hex or `-f`) |
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
 | Peers | `peers`, `peer ACTION`, `tracking`, `chases` |
-| Node policies | `policy list`, `use`, `archive`, `unarchive`, `delete`, `policy export` (printed, with Save as file, or `-out`), `policy import` (a preview of the plan, then Apply; a path or a file picked in the browser, sent as `-`) |
+| Node policies | `policy list`, `use`, `archive`, `unarchive`, `delete`, `policy export` (printed, with Save as file, or `-out`), `policy import` (a preview of the plan, defences first, with `-settings` and `-full`; then Apply with `-if-digest`; a path or a file picked in the browser, sent as `-`) |
 | Series and keys | `crypto`, `keygen`, `series new`, `series info` |
 | Jobs | Every command run, its output, stop, run again |
 | Settings | `-root` and `-policy`, which views add to their commands |
@@ -157,6 +157,12 @@ folds its error behind "Show the error". The error and its next step are
 unchanged, and the note comes only from those commands' own results.
 Transaction ids and addresses in results link to Explore, which runs
 `poo tx` or `poo address` on them.
+
+Each view is one file in `gui/web/static/views/`, an object `{ id, title,
+mount }` built from the panel and form helpers in
+`gui/web/static/views.js`. `views/index.js` lists them in navigation
+order. The navigation, the narrow-window menu and the e2e checks that walk
+every view read that one list (GUI-GREEN-044).
 
 When a running command reads input, such as a passphrase prompt, the view
 shows an input field next to it. The field is masked when, and only when,
