@@ -4,6 +4,7 @@
 //   node gui/e2e/views.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { launch, nodeStopped } from './lib.mjs';
 
@@ -241,6 +242,57 @@ try {
   await imp.locator('.area .area .run-status', { hasText: /exit|failed|1/ }).waitFor();
   await imp.locator('.area .area', { hasText: 'not the one previewed' }).waitFor();
   assert.doesNotMatch(readFileSync(join(home, 'policies', 'default', 'node.json'), 'utf8'), /198\.51\.100\.9|203\.0\.113\.7/, 'a changed file is never applied');
+  // A preview that prints no digest gets no Apply, so Apply is never run
+  // unpinned (GUI/Red R20B hardening). poo always prints one; the test
+  // blanks it in the preview's output on its way to the page.
+  const noDigest = async route => {
+    const res = await route.fetch();
+    const body = (await res.text()).replace(/(\\"digest\\": *\\")[0-9a-f]{64}/g, '$1');
+    await route.fulfill({ response: res, body });
+  };
+  await fill(imp, 'File', bundle);
+  await page.route('**/api/jobs/*/events*', noDigest);
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.no-digest').waitFor();
+  await page.unroute('**/api/jobs/*/events*', noDigest);
+  await imp.locator('.import-plan').first().waitFor();
+  assert.equal(await applyBtn.count(), 0, 'no Apply without a digest to pin it');
+  // A long plan (ORANGE-015): a file following 1,000 issuers makes 2,000
+  // lines. The first 500 are drawn, and 500 more on each press.
+  const many = join(home, 'many-issuers.json');
+  const hs = Array.from({ length: 1000 }, () => randomBytes(32).toString('hex'));
+  const big = JSON.parse(readFileSync(bundle, 'utf8'));
+  big.policies[0].policy.issuers = { ...(big.policies[0].policy.issuers || {}), accept: hs };
+  big.policies[0].policy.follow = hs.map(issuer => ({ issuer }));
+  writeFileSync(many, JSON.stringify(big));
+  await fill(imp, 'File', many);
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.import-plan .plan-more', { hasText: 'Showing 500 of 2000 lines' }).waitFor();
+  assert.equal(await imp.locator('.import-plan tbody tr').count(), 500);
+  await imp.locator('.plan-more button', { hasText: 'Show more' }).click();
+  await imp.locator('.import-plan .plan-more', { hasText: 'Showing 1000 of 2000 lines' }).waitFor();
+  for (let i = 0; i < 2; i++) await imp.locator('.plan-more button').click();
+  await imp.locator('.plan-more').waitFor({ state: 'detached' });
+  assert.equal(await imp.locator('.import-plan tbody tr').count(), 2000);
+  // Settings export and import (D155): the same form over poo settings,
+  // with -map-path for registry files from another machine.
+  const sexp = section('Export node settings');
+  const sfile = join(home, 'node-settings.json');
+  await fill(sexp, 'To a file', sfile);
+  assert.equal(await sexp.locator('.cmd code').innerText(), `poo settings export -root ${home} -out ${sfile}`);
+  await sexp.locator('button[type=submit]').click();
+  await sexp.locator('.result', { hasText: 'exported the settings' }).waitFor();
+  const simp = section('Import node settings');
+  await fill(simp, 'File', sfile);
+  await fill(simp, 'Registry paths', '/old/home=/new/home');
+  assert.equal(await simp.locator('.cmd code').innerText(), `poo settings import -root ${home} -map-path /old/home=/new/home -json ${sfile}`);
+  await simp.locator('button[type=submit]').click();
+  await simp.locator('.import-plan', { hasText: 'already the same' }).waitFor();
+  let sasked = '';
+  page.once('dialog', d => { sasked = d.message(); d.accept(); });
+  await simp.locator('button.danger:has-text("Apply")').click();
+  await simp.locator('.area .area .import-plan', { hasText: 'Nothing needed changing.' }).waitFor();
+  assert.match(sasked, /^Run poo settings import .* -apply -if-digest [0-9a-f]{64} /);
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');
