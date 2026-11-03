@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 19) |
+| Status | adopted (Round 20 Part A) |
 | Based on | main @ e71e317 |
 | Area | gui/e2e/parity.mjs, docs/FEATURES.md |
 | Effort | small |
