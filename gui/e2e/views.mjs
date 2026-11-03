@@ -104,6 +104,14 @@ try {
   await layer.locator('input[name=start]').fill('7');
   await layer.locator('input[name=device]').fill('cpu');
   assert.equal(await layer.locator('.cmd code').innerText(), `poo work -root ${home} -device cpu -start 7`);
+  // Building on a chosen parent, and a rival claim built to grind (D161).
+  await build.locator('input[name=parent]').fill('before-claim');
+  assert.equal(await build.locator('.cmd code').innerText(), `poo build -root ${home} -serial 5 -parent before-claim -device cpu -threads 2 -for 5s -bytes`);
+  const rival = section('Build a rival claim');
+  await rival.locator('input[name=serial]').fill('5');
+  await rival.locator('input[name=parent]').fill('before-claim');
+  await rival.locator('input[name=work]').fill('64');
+  assert.equal(await rival.locator('.cmd code').innerText(), `poo claim -root ${home} -seed-file - -serial 5 -parent before-claim -work 64`);
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.
@@ -164,6 +172,9 @@ try {
   const find = section('Find peers');
   await fill(find, 'Label holds', 'friend');
   assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -label friend`);
+  // The book states are boxes, as Watch's kinds are (GUI-GREEN-048).
+  for (const c of ['unlisted', 'candidate']) await find.locator(`fieldset[data-flag=category] input[value=${c}]`).check();
+  assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -category candidate,unlisted -label friend`);
   await find.locator('button[type=submit]').click();
   await find.locator('.result', { hasText: '1.0.0.9' }).waitFor();
   const trk = section('Tracking records');
@@ -185,6 +196,23 @@ try {
   await pimp.locator('button.danger:has-text("Apply")').click();
   await pimp.locator('.area .area .peers-plan').waitFor();
   assert.match(pasked, /^Run poo peers import .* -apply -if-digest [0-9a-f]{64} /);
+  // GUI-025: a file's blocks are read first, above the table and leading
+  // it, however many addresses come with them; the notes count them.
+  {
+    const pf = JSON.parse(readFileSync(pfile, 'utf8'));
+    const policies = pf.peers[0].policies;
+    pf.peers = Array.from({ length: 600 }, (_, i) => ({ addr: `${20 + Math.floor(i / 250)}.${(i % 250) + 1}.7.9:7000`, policies }));
+    pf.blocks = [{ addr: '198.51.100.20:7000', until: '2099-01-01T00:00:00Z' }];
+    const big = join(home, 'big-peers.json');
+    writeFileSync(big, JSON.stringify(pf));
+    await fill(pimp, 'File', big);
+    await pimp.locator('button[type=submit]').click();
+    const plan = pimp.locator('.peers-plan', { hasText: 'Showing 500 of' });
+    await plan.waitFor();
+    assert.match(await plan.locator('.plan-blocks [role=alert]').innerText(), /^Read first: 1 block refuses addresses on this node: 198\.51\.100\.20:7000/, 'the block is read first');
+    assert.equal(await plan.locator('tbody tr').first().getAttribute('class'), 'plan-block', 'the table starts with the block');
+    assert.match(await plan.locator('p.hint').last().innerText(), /1 block\./, 'the notes count the blocks');
+  }
   await page.click('nav a[data-id=policies]');
   await section('Policies').locator('.result', { hasText: 'default' }).waitFor();
   // Export and import (D149): export every policy as printed, with Save as
@@ -343,9 +371,26 @@ try {
   await sdef.locator('[role=alert]', { hasText: /and \d+ more\.$/ }).waitFor();
   assert.ok(!(await sdef.locator('[role=alert]').innerText()).includes(peers30[29]), 'the line names only the first ones');
   await sdef.locator('summary', { hasText: /^Show all \d+$/ }).click();
-  // The list is drawn on the toggle event, after the click returns.
-  await sdef.locator('details p').waitFor();
+  // The list is drawn on the details' toggle event, which comes after the
+  // click returns: wait for it rather than read the details at once.
+  await sdef.locator('details.plan-all p').waitFor();
   for (const pr of peers30) assert.ok((await sdef.locator('details').innerText()).includes(pr), `Show all lists ${pr}`);
+  // The settable limits (D159-D161): poo lists them; Set limits saves
+  // them, checked against each range, and the list shows the new value.
+  const lim = section('Settable limits');
+  await lim.locator('table.data', { hasText: 'p2p.max_book' }).waitFor();
+  const setLim = section('Set limits');
+  await fill(setLim, 'Limits', 'p2p.max_book=8192 tracking.log_size=512');
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home} -set p2p.max_book=8192 -set tracking.log_size=512`);
+  page.once('dialog', d => d.accept());
+  await setLim.locator('button[type=submit]').click();
+  await setLim.locator('.run-status.ok').waitFor();
+  await lim.locator('table.data tr', { hasText: 'p2p.max_book' }).filter({ hasText: '8192' }).first().waitFor();
+  await fill(setLim, 'Limits', 'p2p.max_book=1');
+  page.once('dialog', d => d.accept());
+  await setLim.locator('button[type=submit]').click();
+  await setLim.locator('.run-status.bad').waitFor();
+  assert.match(await setLim.locator('.area').innerText(), /p2p\.max_book/, 'poo names the limit out of range');
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');

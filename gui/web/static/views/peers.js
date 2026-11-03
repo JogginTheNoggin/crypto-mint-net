@@ -1,10 +1,11 @@
 // The Peers view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as where from '../where.js';
 import { el, flag, form, mountAll, panel } from '../views.js';
-import { importForm, planTable, saveAs } from './policies.js';
+import { allOf, count, importForm, planTable, saveAs, someOf } from './policies.js';
 
-// The peer book's states, as poo peers -category takes them.
-const CATEGORIES = 'candidate, priority, backup, archived, unlisted';
+// The peer book's states, as poo peers -category takes them; export also
+// takes blocked and timed-out. parity.mjs holds both lists to poo -h.
+const CATEGORIES = ['candidate', 'priority', 'backup', 'archived', 'unlisted'];
 
 export const peersView = {
   id: 'peers',
@@ -14,7 +15,7 @@ export const peersView = {
       panel(ctx, { title: 'Peers', about: 'Connected peers, their categories and points, and the peer book.', args: () => ['peers', ...where.flags()], refresh: 10000 }),
       // The book filtered as poo peers filters it (D157).
       form(ctx, { title: 'Find peers', about: 'The peer book, only the addresses that match every field filled in.', fields: [
-        { name: 'category', label: 'Categories', placeholder: CATEGORIES },
+        { name: 'category', label: 'Categories (none ticked: all)', type: 'choices', options: CATEGORIES, flag: 'category' },
         { name: 'policy', label: 'Mint policy', placeholder: 'a series id, or a part of one' },
         { name: 'label', label: 'Label holds' },
         { name: 'addr', label: 'Address holds' }],
@@ -37,7 +38,7 @@ export const peersView = {
         // Which action takes which flag is poo peer's own rule (pkg/cli/node.go).
         { name: 'seconds', label: 'Seconds', type: 'number', placeholder: '-1 blocks until unblocked', only: { field: 'action', values: ['timeout', 'block'] } },
         { name: 'range', label: 'Whole range', type: 'check', only: { field: 'action', values: ['block'] } },
-        { name: 'what', label: 'Clear', type: 'select', options: ['', 'flags', 'measures', 'all'], only: { field: 'action', values: ['clear'] } },
+        { name: 'what', label: 'Clear', type: 'select', options: ['', 'flags', 'measures', 'all'], flag: 'what', only: { field: 'action', values: ['clear'] } },
         { name: 'template', label: 'Tracking template', placeholder: 'template name', only: { field: 'action', values: ['template'] } },
       ], args: v => ['peer', v.action, ...where.flags(), ...flag('seconds', v.seconds), ...flag('range', v.range), ...flag('what', v.what), ...flag('template', v.template), ...(v.addr ? [v.addr] : [])],
       submit: 'Apply', danger: true }),
@@ -51,7 +52,7 @@ export const peersView = {
       // The peer book shared as one file (D157): others import it as
       // unlisted addresses, after a preview, pinned to the file previewed.
       form(ctx, { title: 'Export peers', about: 'Writes the peer book, or some categories of it, and the blocks, to one file others can import. Without a file, it is printed here, with Save as file.', fields: [
-        { name: 'category', label: 'Categories', placeholder: `${CATEGORIES}, blocked, timed-out (default: all)` },
+        { name: 'category', label: 'Categories (none ticked: all)', type: 'choices', options: [...CATEGORIES, 'blocked', 'timed-out'], flag: 'category' },
         { name: 'out', label: 'To a file', placeholder: 'a path on this machine (default: print it)' }],
       args: v => ['peers', 'export', ...where.flags(), ...flag('category', v.category), ...flag('out', v.out)], submit: 'Export',
       onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'peers.json')); } }),
@@ -71,7 +72,11 @@ const PEERS_IMPORT = {
 };
 
 // showPeerPlan draws poo peers import -json: one table of what the import
-// adds, and a line for what it leaves alone or refuses.
+// adds, and a line for what it leaves alone or refuses. The blocks come
+// first, as poo prints them under "read first": each refuses an address,
+// or a network range, on this node. They are named above the table and
+// lead it, so no number of added addresses pushes them out of sight
+// (GUI-025).
 function showPeerPlan(r, area, applied) {
   if (r.code !== 0) return;
   let o;
@@ -80,18 +85,22 @@ function showPeerPlan(r, area, applied) {
   if (!raw || !o || typeof o !== 'object') return;
   const p = o.plan || {};
   const lines = [];
-  for (const [kind, xs] of [['added', p.added], ['more', p.more], ['label', p.labels], ['label kept', p.label_conflicts], ['block', p.blocks], ['skipped', p.skipped], ['refused', p.refused]]) {
+  for (const [kind, xs] of [['block', p.blocks], ['added', p.added], ['more', p.more], ['label', p.labels], ['label kept', p.label_conflicts], ['skipped', p.skipped], ['refused', p.refused]]) {
     for (const c of xs || []) lines.push([kind, c]);
   }
   const text = n => typeof n === 'string' ? n : [n.addr, n.detail].filter(Boolean).join(': ');
+  const blocks = (p.blocks || []).map(c => [c.addr, c.detail].filter(Boolean).join(' '));
   const notes = [
     ...(p.notes || o.notes || []).map(text),
+    blocks.length ? `${count(blocks, 'block')}.` : null,
     `${p.same || 0} already the same.`,
     o.applied ? 'Applied.' : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',
-  ].join(' ');
+  ].filter(Boolean).join(' ');
+  const readFirst = blocks.length ? el('div', { class: 'next-step plan-blocks' },
+    el('p', { role: 'alert' }, `Read first: ${count(blocks, 'block')} ${blocks.length === 1 ? 'refuses' : 'refuse'} addresses on this node: `, someOf(blocks)), allOf(blocks)) : null;
   const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
   raw.replaceWith(el('div', { class: 'import-plan peers-plan' },
-    el('h3', {}, `Peer book${o.running ? ' (node running)' : ''}`),
+    el('h3', {}, `Peer book${o.running ? ' (node running)' : ''}`), readFirst,
     lines.length ? planTable(lines, ['address', 'detail'], c => [c.addr, c.detail || '']) : el('p', {}, 'No address changes.'),
     el('p', { class: 'hint' }, notes)));
   det.append(raw);

@@ -5,6 +5,31 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 22 Part B reviewed main @ f4f7945 (PR #129: the Peers view over
+D157, with filters, add/remove/label/connect, tracking `-blocked` and
+`-timed-out`, and peer export and import; Blue's GUI-024 fix #123;
+GUI-GREEN-047; ORANGE-016).
+
+New:
+- GUI-025 (Low): the Import peers preview puts the file's blocks after
+  every added address, in a table drawn 500 rows at a time, with no
+  "Read first" line. With 600 addresses and blocks ticked, the preview
+  showed no block, and Apply then blocked `198.51.100.20:7000` and range
+  `v4:203.0`. poo's own text plan lists the blocks first, under "read
+  first".
+
+Held up:
+- **GUI-024 is fixed.** On Windows, Copy is off for every shell
+  metacharacter tried, and on for plain and spaced words (see its notes).
+- **Peer import is pinned.** Apply passes `-if-digest` from the
+  preview's JSON and names the previewed file.
+- **View-only.** `peers` with filters is allowed. `peers export` and
+  `peers import -apply` are refused, and so is `peer` (add, remove,
+  label, connect).
+- **The new plan text is rendered as text.** Labels from a file are drawn
+  with `el` text nodes, and poo checks them for control characters
+  (RED-053).
+
 Round 21 Part B reviewed main @ 4dc7d3d (PR #118: the settings export
 and import forms, `-map-path`, the plan's follows, fit and now_used lines,
 GUI-GREEN-046's Copy, ORANGE-015's long plans, and the R20B hardening).
@@ -373,4 +398,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-021](GUI-021-stop-submits-pasted-entry.md) | Low | Stop (or Ctrl-C in the terminal) on `poo submit -f -` hands the pasted entry or layer to the node: a cancelled job's input reads as end of input, and the GUI has no other end of input | fixed by GUI/Blue (PR #68), merged Round 15; verified R16B @ 6a1cdce |
 | [GUI-022](GUI-022-hold-adopts-new-seal.md) | Medium | `Wallet.Hold` (D146) adopts a file saved meanwhile, seal included, so a command opened before a passphrase change still works with the old passphrase, and a stale `passwd` re-seals over the owner's rotation | fixed by Source (D149 + D151), merged Round 19; verified R19B @ e71e317 |
 | [GUI-023](GUI-023-import-apply-other-file.md) | Low | Import's Apply sends whatever file is picked now, not the one previewed, so a file never reviewed is applied; the confirm shows only `-apply -` | fixed by GUI/Blue (Round 18C) and Source `-if-digest` (D151), merged Round 19; verified R19B @ e71e317 |
-| [GUI-024](GUI-024-copied-line-runs-in-windows-shell.md) | Medium | On Windows, Copy quotes the command line for `CommandLineToArgvW`, not a shell, so a field value (one a link can fill) runs other commands when the line is pasted into PowerShell or cmd.exe | fixed by GUI/Blue in Round 21C (Copy copies only words both shells take literally, else it is off); awaiting verification |
+| [GUI-024](GUI-024-copied-line-runs-in-windows-shell.md) | Medium | On Windows, Copy quotes the command line for `CommandLineToArgvW`, not a shell, so a field value (one a link can fill) runs other commands when the line is pasted into PowerShell or cmd.exe | fixed by GUI/Blue (Round 21C, #123), merged Round 22; verified R22B @ f4f7945 |
+| [GUI-025](GUI-025-peer-import-hides-blocks.md) | Low | The Import peers preview lists the file's blocks after every added address, with no "Read first" line, so with over 500 addresses no block is on show before Apply | fixed by GUI/Blue (Round 22C) |

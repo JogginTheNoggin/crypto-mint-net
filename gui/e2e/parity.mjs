@@ -46,8 +46,7 @@ const LEFT_OUT = {
   'settings import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, D155); a preview has none to send' },
   'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, GUI-023); a preview has none to send' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
-  build: { parent: 'new in Source Round 23 (D161); GUI/Grey adds it next' },
-  claim: Object.fromEntries(['parent', 'max-tries', 'work'].map(f => [f, 'new in Source Round 23 (D161); GUI/Grey adds it next'])),
+  claim: { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
 // action select shows each action only the ones poo takes for it (only:,
@@ -161,6 +160,33 @@ try {
   assert.ok(stated.length > 5, 'fields that state a default were found');
   assert.deepEqual([...new Set(drift)], [], 'a stated default is poo\'s');
 
+  // A field that offers a fixed set of values (a select or boxes marked
+  // with data-flag) offers exactly the ones poo -h lists for its flag, so
+  // a book state or event kind Source adds shows up here (GUI-GREEN-048).
+  // poo lists them as "...: a, b, c" or "a, b or c".
+  const offered = [];
+  for (const v of views) {
+    await page.click(`nav a[data-id=${v}]`);
+    await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
+    offered.push(...await page.evaluate(() => [...document.querySelectorAll('#main section.panel [data-flag]')].map(e => ({
+      line: e.closest('section.panel').querySelector('.cmd code').textContent,
+      flag: e.dataset.flag,
+      values: (e.tagName === 'SELECT' ? [...e.options] : [...e.querySelectorAll('input[type=checkbox]')]).map(o => o.value).filter(Boolean),
+    }))));
+  }
+  const choiceDrift = [];
+  for (const o of offered) {
+    const cmd = commandOf(o.line);
+    const r = spawnSync(bin, ['poo', ...cmd, '-h'], { env });
+    const m = new RegExp(`^ {2}-${o.flag}(?: \\w+)?\n\\s+(.*)$`, 'm').exec(`${r.stdout}${r.stderr}`);
+    const help = m ? m[1].replace(/\s*\([^()]*\)\s*$/, '') : '';
+    const list = (/: ([a-z-]+(?:, [a-z-]+)+)$/.exec(help) || /([a-z-]+(?:, [a-z-]+)* or [a-z-]+)$/.exec(help) || [, ''])[1];
+    const poo = list.split(/, | or /).filter(Boolean);
+    if ([...o.values].sort().join() !== [...poo].sort().join()) choiceDrift.push(`poo ${cmd.join(' ')} -${o.flag}: the GUI offers ${o.values.join(', ')}; poo lists ${poo.join(', ') || 'none'}`);
+  }
+  assert.ok(offered.length >= 4, 'fields that offer a fixed set of values were found');
+  assert.deepEqual(choiceDrift, [], 'a field offers exactly the values poo lists');
+
   // Every subcommand poo lists is run by some view, or LEFT_OUT_SUBS says
   // why not. An action select is a copy of poo's list of subcommands, and
   // a new action would carry flags the family already has, so the flag
@@ -169,7 +195,6 @@ try {
   // help of each command that has its own (poo grind help, poo wallet help).
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
-    'policy limits': 'new in Source R22 (GREEN-047); the terminal runs it, and a GUI view is GUI Grey\'s call',
   };
   const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();

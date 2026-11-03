@@ -130,13 +130,15 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Work | Devices, benchmarks and jobs; a live run shows the plan, the rate and each layer or entry found | `poo grind` |
 | Grind schedule | A table of scheduled jobs with Remove (guarded against stale changes), Add a job, and the defaults: device, threads, layer floor and rate, with the node's limits as hints | `poo grind schedule` |
 | Explore | Pools, the ledger page by page, pending, unspent, a transaction and an address, with the shared filter. Ids and addresses link to each other | `poo pools`, `ledger`, `pending`, `unspent`, `tx`, `address` |
-| Pools and payments | Status, holdings, payment, build an entry or add a layer (optionally printing the hex), submit as hex or from a file | `poo build`, `work`, `submit` |
+| Pools and payments | Status, holdings, payment, build an entry (on the selected tip or a chosen parent) or add a layer (optionally printing the hex), submit as hex or from a file | `poo build`, `work`, `submit` |
+| Rival claims | Build a mint's claim into an entry on a chosen parent (before the claim, the pool's first entry, or an entry hash), with an optional layer, to grind and compete; the seed is typed into the masked field | `poo claim -parent` (D161) |
 | Wallet | Every wallet command, with one series choice shared by all of them | `poo wallet` |
 | Peers | Peers, the peer book filtered (categories, mint policy, label, address), add, remove, label or connect a peer now (with every imported address), peer actions, tracking (only blocked or timed out) and chases | `poo peers`, `peer`, `tracking`, `chases` (D157) |
-| Peer export and import | Export the peer book, or some categories, and the blocks, with Save as file. Import a path or a picked file: a preview of the addresses, mint policies, labels and blocks it adds, then Apply pinned with `-if-digest`. Blocks only with Take blocks | `poo peers export`, `poo peers import` (D157) |
+| Peer export and import | Export the peer book, or some categories, and the blocks, with Save as file. Import a path or a picked file: a preview of the addresses, mint policies, labels and blocks it adds, with the blocks read first (a Read first line, leading the table, counted; GUI-025), then Apply pinned with `-if-digest`. Blocks only with Take blocks | `poo peers export`, `poo peers import` (D157) |
 | Node policies | List, use, archive, unarchive and delete saved policies | `poo policy` |
 | Policy export and import | Export this policy, one series or every saved policy, to a file or the screen with Save as file. Import a path or a file picked in the browser (streamed as it is read): a preview that shows first what changes a defence, then what is new, changed, in conflict, refused or left alone. Only what to follow is taken unless node settings (`-settings`) or every setting (`-full`) is asked for. Apply carries out exactly the previewed file (`-if-digest`), and any change to the form takes Apply away. Registry paths from another machine are mapped (`-map-path`). Long plans draw 500 lines at a time | `poo policy export`, `poo policy import` (D149, D150, D151, GUI-023, ORANGE-014) |
 | Settings export and import | Export this node's settings (not what it follows) to a file or the screen, with Save as file; `-full` keeps machine-local ones. Import shows the same preview, with what may not fit this machine, series now used and defences first, then Apply pinned with `-if-digest` | `poo settings export`, `poo settings import` (D155, D156) |
+| Settable limits | Every limit the node policy can set, with its range, default, the value node.json sets and the one in effect, read from `poo policy limits`, so a new limit shows without a GUI change; Set limits saves `NAME=VALUE` pairs, refused whole when one is out of range, and a running node takes them at once | `poo policy limits`, `-set` (D159, D160, D161) |
 | Series and keys | Crypto choices, keygen, new series (with an example) and series info | `poo crypto`, `keygen`, `series` |
 | Simulate | The network simulator's scenarios | `poo sim` |
 
@@ -144,7 +146,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 
 | Feature | What it does | Code |
 | --- | --- | --- |
-| Flag parity | CI fails if a subcommand `poo help` lists is run by no view, a flag `poo CMD -h` lists is sent by no form (unless listed with a reason), or a field's stated default differs from `poo -h` | `gui/e2e/parity.mjs` (GUI-GREEN-042, 043, 045) |
+| Flag parity | CI fails if a subcommand `poo help` lists is run by no view, a flag `poo CMD -h` lists is sent by no form (unless listed with a reason), a field's stated default differs from `poo -h`, or a field's fixed set of values (book states, event kinds) differs from the one `poo -h` lists | `gui/e2e/parity.mjs` (GUI-GREEN-042, 043, 045, 048) |
 | End-to-end tests | Nine browser scripts run in CI against real nodes | `gui/e2e` |
 | Performance re-checks | GUI/Orange measures a soak, page load, Watch and Work at high rates and large results every round | `gui/perf`, `docs/proposals/gui/README.md` |
 
@@ -166,8 +168,10 @@ Then the GUI, where a feature is a form over its command:
    command's flags. For a new view, add a file there that exports
    `{ id, title, mount }`, and list it in `views/index.js`.
 5. Run `gui/e2e/parity.mjs`. It walks every view in the navigation and
-   fails if a flag of the command is sent by no form, or if a field states
-   a default that differs from `poo -h`. Add a reason to its `LEFT_OUT`
+   fails if a flag of the command is sent by no form, if a field states
+   a default that differs from `poo -h`, or if a field that offers a fixed
+   set of values (`type: 'choices'` or a select, with `flag:` set) offers
+   other values than `poo -h` lists. Add a reason to its `LEFT_OUT`
    only for a flag that belongs in the terminal.
 
 The policy bundle is built to grow in the same way: its format carries a
