@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 21 Part B) |
+| Status | adopted (Round 22 Part A) |
 | Based on | main @ 4dc7d3d |
 | Area | gui/web/static/views/crypto.js (Make a key), gui/web/static/api.js (secretLine), gui/e2e/qol.mjs, gui/e2e/parity.mjs |
 | Effort | small |

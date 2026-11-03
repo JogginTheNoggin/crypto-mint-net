@@ -148,6 +148,43 @@ try {
   // Peers, policies and crypto render their commands' output.
   await page.click('nav a[data-id=peers]');
   await section('Peers').locator('.run-status').first().waitFor();
+  // The peer book by hand, its filters, and peer export and import (D157).
+  const addPeer = section('Add, remove, label or connect a peer');
+  await fill(addPeer, 'Peer address', '1.0.0.9:7000');
+  await addPeer.locator('input[name=label]').fill('friend box');
+  assert.equal(await addPeer.locator('.cmd code').innerText(), `poo peer add -root ${home} -label 'friend box' 1.0.0.9:7000`);
+  assert.ok(!(await addPeer.locator('label', { hasText: 'every unlisted address' }).isVisible()), 'Imported is for connect only');
+  page.once('dialog', d => d.accept());
+  await addPeer.locator('button[type=submit]').click();
+  await addPeer.locator('.run-status.ok').waitFor();
+  await addPeer.locator('select[name=action]').selectOption('connect');
+  await fill(addPeer, 'Peer address', '');
+  await addPeer.locator('label', { hasText: 'every unlisted address' }).locator('input').check();
+  assert.equal(await addPeer.locator('.cmd code').innerText(), `poo peer connect -root ${home} -imported`);
+  const find = section('Find peers');
+  await fill(find, 'Label holds', 'friend');
+  assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -label friend`);
+  await find.locator('button[type=submit]').click();
+  await find.locator('.result', { hasText: '1.0.0.9' }).waitFor();
+  const trk = section('Tracking records');
+  await trk.locator('label', { hasText: 'Only blocked' }).locator('input').check();
+  assert.equal(await trk.locator('.cmd code').innerText(), `poo tracking -root ${home} -blocked`);
+  const pexp = section('Export peers');
+  const pfile = join(home, 'peers.json');
+  await fill(pexp, 'To a file', pfile);
+  await pexp.locator('button[type=submit]').click();
+  await pexp.locator('.run-status.ok').waitFor();
+  const pimp = section('Import peers');
+  await fill(pimp, 'File', pfile);
+  await pimp.locator('label', { hasText: 'address blocks too' }).locator('input').check();
+  assert.equal(await pimp.locator('.cmd code').innerText(), `poo peers import -root ${home} -blocks -json ${pfile}`);
+  await pimp.locator('button[type=submit]').click();
+  await pimp.locator('.peers-plan', { hasText: 'already the same' }).waitFor();
+  let pasked = '';
+  page.once('dialog', d => { pasked = d.message(); d.accept(); });
+  await pimp.locator('button.danger:has-text("Apply")').click();
+  await pimp.locator('.area .area .peers-plan').waitFor();
+  assert.match(pasked, /^Run poo peers import .* -apply -if-digest [0-9a-f]{64} /);
   await page.click('nav a[data-id=policies]');
   await section('Policies').locator('.result', { hasText: 'default' }).waitFor();
   // Export and import (D149): export every policy as printed, with Save as

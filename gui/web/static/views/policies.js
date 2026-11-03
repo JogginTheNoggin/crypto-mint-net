@@ -39,7 +39,7 @@ export const policiesView = {
 };
 
 // saveAs offers printed output as a file to download, as it was printed.
-function saveAs(text, name) {
+export function saveAs(text, name) {
   const b = el('button', { type: 'button', class: 'small save-as' }, 'Save as file');
   b.onclick = () => {
     const a = el('a', { download: name, hidden: true });
@@ -85,8 +85,12 @@ const SETTINGS_IMPORT = {
 // changes anything without -apply), draws the plan poo printed, and
 // offers Apply with the same flags. poo makes the plan; the GUI only
 // lays it out.
-function importForm(ctx, spec) {
+export function importForm(ctx, spec) {
   const importArgs = spec.args;
+  // A spec may draw its own plan and find its digest (poo peers import
+  // prints one object, not a list of node policies).
+  const show = spec.show || showPlan;
+  const digestOf = spec.digest || (o => (o[0] || {}).digest);
   // A file picked in the browser goes to poo on its standard input:
   // FILE is -, and the job is sent the file's text, then end of input,
   // as typing it and Ctrl-D would. poo reads and checks it (D149).
@@ -110,10 +114,10 @@ function importForm(ctx, spec) {
   onStart: j => { dropApply(); previewing = { args: last, file: picked }; feed(last, j, picked); },
   onResult: (r, area) => {
     const { args, file } = previewing || { args: last, file: picked };
-    showPlan(r, area);
+    show(r, area);
     if (r.code !== 0) return;
     let digest = '';
-    try { digest = (JSON.parse(r.out)[0] || {}).digest || ''; } catch (_) { /* no plan */ }
+    try { digest = digestOf(JSON.parse(r.out)) || ''; } catch (_) { /* no plan */ }
     // Apply is pinned to the previewed file, or not offered: without a
     // digest from the preview it would run unpinned (GUI/Red R20B).
     if (!/^[0-9a-f]{64}$/.test(digest)) {
@@ -129,7 +133,7 @@ function importForm(ctx, spec) {
       if (!confirm(`Run ${api.quote(a)}${what}?`)) return;
       apply.disabled = true;
       dropApply = () => {};
-      runJob(a, out, { onStart: j => feed(a, j, file) }).then(r2 => showPlan(r2, out, true));
+      runJob(a, out, { onStart: j => feed(a, j, file) }).then(r2 => show(r2, out, true));
     };
     dropApply = () => { actions.remove(); dropApply = () => {}; };
     area.append(actions, out);
@@ -161,9 +165,12 @@ function importForm(ctx, spec) {
 // more, and Apply always carries out the whole plan.
 const PLAN_ROWS = 500;
 
-function planTable(lines) {
+// planTable draws [kind, line] pairs; cols names the table's columns and
+// cells gives a line's cells after its kind (a node policy's by default).
+const settingCells = c => [c.field, c.local || '', c.file || '', c.took ? `took ${c.took}'s` : ''];
+export function planTable(lines, cols = ['setting', 'this node', 'the file', ''], cells = settingCells) {
   const body = el('tbody');
-  const row = ([kind, c]) => el('tr', { class: `plan-${kind}` }, el('td', {}, kind), el('td', {}, c.field), el('td', {}, c.local || ''), el('td', {}, c.file || ''), el('td', {}, c.took ? `took ${c.took}'s` : ''));
+  const row = ([kind, c]) => el('tr', { class: `plan-${kind}` }, el('td', {}, kind), ...cells(c).map(x => el('td', {}, x)));
   let shown = 0;
   const more = () => {
     const part = document.createDocumentFragment();
@@ -172,7 +179,7 @@ function planTable(lines) {
   };
   more();
   const wrap = el('div', { class: 'table-wrap' }, el('table', { class: 'data' },
-    el('thead', {}, el('tr', {}, ...['', 'setting', 'this node', 'the file', ''].map(h => el('th', {}, h)))), body));
+    el('thead', {}, el('tr', {}, ...['', ...cols].map(h => el('th', {}, h)))), body));
   if (shown < lines.length) {
     const text = document.createTextNode('');
     const btn = el('button', { type: 'button' }, 'Show more');

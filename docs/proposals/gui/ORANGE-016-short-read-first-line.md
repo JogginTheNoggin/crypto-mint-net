@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 22 Part A) |
 | Based on | main @ 4dc7d3d |
 | Area | gui/web/static/views/policies.js (`showPlan`: defences, now used, follows), gui/e2e/views.mjs |
 | Effort | small |
