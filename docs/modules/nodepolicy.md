@@ -95,7 +95,10 @@ Every field but `format` may be left out; the defaults are the provisional
 ones in [decisions.md](../decisions.md) (D12, D22, D24, D26). `k: -1` keeps
 every branch. `rpc.listen: "off"` disables the interface. `p2p.listen:
 "off"` accepts no connections (listed peers are still dialled);
-`check_seconds: -1` turns off regular checks and `ping_seconds: -1` pings.
+`ping_seconds: -1` turns off pings. The weight check cannot be turned off:
+`check_seconds: -1`, or a value over 3600 (`MaxCheckSeconds`), is read as
+one hour and noted as lowered, so a node whose peers send no notices still
+finds a heavier ledger they hold (D153).
 Without `advertise` the node is never offered to others as a contact. The p2p defaults are in
 `p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
 no unlisted connections; `review_seconds: -1` never reviews.
@@ -215,11 +218,16 @@ this version writes none and only notes that a file has them.
   - every single setting local leaves unset. A custom tracking template
     and the tracking weights count as one setting each.
 
-  With `Settings`, the plan's `Defences` names first each line that
-  changes one of `Defences`: the p2p switches (`allow_local_peers`,
-  `no_confirm`, `strict_return`, `no_notices`, `no_relay`), the request
-  rate, the connection counts, peers, registries, `entry_limit`, `k`,
-  `issuers.any`, tracking and grind jobs.
+  With `Settings`, the plan's `Defences` names first every node setting
+  line it changes, except the ones in `Cosmetic` (`log.format`). A
+  setting added later is named until someone shows it changes only how
+  the node reports (RED-048, D152).
+
+  The plan's `Follows` gives, for each series whose follow it adds to or
+  changes, the series' pool count and how many pools the result follows.
+  A whole-series follow of `LargeFollow` (65,536) pools or more is named
+  first in `Defences`, even in a default import. This limits nothing; it
+  tells the reader what the line costs (RED-046, D152).
 
   Where both set a value and they differ, local's is kept and the plan
   lists the conflict; `PreferFile` takes the file's. `Replace` takes the

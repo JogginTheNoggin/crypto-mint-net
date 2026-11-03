@@ -432,7 +432,7 @@ func TestFromPolicy(t *testing.T) {
 	}
 	pol.P2P = nodepolicy.P2P{Listen: "off", Peers: []string{"x:1"}, HashLimit: 7, NoNotices: true, CheckSeconds: -1}
 	c = p2p.FromPolicy(pol)
-	if c.Listen != "" || len(c.Peers) != 1 || c.Limits.HashLimit != 7 || c.Limits.EntryLimit != 512 || !c.NoNotices || c.CheckEvery >= 0 {
+	if c.Listen != "" || len(c.Peers) != 1 || c.Limits.HashLimit != 7 || c.Limits.EntryLimit != 512 || !c.NoNotices || c.CheckEvery != time.Hour { // -1 cannot turn the check off (D153)
 		t.Fatalf("set: %+v", c)
 	}
 	pol.P2P.CheckSeconds = 5

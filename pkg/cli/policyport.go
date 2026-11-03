@@ -2,7 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -152,10 +155,22 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if file == "" && fs.NArg() == 1 {
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 || file == "" {
-		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-policy NAME | -dir DIR]")
+		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-if-digest D] [-policy NAME | -dir DIR]")
 	}
 	if *apply && viewOnlyOf(out) {
 		return errViewOnly("policy import -apply")
+	}
+	// A digest given empty is not a digest left out: a script passing an
+	// unset variable must not apply the file unchecked (RED-047, D152).
+	digestGiven := false
+	fs.Visit(func(f *flag.Flag) { digestGiven = digestGiven || f.Name == "if-digest" })
+	if digestGiven {
+		if d, err := hex.DecodeString(*ifDigest); err != nil || len(d) != sha256.Size {
+			return fmt.Errorf("-if-digest needs the digest the preview printed (64 hex digits), not %q; nothing was changed", *ifDigest)
+		}
+		if !*apply {
+			return errors.New("-if-digest checks the file an -apply changes: add -apply, or leave it out to preview")
+		}
 	}
 	var b nodepolicy.Bundle
 	var err error
@@ -177,7 +192,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if *ifDigest != "" && !strings.EqualFold(*ifDigest, b.Digest) {
+	if digestGiven && !strings.EqualFold(*ifDigest, b.Digest) {
 		return fmt.Errorf("the file is not the one previewed (its digest is %s, not %s), so nothing was changed: preview it again", b.Digest, *ifDigest)
 	}
 	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
@@ -267,14 +282,19 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if *asJSON {
 		return writeJSON(out, results)
 	}
-	fmt.Fprintf(out, "file digest %s (-if-digest applies only this file)\n", b.Digest)
+	changes := slices.ContainsFunc(results, func(r importResult) bool { return !r.Plan.Empty() })
+	if !*apply && changes {
+		// Only a preview with something to apply needs the digest: it is
+		// what -apply -if-digest checks (GREEN-043).
+		fmt.Fprintf(out, "file digest %s (-if-digest applies only this file)\n", b.Digest)
+	}
 	if b.HasSettings() {
 		fmt.Fprintln(out, "note: the file also holds settings; this version imports node policies only")
 	}
 	for _, r := range results {
 		printPlan(out, r, *apply)
 	}
-	if !*apply && slices.ContainsFunc(results, func(r importResult) bool { return !r.Plan.Empty() }) {
+	if !*apply && changes {
 		fmt.Fprintln(out, "dry run: nothing was changed; add -apply to make this change")
 	}
 	return nil
@@ -384,7 +404,14 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		return s
 	}
 	if len(p.Defences) > 0 {
-		fmt.Fprintf(out, "  read first: these change a defence of this node or where it reaches out: %s\n", listSome(p.Defences, 20))
+		fmt.Fprintf(out, "  read first: these change how this node runs, guards itself or reaches out, or take on many pools: %s\n", listSome(planFields(p.Defences, short), 20))
+	}
+	for _, f := range p.Follows {
+		if f.Whole {
+			fmt.Fprintf(out, "  series %s: follows all %d pools\n", f.Series, f.Pools)
+		} else {
+			fmt.Fprintf(out, "  series %s: follows %d of %d pools\n", f.Series, f.Followed, f.Pools)
+		}
 	}
 	for _, c := range p.Added {
 		fmt.Fprintf(out, "  + %s\n", planLine(c.Field, c.File, short))
@@ -406,13 +433,17 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		fmt.Fprintf(out, "  skipped, machine-local (-full takes them): %s\n", strings.Join(p.Skipped, ", "))
 	}
 	if len(p.SkippedSettings) > 0 {
-		fmt.Fprintf(out, "  skipped, node settings (-settings takes them): %s\n", listSome(p.SkippedSettings, 20))
+		fmt.Fprintf(out, "  skipped, node settings (-settings takes them): %s\n", listSome(planFields(p.SkippedSettings, short), 20))
 	}
 	for _, s := range p.Refused {
 		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", s)
 	}
 	if p.Same > 0 {
-		fmt.Fprintf(out, "  %d of the file's settings are already the same\n", p.Same)
+		verb := "are"
+		if p.Same == 1 {
+			verb = "is"
+		}
+		fmt.Fprintf(out, "  %d of the file's settings %s already the same\n", p.Same, verb)
 	}
 	switch {
 	case p.Empty():
@@ -428,6 +459,16 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 	if r.Current {
 		fmt.Fprintln(out, "  made current")
 	}
+}
+
+// planFields writes each of a plan's field names as its lines do, an
+// item of a list as "p2p.peers: a.example:1" (GREEN-043).
+func planFields(fields []string, short func(string) string) []string {
+	out := make([]string, len(fields))
+	for i, f := range fields {
+		out[i] = planLine(f, "", short)
+	}
+	return out
 }
 
 // listSome joins the first n of list, and says how many more there are

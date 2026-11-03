@@ -286,6 +286,115 @@ func (e *Engine) FollowedPools() []PoolKey {
 	return out
 }
 
+// ListAll is the number of pools below which a series followed whole has
+// every pool listed by ListedPools; from it on, only the pools the node
+// holds state for are (RED-046, D152). It limits nothing the node
+// follows or accepts: a pool not listed is still followed, and its state
+// is made when its first item or request arrives.
+const ListAll = 1 << 16
+
+// ListedPools returns the pools to list, query or report: every pool
+// followed by its index, every pool of a series followed whole with
+// fewer than ListAll pools, and of a larger one the pools the node holds
+// state for. Reporting and queries use it, so a series of very many
+// pools followed whole costs only the pools in use. Sorted by series id
+// and then pool index.
+func (e *Engine) ListedPools() []PoolKey {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []PoolKey
+	for id, f := range e.follows {
+		s := e.series[id]
+		switch {
+		case f.all && s.PoolCount() < ListAll:
+			for k := uint64(0); k < s.PoolCount(); k++ {
+				out = append(out, PoolKey{Series: id, Index: k})
+			}
+		default:
+			for k := range f.pools {
+				if k < s.PoolCount() {
+					out = append(out, PoolKey{Series: id, Index: k})
+				}
+			}
+			if f.all {
+				for k := range e.pools {
+					if k.Series == id && !f.pools[k.Index] {
+						out = append(out, k)
+					}
+				}
+			}
+		}
+	}
+	sortKeys(out)
+	return out
+}
+
+// EachFollowedPool calls fn for every pool the node follows, in no set
+// order, without listing them first. fn must not call the engine.
+func (e *Engine) EachFollowedPool(fn func(PoolKey)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for id, f := range e.follows {
+		s := e.series[id]
+		if f.all {
+			for k := uint64(0); k < s.PoolCount(); k++ {
+				fn(PoolKey{Series: id, Index: k})
+			}
+			continue
+		}
+		for k := range f.pools {
+			if k < s.PoolCount() {
+				fn(PoolKey{Series: id, Index: k})
+			}
+		}
+	}
+}
+
+// FollowedCount returns how many pools the node follows, without listing
+// them.
+func (e *Engine) FollowedCount() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var n uint64
+	for id, f := range e.follows {
+		s := e.series[id]
+		if f.all {
+			n += s.PoolCount()
+			continue
+		}
+		for k := range f.pools {
+			if k < s.PoolCount() {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// FollowedSeries returns the ids of the series the node follows a pool
+// of, sorted.
+func (e *Engine) FollowedSeries() []hash.Hash {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []hash.Hash
+	for id, f := range e.follows {
+		if f.all || len(f.pools) > 0 {
+			out = append(out, id)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Compare(out[j]) < 0 })
+	return out
+}
+
+func sortKeys(out []PoolKey) {
+	sort.Slice(out, func(i, j int) bool {
+		if c := out[i].Series.Compare(out[j].Series); c != 0 {
+			return c < 0
+		}
+		return out[i].Index < out[j].Index
+	})
+}
+
 // KeyOf returns the pool key of a transaction.
 func (e *Engine) KeyOf(t *tx.Tx) (PoolKey, error) {
 	e.mu.Lock()

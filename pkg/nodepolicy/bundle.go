@@ -361,9 +361,13 @@ type Plan struct {
 	// left alone (MergeOptions.Settings takes them), and registries that
 	// are local files (only Full takes them).
 	SkippedSettings []string `json:"skipped_settings"`
-	// Defences are the lines of this plan that change a defence of the
-	// node or where it reaches out (Defences), to be read first.
+	// Defences are the lines of this plan to read first: with Settings,
+	// every node setting it changes but the cosmetic ones (RED-048), and
+	// a whole-series follow of LargeFollow pools or more (RED-046).
 	Defences []string `json:"defences"`
+	// Follows says, for each series whose follow the import adds to or
+	// changes, how many pools it has and how many the result follows.
+	Follows []FollowCount `json:"follows"`
 	// Same counts the file's settings the node already has.
 	Same int `json:"same"`
 	// Refused are series the result lists but would not accept, and why
@@ -470,6 +474,49 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 			}
 		}
 	}
+	// How much of each series whose follow changed the result follows,
+	// and a large whole-series follow named first (RED-046).
+	touched := map[string]bool{}
+	for _, cs := range [][]Change{plan.Added, plan.Changed} {
+		for _, c := range cs {
+			if id, ok := strings.CutPrefix(c.Field, "follow.[series "); ok {
+				touched[strings.TrimSuffix(id, "]")] = true
+			}
+		}
+	}
+	plan.Follows = []FollowCount{}
+	if len(touched) > 0 {
+		for _, si := range res.Series {
+			s, err := series.New(si.Params)
+			if err != nil || !touched[s.ID().Short()] {
+				continue
+			}
+			fc := FollowCount{Series: s.ID().Short(), Pools: s.PoolCount()}
+			pools := map[uint64]bool{}
+			for _, f := range res.Follow {
+				if f.Series == nil || *f.Series != s.ID() {
+					continue
+				}
+				if len(f.Pools) == 0 && len(f.Mints) == 0 {
+					fc.Whole = true
+				}
+				for _, k := range f.Pools {
+					pools[k] = true
+				}
+				for _, m := range f.Mints {
+					pools[s.PoolOf(m)] = true
+				}
+			}
+			fc.Followed = uint64(len(pools))
+			if fc.Whole {
+				fc.Followed = fc.Pools
+			}
+			plan.Follows = append(plan.Follows, fc)
+			if fc.Whole && fc.Pools >= LargeFollow {
+				plan.Defences = append(plan.Defences, fmt.Sprintf("follow.[series %s] (all %d pools)", fc.Series, fc.Pools))
+			}
+		}
+	}
 	_, refused := res.Accepted()
 	for _, r := range refused {
 		id := "?"
@@ -498,17 +545,24 @@ func conflicted(cs []Change, field string) bool {
 // here, so a new switch is never taken from someone else's file unasked.
 var Followed = []string{"series", "follow", "issuers.accept"}
 
-// Defences lists the node settings that turn off a defence of the node,
-// say how it punishes or trusts peers, make it reach out to an address,
-// start work on it, or shrink it until it is of no use. An import that
-// takes settings names each such line it changes first (Plan.Defences),
-// so the person reading the plan sees them before the rest.
-var Defences = []string{
-	"issuers.any", "k",
-	"p2p.allow_local_peers", "p2p.no_confirm", "p2p.strict_return", "p2p.no_notices", "p2p.no_relay",
-	"p2p.request_rate", "p2p.unlisted_conns", "p2p.peers", "p2p.registries",
-	"p2p.max_peers", "p2p.max_inbound", "p2p.max_outbound", "p2p.entry_limit",
-	"tracking", "grind.jobs",
+// Cosmetic lists the node settings that change only how the node reports,
+// never what it does. Every other node setting an import changes is named
+// in Plan.Defences, so a setting added to node.json later is named until
+// someone shows it is cosmetic and puts it here (RED-048, D152).
+var Cosmetic = []string{"log.format"}
+
+// LargeFollow is the number of pools from which a whole-series follow an
+// import adds is named in Plan.Defences: the node keeps a little for
+// every pool it follows (RED-046, D152). It refuses nothing.
+const LargeFollow = 1 << 16
+
+// FollowCount says how much of a series the result of an import
+// follows.
+type FollowCount struct {
+	Series   string `json:"series"`
+	Pools    uint64 `json:"pools"`
+	Followed uint64 `json:"followed"`
+	Whole    bool   `json:"whole,omitempty"`
 }
 
 // followed returns the parts of p that Followed names.
@@ -533,10 +587,17 @@ func settingsSet(p, local Policy) []string {
 	return out
 }
 
-// isDefence reports whether a plan's field is one Defences names, or an
-// item or part of one.
+// isDefence reports whether a plan's field is to be read first: every
+// node setting but the cosmetic ones (Cosmetic). It used to be a list of
+// the settings thought of as defences, which let the others pass unseen
+// (RED-048, D152).
 func isDefence(field string) bool {
-	for _, d := range Defences {
+	return !under(field, Followed) && !under(field, Cosmetic)
+}
+
+// under reports whether field is one of list, or an item or part of one.
+func under(field string, list []string) bool {
+	for _, d := range list {
 		if field == d || strings.HasPrefix(field, d+".") || strings.HasPrefix(field, d+"[") {
 			return true
 		}

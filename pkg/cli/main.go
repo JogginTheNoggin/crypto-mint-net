@@ -98,7 +98,7 @@ Usage:
                               manage saved and archived node policies
   poo policy export [-all | -series ID] [-full] [-out FILE]
                               write node policies to one shareable file
-  poo policy import FILE [-apply] [-prefer-file] [-replace] [-full]
+  poo policy import FILE|- [-apply] [-settings | -full] [-if-digest D]
                               merge such a file into the node policies here:
                               shows the plan, changes them only with -apply
   poo wallet COMMAND          keys from one seed, payments, requests,

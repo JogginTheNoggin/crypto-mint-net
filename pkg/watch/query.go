@@ -48,7 +48,7 @@ type Pool struct {
 // select, by series id and then index.
 func Pools(e *engine.Engine, f filter.Filter) []Pool {
 	var out []Pool
-	for _, k := range e.FollowedPools() {
+	for _, k := range e.ListedPools() {
 		s, _ := e.Series(k.Series)
 		first, last := s.PoolRange(k.Index)
 		if !f.MatchScope(k.Series, k.Index, first, last) {
@@ -155,7 +155,7 @@ type PendingTx struct {
 // pool f's scope covers, oldest first within each pool.
 func Pending(e *engine.Engine, f filter.Filter) []PendingTx {
 	out := []PendingTx{}
-	for _, k := range e.FollowedPools() {
+	for _, k := range e.ListedPools() {
 		s, _ := e.Series(k.Series)
 		first, last := s.PoolRange(k.Index)
 		if !f.MatchScope(k.Series, k.Index, first, last) {
@@ -204,7 +204,7 @@ func TxOfSeries(e *engine.Engine, id hash.Hash, tid hash.Hash, serial *uint64) (
 	if !ok {
 		return TxStatus{}, engine.ErrUnknownSeries
 	}
-	for _, k := range e.FollowedPools() {
+	for _, k := range e.ListedPools() {
 		if k.Series != id || (serial != nil && k.Index != s.PoolOf(*serial)) {
 			continue
 		}
@@ -264,7 +264,7 @@ type HistoryItem struct {
 // portion's address; tids by the transaction that made the portion.
 func Holdings(e *engine.Engine, f filter.Filter) []Holding {
 	out := []Holding{}
-	for _, k := range e.FollowedPools() {
+	for _, k := range e.ListedPools() {
 		s, _ := e.Series(k.Series)
 		first, last := s.PoolRange(k.Index)
 		if !f.MatchScope(k.Series, k.Index, first, last) {
@@ -339,7 +339,7 @@ func AddressPage(ctx context.Context, e *engine.Engine, id, a hash.Hash, f filte
 		out.Balance += h.Amount
 	}
 	budget := 50 * limit
-	for _, k := range e.FollowedPools() {
+	for _, k := range e.ListedPools() {
 		first, last := s.PoolRange(k.Index)
 		if k.Series != id || !f.MatchScope(id, k.Index, first, last) {
 			continue

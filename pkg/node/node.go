@@ -214,14 +214,61 @@ func (n *Node) logPath(k engine.PoolKey) string {
 	return filepath.Join(n.dir, "pools", k.Series.String(), strconv.FormatUint(k.Index, 10)+".log")
 }
 
-// load opens the store of every followed pool and replays it. Stores of
-// pools no longer followed are left on disk untouched.
-func (n *Node) load() error {
-	for _, k := range n.eng.FollowedPools() {
-		path := n.logPath(k)
-		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+// stored lists the pools that have a store on disk and are followed, by
+// series id and then pool index. It reads the pools directory rather than
+// asking about every followed pool, so a series of very many pools
+// followed whole costs only what is stored (RED-046, D152).
+func (n *Node) stored() ([]engine.PoolKey, error) {
+	root := filepath.Join(n.dir, "pools")
+	dirs, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("node: %w", err)
+	}
+	var out []engine.PoolKey
+	for _, d := range dirs {
+		id, err := hash.Parse(d.Name())
+		if !d.IsDir() || err != nil || id.String() != d.Name() {
 			continue
 		}
+		files, err := os.ReadDir(filepath.Join(root, d.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("node: %w", err)
+		}
+		for _, f := range files {
+			num, ok := strings.CutSuffix(f.Name(), ".log")
+			if !ok || f.IsDir() {
+				continue
+			}
+			i, err := strconv.ParseUint(num, 10, 64)
+			if err != nil || strconv.FormatUint(i, 10) != num {
+				continue
+			}
+			if k := (engine.PoolKey{Series: id, Index: i}); n.eng.Follows(k) {
+				out = append(out, k)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if c := out[i].Series.Compare(out[j].Series); c != 0 {
+			return c < 0
+		}
+		return out[i].Index < out[j].Index
+	})
+	return out, nil
+}
+
+// load opens the store of every followed pool that has one and replays
+// it. Stores of pools no longer followed are left on disk untouched.
+func (n *Node) load() error {
+	keys, err := n.stored()
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		path := n.logPath(k)
 		l, op, err := store.Open(path, store.Options{NoSync: n.pol.NoSync})
 		if err != nil {
 			return fmt.Errorf("node: %s: %w", path, err)

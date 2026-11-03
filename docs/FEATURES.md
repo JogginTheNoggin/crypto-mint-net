@@ -29,7 +29,7 @@ decision that records it. Each package has its own document in
 | Full node: follows series, pools and mints, keeps their ledgers, takes and forwards transactions, entries and layers | `poo init`, `poo node`, `poo status` | `pkg/engine`, `pkg/node`, `pkg/daemon` | M1, M2 |
 | Node policies: what a node knows, accepts and follows, how many branches it keeps, its limits, logs and ports, in `node.json` | `poo init`, `poo follow`, `poo unfollow`, `poo reload` | `pkg/nodepolicy` | D93, D139 |
 | Several node policies side by side: save, use, archive, unarchive, delete | `poo policy list` and the `use`, `archive`, `unarchive` and `delete` subcommands | `pkg/nodepolicy` (Manager) | M2 |
-| **Policy export and import:** one shareable JSON file holding a series, a node policy or every saved policy. Import shows a plan first, merges, lists conflicts and puts lines that switch off defences first. By default it takes only what to follow; `-settings` takes the node's settings too, and `-full` this machine's own. A node bundle applies whole or not at all. The plan prints the file's digest, and `-if-digest` applies only the file previewed. `-` reads standard input. A running node applies it live | `poo policy export`, `poo policy import` | `pkg/nodepolicy` (bundle.go), `pkg/cli` (policyport.go), `POST /v1/policy/import` | D149, D150, D151 |
+| **Policy export and import:** one shareable JSON file holding a series, a node policy or every saved policy. Import shows a plan first, merges, lists conflicts, puts every node-setting line first and counts the pools each follow takes on. By default it takes only what to follow; `-settings` takes the node's settings too, and `-full` this machine's own. A node bundle is planned whole before anything is saved, so a bad policy in it changes nothing; if a save then fails, the error names what was already saved. The plan prints the file's digest, and `-apply -if-digest` applies only the file previewed. `-` reads standard input. A running node applies it live | `poo policy export`, `poo policy import` | `pkg/nodepolicy` (bundle.go), `pkg/cli` (policyport.go), `POST /v1/policy/import` | D149, D150, D151 |
 | Live reload of a changed policy without stopping the node | `poo reload` | `pkg/daemon`, `pkg/rpc` | GREEN-011 |
 | Setup check that says what to fix | `poo doctor` | `pkg/cli` | GREEN-035 |
 | Structured logs: plain, text or JSON | `poo node -log-format json` | `pkg/logging` | D104 |
@@ -41,6 +41,7 @@ decision that records it. Each package has its own document in
 | Framed binary wire protocol, forwarding and catch-up from any depth | | `pkg/wire`, `pkg/p2p`, `pkg/chase` | M3, D116 |
 | Peer discovery, relaying, address registries | | `pkg/p2p`, `pkg/registry` | M4 |
 | Peer categories, ranking, tracking, timeouts and blocks | `poo peers`, `poo peer`, `poo tracking`, `poo chases` | `pkg/peers`, `pkg/tracking` | M5 |
+| A regular weight check of every priority peer that cannot be turned off (at most an hour apart), so a node learns of a heavier ledger its peers hold even when they send no notices | `check_seconds` in node.json | `pkg/p2p`, `pkg/nodepolicy` | D153 |
 
 ### Viewing and watching
 

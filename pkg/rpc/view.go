@@ -58,18 +58,11 @@ func (h *Handler) seriesParam(r *http.Request) (hash.Hash, *Error) {
 	if r.URL.Query().Get("series") != "" {
 		return queryHash(r, "series")
 	}
-	var only hash.Hash
-	seen := 0
-	for _, k := range h.n.Engine().FollowedPools() {
-		if seen == 0 || k.Series != only {
-			only = k.Series
-			seen++
-		}
-	}
-	if seen != 1 {
+	ids := h.n.Engine().FollowedSeries()
+	if len(ids) != 1 {
 		return hash.Hash{}, badRequest("series: needed when the node does not follow exactly one series")
 	}
-	return only, nil
+	return ids[0], nil
 }
 
 func optInt(r *http.Request, name string) (int, *Error) {

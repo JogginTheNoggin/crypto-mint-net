@@ -911,7 +911,7 @@ func (r *runner) running() {
 // targets returns the followed pools job s works on now.
 func (m *Manager) targets(s Spec, entry hash.Hash) []engine.PoolKey {
 	var out []engine.PoolKey
-	for _, k := range m.n.Engine().FollowedPools() {
+	for _, k := range m.n.Engine().ListedPools() {
 		if s.Series != nil && k.Series != *s.Series {
 			continue
 		}

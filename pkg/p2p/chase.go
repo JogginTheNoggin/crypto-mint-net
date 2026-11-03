@@ -129,7 +129,7 @@ func falseBranch(bad []hash.Hash, format string, args ...any) result {
 // was provably false.
 func (h *Host) runJob(j chase.Job) {
 	defer h.kick()
-	pi := h.byName[j.Group.Pool]
+	pi := h.poolByName(j.Group.Pool)
 	p := h.peerByID(j.Sender.ID)
 	if pi == nil || p == nil || p.closed() || h.ctx.Err() != nil {
 		h.cq.Finish(j.Group.ID, chase.Gone, nil, time.Now())

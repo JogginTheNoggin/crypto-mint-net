@@ -4,7 +4,9 @@
 
 A full node with a data directory. `Open` reads the node policy, makes the
 accepted series known, applies the follow rules, and replays each followed
-pool's store through the engine. After that, every item the engine keeps is
+pool's store through the engine. It finds the stores by reading the
+`pools` directory, not by asking about every followed pool, so a series of
+very many pools followed whole costs only what is stored (RED-046, D152). After that, every item the engine keeps is
 appended to its pool's store before the call returns. Logs are compacted on
 start-up and on close when most records are dead (decision D23). This is
 the layer the p2p host and the RPC build on. Observers hear of every item

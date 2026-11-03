@@ -29,7 +29,12 @@ or opens a socket. Calls are safe from multiple goroutines.
   `Grind{New, Workers, Tried}`: the hasher (package grind picks one per
   device), the goroutines and a try counter; `GrindLayerWith` with tries
   0 grinds until ctx ends and keeps the strongest layer found (D109).
-- Reading: `FollowedPools()`, `Pending(key)` (ready pending transactions,
+- Reading: `FollowedPools()` (every followed pool, for the p2p index);
+  `EachFollowedPool(fn)` (the same, without the list); `ListedPools()`
+  (what status, metrics, queries and grind targets go through: every pool
+  followed by index, every pool of a whole series under `ListAll`, 65,536
+  pools, and of a larger one only the pools with state, RED-046, D152);
+  `FollowedCount()`, `FollowedSeries()`; `Pending(key)` (ready pending transactions,
   oldest first), `Status(key)`, `Payment(key, tid)` (pending, in which entry,
   weight added since, selected, the transaction itself, and its rivals on
   inactive branches from `Ledger.Rivals`), `Holdings(series, serial)`,

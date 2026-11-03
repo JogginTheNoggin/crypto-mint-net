@@ -357,7 +357,10 @@ type P2P struct {
 	// it asked for.
 	NoNotices bool `json:"no_notices,omitempty"`
 	// CheckSeconds is how often to ask the priority peers of each pool for
-	// their stated weight; 0 means the default, -1 never.
+	// their stated weight; 0 means the default. The check cannot be turned
+	// off: -1, or anything over MaxCheckSeconds, is read as
+	// MaxCheckSeconds, so a node whose peers send no notices still finds a
+	// heavier ledger they hold (Black B7, D153).
 	CheckSeconds int `json:"check_seconds,omitempty"`
 	// Registries are address registry locations (http(s) URLs or files)
 	// to find first peers from. None by default: there is no project
@@ -407,6 +410,12 @@ type P2P struct {
 	FastCatchUp bool `json:"fast_catch_up,omitempty"`
 	DepthLimit  int  `json:"depth_limit,omitempty"`
 }
+
+// MaxCheckSeconds is the longest a node waits between asking its
+// priority peers for their stated weight (D153). The check is how a node
+// learns of a heavier ledger its peers hold without telling it, so it is
+// never off; an hour costs one small request per priority peer per pool.
+const MaxCheckSeconds = 3600
 
 // Default returns a node policy that knows no series and follows nothing.
 // Issuers.Any is on, because there is no project issuer yet (decision D24).
@@ -645,6 +654,10 @@ func DecodeWitness(s string) (policy.Witness, error) {
 // clamped on a read (RED-025, D128).
 func (p *Policy) lower() []Lowered {
 	var notes []Lowered
+	if c := p.P2P.CheckSeconds; c < 0 || c > MaxCheckSeconds {
+		notes = append(notes, Lowered{Field: "p2p.check_seconds", Was: c, Now: MaxCheckSeconds})
+		p.P2P.CheckSeconds = MaxCheckSeconds
+	}
 	if g := p.Grind; g != nil && g.LayerRate > MaxLayerRate {
 		notes = append(notes, Lowered{Field: "grind.layer_rate", Was: g.LayerRate, Now: MaxLayerRate,
 			FixArgs: []string{"grind", "schedule", "set", "-layer-rate", strconv.Itoa(MaxLayerRate)}})
@@ -666,6 +679,9 @@ type Lowered struct {
 
 // String says what was lowered, for a warning.
 func (l Lowered) String() string {
+	if l.Was < 0 {
+		return fmt.Sprintf("%s %d would turn it off, which it no longer can: %d is used", l.Field, l.Was, l.Now)
+	}
 	return fmt.Sprintf("%s %d is over the most, %d: %d is used", l.Field, l.Was, l.Now, l.Now)
 }
 
