@@ -268,9 +268,16 @@ func (t tabler) cell(n *jnode) string {
 	if n.num {
 		return roundNum(s)
 	}
-	// A time to the nanosecond reads as a second in a table (GREEN-020).
-	if ts, err := time.Parse(time.RFC3339Nano, s); err == nil && strings.Contains(s, ".") {
-		return ts.Truncate(time.Second).Format(time.RFC3339)
+	// A time to the nanosecond reads as a second in a table (GREEN-020),
+	// and Go's zero time, "never" in every reply that has one (a peer
+	// not yet tried, a block not set), as "-" (GREEN-046).
+	if ts, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		if ts.IsZero() {
+			return "-"
+		}
+		if strings.Contains(s, ".") {
+			return ts.Truncate(time.Second).Format(time.RFC3339)
+		}
 	}
 	return s
 }

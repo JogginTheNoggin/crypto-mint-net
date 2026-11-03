@@ -25,7 +25,7 @@ without a wallet. See
 | `poo peers export [-category LIST] [-out FILE]` | Writes the peer book, or only the chosen categories (the book states, `blocked`, `timed-out`), to a peer file with labels and blocks ([peerport.md](peerport.md)) |
 | `poo peers import FILE\|- [-apply] [-blocks [-ranges]] [-json] [-if-digest D]` | Shows the plan, then with `-apply` adds the file's addresses to the book as unlisted, with labels where the book has none; blocks only with `-blocks`, adding or lengthening only, never on an address the node policy lists; network ranges only with `-ranges` |
 | `poo peer timeout\|block\|unblock\|clear\|template\|delete ADDR [-seconds N] [-range] [-what flags\|measures\|all] [-template NAME]` | Acts on one peer: pause it, block it (or its range; `-seconds -1` until unblocked), lift either, clear its records, choose its tracking template, or delete it from the book (the address may come before or after the flags) |
-| `poo peer add\|remove\|label\|connect ADDR [-label TEXT] [-keep]`, `poo peer connect -imported` | Adds an address by hand (as a candidate, `-keep` also lists it in `p2p.peers`), removes it from the book (and from `p2p.peers`), sets or clears its label, or dials it now; `connect -imported` lets the manager dial the imported (unlisted) addresses at once (D157) |
+| `poo peer add\|remove\|label\|connect ADDR [-label TEXT] [-keep]`, `poo peer connect -imported` | Adds an address by hand (as a candidate, `-keep` also lists it in `p2p.peers`), removes it from the book (and from `p2p.peers`), sets or clears its label, or dials it now. With the node stopped, `add -keep`, `remove` and `label` work on the files; `add -keep -label` labels only an address the book already holds, and refuses before changing anything otherwise (GREEN-046); `connect -imported` lets the manager dial the imported (unlisted) addresses at once (D157) |
 | `poo tracking [ADDR] [-blocked] [-timed-out]` | Every tracked address's status and the blocked ranges, or one address's whole record; `-blocked` and `-timed-out` show only those (D157) |
 | `poo chases` | The chase queue: heavier stated weights waiting or being checked |
 | `poo status` | Every followed pool and the replay stats; `poo pools` shows the same per pool, with filters |
@@ -84,8 +84,9 @@ The read commands (`status`, `pools`, `ledger`, `pending`, `unspent`, `tx`,
 scripts and the GUI read. `-o table` prints the same reply for reading
 instead: a list becomes aligned columns named after its JSON fields, and an
 object becomes one field per line followed by a table for each list in it.
-Hashes are shortened to their first 8 and last 4 hex digits unless `-wide`
-is given. The table is built from the JSON, so it never shows a field the
+Hashes are shortened to their first 8 and last 4 hex digits, times to the
+second, and the zero time (never, as a peer not yet tried) to `-`, unless
+`-wide` is given (GREEN-020, GREEN-046). The table is built from the JSON, so it never shows a field the
 JSON lacks.
 
 **View-only mode.** `poo -view-only COMMAND`, or any command with

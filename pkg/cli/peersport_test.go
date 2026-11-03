@@ -199,3 +199,38 @@ func TestPeersRunning(t *testing.T) {
 		t.Fatalf("remove: %+v", pr)
 	}
 }
+
+// With the node stopped, add -keep checks its label before any file
+// changes, sets a good one where the book holds the address, refuses one
+// it cannot set, and a plain add says -keep works (GREEN-046). Before, a
+// bad label was refused after node.json was saved, and a good one was
+// dropped without a word.
+func TestPeerAddOfflineLabel(t *testing.T) {
+	root := t.TempDir()
+	cli(t, nil, "init", "-root", root, "-p2p", "off")
+	dir := filepath.Join(root, "policies", "default")
+	seedBook(t, dir)
+	path := filepath.Join(dir, nodepolicy.FileName)
+	before, _ := os.ReadFile(path)
+	for _, label := range []string{"bad\x01", "friend"} {
+		err := run([]string{"peer", "add", "9.9.9.9:1", "-keep", "-label", label, "-root", root}, &bytes.Buffer{})
+		if err == nil {
+			t.Fatalf("add -keep -label %q of an address the book lacks", label)
+		}
+		if after, _ := os.ReadFile(path); !bytes.Equal(before, after) {
+			t.Fatalf("a refused add (-label %q) changed node.json", label)
+		}
+	}
+	runOut(t, "peer", "add", "8.9.1.1:1", "-keep", "-label", "known", "-root", root)
+	b, _ := peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{})
+	if r, _ := b.Record("8.9.1.1:1"); r.Label != "known" {
+		t.Fatalf("label of a held address: %+v", r)
+	}
+	if p, _ := nodepolicy.Load(path); !slices.Contains(p.P2P.Peers, "8.9.1.1:1") {
+		t.Fatalf("add -keep -label: %v", p.P2P.Peers)
+	}
+	err := run([]string{"peer", "add", "9.9.9.9:1", "-root", root}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "add -keep lists the address in node.json") {
+		t.Fatalf("plain add offline: %v", err)
+	}
+}
