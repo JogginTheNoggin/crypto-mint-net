@@ -19,6 +19,8 @@ export const poolsView = {
   mount(root, ctx) {
     const serial = { name: 'serial', label: 'Mint serial', type: 'number', required: true };
     const series = { name: 'series', label: 'Series id', placeholder: 'only if the node follows more than one' };
+    // -parent (D161): build on a chosen entry instead of the selected tip.
+    const parent = { name: 'parent', label: 'Parent', placeholder: 'an entry hash, root, or before-claim with a mint serial (default: the selected tip)' };
     return mountAll(root, 'Pools and payments', 'Look up mints and transactions, and build entries and layers.', [
       panel(ctx, { title: 'Followed pools', about: 'Each followed pool: tip, height, weight, waiting and stored records (poo pools).', args: () => ['pools', ...where.flags()] }),
       // poo unspent and poo tx replace the older holdings and payment
@@ -30,8 +32,15 @@ export const poolsView = {
         fields: [{ name: 'tid', label: 'Transaction id', placeholder: 'hex' }, { ...serial, label: 'In mint serial', placeholder: 'optional: look only in its pool' }, series],
         args: v => ['tx', ...where.flags(), ...flag('in-serial', v.serial), ...flag('series', v.series), ...(v.tid ? [v.tid] : [])], submit: 'Look up' }),
       form(ctx, { title: 'Build an entry', about: 'Builds an entry from the pending transactions of a pool.',
-        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, series, ...grindFields(), { name: 'maxTries', label: 'Most entry tries', type: 'number', placeholder: 'when the series sets a minimum entry strength' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
-        args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('work', v.work), ...flag('series', v.series), ...grindFlags(v), ...flag('max-tries', v.maxTries), ...flag('bytes', v.bytes)], submit: 'Build' }),
+        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, parent, series, ...grindFields(), { name: 'maxTries', label: 'Most entry tries', type: 'number', placeholder: 'when the series sets a minimum entry strength' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
+        args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('parent', v.parent), ...flag('work', v.work), ...flag('series', v.series), ...grindFlags(v), ...flag('max-tries', v.maxTries), ...flag('bytes', v.bytes)], submit: 'Build' }),
+      // A rival claim (D161): the mint's claim built into an entry on a
+      // chosen parent instead of submitted, so it can be grinded to
+      // compete with the entry holding the claim now. The seed is typed
+      // into poo's masked prompt (-seed-file -), never put on the line.
+      form(ctx, { title: 'Build a rival claim', about: 'Builds a claim of a mint into an entry on the parent you choose, such as the one before the entry holding the claim now, and prints its hash and the command to grind it. poo asks for the claiming key\'s seed in a masked field.',
+        fields: [{ ...serial }, { ...parent, required: true, placeholder: 'before-claim, root, or an entry hash' }, series, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional: then add the strongest layer found' }, { name: 'maxTries', label: 'Most entry tries', type: 'number', placeholder: 'when the series sets a minimum entry strength' }],
+        args: v => ['claim', ...where.flags(), '-seed-file', '-', ...flag('serial', v.serial), ...flag('parent', v.parent), ...flag('series', v.series), ...flag('work', v.work), ...flag('max-tries', v.maxTries)], submit: 'Build claim' }),
       form(ctx, { title: 'Add a layer', about: 'Adds the strongest layer found, by default on the selected tip.',
         fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'entry', label: 'Entry hash', placeholder: 'default: the selected tip' }, { name: 'tries', label: 'Tries', type: 'number' }, series, ...grindFields(), { name: 'start', label: 'First nonce', type: 'number', placeholder: 'default 0' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
         args: v => ['work', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('entry', v.entry), ...flag('tries', v.tries), ...flag('series', v.series), ...grindFlags(v), ...flag('start', v.start), ...flag('bytes', v.bytes)], submit: 'Work' }),

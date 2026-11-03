@@ -104,6 +104,14 @@ try {
   await layer.locator('input[name=start]').fill('7');
   await layer.locator('input[name=device]').fill('cpu');
   assert.equal(await layer.locator('.cmd code').innerText(), `poo work -root ${home} -device cpu -start 7`);
+  // Building on a chosen parent, and a rival claim built to grind (D161).
+  await build.locator('input[name=parent]').fill('before-claim');
+  assert.equal(await build.locator('.cmd code').innerText(), `poo build -root ${home} -serial 5 -parent before-claim -device cpu -threads 2 -for 5s -bytes`);
+  const rival = section('Build a rival claim');
+  await rival.locator('input[name=serial]').fill('5');
+  await rival.locator('input[name=parent]').fill('before-claim');
+  await rival.locator('input[name=work]').fill('64');
+  assert.equal(await rival.locator('.cmd code').innerText(), `poo claim -root ${home} -seed-file - -serial 5 -parent before-claim -work 64`);
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.
@@ -367,6 +375,22 @@ try {
   // click returns: wait for it rather than read the details at once.
   await sdef.locator('details.plan-all p').waitFor();
   for (const pr of peers30) assert.ok((await sdef.locator('details').innerText()).includes(pr), `Show all lists ${pr}`);
+  // The settable limits (D159-D161): poo lists them; Set limits saves
+  // them, checked against each range, and the list shows the new value.
+  const lim = section('Settable limits');
+  await lim.locator('table.data', { hasText: 'p2p.max_book' }).waitFor();
+  const setLim = section('Set limits');
+  await fill(setLim, 'Limits', 'p2p.max_book=8192 tracking.log_size=512');
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home} -set p2p.max_book=8192 -set tracking.log_size=512`);
+  page.once('dialog', d => d.accept());
+  await setLim.locator('button[type=submit]').click();
+  await setLim.locator('.run-status.ok').waitFor();
+  await lim.locator('table.data tr', { hasText: 'p2p.max_book' }).filter({ hasText: '8192' }).first().waitFor();
+  await fill(setLim, 'Limits', 'p2p.max_book=1');
+  page.once('dialog', d => d.accept());
+  await setLim.locator('button[type=submit]').click();
+  await setLim.locator('.run-status.bad').waitFor();
+  assert.match(await setLim.locator('.area').innerText(), /p2p\.max_book/, 'poo names the limit out of range');
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');

@@ -34,9 +34,24 @@ export const policiesView = {
       args: v => ['settings', 'export', ...where.flags(), ...flag('full', v.full), ...flag('out', v.out)], submit: 'Export',
       onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'node-settings.json')); } }),
       importForm(ctx, SETTINGS_IMPORT),
+      ...limitsParts(ctx),
     ]);
   },
 };
+
+// limitsParts is the settable limits (D159, D160, D161): poo policy limits
+// lists each one's range, default, the value node.json sets and the one in
+// effect, and -set changes them, checked by poo against the range before
+// anything is saved. The list comes from poo, so a limit Source adds shows
+// here without a change to the GUI.
+function limitsParts(ctx) {
+  const limits = panel(ctx, { title: 'Settable limits', about: 'Each limit this node policy can set: its range, its default, what node.json sets (0: the default) and the value in effect.', args: () => ['policy', 'limits', ...where.flags()] });
+  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json; a running node takes them at once. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
+    { name: 'set', label: 'Limits (NAME=VALUE)', type: 'list', placeholder: 'p2p.max_book=8192 tracking.log_size=512' }],
+  args: v => ['policy', 'limits', ...where.flags(), ...flags('set', v.set)], submit: 'Save', danger: true,
+  onResult: r => { if (r.code === 0) limits.reload(); } });
+  return [limits, set];
+}
 
 // saveAs offers printed output as a file to download, as it was printed.
 export function saveAs(text, name) {
