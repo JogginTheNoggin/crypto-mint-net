@@ -256,6 +256,13 @@ func run(args []string, out io.Writer) error {
 		fmt.Fprint(out, usage)
 		return nil
 	}
+	if len(args) == 2 && isHelpWord(args[1]) && !ownHelp[args[0]] && len(subcommands(args[0])) > 0 {
+		// "poo policy help", "-h" or "--help": a command made of
+		// subcommands prints its usage lines, as poo help policy does,
+		// and exits 0, where it took the word for a subcommand or a
+		// NAME and failed (GREEN-045).
+		return helpCmd(args[:1], out)
+	}
 	switch args[0] {
 	case "version":
 		return versionCmd(args[1:], out)
@@ -445,3 +452,9 @@ func writeJSON(out io.Writer, v any) error {
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
 }
+
+// ownHelp names the commands whose own usage answers "help" and "-h"
+// (grindUsage, simUsage, walletUsage).
+var ownHelp = map[string]bool{"grind": true, "sim": true, "wallet": true}
+
+func isHelpWord(s string) bool { return s == "help" || s == "-h" || s == "--help" }

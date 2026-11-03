@@ -72,6 +72,16 @@ func (m PathMap) apply(loc string) (string, bool) {
 	return m.To + rest, true
 }
 
+// Maps reports whether m rewrites loc, so a -map-path that matches no
+// path of a file can be named (GREEN-045).
+func (m PathMap) Maps(loc string) bool {
+	if isURL(loc) {
+		return false // mapPaths never rewrites a registry URL
+	}
+	_, ok := m.apply(loc)
+	return ok
+}
+
 // mapPaths returns p with its local paths rewritten: the registry files
 // (an http or https registry is not a path).
 func mapPaths(p Policy, maps []PathMap) Policy {
