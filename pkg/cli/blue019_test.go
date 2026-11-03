@@ -46,7 +46,7 @@ func TestIfDigestBindsOptionsAndPlan(t *testing.T) {
 	d := res[0].Digest
 	for _, extra := range [][]string{{"-settings"}, {"-full"}, {"-replace"}, {"-prefer-file"}} {
 		err := run(append([]string{"policy", "import", bundle, "-apply", "-if-digest", d, "-root", dst}, extra...), &bytes.Buffer{})
-		if err == nil || !strings.Contains(err.Error(), "not the import previewed") {
+		if err == nil || !strings.Contains(err.Error(), "not the one previewed") {
 			t.Errorf("%v applied with the follow-only digest: %v", extra, err)
 		}
 	}

@@ -242,7 +242,7 @@ func TestPolicyImportIfDigest(t *testing.T) {
 	b, _ := os.ReadFile(a)
 	os.WriteFile(a, append(b, ' '), 0o600)
 	before, _ := os.ReadFile(filepath.Join(dst, "policies", "default", nodepolicy.FileName))
-	if err := run([]string{"policy", "import", a, "-apply", "-if-digest", d, "-root", dst}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "not the import previewed") {
+	if err := run([]string{"policy", "import", a, "-apply", "-if-digest", d, "-root", dst}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "not the one previewed") {
 		t.Fatalf("changed file: %v", err)
 	}
 	if after, _ := os.ReadFile(filepath.Join(dst, "policies", "default", nodepolicy.FileName)); !bytes.Equal(before, after) {

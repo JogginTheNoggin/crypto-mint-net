@@ -248,7 +248,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	// plan, so -if-digest applies only what was previewed (RED-051, D154).
 	dg := importDigest(b.Digest, opt, results)
 	if digestGiven && !strings.EqualFold(*ifDigest, dg) {
-		return fmt.Errorf("this is not the import previewed: the file, its options (-settings, -full, -replace, -prefer-file, -policy, -dir) or what it would change differ (digest %s, not %s), so nothing was changed: preview it again", dg, *ifDigest)
+		return fmt.Errorf("this is not the one previewed: the file, its options (-settings, -full, -replace, -prefer-file, -policy, -dir) or what it would change differ (digest %s, not %s), so nothing was changed: preview it again", dg, *ifDigest)
 	}
 	if *apply {
 		var saved []string
