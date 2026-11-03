@@ -301,7 +301,10 @@ server is locked down:
   its history in the browser's storage, and it does not save a line that
   holds a secret flag (`shell.SecretFlags`: `-restore`, `-seed`, except
   `sim -seed`), or a line that starts with a space, as a shell with
-  `HISTCONTROL=ignorespace` does. Up-arrow still recalls such a line for
+  `HISTCONTROL=ignorespace` does. A secret flag whose value is `-`
+  (`wallet create -restore -`) holds no secret and is saved. No form puts
+  a seed on its line: Make a key runs `keygen -seed-file -` and poo asks
+  for the seed in the masked field (D98, GUI-GREEN-047). Up-arrow still recalls such a line for
   the rest of the session, and Forget history clears what is saved. Jobs
   and `GET /api/jobs` show the flag's value as `<hidden>` and do not offer
   the line to run again. The terminal still echoes the line as typed, as a
