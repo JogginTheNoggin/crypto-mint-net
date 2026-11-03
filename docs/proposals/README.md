@@ -78,3 +78,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-029](source/ORANGE-029-weight-checks-within-the-budget.md) | Source | Round 19 measured; ask weights within the peer's request budget | adopted (D155) |
 | [ORANGE-030](source/ORANGE-030-status-reads-make-no-state.md) | Source | Round 20 measured; read an unused pool without making its state | adopted (D157) |
 | [ORANGE-031](source/ORANGE-031-peer-import-at-its-limits.md) | Source | Round 21 measured; peer imports at their limits | adopted (D159) |
+| [ORANGE-032](source/ORANGE-032-limits-at-their-ceilings.md) | Source | Round 22 measured; the settable limits at their ceilings | proposed |

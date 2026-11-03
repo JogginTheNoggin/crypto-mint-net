@@ -226,6 +226,14 @@ type Book struct {
 	// range parsed every address in the book for each address added,
 	// which made an import of 4,096 addresses take 1.9 s (ORANGE-031).
 	rng map[string]string
+	// perRange counts the records of each network range, and imp holds
+	// the records known only from an imported file (Record.imported).
+	// Both are kept as records are added, changed and deleted, so adding
+	// an address no longer scans the whole book: at max_book 65,536,
+	// filling the book took 81 s and each address learned into a full
+	// book 9 ms (ORANGE-032).
+	perRange map[string]int
+	imp      map[string]*Record
 }
 
 type file struct {
@@ -266,7 +274,7 @@ func Open(path string, lim Limits) (*Book, error) {
 	if lim.MaxUnlisted == 0 {
 		lim.MaxUnlisted = max(1, lim.MaxRecords/4)
 	}
-	b := &Book{path: path, lim: lim, recs: map[string]*Record{}}
+	b := &Book{path: path, lim: lim, recs: map[string]*Record{}, perRange: map[string]int{}, imp: map[string]*Record{}}
 	if path == "" {
 		return b, nil
 	}
@@ -300,7 +308,10 @@ func Open(path string, lim Limits) (*Book, error) {
 			ps = append(ps, p)
 		}
 		r.Policies = ps
-		b.recs[r.Addr] = r
+		if b.recs[r.Addr] != nil {
+			b.dropLocked(r.Addr)
+		}
+		b.putLocked(r)
 	}
 	return b, nil
 }
@@ -374,14 +385,36 @@ func (b *Book) rangeLocked(addr string) string {
 	return r
 }
 
-func (b *Book) inRangeLocked(rng string) int {
-	n := 0
-	for a := range b.recs {
-		if b.rangeLocked(a) == rng {
-			n++
-		}
+func (b *Book) inRangeLocked(rng string) int { return b.perRange[rng] }
+
+// putLocked adds record r to the book and its counts.
+func (b *Book) putLocked(r *Record) {
+	b.recs[r.Addr] = r
+	b.perRange[b.rangeLocked(r.Addr)]++
+	b.trackLocked(r)
+}
+
+// dropLocked deletes addr's record from the book and its counts.
+func (b *Book) dropLocked(addr string) {
+	if _, ok := b.recs[addr]; !ok {
+		return
 	}
-	return n
+	delete(b.recs, addr)
+	rng := b.rangeLocked(addr)
+	if b.perRange[rng]--; b.perRange[rng] <= 0 {
+		delete(b.perRange, rng)
+	}
+	delete(b.imp, addr)
+}
+
+// trackLocked notes whether r is known only from an imported file, after
+// a change to its policies.
+func (b *Book) trackLocked(r *Record) {
+	if r.imported() {
+		b.imp[r.Addr] = r
+	} else {
+		delete(b.imp, r.Addr)
+	}
 }
 
 // SetRefuse sets a filter for addresses the book must not take in, such
@@ -434,7 +467,7 @@ func (b *Book) add(addr string, sections []wire.Section, src Source, st State, n
 			return ErrRangeFull
 		}
 		r = &Record{Addr: addr, Source: src, Added: now}
-		b.recs[addr] = r
+		b.putLocked(r)
 		b.dirty = true
 	}
 	for _, s := range sections {
@@ -443,6 +476,7 @@ func (b *Book) add(addr string, sections []wire.Section, src Source, st State, n
 			b.dirty = true
 		}
 	}
+	b.trackLocked(r)
 	return nil
 }
 
@@ -461,23 +495,15 @@ func (r *Record) imported() bool {
 }
 
 // unlistedLocked counts the records known only from an imported file.
-func (b *Book) unlistedLocked() int {
-	n := 0
-	for _, r := range b.recs {
-		if r.imported() {
-			n++
-		}
-	}
-	return n
-}
+func (b *Book) unlistedLocked() int { return len(b.imp) }
 
 // evictImportedLocked deletes the record known only from an imported file
 // that was added first, in range rng ("" for any), and reports whether it
 // found one. It never touches a record the node learned or verified.
 func (b *Book) evictImportedLocked(rng string) bool {
 	var old *Record
-	for a, r := range b.recs {
-		if !r.imported() || (rng != "" && b.rangeLocked(a) != rng) {
+	for a, r := range b.imp {
+		if rng != "" && b.rangeLocked(a) != rng {
 			continue
 		}
 		if old == nil || r.Added.Before(old.Added) || (r.Added.Equal(old.Added) && r.Addr < old.Addr) {
@@ -487,7 +513,7 @@ func (b *Book) evictImportedLocked(rng string) bool {
 	if old == nil {
 		return false
 	}
-	delete(b.recs, old.Addr)
+	b.dropLocked(old.Addr)
 	b.dirty = true
 	return true
 }
@@ -500,11 +526,9 @@ func (b *Book) ForgetImported() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	n := 0
-	for a, r := range b.recs {
-		if r.imported() {
-			delete(b.recs, a)
-			n++
-		}
+	for a := range b.imp {
+		b.dropLocked(a)
+		n++
 	}
 	if n > 0 {
 		b.dirty = true
@@ -551,6 +575,7 @@ func (b *Book) Verify(addr string, s wire.Section, st State, now time.Time) erro
 	}
 	p.State, p.LastHeard = st, now
 	r.Failures = 0
+	b.trackLocked(r)
 	b.dirty = true
 	return nil
 }
@@ -590,6 +615,7 @@ func (b *Book) Archive(addr string, ss ...wire.Section) {
 			}
 		}
 	}
+	b.trackLocked(r)
 	b.dirty = true
 }
 
@@ -633,7 +659,7 @@ func (b *Book) Delete(addr string) bool {
 	if _, ok := b.recs[addr]; !ok {
 		return false
 	}
-	delete(b.recs, addr)
+	b.dropLocked(addr)
 	b.dirty = true
 	return true
 }
@@ -688,6 +714,7 @@ func (b *Book) PromoteImported(s wire.Section, n int) int {
 				p.State = Candidate
 			}
 		}
+		b.trackLocked(r)
 	}
 	if len(list) > 0 {
 		b.dirty = true
