@@ -303,9 +303,9 @@ server is locked down:
   `sim -seed`), or a line that starts with a space, as a shell with
   `HISTCONTROL=ignorespace` does. A secret flag whose value is `-`
   (`wallet create -restore -`) holds no secret and is saved. No form puts
-  a seed on its line: Make a key runs `keygen -seed-file -` and poo asks
-  for the seed in the masked field (D98, GUI-GREEN-047). Up-arrow still recalls such a line for
-  the rest of the session, and Forget history clears what is saved. Jobs
+  a seed on its line: Make a key runs `keygen -seed-file -`, which reads
+  the seed from the masked field (D98, GUI-GREEN-047). Up-arrow still
+  recalls such a line for the rest of the session, and Forget history clears what is saved. Jobs
   and `GET /api/jobs` show the flag's value as `<hidden>` and do not offer
   the line to run again. The terminal still echoes the line as typed, as a
   shell does, and a form's preview shows it.
