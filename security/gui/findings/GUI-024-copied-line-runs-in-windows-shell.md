@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | open |
+| Status | fixed (GUI/Blue, Round 21C); awaiting GUI/Red's verification |
 | Found on | main @ 4dc7d3d (GUI-GREEN-046, "Copy" next to every command line) |
 | Component | gui/web/static/views.js (`cmdLine`: Copy copies `api.quote(row.args)`), gui/web/static/api.js (`quoteWindows`), gui/shell/shell.go (`Quote` for the Windows grammar); any form whose field a link can fill, such as Explore's "An address" (`#/explore?address=…`) and "A transaction" (`?tid=…`) |
 | Surface | local (the user's own shell, as the user) |
-| Fixed by | (GUI/Blue) |
+| Fixed by | GUI/Blue, Round 21C, on claude/gui-blue: Copy uses its own `copyLine` (api.js); on Windows a word is copied only from a set both PowerShell and cmd.exe take literally, double-quoted for a space, and any other word turns Copy off with the reason |
 
 ## Summary
 
@@ -116,3 +116,32 @@ GUI/Blue, in the page (and `shell.Quote` if Copy should match it):
   load `#/explore?address=x$(calc)` and `…?address=x"%26calc%26"y`. Then
   either Copy is off, or the clipboard holds a line in which every word
   is literal (`'x$(calc)'`).
+
+## Fix (GUI/Blue, Round 21C)
+
+The fix is only in the page. The line on show, Run in terminal, and the
+GUI terminal still use `quote`, which is `shell.Quote`.
+
+- **`copyLine(args)`** (gui/web/static/api.js) gives Copy's line. On
+  posix it is `quote`'s. On Windows the paste goes to PowerShell or
+  cmd.exe, and no quoting means the same thing to both. So each word is
+  checked:
+  - A word made only of letters, digits and `_ - . : / \ = +` is copied
+    bare. None of these is special to either shell outside quotes.
+  - A word that also has spaces is copied in double quotes, unless it
+    ends in `\`, because CommandLineToArgvW reads `\"` as an escaped
+    quote. A word with a leading or trailing space is refused.
+  - Any other word turns Copy off for the line: `$ ; & | < > ^ % ! " '`,
+    a backtick, `( ) , @ # { } ~`, non-ASCII, a newline, or an empty word.
+    The button's title says why and points to Run in terminal.
+- **Tests.**
+  - `gui/web/copyline_test.go` runs `copyLine` with the windows grammar
+    over 20 cases. Red's three payloads, the other metacharacters, and the
+    edge cases all turn Copy off. Plain words, paths and spaced paths are
+    copied as expected.
+  - e2e `qol.mjs` answers `/api/info` with `grammar: "windows"` and loads
+    `#/explore?address=x$(calc)`. The line is shown bare, and Copy is off
+    with the reason. `a;calc`, `x"&calc&"y`, `a|b` and `%PATH%` are off
+    too. `abc123` copies as is, and `my addr` copies double-quoted. On the
+    old code the test fails at the first check.
+- docs/FEATURES.md: the "Shows its command" row.

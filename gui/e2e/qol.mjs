@@ -236,6 +236,41 @@ try {
   assert.ok(await key.locator('button.copy-cmd').isDisabled(), 'a line with -seed is not copied');
   await key.locator('input[name=seed]').fill('');
   assert.ok(!(await key.locator('button.copy-cmd').isDisabled()), 'Copy is back once the secret is gone');
+  // GUI-024: on Windows a copied line is pasted into PowerShell or cmd.exe,
+  // so Copy is off for a word either shell would run or change. The server
+  // here answers posix; /api/info is answered "windows", as on Windows.
+  {
+    const windows = async route => {
+      const r = await route.fetch();
+      await route.fulfill({ response: r, json: { ...(await r.json()), grammar: 'windows' } });
+    };
+    await page.route('**/api/info', windows);
+    const origin = new URL(page.url()).origin;
+    await page.goto(`${origin}/#/explore?address=x$(calc)`);
+    await page.reload(); // a new page load, as a link from outside is
+    const addr = page.locator('section.panel', { has: page.locator('h2', { hasText: 'An address' }) });
+    const copy = addr.locator('button.copy-cmd');
+    await addr.locator('.cmd code', { hasText: / x\$\(calc\)$/ }).waitFor(); // windows quoting: bare
+    assert.ok(await copy.isDisabled(), 'a link with $(...) is not copied for a Windows shell');
+    assert.match(await copy.getAttribute('title'), /Windows shell/);
+    for (const bad of ['a;calc', 'x"&calc&"y', 'a|b', '%PATH%']) {
+      await addr.locator('input[name=addr]').fill(bad);
+      assert.ok(await copy.isDisabled(), `${bad} is not copied for a Windows shell`);
+    }
+    await addr.locator('input[name=addr]').fill('abc123');
+    assert.ok(!(await copy.isDisabled()), 'a plain line is copied');
+    await copy.click();
+    await addr.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^poo address .*abc123$/);
+    await addr.locator('input[name=addr]').fill('my addr');
+    await copy.click();
+    await addr.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^poo address .*"my addr"$/, 'a space is double-quoted');
+    await page.unroute('**/api/info', windows);
+    await page.goto(origin + '/#/start');
+    await page.reload();
+    await page.locator('#main h1').first().waitFor();
+  }
 
   // A result has a Copy output button for poo's exact output.
   await page.click('nav a[data-id=crypto]');
