@@ -692,6 +692,10 @@ func peerCmd(args []string, out io.Writer) error {
 	// No node answered: what can be done on the files is (D157).
 	r, ok, oerr := peerOffline(w.resolve(), req, err)
 	if !ok {
+		if action == "add" {
+			// Only -keep works with the node stopped; say so (GREEN-046).
+			return fmt.Errorf("%w (with the node stopped, add -keep lists the address in node.json)", err)
+		}
 		return err
 	}
 	if oerr != nil {
@@ -711,11 +715,26 @@ func peerOffline(dir string, req rpc.PeerRequest, nodeErr error) (rpc.PeerReply,
 	default:
 		return out, false, nil
 	}
+	// Everything is checked before any file changes (GREEN-046): an add
+	// used to save node.json and then refuse its label, and to drop a
+	// good one without a word.
+	if err := peers.CheckLabel(req.Label); err != nil {
+		return out, true, err
+	}
 	unlock, err := lockPolicy(dir, "node policy", nodeErr)
 	if err != nil {
 		return out, true, err
 	}
 	defer unlock()
+	var book *peers.Book
+	if req.Action != "add" || req.Label != "" {
+		if book, err = peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{}); err != nil {
+			return out, true, err
+		}
+		if _, held := book.Record(req.Addr); req.Action == "add" && !held {
+			return out, true, errors.New("the node is stopped and its peer book does not hold this address, so it cannot take a label yet: add it with -keep alone, then poo peer label ADDR -label TEXT once the node has it; nothing was changed")
+		}
+	}
 	if req.Action != "label" {
 		path := filepath.Join(dir, nodepolicy.FileName)
 		p, err := nodepolicy.Load(path)
@@ -728,13 +747,9 @@ func peerOffline(dir string, req rpc.PeerRequest, nodeErr error) (rpc.PeerReply,
 			}
 			out.Kept = true
 		}
-		if req.Action == "add" {
-			return out, true, peers.CheckLabel(req.Label)
-		}
 	}
-	book, err := peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{})
-	if err != nil {
-		return out, true, err
+	if book == nil {
+		return out, true, nil
 	}
 	if req.Action == "remove" {
 		out.Held = book.Delete(req.Addr)
