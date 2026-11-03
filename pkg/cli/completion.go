@@ -136,6 +136,10 @@ func subcommands(cmd string) []string {
 		text = walletUsage
 	case "sim":
 		text = simUsage
+	case "grind":
+		// Its own usage lists every subcommand, so a new one is
+		// completed without a second list to keep (GREEN-044).
+		text = grindUsage
 	}
 	var out []string
 	if text != "" {
