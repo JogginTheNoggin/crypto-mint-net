@@ -66,7 +66,11 @@ const add = line => {
 };
 
 try {
-  for (const v of ['node', 'pools', 'peers', 'wallet', 'policies', 'crypto', 'work', 'watch', 'explore']) {
+  // Every view the navigation lists (gui/web/static/views/index.js), so a
+  // new view is checked without being named here (GUI-GREEN-044).
+  const views = await page.locator('nav a[data-id]').evaluateAll(as => as.map(a => a.dataset.id).filter(id => id !== 'terminal'));
+  assert.ok(views.includes('wallet') && views.length > 8, 'the views were read from the navigation');
+  for (const v of views) {
     await page.click(`nav a[data-id=${v}]`);
     await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
     // In the page, so a field that shows once another is filled (only:)
@@ -103,7 +107,7 @@ try {
   // cannot drift from poo (GUI-GREEN-043). Each such field is filled
   // alone, so the preview says which flag it is.
   const stated = [];
-  for (const v of ['node', 'pools', 'peers', 'wallet', 'policies', 'crypto', 'work', 'watch', 'explore']) {
+  for (const v of views) {
     await page.click(`nav a[data-id=${v}]`);
     await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
     stated.push(...await page.evaluate(() => {

@@ -1,8 +1,8 @@
 // The GUI's shell: navigation between views. Every view is a way to build
-// and run poo command lines (views.js); the terminal runs typed ones.
+// and run poo command lines (views/); the terminal runs typed ones.
 import * as api from './api.js';
 import * as terminal from './terminal.js';
-import { views } from './views.js';
+import { views } from './views/index.js';
 import { startView } from './start.js';
 import * as where from './where.js';
 

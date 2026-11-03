@@ -100,6 +100,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | --- | --- | --- | --- |
 | Same code as headless | Every action is a `poo` command line run through `cli.Main`. The GUI may import only `pkg/cli`, and a test enforces it | `gui/`, `gui/imports_test.go` | D84 to D89 |
 | Shows its command | Each panel and form shows the exact line it runs, with a button to run it in the terminal | `gui/web/static/views.js` | |
+| One file per view | Each view is a module in `views/` listed once in `views/index.js`; navigation and the e2e walks read that list | `gui/web/static/views/` | GUI-GREEN-044 |
 | Terminal | Runs `poo` itself: a typed line runs exactly as in a shell, split the way the platform's shell splits it, with history, Ctrl-C and Ctrl-D | `gui/shell`, `gui/web/static/terminal.js` | D86, GUI-021 |
 | Local web app | One Go binary on loopback that opens the system browser, or an app window with `-app`. No CGO and no JavaScript build | `gui/cmd/poo-gui`, `gui/server` | D85 |
 | Locked down | One-time sign-in address, session cookie, cross-origin requests refused, strict content security policy | `gui/server` | GUI-001 to GUI-005 |
@@ -146,6 +147,17 @@ form over the CLI command. A new feature follows the same pattern:
 2. Add a `poo` command, and an RPC endpoint if a running node must apply
    it. A test fails when an RPC call has no command.
 3. Add a row here, the module doc, and a decision.
+
+Then the GUI, where a feature is a form over its command:
+
+4. Add the form to the view it belongs in, in `gui/web/static/views/`,
+   with `form()` and `flag()` from `views.js`. Its fields send the
+   command's flags. For a new view, add a file there that exports
+   `{ id, title, mount }`, and list it in `views/index.js`.
+5. Run `gui/e2e/parity.mjs`. It walks every view in the navigation and
+   fails if a flag of the command is sent by no form, or if a field states
+   a default that differs from `poo -h`. Add a reason to its `LEFT_OUT`
+   only for a flag that belongs in the terminal.
 
 The policy bundle is built to grow in the same way: its format carries a
 version, and it has a reserved slot for the node's settings.

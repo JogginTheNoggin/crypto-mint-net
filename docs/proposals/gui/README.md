@@ -50,6 +50,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-041](GUI-GREEN-041-flag-parity.md) | Forms take the flags poo takes: Build/Work device, threads, for, serial; one wallet series for every wallet command; Receive's named transactions | small | yes | adopted |
 | [GUI-GREEN-042](GUI-GREEN-042-flag-parity-check.md) | A check (parity.mjs, in CI) that every flag `poo CMD -h` lists is sent by a form or left out for a stated reason; fixes Explore's address -below/-tid and Pools' filters | small | yes | adopted |
 | [GUI-GREEN-043](GUI-GREEN-043-stated-defaults.md) | parity.mjs also checks every default a field states against `poo -h`; Schedule a job's device and threads say the section's default | small | yes | adopted |
+| [GUI-GREEN-044](GUI-GREEN-044-one-file-per-view.md) | One file per view in `static/views/`, one list in `views/index.js`; the e2e walks every view from the navigation | small | yes | proposed |
 
 ## Orange (performance)
 
