@@ -75,7 +75,7 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 		"records", rs.Records, "stores", rs.Pools, "kept", rs.Kept)
 	cfg := p2p.FromPolicy(n.Policy())
 	cfg.Logger = n.Logger()
-	book, err := peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{})
+	book, err := peers.Open(filepath.Join(dir, peers.FileName), n.Policy().BookLimits())
 	if err != nil {
 		return false, errors.Join(err, n.Close())
 	}

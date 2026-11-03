@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D159) |
 | Based on | `main` @ `8662766` |
 | Area | `pkg/cli` (`peerOffline`, `peerCmd`, the table writer), `docs/modules/poo.md` |
 | Effort | small |

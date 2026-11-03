@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D159) |
 | Based on | `main` @ `8662766` |
 | Area | `pkg/tracking` (`get`, `trimLocked`), `pkg/peers` (range counting) |
 | Effort | two small changes and two tests |

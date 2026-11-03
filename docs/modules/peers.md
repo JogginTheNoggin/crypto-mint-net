@@ -67,7 +67,12 @@ beyond the slots become candidates. Peers this node dialled win ties.
 - **Spacing**: `Pick` returns candidates oldest attempt first, one per
   range before a second from any range, and skips a candidate that failed
   until `Retry` doubled per failure has passed.
-- `MaxRecords` bounds the book.
+- `MaxRecords` bounds the book. A node takes every limit from its node
+  policy (`nodepolicy.Policy.BookLimits`: `p2p.max_book`,
+  `p2p.book_per_range`, `p2p.verified_per_range`, `p2p.retry_seconds`,
+  D159); the defaults are 4096, 16, 4 and one minute. A book that holds
+  more than a lowered `max_book` keeps what it has and takes no new
+  address until it is under it again.
 - `MaxUnlisted` (a quarter of `MaxRecords` by default) bounds the
   records known only from an imported file: from `import`, unlisted for
   every policy. `AddUnlisted` refuses one more with `ErrUnlistedFull`.

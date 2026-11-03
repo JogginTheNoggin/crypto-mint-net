@@ -194,3 +194,8 @@ built.
   with blocks only on `-blocks`. The manager dials imported addresses when
   short of peers, unless `p2p.no_dial_imported`. A plain export leaves out
   personal registries and grind jobs (D156).
+- **Settable limits (D158, D159):** node.json sets the peer book's size
+  (`p2p.max_book`, 256 to 65536) and per-range share, verified peers per
+  range, retry and registry pacing, and the tracker's address count and
+  memory, each with a floor and a ceiling. Imports take at most a quarter
+  of the book, and `poo peer remove -imported` forgets them (D158).

@@ -40,7 +40,7 @@ func peersCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("peers", out)
 	w := addWhere(fs)
 	o := addOutput(fs)
-	cats := fs.String("category", "", "only addresses in one of these book states for some mint policy, comma-separated: "+strings.Join(stateNames(), ", "))
+	cats := fs.String("category", "", "only addresses in one of these book states for some mint policy, comma-separated: "+strings.Join(stateNames(), ", ")+" (blocked and timed-out addresses are the tracker's: poo tracking -blocked, poo tracking -timed-out)")
 	pol := fs.String("mint-policy", "", "only addresses with a mint policy whose text holds this (a series id, or a part of one)")
 	label := fs.String("label", "", "only addresses whose label holds this (any case)")
 	addr := fs.String("addr", "", "only addresses that hold this")
@@ -205,7 +205,7 @@ func openPeerBook(out io.Writer, dir string, write bool) (*peerBook, error) {
 		}
 		unlock = u
 	}
-	book, err := peers.Open(filepath.Join(dir, peers.FileName), peers.Limits{})
+	book, err := peers.Open(filepath.Join(dir, peers.FileName), pol.BookLimits())
 	if err != nil {
 		unlock()
 		return nil, err

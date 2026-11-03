@@ -3329,3 +3329,46 @@ a chase takes in after checking their work are not charged.
   - `pkg/plain`: `TestTextAndSafe`.
   - `pkg/cli/blue022_test.go`: `TestPeersForgetImported`,
     `TestTableEscapesText`.
+
+### D159. Settable peer book, tracker and discovery limits
+
+- **Decision:** jerry's Round 22 request: the limits of the peer book and
+  the tracker are node policy, each with a floor and a ceiling
+  (`nodepolicy.Bounds`, `pkg/nodepolicy/limits.go`). Left out or 0, a
+  setting is its default; any other value outside its range is refused by
+  `Validate`, which names the setting and its range.
+  - `p2p.max_book` (4096; 256 to 65536), `p2p.book_per_range` (16; 1 to
+    4096 and at most `max_book`), `p2p.verified_per_range` (4; 1 to 64),
+    `p2p.retry_seconds` (60; 1 to 86400), `p2p.registry_seconds` (3600; 60
+    to 86400).
+  - `tracking.max_addresses` (8192; 1024 to 131072),
+    `tracking.flag_history_seconds` (7 days; 1 hour to 365 days),
+    `tracking.log_seconds` (3600; 60 to 86400), `tracking.log_size` (256;
+    16 to 4096).
+  - The places for imported addresses stay a quarter of `max_book` (D158).
+  - `Policy.BookLimits` gives the book's limits; the node and the CLI's
+    offline import open the book with them. `TrackingConfig` carries the
+    retention.
+  - A book over a lowered `max_book` keeps its records and takes no new
+    address until it is under the bound.
+  - Also merges GREEN-046 (offline `peer add` checks before it writes;
+    zero times read `-`), ORANGE-031 (tracker trim backoff, the book's
+    range cache) and adds a `poo tracking` pointer to `poo peers -h`.
+- **Left fixed, on purpose:** the chase queue and its pacing
+  (`QueueLimit`, `ChaseSlice`, `WeightlessPages`, `RequestPace`), the
+  manager's interval, and the peer file's own caps. A user setting on
+  the chase could slow or starve the fetch of a heavier ledger, and no
+  node policy may make a heavier ledger unacceptable (AGENTS.md). The
+  weight check is already bounded by D153. The peer file caps (65536
+  addresses, 16 MiB) hold any book the bounds allow.
+- **Why:** jerry: "the whole point of node policy is to allow people to
+  tailor their settings to their needs".
+- **Consensus:** none. These bound how many peers a node knows and how long
+  it remembers their offences. A smaller book or memory means the node
+  has less information, which is not a hard fork; the floors keep a node
+  able to find and keep peers, and nothing here touches selection,
+  chasing or the weight check.
+- **Tier:** Node policy.
+  - `pkg/nodepolicy/limits_test.go`: `TestLimitsDefaults`,
+    `TestLimitsSet`, `TestLimitsBounds`, `TestValidateRefusesOutOfBounds`.
+  - `pkg/cli/limits_test.go`: `TestPeerImportUsesPolicyLimits`.

@@ -50,6 +50,7 @@ Usage:
   poo peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT]
                               the running node's peers, their categories
                               and points, and its peer book, filtered
+                              (blocked, timed out: poo tracking)
   poo peers export [-category LIST] [-out FILE]
                               write the peer book, or some categories of
                               it, and the blocks to one shareable file
