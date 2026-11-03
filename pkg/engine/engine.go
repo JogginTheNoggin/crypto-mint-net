@@ -325,6 +325,28 @@ func (e *Engine) peek(k PoolKey) (*poolState, error) {
 	return p, err
 }
 
+// unstated reports whether pool k is followed but has no state, and then
+// its pool id: what an empty ledger reads as its tip. Status and Tip
+// answer such a pool from it rather than from a fresh state (peek), which
+// cost about 1.7 KB and 1 µs a pool on every call, so a status, metrics
+// scrape or query of a series of up to ListAll pools followed whole made
+// about 100 MiB of garbage each time (ORANGE-030). The answer is the one a
+// fresh state gives (TestUnstatedReadsAsFresh). An error is peek's: the
+// series is unknown or the pool not followed.
+func (e *Engine) unstated(k PoolKey) (hash.Hash, bool, error) {
+	if _, ok := e.pools[k]; ok {
+		return hash.Hash{}, false, nil
+	}
+	s, ok := e.series[k.Series]
+	if !ok {
+		return hash.Hash{}, false, ErrUnknownSeries
+	}
+	if !e.followsLocked(k) {
+		return hash.Hash{}, false, ErrNotFollowed
+	}
+	return s.PoolID(k.Index), true, nil
+}
+
 // handling returns the state of pool k for an item. A new state is kept
 // only if the item left something in it (an entry, a pending or waiting
 // transaction) by the time done is called, so an item that is refused
@@ -993,10 +1015,13 @@ type PoolStatus struct {
 func (e *Engine) Status(k PoolKey) (PoolStatus, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.peek(k)
-	if err != nil {
+	if id, ok, err := e.unstated(k); err != nil {
 		return PoolStatus{Key: k}, err
+	} else if ok {
+		// What a fresh state reads, without making one (ORANGE-030).
+		return PoolStatus{Key: k, Tip: id, Branches: []ledger.Branch{}}, nil
 	}
+	p := e.pools[k]
 	tip, h, w := p.ledger.Tip()
 	return PoolStatus{
 		Key: k, Tip: tip, Height: h, Weight: w, Entries: p.ledger.Len(),
@@ -1010,11 +1035,12 @@ func (e *Engine) Status(k PoolKey) (PoolStatus, error) {
 func (e *Engine) Tip(k PoolKey) (hash.Hash, int, weight.Weight, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.peek(k)
-	if err != nil {
+	if id, ok, err := e.unstated(k); err != nil {
 		return hash.Hash{}, 0, weight.Zero, err
+	} else if ok {
+		return id, 0, weight.Zero, nil
 	}
-	tip, h, w := p.ledger.Tip()
+	tip, h, w := e.pools[k].ledger.Tip()
 	return tip, h, w, nil
 }
 
