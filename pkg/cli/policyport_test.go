@@ -64,11 +64,11 @@ func TestPolicyExportImport(t *testing.T) {
 	if len(p.Series) != 1 || len(p.Follow) != 1 || len(p.P2P.Peers) != 0 || p.P2P.Listen != "off" {
 		t.Fatalf("imported: %+v", p)
 	}
-	if !strings.Contains(out, "skipped, node settings (-settings takes them): p2p.peers.[a.example:1]") {
+	if !strings.Contains(out, "skipped, node settings (-settings takes them): p2p.peers: a.example:1") {
 		t.Fatalf("apply did not say what it skipped:\n%s", out)
 	}
 	out = runOut(t, "policy", "import", bundle, "-apply", "-settings", "-root", dst)
-	if !strings.Contains(out, "read first") || !strings.Contains(out, "p2p.peers.[a.example:1]") {
+	if !strings.Contains(out, "read first") || !strings.Contains(out, "reaches out: p2p.peers: a.example:1") {
 		t.Fatalf("-settings did not name the peer first:\n%s", out)
 	}
 	if p, _ = nodepolicy.Load(dstPath); len(p.P2P.Peers) != 1 || p.P2P.Listen != "off" {
@@ -253,5 +253,31 @@ func TestPolicyImportIfDigest(t *testing.T) {
 	p, err := nodepolicy.Load(filepath.Join(dst, "policies", "default", nodepolicy.FileName))
 	if err != nil || len(p.Series) != 1 {
 		t.Fatalf("applied: %+v %v", p, err)
+	}
+}
+
+// The plan's notes name fields as its lines do, the digest comes with a
+// preview that has something to apply, and one setting "is" the same
+// (GREEN-043).
+func TestPlanNotesReadLikeItsLines(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off", "-peer", "a.example:1")
+	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	bundle := filepath.Join(t.TempDir(), "share.json")
+	runOut(t, "policy", "export", "-root", src, "-out", bundle)
+
+	out := runOut(t, "policy", "import", bundle, "-settings", "-root", dst)
+	if !strings.Contains(out, "reaches out: p2p.peers: a.example:1") || strings.Contains(out, ".[") || !strings.Contains(out, "file digest") {
+		t.Fatalf("preview:\n%s", out)
+	}
+	if !strings.Contains(out, "1 of the file's settings is already the same") {
+		t.Fatalf("one same setting:\n%s", out)
+	}
+	out = runOut(t, "policy", "import", bundle, "-apply", "-root", dst)
+	if strings.Contains(out, "file digest") || !strings.Contains(out, "saved") {
+		t.Fatalf("apply:\n%s", out)
+	}
+	if out = runOut(t, "policy", "import", bundle, "-root", dst); strings.Contains(out, "file digest") || !strings.Contains(out, "nothing to change") {
+		t.Fatalf("nothing to change:\n%s", out)
 	}
 }
