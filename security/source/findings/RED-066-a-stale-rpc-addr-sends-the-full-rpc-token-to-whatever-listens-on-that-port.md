@@ -7,7 +7,7 @@
 | Found | Source Round 23 Part B, on `main` @ `215d428` (the dial is old; D161 adds `poo claim -parent`, `poo build -parent` and `poo policy limits -set`, which all send the full token) |
 | Area | `pkg/rpc` (`Dial`, `ServeWith`), `pkg/cli` (`dialNode`, every command that writes) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-024) |
+| Fixed by | `claude/project-thread-ggo8dt` @ e8f71ff (BLUE-024) |
 
 ## What is wrong
 

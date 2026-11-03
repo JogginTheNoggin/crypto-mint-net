@@ -8,7 +8,7 @@
 | Area | `pkg/peers` (`Range`, `giveClass`, `victimLocked`, `Tried`, `makeRoomLocked`), `pkg/p2p` (`learn`, `Manage`, `Pick`, `New`) |
 | Related | RED-058, RED-064 (this is what is left of it) |
 | For Black | No consensus rule is touched. A node whose book is full lacks peers (information); it is not a different view of which ledger is valid. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-024) |
+| Fixed by | `claude/project-thread-ggo8dt` @ e8f71ff (BLUE-024) |
 
 ## What is wrong
 

@@ -5,6 +5,7 @@
 | Fixes | RED-066 (medium), RED-067 (medium), RED-068 (low), RED-069 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `215d428` (Source Round 23 Part C), with ORANGE-033 (#143) merged in |
+| Code | `e8f71ff` |
 | Decisions | D162 |
 | With | ORANGE-033 (PR #143): its set-based conflict check is half of RED-068, so the PR carries its commit |
 | Review | No consensus change. For Black: `CheckPendingOn` skips the witness check that the pending pool already did; `AddEntry` still checks the entry in full. |

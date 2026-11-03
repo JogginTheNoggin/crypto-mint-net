@@ -7,7 +7,7 @@
 | Found | Source Round 23 Part B, on `main` @ `215d428` (D161) |
 | Area | `pkg/ledger` (`CheckOn`), `pkg/engine` (`BuildEntryOn`), `pkg/rpc` (`POST /v1/build`) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-024) |
+| Fixed by | `claude/project-thread-ggo8dt` @ e8f71ff (BLUE-024) |
 
 ## What is wrong
 
