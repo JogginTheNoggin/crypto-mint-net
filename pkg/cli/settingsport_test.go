@@ -128,7 +128,9 @@ func TestMapPathNotes(t *testing.T) {
 	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off", "-registry", "/old/home/reg.txt")
 	cli(t, nil, "init", "-root", dst, "-p2p", "off")
 	file := filepath.Join(t.TempDir(), "settings.json")
-	runOut(t, "settings", "export", "-root", src, "-out", file)
+	// A plain export leaves local registry files out (RED-052), so the
+	// file that carries one is a full export.
+	runOut(t, "settings", "export", "-full", "-root", src, "-out", file)
 
 	out := runOut(t, "settings", "import", file, "-map-path", "/old/home=/new", "-root", dst)
 	if !strings.Contains(out, "note: -map-path rewrites registry files, which only -full takes") || strings.Contains(out, "matches no registry file") {
