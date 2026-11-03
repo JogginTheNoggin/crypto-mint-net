@@ -70,17 +70,41 @@ beyond the slots become candidates. Peers this node dialled win ties.
 - `MaxRecords` bounds the book. A node takes every limit from its node
   policy (`nodepolicy.Policy.BookLimits`: `p2p.max_book`,
   `p2p.book_per_range`, `p2p.verified_per_range`, `p2p.retry_seconds`,
-  D159); the defaults are 4096, 16, 4 and one minute. A book that holds
-  more than a lowered `max_book` keeps what it has and takes no new
-  address until it is under it again.
+  `p2p.candidate_seconds`, D159, D160); the defaults are 4096, 16, 4, one
+  minute and one day.
 - `MaxUnlisted` (a quarter of `MaxRecords` by default) bounds the
   records known only from an imported file: from `import`, unlisted for
   every policy. `AddUnlisted` refuses one more with `ErrUnlistedFull`.
-  An address learned any other way (a peer list, a reply, an inbound
-  connection, a registry, by hand) takes the place of the oldest such
-  record when the book or its range is full. So a file can never fill
-  the book against discovery (RED-058, D158). `ForgetImported` takes
-  them all out (`poo peer remove -imported`), and `Unlisted` counts them.
+  `ForgetImported` takes them all out (`poo peer remove -imported`), and
+  `Unlisted` counts them (RED-058, D158).
+- **Giving way** (RED-064, D160). When the book or the new address's range
+  is full, one record gives way to an address added any way but an
+  import, so neither a file nor a peer can fill the book for good. In
+  order, oldest first in each:
+  1. a record known only from an imported file;
+  2. a *learned* record whose last try failed;
+  3. a learned record older than `CandidateAge` (`p2p.candidate_seconds`,
+     one day by default);
+  4. for an address the owner gave (`hand`, `config`), any learned record.
+
+  A record is learned when it came from a peer list, a reply, a registry
+  or an inbound connection, has no label, and the node has never reached
+  it (`Reached`: a connection that worked, or a verification). A record
+  the owner added, configured or labelled, and one the node reached, never
+  gives way. When the range is full the record must be in that range;
+  otherwise any will do. `add` decides before it deletes, so a refused add
+  changes nothing (RED-065). The book keeps the learned, failed and
+  imported records on heaps, oldest first, so an address learned into a
+  full book at the `max_book` ceiling costs no scan of the book
+  (`BenchmarkAddFullBookLearned`: about 3.5 µs at 65,536 records).
+- **Fit** brings a book over its limits (`max_book` or `book_per_range`
+  lowered, or more imported records than `MaxUnlisted`) down to them, in
+  the same order as an owner's add. Records that never give way stay; the
+  book then takes no new address until it is under the bound, and Fit
+  says how many it holds over. The node fits its book when it starts and
+  logs `peer book over its limits: policy value lowered`. `Open` does not
+  fit, since a command run offline opens the book with the default limits
+  and must not trim one kept under larger ones.
 - `Range` of a host name is the name in lower case without the root's
   trailing dot, as the tracker keys it (RED-060).
 

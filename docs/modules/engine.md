@@ -22,6 +22,12 @@ or opens a socket. Calls are safe from multiple goroutines.
   `Local` or `Stored` (read back from the node's store, decision D27).
   Results carry `Forward` (true only for `Pushed` and `Local`), and for
   entries and layers the `Switch` and pruned hashes.
+- Building on a chosen parent (D161): `BuildEntryOn(ctx, key, maxTries, g,
+  BuildOn{Parent, Txs})` builds on any held entry or the pool_id, from
+  chosen transactions or the pending ones, leaving out (and returning as
+  `ledger.Refused`) those that do not fit there. `ClaimParent(key,
+  serial)` is the parent of the selected entry holding a mint's claim,
+  where a rival claim goes; `PoolID(key)` is the pool_id.
 - Building: `Build(key, maxTries)` bundles ready pending transactions on the
   tip (`ErrNothingPending`, `ErrAlreadyBuilt`); `Work(key, entryHash, start,
   tries)` grinds and adds a layer (`ErrNoStrongerLayer`). `BuildEntry(ctx,

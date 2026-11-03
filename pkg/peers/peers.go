@@ -15,6 +15,7 @@
 package peers
 
 import (
+	"container/heap"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -131,7 +132,11 @@ type Record struct {
 	Added     time.Time `json:"added"`
 	LastTried time.Time `json:"last_tried,omitempty"`
 	Failures  int       `json:"failures,omitempty"`
-	Policies  []Policy  `json:"policies"`
+	// Reached is when this node last reached the node: a connection that
+	// worked, or a verification. A record the node has reached never gives
+	// way to a new address (RED-064, D160).
+	Reached  time.Time `json:"reached,omitempty"`
+	Policies []Policy  `json:"policies"`
 	// Label is the owner's own note on the node (poo peer label, D157).
 	// It is local: it never changes how the node is treated, and is
 	// never sent to a peer.
@@ -205,11 +210,16 @@ type Limits struct {
 	// is full, so a file can never fill the book against discovery
 	// (RED-058, D158).
 	MaxUnlisted int
+	// CandidateAge is how long an address learned from the network that
+	// this node has never reached keeps its place against a newer one
+	// when the book or its range is full; one whose last try failed gives
+	// way at once (RED-064, D160).
+	CandidateAge time.Duration
 }
 
 // DefaultLimits returns the provisional defaults.
 func DefaultLimits() Limits {
-	return Limits{MaxRecords: 4096, PerRange: 16, VerifiedPerRange: 4, Retry: time.Minute, MaxUnlisted: 1024}
+	return Limits{MaxRecords: 4096, PerRange: 16, VerifiedPerRange: 4, Retry: time.Minute, MaxUnlisted: 1024, CandidateAge: 24 * time.Hour}
 }
 
 // Book is the peer book. It is safe for concurrent use.
@@ -226,6 +236,20 @@ type Book struct {
 	// range parsed every address in the book for each address added,
 	// which made an import of 4,096 addresses take 1.9 s (ORANGE-031).
 	rng map[string]string
+	// perRange counts the records of each network range, and imp holds
+	// the records known only from an imported file (Record.imported).
+	// Both are kept as records are added, changed and deleted, so adding
+	// an address no longer scans the whole book: at max_book 65,536,
+	// filling the book took 81 s and each address learned into a full
+	// book 9 ms (ORANGE-032).
+	perRange map[string]map[string]*Record
+	imp      map[string]*Record
+	// The records that may give way to a new address, each oldest first:
+	// impQ those known only from an imported file, learnedQ those learned
+	// from the network and never reached, failedQ the learned ones whose
+	// last try failed. Entries are checked when read, so a record that
+	// changed or left is skipped then (RED-064, D160).
+	impQ, learnedQ, failedQ queue
 }
 
 type file struct {
@@ -266,7 +290,11 @@ func Open(path string, lim Limits) (*Book, error) {
 	if lim.MaxUnlisted == 0 {
 		lim.MaxUnlisted = max(1, lim.MaxRecords/4)
 	}
-	b := &Book{path: path, lim: lim, recs: map[string]*Record{}}
+	if lim.CandidateAge == 0 {
+		lim.CandidateAge = d.CandidateAge
+	}
+	b := &Book{path: path, lim: lim, recs: map[string]*Record{}, perRange: map[string]map[string]*Record{}, imp: map[string]*Record{}}
+	b.initQueues()
 	if path == "" {
 		return b, nil
 	}
@@ -296,11 +324,22 @@ func Open(path string, lim Limits) (*Book, error) {
 			// run's own check.
 			if p.State.Listed() {
 				p.State = Candidate
+				// A book saved before D160 has no reached time: a
+				// listed node was reached.
+				if r.Reached.IsZero() {
+					r.Reached = p.LastHeard
+					if r.Reached.IsZero() {
+						r.Reached = r.Added
+					}
+				}
 			}
 			ps = append(ps, p)
 		}
 		r.Policies = ps
-		b.recs[r.Addr] = r
+		if b.recs[r.Addr] != nil {
+			b.dropLocked(r.Addr)
+		}
+		b.putLocked(r)
 	}
 	return b, nil
 }
@@ -374,14 +413,55 @@ func (b *Book) rangeLocked(addr string) string {
 	return r
 }
 
-func (b *Book) inRangeLocked(rng string) int {
-	n := 0
-	for a := range b.recs {
-		if b.rangeLocked(a) == rng {
-			n++
+func (b *Book) inRangeLocked(rng string) int { return len(b.perRange[rng]) }
+
+// putLocked adds record r to the book and its counts.
+func (b *Book) putLocked(r *Record) {
+	b.recs[r.Addr] = r
+	rng := b.rangeLocked(r.Addr)
+	if b.perRange[rng] == nil {
+		b.perRange[rng] = map[string]*Record{}
+	}
+	b.perRange[rng][r.Addr] = r
+	b.trackLocked(r)
+	b.queueLocked(r)
+}
+
+// queueLocked puts r on the queues of records that give way it belongs to,
+// after it was added or became learned or failed.
+func (b *Book) queueLocked(r *Record) {
+	if r.learned() {
+		b.learnedQ.push(r, len(b.recs))
+		if r.Failures > 0 {
+			b.failedQ.push(r, len(b.recs))
 		}
 	}
-	return n
+}
+
+// dropLocked deletes addr's record from the book and its counts.
+func (b *Book) dropLocked(addr string) {
+	if _, ok := b.recs[addr]; !ok {
+		return
+	}
+	delete(b.recs, addr)
+	rng := b.rangeLocked(addr)
+	if delete(b.perRange[rng], addr); len(b.perRange[rng]) == 0 {
+		delete(b.perRange, rng)
+	}
+	delete(b.imp, addr)
+}
+
+// trackLocked notes whether r is known only from an imported file, after
+// a change to its policies.
+func (b *Book) trackLocked(r *Record) {
+	if r.imported() {
+		if b.imp[r.Addr] != r {
+			b.impQ.push(r, len(b.recs))
+		}
+		b.imp[r.Addr] = r
+	} else {
+		delete(b.imp, r.Addr)
+	}
 }
 
 // SetRefuse sets a filter for addresses the book must not take in, such
@@ -425,16 +505,11 @@ func (b *Book) add(addr string, sections []wire.Section, src Source, st State, n
 		if st == Unlisted && b.unlistedLocked() >= b.lim.MaxUnlisted {
 			return ErrUnlistedFull
 		}
-		// An address learned any other way takes the place of the oldest
-		// imported one when the book or the range is full (RED-058).
-		if len(b.recs) >= b.lim.MaxRecords && (st == Unlisted || !b.evictImportedLocked("")) {
-			return ErrFull
-		}
-		if b.inRangeLocked(b.rangeLocked(addr)) >= b.lim.PerRange && (st == Unlisted || !b.evictImportedLocked(b.rangeLocked(addr))) {
-			return ErrRangeFull
+		if err := b.makeRoomLocked(addr, src, st, now); err != nil {
+			return err
 		}
 		r = &Record{Addr: addr, Source: src, Added: now}
-		b.recs[addr] = r
+		b.putLocked(r)
 		b.dirty = true
 	}
 	for _, s := range sections {
@@ -443,7 +518,250 @@ func (b *Book) add(addr string, sections []wire.Section, src Source, st State, n
 			b.dirty = true
 		}
 	}
+	b.trackLocked(r)
 	return nil
+}
+
+// makeRoomLocked makes a place for a new record for addr, learned from
+// src in state st, or says why there is none. It decides first and only
+// then deletes, so a refused add changes nothing (RED-065): when the
+// range is full the record that gives way must be in that range, which
+// also frees a place in the book; otherwise, when the book is full, any
+// record that gives way will do. Which records give way, and to what, is
+// victimLocked's.
+func (b *Book) makeRoomLocked(addr string, src Source, st State, now time.Time) error {
+	rng := b.rangeLocked(addr)
+	bookFull := len(b.recs) >= b.lim.MaxRecords
+	rangeFull := b.inRangeLocked(rng) >= b.lim.PerRange
+	if !bookFull && !rangeFull {
+		return nil
+	}
+	fail := ErrFull
+	if rangeFull {
+		fail = ErrRangeFull
+	}
+	if st == Unlisted {
+		// An import never takes another record's place.
+		return fail
+	}
+	within := ""
+	if rangeFull {
+		within = rng
+	}
+	v := b.victimLocked(within, strongSource(src), now)
+	if v == nil {
+		return fail
+	}
+	// One record out must be enough: a book over its limits (one opened
+	// with lower ones and not yet fitted) stays closed rather than losing
+	// several records for one.
+	if (bookFull && len(b.recs)-1 >= b.lim.MaxRecords) || (rangeFull && b.inRangeLocked(rng)-1 >= b.lim.PerRange) {
+		return fail
+	}
+	b.dropLocked(v.Addr)
+	b.dirty = true
+	return nil
+}
+
+// strongSource reports whether an address from src is one the owner gave:
+// by hand (poo peer add) or in the node policy. It may take the place of
+// any learned record the node has never reached, so the owner is never
+// shut out of their own book (RED-064).
+func strongSource(src Source) bool { return src == FromHand || src == FromConfig }
+
+// learned reports whether r is a record the node learned from the network
+// (a peer list, a follow request or reply, a registry or an inbound
+// connection) and has never reached: no label, and never tried with
+// success or verified (a verified record was reached). Only
+// these, and records known only from an imported file, ever give way to a
+// new address; a record the owner added, labelled or configured, or one
+// the node reached, keeps its place (RED-064, D160).
+func (r *Record) learned() bool {
+	switch r.Source {
+	case FromPeerList, FromReply, FromRegistry, FromInbound:
+	default:
+		return false
+	}
+	return r.Label == "" && r.Reached.IsZero()
+}
+
+// Classes of record that give way, the first first.
+const (
+	giveImported = iota // known only from an imported file (RED-058)
+	giveFailed          // learned, never reached, and its last try failed
+	giveStale           // learned, never reached, older than CandidateAge
+	giveAny             // learned and never reached: only to the owner's add
+	giveNone
+)
+
+// giveClass returns which class r gives way in, to an address from the
+// owner (strong) or from anywhere else.
+func (b *Book) giveClass(r *Record, strong bool, now time.Time) int {
+	switch {
+	case r.imported():
+		return giveImported
+	case !r.learned():
+		return giveNone
+	case r.Failures > 0:
+		return giveFailed
+	case now.Sub(r.Added) >= b.lim.CandidateAge:
+		return giveStale
+	case strong:
+		return giveAny
+	}
+	return giveNone
+}
+
+// victimLocked returns the record that gives way to a new address, in
+// range rng ("" for any), or nil. Records known only from an imported
+// file go first; then learned ones whose last try failed; then learned
+// ones older than CandidateAge; and, for an address the owner gave, any
+// learned one: in each class the oldest first. It never picks a record
+// the owner added, labelled or configured, or one the node reached.
+//
+// For a range, it reads the range's records, at most book_per_range of
+// them. For the whole book it reads the queues, so an address learned into
+// a full book at the max_book ceiling costs no scan of the book.
+func (b *Book) victimLocked(rng string, strong bool, now time.Time) *Record {
+	if rng != "" {
+		var best *Record
+		bestClass := giveNone
+		for _, r := range b.perRange[rng] {
+			c := b.giveClass(r, strong, now)
+			if c == giveNone || c > bestClass {
+				continue
+			}
+			if c == bestClass && best != nil && !older(r, best) {
+				continue
+			}
+			best, bestClass = r, c
+		}
+		return best
+	}
+	if r := b.impQ.first(); r != nil {
+		return r
+	}
+	if r := b.failedQ.first(); r != nil {
+		return r
+	}
+	r := b.learnedQ.first()
+	if r != nil && (strong || now.Sub(r.Added) >= b.lim.CandidateAge) {
+		return r
+	}
+	return nil
+}
+
+// older orders records by when they were added, then by address.
+func older(r, s *Record) bool {
+	if !r.Added.Equal(s.Added) {
+		return r.Added.Before(s.Added)
+	}
+	return r.Addr < s.Addr
+}
+
+// queue is a heap of records, the oldest (older) first. A record is
+// pushed when it joins a class; the entries for which keep no longer holds
+// are dropped when they come first or when the queue is compacted, so
+// nothing has to be taken out when a record changes or leaves.
+type queue struct {
+	h    []*Record
+	keep func(*Record) bool
+}
+
+// initQueues sets what each queue keeps.
+func (b *Book) initQueues() {
+	held := func(r *Record) bool { return b.recs[r.Addr] == r }
+	b.impQ.keep = func(r *Record) bool { return held(r) && r.imported() }
+	b.learnedQ.keep = func(r *Record) bool { return held(r) && r.learned() }
+	b.failedQ.keep = func(r *Record) bool { return held(r) && r.learned() && r.Failures > 0 }
+}
+
+func (q *queue) Len() int           { return len(q.h) }
+func (q *queue) Less(i, j int) bool { return older(q.h[i], q.h[j]) }
+func (q *queue) Swap(i, j int)      { q.h[i], q.h[j] = q.h[j], q.h[i] }
+func (q *queue) Push(x any)         { q.h = append(q.h, x.(*Record)) }
+func (q *queue) Pop() any {
+	r := q.h[len(q.h)-1]
+	q.h[len(q.h)-1] = nil
+	q.h = q.h[:len(q.h)-1]
+	return r
+}
+
+// push adds r. A queue grown past twice the book's size (n records) is
+// compacted, so it stays within a small multiple of the book however
+// records come and go.
+func (q *queue) push(r *Record, n int) {
+	heap.Push(q, r)
+	if len(q.h) > 2*n+64 {
+		q.compact()
+	}
+}
+
+// compact drops the entries that no longer belong, and duplicates.
+func (q *queue) compact() {
+	seen := make(map[*Record]bool, len(q.h))
+	kept := q.h[:0]
+	for _, r := range q.h {
+		if !seen[r] && q.keep(r) {
+			seen[r] = true
+			kept = append(kept, r)
+		}
+	}
+	clear(q.h[len(kept):])
+	q.h = kept
+	heap.Init(q)
+}
+
+// first returns the oldest record the queue keeps, dropping the older
+// entries it does not, or nil.
+func (q *queue) first() *Record {
+	for len(q.h) > 0 {
+		if r := q.h[0]; q.keep(r) {
+			return r
+		}
+		heap.Pop(q)
+	}
+	return nil
+}
+
+// Fit brings a book over its limits down to them, as after max_book or
+// book_per_range was lowered (RED-064): the same records give way as to an
+// address the owner adds, in the same order (victimLocked), and imported
+// ones beyond MaxUnlisted go first. It never deletes a record the owner
+// added, labelled or configured, or one the node reached; when those alone
+// are over a limit, the book stays over it and refuses new addresses until
+// the owner deletes some. It returns how many records it deleted and how
+// many the book still holds beyond MaxRecords. Open does not fit, because
+// a book opened with the default limits (a command run offline) must not
+// trim one kept under larger ones; the node fits its book on start.
+func (b *Book) Fit(now time.Time) (deleted, over int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	drop := func(r *Record) {
+		b.dropLocked(r.Addr)
+		b.dirty = true
+		deleted++
+	}
+	for len(b.imp) > b.lim.MaxUnlisted {
+		drop(b.victimLocked("", true, now))
+	}
+	for rng, in := range b.perRange {
+		for len(in) > b.lim.PerRange {
+			v := b.victimLocked(rng, true, now)
+			if v == nil {
+				break
+			}
+			drop(v)
+		}
+	}
+	for len(b.recs) > b.lim.MaxRecords {
+		v := b.victimLocked("", true, now)
+		if v == nil {
+			break
+		}
+		drop(v)
+	}
+	return deleted, max(0, len(b.recs)-b.lim.MaxRecords)
 }
 
 // imported reports whether r is known only from an imported file: from
@@ -461,36 +779,7 @@ func (r *Record) imported() bool {
 }
 
 // unlistedLocked counts the records known only from an imported file.
-func (b *Book) unlistedLocked() int {
-	n := 0
-	for _, r := range b.recs {
-		if r.imported() {
-			n++
-		}
-	}
-	return n
-}
-
-// evictImportedLocked deletes the record known only from an imported file
-// that was added first, in range rng ("" for any), and reports whether it
-// found one. It never touches a record the node learned or verified.
-func (b *Book) evictImportedLocked(rng string) bool {
-	var old *Record
-	for a, r := range b.recs {
-		if !r.imported() || (rng != "" && b.rangeLocked(a) != rng) {
-			continue
-		}
-		if old == nil || r.Added.Before(old.Added) || (r.Added.Equal(old.Added) && r.Addr < old.Addr) {
-			old = r
-		}
-	}
-	if old == nil {
-		return false
-	}
-	delete(b.recs, old.Addr)
-	b.dirty = true
-	return true
-}
+func (b *Book) unlistedLocked() int { return len(b.imp) }
 
 // ForgetImported deletes every record known only from an imported file
 // (poo peer remove -imported, RED-058) and returns how many. A record the
@@ -500,11 +789,9 @@ func (b *Book) ForgetImported() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	n := 0
-	for a, r := range b.recs {
-		if r.imported() {
-			delete(b.recs, a)
-			n++
-		}
+	for a := range b.imp {
+		b.dropLocked(a)
+		n++
 	}
 	if n > 0 {
 		b.dirty = true
@@ -550,7 +837,8 @@ func (b *Book) Verify(addr string, s wire.Section, st State, now time.Time) erro
 		return ErrRangeFull
 	}
 	p.State, p.LastHeard = st, now
-	r.Failures = 0
+	r.Failures, r.Reached = 0, now
+	b.trackLocked(r)
 	b.dirty = true
 	return nil
 }
@@ -590,6 +878,7 @@ func (b *Book) Archive(addr string, ss ...wire.Section) {
 			}
 		}
 	}
+	b.trackLocked(r)
 	b.dirty = true
 }
 
@@ -633,7 +922,7 @@ func (b *Book) Delete(addr string) bool {
 	if _, ok := b.recs[addr]; !ok {
 		return false
 	}
-	delete(b.recs, addr)
+	b.dropLocked(addr)
 	b.dirty = true
 	return true
 }
@@ -652,6 +941,7 @@ func (b *Book) SetLabel(addr, label string) (bool, error) {
 	}
 	if r.Label != label {
 		r.Label = label
+		b.queueLocked(r)
 		b.dirty = true
 	}
 	return true, nil
@@ -688,6 +978,7 @@ func (b *Book) PromoteImported(s wire.Section, n int) int {
 				p.State = Candidate
 			}
 		}
+		b.trackLocked(r)
 	}
 	if len(list) > 0 {
 		b.dirty = true
@@ -708,9 +999,11 @@ func (b *Book) Tried(addr string, ok bool, now time.Time) {
 	}
 	r.LastTried = now
 	if ok {
-		r.Failures = 0
+		r.Failures, r.Reached = 0, now
 	} else if r.Failures < 16 {
-		r.Failures++
+		if r.Failures++; r.Failures == 1 && r.learned() {
+			b.failedQ.push(r, len(b.recs))
+		}
 	}
 	b.dirty = true
 }

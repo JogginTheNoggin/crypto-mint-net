@@ -2,6 +2,7 @@ package nodepolicy
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +34,8 @@ func TestLimitsSet(t *testing.T) {
 	if err := p.checkBounds(); err != nil {
 		t.Fatal(err)
 	}
-	want := peers.Limits{MaxRecords: 20000, PerRange: 64, VerifiedPerRange: 8, Retry: 30 * time.Second, MaxUnlisted: 5000}
+	p.P2P.CandidateSeconds = 7200
+	want := peers.Limits{MaxRecords: 20000, PerRange: 64, VerifiedPerRange: 8, Retry: 30 * time.Second, MaxUnlisted: 5000, CandidateAge: 2 * time.Hour}
 	if got := p.BookLimits(); got != want {
 		t.Errorf("book limits %+v, want %+v", got, want)
 	}
@@ -56,6 +58,10 @@ func TestLimitsBounds(t *testing.T) {
 		"tracking.flag_history_seconds": func(p *Policy, v int) { p.Tracking.FlagHistorySeconds = v },
 		"tracking.log_seconds":          func(p *Policy, v int) { p.Tracking.LogSeconds = v },
 		"tracking.log_size":             func(p *Policy, v int) { p.Tracking.LogSize = v },
+		"p2p.candidate_seconds":         func(p *Policy, v int) { p.P2P.CandidateSeconds = v },
+		"seen_size":                     func(p *Policy, v int) { p.SeenSize = v },
+		"max_pending":                   func(p *Policy, v int) { p.MaxPending = v },
+		"ties":                          func(p *Policy, v int) { p.Ties = v },
 	}
 	if len(set) != len(Bounds()) {
 		t.Fatalf("%d setters for %d bounds", len(set), len(Bounds()))
@@ -96,5 +102,65 @@ func TestValidateRefusesOutOfBounds(t *testing.T) {
 	p.P2P.MaxBook = 10
 	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "p2p.max_book") {
 		t.Errorf("max_book 10: %v", err)
+	}
+}
+
+// Limits lists every bound of Bounds, in its order, with what node.json
+// sets and what is used, and is the list Validate checks (GREEN-047).
+func TestLimitsListsEveryBound(t *testing.T) {
+	p := Default()
+	p.P2P.MaxBook = 1000
+	got := p.Limits()
+	all := Bounds()
+	if len(got) != len(all) {
+		t.Fatalf("%d limits, %d bounds", len(got), len(all))
+	}
+	for i, b := range all {
+		l := got[i]
+		if l.Name != b.Name || l.Min != b.Min || l.Max != b.Max || l.Default != b.Default {
+			t.Errorf("limit %d %+v, bound %+v", i, l, b)
+		}
+		if l.Name == "p2p.max_book" && (l.Set != 1000 || l.Used != 1000) {
+			t.Errorf("max_book: %+v", l)
+		}
+		if l.Name != "p2p.max_book" && (l.Set != 0 || l.Used != b.Default) {
+			t.Errorf("%s: %+v", l.Name, l)
+		}
+	}
+	p.Tracking.LogSize = 5
+	if err := p.Validate(); err == nil {
+		t.Error("Validate took a value Limits shows out of range")
+	}
+}
+
+// Every bound has a field SetLimits reaches, and a bad name, a value out
+// of range or a pair out of step changes nothing.
+func TestSetLimits(t *testing.T) {
+	var p Policy
+	for _, l := range p.Limits() {
+		q := p
+		if ok, err := q.SetLimits(map[string]int{l.Name: l.Max}); err != nil || !ok {
+			if !(l.Name == BoundBookPerRange.Name) {
+				t.Errorf("%s = %d: %v %v", l.Name, l.Max, ok, err)
+			}
+		}
+	}
+	if ok, err := p.SetLimits(map[string]int{"p2p.max_book": 300, "p2p.book_per_range": 300}); err != nil || !ok {
+		t.Fatalf("a pair: %v %v", ok, err)
+	}
+	before := p
+	for _, bad := range []map[string]int{{"p2p.nope": 1}, {"p2p.max_book": 1}, {"p2p.max_book": 256}} {
+		if _, err := p.SetLimits(bad); err == nil {
+			t.Errorf("%v taken", bad)
+		}
+		if !reflect.DeepEqual(p, before) {
+			t.Fatalf("%v changed the policy", bad)
+		}
+	}
+	if ok, err := p.SetLimits(map[string]int{"p2p.max_book": 300}); err != nil || ok {
+		t.Errorf("the same value: %v %v", ok, err)
+	}
+	if ok, err := p.SetLimits(map[string]int{"p2p.max_book": 0, "p2p.book_per_range": 0}); err != nil || !ok || p.P2P.MaxBook != 0 {
+		t.Errorf("back to the defaults: %v %v %+v", ok, err, p.P2P)
 	}
 }

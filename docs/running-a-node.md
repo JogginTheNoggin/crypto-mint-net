@@ -159,6 +159,30 @@ the reload, which takes a moment, are not replayed, so look at the views
 for anything that happened then. With the node stopped, `poo follow`
 edits `node.json` and the node applies it when it starts.
 
+## 4d. Claim a mint someone else claimed
+
+A claim is a transaction like any other, and which claim of a mint
+counts is decided by ledger weight, as a double spend is. The pending
+pool checks a transaction against the selected ledger, so a second claim
+of a mint it has claimed is refused there. To compete, build it on a
+branch from before that claim and add weight to the branch (D161):
+
+```sh
+./poo claim -seed-file bob.seed -serial 5 -parent before-claim -work 4000
+# prints the entry, and next: the command that adds weight to it
+./poo grind start ENTRY -serial 5 -for 2h      # or poo work -serial 5 -entry ENTRY
+./poo holdings -serial 5                       # bob holds it once the branch outweighs the other
+```
+
+`-parent` takes an entry hash, `root` (the pool's first entry) or
+`before-claim` (the parent of the selected entry that holds the mint's
+claim). `poo build -parent ...` does the same with the pending
+transactions that fit on that parent. The branch is kept like any
+other: it is selected once it is heavier, everywhere, and while it is
+lighter it may be pruned if more than `k` lighter branches are held
+(`k: -1` in node.json keeps every branch). Everything after the old
+claim that depends on it is not on the new branch.
+
 ## 5. Restart
 
 Stop the node and start it again. `poo status` shows the same tips and

@@ -36,11 +36,11 @@ func TestManagerLifecycle(t *testing.T) {
 	}
 
 	// Save again keeps data.
-	p.MaxPending = 5
+	p.MaxPending = 50
 	if err := m.Save("home", p); err != nil {
 		t.Fatal(err)
 	}
-	if q, _ := m.Load("home"); q.MaxPending != 5 || data(t, m, "home") != "home data" {
+	if q, _ := m.Load("home"); q.MaxPending != 50 || data(t, m, "home") != "home data" {
 		t.Fatal("save lost settings or data")
 	}
 
@@ -76,7 +76,7 @@ func TestManagerLifecycle(t *testing.T) {
 	if data(t, m, "home") != "" {
 		t.Fatal("using an archived policy kept its data")
 	}
-	if q, _ := m.Load("home"); q.MaxPending != 5 {
+	if q, _ := m.Load("home"); q.MaxPending != 50 {
 		t.Fatal("settings lost")
 	}
 	list, _ = m.List()

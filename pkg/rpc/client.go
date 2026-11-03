@@ -189,6 +189,18 @@ func (c *Client) BuildWith(p PoolRef, maxTries uint64, o GrindOptions) (EntryRep
 	return r, c.do("POST", "/v1/build", BuildRequest{PoolRef: p, MaxTries: maxTries, GrindOptions: o}, &r)
 }
 
+// BuildOn is BuildWith on a chosen parent and from chosen transactions
+// (D161): parent is an entry hash, "root" or "before-claim:N", txs are
+// encoded transactions; either may be empty.
+func (c *Client) BuildOn(p PoolRef, maxTries uint64, o GrindOptions, parent string, txs []*tx.Tx) (EntryReply, error) {
+	req := BuildRequest{PoolRef: p, MaxTries: maxTries, GrindOptions: o, Parent: parent}
+	for _, t := range txs {
+		req.Txs = append(req.Txs, hex.EncodeToString(t.Encode()))
+	}
+	var r EntryReply
+	return r, c.do("POST", "/v1/build", req, &r)
+}
+
 // WorkWith is Work grinding as o says; tries 0 with o.For grinds for that
 // long.
 func (c *Client) WorkWith(p PoolRef, e hash.Hash, start, tries uint64, o GrindOptions) (LayerReply, error) {

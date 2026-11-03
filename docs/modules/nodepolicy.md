@@ -52,7 +52,7 @@ D25). Nothing here changes what is valid.
     "strict_return": false,
     "no_confirm": false,
     "max_book": 4096, "book_per_range": 16, "verified_per_range": 4,
-    "retry_seconds": 60, "registry_seconds": 3600
+    "retry_seconds": 60, "registry_seconds": 3600, "candidate_seconds": 86400
   },
   "tracking": {
     "template": "basic",
@@ -117,8 +117,8 @@ default, D157) keeps the unlisted addresses an imported peer file gave
 out of the connection manager, so only `poo peer connect -imported`
 tries them.
 
-The peer book, tracker and discovery limits are the user's to set
-(D159). Left out or 0, each is its default; any other value must lie in
+The peer book, tracker and discovery limits, and the engine's memory
+limits, are the user's to set (D159, D160). Left out or 0, each is its default; any other value must lie in
 its range, or `Validate` refuses the policy and names the setting
 (`nodepolicy.Bounds`):
 
@@ -129,10 +129,28 @@ its range, or `Validate` refuses the policy and names the setting
 | `p2p.verified_per_range` | 4 | 1 to 64 | priority and backup peers from one range, per mint policy |
 | `p2p.retry_seconds` | 60 | 1 to 86400 | the first wait before trying a failed candidate again, doubled each failure |
 | `p2p.registry_seconds` | 3600 | 60 to 86400 | the least time between two loads of the registries |
+| `p2p.candidate_seconds` | 86400 | 60 to 31536000 | how long an address learned from the network and never reached keeps its place against a newer one when the book or its range is full (D160) |
 | `tracking.max_addresses` | 8192 | 1024 to 131072 | addresses the tracker keeps records for |
 | `tracking.flag_history_seconds` | 604800 | 3600 to 31536000 | how long an expired flag is remembered |
 | `tracking.log_seconds` | 3600 | 60 to 86400 | how long each address's detailed log keeps events |
 | `tracking.log_size` | 256 | 16 to 4096 | events in each address's detailed log |
+| `seen_size` | 65536 | 1024 to 4194304 | items on the seen list; it grows as items arrive (D160) |
+| `max_pending` | 10000 | 16 to 1048576 | pending transactions per pool (D160) |
+| `ties` | 64 | 1 to 4096 | off-chain entries kept that tie with the selected ledger's weight, beyond `k` (D160) |
+
+`Policy.Limits` lists them with the value node.json sets and the value used,
+from the one list `Validate` checks; `poo policy limits` prints it
+(GREEN-047).
+`poo policy limits -set NAME=VALUE` (`Policy.SetLimits`,
+`POST /v1/policy/limits`) changes them, checked whole first (D161).
+
+What the ceilings cost, as Orange measured them (ORANGE-032): a tracker
+at `tracking.max_addresses` 131072 takes about 420 MiB (3.3 KB an
+address), a 171 MiB `tracking.json`, and 6.9 s to save, holding the
+tracker meanwhile (at shutdown, and on a peer import with `-blocks`); a
+book at `p2p.max_book` 65536 takes 0.7 to 0.9 s for each save of the
+manager's pass. The defaults cost a small part of that. Raise a limit
+toward its ceiling only on a machine that has the memory and disk.
 
 None of them changes which ledger a node selects: a smaller book or a
 shorter memory only means the node knows fewer peers, which is a lack of

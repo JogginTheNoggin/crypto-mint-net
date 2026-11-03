@@ -89,12 +89,15 @@ Usage:
                               live events, one JSON object per line
                               FILTER: -series -pool -serial -address
                               -address-policy -tid -kind (repeatable, comma lists)
-  poo claim -seed-file FILE -serial N
-                              claim a whole mint for a key's address
+  poo claim -seed-file FILE -serial N [-parent HASH|root|before-claim [-work N]]
+                              claim a whole mint for a key's address; with
+                              -parent, build it on that branch to outweigh
+                              a claim the selected ledger holds
   poo pay -seed-file FILE -serial N -to ADDR -amount A
                               pay from a key's address, change back to it
-  poo build -pool K | -serial N [-work N] [-device D] [-threads N] [-for 30s]
-                              build an entry from the pending transactions
+  poo build -pool K | -serial N [-parent HASH|root|before-claim] [-work N] [-device D] [-threads N] [-for 30s]
+                              build an entry from the pending transactions,
+                              on the selected tip or the -parent named
   poo work -pool K | -serial N [-entry HASH] [-tries N | -for 30s] [-device D] [-threads N]
                               add a layer (default: on the selected tip)
   poo submit entry|layer -pool K | -serial N HEX
@@ -109,6 +112,9 @@ Usage:
                               poo unspent -serial N, kept for scripts)
   poo policy list|use|archive|unarchive|delete [-root DIR] [NAME]
                               manage saved and archived node policies
+  poo policy limits [-set NAME=VALUE]... [-o FORMAT]
+                              the settable limits: range, default, value;
+                              -set changes them, live in a running node
   poo policy export [-all | -series ID] [-full] [-out FILE]
                               write node policies to one shareable file
   poo policy import FILE|- [-apply] [-settings | -full] [-if-digest D]
