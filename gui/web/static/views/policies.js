@@ -81,6 +81,12 @@ function importForm(ctx, rootFlag) {
     if (r.code !== 0) return;
     let digest = '';
     try { digest = (JSON.parse(r.out)[0] || {}).digest || ''; } catch (_) { /* no plan */ }
+    // Apply is pinned to the previewed file, or not offered: without a
+    // digest from the preview it would run unpinned (GUI/Red R20B).
+    if (!/^[0-9a-f]{64}$/.test(digest)) {
+      area.append(el('p', { class: 'run-status bad no-digest', role: 'alert' }, 'Apply is not offered: the preview printed no digest to pin it to the file previewed.'));
+      return;
+    }
     const apply = el('button', { type: 'button', class: 'danger' }, 'Apply');
     const out = el('div', { class: 'area' });
     const actions = el('div', { class: 'actions' }, apply);
