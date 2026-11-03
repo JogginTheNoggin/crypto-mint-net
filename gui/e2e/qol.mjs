@@ -58,7 +58,7 @@ try {
   // An ambiguous prefix lists the choices.
   await line.fill('s');
   await line.press('Tab');
-  await until(async () => /series {2}sim {2}status/.test(await termText()), 'the list of choices');
+  await until(async () => /series {2}settings {2}sim {2}status/.test(await termText()), 'the list of choices');
   if (shots) await page.screenshot({ path: join(shots, 'complete.png') });
 
   // The skip link moves focus to the content without changing the view.
@@ -205,6 +205,7 @@ try {
     payment: 'older form of poo tx, kept for scripts; Explore runs tx',
     claim: 'claims with a raw key file; the Wallet view claims from the wallet',
     pay: 'pays with a raw key file; the Wallet view pays from the wallet',
+    settings: 'new in Source Round 20 (D155); GUI/Grey adds its export and import form next, and the terminal runs it until then',
   };
   const ran = new Set();
   // Every view in the navigation, so a new one is walked too (GUI-GREEN-044).

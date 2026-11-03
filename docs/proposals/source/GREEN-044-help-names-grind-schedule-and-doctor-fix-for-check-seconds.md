@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D155) |
 | Based on | `main` @ `4240d32` |
 | Area | `pkg/cli` (`poo help`, completion, `poo doctor`) |
 | Effort | small |

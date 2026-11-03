@@ -101,6 +101,12 @@ Usage:
   poo policy import FILE|- [-apply] [-settings | -full] [-if-digest D]
                               merge such a file into the node policies here:
                               shows the plan, changes them only with -apply
+  poo settings export [-full] [-out FILE]
+                              write this node's settings (not what it
+                              follows) to one file, for another machine
+  poo settings import FILE|- [-apply] [-full] [-map-path OLD=NEW]
+                              merge such a file into this node's settings:
+                              shows the plan and what may not fit here
   poo wallet COMMAND          keys from one seed, payments, requests,
                               co-signing and light mode (poo wallet help)
 
@@ -310,6 +316,8 @@ func run(args []string, out io.Writer) error {
 		return holdingsCmd(args[1:], out)
 	case "policy":
 		return policyCmd(args[1:], out)
+	case "settings":
+		return settingsCmd(args[1:], out)
 	case "wallet":
 		return walletCmd(args[1:], out)
 	case "sim":

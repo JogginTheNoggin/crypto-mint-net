@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D155) |
 | Based on | `main` @ `4240d32` |
 | Area | `pkg/p2p` (`checkLoop`, a new peer's first weight requests, new `sweepWeights`) |
 | Effort | one function and a test |

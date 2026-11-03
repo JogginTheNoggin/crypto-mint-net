@@ -3090,3 +3090,75 @@ a chase takes in after checking their work are not charged.
   D76, which is jerry's call as a feature, so it is not built.
 - **Tier:** Implementation (engine pool state, the p2p index, node policy
   follows, the CLI). Tests are listed in BLUE-020.
+
+### D155. Round 20: settings export and import; ORANGE-029 and GREEN-044 adopted
+
+- **Decision:**
+  - **Settings export and import (the owner's feature, 2026-11-03).**
+    - The ask: a way to save a node's settings and carry them to another
+      machine, as node policies can be exported and imported. Nothing
+      personal goes in.
+    - A node's settings are everything in its node policy except what it
+      follows (`nodepolicy.Followed`: series, follows, accepted issuers):
+      peers, registries, limits, the p2p switches, tracking, logs, the
+      grind defaults and jobs, and `issuers.any`. node.json holds no key,
+      seed, passphrase or RPC token, and the wallet is a separate file,
+      so none of those can be in the file.
+    - `poo settings export [-full] [-out FILE]` writes a bundle of scope
+      `settings` (`nodepolicy.ScopeSettings`, made by `ExportSettings`).
+      It uses the same file format as a policy bundle, format 1.
+      Machine-local settings (`MachineLocal`) are left out unless
+      `-full`.
+    - `poo settings import FILE|- [-apply] [-prefer-file] [-replace]
+      [-full] [-map-path OLD=NEW]... [-if-digest D]` is `poo policy
+      import` with `MergeOptions.SettingsOnly`. It reuses the same
+      reading, plan, conflicts, defences-first lines, digest, apply,
+      running-node path (`POST /v1/policy/import`) and view-only refusal.
+      It never takes what to follow, even from a whole node.json. With
+      `-replace`, the file's settings replace the node's, and what the
+      node follows stays its own.
+    - The two commands refuse each other's files with a hint:
+      - `poo policy import` refuses a settings file.
+      - `poo settings import` refuses a series file or an `-all` file.
+      - `poo settings import` takes the settings part of a policy file
+        or a node.json.
+  - **Moving to another machine.**
+    - `-map-path OLD=NEW` (repeatable, on both imports) rewrites a
+      registry file path that starts with OLD, at a path boundary. Those
+      files are the only local paths in node.json. It is part of
+      `MergeOptions`, so the digest covers it.
+    - `Plan.Fit` lists what the import brings in that may not fit this
+      machine (`nodepolicy.Fit`, with `grind.ThisMachine`):
+      - a grind device it lacks, or more threads than it has;
+      - a registry file that is not there;
+      - an RPC or p2p listen address that is none of its interfaces';
+      - an advertised address that came from another machine;
+      - a grind job for a series this node policy does not list.
+      Only lines the import adds are listed. The preview prints them as
+      "may not fit this machine". They refuse nothing. Both imports fill
+      them, offline and through a running node.
+  - **Merged with this round:**
+    - BLUE-020 (D154: RED-049, RED-050, RED-051), with Red's findings
+      (PR #103).
+    - ORANGE-029: the weight check asks within the peer's request budget
+      (`sweepWeights`). Black cleared it as an information gap.
+    - GREEN-044: help names `grind schedule`, completion reads grind's
+      usage, and doctor gives a fix for a lowered value with no command.
+      Its text point is taken too: a whole follow now prints "follows
+      every pool (N)".
+    - Black's Round 19 review: 8 clear, 0 blocked.
+- **Why:** the owner asked for it: "so it would allow them to carry it
+  over to another machine". Reusing the bundle and `Merge` keeps one
+  import path, so `-settings` on a policy import and a settings import
+  plan the same lines the same way.
+- **Consensus:** none. It writes node policy through the same `Merge` and
+  `Validate` as any import. No setting can make a heavier ledger
+  unacceptable, and the check that cannot be turned off (D153) stays
+  clamped.
+- **Not built:** settings kept outside node.json. The `settings` field of
+  the bundle stays reserved for them. The GUI form comes next, from
+  GUI/Grey.
+- **Tier:** Node policy and the CLI. The tests are `TestExportSettings`,
+  `TestMergeSettingsOnly`, `TestMapPaths` and `TestFit` in
+  `pkg/nodepolicy`, and `TestSettingsExportImport` and
+  `TestSettingsImportIntoRunningNode` in `pkg/cli`.

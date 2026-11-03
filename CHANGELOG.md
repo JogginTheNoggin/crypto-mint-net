@@ -180,3 +180,10 @@ built.
   `-apply` and a full digest; a node finds its stores from disk; and the
   weight check of priority peers can no longer be turned off (at most an
   hour apart).
+- **Settings export and import (D154, D155):** `poo settings export` and
+  `poo settings import` carry a node's settings, without what it follows
+  or anything personal, to another machine. The preview lists what may
+  not fit there, and `-map-path` remaps file paths. The weight check asks
+  within each peer's budget. A whole-series follow of a huge series costs
+  little in p2p. Taking a pool off a large follow writes `except`. The
+  import digest covers the options too.

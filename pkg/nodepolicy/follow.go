@@ -312,15 +312,6 @@ func (p *Policy) series(id hash.Hash) (*series.Series, error) {
 	return nil, fmt.Errorf("%w: series %s is not listed in the node policy", ErrInvalid, id.Short())
 }
 
-func (p *Policy) followsWhole(id hash.Hash) bool {
-	for _, g := range p.Follow {
-		if g.Series != nil && *g.Series == id && len(g.Pools) == 0 && len(g.Mints) == 0 {
-			return true
-		}
-	}
-	return false
-}
-
 func (p *Policy) without(id hash.Hash) []Follow {
 	var keep []Follow
 	for _, g := range p.Follow {

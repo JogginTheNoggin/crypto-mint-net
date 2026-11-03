@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -93,19 +94,29 @@ func policyExportCmd(args []string, out io.Writer) error {
 		b = nodepolicy.NewBundle(nodepolicy.ScopePolicy, *full, now)
 		b.Policies = []nodepolicy.BundlePolicy{{Name: name, Current: name != "" && name == cur, Policy: nodepolicy.ExportPolicy(p, *full)}}
 	}
-	if *file == "" {
+	return writeBundle(out, b, *file, fmt.Sprintf("%d node %s (%s)", len(b.Policies), plural(len(b.Policies), "policy", "policies"), b.Scope))
+}
+
+// writeBundle prints b, or writes it to file (readable by its owner only)
+// and says what it wrote.
+func writeBundle(out io.Writer, b nodepolicy.Bundle, file, what string) error {
+	if file == "" {
 		return b.Write(out)
 	}
 	var buf bytes.Buffer
 	if err := b.Write(&buf); err != nil {
 		return err
 	}
-	if err := fsutil.WriteFile(*file, buf.Bytes(), 0o600); err != nil {
+	if err := fsutil.WriteFile(file, buf.Bytes(), 0o600); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "exported %d node %s (%s) to %s\n", len(b.Policies), plural(len(b.Policies), "policy", "policies"), b.Scope, *file)
+	fmt.Fprintf(out, "exported %s to %s\n", what, file)
 	return nil
 }
+
+// thisMachine describes this machine for an import's fit check
+// (nodepolicy.Fit, D155); a test may replace it.
+var thisMachine = func() nodepolicy.Machine { return grind.ThisMachine(grind.Default) }
 
 func plural(n int, one, many string) string {
 	if n == 1 {
@@ -136,13 +147,33 @@ type importResult struct {
 // node policies here: it shows the plan, and changes them only with
 // -apply. A running node takes the change at once.
 func policyImportCmd(args []string, out io.Writer) error {
-	fs := newFlagSet("policy import", out)
+	return importBundleCmd(args, out, false)
+}
+
+// importBundleCmd is poo policy import, and with settingsOnly poo
+// settings import (D155): the same reading, plan, digest and apply, the
+// settings import taking only the node settings.
+func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
+	cmd := "policy import"
+	if settingsOnly {
+		cmd = "settings import"
+	}
+	fs := newFlagSet(cmd, out)
 	w := addWhere(fs)
 	apply := fs.Bool("apply", false, "make the change (default: only show the plan)")
 	prefer := fs.Bool("prefer-file", false, "where both set a value and they differ, take the file's (default: keep this node's)")
-	replace := fs.Bool("replace", false, "put the file's node policy in place of this one's instead of merging, keeping this machine's machine-local settings")
-	settings := fs.Bool("settings", false, "take the file's node settings too (peers, registries, grind jobs, tracking, the p2p switches and limits); by default only what to follow is taken")
-	full := fs.Bool("full", false, "take every setting, machine-local ones too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): restoring a backup on this machine")
+	settings := new(bool)
+	var replace, full *bool
+	if settingsOnly {
+		replace = fs.Bool("replace", false, "put the file's settings in place of this node's instead of merging, keeping what it follows and this machine's machine-local settings")
+		full = fs.Bool("full", false, "take the machine-local settings too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): moving to a new machine or restoring a backup")
+	} else {
+		replace = fs.Bool("replace", false, "put the file's node policy in place of this one's instead of merging, keeping this machine's machine-local settings")
+		settings = fs.Bool("settings", false, "take the file's node settings too (peers, registries, grind jobs, tracking, the p2p switches and limits); by default only what to follow is taken")
+		full = fs.Bool("full", false, "take every setting, machine-local ones too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): restoring a backup on this machine")
+	}
+	var maps stringList
+	fs.Var(&maps, "map-path", "OLD=NEW: read a registry file path that starts with OLD as starting with NEW, for a file made on another machine (repeatable)")
 	noReload := fs.Bool("no-reload", false, "change node.json only; a running node applies it on its next reload or start")
 	asJSON := fs.Bool("json", false, "print the plan as JSON")
 	ifDigest := fs.String("if-digest", "", "apply only if the import digest (hex, as the preview prints it: the file, the options and the plan) is this one: so what is applied is what was previewed")
@@ -157,10 +188,21 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if file == "" && fs.NArg() == 1 {
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 || file == "" {
-		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-if-digest D] [-policy NAME | -dir DIR]")
+		if settingsOnly {
+			return errors.New("usage: poo settings import FILE|- [-apply] [-prefer-file] [-replace] [-full] [-map-path OLD=NEW]... [-if-digest D] [-policy NAME | -dir DIR]")
+		}
+		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-map-path OLD=NEW]... [-if-digest D] [-policy NAME | -dir DIR]")
+	}
+	var pathMaps []nodepolicy.PathMap
+	for _, m := range maps {
+		pm, err := nodepolicy.ParsePathMap(m)
+		if err != nil {
+			return fmt.Errorf("-map-path: %w", err)
+		}
+		pathMaps = append(pathMaps, pm)
 	}
 	if *apply && viewOnlyOf(out) {
-		return errViewOnly("policy import -apply")
+		return errViewOnly(cmd + " -apply")
 	}
 	// A digest given empty is not a digest left out: a script passing an
 	// unset variable must not apply the file unchecked (RED-047, D152).
@@ -194,7 +236,16 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
+	switch {
+	case settingsOnly && b.Scope == nodepolicy.ScopeSeries:
+		return errors.New("this file holds a series, not settings: poo policy import adds it")
+	case settingsOnly && b.Scope == nodepolicy.ScopeNode:
+		return errors.New("this file holds several node policies: export the settings of one with poo settings export, or import it whole with poo policy import")
+	case !settingsOnly && b.Scope == nodepolicy.ScopeSettings:
+		return errors.New("this file holds settings only: poo settings import takes them")
+	}
+	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full,
+		SeriesOnly: b.Scope == nodepolicy.ScopeSeries, SettingsOnly: settingsOnly, MapPaths: pathMaps}
 	if opt.SeriesOnly && *replace {
 		return errors.New("a series bundle adds one series: -replace is for a node policy")
 	}
@@ -297,7 +348,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 		fmt.Fprintln(out, "note: the file also holds settings; this version imports node policies only")
 	}
 	for _, r := range results {
-		printPlan(out, r, *apply)
+		printPlan(out, r, *apply, settingsOnly)
 	}
 	if !*apply && changes {
 		fmt.Fprintln(out, "dry run: nothing was changed; add -apply to make this change")
@@ -370,6 +421,7 @@ func importOne(out io.Writer, dir, name string, managed bool, file nodepolicy.Po
 	if err != nil {
 		return res, err
 	}
+	plan.Fit = nodepolicy.Fit(local, merged, thisMachine())
 	plan.New = isNew
 	if isNew {
 		res.Mode = "create"
@@ -391,7 +443,7 @@ func importOne(out io.Writer, dir, name string, managed bool, file nodepolicy.Po
 }
 
 // printPlan prints one node policy's plan for reading.
-func printPlan(out io.Writer, r importResult, apply bool) {
+func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 	label := "node policy"
 	if r.Name != "" {
 		label += fmt.Sprintf(" %q", r.Name)
@@ -411,9 +463,12 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 	if len(p.Defences) > 0 {
 		fmt.Fprintf(out, "  read first: these change how this node runs, guards itself or reaches out, or take on many pools: %s\n", listSome(planFields(p.Defences, short), 20))
 	}
+	for _, f := range p.Fit {
+		fmt.Fprintf(out, "  may not fit this machine: %s\n", f)
+	}
 	for _, f := range p.Follows {
 		if f.Whole && f.Except == 0 {
-			fmt.Fprintf(out, "  series %s: follows all %d pools\n", f.Series, f.Pools)
+			fmt.Fprintf(out, "  series %s: follows every pool (%d)\n", f.Series, f.Pools)
 		} else {
 			fmt.Fprintf(out, "  series %s: follows %d of %d pools\n", f.Series, f.Followed, f.Pools)
 		}
@@ -438,7 +493,11 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		fmt.Fprintf(out, "  skipped, machine-local (-full takes them): %s\n", strings.Join(p.Skipped, ", "))
 	}
 	if len(p.SkippedSettings) > 0 {
-		fmt.Fprintf(out, "  skipped, node settings (-settings takes them): %s\n", listSome(planFields(p.SkippedSettings, short), 20))
+		hint := "-settings takes them"
+		if settingsOnly {
+			hint = "-full takes them"
+		}
+		fmt.Fprintf(out, "  skipped, node settings (%s): %s\n", hint, listSome(planFields(p.SkippedSettings, short), 20))
 	}
 	for _, s := range p.Refused {
 		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", s)
