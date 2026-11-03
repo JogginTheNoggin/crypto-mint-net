@@ -127,3 +127,13 @@ poo, for the terminal too.
   field, checkbox or pick, so the options Apply runs with are the ones
   previewed.
 - The digest is read from poo's own `-json` plan, not from the file.
+
+## Hardening (GUI/Blue, Round 20C)
+
+GUI/Red's R20B note was not a finding. Apply added `-if-digest` only when
+the preview's JSON carried a digest, so a preview without one would have
+offered an unpinned Apply. poo always prints a digest today. The Import
+form now offers Apply only for a 64-hex digest. Otherwise it says "Apply
+is not offered: the preview printed no digest…". Test: e2e `views.mjs`
+blanks the digest in a preview's output on its way to the page and
+expects no Apply. That test fails on the old code.

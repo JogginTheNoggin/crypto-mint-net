@@ -241,6 +241,21 @@ try {
   await imp.locator('.area .area .run-status', { hasText: /exit|failed|1/ }).waitFor();
   await imp.locator('.area .area', { hasText: 'not the one previewed' }).waitFor();
   assert.doesNotMatch(readFileSync(join(home, 'policies', 'default', 'node.json'), 'utf8'), /198\.51\.100\.9|203\.0\.113\.7/, 'a changed file is never applied');
+  // A preview that prints no digest gets no Apply, so Apply is never run
+  // unpinned (GUI/Red R20B hardening). poo always prints one; the test
+  // blanks it in the preview's output on its way to the page.
+  const noDigest = async route => {
+    const res = await route.fetch();
+    const body = (await res.text()).replace(/(\\"digest\\": *\\")[0-9a-f]{64}/g, '$1');
+    await route.fulfill({ response: res, body });
+  };
+  await fill(imp, 'File', bundle);
+  await page.route('**/api/jobs/*/events*', noDigest);
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.no-digest').waitFor();
+  await page.unroute('**/api/jobs/*/events*', noDigest);
+  await imp.locator('.import-plan').first().waitFor();
+  assert.equal(await applyBtn.count(), 0, 'no Apply without a digest to pin it');
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');
