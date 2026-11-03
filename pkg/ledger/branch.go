@@ -72,7 +72,7 @@ func (p *Pool) CheckOn(parent hash.Hash, txs []*tx.Tx) ([]*tx.Tx, []Refused, err
 	v := p.viewAfter(n).Overlay()
 	var ok []*tx.Tx
 	var refused []Refused
-	var taken []entry.Item
+	taken := newTaken()
 	for _, it := range items {
 		if err := tx.CheckStateless(p.s, it.Tx, it.TID); err != nil {
 			refused = append(refused, Refused{it.TID, err})
@@ -84,30 +84,50 @@ func (p *Pool) CheckOn(parent hash.Hash, txs []*tx.Tx) ([]*tx.Tx, []Refused, err
 			refused = append(refused, Refused{it.TID, err})
 			continue
 		}
-		if conflicts(taken, it) {
+		if taken.conflicts(it.Tx) {
 			refused = append(refused, Refused{it.TID, entry.ErrConflict})
 			continue
 		}
-		taken = append(taken, it)
+		taken.add(it.Tx)
 		ok = append(ok, it.Tx)
 	}
 	return ok, refused, nil
 }
 
-// conflicts reports whether it claims a mint or spends an input that one of
-// taken already does.
-func conflicts(taken []entry.Item, it entry.Item) bool {
-	for _, t := range taken {
-		if it.Tx.IsClaim() && t.Tx.IsClaim() && it.Tx.Mint.Serial == t.Tx.Mint.Serial {
+// taken is what the transactions CheckOn has kept so far claim and spend:
+// a set of mints and one of inputs, so each new transaction is checked in
+// time linear in its own inputs rather than in all those kept (ORANGE-033).
+type taken struct {
+	claims map[uint64]struct{}
+	spent  map[tx.Input]struct{}
+}
+
+func newTaken() taken {
+	return taken{claims: map[uint64]struct{}{}, spent: map[tx.Input]struct{}{}}
+}
+
+// conflicts reports whether t claims a mint or spends an input that one of
+// the kept transactions already does.
+func (k taken) conflicts(t *tx.Tx) bool {
+	if t.IsClaim() {
+		if _, ok := k.claims[t.Mint.Serial]; ok {
 			return true
 		}
-		for _, a := range t.Tx.Inputs {
-			for _, b := range it.Tx.Inputs {
-				if a == b {
-					return true
-				}
-			}
+	}
+	for _, in := range t.Inputs {
+		if _, ok := k.spent[in]; ok {
+			return true
 		}
 	}
 	return false
+}
+
+// add records t as kept.
+func (k taken) add(t *tx.Tx) {
+	if t.IsClaim() {
+		k.claims[t.Mint.Serial] = struct{}{}
+	}
+	for _, in := range t.Inputs {
+		k.spent[in] = struct{}{}
+	}
 }
