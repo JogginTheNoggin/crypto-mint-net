@@ -138,14 +138,21 @@ applies the change at once without a reload (D113).
 - `AddFollow(f)` / `RemoveFollow(f)` edit the follow list with merge
   rules (decision D93). Adding merges: an issuer appears once, a whole
   series replaces any parts of it, and pools and mints of one series join
-  one entry. Removing an issuer or whole series takes it off entirely;
-  removing pools from a series followed whole first writes the series out
-  pool by pool; removing mints takes them off the listed mints, and a mint
+  one entry (`joinFollow`: what either follows). Removing an issuer or
+  whole series takes it off entirely. Removing pools from a series
+  followed whole puts them on the follow's `except` list, so "all but
+  these" stays one entry for a series of any size. When fewer pools are
+  left than are taken off, the pools left are listed instead (RED-050,
+  D154). Adding a pool, or a mint, of an excepted pool takes it off the
+  list. Removing mints takes them off the listed mints, and a mint
   followed only through its pool cannot be removed alone, since a mint is
   checked with its whole pool. Both refuse a series not listed in
   `series`. `poo follow`, `poo unfollow`, `poo wallet follow` and
   `POST /v1/follow` all use them, so the file and the running node always
-  agree.
+  agree. A change after which the follow list would need more than
+  `MaxSections` (4096) separate sections, the wire's limit on what a node
+  announces, is refused with the way out, when it is made. A whole series,
+  with or without `except`, is one section (RED-050, D154).
 - `ReplaceFollow(f)` puts f's pools and mints (or the whole series, when
   f names none) in place of the series' rule in one change, leaving other
   rules alone; `poo wallet follow` uses it through `POST /follow` with
@@ -178,15 +185,17 @@ D149). It is JSON:
 {
   "kind": "poo-node-policies",
   "format": 1,
-  "scope": "series | policy | node",
+  "scope": "series | policy | node | settings",
   "exported": "2026-11-02T21:00:00Z",
   "full": false,
   "policies": [{"name": "default", "current": true, "policy": {"format": 1, "...": "node.json"}}]
 }
 ```
 
-`settings` is reserved for the node's own settings in a later format;
-this version writes none and only notes that a file has them.
+A `settings` bundle holds one node policy's settings and nothing it
+follows (see "Settings" below). The `settings` field is reserved for
+settings kept outside node.json in a later format; this version writes
+none and only notes that a file has them.
 
 - **Export** (`ExportPolicy`, `ExportSeries`, `NewBundle`, `Bundle.Write`)
   leaves out the machine-local settings, `MachineLocal`: the `rpc`
@@ -244,6 +253,42 @@ this version writes none and only notes that a file has them.
   Windows device name (`con`, `nul`, `com1`, ...) or end in `.`, so it can
   be kept on any system (`checkNewName`). One already saved under such a
   name still loads.
+
+## Settings: export, import and fit
+
+A node's *settings* are everything in its node policy but what it follows
+(`Followed`): peers, registries, limits, the p2p switches, tracking, logs,
+the grind defaults and jobs, and `issuers.any` (decision D155). They are
+there to be carried to another machine, kept as a backup, or shared.
+None of them is personal: node.json has no key, seed, passphrase or
+token.
+
+- **Export** (`ExportSettings(p, full)`) is `ExportPolicy` without the
+  series, follows and accepted issuers. It goes in a bundle of scope
+  `settings` (`ScopeSettings`). `ReadBundle` refuses a settings bundle
+  that holds any of those.
+- **Import** is `Merge` with `MergeOptions.SettingsOnly`. It drops what
+  to follow from the file, even a whole node.json, and takes the
+  settings as `Settings` does: the same conflicts, `Defences`, skipped
+  machine-local settings and digest. With `Replace`, the file's settings
+  replace local's, and local keeps what it follows and, unless `Full`,
+  its machine-local settings. `SettingsOnly` with `SeriesOnly` is
+  refused.
+- **Paths** (`MapPaths`, `ParsePathMap`). The only local paths in
+  node.json are registry files. Each `PathMap{From, To}` rewrites one
+  that starts with `From` at a path boundary (`/data` never rewrites
+  `/database`), before the merge. URLs are never rewritten.
+- **Fit** (`Fit(before, after, Machine)`) lists what the import brings
+  in that may not fit the machine:
+  - a grind device it lacks, or more threads than it runs;
+  - a registry file that is not there;
+  - an RPC or p2p listen address that is none of its interfaces';
+  - an advertised address from another machine;
+  - a grind job for a series the node policy does not list.
+
+  Lines that `before` already had are not listed. The caller describes
+  the machine (`grind.ThisMachine`) and puts the lines in `Plan.Fit`.
+  Fit refuses nothing.
 
 Nothing in a bundle changes what is valid, and nothing in a merge can make
 a node refuse a heavier ledger: it writes only node.json, through the same

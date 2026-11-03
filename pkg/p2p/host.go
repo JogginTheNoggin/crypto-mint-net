@@ -424,8 +424,14 @@ type Host struct {
 	recvLines lineCap
 
 	coverage []wire.Section
+	// idxMu guards the pool index: byPoolID, byKey and sorted. Pools of a
+	// large series followed whole (big) are added as they come into use
+	// (RED-049, D154); every other followed pool is indexed by New.
+	idxMu    sync.RWMutex
 	byPoolID map[hash.Hash]*poolInfo
 	byKey    map[engine.PoolKey]*poolInfo
+	sorted   []*poolInfo // byKey in order, nil when to be built again
+	big      map[hash.Hash]*series.Series
 	issuers  map[hash.Hash]hash.Hash // series id → issuer (zero if none)
 
 	tr    *tracking.Tracker
@@ -502,10 +508,8 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	}
 	eng := n.Engine()
 	perSeries := map[hash.Hash]int{}
-	n0 := eng.FollowedCount()
-	h.byPoolID = make(map[hash.Hash]*poolInfo, n0)
-	h.byKey = make(map[engine.PoolKey]*poolInfo, n0)
 	known := map[hash.Hash]*series.Series{}
+	h.big = map[hash.Hash]*series.Series{}
 	for _, id := range eng.FollowedSeries() {
 		s, _ := eng.Series(id)
 		known[id] = s
@@ -514,26 +518,40 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 			iss = *p
 		}
 		h.issuers[id] = iss
+		if eng.FollowsWhole(id) && s.PoolCount() >= engine.ListAll {
+			h.big[id] = s
+		}
 	}
-	// Without a list of every pool first: a series of very many pools
-	// followed whole costs one entry per pool here, and no more (RED-046).
-	eng.EachFollowedPool(func(k engine.PoolKey) {
-		s := known[k.Series]
-		pid := s.PoolID(k.Index)
-		pi := &poolInfo{key: k, s: s, section: wire.PoolSection(h.issuers[k.Series], k.Series, pid)}
-		h.byPoolID[pid] = pi
-		h.byKey[k] = pi
-		perSeries[k.Series]++
-	})
-	// Coverage: a whole series where every pool is followed, else pools.
-	ids := make([]hash.Hash, 0, len(perSeries))
-	for id := range perSeries {
+	h.byPoolID = map[hash.Hash]*poolInfo{}
+	h.byKey = map[engine.PoolKey]*poolInfo{}
+	// Every pool of an ordinary follow, without a list of every pool
+	// first (RED-046). A large series followed whole is indexed by the
+	// pools in use, here those with state, and later those an item is
+	// kept or chased in (RED-049, D154).
+	for id, s := range known {
+		if h.big[id] != nil {
+			continue
+		}
+		eng.EachFollowedPoolOf(id, func(k engine.PoolKey) {
+			h.indexLocked(h.makePool(s, k))
+			perSeries[k.Series]++
+		})
+	}
+	for _, k := range eng.ListedPools() {
+		if s := h.big[k.Series]; s != nil {
+			h.indexLocked(h.makePool(s, k))
+		}
+	}
+	// Coverage: a whole series (all but its Except too) or one where every
+	// pool is followed, else pools.
+	ids := make([]hash.Hash, 0, len(known))
+	for id := range known {
 		ids = append(ids, id)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i].Less(ids[j]) })
 	for _, id := range ids {
-		s, _ := eng.Series(id)
-		if uint64(perSeries[id]) == s.PoolCount() {
+		s := known[id]
+		if eng.FollowsWhole(id) || uint64(perSeries[id]) == s.PoolCount() {
 			h.coverage = append(h.coverage, wire.SeriesSection(h.issuers[id], id))
 			continue
 		}
@@ -554,6 +572,62 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	return h, nil
 }
 
+// makePool returns the pool record of pool k of series s.
+func (h *Host) makePool(s *series.Series, k engine.PoolKey) *poolInfo {
+	return &poolInfo{key: k, s: s, section: wire.PoolSection(h.issuers[k.Series], k.Series, s.PoolID(k.Index))}
+}
+
+// indexLocked adds pi to the index; New calls it before the host runs,
+// index after.
+func (h *Host) indexLocked(pi *poolInfo) {
+	h.byPoolID[pi.section.Pool] = pi
+	h.byKey[pi.key] = pi
+	h.sorted = nil
+}
+
+// index adds a pool of a large series followed whole to the index once
+// it is in use, and returns the indexed record.
+func (h *Host) index(pi *poolInfo) *poolInfo {
+	h.idxMu.Lock()
+	defer h.idxMu.Unlock()
+	if have := h.byKey[pi.key]; have != nil {
+		return have
+	}
+	h.indexLocked(pi)
+	return pi
+}
+
+// poolByKey returns the indexed pool k, or, for a pool of a large series
+// followed whole that is not indexed yet, nil.
+func (h *Host) poolByKey(k engine.PoolKey) *poolInfo {
+	h.idxMu.RLock()
+	defer h.idxMu.RUnlock()
+	return h.byKey[k]
+}
+
+// poolByID returns the indexed pool with the given pool id.
+func (h *Host) poolByID(id hash.Hash) *poolInfo {
+	h.idxMu.RLock()
+	defer h.idxMu.RUnlock()
+	return h.byPoolID[id]
+}
+
+// resolveBig finds, for a section of a large series followed whole that
+// is not indexed, the pool a transaction's mint names, checked against
+// the section's pool id. The record is not indexed: that waits until an
+// item is kept or a branch is chased in the pool (RED-049).
+func (h *Host) resolveBig(sec wire.Section, serial uint64) *poolInfo {
+	s := h.big[sec.Series]
+	if s == nil || sec.Depth != 3 || serial >= s.Mints() || sec.Issuer != h.issuers[sec.Series] {
+		return nil
+	}
+	k := engine.PoolKey{Series: sec.Series, Index: s.PoolOf(serial)}
+	if s.PoolID(k.Index) != sec.Pool || !h.n.Engine().Follows(k) {
+		return nil
+	}
+	return h.makePool(s, k)
+}
+
 // poolByName returns the followed pool a pool section's text names. The
 // text is parsed rather than kept for every pool, which cost a string per
 // pool of a series followed whole (RED-046, D152).
@@ -562,15 +636,29 @@ func (h *Host) poolByName(text string) *poolInfo {
 	if err != nil || sec.Depth != 3 {
 		return nil
 	}
-	pi := h.byPoolID[sec.Pool]
+	pi := h.poolByID(sec.Pool)
 	if pi == nil || pi.section != sec {
 		return nil
 	}
 	return pi
 }
 
+// sortedPools returns the indexed pools in order. The list is built once
+// and again only after a pool is added, not for every peer and check
+// (RED-049); callers must not change it.
 func (h *Host) sortedPools() []*poolInfo {
-	out := make([]*poolInfo, 0, len(h.byKey))
+	h.idxMu.RLock()
+	out := h.sorted
+	h.idxMu.RUnlock()
+	if out != nil {
+		return out
+	}
+	h.idxMu.Lock()
+	defer h.idxMu.Unlock()
+	if h.sorted != nil {
+		return h.sorted
+	}
+	out = make([]*poolInfo, 0, len(h.byKey))
 	for _, pi := range h.byKey {
 		out = append(out, pi)
 	}
@@ -580,6 +668,7 @@ func (h *Host) sortedPools() []*poolInfo {
 		}
 		return out[i].key.Index < out[j].key.Index
 	})
+	h.sorted = out
 	return out
 }
 
@@ -806,12 +895,18 @@ func (h *Host) checkLoop(ctx context.Context) {
 			return
 		case <-t.C:
 			h.sweepProgress(time.Now())
+			var order []*peer
+			per := map[*peer][]*poolInfo{}
 			for _, pi := range h.sortedPools() {
 				for _, p := range h.peersIn(pi.section, peers.CatPriority) {
-					h.spawn(func() {
-						h.askWeight(pi, p)
-					})
+					if per[p] == nil {
+						order = append(order, p)
+					}
+					per[p] = append(per[p], pi)
 				}
+			}
+			for _, p := range order {
+				h.sweepWeights(p, per[p])
 			}
 		}
 	}

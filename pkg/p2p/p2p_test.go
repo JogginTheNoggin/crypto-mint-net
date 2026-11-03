@@ -75,9 +75,17 @@ func startNode(t *testing.T, name string, edit func(*p2p.Config)) *tnode {
 func startNodeIn(t *testing.T, name string, s *series.Series, edit func(*p2p.Config)) *tnode {
 	t.Helper()
 	id := s.ID()
+	return startNodeWith(t, name, s, nodepolicy.Follow{Series: &id, Pools: []uint64{1}}, edit)
+}
+
+// startNodeWith is startNodeIn with the given follow rule; the node's key
+// is still pool 1.
+func startNodeWith(t *testing.T, name string, s *series.Series, follow nodepolicy.Follow, edit func(*p2p.Config)) *tnode {
+	t.Helper()
+	id := s.ID()
 	pol := nodepolicy.Default()
 	pol.Series = []nodepolicy.SeriesInfo{{Params: s.Params()}}
-	pol.Follow = []nodepolicy.Follow{{Series: &id, Pools: []uint64{1}}}
+	pol.Follow = []nodepolicy.Follow{follow}
 	pol.RPC.Listen = "off"
 	pol.NoSync = true
 	dir := t.TempDir()

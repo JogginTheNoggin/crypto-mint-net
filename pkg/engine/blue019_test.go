@@ -67,7 +67,15 @@ func TestListedPoolsOfAHugeSeries(t *testing.T) {
 	if !e.Follows(k) {
 		t.Fatal("a pool of the huge series is not followed")
 	}
+	// A query makes no state (RED-049, D154); a kept item does.
 	if _, err := e.Status(k); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := count(k); n != 0 {
+		t.Fatalf("a status query made the pool's state: %d", n)
+	}
+	keys := testutil.NewKeys(huge)
+	if _, err := e.HandleTx(keys.Claim(1<<39, testutil.P("alice", p.Supply)), engine.Pushed); err != nil {
 		t.Fatal(err)
 	}
 	if n, has := count(k); n != 1 || !has {

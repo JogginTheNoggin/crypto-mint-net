@@ -31,6 +31,10 @@ func (h *Host) offer(pi *poolInfo, p *peer, stated weight.Weight, at *hash.Hash)
 	if !stated.Greater(h.ownWeight(pi)) {
 		return
 	}
+	if h.big[pi.key.Series] != nil {
+		// A branch to chase puts the pool in use (RED-049).
+		pi = h.index(pi)
+	}
 	now := time.Now()
 	text := pi.section.Text()
 	h.tr.Stated(p.key, text, stated, now)

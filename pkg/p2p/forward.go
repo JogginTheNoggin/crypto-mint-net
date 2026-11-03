@@ -18,9 +18,14 @@ import (
 // onKept runs, under the node's lock, for every item the node keeps. It
 // only queues messages: it must not block or call the node.
 func (h *Host) onKept(ev node.Event) {
-	pi := h.byKey[ev.Key]
+	pi := h.poolByKey(ev.Key)
 	if pi == nil {
-		return
+		s := h.big[ev.Key.Series]
+		if s == nil {
+			return
+		}
+		// A pool of a large series followed whole comes into use.
+		pi = h.index(h.makePool(s, ev.Key))
 	}
 	hdr := wire.Header{Section: pi.section, Stated: ev.Weight}
 	if ev.Forward {
@@ -66,7 +71,7 @@ func (h *Host) poolFor(s wire.Section) *poolInfo {
 	if s.Depth < 3 {
 		return nil
 	}
-	pi := h.byPoolID[s.Pool]
+	pi := h.poolByID(s.Pool)
 	if pi == nil || pi.section.Issuer != s.Issuer || pi.section.Series != s.Series {
 		return nil
 	}
@@ -79,6 +84,20 @@ func (h *Host) poolFor(s wire.Section) *poolInfo {
 // delivery; one already held counts as a repeat.
 func (h *Host) handlePushed(p *peer, m wire.Message) error {
 	pi := h.poolFor(m.Section)
+	if pi == nil && h.big[m.Section.Series] != nil {
+		// A pool of a large series followed whole that is not in use yet:
+		// a transaction or an entry names it by a mint serial.
+		switch m.Type {
+		case wire.TypeTx:
+			if t, err := wire.DecodeTx(m.Body); err == nil {
+				pi = h.resolveBig(m.Section, t.Mint.Serial)
+			}
+		case wire.TypeEntry:
+			if e, err := wire.DecodeEntry(m.Body); err == nil && len(e.Txs) > 0 {
+				pi = h.resolveBig(m.Section, e.Txs[0].Mint.Serial)
+			}
+		}
+	}
 	if pi == nil {
 		return nil // not a pool this node follows
 	}

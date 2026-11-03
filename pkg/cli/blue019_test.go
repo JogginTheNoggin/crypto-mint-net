@@ -31,3 +31,28 @@ func TestIfDigestEmptyIsRefused(t *testing.T) {
 		t.Fatalf("still applied something:\n%s", out)
 	}
 }
+
+// RED-051, D154: the digest binds the options and the plan too: the
+// digest of a follow-only preview does not apply with -settings or -full,
+// nor after node.json changed.
+func TestIfDigestBindsOptionsAndPlan(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off", "-peer", "a.example:1")
+	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	bundle := filepath.Join(t.TempDir(), "b.json")
+	runOut(t, "policy", "export", "-root", src, "-out", bundle)
+	var res []importResult
+	cli(t, &res, "policy", "import", bundle, "-json", "-root", dst)
+	d := res[0].Digest
+	for _, extra := range [][]string{{"-settings"}, {"-full"}, {"-replace"}, {"-prefer-file"}} {
+		err := run(append([]string{"policy", "import", bundle, "-apply", "-if-digest", d, "-root", dst}, extra...), &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), "not the one previewed") {
+			t.Errorf("%v applied with the follow-only digest: %v", extra, err)
+		}
+	}
+	runOut(t, "policy", "import", bundle, "-apply", "-if-digest", d, "-root", dst)
+	// Applied: the same digest now plans nothing, so it no longer matches.
+	if err := run([]string{"policy", "import", bundle, "-apply", "-if-digest", d, "-root", dst}, &bytes.Buffer{}); err == nil {
+		t.Error("the digest applied again after node.json changed")
+	}
+}

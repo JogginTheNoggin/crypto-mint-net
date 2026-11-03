@@ -84,6 +84,8 @@ type peer struct {
 	sent, received atomic.Uint64
 	// reqs counts the requests sent to the peer in the last minute.
 	reqs reqWindow
+	// sweeping is set while a weight sweep to the peer runs (sweep.go).
+	sweeping atomic.Bool
 
 	mu    sync.Mutex
 	calls map[hash.Hash]chan wire.Message

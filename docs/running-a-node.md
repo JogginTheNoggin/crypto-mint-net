@@ -253,6 +253,34 @@ One file carries node policies to another node or machine:
 ./poo policy import backup.json -apply -full       # restores a backup on this machine
 ```
 
+### Moving settings to another machine
+
+A node's settings are everything in its node policy but what it
+follows: its peers, registries, limits, p2p switches, tracking, logs and
+grind jobs. `poo settings` writes them to one file and reads them back
+(D155). The file holds nothing personal: node.json has no key, seed,
+passphrase or token, and the wallet is a file of its own.
+
+```sh
+./poo settings export -out settings.json            # the settings, without this machine's own
+./poo settings export -full -out settings.json      # with rpc, listen addresses, grind device and threads
+./poo settings import settings.json                 # on the new machine: shows the plan
+./poo settings import settings.json -full -map-path /home/old=/home/new
+./poo settings import settings.json -apply          # merges them in
+```
+
+The preview lists, as "may not fit this machine", anything the file
+brings that the new machine may lack:
+
+- a grind device, or more threads than it has;
+- a registry file that is not there (`-map-path OLD=NEW` points it at one);
+- a listen address that is not one of its own;
+- an advertised address from the old machine;
+- a grind job for a series this node does not list.
+
+A settings import never changes what the node follows. To carry that
+too, export the node policy with `poo policy export`.
+
 By default an import takes only what to follow: series, follows and
 accepted issuers. Peers, registries, grind jobs, tracking and the p2p
 switches and limits are node settings; the plan lists them as skipped,

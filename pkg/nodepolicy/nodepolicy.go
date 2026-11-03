@@ -301,12 +301,16 @@ type Issuers struct {
 
 // Follow is one mint policy: an issuer, a series, some pools of a series or
 // some mints of a series. Exactly one of Issuer and Series is set. A series
-// with no Pools and no Mints means the whole series.
+// with no Pools and no Mints means the whole series, but the pools in
+// Except.
 type Follow struct {
 	Issuer *hash.Hash `json:"issuer,omitempty"`
 	Series *hash.Hash `json:"series,omitempty"`
 	Pools  []uint64   `json:"pools,omitempty"`
 	Mints  []uint64   `json:"mints,omitempty"`
+	// Except, with a whole series, lists the pools left out of it: all
+	// but these (RED-050, D154).
+	Except []uint64 `json:"except,omitempty"`
 }
 
 // Log configures the node's log (package logging).
@@ -477,8 +481,11 @@ func (p Policy) Validate() error {
 		if (f.Issuer == nil) == (f.Series == nil) {
 			return fmt.Errorf("%w: follow %d must name exactly one of issuer and series", ErrInvalid, i)
 		}
-		if f.Issuer != nil && (len(f.Pools) > 0 || len(f.Mints) > 0) {
-			return fmt.Errorf("%w: follow %d: an issuer has no pools or mints", ErrInvalid, i)
+		if f.Issuer != nil && (len(f.Pools) > 0 || len(f.Mints) > 0 || len(f.Except) > 0) {
+			return fmt.Errorf("%w: follow %d: an issuer has no pools, mints or except", ErrInvalid, i)
+		}
+		if len(f.Except) > 0 && (len(f.Pools) > 0 || len(f.Mints) > 0) {
+			return fmt.Errorf("%w: follow %d: except goes with a whole series, not with pools or mints", ErrInvalid, i)
 		}
 	}
 	if addr := p.ListenAddr(); addr != "" {

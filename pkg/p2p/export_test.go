@@ -1,6 +1,9 @@
 package p2p
 
-import "github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
+import (
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
+)
 
 // ProgressHeld returns, over the chases that yielded and kept their
 // progress, how many hashes they have been listed and how many they hold.
@@ -43,3 +46,9 @@ func (h *Host) ProgressCounted() (entries int, total weight.Weight) {
 	}
 	return entries, total
 }
+
+// Coverage returns the sections the host announces.
+func (h *Host) Coverage() []wire.Section { return h.coverage }
+
+// IndexedPools returns how many pools the host has indexed.
+func (h *Host) IndexedPools() int { return len(h.sortedPools()) }

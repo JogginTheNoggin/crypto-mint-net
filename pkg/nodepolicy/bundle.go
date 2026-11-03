@@ -27,7 +27,7 @@ import (
 //	{
 //	  "kind": "poo-node-policies",
 //	  "format": 1,
-//	  "scope": "series" | "policy" | "node",
+//	  "scope": "series" | "policy" | "node" | "settings",
 //	  "exported": "2026-11-02T21:00:00Z",
 //	  "full": false,
 //	  "policies": [{"name": "default", "current": true, "policy": {node.json}}],
@@ -50,6 +50,11 @@ const (
 	ScopePolicy = "policy"
 	// ScopeNode holds every saved node policy of a node, each by name.
 	ScopeNode = "node"
+	// ScopeSettings holds one node policy's settings and nothing it
+	// follows: how the node runs, to carry to another machine, back up
+	// or share (D155). poo settings export writes it, poo settings
+	// import reads it (ExportSettings, MergeOptions.SettingsOnly).
+	ScopeSettings = "settings"
 )
 
 // MaxBundleSize bounds the bundle file a node reads.
@@ -68,8 +73,9 @@ type Bundle struct {
 	// backup or a clone of this machine.
 	Full     bool           `json:"full,omitempty"`
 	Policies []BundlePolicy `json:"policies"`
-	// Settings is reserved for the node's own settings, which a later
-	// format adds. This version writes none and reads none.
+	// Settings is reserved for settings kept outside node.json, which a
+	// later format may add. This version writes none and reads none: the
+	// settings in node.json go in a settings bundle (ScopeSettings).
 	Settings json.RawMessage `json:"settings,omitempty"`
 	// Digest is the SHA-256 of the file as read (hex), set by
 	// ReadBundle, so an import can be tied to the file that was
@@ -248,9 +254,9 @@ func (b Bundle) HasSettings() bool {
 // check checks a bundle read from a file.
 func (b *Bundle) check() error {
 	switch b.Scope {
-	case ScopeSeries, ScopePolicy, ScopeNode:
+	case ScopeSeries, ScopePolicy, ScopeNode, ScopeSettings:
 	default:
-		return fmt.Errorf("%w: scope %q is not series, policy or node", ErrBundle, b.Scope)
+		return fmt.Errorf("%w: scope %q is not series, policy, node or settings", ErrBundle, b.Scope)
 	}
 	if len(b.Policies) == 0 {
 		return fmt.Errorf("%w: it holds no node policy", ErrBundle)
@@ -288,6 +294,9 @@ func (b *Bundle) check() error {
 		}
 		if b.Scope == ScopeSeries && len(bp.Policy.Series) != 1 {
 			return fmt.Errorf("%w: a series bundle holds one series", ErrBundle)
+		}
+		if b.Scope == ScopeSettings && !isSettingsOnly(bp.Policy) {
+			return fmt.Errorf("%w: a settings bundle holds no series, follows or accepted issuers", ErrBundle)
 		}
 	}
 	if current > 1 {
@@ -328,6 +337,15 @@ type MergeOptions struct {
 	// SeriesOnly takes only the series, the follow list and the accepted
 	// issuers: how a series bundle is imported.
 	SeriesOnly bool `json:"series_only,omitempty"`
+	// SettingsOnly takes only the node settings, never what to follow:
+	// how poo settings import works (D155). It implies Settings. With
+	// Replace the file's settings take the place of the node's, and what
+	// the node follows stays its own.
+	SettingsOnly bool `json:"settings_only,omitempty"`
+	// MapPaths rewrites the file's local paths (registry files) before
+	// anything else, so a file from another machine points at this one's
+	// (D155). The first entry whose From starts a path is used.
+	MapPaths []PathMap `json:"map_paths,omitempty"`
 }
 
 // Change is one line of a plan. Field names the setting as in node.json,
@@ -374,6 +392,11 @@ type Plan struct {
 	// (Policy.Accepted): the import still applies, but they stay unused
 	// until their issuer is accepted.
 	Refused []string `json:"refused"`
+	// Fit lists what the import brings in that may not fit this machine:
+	// a device or thread count it lacks, a file it does not have, an
+	// address that is not its own (Fit, D155). The caller fills it, as
+	// only it knows the machine. It refuses nothing.
+	Fit []string `json:"fit"`
 }
 
 // Empty reports whether the import changes nothing.
@@ -395,13 +418,20 @@ func (p Plan) Empty() bool {
 // unless Full. The result is valid (Validate) or Merge fails and local is
 // unchanged.
 func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
-	plan := Plan{Added: []Change{}, Removed: []Change{}, Changed: []Change{}, Conflicts: []Change{}, Skipped: []string{}, SkippedSettings: []string{}, Defences: []string{}, Refused: []string{}}
+	plan := Plan{Added: []Change{}, Removed: []Change{}, Changed: []Change{}, Conflicts: []Change{}, Skipped: []string{}, SkippedSettings: []string{}, Defences: []string{}, Refused: []string{}, Fit: []string{}}
+	if opt.SeriesOnly && opt.SettingsOnly {
+		return Policy{}, Plan{}, fmt.Errorf("%w: an import takes the series only or the settings only, not both", ErrInvalid)
+	}
 	local, file = clone(local), clone(file)
 	file.P2P.FastCatchUp, file.P2P.DepthLimit = false, 0
+	file = mapPaths(file, opt.MapPaths)
 	if opt.SeriesOnly {
 		file = followed(file)
 	}
-	settings := opt.Settings || opt.Full
+	if opt.SettingsOnly {
+		file = settingsPart(file)
+	}
+	settings := opt.Settings || opt.Full || opt.SettingsOnly
 	if !opt.Full {
 		plan.Skipped = machineSet(file)
 		file = Strip(file)
@@ -431,6 +461,11 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 		res = file
 		if !opt.Full {
 			res = withMachine(res, local)
+		}
+		if opt.SettingsOnly {
+			// How the node runs is the file's; what it follows stays its
+			// own.
+			res.Series, res.Follow, res.Issuers.Accept = local.Series, local.Follow, local.Issuers.Accept
 		}
 		res.Format = Format
 	default:
@@ -499,6 +534,7 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 				}
 				if len(f.Pools) == 0 && len(f.Mints) == 0 {
 					fc.Whole = true
+					fc.Except += uint64(len(f.Except))
 				}
 				for _, k := range f.Pools {
 					pools[k] = true
@@ -509,11 +545,11 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 			}
 			fc.Followed = uint64(len(pools))
 			if fc.Whole {
-				fc.Followed = fc.Pools
+				fc.Followed = fc.Pools - min(fc.Except, fc.Pools)
 			}
 			plan.Follows = append(plan.Follows, fc)
-			if fc.Whole && fc.Pools >= LargeFollow {
-				plan.Defences = append(plan.Defences, fmt.Sprintf("follow.[series %s] (all %d pools)", fc.Series, fc.Pools))
+			if fc.Whole && fc.Followed >= LargeFollow {
+				plan.Defences = append(plan.Defences, fmt.Sprintf("follow.[series %s] (%d of %d pools)", fc.Series, fc.Followed, fc.Pools))
 			}
 		}
 	}
@@ -563,6 +599,8 @@ type FollowCount struct {
 	Pools    uint64 `json:"pools"`
 	Followed uint64 `json:"followed"`
 	Whole    bool   `json:"whole,omitempty"`
+	// Except counts the pools a whole follow leaves out.
+	Except uint64 `json:"except,omitempty"`
 }
 
 // followed returns the parts of p that Followed names.
@@ -802,7 +840,11 @@ func flatAll(p Policy) map[string]string {
 		case f.Issuer != nil:
 			out["follow"+sep+"[issuer "+f.Issuer.Short()+"]"] = "true"
 		case f.Series != nil:
-			out["follow"+sep+"[series "+f.Series.Short()+"]"] = jsonOf(map[string]any{"pools": f.Pools, "mints": f.Mints})
+			v := map[string]any{"pools": f.Pools, "mints": f.Mints}
+			if len(f.Except) > 0 {
+				v["except"] = f.Except
+			}
+			out["follow"+sep+"[series "+f.Series.Short()+"]"] = jsonOf(v)
 		}
 	}
 	for _, a := range p.Issuers.Accept {

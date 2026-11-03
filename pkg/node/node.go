@@ -183,8 +183,10 @@ func (n *Node) configure() error {
 					break
 				}
 			}
-		case len(f.Pools) == 0 && len(f.Mints) == 0:
+		case len(f.Pools) == 0 && len(f.Mints) == 0 && len(f.Except) == 0:
 			err = n.eng.FollowSeries(*f.Series)
+		case len(f.Pools) == 0 && len(f.Mints) == 0:
+			err = n.eng.FollowSeriesExcept(*f.Series, f.Except)
 		default:
 			for _, k := range f.Pools {
 				if err = n.eng.FollowPool(*f.Series, k); err != nil {

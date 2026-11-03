@@ -267,17 +267,17 @@ func TestPlanNotesReadLikeItsLines(t *testing.T) {
 	runOut(t, "policy", "export", "-root", src, "-out", bundle)
 
 	out := runOut(t, "policy", "import", bundle, "-settings", "-root", dst)
-	if !strings.Contains(out, "many pools: p2p.peers: a.example:1") || strings.Contains(out, ".[") || !strings.Contains(out, "file digest") {
+	if !strings.Contains(out, "many pools: p2p.peers: a.example:1") || strings.Contains(out, ".[") || !strings.Contains(out, "import digest") {
 		t.Fatalf("preview:\n%s", out)
 	}
 	if !strings.Contains(out, "1 of the file's settings is already the same") {
 		t.Fatalf("one same setting:\n%s", out)
 	}
 	out = runOut(t, "policy", "import", bundle, "-apply", "-root", dst)
-	if strings.Contains(out, "file digest") || !strings.Contains(out, "saved") {
+	if strings.Contains(out, "import digest") || !strings.Contains(out, "saved") {
 		t.Fatalf("apply:\n%s", out)
 	}
-	if out = runOut(t, "policy", "import", bundle, "-root", dst); strings.Contains(out, "file digest") || !strings.Contains(out, "nothing to change") {
+	if out = runOut(t, "policy", "import", bundle, "-root", dst); strings.Contains(out, "import digest") || !strings.Contains(out, "nothing to change") {
 		t.Fatalf("nothing to change:\n%s", out)
 	}
 }

@@ -3,8 +3,13 @@ package rpc
 import (
 	"net/http"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 )
+
+// thisMachine describes the node's machine for an import's fit check
+// (nodepolicy.Fit, D155); a test may replace it.
+var thisMachine = func() nodepolicy.Machine { return grind.ThisMachine(grind.Default) }
 
 // PolicyImportRequest merges a node policy from a bundle into the running
 // node's (nodepolicy.Merge, D149). With DryRun it only returns the plan;
@@ -64,6 +69,7 @@ func (h *Handler) importPolicy(w http.ResponseWriter, r *http.Request) {
 		invalid(err)
 		return
 	}
+	plan.Fit = nodepolicy.Fit(local, res, thisMachine())
 	if rpcKept {
 		plan.Skipped = append(plan.Skipped, "rpc (changes only with the node stopped)")
 	}

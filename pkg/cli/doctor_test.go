@@ -254,3 +254,35 @@ func TestDoctorLoweredHasFixArgs(t *testing.T) {
 		}
 	}
 }
+
+// A lowered value no command writes, p2p.check_seconds -1 (D153), gets a
+// fix that names the value to write, not a grind command that cannot
+// write it, and no fix_args (GREEN-044).
+func TestDoctorLoweredWithoutCommandNamesTheValue(t *testing.T) {
+	dir := t.TempDir()
+	os.Chmod(dir, 0o700)
+	cli(t, nil, "init", "-example", "-dir", dir, "-p2p", "off")
+	path := filepath.Join(dir, "node.json")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["p2p"].(map[string]any)["check_seconds"] = -1
+	b, _ = json.Marshal(raw)
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var lowered Check
+	for _, c := range doctor(io.Discard, dir).Checks {
+		if c.Name == "policy" && c.Result == checkWarn {
+			lowered = c
+		}
+	}
+	if lowered.Fix != "set p2p.check_seconds to 3600 in "+path || len(lowered.FixArgs) != 0 {
+		t.Fatalf("lowered check %+v", lowered)
+	}
+}

@@ -50,6 +50,9 @@ var readCommands = map[string]map[string]bool{
 // table test can tell a forgotten command from a refused one.
 var writeCommands = []string{
 	"init", "node", "unfollow", "reload", "claim", "pay", "build", "work", "submit", "peer",
+	// settings export writes a file, as policy export does, and import
+	// changes node.json (D155).
+	"settings",
 }
 
 // viewOnlyOf reports whether the invocation writing to out is view-only.

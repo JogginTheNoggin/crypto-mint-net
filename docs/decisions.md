@@ -3043,3 +3043,122 @@ a chase takes in after checking their work are not charged.
   Wire protocol v2 is not built: the owner has not decided on it.
 - **Tier:** Node policy and p2p configuration. Tests are in
   `pkg/p2p/check_never_off_test.go`.
+
+### D154. Round 19 fixes: RED-049, RED-050, RED-051 (BLUE-020)
+
+- **Decision:**
+  - **RED-049.**
+    - A pool's state is kept only once an item leaves something in it.
+      Reads use a fresh state that is not kept.
+    - The p2p host announces a series of `engine.ListAll` (65,536) pools
+      or more followed whole as one section. It indexes that series'
+      pools as they come into use: with state at start, an item kept, a
+      branch offered. A pushed transaction or entry finds its pool by its
+      first mint serial, checked against the section's pool id.
+    - The sorted pool list is built only when the index changes.
+  - **RED-050.**
+    - `Follow.Except` means a whole series but those pools.
+      `RemoveFollow` on a whole series writes `except`, or the pools left
+      when they are fewer.
+    - Joining follows follows what either follows.
+    - The engine follows such a rule with `FollowSeriesExcept`, and p2p
+      announces it as the whole series.
+    - A follow change needing more than `MaxSections` (4096, the wire's
+      coverage limit) separate sections is refused when made.
+  - **RED-051.** The import digest is the SHA-256 of the file's digest,
+    the merge options and the plans. `-apply -if-digest` recomputes it
+    from a fresh plan before any change.
+- **Why:** Red's Round 19 findings, on top of D152:
+  - p2p still kept and sorted every pool.
+  - A refused item left a pool's state behind.
+  - All but one pool of a large series made the node refuse to start.
+  - The digest did not bind the options.
+- **Consensus:** none.
+  - A fresh pool state is decided by its series and index alone, so every
+    item meets the same state as before.
+  - Messages for a pool of a huge whole series that is not in use yet go
+    unanswered. Under the owner's definition that is lack of information,
+    not a hard fork.
+  - `MaxSections` limits how a follow list is written, not what can be
+    followed.
+  - No series is capped.
+- **With ORANGE-029 (PR #104):** it changes how a peer's weights are
+  asked. This changes which pools: the indexed ones. They touch the same
+  loops and compose; whichever merges second takes a small merge.
+- **What is left:** a pool index on the wire, for messages other than a
+  pushed transaction or entry. Black ruled it a protocol change under
+  D76, which is jerry's call as a feature, so it is not built.
+- **Tier:** Implementation (engine pool state, the p2p index, node policy
+  follows, the CLI). Tests are listed in BLUE-020.
+
+### D155. Round 20: settings export and import; ORANGE-029 and GREEN-044 adopted
+
+- **Decision:**
+  - **Settings export and import (the owner's feature, 2026-11-03).**
+    - The ask: a way to save a node's settings and carry them to another
+      machine, as node policies can be exported and imported. Nothing
+      personal goes in.
+    - A node's settings are everything in its node policy except what it
+      follows (`nodepolicy.Followed`: series, follows, accepted issuers):
+      peers, registries, limits, the p2p switches, tracking, logs, the
+      grind defaults and jobs, and `issuers.any`. node.json holds no key,
+      seed, passphrase or RPC token, and the wallet is a separate file,
+      so none of those can be in the file.
+    - `poo settings export [-full] [-out FILE]` writes a bundle of scope
+      `settings` (`nodepolicy.ScopeSettings`, made by `ExportSettings`).
+      It uses the same file format as a policy bundle, format 1.
+      Machine-local settings (`MachineLocal`) are left out unless
+      `-full`.
+    - `poo settings import FILE|- [-apply] [-prefer-file] [-replace]
+      [-full] [-map-path OLD=NEW]... [-if-digest D]` is `poo policy
+      import` with `MergeOptions.SettingsOnly`. It reuses the same
+      reading, plan, conflicts, defences-first lines, digest, apply,
+      running-node path (`POST /v1/policy/import`) and view-only refusal.
+      It never takes what to follow, even from a whole node.json. With
+      `-replace`, the file's settings replace the node's, and what the
+      node follows stays its own.
+    - The two commands refuse each other's files with a hint:
+      - `poo policy import` refuses a settings file.
+      - `poo settings import` refuses a series file or an `-all` file.
+      - `poo settings import` takes the settings part of a policy file
+        or a node.json.
+  - **Moving to another machine.**
+    - `-map-path OLD=NEW` (repeatable, on both imports) rewrites a
+      registry file path that starts with OLD, at a path boundary. Those
+      files are the only local paths in node.json. It is part of
+      `MergeOptions`, so the digest covers it.
+    - `Plan.Fit` lists what the import brings in that may not fit this
+      machine (`nodepolicy.Fit`, with `grind.ThisMachine`):
+      - a grind device it lacks, or more threads than it has;
+      - a registry file that is not there;
+      - an RPC or p2p listen address that is none of its interfaces';
+      - an advertised address that came from another machine;
+      - a grind job for a series this node policy does not list.
+      Only lines the import adds are listed. The preview prints them as
+      "may not fit this machine". They refuse nothing. Both imports fill
+      them, offline and through a running node.
+  - **Merged with this round:**
+    - BLUE-020 (D154: RED-049, RED-050, RED-051), with Red's findings
+      (PR #103).
+    - ORANGE-029: the weight check asks within the peer's request budget
+      (`sweepWeights`). Black cleared it as an information gap.
+    - GREEN-044: help names `grind schedule`, completion reads grind's
+      usage, and doctor gives a fix for a lowered value with no command.
+      Its text point is taken too: a whole follow now prints "follows
+      every pool (N)".
+    - Black's Round 19 review: 8 clear, 0 blocked.
+- **Why:** the owner asked for it: "so it would allow them to carry it
+  over to another machine". Reusing the bundle and `Merge` keeps one
+  import path, so `-settings` on a policy import and a settings import
+  plan the same lines the same way.
+- **Consensus:** none. It writes node policy through the same `Merge` and
+  `Validate` as any import. No setting can make a heavier ledger
+  unacceptable, and the check that cannot be turned off (D153) stays
+  clamped.
+- **Not built:** settings kept outside node.json. The `settings` field of
+  the bundle stays reserved for them. The GUI form comes next, from
+  GUI/Grey.
+- **Tier:** Node policy and the CLI. The tests are `TestExportSettings`,
+  `TestMergeSettingsOnly`, `TestMapPaths` and `TestFit` in
+  `pkg/nodepolicy`, and `TestSettingsExportImport` and
+  `TestSettingsImportIntoRunningNode` in `pkg/cli`.

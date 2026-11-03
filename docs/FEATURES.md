@@ -30,6 +30,7 @@ decision that records it. Each package has its own document in
 | Node policies: what a node knows, accepts and follows, how many branches it keeps, its limits, logs and ports, in `node.json` | `poo init`, `poo follow`, `poo unfollow`, `poo reload` | `pkg/nodepolicy` | D93, D139 |
 | Several node policies side by side: save, use, archive, unarchive, delete | `poo policy list` and the `use`, `archive`, `unarchive` and `delete` subcommands | `pkg/nodepolicy` (Manager) | M2 |
 | **Policy export and import:** one shareable JSON file holding a series, a node policy or every saved policy. Import shows a plan first, merges, lists conflicts, puts every node-setting line first and counts the pools each follow takes on. By default it takes only what to follow; `-settings` takes the node's settings too, and `-full` this machine's own. A node bundle is planned whole before anything is saved, so a bad policy in it changes nothing; if a save then fails, the error names what was already saved. The plan prints the file's digest, and `-apply -if-digest` applies only the file previewed. `-` reads standard input. A running node applies it live | `poo policy export`, `poo policy import` | `pkg/nodepolicy` (bundle.go), `pkg/cli` (policyport.go), `POST /v1/policy/import` | D149, D150, D151 |
+| **Settings export and import:** the node's settings (everything but what it follows: peers, registries, limits, p2p switches, tracking, logs, grind defaults and jobs) in one file, to carry to another machine, keep a backup or share a setup. Nothing personal is in it: no key, seed, passphrase or token. Machine-local settings go in only with `-full`. Import is the same as policy import: plan first, conflicts, defences first, `-replace`, `-if-digest`, applied live by a running node. It never takes what to follow. `-map-path OLD=NEW` points the file's paths at this machine's, and the preview lists what may not fit here (a device, threads, a file, an address) | `poo settings export`, `poo settings import` | `pkg/nodepolicy` (settings.go), `pkg/cli` (settingsport.go), `POST /v1/policy/import` | D155 |
 | Live reload of a changed policy without stopping the node | `poo reload` | `pkg/daemon`, `pkg/rpc` | GREEN-011 |
 | Setup check that says what to fix | `poo doctor` | `pkg/cli` | GREEN-035 |
 | Structured logs: plain, text or JSON | `poo node -log-format json` | `pkg/logging` | D104 |
@@ -161,4 +162,5 @@ Then the GUI, where a feature is a form over its command:
    only for a flag that belongs in the terminal.
 
 The policy bundle is built to grow in the same way: its format carries a
-version, and it has a reserved slot for the node's settings.
+version and a scope (series, policy, node, settings), and it has a
+reserved slot for settings kept outside node.json.
