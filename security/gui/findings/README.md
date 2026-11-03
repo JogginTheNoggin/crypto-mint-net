@@ -5,6 +5,31 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 21 Part B reviewed main @ 4dc7d3d (PR #118: the settings export
+and import forms, `-map-path`, the plan's follows, fit and now_used lines,
+GUI-GREEN-046's Copy, ORANGE-015's long plans, and the R20B hardening).
+
+New:
+- GUI-024 (Medium): on Windows, the new **Copy** quotes a line for
+  `CommandLineToArgvW`, not for a shell. A field holding `x$(calc)`,
+  `a;calc` or `x"&calc&"y` is copied so that PowerShell or cmd.exe runs
+  `calc` too. A link such as `#/explore?address=…` can fill the field.
+  Shown with Playwright and `/api/info` answering `grammar: "windows"`.
+  POSIX is safe.
+
+Held up:
+- **The settings import is pinned.** I previewed a settings file, then
+  changed a peer in it on disk. `poo settings import FILE -apply
+  -if-digest D` then exits 1 with "this is not the one previewed", and
+  node.json is unchanged. The GUI's settings form is the same
+  `importForm`, so a form change still removes Apply.
+- **The R20B note is done.** A preview with no digest now gets no Apply,
+  and says so.
+- **The new plan lines are text.** `follows`, `fit` and `now_used` are
+  drawn with `el` (text nodes), and the page has no `innerHTML` but the
+  terminal's fixed frame.
+- `settings` is a write command, so the view token is refused it.
+
 Round 20 Part B reviewed main @ 9628426 (PR #107: Red #99,
 GUI-GREEN-045's subcommand parity check, Orange #101, and the Source
 changes merged with them: D152 `-if-digest` checks, BLUE-019 followed
@@ -348,3 +373,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-021](GUI-021-stop-submits-pasted-entry.md) | Low | Stop (or Ctrl-C in the terminal) on `poo submit -f -` hands the pasted entry or layer to the node: a cancelled job's input reads as end of input, and the GUI has no other end of input | fixed by GUI/Blue (PR #68), merged Round 15; verified R16B @ 6a1cdce |
 | [GUI-022](GUI-022-hold-adopts-new-seal.md) | Medium | `Wallet.Hold` (D146) adopts a file saved meanwhile, seal included, so a command opened before a passphrase change still works with the old passphrase, and a stale `passwd` re-seals over the owner's rotation | fixed by Source (D149 + D151), merged Round 19; verified R19B @ e71e317 |
 | [GUI-023](GUI-023-import-apply-other-file.md) | Low | Import's Apply sends whatever file is picked now, not the one previewed, so a file never reviewed is applied; the confirm shows only `-apply -` | fixed by GUI/Blue (Round 18C) and Source `-if-digest` (D151), merged Round 19; verified R19B @ e71e317 |
+| [GUI-024](GUI-024-copied-line-runs-in-windows-shell.md) | Medium | On Windows, Copy quotes the command line for `CommandLineToArgvW`, not a shell, so a field value (one a link can fill) runs other commands when the line is pasted into PowerShell or cmd.exe | fixed by GUI/Blue in Round 21C (Copy copies only words both shells take literally, else it is off); awaiting verification |

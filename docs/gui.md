@@ -144,7 +144,7 @@ with a button that runs it in the terminal.
 | Explore | `pools`, `ledger` (page by page), `pending`, `unspent`, `tx`, `address`, with the same filter flags |
 | Pools and payments | `status`, `holdings`, `payment`, `build`, `work` (with `-bytes`), `submit` (hex or `-f`) |
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
-| Peers | `peers`, `peer ACTION`, `tracking`, `chases` |
+| Peers | `peers` (and its filters), `peer ACTION` (with `add`, `remove`, `label`, `connect`), `tracking` (`-blocked`, `-timed-out`), `chases`, `peers export` and `peers import` (a preview, then Apply with `-if-digest`) |
 | Node policies | `settings export`, `settings import` (the same preview and Apply), `policy list`, `use`, `archive`, `unarchive`, `delete`, `policy export` (printed, with Save as file, or `-out`), `policy import` (a preview of the plan, defences first, with `-settings` and `-full`; then Apply with `-if-digest`; a path or a file picked in the browser, sent as `-`) |
 | Series and keys | `crypto`, `keygen`, `series new`, `series info` |
 | Jobs | Every command run, its output, stop, run again |
@@ -301,8 +301,11 @@ server is locked down:
   its history in the browser's storage, and it does not save a line that
   holds a secret flag (`shell.SecretFlags`: `-restore`, `-seed`, except
   `sim -seed`), or a line that starts with a space, as a shell with
-  `HISTCONTROL=ignorespace` does. Up-arrow still recalls such a line for
-  the rest of the session, and Forget history clears what is saved. Jobs
+  `HISTCONTROL=ignorespace` does. A secret flag whose value is `-`
+  (`wallet create -restore -`) holds no secret and is saved. No form puts
+  a seed on its line: Make a key runs `keygen -seed-file -`, which reads
+  the seed from the masked field (D98, GUI-GREEN-047). Up-arrow still
+  recalls such a line for the rest of the session, and Forget history clears what is saved. Jobs
   and `GET /api/jobs` show the flag's value as `<hidden>` and do not offer
   the line to run again. The terminal still echoes the line as typed, as a
   shell does, and a form's preview shows it.

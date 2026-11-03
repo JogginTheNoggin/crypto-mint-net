@@ -105,13 +105,13 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Feature | What it does | Code | Decisions |
 | --- | --- | --- | --- |
 | Same code as headless | Every action is a `poo` command line run through `cli.Main`. The GUI may import only `pkg/cli`, and a test enforces it | `gui/`, `gui/imports_test.go` | D84 to D89 |
-| Shows its command | Each panel and form shows the exact line it runs, quoted for the platform's shell, with Run in terminal and Copy (off while the line holds a secret flag) | `gui/web/static/views.js` | GUI-GREEN-046 |
+| Shows its command | Each panel and form shows the exact line it runs, quoted for the platform's shell, with Run in terminal and Copy (off while the line holds a secret flag, and on Windows off for a word PowerShell or cmd.exe would run or change) | `gui/web/static/views.js`, `gui/web/static/api.js` (`copyLine`) | GUI-GREEN-046, GUI-024 |
 | One file per view | Each view is a module in `views/` listed once in `views/index.js`; navigation and the e2e walks read that list | `gui/web/static/views/` | GUI-GREEN-044 |
 | Terminal | Runs `poo` itself: a typed line runs exactly as in a shell, split the way the platform's shell splits it, with history, Ctrl-C and Ctrl-D | `gui/shell`, `gui/web/static/terminal.js` | D86, GUI-021 |
 | Local web app | One Go binary on loopback that opens the system browser, or an app window with `-app`. No CGO and no JavaScript build | `gui/cmd/poo-gui`, `gui/server` | D85 |
 | Locked down | One-time sign-in address, session cookie, cross-origin requests refused, strict content security policy | `gui/server` | GUI-001 to GUI-005 |
 | View-only mode | `poo-gui -view-only` runs every command in the core's view-only mode | `gui/server` | D101 |
-| Masked secrets | A passphrase or seed is masked exactly when `poo` reads one, and asked for again on a second prompt | `gui/jobs` | D101, GUI-020 |
+| Masked secrets | A passphrase or seed is masked exactly when `poo` reads one, and asked for again on a second prompt. No form puts a seed on its command line: Make a key and Restore ask for it (D98) | `gui/jobs`, `gui/web/static/views/crypto.js` | D101, GUI-020, GUI-GREEN-047 |
 | Jobs | Every command run, with live output, Stop, Run again and bounded scrollback. Node, Watch and grind jobs keep running across views | `gui/jobs`, `gui/server` | ORANGE-001 to ORANGE-003 |
 | Long input | A pasted entry of any size reaches `poo`: it is sent in parts, and end of input waits for all of it | `gui/jobs`, `gui/web/static/api.js` | ORANGE-013 |
 | Settings | `-root` and `-policy`, set once and added by every view | `gui/web/static/where.js` | |
@@ -129,7 +129,8 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Explore | Pools, the ledger page by page, pending, unspent, a transaction and an address, with the shared filter. Ids and addresses link to each other | `poo pools`, `ledger`, `pending`, `unspent`, `tx`, `address` |
 | Pools and payments | Status, holdings, payment, build an entry or add a layer (optionally printing the hex), submit as hex or from a file | `poo build`, `work`, `submit` |
 | Wallet | Every wallet command, with one series choice shared by all of them | `poo wallet` |
-| Peers | Peers, peer actions, tracking and chases | `poo peers`, `peer`, `tracking`, `chases` |
+| Peers | Peers, the peer book filtered (categories, mint policy, label, address), add, remove, label or connect a peer now (with every imported address), peer actions, tracking (only blocked or timed out) and chases | `poo peers`, `peer`, `tracking`, `chases` (D157) |
+| Peer export and import | Export the peer book, or some categories, and the blocks, with Save as file. Import a path or a picked file: a preview of the addresses, mint policies, labels and blocks it adds, then Apply pinned with `-if-digest`. Blocks only with Take blocks | `poo peers export`, `poo peers import` (D157) |
 | Node policies | List, use, archive, unarchive and delete saved policies | `poo policy` |
 | Policy export and import | Export this policy, one series or every saved policy, to a file or the screen with Save as file. Import a path or a file picked in the browser (streamed as it is read): a preview that shows first what changes a defence, then what is new, changed, in conflict, refused or left alone. Only what to follow is taken unless node settings (`-settings`) or every setting (`-full`) is asked for. Apply carries out exactly the previewed file (`-if-digest`), and any change to the form takes Apply away. Registry paths from another machine are mapped (`-map-path`). Long plans draw 500 lines at a time | `poo policy export`, `poo policy import` (D149, D150, D151, GUI-023, ORANGE-014) |
 | Settings export and import | Export this node's settings (not what it follows) to a file or the screen, with Save as file; `-full` keeps machine-local ones. Import shows the same preview, with what may not fit this machine, series now used and defences first, then Apply pinned with `-if-digest` | `poo settings export`, `poo settings import` (D155, D156) |

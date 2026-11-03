@@ -53,6 +53,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-044](GUI-GREEN-044-one-file-per-view.md) | One file per view in `static/views/`, one list in `views/index.js`; the e2e walks every view from the navigation | small | yes | adopted |
 | [GUI-GREEN-045](GUI-GREEN-045-subcommand-parity.md) | parity.mjs also checks that every subcommand poo lists (peer actions, policy, sim, submit, grind, wallet) is run by a view | small | yes | adopted |
 | [GUI-GREEN-046](GUI-GREEN-046-copy-command-line.md) | Copy beside every command line, to run it in a shell; off while the line holds a secret flag | small | yes | adopted |
+| [GUI-GREEN-047](GUI-GREEN-047-keygen-seed-masked.md) | Make a key asks for its seed in a masked field (`keygen -seed-file -`, D98) instead of putting it on the line; a secret flag set to `-` is not a secret line | small | yes | adopted |
 
 ## Orange (performance)
 
@@ -78,6 +79,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-013](ORANGE-013-long-paste-in-parts.md) | Send a long pasted line in parts and end the input only once it arrived (largest pasteable entry: about 500 KiB → any size; 8 MiB of hex in 4.7 s) | small | yes | adopted |
 | [ORANGE-014](ORANGE-014-picked-file-as-read.md) | Send a picked policy file as it is read and stop when `poo` stops (500 MB picked by mistake: 5.3 s and +491 MB of browser memory → 0.9 s and +47 MB) | small | yes | adopted |
 | [ORANGE-015](ORANGE-015-long-import-plan.md) | Draw a long import plan 500 lines at a time (50,000 issuers: no plan and a page error → plan in 2.2 s; 20,000: 4.6 s → 0.9 s) | small | yes | adopted |
+| [ORANGE-016](ORANGE-016-short-read-first-line.md) | Name the first 20 items of a plan's "Read first" line, with Show all (50,000 peers: a 1.5 million-character alert, 183,000 px tall → 685 characters, 151 px) | small | yes | adopted |
 
 ### Re-checks each round
 
@@ -85,18 +87,18 @@ Each Part B runs every scenario again on Grey's new base, so a change that
 undoes an earlier gain shows up. Numbers are from a cloud container with
 Playwright Chromium, so compare them with each other, not with a laptop.
 
-| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) | Round 11 (4be2230) | Round 12 (c9c9e1f) | Round 13 (376e964) | Round 14 (3a7a39c) | Round 15 (55cf745) | Round 16 (6a1cdce) | Round 17 (052d032) | Round 18 (3804c55) | Round 19 (e71e317) | Round 20 (9628426) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms | 3.2 MB, 27.7k, 1, 40 MB, 50 ms | 3.1 MB, 27.7k, 1, 40 MB, 33 ms | 3.2 MB, 27.6k, 1, 42 MB, 50 ms | 3.2 MB, 27.6k, 1, 42 MB, 56 ms | 3.2 MB, 27.7k, 1, 42 MB, 57 ms | 3.2 MB, 27.7k, 1, 41 MB, 54 ms | 3.2 MB, 27.7k, 1, 40 MB, 37 ms | 3.2 MB, 27.7k, 1, 40 MB, 61 ms | 3.2 MB, 27.7k, 1, 39 MB, 51 ms | 3.3 MB, 27.7k, 1, 40 MB, 61 ms |
-| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests | 33 ms, 64 ms, 142 KB in 15 requests | 30 ms, 60 ms, 144 KB in 15 requests | 32 ms, 62 ms, 145 KB in 15 requests | 33 ms, 62 ms, 149 KB in 15 requests | 31 ms, 59 ms, 150 KB in 15 requests | 39 ms, 76 ms, 155 KB in 15 requests | 38 ms, 74 ms, 155 KB in 15 requests | 30 ms, 62 ms, 164 KB in 15 requests | 36 ms, 68 ms, 171 KB in 24 requests | 39 ms, 72 ms, 171 KB in 24 requests |
-| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 19% busy | 60 fps, 18% busy | 60 fps, 20% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 22% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 19% busy |
-| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s | 29 fps, 0.72 s | 32 fps, 0.67 s | 35 fps, 0.51 s | 30 fps, 0.67 s | 30 fps, 0.57 s | 32 fps, 0.68 s | 17 to 24 fps, 0.70 to 1.07 s | 31 fps, 0.71 s | 30 fps, 0.66 s | 31 fps, 0.57 s |
-| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s | 0.63 s | 0.65 s | 0.62 s | 0.70 s | 0.64 s | 0.63 s | 0.74 to 1.33 s | 0.85 s | 0.62 s | 0.80 s |
-| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat |
-| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 14% busy | 60 fps, 14% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 12% busy |
-| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms | 192 to 306 ms | 261 ms | 237 ms | 235 ms | 219 ms | 300 ms | 278 ms | 255 ms | 252 ms | 209 ms |
-| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms | 217 ms | 279 ms | 226 ms | 219 to 384 ms | 237 ms | 241 ms | 259 ms | 232 ms | 231 ms | 228 ms |
-| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 31% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows |
+| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) | Round 11 (4be2230) | Round 12 (c9c9e1f) | Round 13 (376e964) | Round 14 (3a7a39c) | Round 15 (55cf745) | Round 16 (6a1cdce) | Round 17 (052d032) | Round 18 (3804c55) | Round 19 (e71e317) | Round 20 (9628426) | Round 21 (4dc7d3d) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms | 3.2 MB, 27.7k, 1, 40 MB, 50 ms | 3.1 MB, 27.7k, 1, 40 MB, 33 ms | 3.2 MB, 27.6k, 1, 42 MB, 50 ms | 3.2 MB, 27.6k, 1, 42 MB, 56 ms | 3.2 MB, 27.7k, 1, 42 MB, 57 ms | 3.2 MB, 27.7k, 1, 41 MB, 54 ms | 3.2 MB, 27.7k, 1, 40 MB, 37 ms | 3.2 MB, 27.7k, 1, 40 MB, 61 ms | 3.2 MB, 27.7k, 1, 39 MB, 51 ms | 3.3 MB, 27.7k, 1, 40 MB, 61 ms | 3.3 MB, 27.7k, 1, 41 MB, 71 ms |
+| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests | 33 ms, 64 ms, 142 KB in 15 requests | 30 ms, 60 ms, 144 KB in 15 requests | 32 ms, 62 ms, 145 KB in 15 requests | 33 ms, 62 ms, 149 KB in 15 requests | 31 ms, 59 ms, 150 KB in 15 requests | 39 ms, 76 ms, 155 KB in 15 requests | 38 ms, 74 ms, 155 KB in 15 requests | 30 ms, 62 ms, 164 KB in 15 requests | 36 ms, 68 ms, 171 KB in 24 requests | 39 ms, 72 ms, 171 KB in 24 requests | 43 ms, 79 ms, 177 KB in 24 requests |
+| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 19% busy | 60 fps, 18% busy | 60 fps, 20% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 22% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 19% busy | 60 fps, 21% busy |
+| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s | 29 fps, 0.72 s | 32 fps, 0.67 s | 35 fps, 0.51 s | 30 fps, 0.67 s | 30 fps, 0.57 s | 32 fps, 0.68 s | 17 to 24 fps, 0.70 to 1.07 s | 31 fps, 0.71 s | 30 fps, 0.66 s | 31 fps, 0.57 s | 31 fps, 0.64 s |
+| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s | 0.63 s | 0.65 s | 0.62 s | 0.70 s | 0.64 s | 0.63 s | 0.74 to 1.33 s | 0.85 s | 0.62 s | 0.80 s | 0.79 s |
+| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat |
+| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 14% busy | 60 fps, 14% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy |
+| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms | 192 to 306 ms | 261 ms | 237 ms | 235 ms | 219 ms | 300 ms | 278 ms | 255 ms | 252 ms | 209 ms | 219 ms |
+| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms | 217 ms | 279 ms | 226 ms | 219 to 384 ms | 237 ms | 241 ms | 259 ms | 232 ms | 231 ms | 228 ms | 205 ms |
+| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 31% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 30% busy, 500 rows |
 
 Round 8 found nothing new to fix. The jump list, one job per form and
 the Schedule Remove guard did not show up in any measurement.
@@ -174,6 +176,11 @@ Round 20 had no change to the GUI's code, and every row above held. Its
 finding is ORANGE-015: the import plan drew every line at once. 20,000
 issuers took 4.6 s, and 50,000 never showed a plan or offered Apply,
 because of a page error.
+
+Round 21 measured the new settings import, and every row above held.
+Its finding is ORANGE-016. The plan's "Read first" line named every
+defence. 50,000 peers taken with the settings made that line 1.5 million
+characters long and 183,000 pixels tall, above the table and Apply.
 
 ## How to try the prototypes
 

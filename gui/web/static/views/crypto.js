@@ -36,9 +36,9 @@ export const cryptoView = {
   mount(root, ctx) {
     return mountAll(root, 'Series and keys', 'Offline tools: the choices a series can make, keys, and series parameters.', [
       panel(ctx, { title: 'Hashes, key algorithms and policy types', args: () => ['crypto'], onResult: r => { if (r.code === 0) cryptoChoices(r.out); } }),
-      form(ctx, { title: 'Make a key', about: 'A key and its 1-of-1 address. Leave the seed empty for a random one; the output includes the seed.',
-        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs' }, { name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'seed', label: 'Seed', placeholder: 'hex, optional', help: 'Part of the command line, as in a shell: it shows in the preview. Jobs hides it, and it is never saved.' }],
-        args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...flag('seed', v.seed)], submit: 'Make key', secretOutput: true }),
+      form(ctx, { title: 'Make a key', about: 'A key and its 1-of-1 address, from a random seed unless you give your own; the output includes the seed.',
+        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs' }, { name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'own', label: 'Use my own seed', type: 'check', help: 'poo asks for it in a masked field after you press Make key (-seed-file -), so it is never on the command line (D98).' }],
+        args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...(v.own ? ['-seed-file', '-'] : [])], submit: 'Make key', secretOutput: true }),
       form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked. More options are in the terminal (poo series new -h).',
         fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list: ' + 'see the list above' }, { name: 'types', label: 'Policy types', placeholder: 'comma list: see the list above' }, { name: 'mints', label: 'Mints', type: 'number' }],
         args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints)], submit: 'Make series' }),

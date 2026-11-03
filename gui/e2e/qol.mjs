@@ -232,10 +232,60 @@ try {
   await key.locator('button.copy-cmd').click();
   await key.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await key.locator('.cmd code').innerText());
-  await key.locator('input[name=seed]').fill('ab'.repeat(32));
-  assert.ok(await key.locator('button.copy-cmd').isDisabled(), 'a line with -seed is not copied');
-  await key.locator('input[name=seed]').fill('');
-  assert.ok(!(await key.locator('button.copy-cmd').isDisabled()), 'Copy is back once the secret is gone');
+  // A seed is never on a form's line: poo asks for it (D98, GUI-GREEN-047).
+  await key.locator('input[name=own]').check();
+  assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -seed-file -');
+  assert.ok(!(await key.locator('button.copy-cmd').isDisabled()), 'a line that reads its seed from input is copied');
+  const secret = await page.evaluate(async () => {
+    const { secretLine } = await import('/api.js');
+    return ['poo keygen -seed ' + 'ab'.repeat(32), 'poo keygen -seed=ab', 'poo wallet create -restore -', 'poo wallet create -restore=-', 'poo keygen -seed-file -', 'poo sim -seed 3', 'poo keygen -seed'].map(secretLine);
+  });
+  assert.deepEqual(secret, [true, true, false, false, false, false, true], 'secretLine: a value of - is read in a masked field, not on the line');
+  await key.locator('button', { hasText: 'Make key' }).click();
+  const ask = key.locator('form.ask');
+  await ask.waitFor();
+  assert.equal(await ask.locator('input').getAttribute('type'), 'password', 'the seed is asked in a masked field');
+  await ask.locator('input').fill('ab'.repeat(32));
+  await ask.locator('input').press('Enter');
+  await key.locator('.run-status.ok').waitFor();
+  const want = execFileSync(bin, ['poo', 'keygen', '-seed', 'ab'.repeat(32)], { env }).toString();
+  assert.equal((await key.locator('.result dd code.hex').first().getAttribute('title')).split('\n')[0], JSON.parse(want).address, 'the key is made from the seed typed in');
+  await key.locator('input[name=own]').uncheck();
+  // GUI-024: on Windows a copied line is pasted into PowerShell or cmd.exe,
+  // so Copy is off for a word either shell would run or change. The server
+  // here answers posix; /api/info is answered "windows", as on Windows.
+  {
+    const windows = async route => {
+      const r = await route.fetch();
+      await route.fulfill({ response: r, json: { ...(await r.json()), grammar: 'windows' } });
+    };
+    await page.route('**/api/info', windows);
+    const origin = new URL(page.url()).origin;
+    await page.goto(`${origin}/#/explore?address=x$(calc)`);
+    await page.reload(); // a new page load, as a link from outside is
+    const addr = page.locator('section.panel', { has: page.locator('h2', { hasText: 'An address' }) });
+    const copy = addr.locator('button.copy-cmd');
+    await addr.locator('.cmd code', { hasText: / x\$\(calc\)$/ }).waitFor(); // windows quoting: bare
+    assert.ok(await copy.isDisabled(), 'a link with $(...) is not copied for a Windows shell');
+    assert.match(await copy.getAttribute('title'), /Windows shell/);
+    for (const bad of ['a;calc', 'x"&calc&"y', 'a|b', '%PATH%']) {
+      await addr.locator('input[name=addr]').fill(bad);
+      assert.ok(await copy.isDisabled(), `${bad} is not copied for a Windows shell`);
+    }
+    await addr.locator('input[name=addr]').fill('abc123');
+    assert.ok(!(await copy.isDisabled()), 'a plain line is copied');
+    await copy.click();
+    await addr.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^poo address .*abc123$/);
+    await addr.locator('input[name=addr]').fill('my addr');
+    await copy.click();
+    await addr.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^poo address .*"my addr"$/, 'a space is double-quoted');
+    await page.unroute('**/api/info', windows);
+    await page.goto(origin + '/#/start');
+    await page.reload();
+    await page.locator('#main h1').first().waitFor();
+  }
 
   // A result has a Copy output button for poo's exact output.
   await page.click('nav a[data-id=crypto]');

@@ -33,6 +33,7 @@ const LEFT_OUT = {
   sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poo sim load -h has them'])),
   'series new': Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength', 'pool-size', 'supply'].map(f => [f, 'the form says poo series new -h has the rest'])),
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
+  keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)' },
   watch: { once: 'the Watch view reconnects by itself, as poo watch without -once does' },
   // poo lists the shared filter flags on every view command, but refuses
   // -kind outside poo watch ("-kind selects events and applies to poo
@@ -41,12 +42,10 @@ const LEFT_OUT = {
   tx: { kind: 'poo refuses -kind outside poo watch', ...Object.fromEntries(['address', 'address-policy', 'pool', 'serial', 'tid'].map(f => [f, 'one transaction by its id: In mint serial (-in-serial) is the narrowing that helps'])) },
   address: { kind: 'poo refuses -kind outside poo watch', address: 'the address is the command\'s own argument', 'address-policy': 'the address is the command\'s own argument' },
   'grind schedule': { 'if-version': 'add and set are applied as edits under the node\'s lock and keep changes made meanwhile (D125); Remove sends it' },
+  'peers import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D157); a preview has none to send' },
   'settings import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, D155); a preview has none to send' },
   'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, GUI-023); a preview has none to send' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
-  peers: Object.fromEntries(['category', 'mint-policy', 'label', 'addr'].map(f => [f, 'new in Source Round 21 (D157); GUI/Grey adds it to the Peers view next'])),
-  peer: Object.fromEntries(['label', 'keep', 'imported'].map(f => [f, 'new in Source Round 21 (D157); GUI/Grey adds it to the Peers view next'])),
-  tracking: Object.fromEntries(['blocked', 'timed-out'].map(f => [f, 'new in Source Round 21 (D157); GUI/Grey adds it to the Peers view next'])),
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
 // action select shows each action only the ones poo takes for it (only:,
@@ -168,7 +167,6 @@ try {
   // help of each command that has its own (poo grind help, poo wallet help).
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
-    ...Object.fromEntries(['peers export', 'peers import', 'peer add', 'peer remove', 'peer label', 'peer connect'].map(c => [c, 'new in Source Round 21 (D157); GUI/Grey adds it to the Peers view next'])),
   };
   const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();

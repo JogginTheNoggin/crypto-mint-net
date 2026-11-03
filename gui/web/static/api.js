@@ -91,11 +91,18 @@ export async function loadInfo() {
 // flag such as -restore or -seed (except in poo sim, where -seed is a
 // random-number seed). It errs toward true, since it only keeps a line
 // out of saved history (GUI-006 in security/gui/findings).
+//
+// A secret flag whose value is - (standard input) holds no secret: poo
+// asks for it in a masked field, so poo wallet create -restore - is not
+// one (GUI-GREEN-047).
 export function secretLine(text) {
-  const words = text.trim().split(/\s+/).map(w => w.replace(/^['"]+/, ''));
+  const words = text.trim().split(/\s+/).map(w => w.replace(/^['"]+|['"]+$/g, ''));
   if (words[0] === 'poo') words.shift();
   if (words.find(w => !w.startsWith('-')) === 'sim') return false;
-  return words.some(w => secretFlags.some(f => new RegExp(`^--?${f}(=|$)`).test(w)));
+  return words.some((w, i) => secretFlags.some(f => {
+    const m = new RegExp(`^--?${f}(=(.*))?$`).exec(w);
+    return m && (m[1] !== undefined ? m[2] !== '-' : words[i + 1] !== '-');
+  }));
 }
 
 // quote shows args as the poo command line the platform's shell would
@@ -103,6 +110,30 @@ export function secretLine(text) {
 // gui/shell/shell.go, which the tests pin.
 export function quote(args) {
   return ['poo', ...args.map(grammar === 'windows' ? quoteWindows : quotePOSIX)].join(' ');
+}
+
+// copyLine is the line Copy puts on the clipboard, to be pasted into a
+// shell, or null when it cannot be quoted safely. On posix it is quote's.
+// On Windows the paste goes to PowerShell or cmd.exe, which do not split
+// as CommandLineToArgvW does (quoteWindows): PowerShell runs $(...) and
+// ; in a bare word, and cmd.exe ends a quoted word at \" and runs what
+// follows & (GUI-024). No quoting means the same to both, so a word is
+// copied only from a set both take literally, double-quoted when it has
+// a space, and any other word turns Copy off for the line.
+export function copyLine(args) {
+  if (grammar !== 'windows') return quote(args);
+  const words = args.map(copyWordWindows);
+  return words.includes(null) ? null : ['poo', ...words].join(' ');
+}
+
+function copyWordWindows(a) {
+  // Letters, digits, _ - . : / \ = + and space only: none of these is
+  // special to either shell outside quotes, except the space, which
+  // double quotes keep, unless a \ ends the word (CommandLineToArgvW reads
+  // \" as a quote). An empty word is refused, as PowerShell may drop "".
+  if (!/^[A-Za-z0-9_\-.:\/\\=+ ]+$/.test(a)) return null;
+  if (!a.includes(' ')) return a;
+  return a.endsWith('\\') || a.trim() !== a ? null : `"${a}"`;
 }
 
 function quotePOSIX(a) {
