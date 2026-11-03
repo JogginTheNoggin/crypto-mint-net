@@ -77,3 +77,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
 | [ORANGE-029](source/ORANGE-029-weight-checks-within-the-budget.md) | Source | Round 19 measured; ask weights within the peer's request budget | adopted (D155) |
 | [ORANGE-030](source/ORANGE-030-status-reads-make-no-state.md) | Source | Round 20 measured; read an unused pool without making its state | adopted (D157) |
+| [ORANGE-031](source/ORANGE-031-peer-import-at-its-limits.md) | Source | Round 21 measured; peer imports at their limits | proposed |
