@@ -375,7 +375,10 @@ func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
 		fmt.Fprintf(out, "import digest %s (-apply -if-digest applies only this file, with these options and this plan)\n", dg)
 	}
 	if b.HasSettings() {
-		fmt.Fprintln(out, "note: the file also holds settings; this version imports node policies only")
+		fmt.Fprintln(out, `note: the file also holds a "settings" section, which this version does not read`)
+	}
+	for _, n := range pathMapNotes(b, pathMaps, *full) {
+		fmt.Fprintln(out, "note: "+n)
 	}
 	for _, r := range results {
 		printPlan(out, r, *apply, settingsOnly)
@@ -636,4 +639,28 @@ func importDigest(file string, opt nodepolicy.MergeOptions, results []importResu
 	}{strings.ToLower(file), opt, rows})
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// pathMapNotes says when a -map-path cannot change anything: registry
+// files are taken only with -full, and a map that matches no registry
+// file of the file is most likely mistyped (GREEN-045). They are notes,
+// not errors: the plan is the same either way.
+func pathMapNotes(b nodepolicy.Bundle, maps []nodepolicy.PathMap, full bool) []string {
+	if len(maps) == 0 {
+		return nil
+	}
+	var notes []string
+	if !full {
+		notes = append(notes, "-map-path rewrites registry files, which only -full takes")
+	}
+	for _, m := range maps {
+		used := false
+		for _, bp := range b.Policies {
+			used = used || slices.ContainsFunc(bp.Policy.P2P.Registries, m.Maps)
+		}
+		if !used {
+			notes = append(notes, fmt.Sprintf("-map-path %s=%s matches no registry file in the file", m.From, m.To))
+		}
+	}
+	return notes
 }

@@ -113,6 +113,16 @@ func windowsPath(p string) bool {
 	return strings.Contains(p, `\`)
 }
 
+// Maps reports whether m rewrites loc, so a -map-path that matches no
+// path of a file can be named (GREEN-045).
+func (m PathMap) Maps(loc string) bool {
+	if isURL(loc) {
+		return false // mapPaths never rewrites a registry URL
+	}
+	_, ok := m.apply(loc)
+	return ok
+}
+
 // mapPaths returns p with its local paths rewritten: the registry files
 // (an http or https registry is not a path). mapped holds the rewritten
 // locations: a registry file the user pointed at this machine is taken

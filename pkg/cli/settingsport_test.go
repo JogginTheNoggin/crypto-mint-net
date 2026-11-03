@@ -119,3 +119,29 @@ func TestSettingsImportIntoRunningNode(t *testing.T) {
 		t.Fatalf("running import: %v %+v", err, p.P2P)
 	}
 }
+
+// A -map-path that cannot change anything says so: without -full no
+// registry file is taken, and a map matching no registry file of the
+// file is most likely mistyped (GREEN-045).
+func TestMapPathNotes(t *testing.T) {
+	src, dst := t.TempDir(), t.TempDir()
+	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off", "-registry", "/old/home/reg.txt")
+	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	file := filepath.Join(t.TempDir(), "settings.json")
+	runOut(t, "settings", "export", "-root", src, "-out", file)
+
+	out := runOut(t, "settings", "import", file, "-map-path", "/old/home=/new", "-root", dst)
+	if !strings.Contains(out, "note: -map-path rewrites registry files, which only -full takes") || strings.Contains(out, "matches no registry file") {
+		t.Fatalf("without -full:\n%s", out)
+	}
+	out = runOut(t, "settings", "import", file, "-full", "-map-path", "/old/hom=/new", "-root", dst)
+	if !strings.Contains(out, "note: -map-path /old/hom=/new matches no registry file in the file") || strings.Contains(out, "only -full takes") {
+		t.Fatalf("a mistyped map:\n%s", out)
+	}
+	if out = runOut(t, "settings", "import", file, "-full", "-map-path", "/old/home=/new", "-root", dst); strings.Contains(out, "note: -map-path") {
+		t.Fatalf("a map that is used:\n%s", out)
+	}
+	if (nodepolicy.PathMap{From: "https://a", To: "/x"}).Maps("https://a/reg") {
+		t.Error("a map rewrote a registry URL")
+	}
+}

@@ -113,3 +113,29 @@ func TestHelpLineNamesEverySubcommand(t *testing.T) {
 		t.Errorf("complete grind sch: %q", got)
 	}
 }
+
+// "poo CMD help", "-h" and "--help" print a command's usage lines and
+// exit 0 for every command made of subcommands, as poo help CMD does
+// (GREEN-045). Before, policy took "-h" for a NAME, series for a
+// subcommand, and settings, peer, submit and completion failed.
+func TestSubcommandHelpWords(t *testing.T) {
+	for _, cmd := range commandNames() {
+		if len(subcommands(cmd)) == 0 {
+			continue
+		}
+		var want bytes.Buffer
+		if err := helpCmd([]string{cmd}, &want); err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range []string{"help", "-h", "--help"} {
+			var out bytes.Buffer
+			if err := Run(context.Background(), []string{cmd, w}, Stdio{Out: &out, Err: &out}); err != nil {
+				t.Errorf("poo %s %s: %v\n%s", cmd, w, err, out.String())
+				continue
+			}
+			if !ownHelp[cmd] && out.String() != want.String() {
+				t.Errorf("poo %s %s printed\n%s\nwant poo help %s:\n%s", cmd, w, out.String(), cmd, want.String())
+			}
+		}
+	}
+}
