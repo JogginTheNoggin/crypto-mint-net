@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | fixed (GUI/Blue, Round 21C); awaiting GUI/Red's verification |
+| Status | fixed (GUI/Blue, Round 21C), merged; verified by GUI/Red R22B @ f4f7945 |
 | Found on | main @ 4dc7d3d (GUI-GREEN-046, "Copy" next to every command line) |
 | Component | gui/web/static/views.js (`cmdLine`: Copy copies `api.quote(row.args)`), gui/web/static/api.js (`quoteWindows`), gui/shell/shell.go (`Quote` for the Windows grammar); any form whose field a link can fill, such as Explore's "An address" (`#/explore?address=…`) and "A transaction" (`?tid=…`) |
 | Surface | local (the user's own shell, as the user) |
@@ -145,3 +145,20 @@ GUI terminal still use `quote`, which is `shell.Quote`.
     too. `abc123` copies as is, and `my addr` copies double-quoted. On the
     old code the test fails at the first check.
 - docs/FEATURES.md: the "Shows its command" row.
+
+## Notes — Round 22B verification (held up)
+
+These were checked with Playwright on f4f7945, with `/api/info` answering
+`grammar: "windows"` and `#/explore?address=…` loaded as a fresh page.
+
+- **Copy is off** for `x$(calc)`, `x"&calc&"y`, `a;calc`, ``x`(calc)``,
+  `a@b`, `%PATH%` and `--%`. Its title gives the reason. The line on show
+  still uses `quote`, as before.
+- **Copy is on** for `a b`, which is copied as `poo address "a b"`. That
+  is literal in both PowerShell and cmd.exe.
+- A spaced word that ends in `\` (`C:\a b\`) is refused, because
+  CommandLineToArgvW would read the closing `\"` as an escaped quote.
+- `-foo` is copied bare. That is safe for both shells, since neither
+  reads `-` as special. poo then takes it as a flag, but the GUI runs
+  the same args, so it is not part of this finding.
+- POSIX is unchanged: every word not plainly safe is single-quoted.
