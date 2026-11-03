@@ -7,7 +7,7 @@
 | Found | Source Round 22 Part B, on `main` @ `b997eb0` (the RED-058 fix in D158) |
 | Area | `pkg/peers` (`Book.add`, `evictImportedLocked`) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-023) |
+| Fixed by | `claude/project-thread-ggo8dt` @ f307480 (BLUE-023) |
 
 ## What is wrong
 

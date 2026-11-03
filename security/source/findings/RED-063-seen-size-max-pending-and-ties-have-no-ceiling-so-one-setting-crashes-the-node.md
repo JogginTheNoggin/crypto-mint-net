@@ -8,7 +8,7 @@
 | Area | `pkg/nodepolicy` (`Validate`), `pkg/engine` (`NewSeen`, `Config`), `pkg/mempool` (`New`), `pkg/ledger` (`Config.Ties`) |
 | Raised by | Source Green saw the panic; Red verified it |
 | For Black | No consensus rule is touched. These are local limits. A ceiling only has to stay far above any ledger a node must hold; none of the three limits what the node accepts as valid. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-023) |
+| Fixed by | `claude/project-thread-ggo8dt` @ f307480 (BLUE-023) |
 
 ## What is wrong
 

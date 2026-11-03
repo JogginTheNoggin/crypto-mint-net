@@ -5,6 +5,7 @@
 | Fixes | RED-063 (medium), RED-064 (medium), RED-065 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `b997eb0` (Source Round 22 Part C), with ORANGE-032 (#136) merged in |
+| Code | `f307480` |
 | Decisions | D160 |
 | With | ORANGE-032 (PR #136): this builds on its per-range index and imported set, so the PR carries its commit |
 | Review | No consensus change. For Black: the three engine bounds (`ties` above all) and the peer book's give-way order; both are node policy. |

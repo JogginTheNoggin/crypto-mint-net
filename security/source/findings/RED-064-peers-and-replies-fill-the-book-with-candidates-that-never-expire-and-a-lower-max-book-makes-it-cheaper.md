@@ -8,7 +8,7 @@
 | Area | `pkg/peers` (`Book.add`, `Open`), `pkg/p2p` (`learn`, follow replies, peer lists) |
 | Related | RED-058 (the same effect through an import; fixed by letting imported records give way) |
 | For Black | No consensus rule is touched. The peer book is node policy; nothing here stops a node taking a heavier ledger it can already reach. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-023) |
+| Fixed by | `claude/project-thread-ggo8dt` @ f307480 (BLUE-023) |
 
 ## What is wrong
 
