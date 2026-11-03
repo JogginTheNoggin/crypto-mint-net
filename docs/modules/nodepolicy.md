@@ -138,6 +138,10 @@ its range, or `Validate` refuses the policy and names the setting
 | `max_pending` | 10000 | 16 to 1048576 | pending transactions per pool (D160) |
 | `ties` | 64 | 1 to 4096 | off-chain entries kept that tie with the selected ledger's weight, beyond `k` (D160) |
 
+`Policy.Limits` lists them with the value node.json sets and the value used,
+from the one list `Validate` checks; `poo policy limits` prints it
+(GREEN-047).
+
 None of them changes which ledger a node selects: a smaller book or a
 shorter memory only means the node knows fewer peers, which is a lack of
 information (AGENTS.md). In

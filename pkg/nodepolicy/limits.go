@@ -80,9 +80,22 @@ func (b Bound) Or(v int) int {
 	return v
 }
 
-// checkBounds checks every bounded setting of p, and that a range never
-// holds more than the whole book.
-func (p Policy) checkBounds() error {
+// Limit is one bounded setting of a node policy: its bound, the value
+// node.json gives (0: left out) and the value the node uses.
+type Limit struct {
+	Name    string `json:"name"`
+	Min     int    `json:"min"`
+	Max     int    `json:"max"`
+	Default int    `json:"default"`
+	Set     int    `json:"set"`
+	Used    int    `json:"used"`
+}
+
+// Limits lists every bounded setting of p with its value, in the order
+// of Bounds. It is the one list checkBounds checks, so a new bound added
+// here is both checked and shown by poo policy limits (GREEN-047).
+func (p Policy) Limits() []Limit {
+	var out []Limit
 	for _, c := range []struct {
 		b Bound
 		v int
@@ -94,7 +107,19 @@ func (p Policy) checkBounds() error {
 		{BoundMaxAddresses, p.Tracking.MaxAddresses}, {BoundFlagHistory, p.Tracking.FlagHistorySeconds},
 		{BoundLogSeconds, p.Tracking.LogSeconds}, {BoundLogSize, p.Tracking.LogSize},
 	} {
-		if err := c.b.Check(c.v); err != nil {
+		out = append(out, Limit{Name: c.b.Name, Min: c.b.Min, Max: c.b.Max, Default: c.b.Default, Set: c.v, Used: c.b.Or(c.v)})
+	}
+	return out
+}
+
+// bound returns the Bound a Limit came from.
+func (l Limit) bound() Bound { return Bound{l.Name, l.Min, l.Max, l.Default} }
+
+// checkBounds checks every bounded setting of p, and that a range never
+// holds more than the whole book.
+func (p Policy) checkBounds() error {
+	for _, l := range p.Limits() {
+		if err := l.bound().Check(l.Set); err != nil {
 			return err
 		}
 	}

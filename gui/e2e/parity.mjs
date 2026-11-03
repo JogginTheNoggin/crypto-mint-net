@@ -167,6 +167,7 @@ try {
   // help of each command that has its own (poo grind help, poo wallet help).
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
+    'policy limits': 'new in Source R22 (GREEN-047); the terminal runs it, and a GUI view is GUI Grey\'s call',
   };
   const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();

@@ -103,3 +103,31 @@ func TestValidateRefusesOutOfBounds(t *testing.T) {
 		t.Errorf("max_book 10: %v", err)
 	}
 }
+
+// Limits lists every bound of Bounds, in its order, with what node.json
+// sets and what is used, and is the list Validate checks (GREEN-047).
+func TestLimitsListsEveryBound(t *testing.T) {
+	p := Default()
+	p.P2P.MaxBook = 1000
+	got := p.Limits()
+	all := Bounds()
+	if len(got) != len(all) {
+		t.Fatalf("%d limits, %d bounds", len(got), len(all))
+	}
+	for i, b := range all {
+		l := got[i]
+		if l.Name != b.Name || l.Min != b.Min || l.Max != b.Max || l.Default != b.Default {
+			t.Errorf("limit %d %+v, bound %+v", i, l, b)
+		}
+		if l.Name == "p2p.max_book" && (l.Set != 1000 || l.Used != 1000) {
+			t.Errorf("max_book: %+v", l)
+		}
+		if l.Name != "p2p.max_book" && (l.Set != 0 || l.Used != b.Default) {
+			t.Errorf("%s: %+v", l.Name, l)
+		}
+	}
+	p.Tracking.LogSize = 5
+	if err := p.Validate(); err == nil {
+		t.Error("Validate took a value Limits shows out of range")
+	}
+}
