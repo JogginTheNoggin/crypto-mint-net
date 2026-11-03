@@ -305,6 +305,41 @@ policies is planned whole first; if one cannot be imported, none is
 changed. A running node applies an import at once and never takes an
 `rpc` section from one.
 
+### Adding and sharing peers
+
+`poo peer add ADDR` puts an address in the peer book by hand, as a
+candidate the manager may dial; `-label TEXT` names it and `-keep` also
+lists it in the node policy's `p2p.peers`. `poo peer remove ADDR` takes it
+out of both, `poo peer label ADDR -label TEXT` renames it, and `poo peer
+connect ADDR` dials it now. `poo peers` filters the book with `-category`,
+`-mint-policy`, `-label` and `-addr`, and `poo tracking -blocked` or
+`-timed-out` lists only those addresses (D157).
+
+```sh
+./poo peers export -out peers.json                         # the whole book, labels and blocks
+./poo peers export -category priority,backup -out good.json
+./poo peers export -category blocked -out blocklist.json   # a block list to share
+./poo peers import good.json                               # on the other node: shows the plan
+./poo peers import good.json -apply                        # adds every address as unlisted
+./poo peers import blocklist.json -blocks -apply           # takes the blocks too
+```
+
+An imported address always lands unlisted: the node knows it but has not
+picked it. When a mint policy is short of peers, the manager promotes the
+oldest imported addresses to candidates and dials them before it asks its
+peers and registries for more, so a new node with an imported book finds
+peers by itself. `poo peer connect -imported` does that at once, and
+`p2p.no_dial_imported: true` in node.json turns it off, leaving imported
+addresses for you to promote by hand.
+
+An import never removes, unblocks or shortens anything. It takes the
+file's blocks only with `-blocks`, and only where they are longer than
+what the node holds; it never blocks an address the node policy lists,
+and network range blocks need `-ranges` as well. It refuses addresses
+blocked here, local addresses unless `p2p.allow_local_peers` is on, and
+anything past the book's limits. Labels are yours: an export holds them,
+so read the file before you share it.
+
 ## Security notes
 
 - The RPC listens on loopback only. Every call needs the token in

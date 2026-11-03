@@ -224,9 +224,9 @@ func fitLines(p Policy, m Machine) []string {
 				// A preview reaches nothing: opening \\host\share would
 				// connect to host, and on Windows offer it the user's
 				// sign-in (RED-053, D156).
-				out = append(out, fmt.Sprintf("p2p.registries[%s]: a network or device path; the preview does not open it, the node will when it reads the registry", r))
+				out = append(out, fmt.Sprintf("p2p.registries: %s is a network or device path; the preview does not open it, the node will when it reads the registry", r))
 			case !m.Exists(r):
-				out = append(out, fmt.Sprintf("p2p.registries[%s]: no such file here (-map-path OLD=NEW rewrites where the file's paths point)", r))
+				out = append(out, fmt.Sprintf("p2p.registries: %s: no such file here (-map-path OLD=NEW rewrites where the file's paths point)", r))
 			}
 		}
 	}
@@ -260,4 +260,20 @@ func networkPath(p string) bool {
 	}
 	sep := func(c byte) bool { return c == '/' || c == '\\' }
 	return sep(p[0]) && sep(p[1])
+}
+
+// KeepPeer adds addr to p's p2p.peers, the addresses always dialled, or
+// with keep false takes it out (poo peer add -keep and poo peer remove,
+// D157). It reports whether p changed.
+func KeepPeer(p *Policy, addr string, keep bool) bool {
+	i := slices.Index(p.P2P.Peers, addr)
+	switch {
+	case keep && i < 0:
+		p.P2P.Peers = append(p.P2P.Peers, addr)
+		return true
+	case !keep && i >= 0:
+		p.P2P.Peers = slices.Delete(p.P2P.Peers, i, i+1)
+		return true
+	}
+	return false
 }

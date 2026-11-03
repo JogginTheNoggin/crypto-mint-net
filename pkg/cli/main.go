@@ -47,12 +47,24 @@ Usage:
                               write a node policy and make it current
   poo node [-log-level L] [-log-format F]
                               run the node until interrupted
-  poo peers                   the running node's peers, their categories
-                              and points, and its peer book
+  poo peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT]
+                              the running node's peers, their categories
+                              and points, and its peer book, filtered
+  poo peers export [-category LIST] [-out FILE]
+                              write the peer book, or some categories of
+                              it, and the blocks to one shareable file
+  poo peers import FILE|- [-apply] [-blocks [-ranges]] [-if-digest D]
+                              add such a file's addresses, unlisted, and
+                              with -blocks its blocks; shows the plan first
   poo peer timeout|block|unblock|clear|template|delete ADDR
            [-seconds N] [-range] [-what flags|measures|all] [-template NAME]
                               act on one peer
-  poo tracking [ADDR]         what the tracker keeps: every address's
+  poo peer add|remove|label|connect ADDR [-label TEXT] [-keep]
+                              add a peer by hand, take one out, label it,
+                              or dial it now (connect -imported: every
+                              address an imported file gave)
+  poo tracking [ADDR] [-blocked] [-timed-out]
+                              what the tracker keeps: every address's
                               status, or one address's record
   poo chases                  the chase queue of heavier stated weights
   poo status                  every followed pool of the running node
@@ -257,6 +269,15 @@ func run(args []string, out io.Writer) error {
 		return nil
 	}
 	if len(args) == 2 && isHelpWord(args[1]) && !ownHelp[args[0]] && len(subcommands(args[0])) > 0 {
+		if runsBare[args[0]] && args[1] != "help" {
+			// Its usage lines, then the flags it takes with no
+			// subcommand, from its own flag set (D157).
+			if err := helpCmd(args[:1], out); err != nil {
+				return err
+			}
+			fmt.Fprintln(out)
+			return peersCmd(args[1:], out)
+		}
 		// "poo policy help", "-h" or "--help": a command made of
 		// subcommands prints its usage lines, as poo help policy does,
 		// and exits 0, where it took the word for a subcommand or a
@@ -456,5 +477,10 @@ func writeJSON(out io.Writer, v any) error {
 // ownHelp names the commands whose own usage answers "help" and "-h"
 // (grindUsage, simUsage, walletUsage).
 var ownHelp = map[string]bool{"grind": true, "sim": true, "wallet": true}
+
+// runsBare names the commands made of subcommands that also run with no
+// subcommand, with flags of their own: -h lists those flags, and "help"
+// the usage lines (poo peers, D157).
+var runsBare = map[string]bool{"peers": true}
 
 func isHelpWord(s string) bool { return s == "help" || s == "-h" || s == "--help" }

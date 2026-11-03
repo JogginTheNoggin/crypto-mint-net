@@ -73,7 +73,9 @@ sequenceDiagram
    first deliveries) beat it by the margin.
 4. The connection manager (`Manage`, every 30 seconds) dials candidates
    while a policy has fewer listed peers than its slots, then the archive,
-   then asks a peer for its peer list, broadcasts a follow request and
+   then the unlisted addresses of an imported peer file, a few at a time
+   (`peers.Book.PromoteImported`; not with `NoDialImported`, D157), then
+   asks a peer for its peer list, broadcasts a follow request and
    loads the registries. Everything learned is a candidate; a blocked or
    timed-out address is never dialled or accepted.
 5. Pings: every 2 minutes to priority peers, every 6 to backups; 3 missed

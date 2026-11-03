@@ -55,7 +55,8 @@ D150).
 | `GET /peers` | | `{node_id, listen, peers: [{id, addr, key, outbound, agent, listen, coverage, categories: {policy: {category, points, partial}}, since, sent, received}], book: [{addr, source, added, last_tried, failures, policies: [{section, state, last_heard}]}]}` |
 | `GET /tracking` | `addr` (optional) | without: `{tracked: {key: status}, ranges: {range: until}}`; with: that address's record (`key, status, template, settings, flags, policies: {policy: measures and points}, log`) |
 | `GET /chases` | | `{groups: [{id, pool, hashes, senders, evidence, added, confirmed, asked, denied}]}`, in queue order |
-| `POST /peer` | `{addr, action, seconds, range, what, template}` | `{key, closed, held, status}`; actions `timeout`, `block` (`seconds: -1` until unblocked, `range` for the whole network range), `unblock`, `clear` (`what`: flags, measures, all), `template`, `delete` |
+| `POST /peer` | `{addr, action, seconds, range, what, template, label, keep, imported}` | `{key, closed, held, kept, promoted, status}`; actions `timeout`, `block` (`seconds: -1` until unblocked, `range` for the whole network range), `unblock`, `clear` (`what`: flags, measures, all), `template`, `delete`; and (D157) `add` (a candidate for every followed mint policy, with `label`; `keep` also lists it in node.json's `p2p.peers`), `remove` (delete, and out of `p2p.peers`), `label` (`""` clears it), `connect` (dial `addr` now, or with `imported` and no `addr` make every unlisted address from an imported peer file a candidate) |
+| `POST /peers/import` | `{file, options: {blocks, ranges}, dry_run}` | `{plan, applied}`: a peer file (`peerport.Import`, D157) into the book and tracker. Every address arrives unlisted; blocks only with `blocks`, range blocks only with `ranges` too, adding or lengthening only. The body may be up to `MaxPeerImportBody`. 422 `invalid` for a file that does not check |
 
 ### Views, watching and following
 

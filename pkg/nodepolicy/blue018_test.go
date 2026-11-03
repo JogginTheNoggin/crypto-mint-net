@@ -83,7 +83,7 @@ func TestSettingsImportNamesDefences(t *testing.T) {
 	if len(res.P2P.Registries) != 1 || res.P2P.Registries[0] != "http://169.254.169.254/latest/meta-data/" {
 		t.Fatalf("registries: %v", res.P2P.Registries)
 	}
-	if !strings.Contains(strings.Join(plan.SkippedSettings, " "), "p2p.registries[/etc/passwd] (a local file") {
+	if !strings.Contains(strings.Join(plan.SkippedSettings, " "), "p2p.registries: /etc/passwd (a local file") {
 		t.Fatalf("file registry not listed as skipped: %v", plan.SkippedSettings)
 	}
 	d := strings.Join(plan.Defences, " ")

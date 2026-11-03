@@ -43,6 +43,9 @@ const LEFT_OUT = {
   'grind schedule': { 'if-version': 'add and set are applied as edits under the node\'s lock and keep changes made meanwhile (D125); Remove sends it' },
   'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, GUI-023); a preview has none to send', 'map-path': 'GUI/Grey adds it with the settings import form (D155); the terminal takes it until then' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
+  peers: Object.fromEntries(['category', 'mint-policy', 'label', 'addr'].map(f => [f, 'new in Source Round 21 (D157); GUI/Grey adds it to the Peers view next'])),
+  peer: Object.fromEntries(['label', 'keep', 'imported'].map(f => [f, 'new in Source Round 21 (D157); GUI/Grey adds it to the Peers view next'])),
+  tracking: Object.fromEntries(['blocked', 'timed-out'].map(f => [f, 'new in Source Round 21 (D157); GUI/Grey adds it to the Peers view next'])),
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
 // action select shows each action only the ones poo takes for it (only:,
@@ -165,6 +168,7 @@ try {
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
     'settings export': 'new in Source Round 20 (D155); GUI/Grey adds the form next', 'settings import': 'new in Source Round 20 (D155); GUI/Grey adds the form next',
+    ...Object.fromEntries(['peers export', 'peers import', 'peer add', 'peer remove', 'peer label', 'peer connect'].map(c => [c, 'new in Source Round 21 (D157); GUI/Grey adds it to the Peers view next'])),
   };
   const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();

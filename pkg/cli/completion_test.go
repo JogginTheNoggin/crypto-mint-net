@@ -133,6 +133,13 @@ func TestSubcommandHelpWords(t *testing.T) {
 				t.Errorf("poo %s %s: %v\n%s", cmd, w, err, out.String())
 				continue
 			}
+			if runsBare[cmd] && w != "help" {
+				// Its usage lines, then its own flags (D157).
+				if !strings.HasPrefix(out.String(), want.String()) || !strings.Contains(out.String(), "Usage of "+cmd) {
+					t.Errorf("poo %s %s printed\n%s", cmd, w, out.String())
+				}
+				continue
+			}
 			if !ownHelp[cmd] && out.String() != want.String() {
 				t.Errorf("poo %s %s printed\n%s\nwant poo help %s:\n%s", cmd, w, out.String(), cmd, want.String())
 			}

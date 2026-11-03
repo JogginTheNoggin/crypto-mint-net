@@ -3218,3 +3218,54 @@ a chase takes in after checking their work are not charged.
   - `pkg/cli/blue021_test.go`: `TestImportRefusesTerminalEscapes`,
     `TestTermSafe`, `TestPreferFileAppliesALoneConflict`.
   - `pkg/p2p/blue021_test.go`: `TestStatedWeightIndexesNoPool`.
+
+### D157. The peer book by hand, filters, and peer export and import
+
+- **Decision:** jerry's Round 21 request.
+  - **State `unlisted`** (`peers.Unlisted`): an address the book knows for a
+    mint policy but has not picked. Imports land there. `Record.Label` is
+    the owner's name for an address (at most 128 bytes of UTF-8, no
+    control characters, `peers.CheckLabel`). Sources `hand` and `import`.
+  - **By hand:** `poo peer add|remove|label|connect` (`POST /v1/peer`
+    actions `add`, `remove`, `label`, `connect`). `add` puts the address in
+    as a candidate for every mint policy the node covers, refusing a local
+    one unless `p2p.allow_local_peers` or `-keep`. `-keep` and `remove`
+    edit `p2p.peers` in node.json. With the node stopped they work on the
+    files.
+  - **Filters:** `poo peers -category -mint-policy -label -addr` and
+    `poo tracking -blocked -timed-out`.
+  - **Export and import** (`pkg/peerport`, kind `poo-peers`, format 1):
+    the whole book or chosen categories (the book states, `blocked`,
+    `timed-out`) with labels and blocks. An import:
+    - adds every address unlisted, for the file's mint policies; sets a
+      label only where the book has none;
+    - takes blocks only with `-blocks`, adding or lengthening, never on an
+      address the node policy lists or the node's own; ranges only with
+      `-ranges`;
+    - never removes, unblocks or shortens; refuses addresses blocked here,
+      local ones (unless allowed) and anything past the book's limits;
+    - shows a plan with a digest first, as policy import (D151, D154).
+    A running node imports through `POST /v1/peers/import`.
+  - **Dialling imported addresses:** when a mint policy is short of
+    candidates after the archive step, the manager promotes imported
+    addresses to candidates, oldest first (`Book.PromoteImported`), before
+    peer lists and registries. `p2p.no_dial_imported` turns it off;
+    `poo peer connect -imported` promotes them all and runs the manager.
+- **Why:** jerry asked for filters, adding peers by hand, and exporting
+  and importing the peer book (all or by category), with imports landing
+  unlisted unless a blocked list is shared, and for a way to start
+  dialling them.
+- **Consensus:** none. The peer book, labels, blocks and dialling are node
+  policy, local to one node. An import can only add addresses and lengthen
+  blocks the user chose to take; it never blocks a listed address, so a
+  node can always reach the peers its policy names. A node that blocks
+  or never dials a peer lacks information, which is not a hard fork; any
+  heavier ledger is still taken from any peer that offers it.
+- **Tier:** Peers, p2p, RPC and the CLI.
+  - `pkg/peers/unlisted_test.go`, `pkg/peerport/peerport_test.go`
+    (`TestExportCategories`, `TestReadRefuses`, `TestImportRules`,
+    `TestImportGuards`), `pkg/p2p/imported_test.go`
+    (`TestManagerDialsImported`, `TestAddPeerByHand`),
+    `pkg/cli/peersport_test.go` (`TestPeersExportImport`,
+    `TestPeerActionsOffline`, `TestPeersRunning`).
+  - Also adopts GREEN-045 and ORANGE-030 as merged this round.

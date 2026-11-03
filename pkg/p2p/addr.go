@@ -14,7 +14,10 @@ import (
 
 // errNotPublic refuses to dial an address learned from another party that
 // leads into a local or reserved network (decision D96).
-var errNotPublic = errors.New("p2p: address is not public")
+var errNotPublic = ErrNotPublic
+
+// ErrNotPublic refuses a local address where only public ones are taken.
+var ErrNotPublic = errors.New("p2p: address is not public")
 
 // notPublic are the ranges, beside loopback, private, link-local,
 // multicast and unspecified addresses, that are not reachable on the
@@ -77,6 +80,13 @@ func (h *Host) learnable(addr string) bool {
 		return true // a host name
 	}
 	return ip.Zone() == "" && publicIP(ip)
+}
+
+// Learnable reports whether a node that does not allow local peers may
+// take addr from another party: a host name, or a literal IP that is
+// public (D96). A peer file import checks its addresses with it (D157).
+func Learnable(addr string) bool {
+	return (&Host{}).learnable(addr)
 }
 
 // learn adds an address learned from another party to the book, unless

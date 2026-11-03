@@ -41,6 +41,7 @@ D25). Nothing here changes what is valid.
     "max_outbound": 8,
     "max_inbound": 24,
     "allow_local_peers": false,
+    "no_dial_imported": false,
     "no_relay": false,
     "hop_limit": 8,
     "request_rate": 120,
@@ -107,7 +108,10 @@ connections cannot take the outbound slots (D75); `-1` caps inbound only
 by `max_peers`. `allow_local_peers` (off by default, D96) lets addresses
 learned from peers and registries be loopback, private, link-local or
 otherwise not public; turn it on only for a network on one machine or LAN.
-Addresses in `peers` are always dialled. In
+Addresses in `peers` are always dialled. `no_dial_imported` (off by
+default, D157) keeps the unlisted addresses an imported peer file gave
+out of the connection manager, so only `poo peer connect -imported`
+tries them. In
 `tracking`, `escalate_at: -1` never escalates; every template name must
 be known, custom templates may not form a cycle, and groups must be
 priority, backup, candidate, unlisted, inbound or outbound (see

@@ -157,7 +157,7 @@ func TestFit(t *testing.T) {
 		`grind.device: no device "gpu:1"`,
 		"grind.threads: 16, but this machine runs 4",
 		"grind.jobs[0] (tip): series",
-		"p2p.registries[/there/reg.txt]: no such file",
+		"p2p.registries: /there/reg.txt: no such file",
 		"p2p.listen: 10.0.0.9:8646 is not an address of this machine",
 		"p2p.advertise: old.example:8646",
 	} {

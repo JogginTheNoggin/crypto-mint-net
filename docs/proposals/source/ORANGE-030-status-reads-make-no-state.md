@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D157) |
 | Based on | `main` @ `522e891` |
 | Area | `pkg/engine` (`Status`, `Tip`, new `unstated`) |
 | Effort | one function and a test |

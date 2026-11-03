@@ -52,7 +52,7 @@ func TestSettingsExportImport(t *testing.T) {
 	// With -full the file is taken, and the preview says it is not here,
 	// until -map-path points it at this machine's.
 	out = runOut(t, "settings", "import", file, "-full", "-root", dst)
-	if !strings.Contains(out, "may not fit this machine: p2p.registries[/old/home/reg.txt]: no such file here") {
+	if !strings.Contains(out, "may not fit this machine: p2p.registries: /old/home/reg.txt: no such file here") {
 		t.Fatalf("-full did not say the file is missing:\n%s", out)
 	}
 	here := t.TempDir()

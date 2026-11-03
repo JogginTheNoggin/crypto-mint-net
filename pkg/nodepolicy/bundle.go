@@ -561,7 +561,7 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 				// taken without the rest of -full (RED-055, D156).
 				keep = append(keep, r)
 			} else if settings {
-				plan.SkippedSettings = append(plan.SkippedSettings, "p2p.registries["+r+"] (a local file: -map-path OLD=NEW or -full takes it)")
+				plan.SkippedSettings = append(plan.SkippedSettings, "p2p.registries: "+r+" (a local file: -map-path OLD=NEW or -full takes it)")
 			}
 		}
 		file.P2P.Registries = keep

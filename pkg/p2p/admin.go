@@ -3,7 +3,9 @@ package p2p
 import (
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
 // The owner's controls over peers, for the node's local interface. Each
@@ -76,6 +78,69 @@ func (h *Host) DeletePeer(addr string) bool {
 	}
 	return held
 }
+
+// AddPeer puts addr in the peer book by the owner's hand, as a candidate
+// for every mint policy this node follows, with label (D157). The
+// connection manager dials it when a policy is short of peers;
+// ConnectNow dials it at once. A blocked address is refused, and so is a
+// local one unless the node allows local peers or lists it.
+func (h *Host) AddPeer(addr, label string) error {
+	if err := peers.CheckLabel(label); err != nil {
+		return err
+	}
+	if !h.learnable(addr) && !h.configured[addr] {
+		return errNotPublic
+	}
+	if err := h.book.Add(addr, h.coverage, peers.FromHand, time.Now()); err != nil {
+		return err
+	}
+	if label != "" {
+		if _, err := h.book.SetLabel(addr, label); err != nil {
+			return err
+		}
+	}
+	return h.book.Save()
+}
+
+// LabelPeer sets addr's label in the peer book ("" clears it). It reports
+// whether the book holds addr.
+func (h *Host) LabelPeer(addr, label string) (bool, error) {
+	ok, err := h.book.SetLabel(addr, label)
+	if err == nil && ok {
+		err = h.book.Save()
+	}
+	return ok, err
+}
+
+// ConnectImported makes every unlisted address from an imported peer
+// file a candidate and runs the connection manager, which dials them as
+// policies have room (D157). It returns how many it made candidates.
+func (h *Host) ConnectImported() int {
+	n := h.book.PromoteImported(wire.All, 0)
+	if n > 0 {
+		h.spawn(h.Manage)
+	}
+	return n
+}
+
+// Listed returns the addresses the node policy lists (p2p.peers) and the
+// ones found to lead back to this node: an imported block list never
+// blocks them (D157).
+func (h *Host) Listed() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := append([]string(nil), h.cfg.Peers...)
+	for a := range h.selfAddrs {
+		out = append(out, a)
+	}
+	if h.cfg.Advertise != "" {
+		out = append(out, h.cfg.Advertise)
+	}
+	return out
+}
+
+// AllowsLocalPeers reports the node policy's p2p.allow_local_peers.
+func (h *Host) AllowsLocalPeers() bool { return h.cfg.AllowLocalPeers }
 
 // SetPeerTemplate chooses addr's own tracking template ("" for its groups
 // and the default).

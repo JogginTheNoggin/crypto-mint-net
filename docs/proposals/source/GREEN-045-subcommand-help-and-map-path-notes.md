@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (D157) |
 | Based on | `main` @ `522e891` |
 | Area | `pkg/cli` (`run`, policy and settings import text output), `pkg/nodepolicy` (`PathMap.Maps`), `docs/modules/poo.md` |
 | Effort | small |

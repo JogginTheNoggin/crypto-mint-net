@@ -70,9 +70,9 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-042](source/GREEN-042-grind-series-help-and-import-plan-values.md) | Source | Grind -series help, and import plans that show values | adopted (D151) |
 | [GREEN-043](source/GREEN-043-import-plan-notes-read-like-its-lines.md) | Source | Import plan notes read like its lines, and help names the new flags | adopted (D153) |
 | [GREEN-044](source/GREEN-044-help-names-grind-schedule-and-doctor-fix-for-check-seconds.md) | Source | Help names grind schedule, and doctor's fix for check_seconds | adopted (D155) |
-| [GREEN-045](source/GREEN-045-subcommand-help-and-map-path-notes.md) | Source | "poo CMD -h" for every command with subcommands, and -map-path notes | proposed |
+| [GREEN-045](source/GREEN-045-subcommand-help-and-map-path-notes.md) | Source | "poo CMD -h" for every command with subcommands, and -map-path notes | adopted (D157) |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
 | [ORANGE-029](source/ORANGE-029-weight-checks-within-the-budget.md) | Source | Round 19 measured; ask weights within the peer's request budget | adopted (D155) |
-| [ORANGE-030](source/ORANGE-030-status-reads-make-no-state.md) | Source | Round 20 measured; read an unused pool without making its state | proposed |
+| [ORANGE-030](source/ORANGE-030-status-reads-make-no-state.md) | Source | Round 20 measured; read an unused pool without making its state | adopted (D157) |

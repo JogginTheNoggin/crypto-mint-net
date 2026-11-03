@@ -1,11 +1,14 @@
 package rpc
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 )
 
@@ -35,9 +38,19 @@ type ChasesReply struct {
 //	clear     clear its flags, measures or all (What)
 //	template  track it with Template ("" for its groups and the default)
 //	delete    take it out of the peer book and forget it
+//	add       put it in the peer book by hand, as a candidate for every
+//	          followed mint policy, with Label; Keep also lists it in
+//	          node.json (p2p.peers) so it is always dialled (D157)
+//	remove    delete, and take it out of node.json's p2p.peers
+//	label     set its Label ("" clears it)
+//	connect   dial it now; with Imported and no address, make every
+//	          unlisted address from an imported peer file a candidate
 type PeerRequest struct {
 	Addr     string `json:"addr"`
 	Action   string `json:"action"`
+	Label    string `json:"label,omitempty"`
+	Keep     bool   `json:"keep,omitempty"`
+	Imported bool   `json:"imported,omitempty"`
 	Seconds  int    `json:"seconds,omitempty"`
 	Range    bool   `json:"range,omitempty"`
 	What     string `json:"what,omitempty"`
@@ -50,8 +63,15 @@ type PeerReply struct {
 	Key string `json:"key"`
 	// Closed counts the connections the action closed.
 	Closed int `json:"closed,omitempty"`
-	// Held reports, for delete, whether the peer book held the address.
+	// Held reports, for delete, remove and label, whether the peer book
+	// held the address.
 	Held bool `json:"held,omitempty"`
+	// Kept reports, for add with keep and for remove, whether node.json's
+	// p2p.peers changed.
+	Kept bool `json:"kept,omitempty"`
+	// Promoted counts, for connect with imported, the addresses made
+	// candidates.
+	Promoted int `json:"promoted,omitempty"`
 	// Status is the address's status after the action.
 	Status tracking.Status `json:"status"`
 }
@@ -97,7 +117,7 @@ func (h *Handler) peer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	if req.Addr == "" {
+	if req.Addr == "" && !(req.Action == "connect" && req.Imported) {
 		writeError(w, badRequest("addr is required"))
 		return
 	}
@@ -130,6 +150,49 @@ func (h *Handler) peer(w http.ResponseWriter, r *http.Request) {
 		}
 	case "delete":
 		out.Held = h.host.DeletePeer(req.Addr)
+	case "add":
+		if err := h.host.AddPeer(req.Addr, req.Label); err != nil && !(req.Keep && errors.Is(err, p2p.ErrNotPublic)) {
+			writeError(w, badRequest("%v", err))
+			return
+		}
+		if req.Keep {
+			kept, e := h.keepPeer(req.Addr, true)
+			if e != nil {
+				writeError(w, e)
+				return
+			}
+			out.Kept = kept
+		}
+		out.Held = true
+	case "remove":
+		out.Held = h.host.DeletePeer(req.Addr)
+		kept, e := h.keepPeer(req.Addr, false)
+		if e != nil {
+			writeError(w, e)
+			return
+		}
+		out.Kept = kept
+	case "label":
+		held, err := h.host.LabelPeer(req.Addr, req.Label)
+		if err != nil {
+			writeError(w, badRequest("%v", err))
+			return
+		}
+		out.Held = held
+	case "connect":
+		if req.Imported {
+			if req.Addr != "" {
+				writeError(w, badRequest("connect takes an address or imported, not both"))
+				return
+			}
+			out.Promoted = h.host.ConnectImported()
+			writeJSON(w, out)
+			return
+		}
+		if err := h.host.Connect(req.Addr); err != nil {
+			writeError(w, badRequest("dialling %s: %v", req.Addr, err))
+			return
+		}
 	default:
 		writeError(w, badRequest("unknown action %q", req.Action))
 		return
@@ -138,6 +201,26 @@ func (h *Handler) peer(w http.ResponseWriter, r *http.Request) {
 	out.Key = tr.Key(req.Addr)
 	out.Status = tr.Status(req.Addr, time.Now())
 	writeJSON(w, out)
+}
+
+// keepPeer adds addr to, or takes it out of, node.json's p2p.peers under
+// the same lock as the other edits of node.json. The running node already
+// has it in its book; the change is for its next start or reload.
+func (h *Handler) keepPeer(addr string, keep bool) (bool, *Error) {
+	h.policyMu.Lock()
+	defer h.policyMu.Unlock()
+	path := h.policyPath()
+	p, err := nodepolicy.Load(path)
+	if err != nil {
+		return false, classify(err)
+	}
+	if !nodepolicy.KeepPeer(&p, addr, keep) {
+		return false, nil
+	}
+	if err := nodepolicy.Save(path, p); err != nil {
+		return false, classify(err)
+	}
+	return true, nil
 }
 
 // Tracking returns every tracked key's status and the blocked ranges.

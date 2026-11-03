@@ -117,6 +117,12 @@ type Config struct {
 	// make the node connect into its own network (decision D96). Addresses
 	// in Peers are always dialled. Local test networks turn it on.
 	AllowLocalPeers bool
+	// NoDialImported keeps the unlisted addresses of an imported peer
+	// file (peers.Unlisted) out of the connection manager: they are tried
+	// only when the owner asks (D157). By default the manager tries them
+	// when a policy is short of peers, after its own candidates and the
+	// archive, before asking peers and registries.
+	NoDialImported bool
 	// MaxInbound caps connections other nodes open to this one. By
 	// default it is MaxPeers less MaxOutbound, so that inbound connections
 	// cannot take the slots the node keeps for peers it chose itself
