@@ -30,6 +30,9 @@ async function launch(flags = []) {
   const page = await browser.newPage({ bypassCSP: !!process.env.CSS });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Performance.enable');
+  // LATENCY=ms adds that much round-trip time to every request, to show
+  // the page as reached over a network rather than on this computer.
+  if (process.env.LATENCY) await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: +process.env.LATENCY, downloadThroughput: -1, uploadThroughput: -1 });
   const requests = [];
   page.on('request', r => requests.push({ url: r.url(), method: r.method(), t: Date.now() }));
   // Event streams the page has open: the browser allows six connections
