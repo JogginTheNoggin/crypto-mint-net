@@ -111,7 +111,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Local web app | One Go binary on loopback that opens the system browser, or an app window with `-app`. No CGO and no JavaScript build | `gui/cmd/poo-gui`, `gui/server` | D85 |
 | Locked down | One-time sign-in address, session cookie, cross-origin requests refused, strict content security policy | `gui/server` | GUI-001 to GUI-005 |
 | View-only mode | `poo-gui -view-only` runs every command in the core's view-only mode | `gui/server` | D101 |
-| Masked secrets | A passphrase or seed is masked exactly when `poo` reads one, and asked for again on a second prompt | `gui/jobs` | D101, GUI-020 |
+| Masked secrets | A passphrase or seed is masked exactly when `poo` reads one, and asked for again on a second prompt. No form puts a seed on its command line: Make a key and Restore ask for it (D98) | `gui/jobs`, `gui/web/static/views/crypto.js` | D101, GUI-020, GUI-GREEN-047 |
 | Jobs | Every command run, with live output, Stop, Run again and bounded scrollback. Node, Watch and grind jobs keep running across views | `gui/jobs`, `gui/server` | ORANGE-001 to ORANGE-003 |
 | Long input | A pasted entry of any size reaches `poo`: it is sent in parts, and end of input waits for all of it | `gui/jobs`, `gui/web/static/api.js` | ORANGE-013 |
 | Settings | `-root` and `-policy`, set once and added by every view | `gui/web/static/where.js` | |

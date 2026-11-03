@@ -91,11 +91,18 @@ export async function loadInfo() {
 // flag such as -restore or -seed (except in poo sim, where -seed is a
 // random-number seed). It errs toward true, since it only keeps a line
 // out of saved history (GUI-006 in security/gui/findings).
+//
+// A secret flag whose value is - (standard input) holds no secret: poo
+// asks for it in a masked field, so poo wallet create -restore - is not
+// one (GUI-GREEN-047).
 export function secretLine(text) {
-  const words = text.trim().split(/\s+/).map(w => w.replace(/^['"]+/, ''));
+  const words = text.trim().split(/\s+/).map(w => w.replace(/^['"]+|['"]+$/g, ''));
   if (words[0] === 'poo') words.shift();
   if (words.find(w => !w.startsWith('-')) === 'sim') return false;
-  return words.some(w => secretFlags.some(f => new RegExp(`^--?${f}(=|$)`).test(w)));
+  return words.some((w, i) => secretFlags.some(f => {
+    const m = new RegExp(`^--?${f}(=(.*))?$`).exec(w);
+    return m && (m[1] !== undefined ? m[2] !== '-' : words[i + 1] !== '-');
+  }));
 }
 
 // quote shows args as the poo command line the platform's shell would

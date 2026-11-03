@@ -53,6 +53,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-044](GUI-GREEN-044-one-file-per-view.md) | One file per view in `static/views/`, one list in `views/index.js`; the e2e walks every view from the navigation | small | yes | adopted |
 | [GUI-GREEN-045](GUI-GREEN-045-subcommand-parity.md) | parity.mjs also checks that every subcommand poo lists (peer actions, policy, sim, submit, grind, wallet) is run by a view | small | yes | adopted |
 | [GUI-GREEN-046](GUI-GREEN-046-copy-command-line.md) | Copy beside every command line, to run it in a shell; off while the line holds a secret flag | small | yes | adopted |
+| [GUI-GREEN-047](GUI-GREEN-047-keygen-seed-masked.md) | Make a key asks for its seed in a masked field (`keygen -seed-file -`, D98) instead of putting it on the line; a secret flag set to `-` is not a secret line | small | yes | proposed |
 
 ## Orange (performance)
 

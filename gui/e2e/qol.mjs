@@ -232,10 +232,25 @@ try {
   await key.locator('button.copy-cmd').click();
   await key.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await key.locator('.cmd code').innerText());
-  await key.locator('input[name=seed]').fill('ab'.repeat(32));
-  assert.ok(await key.locator('button.copy-cmd').isDisabled(), 'a line with -seed is not copied');
-  await key.locator('input[name=seed]').fill('');
-  assert.ok(!(await key.locator('button.copy-cmd').isDisabled()), 'Copy is back once the secret is gone');
+  // A seed is never on a form's line: poo asks for it (D98, GUI-GREEN-047).
+  await key.locator('input[name=own]').check();
+  assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -seed-file -');
+  assert.ok(!(await key.locator('button.copy-cmd').isDisabled()), 'a line that reads its seed from input is copied');
+  const secret = await page.evaluate(async () => {
+    const { secretLine } = await import('/api.js');
+    return ['poo keygen -seed ' + 'ab'.repeat(32), 'poo keygen -seed=ab', 'poo wallet create -restore -', 'poo wallet create -restore=-', 'poo keygen -seed-file -', 'poo sim -seed 3', 'poo keygen -seed'].map(secretLine);
+  });
+  assert.deepEqual(secret, [true, true, false, false, false, false, true], 'secretLine: a value of - is read in a masked field, not on the line');
+  await key.locator('button', { hasText: 'Make key' }).click();
+  const ask = key.locator('form.ask');
+  await ask.waitFor();
+  assert.equal(await ask.locator('input').getAttribute('type'), 'password', 'the seed is asked in a masked field');
+  await ask.locator('input').fill('ab'.repeat(32));
+  await ask.locator('input').press('Enter');
+  await key.locator('.run-status.ok').waitFor();
+  const want = execFileSync(bin, ['poo', 'keygen', '-seed', 'ab'.repeat(32)], { env }).toString();
+  assert.equal((await key.locator('.result dd code.hex').first().getAttribute('title')).split('\n')[0], JSON.parse(want).address, 'the key is made from the seed typed in');
+  await key.locator('input[name=own]').uncheck();
   // GUI-024: on Windows a copied line is pasted into PowerShell or cmd.exe,
   // so Copy is off for a word either shell would run or change. The server
   // here answers posix; /api/info is answered "windows", as on Windows.
