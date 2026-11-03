@@ -138,7 +138,9 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	}
 	add(Check{Name: "policy", Result: checkOK, Detail: fmt.Sprintf("%s parses and validates (series: %d, follow rules: %d)", path, len(p.Series), len(p.Follow))})
 	for _, n := range p.Lowered {
-		fix := "lower it in " + path + " (poo grind schedule set, or edit the file)"
+		// No command writes every such field (p2p.check_seconds has
+		// none), so the fix names the value to write (GREEN-044).
+		fix := fmt.Sprintf("set %s to %d in %s", n.Field, n.Now, path)
 		if len(n.FixArgs) > 0 {
 			fix = "poo " + strings.Join(n.FixArgs, " ") + " (or edit " + path + ")"
 		}

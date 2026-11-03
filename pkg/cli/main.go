@@ -86,7 +86,7 @@ Usage:
                               add a layer (default: on the selected tip)
   poo submit entry|layer -pool K | -serial N HEX
                               hand the node an entry or layer made elsewhere
-  poo grind devices|bench|start|run|jobs|stop
+  poo grind devices|bench|start|run|schedule|jobs|stop
                               the node's hash work: devices, speed, and jobs
                               by hand, scheduled or automatic (poo grind help)
   poo payment -serial N -tid HASH

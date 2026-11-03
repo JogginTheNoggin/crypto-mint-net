@@ -90,3 +90,26 @@ func TestCompletionScripts(t *testing.T) {
 		t.Error("tcsh")
 	}
 }
+
+// The one line poo help gives a command with its own usage names every
+// subcommand that usage lists: "poo grind" left out schedule, and
+// completion, which read that line, did not offer it (GREEN-044).
+func TestHelpLineNamesEverySubcommand(t *testing.T) {
+	for _, cmd := range []string{"grind", "sim"} {
+		var line string
+		for _, l := range strings.Split(usage, "\n") {
+			if rest, ok := strings.CutPrefix(l, "  poo "+cmd+" "); ok {
+				line, _, _ = strings.Cut(rest, " ")
+			}
+		}
+		names := strings.Split(line, "|")
+		for _, sub := range subcommands(cmd) {
+			if sub != "help" && !slices.Contains(names, sub) {
+				t.Errorf("poo help: the %s line %q leaves out %s", cmd, line, sub)
+			}
+		}
+	}
+	if got := complete([]string{"grind"}, "sch"); !slices.Equal(got, []string{"schedule"}) {
+		t.Errorf("complete grind sch: %q", got)
+	}
+}
