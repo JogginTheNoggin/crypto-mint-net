@@ -159,6 +159,33 @@ try {
   assert.ok(stated.length > 5, 'fields that state a default were found');
   assert.deepEqual([...new Set(drift)], [], 'a stated default is poo\'s');
 
+  // A field that offers a fixed set of values (a select or boxes marked
+  // with data-flag) offers exactly the ones poo -h lists for its flag, so
+  // a book state or event kind Source adds shows up here (GUI-GREEN-048).
+  // poo lists them as "...: a, b, c" or "a, b or c".
+  const offered = [];
+  for (const v of views) {
+    await page.click(`nav a[data-id=${v}]`);
+    await page.locator(`nav a[data-id=${v}][aria-current=page]`).waitFor();
+    offered.push(...await page.evaluate(() => [...document.querySelectorAll('#main section.panel [data-flag]')].map(e => ({
+      line: e.closest('section.panel').querySelector('.cmd code').textContent,
+      flag: e.dataset.flag,
+      values: (e.tagName === 'SELECT' ? [...e.options] : [...e.querySelectorAll('input[type=checkbox]')]).map(o => o.value).filter(Boolean),
+    }))));
+  }
+  const choiceDrift = [];
+  for (const o of offered) {
+    const cmd = commandOf(o.line);
+    const r = spawnSync(bin, ['poo', ...cmd, '-h'], { env });
+    const m = new RegExp(`^ {2}-${o.flag}(?: \\w+)?\n\\s+(.*)$`, 'm').exec(`${r.stdout}${r.stderr}`);
+    const help = m ? m[1].replace(/\s*\([^()]*\)\s*$/, '') : '';
+    const list = (/: ([a-z-]+(?:, [a-z-]+)+)$/.exec(help) || /([a-z-]+(?:, [a-z-]+)* or [a-z-]+)$/.exec(help) || [, ''])[1];
+    const poo = list.split(/, | or /).filter(Boolean);
+    if ([...o.values].sort().join() !== [...poo].sort().join()) choiceDrift.push(`poo ${cmd.join(' ')} -${o.flag}: the GUI offers ${o.values.join(', ')}; poo lists ${poo.join(', ') || 'none'}`);
+  }
+  assert.ok(offered.length >= 4, 'fields that offer a fixed set of values were found');
+  assert.deepEqual(choiceDrift, [], 'a field offers exactly the values poo lists');
+
   // Every subcommand poo lists is run by some view, or LEFT_OUT_SUBS says
   // why not. An action select is a copy of poo's list of subcommands, and
   // a new action would carry flags the family already has, so the flag

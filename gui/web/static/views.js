@@ -287,7 +287,11 @@ function noNode(sec, area, r) {
 }
 
 // form builds a command line from fields and runs it on submit.
-//   fields: [{name, label, type: text|number|password|select|check|list, flag, options, placeholder, required, help}]
+//   fields: [{name, label, type: text|number|password|select|check|list|choices, flag, options, placeholder, required, help}]
+// A choices field is a box to tick for each of options, sent as one comma
+// list, for a flag that takes some of a fixed set (-category, -kind). A
+// field with flag set marks its select or boxes with data-flag, so the
+// parity check holds their choices to the ones poo -h lists (GUI-GREEN-048).
 //   args(values) returns the argv; the preview updates as fields change.
 // onResult, if given, is called with the finished job's {code, out, err}
 // and the result area, so a view can act on the data rather than on the
@@ -300,7 +304,9 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   for (const fd of fields) {
     let input;
     if (fd.type === 'select') {
-      input = el('select', { name: fd.name }, ...fd.options.map(o => el('option', { value: o.value ?? o }, o.label ?? o)));
+      input = el('select', { name: fd.name, 'data-flag': fd.flag }, ...fd.options.map(o => el('option', { value: o.value ?? o }, o.label ?? o)));
+    } else if (fd.type === 'choices') {
+      input = choices(fd.name, fd.options, fd.label, fd.flag);
     } else if (fd.type === 'check') {
       input = el('input', { type: 'checkbox', name: fd.name });
     } else {
@@ -309,7 +315,8 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     if (fd.value !== undefined) input.value = fd.value;
     if (fd.list) input.setAttribute('list', fd.list);
     inputs[fd.name] = input;
-    labels[fd.name] = el('label', { class: fd.type === 'check' ? 'check' : '' }, el('span', {}, fd.label), input, fd.help ? el('small', {}, fd.help) : null);
+    labels[fd.name] = fd.type === 'choices' ? input
+      : el('label', { class: fd.type === 'check' ? 'check' : '' }, el('span', {}, fd.label), input, fd.help ? el('small', {}, fd.help) : null);
     f.append(labels[fd.name]);
   }
   // A field with only: {field, values} is shown, and sent, only while that
@@ -325,7 +332,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     for (const fd of fields) {
       const i = inputs[fd.name];
       const on = shown(fd);
-      v[fd.name] = fd.type === 'check' ? on && i.checked : fd.type === 'list' ? (on ? i.value.split(/[\s,]+/).filter(Boolean) : []) : on ? i.value.trim() : '';
+      v[fd.name] = fd.type === 'check' ? on && i.checked : fd.type === 'choices' ? (on ? i.value() : '') : fd.type === 'list' ? (on ? i.value.split(/[\s,]+/).filter(Boolean) : []) : on ? i.value.trim() : '';
     }
     return v;
   };
@@ -360,7 +367,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   // run fills fields from values and submits, as if the user had typed
   // them and pressed the button (a link into a view uses it).
   const run = vals => {
-    for (const [k, v] of Object.entries(vals)) if (inputs[k]) inputs[k].value = v;
+    for (const [k, v] of Object.entries(vals)) if (inputs[k] && typeof inputs[k].value !== 'function') inputs[k].value = v;
     showOnly();
     line.set(args(values()));
     f.requestSubmit();
@@ -370,6 +377,17 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   // value shows it (GREEN-033); an empty field still sends nothing.
   const hint = (name, text) => { if (inputs[name]) inputs[name].placeholder = text; };
   return { el: sec, form: f, inputs, stop: () => leave(area), run, hint };
+}
+
+// choices is a set of boxes, one for each option, in a fieldset whose
+// value() is the ticked ones as a comma list: none ticked sends nothing,
+// so poo's default (every one) holds. Watch's kinds use it too.
+export function choices(name, options, legend, flagName) {
+  const boxes = options.map(o => el('input', { type: 'checkbox', name, value: o }));
+  const set = el('fieldset', { class: 'kinds', 'data-flag': flagName }, el('legend', {}, legend),
+    ...options.map((o, i) => el('label', { class: 'check' }, boxes[i], ` ${o}`)));
+  set.value = () => boxes.filter(b => b.checked).map(b => b.value).join(',');
+  return set;
 }
 
 // flag adds -name value when value is set.

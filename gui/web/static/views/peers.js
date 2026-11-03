@@ -3,8 +3,9 @@ import * as where from '../where.js';
 import { el, flag, form, mountAll, panel } from '../views.js';
 import { allOf, count, importForm, planTable, saveAs, someOf } from './policies.js';
 
-// The peer book's states, as poo peers -category takes them.
-const CATEGORIES = 'candidate, priority, backup, archived, unlisted';
+// The peer book's states, as poo peers -category takes them; export also
+// takes blocked and timed-out. parity.mjs holds both lists to poo -h.
+const CATEGORIES = ['candidate', 'priority', 'backup', 'archived', 'unlisted'];
 
 export const peersView = {
   id: 'peers',
@@ -14,7 +15,7 @@ export const peersView = {
       panel(ctx, { title: 'Peers', about: 'Connected peers, their categories and points, and the peer book.', args: () => ['peers', ...where.flags()], refresh: 10000 }),
       // The book filtered as poo peers filters it (D157).
       form(ctx, { title: 'Find peers', about: 'The peer book, only the addresses that match every field filled in.', fields: [
-        { name: 'category', label: 'Categories', placeholder: CATEGORIES },
+        { name: 'category', label: 'Categories (none ticked: all)', type: 'choices', options: CATEGORIES, flag: 'category' },
         { name: 'policy', label: 'Mint policy', placeholder: 'a series id, or a part of one' },
         { name: 'label', label: 'Label holds' },
         { name: 'addr', label: 'Address holds' }],
@@ -37,7 +38,7 @@ export const peersView = {
         // Which action takes which flag is poo peer's own rule (pkg/cli/node.go).
         { name: 'seconds', label: 'Seconds', type: 'number', placeholder: '-1 blocks until unblocked', only: { field: 'action', values: ['timeout', 'block'] } },
         { name: 'range', label: 'Whole range', type: 'check', only: { field: 'action', values: ['block'] } },
-        { name: 'what', label: 'Clear', type: 'select', options: ['', 'flags', 'measures', 'all'], only: { field: 'action', values: ['clear'] } },
+        { name: 'what', label: 'Clear', type: 'select', options: ['', 'flags', 'measures', 'all'], flag: 'what', only: { field: 'action', values: ['clear'] } },
         { name: 'template', label: 'Tracking template', placeholder: 'template name', only: { field: 'action', values: ['template'] } },
       ], args: v => ['peer', v.action, ...where.flags(), ...flag('seconds', v.seconds), ...flag('range', v.range), ...flag('what', v.what), ...flag('template', v.template), ...(v.addr ? [v.addr] : [])],
       submit: 'Apply', danger: true }),
@@ -51,7 +52,7 @@ export const peersView = {
       // The peer book shared as one file (D157): others import it as
       // unlisted addresses, after a preview, pinned to the file previewed.
       form(ctx, { title: 'Export peers', about: 'Writes the peer book, or some categories of it, and the blocks, to one file others can import. Without a file, it is printed here, with Save as file.', fields: [
-        { name: 'category', label: 'Categories', placeholder: `${CATEGORIES}, blocked, timed-out (default: all)` },
+        { name: 'category', label: 'Categories (none ticked: all)', type: 'choices', options: [...CATEGORIES, 'blocked', 'timed-out'], flag: 'category' },
         { name: 'out', label: 'To a file', placeholder: 'a path on this machine (default: print it)' }],
       args: v => ['peers', 'export', ...where.flags(), ...flag('category', v.category), ...flag('out', v.out)], submit: 'Export',
       onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'peers.json')); } }),

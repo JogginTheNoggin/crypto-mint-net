@@ -164,6 +164,9 @@ try {
   const find = section('Find peers');
   await fill(find, 'Label holds', 'friend');
   assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -label friend`);
+  // The book states are boxes, as Watch's kinds are (GUI-GREEN-048).
+  for (const c of ['unlisted', 'candidate']) await find.locator(`fieldset[data-flag=category] input[value=${c}]`).check();
+  assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -category candidate,unlisted -label friend`);
   await find.locator('button[type=submit]').click();
   await find.locator('.result', { hasText: '1.0.0.9' }).waitFor();
   const trk = section('Tracking records');
@@ -360,8 +363,9 @@ try {
   await sdef.locator('[role=alert]', { hasText: /and \d+ more\.$/ }).waitFor();
   assert.ok(!(await sdef.locator('[role=alert]').innerText()).includes(peers30[29]), 'the line names only the first ones');
   await sdef.locator('summary', { hasText: /^Show all \d+$/ }).click();
-  // The list is drawn by the toggle event, which runs after the click.
-  await sdef.locator('details p').waitFor();
+  // The list is drawn on the details' toggle event, which comes after the
+  // click returns: wait for it rather than read the details at once.
+  await sdef.locator('details.plan-all p').waitFor();
   for (const pr of peers30) assert.ok((await sdef.locator('details').innerText()).includes(pr), `Show all lists ${pr}`);
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();

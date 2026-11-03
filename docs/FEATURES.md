@@ -142,7 +142,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 
 | Feature | What it does | Code |
 | --- | --- | --- |
-| Flag parity | CI fails if a subcommand `poo help` lists is run by no view, a flag `poo CMD -h` lists is sent by no form (unless listed with a reason), or a field's stated default differs from `poo -h` | `gui/e2e/parity.mjs` (GUI-GREEN-042, 043, 045) |
+| Flag parity | CI fails if a subcommand `poo help` lists is run by no view, a flag `poo CMD -h` lists is sent by no form (unless listed with a reason), a field's stated default differs from `poo -h`, or a field's fixed set of values (book states, event kinds) differs from the one `poo -h` lists | `gui/e2e/parity.mjs` (GUI-GREEN-042, 043, 045, 048) |
 | End-to-end tests | Nine browser scripts run in CI against real nodes | `gui/e2e` |
 | Performance re-checks | GUI/Orange measures a soak, page load, Watch and Work at high rates and large results every round | `gui/perf`, `docs/proposals/gui/README.md` |
 
@@ -164,8 +164,10 @@ Then the GUI, where a feature is a form over its command:
    command's flags. For a new view, add a file there that exports
    `{ id, title, mount }`, and list it in `views/index.js`.
 5. Run `gui/e2e/parity.mjs`. It walks every view in the navigation and
-   fails if a flag of the command is sent by no form, or if a field states
-   a default that differs from `poo -h`. Add a reason to its `LEFT_OUT`
+   fails if a flag of the command is sent by no form, if a field states
+   a default that differs from `poo -h`, or if a field that offers a fixed
+   set of values (`type: 'choices'` or a select, with `flag:` set) offers
+   other values than `poo -h` lists. Add a reason to its `LEFT_OUT`
    only for a flag that belongs in the terminal.
 
 The policy bundle is built to grow in the same way: its format carries a
