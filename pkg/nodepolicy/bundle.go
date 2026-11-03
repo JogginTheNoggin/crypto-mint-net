@@ -499,6 +499,7 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 				}
 				if len(f.Pools) == 0 && len(f.Mints) == 0 {
 					fc.Whole = true
+					fc.Except += uint64(len(f.Except))
 				}
 				for _, k := range f.Pools {
 					pools[k] = true
@@ -509,11 +510,11 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 			}
 			fc.Followed = uint64(len(pools))
 			if fc.Whole {
-				fc.Followed = fc.Pools
+				fc.Followed = fc.Pools - min(fc.Except, fc.Pools)
 			}
 			plan.Follows = append(plan.Follows, fc)
-			if fc.Whole && fc.Pools >= LargeFollow {
-				plan.Defences = append(plan.Defences, fmt.Sprintf("follow.[series %s] (all %d pools)", fc.Series, fc.Pools))
+			if fc.Whole && fc.Followed >= LargeFollow {
+				plan.Defences = append(plan.Defences, fmt.Sprintf("follow.[series %s] (%d of %d pools)", fc.Series, fc.Followed, fc.Pools))
 			}
 		}
 	}
@@ -563,6 +564,8 @@ type FollowCount struct {
 	Pools    uint64 `json:"pools"`
 	Followed uint64 `json:"followed"`
 	Whole    bool   `json:"whole,omitempty"`
+	// Except counts the pools a whole follow leaves out.
+	Except uint64 `json:"except,omitempty"`
 }
 
 // followed returns the parts of p that Followed names.
@@ -802,7 +805,11 @@ func flatAll(p Policy) map[string]string {
 		case f.Issuer != nil:
 			out["follow"+sep+"[issuer "+f.Issuer.Short()+"]"] = "true"
 		case f.Series != nil:
-			out["follow"+sep+"[series "+f.Series.Short()+"]"] = jsonOf(map[string]any{"pools": f.Pools, "mints": f.Mints})
+			v := map[string]any{"pools": f.Pools, "mints": f.Mints}
+			if len(f.Except) > 0 {
+				v["except"] = f.Except
+			}
+			out["follow"+sep+"[series "+f.Series.Short()+"]"] = jsonOf(v)
 		}
 	}
 	for _, a := range p.Issuers.Accept {

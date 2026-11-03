@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -125,8 +126,9 @@ type importResult struct {
 	Saved     bool            `json:"saved"`
 	Reloading bool            `json:"reloading,omitempty"`
 	Current   bool            `json:"made_current,omitempty"`
-	// Digest is the SHA-256 of the file read, the same on every row:
-	// pass it back with -if-digest to apply only that file (GUI-023).
+	// Digest is the SHA-256 of the file read, the options and every
+	// plan, the same on every row: pass it back with -if-digest to apply
+	// only that file with those options and that plan (GUI-023, RED-051).
 	Digest string `json:"digest"`
 }
 
@@ -143,7 +145,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	full := fs.Bool("full", false, "take every setting, machine-local ones too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): restoring a backup on this machine")
 	noReload := fs.Bool("no-reload", false, "change node.json only; a running node applies it on its next reload or start")
 	asJSON := fs.Bool("json", false, "print the plan as JSON")
-	ifDigest := fs.String("if-digest", "", "apply only if the file's SHA-256 (hex, as the plan prints it) is this one: so the file applied is the file previewed")
+	ifDigest := fs.String("if-digest", "", "apply only if the import digest (hex, as the preview prints it: the file, the options and the plan) is this one: so what is applied is what was previewed")
 	// The file may come before the flags: poo policy import FILE -apply.
 	var file string
 	if len(args) > 0 && (args[0] == "-" || !strings.HasPrefix(args[0], "-")) {
@@ -191,9 +193,6 @@ func policyImportCmd(args []string, out io.Writer) error {
 	}
 	if err != nil {
 		return err
-	}
-	if digestGiven && !strings.EqualFold(*ifDigest, b.Digest) {
-		return fmt.Errorf("the file is not the one previewed (its digest is %s, not %s), so nothing was changed: preview it again", b.Digest, *ifDigest)
 	}
 	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full, SeriesOnly: b.Scope == nodepolicy.ScopeSeries}
 	if opt.SeriesOnly && *replace {
@@ -245,6 +244,12 @@ func policyImportCmd(args []string, out io.Writer) error {
 		}
 		results = append(results, r)
 	}
+	// The digest covers what an apply does: the file, the options and the
+	// plan, so -if-digest applies only what was previewed (RED-051, D154).
+	dg := importDigest(b.Digest, opt, results)
+	if digestGiven && !strings.EqualFold(*ifDigest, dg) {
+		return fmt.Errorf("this is not the import previewed: the file, its options (-settings, -full, -replace, -prefer-file, -policy, -dir) or what it would change differ (digest %s, not %s), so nothing was changed: preview it again", dg, *ifDigest)
+	}
 	if *apply {
 		var saved []string
 		for i, t := range targets {
@@ -277,7 +282,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 		}
 	}
 	for i := range results {
-		results[i].Digest = b.Digest
+		results[i].Digest = dg
 	}
 	if *asJSON {
 		return writeJSON(out, results)
@@ -286,7 +291,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	if !*apply && changes {
 		// Only a preview with something to apply needs the digest: it is
 		// what -apply -if-digest checks (GREEN-043).
-		fmt.Fprintf(out, "file digest %s (-if-digest applies only this file)\n", b.Digest)
+		fmt.Fprintf(out, "import digest %s (-apply -if-digest applies only this file, with these options and this plan)\n", dg)
 	}
 	if b.HasSettings() {
 		fmt.Fprintln(out, "note: the file also holds settings; this version imports node policies only")
@@ -407,7 +412,7 @@ func printPlan(out io.Writer, r importResult, apply bool) {
 		fmt.Fprintf(out, "  read first: these change how this node runs, guards itself or reaches out, or take on many pools: %s\n", listSome(planFields(p.Defences, short), 20))
 	}
 	for _, f := range p.Follows {
-		if f.Whole {
+		if f.Whole && f.Except == 0 {
 			fmt.Fprintf(out, "  series %s: follows all %d pools\n", f.Series, f.Pools)
 		} else {
 			fmt.Fprintf(out, "  series %s: follows %d of %d pools\n", f.Series, f.Followed, f.Pools)
@@ -478,4 +483,28 @@ func listSome(list []string, n int) string {
 		return strings.Join(list, ", ")
 	}
 	return fmt.Sprintf("%s and %d more (-json lists them all)", strings.Join(list[:n], ", "), len(list)-n)
+}
+
+// importDigest is the SHA-256 of what an import applies: the file's
+// digest, the options, and the plan of every node policy by name and
+// directory (RED-051, D154). A preview prints it; -apply -if-digest
+// recomputes it from a fresh plan and refuses a difference.
+func importDigest(file string, opt nodepolicy.MergeOptions, results []importResult) string {
+	type row struct {
+		Name string          `json:"name"`
+		Dir  string          `json:"dir"`
+		Mode string          `json:"mode"`
+		Plan nodepolicy.Plan `json:"plan"`
+	}
+	rows := make([]row, len(results))
+	for i, r := range results {
+		rows[i] = row{r.Name, r.Dir, r.Mode, r.Plan}
+	}
+	b, _ := json.Marshal(struct {
+		File    string                  `json:"file"`
+		Options nodepolicy.MergeOptions `json:"options"`
+		Plans   []row                   `json:"plans"`
+	}{strings.ToLower(file), opt, rows})
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }

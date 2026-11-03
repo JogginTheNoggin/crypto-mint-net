@@ -138,14 +138,21 @@ applies the change at once without a reload (D113).
 - `AddFollow(f)` / `RemoveFollow(f)` edit the follow list with merge
   rules (decision D93). Adding merges: an issuer appears once, a whole
   series replaces any parts of it, and pools and mints of one series join
-  one entry. Removing an issuer or whole series takes it off entirely;
-  removing pools from a series followed whole first writes the series out
-  pool by pool; removing mints takes them off the listed mints, and a mint
+  one entry (`joinFollow`: what either follows). Removing an issuer or
+  whole series takes it off entirely. Removing pools from a series
+  followed whole puts them on the follow's `except` list, so "all but
+  these" stays one entry for a series of any size. When fewer pools are
+  left than are taken off, the pools left are listed instead (RED-050,
+  D154). Adding a pool, or a mint, of an excepted pool takes it off the
+  list. Removing mints takes them off the listed mints, and a mint
   followed only through its pool cannot be removed alone, since a mint is
   checked with its whole pool. Both refuse a series not listed in
   `series`. `poo follow`, `poo unfollow`, `poo wallet follow` and
   `POST /v1/follow` all use them, so the file and the running node always
-  agree.
+  agree. A change after which the follow list would need more than
+  `MaxSections` (4096) separate sections, the wire's limit on what a node
+  announces, is refused with the way out, when it is made. A whole series,
+  with or without `except`, is one section (RED-050, D154).
 - `ReplaceFollow(f)` puts f's pools and mints (or the whole series, when
   f names none) in place of the series' rule in one change, leaving other
   rules alone; `poo wallet follow` uses it through `POST /follow` with

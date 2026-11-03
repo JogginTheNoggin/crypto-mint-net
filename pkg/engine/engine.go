@@ -124,6 +124,13 @@ func DefaultConfig() Config {
 type follow struct {
 	all   bool
 	pools map[uint64]bool
+	// except, with all, are the pools left out of the series (RED-050).
+	except map[uint64]bool
+}
+
+// has reports whether the rule follows pool k of a series of n pools.
+func (f *follow) has(k, n uint64) bool {
+	return k < n && (f.pools[k] || (f.all && !f.except[k]))
 }
 
 type poolState struct {
@@ -183,7 +190,42 @@ func (e *Engine) FollowSeries(id hash.Hash) error {
 	if _, ok := e.series[id]; !ok {
 		return ErrUnknownSeries
 	}
-	e.followRule(id).all = true
+	f := e.followRule(id)
+	f.all, f.except = true, nil
+	return nil
+}
+
+// FollowsWhole reports whether a series is followed whole, perhaps but
+// for some pools (FollowSeriesExcept).
+func (e *Engine) FollowsWhole(id hash.Hash) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	f, ok := e.follows[id]
+	return ok && f.all
+}
+
+// FollowSeriesExcept follows every pool of a known series but those in
+// except. Followed with the rest, a pool is followed if any rule follows
+// it: a whole follow without exceptions keeps every pool, and a pool
+// followed by its index stays followed (RED-050, D154).
+func (e *Engine) FollowSeriesExcept(id hash.Hash, except []uint64) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	s, ok := e.series[id]
+	if !ok {
+		return ErrUnknownSeries
+	}
+	f := e.followRule(id)
+	ex := map[uint64]bool{}
+	for _, k := range except {
+		if k >= s.PoolCount() {
+			return fmt.Errorf("engine: pool %d out of range", k)
+		}
+		if !f.pools[k] && (!f.all || f.except[k]) {
+			ex[k] = true
+		}
+	}
+	f.all, f.except = true, ex
 	return nil
 }
 
@@ -198,7 +240,9 @@ func (e *Engine) FollowPool(id hash.Hash, index uint64) error {
 	if index >= s.PoolCount() {
 		return fmt.Errorf("engine: pool %d out of range", index)
 	}
-	e.followRule(id).pools[index] = true
+	f := e.followRule(id)
+	f.pools[index] = true
+	delete(f.except, index)
 	return nil
 }
 
@@ -238,29 +282,65 @@ func (e *Engine) followsLocked(k PoolKey) bool {
 	if !ok {
 		return false
 	}
-	s := e.series[k.Series]
-	return k.Index < s.PoolCount() && (f.all || f.pools[k.Index])
+	return f.has(k.Index, e.series[k.Series].PoolCount())
 }
 
-// pool returns the state of a followed pool, creating it on first use.
+// pool returns the state of a followed pool, creating and keeping it on
+// first use.
 func (e *Engine) pool(k PoolKey) (*poolState, error) {
+	p, created, err := e.poolFor(k)
+	if created {
+		e.pools[k] = p
+	}
+	return p, err
+}
+
+// poolFor returns the state of a followed pool and whether it is new: a
+// new state is not kept yet. Every pool's state starts the same (its
+// series and index decide it), so a state made and dropped again is the
+// state made the next time (RED-049, D154).
+func (e *Engine) poolFor(k PoolKey) (*poolState, bool, error) {
 	if p, ok := e.pools[k]; ok {
-		return p, nil
+		return p, false, nil
 	}
 	s, ok := e.series[k.Series]
 	if !ok {
-		return nil, ErrUnknownSeries
+		return nil, false, ErrUnknownSeries
 	}
 	if !e.followsLocked(k) {
-		return nil, ErrNotFollowed
+		return nil, false, ErrNotFollowed
 	}
-	p := &poolState{
+	return &poolState{
 		s:       s,
 		ledger:  ledger.New(s, k.Index, e.cfg.Ledger),
 		pending: mempool.New(s, e.cfg.MaxPending),
+	}, true, nil
+}
+
+// peek returns the state of a followed pool for reading: a pool with no
+// state yet is read from a fresh one, which is not kept, so a query or a
+// check of a pool never in use costs it nothing (RED-049).
+func (e *Engine) peek(k PoolKey) (*poolState, error) {
+	p, _, err := e.poolFor(k)
+	return p, err
+}
+
+// handling returns the state of pool k for an item. A new state is kept
+// only if the item left something in it (an entry, a pending or waiting
+// transaction) by the time done is called, so an item that is refused
+// leaves no state behind (RED-049, D154). What is accepted does not
+// change: the item meets the same state either way.
+func (e *Engine) handling(k PoolKey) (p *poolState, done func(), err error) {
+	p, created, err := e.poolFor(k)
+	if err != nil || !created {
+		return p, func() {}, err
 	}
 	e.pools[k] = p
-	return p, nil
+	return p, func() {
+		if p.ledger.Len() == 0 && p.pending.Len() == 0 && p.pending.Waiting() == 0 {
+			delete(e.pools, k)
+		}
+	}, nil
 }
 
 // FollowedPools returns every pool the node follows, by series id and then
@@ -272,17 +352,12 @@ func (e *Engine) FollowedPools() []PoolKey {
 	for id, f := range e.follows {
 		s := e.series[id]
 		for k := uint64(0); k < s.PoolCount(); k++ {
-			if f.all || f.pools[k] {
+			if f.has(k, s.PoolCount()) {
 				out = append(out, PoolKey{Series: id, Index: k})
 			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if c := out[i].Series.Compare(out[j].Series); c != 0 {
-			return c < 0
-		}
-		return out[i].Index < out[j].Index
-	})
+	sortKeys(out)
 	return out
 }
 
@@ -308,7 +383,9 @@ func (e *Engine) ListedPools() []PoolKey {
 		switch {
 		case f.all && s.PoolCount() < ListAll:
 			for k := uint64(0); k < s.PoolCount(); k++ {
-				out = append(out, PoolKey{Series: id, Index: k})
+				if f.has(k, s.PoolCount()) {
+					out = append(out, PoolKey{Series: id, Index: k})
+				}
 			}
 		default:
 			for k := range f.pools {
@@ -318,7 +395,7 @@ func (e *Engine) ListedPools() []PoolKey {
 			}
 			if f.all {
 				for k := range e.pools {
-					if k.Series == id && !f.pools[k.Index] {
+					if k.Series == id && !f.pools[k.Index] && f.has(k.Index, s.PoolCount()) {
 						out = append(out, k)
 					}
 				}
@@ -329,23 +406,28 @@ func (e *Engine) ListedPools() []PoolKey {
 	return out
 }
 
-// EachFollowedPool calls fn for every pool the node follows, in no set
-// order, without listing them first. fn must not call the engine.
-func (e *Engine) EachFollowedPool(fn func(PoolKey)) {
+// EachFollowedPoolOf calls fn for every pool of series id the node
+// follows, in no set order, without listing them first. fn must not call
+// the engine.
+func (e *Engine) EachFollowedPoolOf(id hash.Hash, fn func(PoolKey)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for id, f := range e.follows {
-		s := e.series[id]
-		if f.all {
-			for k := uint64(0); k < s.PoolCount(); k++ {
+	f, ok := e.follows[id]
+	if !ok {
+		return
+	}
+	s := e.series[id]
+	if f.all {
+		for k := uint64(0); k < s.PoolCount(); k++ {
+			if f.has(k, s.PoolCount()) {
 				fn(PoolKey{Series: id, Index: k})
 			}
-			continue
 		}
-		for k := range f.pools {
-			if k < s.PoolCount() {
-				fn(PoolKey{Series: id, Index: k})
-			}
+		return
+	}
+	for k := range f.pools {
+		if k < s.PoolCount() {
+			fn(PoolKey{Series: id, Index: k})
 		}
 	}
 }
@@ -359,7 +441,7 @@ func (e *Engine) FollowedCount() uint64 {
 	for id, f := range e.follows {
 		s := e.series[id]
 		if f.all {
-			n += s.PoolCount()
+			n += s.PoolCount() - uint64(len(f.except))
 			continue
 		}
 		for k := range f.pools {
@@ -425,7 +507,7 @@ func (e *Engine) PreverifyTx(t *tx.Tx) {
 		return
 	}
 	e.mu.Lock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		e.mu.Unlock()
 		return
@@ -451,7 +533,7 @@ const MaxCountedCost = 1 << 20
 func (e *Engine) EntryCost(k PoolKey, en *entry.Entry) int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		return 0
 	}
@@ -468,7 +550,7 @@ func (e *Engine) EntryCost(k PoolKey, en *entry.Entry) int {
 // that state costs a revert, which HandleEntry pays once (RED-011, D111).
 func (e *Engine) PreverifyEntry(k PoolKey, en *entry.Entry, origin Origin) {
 	e.mu.Lock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		e.mu.Unlock()
 		return
@@ -505,7 +587,7 @@ func (e *Engine) PreverifyPage(k PoolKey, es []*entry.Entry) {
 		return
 	}
 	e.mu.Lock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		e.mu.Unlock()
 		return
@@ -579,7 +661,7 @@ func (e *Engine) WarmStored(txs []*tx.Tx) {
 		if !ok || t.Mint.Serial >= s.Mints() {
 			continue
 		}
-		if _, err := e.pool(PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}); err != nil {
+		if _, err := e.peek(PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}); err != nil {
 			continue
 		}
 		tid := t.TID(s.Hash())
@@ -632,7 +714,8 @@ func (e *Engine) HandleTx(t *tx.Tx, origin Origin) (TxResult, error) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, done, err := e.handling(k)
+	defer done()
 	if err != nil {
 		return TxResult{Key: k}, err
 	}
@@ -668,7 +751,8 @@ type EntryResult struct {
 func (e *Engine) HandleEntry(k PoolKey, en *entry.Entry, origin Origin) (EntryResult, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, done, err := e.handling(k)
+	defer done()
 	if err != nil {
 		return EntryResult{Key: k}, err
 	}
@@ -708,7 +792,8 @@ type LayerResult struct {
 func (e *Engine) HandleLayer(k PoolKey, l layer.Layer, origin Origin) (LayerResult, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, done, err := e.handling(k)
+	defer done()
 	if err != nil {
 		return LayerResult{Key: k}, err
 	}
@@ -908,7 +993,7 @@ type PoolStatus struct {
 func (e *Engine) Status(k PoolKey) (PoolStatus, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		return PoolStatus{Key: k}, err
 	}
@@ -925,7 +1010,7 @@ func (e *Engine) Status(k PoolKey) (PoolStatus, error) {
 func (e *Engine) Tip(k PoolKey) (hash.Hash, int, weight.Weight, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		return hash.Hash{}, 0, weight.Zero, err
 	}
@@ -955,7 +1040,7 @@ type Payment struct {
 func (e *Engine) Payment(k PoolKey, tid hash.Hash) (Payment, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		return Payment{}, err
 	}
@@ -989,7 +1074,7 @@ func (e *Engine) Holdings(id hash.Hash, serial uint64) ([]state.Holding, error) 
 	if !ok {
 		return nil, ErrUnknownSeries
 	}
-	p, err := e.pool(PoolKey{Series: id, Index: s.PoolOf(serial)})
+	p, err := e.peek(PoolKey{Series: id, Index: s.PoolOf(serial)})
 	if err != nil {
 		return nil, err
 	}
@@ -1001,7 +1086,7 @@ func (e *Engine) Holdings(id hash.Hash, serial uint64) ([]state.Holding, error) 
 func (e *Engine) Pending(k PoolKey) ([]mempool.Item, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		return nil, err
 	}
@@ -1013,7 +1098,7 @@ func (e *Engine) Pending(k PoolKey) ([]mempool.Item, error) {
 func (e *Engine) Ledger(k PoolKey, fn func(*ledger.Pool)) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	p, err := e.pool(k)
+	p, err := e.peek(k)
 	if err != nil {
 		return err
 	}

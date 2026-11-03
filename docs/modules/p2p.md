@@ -333,3 +333,17 @@ Keep new behaviour out of the engine: the engine stays
 transport-independent. A new offence goes in `pkg/tracking` and is raised
 here through `Offend` and `act`; a new chase step goes in `runChase`,
 keeping the order from cheap to costly.
+
+## The pool index
+
+The host indexes every pool it follows by pool id, since the wire names a
+pool only by its id. A series of `engine.ListAll` (65,536) pools or more
+followed whole is the exception: it is announced as one series section,
+and its pools are indexed as they come into use. That means pools with
+state at start, a pool an item is kept in, and a pool a branch is chased
+in. A pushed transaction or entry for a pool not yet indexed is found by
+its first mint serial, checked against the section's pool id. Other
+messages for such a pool are not answered until it is in use. That is
+lack of information, never a different rule. The sorted list of pools is
+built once and again only when a pool is added (RED-049, D154).
+

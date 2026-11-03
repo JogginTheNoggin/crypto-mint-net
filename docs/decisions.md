@@ -3043,3 +3043,50 @@ a chase takes in after checking their work are not charged.
   Wire protocol v2 is not built: the owner has not decided on it.
 - **Tier:** Node policy and p2p configuration. Tests are in
   `pkg/p2p/check_never_off_test.go`.
+
+### D154. Round 19 fixes: RED-049, RED-050, RED-051 (BLUE-020)
+
+- **Decision:**
+  - **RED-049.**
+    - A pool's state is kept only once an item leaves something in it.
+      Reads use a fresh state that is not kept.
+    - The p2p host announces a series of `engine.ListAll` (65,536) pools
+      or more followed whole as one section. It indexes that series'
+      pools as they come into use: with state at start, an item kept, a
+      branch offered. A pushed transaction or entry finds its pool by its
+      first mint serial, checked against the section's pool id.
+    - The sorted pool list is built only when the index changes.
+  - **RED-050.**
+    - `Follow.Except` means a whole series but those pools.
+      `RemoveFollow` on a whole series writes `except`, or the pools left
+      when they are fewer.
+    - Joining follows follows what either follows.
+    - The engine follows such a rule with `FollowSeriesExcept`, and p2p
+      announces it as the whole series.
+    - A follow change needing more than `MaxSections` (4096, the wire's
+      coverage limit) separate sections is refused when made.
+  - **RED-051.** The import digest is the SHA-256 of the file's digest,
+    the merge options and the plans. `-apply -if-digest` recomputes it
+    from a fresh plan before any change.
+- **Why:** Red's Round 19 findings, on top of D152:
+  - p2p still kept and sorted every pool.
+  - A refused item left a pool's state behind.
+  - All but one pool of a large series made the node refuse to start.
+  - The digest did not bind the options.
+- **Consensus:** none.
+  - A fresh pool state is decided by its series and index alone, so every
+    item meets the same state as before.
+  - Messages for a pool of a huge whole series that is not in use yet go
+    unanswered. Under the owner's definition that is lack of information,
+    not a hard fork.
+  - `MaxSections` limits how a follow list is written, not what can be
+    followed.
+  - No series is capped.
+- **With ORANGE-029 (PR #104):** it changes how a peer's weights are
+  asked. This changes which pools: the indexed ones. They touch the same
+  loops and compose; whichever merges second takes a small merge.
+- **What is left:** a pool index on the wire, for messages other than a
+  pushed transaction or entry. Black ruled it a protocol change under
+  D76, which is jerry's call as a feature, so it is not built.
+- **Tier:** Implementation (engine pool state, the p2p index, node policy
+  follows, the CLI). Tests are listed in BLUE-020.

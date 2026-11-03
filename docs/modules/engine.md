@@ -13,7 +13,9 @@ or opens a socket. Calls are safe from multiple goroutines.
 
 - `New(Config{Ledger, MaxPending, SeenSize})`, `DefaultConfig`.
 - Series and following: `AddSeries`, `Series`, `FollowSeries`,
-  `FollowPool`, `FollowMint` (follows the mint's pool, decision D20),
+  `FollowSeriesExcept` (a whole series but some pools; a pool any rule
+  follows stays followed, D154), `FollowPool`, `FollowMint` (follows the
+  mint's pool, decision D20),
   `Follows`, `KeyOf(tx)`. `PoolKey{Series, Index}` names a pool.
 - Items: `HandleTx(t, origin)`, `HandleEntry(key, e, origin)`,
   `HandleLayer(key, l, origin)`. `Origin` is `Pushed`, `Requested`,
@@ -30,7 +32,8 @@ or opens a socket. Calls are safe from multiple goroutines.
   device), the goroutines and a try counter; `GrindLayerWith` with tries
   0 grinds until ctx ends and keeps the strongest layer found (D109).
 - Reading: `FollowedPools()` (every followed pool, for the p2p index);
-  `EachFollowedPool(fn)` (the same, without the list); `ListedPools()`
+  `EachFollowedPoolOf(id, fn)` (one series' pools, without the list);
+  `FollowsWhole(id)`; `ListedPools()`
   (what status, metrics, queries and grind targets go through: every pool
   followed by index, every pool of a whole series under `ListAll`, 65,536
   pools, and of a larger one only the pools with state, RED-046, D152);
@@ -70,3 +73,12 @@ blocking the valid copy that arrives later.
 `engine_test.go` runs several engines on an in-process flood network:
 payments spreading, a double spend resolved by weight and then reversed,
 following rules, origins and the seen list.
+
+## Pool state
+
+A pool's state (its ledger and pending pool) is kept once an item leaves
+something in it: an entry, a pending or waiting transaction. An item that
+is refused leaves none, and a query or a check reads a fresh state that is
+not kept. Every pool's state starts the same, so a state made later is the
+state made at once, and nothing a node accepts changes (RED-049, D154).
+
