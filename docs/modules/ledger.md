@@ -27,6 +27,14 @@ plus the top K other branches. It reproduces the design's worked example
   pool_id, as `AddEntry` would find them, and the others as `Refused{TID,
   Err}`; `ClaimEntry(serial)` the selected entry holding a mint's claim and
   its tid (`ErrNoClaim`); `ParentOf(h)`. A parent not held is `ErrNotHeld`.
+  A transaction on a mint of another pool is refused with
+  `entry.ErrWrongPool`, before any grind (RED-069). Conflicts are set
+  lookups (ORANGE-033). `CheckPendingOn` is the same for the pending
+  pool's transactions: it checks claims, inputs and amounts against the
+  parent (`tx.Owners`) but not shape or witnesses, which the pending pool
+  checked against the same addresses, so a build on a chosen parent costs
+  time linear in the pool with no signature check under the engine lock
+  (RED-068, D162: 20,000 pending in about 30 ms, was 1.3 s).
 - `Rivals(t, tid)`: for each inactive branch, the first entry from its tip
   down to its fork that holds a transaction other than `tid` spending one
   of `t`'s inputs, as `Rival{Branch, Conflict, Entry, After}`; `After` is

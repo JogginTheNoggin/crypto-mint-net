@@ -85,13 +85,20 @@ beyond the slots become candidates. Peers this node dialled win ties.
   2. a *learned* record whose last try failed;
   3. a learned record older than `CandidateAge` (`p2p.candidate_seconds`,
      one day by default);
-  4. for an address the owner gave (`hand`, `config`), any learned record.
+  4. for an address the owner gave (`hand`, `config`), and for Fit, any
+     learned record;
+  5. for an address the owner gave only, a record from the network (no
+     label) that the node reached, unless it is a priority or backup peer
+     now (RED-067, D162).
 
   A record is learned when it came from a peer list, a reply, a registry
   or an inbound connection, has no label, and the node has never reached
   it (`Reached`: a connection that worked, or a verification). A record
-  the owner added, configured or labelled, and one the node reached, never
-  gives way. When the range is full the record must be in that range;
+  the owner added, configured or labelled never gives way, and one the
+  node reached gives way only to the owner. So the network can never shut
+  the owner out of their own book, whatever it made the node reach; a
+  configured peer that still does not fit is logged (`configured peer
+  not in the peer book`). When the range is full the record must be in that range;
   otherwise any will do. `add` decides before it deletes, so a refused add
   changes nothing (RED-065). The book keeps the learned, failed and
   imported records on heaps, oldest first, so an address learned into a
@@ -107,6 +114,14 @@ beyond the slots become candidates. Peers this node dialled win ties.
   and must not trim one kept under larger ones.
 - `Range` of a host name is the name in lower case without the root's
   trailing dot, as the tracker keys it (RED-060).
+- **Names for one machine** (RED-067, D162). When the node reaches a host
+  name, `Resolved` records the range of the address it led to
+  (`Record.Via`, kept in the file). The name then counts in that range
+  too: for `book_per_range`, `verified_per_range` and `Pick`'s spread. If
+  that range is now over `book_per_range`, a record of it gives way as to
+  a learned address, or else the name itself does (`ErrSameMachine`,
+  logged), unless the owner gave or labelled it. So a thousand names for
+  one server hold at most `book_per_range` places.
 
 ## Labels and imported addresses
 

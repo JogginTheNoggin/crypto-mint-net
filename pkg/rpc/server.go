@@ -73,6 +73,7 @@ func ServeWith(ctx context.Context, n *node.Node, cfg ServeConfig, ready func(ad
 	defer os.Remove(addrPath)
 	handler := NewHandler(n, tok)
 	handler.SetViewToken(view)
+	handler.SetAddr(ln.Addr().String())
 	handler.SetHost(cfg.Host)
 	handler.SetHub(cfg.Hub)
 	handler.SetReload(cfg.Reload)

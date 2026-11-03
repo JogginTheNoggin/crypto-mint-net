@@ -179,6 +179,7 @@ type Handler struct {
 	grind  *grind.Manager
 	token  []byte
 	view   []byte // the view token, or nil for none
+	addr   string // the address in rpc.addr, which hello binds
 	mux    *http.ServeMux
 	// policyMu serialises the edits of node.json (follow, unfollow, the
 	// grind schedule), each a read, a change and a write (RED-013).
@@ -239,6 +240,10 @@ func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet && r.URL.Path == HelloPath {
+		h.hello(w, r)
+		return
+	}
 	got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	full := ok && subtle.ConstantTimeCompare([]byte(got), h.token) == 1
 	view := ok && len(h.view) > 0 && subtle.ConstantTimeCompare([]byte(got), h.view) == 1

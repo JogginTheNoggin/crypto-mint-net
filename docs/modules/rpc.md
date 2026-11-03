@@ -16,7 +16,21 @@ interface, so a wallet uses a running node. It is not the peer protocol
 
 ## Endpoints
 
-All under `/v1`, all requiring `Authorization: Bearer <token>`.
+All under `/v1`, all requiring `Authorization: Bearer <token>`, except
+`GET /hello`.
+
+**The node proves itself first** (RED-066, D162). `rpc.addr` outlives a
+node that stops without cleaning up, and another process may then listen
+on its port. So `Dial` and `DialView` first send `GET /hello?nonce=N`
+(32 random bytes, no token) and check the reply, `{full, view}`, for
+HMAC-SHA256 with their token over `poo-rpc-hello`, the address in
+`rpc.addr` and `N`. Only then do they send the token. A stranger knows
+neither token, and the node at another address signs that address, so
+neither passes. A failed proof is `*NotProvedError`, which wraps
+`ErrNotRunning` (a command falls back as when no node runs) and either
+the dial error or `ErrNoProof`. Nothing the stranger sent is printed.
+`poo doctor` reports either case. An older node has no `/hello`;
+restart it after an upgrade.
 
 Two tokens are accepted, both 32 random bytes in hex in files readable
 only by the node's user and made on first start. `rpc.token` opens every

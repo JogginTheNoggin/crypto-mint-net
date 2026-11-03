@@ -55,8 +55,28 @@ type Refused struct {
 // taking each in turn (one claim of a mint, no input spent twice) and
 // leaving out the ones that fail with their error.
 // It changes nothing. Its cost is that of AddEntry on the same parent: the
-// selected chain reverted down to it and the branch applied.
+// selected chain reverted down to it and the branch applied. A transaction
+// on a mint of another pool is left out with entry.ErrWrongPool, as
+// AddEntry would refuse it, so a build never grinds an entry that cannot
+// be used (RED-069).
 func (p *Pool) CheckOn(parent hash.Hash, txs []*tx.Tx) ([]*tx.Tx, []Refused, error) {
+	return p.checkOn(parent, txs, true)
+}
+
+// CheckPendingOn is CheckOn for transactions the pending pool already
+// took (tx.Check, or carried back from a ledger): it checks their claims,
+// inputs and amounts against the state after parent (tx.Owners) but not
+// their shape or witnesses again. A witness satisfies an address, and an
+// input's address is that of the output it spends, the same after any
+// parent; so the result is CheckOn's, and a build on a chosen parent with
+// a full pending pool costs time linear in the pool with no signature
+// check under the engine lock (RED-068). AddEntry checks the built entry
+// in full in any case.
+func (p *Pool) CheckPendingOn(parent hash.Hash, txs []*tx.Tx) ([]*tx.Tx, []Refused, error) {
+	return p.checkOn(parent, txs, false)
+}
+
+func (p *Pool) checkOn(parent hash.Hash, txs []*tx.Tx, stateless bool) ([]*tx.Tx, []Refused, error) {
 	var n *node
 	if parent != p.id {
 		var ok bool
@@ -74,14 +94,28 @@ func (p *Pool) CheckOn(parent hash.Hash, txs []*tx.Tx) ([]*tx.Tx, []Refused, err
 	var refused []Refused
 	taken := newTaken()
 	for _, it := range items {
-		if err := tx.CheckStateless(p.s, it.Tx, it.TID); err != nil {
-			refused = append(refused, Refused{it.TID, err})
+		if m := it.Tx.Mint.Serial; m >= p.s.Mints() || p.s.PoolOf(m) != p.index {
+			refused = append(refused, Refused{it.TID, entry.ErrWrongPool})
 			continue
+		}
+		if stateless {
+			if err := tx.CheckStateless(p.s, it.Tx, it.TID); err != nil {
+				refused = append(refused, Refused{it.TID, err})
+				continue
+			}
 		}
 		// Checked against the state after parent alone, as AddEntry does:
 		// a transaction may not spend an output made in the same entry.
-		if err := entry.CheckAgainst(p.s, v, []entry.Item{it}); err != nil {
-			refused = append(refused, Refused{it.TID, err})
+		if stateless {
+			if err := entry.CheckAgainst(p.s, v, []entry.Item{it}); err != nil {
+				refused = append(refused, Refused{it.TID, err})
+				continue
+			}
+		} else if _, err := tx.Owners(v, it.Tx); err != nil {
+			// Its witnesses were checked when the pending pool took it,
+			// against these same addresses: an input's owner is the
+			// address of the output it spends, whichever state holds it.
+			refused = append(refused, Refused{it.TID, fmt.Errorf("%w %s: %v", entry.ErrInvalidTx, it.TID.Short(), err)})
 			continue
 		}
 		if taken.conflicts(it.Tx) {

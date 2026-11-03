@@ -3485,3 +3485,62 @@ a chase takes in after checking their work are not charged.
   - `pkg/cli/rivalclaim_test.go`: `TestRivalClaimCLI`,
     `TestPolicyLimitsSet`.
   - `pkg/nodepolicy/limits_test.go`: `TestSetLimits`.
+
+### D162. Round 23 fixes: RED-066 to RED-069 (BLUE-024)
+
+- **Decision:**
+  - **The node proves itself before a command sends the token
+    (RED-066).** `rpc.Dial` and `DialView` first ask `GET /v1/hello` with
+    a random nonce and send the token only if the reply holds
+    HMAC-SHA256(token, `poo-rpc-hello`, the address in `rpc.addr`, the
+    nonce). A process on a stale `rpc.addr`'s port knows neither token, and
+    the node at another address signs that address, so neither gets the
+    token. The failure wraps `ErrNotRunning`, so commands fall back as when
+    no node runs. `poo doctor` names both cases. I chose the proof rather
+    than Red's lock check: probing the data directory lock could make a
+    node that is starting at the same moment fail to take it, and the lock
+    does nothing on platforms without one.
+  - **The owner's add always finds a place (RED-067).** After every class
+    of D160, an address the owner gives (`hand`, `config`) takes the place
+    of the oldest record from the network (no label) that the node
+    reached, unless that record is a priority or backup peer now. A learned
+    address still never takes a reached record's place. `p2p.New` now logs
+    a configured peer the book refuses instead of dropping the error.
+  - **Host names count by where they lead (RED-067).** When the node
+    reaches a host name, `Book.Resolved` records the range of the address
+    it led to (`Record.Via`, saved in the book). The name counts in that
+    range too, for `book_per_range`, `verified_per_range` and `Pick`'s
+    spread. If the range is then over `book_per_range`, a record of it
+    gives way as to a learned address, or else the name does, unless the
+    owner gave or labelled it. One server behind any number of names holds
+    at most `book_per_range` places.
+  - **A build on a chosen parent is linear and checks the pool
+    (RED-068, RED-069).** ORANGE-033 (#143, merged into this branch) makes
+    the conflicts set lookups. `ledger.Pool.CheckPendingOn` does not check
+    shape or witnesses again for the pending pool's transactions: they were
+    checked when the pool took them, and an input's owner is the address
+    of the output it spends after any parent. 20,000 pending take about
+    30 ms (1.3 s with the witnesses). `CheckOn` and `CheckPendingOn` leave
+    out a transaction on another pool's mint with `entry.ErrWrongPool`,
+    so the grind never starts.
+- **Not done, on purpose:** Red's cap on the share of host-name records.
+  Names the node has not reached are learned and give way (D160), and the
+  ones it reached share their machine's range, so a cap would add a limit
+  with nothing left to stop. Also not done: Red's "bound the pending path
+  to a count". It would change which transactions an entry on a chosen
+  parent holds, against a plain build, and with the witnesses gone the
+  check is linear.
+- **Consensus:** none. The RPC proof and the peer book are local. A build
+  on a parent picks what this node puts in its own entry; `AddEntry`
+  checks that entry in full as before, and `ErrWrongPool` is the refusal
+  `AddEntry` would give, earlier. Nothing changes which ledger a node
+  takes.
+- **Tier:** Node policy.
+  - `pkg/rpc/blue024_test.go`: `TestDialSendsNoTokenToAStranger`,
+    `TestDialProvesTheNode`.
+  - `pkg/peers/blue024_test.go`: `TestNamesForOneMachineShareARange`,
+    `TestOwnerAddTakesAReachedPlace`; `blue023_test.go` updated for the
+    owner's place.
+  - `pkg/ledger/blue024_test.go`: `TestCheckPendingOnIsLinear`,
+    `TestCheckPendingOnMatchesCheckOn`.
+  - `pkg/engine/blue024_test.go`: `TestBuildOnRefusesAnotherPool`.
