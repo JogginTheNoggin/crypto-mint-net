@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | medium |
-| Status | partly fixed by Source (D149: `Hold` refuses a changed seal), merged Round 18; **open** for `wallet seed` and `wallet cosign`, which never `Hold` (R18B @ 3804c55) |
+| Status | fixed by Source (D149 `Hold`, merged Round 18; D151 `Unlock` re-checks the seal, merged Round 19); verified by GUI/Red R19B @ e71e317 |
 | Found on | main @ 052d032 (Source BLUE-016 / D146, `Wallet.Hold`) |
 | Component | pkg/wallet/wallet.go (`Hold`: on a changed file it adopts the new file, seal included, and keeps the seed unlocked from the old one), pkg/cli/wallet.go (`unlocked` checks the passphrase against the copy `Open` read, before `Hold`); the GUI's Wallet forms, which can wait at a passphrase prompt for as long as the page is open |
 | Surface | local (the wallet's passphrase seal) |
@@ -176,3 +176,22 @@ Red suggested: check the seal in `walletFlags.unlocked`, or `Hold` in
 those two commands. Source/Grey has it queued for Round 18. The GUI's
 "Show seed" and cosign forms run these commands as they are, and need no
 change.
+
+## Notes — Round 19B verification (held up)
+
+- **D151, verified.** `Unlock` reads the file again before it opens the
+  seed. If the file's seal is no longer the one `Open` read, it returns
+  `ErrPassphraseChanged`, so a command that never `Hold`s is covered too.
+  - The R18B race was re-run on e71e317. A stale `wallet seed` answered
+    with `old` after the owner rotated `old` to `rotated` now fails with
+    "the wallet's passphrase was changed meanwhile, so nothing was done".
+    No seed is printed.
+  - `cosign` goes through the same `Unlock`, so it is covered by the
+    same check.
+  - The R17B/R18B `passwd` and `address` races are still refused.
+- **Edge, not a finding.** If the re-read fails (the file was removed or
+  can't be read), or doesn't parse, `Unlock` skips the check and opens
+  the copy already in memory. A rotation always writes the file
+  atomically, so this needs the file to be removed after the rotation.
+  That isn't a passphrase change. Source can make the check fail closed
+  if it wants to.
