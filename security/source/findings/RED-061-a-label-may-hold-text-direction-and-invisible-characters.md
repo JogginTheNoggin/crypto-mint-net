@@ -7,7 +7,7 @@
 | Found | Source Round 21 Part B, on `main` @ `8662766` (D157) |
 | Area | `pkg/peers/peers.go` (`CheckLabel`), `pkg/cli` (`-o table`) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-022) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 282571b (BLUE-022) |
 
 ## What is wrong
 

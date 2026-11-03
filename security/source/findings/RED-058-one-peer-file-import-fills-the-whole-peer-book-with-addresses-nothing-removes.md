@@ -7,7 +7,7 @@
 | Found | Source Round 21 Part B, on `main` @ `8662766` (D157) |
 | Area | `pkg/peerport` (`Import`), `pkg/peers` (`AddUnlisted`, `Limits`, `PromoteImported`), `pkg/cli` (`poo peers import`) |
 | For Black | No consensus rule is touched. The peer book is node policy. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-022) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 282571b (BLUE-022) |
 
 ## What is wrong
 

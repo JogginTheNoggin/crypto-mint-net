@@ -5,6 +5,7 @@
 | Fixes | RED-058 (medium), RED-059 (low), RED-060 (low), RED-061 (low), RED-062 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `8662766` (Source Round 21 Part C) |
+| Code | `282571b` |
 | Decisions | D158 |
 | With | ORANGE-031 (PR #126) for RED-059's trim, and GREEN-046 (PR #124) for RED-062 points 1 and 2 |
 | Review | No consensus change. For Black: the book's share for imported addresses and the eviction (RED-058); the peer book is node policy. |
