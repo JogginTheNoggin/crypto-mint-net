@@ -293,6 +293,20 @@ try {
   await simp.locator('button.danger:has-text("Apply")').click();
   await simp.locator('.area .area .import-plan', { hasText: 'Nothing needed changing.' }).waitFor();
   assert.match(sasked, /^Run poo settings import .* -apply -if-digest [0-9a-f]{64} /);
+  // A long "Read first" line (ORANGE-016): 30 new peers are 30 defences.
+  // The line names 20 and how many more; Show all lists every one.
+  const speers = join(home, 'many-peers.json');
+  const sb = JSON.parse(readFileSync(sfile, 'utf8'));
+  const peers30 = Array.from({ length: 30 }, (_, i) => `198.51.100.${i + 1}:7000`);
+  sb.policies[0].policy.p2p = { ...(sb.policies[0].policy.p2p || {}), peers: peers30 };
+  writeFileSync(speers, JSON.stringify(sb));
+  await fill(simp, 'File', speers);
+  await simp.locator('button[type=submit]').click();
+  const sdef = simp.locator('.import-plan .plan-defences');
+  await sdef.locator('[role=alert]', { hasText: /and \d+ more\.$/ }).waitFor();
+  assert.ok(!(await sdef.locator('[role=alert]').innerText()).includes(peers30[29]), 'the line names only the first ones');
+  await sdef.locator('summary', { hasText: /^Show all \d+$/ }).click();
+  for (const pr of peers30) assert.ok((await sdef.locator('details').innerText()).includes(pr), `Show all lists ${pr}`);
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');
