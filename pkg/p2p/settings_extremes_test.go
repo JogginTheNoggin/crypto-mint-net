@@ -74,12 +74,13 @@ func TestBlackBundleSettingsCannotRefuseHeavier(t *testing.T) {
 		name string
 		edit func(*nodepolicy.Policy)
 	}{
+		// The memory limits at their floors and ceilings (RED-063, D160).
 		{"k0-tightest", func(p *nodepolicy.Policy) {
-			p.K, p.Ties, p.MaxPending, p.SeenSize = &zero, 0, 1, 1
+			p.K, p.Ties, p.MaxPending, p.SeenSize = &zero, nodepolicy.BoundTies.Min, nodepolicy.BoundMaxPending.Min, nodepolicy.BoundSeenSize.Min
 			p.P2P.ChunkSize, p.P2P.EntryLimit, p.P2P.HashLimit, p.P2P.LayerLimit = 1, 1, 1, 1
 		}},
 		{"k0-largest", func(p *nodepolicy.Policy) {
-			p.K, p.Ties, p.MaxPending, p.SeenSize = &zero, 0, 1, 1
+			p.K, p.Ties, p.MaxPending, p.SeenSize = &zero, nodepolicy.BoundTies.Max, nodepolicy.BoundMaxPending.Max, nodepolicy.BoundSeenSize.Max
 			p.P2P.ChunkSize, p.P2P.EntryLimit, p.P2P.HashLimit, p.P2P.LayerLimit = math.MaxUint32, math.MaxUint32, math.MaxUint32, math.MaxUint32
 		}},
 	} {

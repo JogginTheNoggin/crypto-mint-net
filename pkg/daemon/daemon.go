@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
@@ -78,6 +79,12 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	book, err := peers.Open(filepath.Join(dir, peers.FileName), n.Policy().BookLimits())
 	if err != nil {
 		return false, errors.Join(err, n.Close())
+	}
+	// A book kept under higher limits is brought down to these ones
+	// (RED-064, D160).
+	if del, over := book.Fit(time.Now()); del > 0 || over > 0 {
+		nlog.Warn("peer book over its limits: policy value lowered", "deleted", del, "still_over", over,
+			"max_book", book.Limits().MaxRecords, "book_per_range", book.Limits().PerRange)
 	}
 	cfg.Book = book
 	tr, err := tracking.New(n.Policy().TrackingConfig(), filepath.Join(dir, tracking.FileName))

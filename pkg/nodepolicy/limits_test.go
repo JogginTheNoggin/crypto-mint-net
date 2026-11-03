@@ -33,7 +33,8 @@ func TestLimitsSet(t *testing.T) {
 	if err := p.checkBounds(); err != nil {
 		t.Fatal(err)
 	}
-	want := peers.Limits{MaxRecords: 20000, PerRange: 64, VerifiedPerRange: 8, Retry: 30 * time.Second, MaxUnlisted: 5000}
+	p.P2P.CandidateSeconds = 7200
+	want := peers.Limits{MaxRecords: 20000, PerRange: 64, VerifiedPerRange: 8, Retry: 30 * time.Second, MaxUnlisted: 5000, CandidateAge: 2 * time.Hour}
 	if got := p.BookLimits(); got != want {
 		t.Errorf("book limits %+v, want %+v", got, want)
 	}
@@ -56,6 +57,10 @@ func TestLimitsBounds(t *testing.T) {
 		"tracking.flag_history_seconds": func(p *Policy, v int) { p.Tracking.FlagHistorySeconds = v },
 		"tracking.log_seconds":          func(p *Policy, v int) { p.Tracking.LogSeconds = v },
 		"tracking.log_size":             func(p *Policy, v int) { p.Tracking.LogSize = v },
+		"p2p.candidate_seconds":         func(p *Policy, v int) { p.P2P.CandidateSeconds = v },
+		"seen_size":                     func(p *Policy, v int) { p.SeenSize = v },
+		"max_pending":                   func(p *Policy, v int) { p.MaxPending = v },
+		"ties":                          func(p *Policy, v int) { p.Ties = v },
 	}
 	if len(set) != len(Bounds()) {
 		t.Fatalf("%d setters for %d bounds", len(set), len(Bounds()))

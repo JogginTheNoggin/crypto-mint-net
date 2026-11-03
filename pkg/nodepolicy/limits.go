@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 )
@@ -34,12 +37,31 @@ var (
 	BoundFlagHistory      = Bound{"tracking.flag_history_seconds", 3600, 365 * 86400, int(tracking.DefaultConfig().Retain.FlagHistory / time.Second)}
 	BoundLogSeconds       = Bound{"tracking.log_seconds", 60, 86400, int(tracking.DefaultConfig().Retain.Log / time.Second)}
 	BoundLogSize          = Bound{"tracking.log_size", 16, 4096, tracking.DefaultConfig().Retain.LogSize}
+	// BoundCandidateSeconds is how long an address learned from the
+	// network that this node has never reached keeps its place against a
+	// newer address when the book or its range is full (RED-064, D160).
+	BoundCandidateSeconds = Bound{"p2p.candidate_seconds", 60, 365 * 86400, int(peers.DefaultLimits().CandidateAge / time.Second)}
+)
+
+// The bounds of the engine's and the pools' memory limits (RED-063, D160).
+// The seen list only saves checking an item twice, the pending pool holds
+// transactions not yet in an entry, and ties bounds the off-chain entries
+// kept that tie with the selected ledger's weight: an entry that is
+// dropped or forgotten can be sent again. None of them bounds the weight,
+// depth or length of a ledger a node takes, so a smaller value is a lack of
+// information, never a hard fork. The ceilings keep one setting from
+// taking the machine's memory at start or under a flood.
+var (
+	BoundSeenSize   = Bound{"seen_size", 1024, 1 << 22, engine.DefaultSeenSize}
+	BoundMaxPending = Bound{"max_pending", 16, 1 << 20, mempool.DefaultLimit}
+	BoundTies       = Bound{"ties", 1, 4096, ledger.DefaultTies}
 )
 
 // Bounds lists every bounded setting, for docs, the CLI and the GUI.
 func Bounds() []Bound {
 	return []Bound{BoundMaxBook, BoundBookPerRange, BoundVerifiedPerRange, BoundRetrySeconds, BoundRegistrySeconds,
-		BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize}
+		BoundCandidateSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
+		BoundSeenSize, BoundMaxPending, BoundTies}
 }
 
 // Check refuses v when it is neither zero (the default) nor in range.
@@ -67,7 +89,8 @@ func (p Policy) checkBounds() error {
 	}{
 		{BoundMaxBook, p.P2P.MaxBook}, {BoundBookPerRange, p.P2P.BookPerRange},
 		{BoundVerifiedPerRange, p.P2P.VerifiedPerRange}, {BoundRetrySeconds, p.P2P.RetrySeconds},
-		{BoundRegistrySeconds, p.P2P.RegistrySeconds},
+		{BoundRegistrySeconds, p.P2P.RegistrySeconds}, {BoundCandidateSeconds, p.P2P.CandidateSeconds},
+		{BoundSeenSize, p.SeenSize}, {BoundMaxPending, p.MaxPending}, {BoundTies, p.Ties},
 		{BoundMaxAddresses, p.Tracking.MaxAddresses}, {BoundFlagHistory, p.Tracking.FlagHistorySeconds},
 		{BoundLogSeconds, p.Tracking.LogSeconds}, {BoundLogSize, p.Tracking.LogSize},
 	} {
@@ -91,6 +114,7 @@ func (p Policy) BookLimits() peers.Limits {
 		VerifiedPerRange: BoundVerifiedPerRange.Or(p.P2P.VerifiedPerRange),
 		Retry:            time.Duration(BoundRetrySeconds.Or(p.P2P.RetrySeconds)) * time.Second,
 		MaxUnlisted:      max(1, book/4),
+		CandidateAge:     time.Duration(BoundCandidateSeconds.Or(p.P2P.CandidateSeconds)) * time.Second,
 	}
 }
 

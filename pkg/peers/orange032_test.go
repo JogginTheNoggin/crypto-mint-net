@@ -31,8 +31,8 @@ func checkCounts(t *testing.T, b *Book) {
 		t.Fatalf("%d ranges counted, %d in the book", len(b.perRange), len(per))
 	}
 	for rng, n := range per {
-		if b.perRange[rng] != n {
-			t.Fatalf("range %s: counted %d, holds %d", rng, b.perRange[rng], n)
+		if len(b.perRange[rng]) != n {
+			t.Fatalf("range %s: counted %d, holds %d", rng, len(b.perRange[rng]), n)
 		}
 	}
 	if imp != len(b.imp) {

@@ -13,7 +13,7 @@ import (
 // and any added later.
 func TestSettingsNameEveryNodeSetting(t *testing.T) {
 	f := nodepolicy.Default()
-	ties, pending, seen := 3, 7, 9
+	ties, pending, seen := 3, 17, 1025
 	f.Ties, f.MaxPending, f.SeenSize = ties, pending, seen
 	f.P2P.CheckSeconds, f.P2P.PingSeconds, f.P2P.ReviewSeconds = -1, -1, -1
 	f.P2P.Margin, f.P2P.PrioritySlots, f.P2P.BackupSlots, f.P2P.HopLimit = 0.5, 1, 1, 1

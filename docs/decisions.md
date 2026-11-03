@@ -3372,3 +3372,66 @@ a chase takes in after checking their work are not charged.
   - `pkg/nodepolicy/limits_test.go`: `TestLimitsDefaults`,
     `TestLimitsSet`, `TestLimitsBounds`, `TestValidateRefusesOutOfBounds`.
   - `pkg/cli/limits_test.go`: `TestPeerImportUsesPolicyLimits`.
+
+### D160. Round 22 fixes: RED-063 to RED-065 (BLUE-023)
+
+- **Decision:**
+  - **Engine memory limits are bounded (RED-063).** `seen_size` (65,536;
+    1,024 to 4,194,304), `max_pending` (10,000; 16 to 1,048,576) and
+    `ties` (64; 1 to 4,096) are D159 `Bound`s: listed in
+    `nodepolicy.Bounds`, checked in `Validate`, so `poo doctor`, the
+    settings import's "does not fit" check and the GUI form take them with
+    the rest. The seen list's ring and set grow with the items it holds,
+    not with the setting, so a large `seen_size` costs nothing at start.
+    `seen_size` at 10^15 used to panic the node at start, and 3×10^8 took
+    11 GB before one item arrived.
+  - **Learned candidates give way (RED-064).** A record learned from the
+    network (a peer list, a reply, a registry, an inbound connection)
+    with no label that the node has never reached (`Record.Reached`, set
+    by a connection that worked or a verification) gives way to a new
+    address when the book or its range is full. The order is: records
+    known only from an import, then learned ones whose last try failed,
+    then learned ones older than `p2p.candidate_seconds` (new; one day;
+    60 s to 365 days), then, for an address the owner gave (`hand`,
+    `config`), any learned one; oldest first in each. A record the owner
+    added, configured or labelled, and one the node reached, never gives
+    way. The owner's own `poo peer add` therefore always finds a place
+    unless the book is all such records.
+  - **A lowered `max_book` is applied (RED-064).** `Book.Fit` trims a book
+    over its limits in the same order; the node calls it on start and
+    logs `peer book over its limits: policy value lowered`. `Open` does
+    not, because a command run offline opens the book with the default
+    limits. A book saved before D160 counts its listed records as
+    reached.
+  - **A refused add changes nothing (RED-065).** `Book.add` works out
+    whether the book and the range are full and which record gives way,
+    and deletes only when the add will succeed; when the range is full the
+    record must be from that range.
+  - The give-way classes are kept on heaps checked when read, so an add
+    into a full book at the 65,536 ceiling costs about 3.5 µs, keeping
+    ORANGE-032's speed-up (the first cut scanned the book: 7.9 ms).
+  - Includes ORANGE-032 (#136), which this builds on.
+- **Not done, on purpose:** a share of the book per source (Red's third
+  point). The book does not record which peer sent an address, the range
+  limit already bounds one sender's addresses per range, and the owner's
+  add can always take a learned place. Left for a later round if Red
+  shows a flood the order above does not drain.
+- **Consensus:** none. The peer book is node policy and the three engine
+  limits only bound memory: an entry or transaction dropped or forgotten
+  can be sent again, and none of them bounds the weight, depth or length
+  of a ledger a node takes. A node with a smaller book, seen list or tie
+  set has less information, which is not a hard fork (AGENTS.md). `ties`
+  existed and was already a cap; the new ceiling only stops a value that
+  turned the cap off.
+- **Tier:** Node policy.
+  - `pkg/peers/blue023_test.go`: `TestRefusedAddChangesNothing`,
+    `TestLearnedCandidatesGiveWay`, `TestFitLoweredBook`,
+    `BenchmarkAddFullBookLearned`; `blue023_internal_test.go`:
+    `TestGiveWayQueuesStayBounded`.
+  - `pkg/node/blue023_test.go`: `TestEveryIntegerSettingAtItsMaximum`
+    (every integer setting at its type's maximum is refused, or the node,
+    its book and its tracker open without a panic).
+  - `pkg/engine/blue023_test.go`: `TestSeenGrowsWithItems`.
+  - `pkg/nodepolicy/limits_test.go`: the four new bounds;
+    `pkg/p2p/settings_extremes_test.go` now runs Black's heavier-ledger
+    check with the three engine limits at their floors and ceilings.
