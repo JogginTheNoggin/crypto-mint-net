@@ -34,7 +34,7 @@ func settingsCmd(args []string, out io.Writer) error {
 func settingsExportCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("settings export", out)
 	w := addWhere(fs)
-	full := fs.Bool("full", false, "keep machine-local settings (rpc, no_sync, p2p listen and advertise, grind device and threads): for a backup, or a new machine that should run the same way")
+	full := fs.Bool("full", false, "keep machine-local settings (rpc, no_sync, p2p listen and advertise, grind device and threads) and personal ones (registry files, registry URLs with a user, password or query, grind jobs on one payment or entry): for a backup, or a new machine that should run the same way")
 	file := fs.String("out", "", "write the settings to this file (default: print them)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -52,5 +52,5 @@ func settingsExportCmd(args []string, out io.Writer) error {
 	if *full {
 		what = "the settings, machine-local ones too,"
 	}
-	return writeBundle(out, b, *file, what)
+	return writeBundle(out, b, *file, what, nodepolicy.ExportNotes(p, *full))
 }

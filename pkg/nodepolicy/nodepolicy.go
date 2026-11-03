@@ -465,6 +465,9 @@ func (p Policy) Validate() error {
 	if p.Format != Format {
 		return fmt.Errorf("%w: format %d, this node reads %d", ErrInvalid, p.Format, Format)
 	}
+	if err := checkText(p); err != nil {
+		return err
+	}
 	if p.K != nil && *p.K < ledger.Unlimited {
 		return fmt.Errorf("%w: k must be -1 (keep all) or more", ErrInvalid)
 	}

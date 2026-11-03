@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -144,14 +145,117 @@ func withMachine(p, m Policy) Policy {
 }
 
 // ExportPolicy returns p as it goes into a bundle: stripped of
-// machine-local settings unless full, and always of unused ones.
+// machine-local settings and of what is personal (Personal) unless full,
+// and always of unused ones.
 func ExportPolicy(p Policy, full bool) Policy {
 	if full {
 		p = clone(p)
 		p.P2P.FastCatchUp, p.P2P.DepthLimit = false, 0
 		return p
 	}
-	return Strip(p)
+	return withoutPersonal(Strip(p))
+}
+
+// Personal names what an export leaves out unless it is full, because it
+// says something about the owner or opens a door rather than how the node
+// runs (RED-052, D156): a registry that is a local file (its path names
+// the user and the machine's folders), a registry URL with a user name,
+// password, query or fragment (a password or key), and a grind job on one
+// payment or entry of the owner's (tx:TID or an entry hash, and its
+// until_from). Peers and tracking.peers are exported, as a shared setup
+// is made of them, and ExportNotes says how many the file holds.
+var Personal = []string{"p2p.registries (local files, and URLs with a user, password, query or fragment)", "grind.jobs (on one payment or entry)"}
+
+// personalRegistry reports whether an export leaves registry r out
+// unless full (Personal).
+func personalRegistry(r string) bool {
+	if !isURL(r) {
+		return true
+	}
+	u, err := url.Parse(r)
+	return err != nil || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != ""
+}
+
+// personalJob reports whether an export leaves grind job j out unless
+// full: one on a payment or an entry, which names the owner's own.
+func personalJob(j GrindJob) bool {
+	return j.Target != "tip" && j.Target != "pending"
+}
+
+// withoutPersonal returns p without what Personal names.
+func withoutPersonal(p Policy) Policy {
+	p = clone(p)
+	var regs []string
+	for _, r := range p.P2P.Registries {
+		if !personalRegistry(r) {
+			regs = append(regs, r)
+		}
+	}
+	p.P2P.Registries = regs
+	if p.Grind != nil {
+		var jobs []GrindJob
+		for _, j := range p.Grind.Jobs {
+			if !personalJob(j) {
+				jobs = append(jobs, j)
+			}
+		}
+		p.Grind.Jobs = jobs
+		if p.Grind.IsZero() {
+			p.Grind = nil
+		}
+	}
+	return p
+}
+
+// ExportNotes says what an export of p holds and left out, for the
+// person about to share it (RED-052, D156): the registries and grind jobs
+// Personal left out, and the addresses it holds (p2p.peers,
+// tracking.peers, registries), which whoever reads the file sees.
+func ExportNotes(p Policy, full bool) []string {
+	out := []string{}
+	if !full {
+		regs, jobs := 0, 0
+		for _, r := range p.P2P.Registries {
+			if personalRegistry(r) {
+				regs++
+			}
+		}
+		if p.Grind != nil {
+			for _, j := range p.Grind.Jobs {
+				if personalJob(j) {
+					jobs++
+				}
+			}
+		}
+		if regs > 0 {
+			out = append(out, fmt.Sprintf("left out %d %s that %s a local file or carry a user, password, query or fragment (-full keeps them)", regs, plural(regs, "registry", "registries"), plural(regs, "is", "are")))
+		}
+		if jobs > 0 {
+			out = append(out, fmt.Sprintf("left out %d grind %s on one payment or entry (-full keeps them)", jobs, plural(jobs, "job", "jobs")))
+		}
+	}
+	e := ExportPolicy(p, full)
+	var holds []string
+	if n := len(e.P2P.Peers); n > 0 {
+		holds = append(holds, fmt.Sprintf("%d %s (p2p.peers)", n, plural(n, "peer address", "peer addresses")))
+	}
+	if n := len(e.Tracking.Peers); n > 0 {
+		holds = append(holds, fmt.Sprintf("%d tracked %s (tracking.peers)", n, plural(n, "peer", "peers")))
+	}
+	if n := len(e.P2P.Registries); n > 0 {
+		holds = append(holds, fmt.Sprintf("%d %s (p2p.registries)", n, plural(n, "registry", "registries")))
+	}
+	if len(holds) > 0 {
+		out = append(out, "the file holds "+strings.Join(holds, ", ")+": whoever reads it sees them")
+	}
+	return out
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // ExportSeries returns the part of p about one series: its information,
@@ -392,6 +496,10 @@ type Plan struct {
 	// (Policy.Accepted): the import still applies, but they stay unused
 	// until their issuer is accepted.
 	Refused []string `json:"refused"`
+	// NowUsed are series local lists but does not use (Refused) that the
+	// result uses, by short id: an issuer setting turned them on (RED-056,
+	// D156). They are named in Defences too.
+	NowUsed []string `json:"now_used"`
 	// Fit lists what the import brings in that may not fit this machine:
 	// a device or thread count it lacks, a file it does not have, an
 	// address that is not its own (Fit, D155). The caller fills it, as
@@ -399,9 +507,20 @@ type Plan struct {
 	Fit []string `json:"fit"`
 }
 
-// Empty reports whether the import changes nothing.
+// Empty reports whether the import changes nothing. A conflict where the
+// file's value was taken is a change: it is listed with the conflicts, not
+// in Changed, and was not counted, so a plan made of such conflicts alone
+// said "took the file's" and saved nothing (RED-054, D156).
 func (p Plan) Empty() bool {
-	return !p.New && len(p.Added) == 0 && len(p.Removed) == 0 && len(p.Changed) == 0
+	if p.New || len(p.Added) > 0 || len(p.Removed) > 0 || len(p.Changed) > 0 {
+		return false
+	}
+	for _, c := range p.Conflicts {
+		if c.Took == "file" {
+			return false
+		}
+	}
+	return true
 }
 
 // Merge brings the node policy file, from a bundle, into local and says
@@ -418,13 +537,13 @@ func (p Plan) Empty() bool {
 // unless Full. The result is valid (Validate) or Merge fails and local is
 // unchanged.
 func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
-	plan := Plan{Added: []Change{}, Removed: []Change{}, Changed: []Change{}, Conflicts: []Change{}, Skipped: []string{}, SkippedSettings: []string{}, Defences: []string{}, Refused: []string{}, Fit: []string{}}
+	plan := Plan{Added: []Change{}, Removed: []Change{}, Changed: []Change{}, Conflicts: []Change{}, Skipped: []string{}, SkippedSettings: []string{}, Defences: []string{}, Refused: []string{}, NowUsed: []string{}, Fit: []string{}}
 	if opt.SeriesOnly && opt.SettingsOnly {
 		return Policy{}, Plan{}, fmt.Errorf("%w: an import takes the series only or the settings only, not both", ErrInvalid)
 	}
 	local, file = clone(local), clone(file)
 	file.P2P.FastCatchUp, file.P2P.DepthLimit = false, 0
-	file = mapPaths(file, opt.MapPaths)
+	file, mapped := mapPaths(file, opt.MapPaths)
 	if opt.SeriesOnly {
 		file = followed(file)
 	}
@@ -437,10 +556,12 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 		file = Strip(file)
 		var keep []string
 		for _, r := range file.P2P.Registries {
-			if isURL(r) {
+			if isURL(r) || mapped[r] {
+				// A registry file -map-path pointed at this machine is
+				// taken without the rest of -full (RED-055, D156).
 				keep = append(keep, r)
 			} else if settings {
-				plan.SkippedSettings = append(plan.SkippedSettings, "p2p.registries["+r+"] (a local file: only -full takes it)")
+				plan.SkippedSettings = append(plan.SkippedSettings, "p2p.registries["+r+"] (a local file: -map-path OLD=NEW or -full takes it)")
 			}
 		}
 		file.P2P.Registries = keep
@@ -553,7 +674,26 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 			}
 		}
 	}
-	_, refused := res.Accepted()
+	accepted, refused := res.Accepted()
+	// Series local lists but refused, and the result uses: a setting such
+	// as issuers.any can turn them on without touching what is followed
+	// (RED-056, D156). They are named first.
+	if _, was := local.Accepted(); len(was) > 0 {
+		wasRefused := map[hash.Hash]bool{}
+		for _, r := range was {
+			if s, err := series.New(local.Series[r.Index].Params); err == nil {
+				wasRefused[s.ID()] = true
+			}
+		}
+		for _, a := range accepted {
+			if id := a.Series.ID(); wasRefused[id] {
+				plan.NowUsed = append(plan.NowUsed, id.Short())
+			}
+		}
+		if len(plan.NowUsed) > 0 {
+			plan.Defences = append(plan.Defences, "now used: series "+strings.Join(plan.NowUsed, ", "))
+		}
+	}
 	for _, r := range refused {
 		id := "?"
 		if s, err := series.New(res.Series[r.Index].Params); err == nil {

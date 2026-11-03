@@ -12,8 +12,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
@@ -30,7 +33,7 @@ func policyExportCmd(args []string, out io.Writer) error {
 	w := addWhere(fs)
 	all := fs.Bool("all", false, "every saved node policy under -root, each by name: for a backup or another machine")
 	seriesID := fs.String("series", "", "only this series (hex id): its information, how it is followed and its issuer")
-	full := fs.Bool("full", false, "keep machine-local settings (rpc, no_sync, p2p listen and advertise, grind device and threads): for a backup or a clone of this machine")
+	full := fs.Bool("full", false, "keep machine-local settings (rpc, no_sync, p2p listen and advertise, grind device and threads) and personal ones (registry files, registry URLs with a user, password or query, grind jobs on one payment or entry): for a backup or a clone of this machine")
 	file := fs.String("out", "", "write the bundle to this file (default: print it)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -41,6 +44,7 @@ func policyExportCmd(args []string, out io.Writer) error {
 	m := w.manager()
 	cur, _ := m.Current()
 	var b nodepolicy.Bundle
+	var notes []string
 	now := time.Now()
 	switch {
 	case *all:
@@ -61,6 +65,7 @@ func policyExportCmd(args []string, out io.Writer) error {
 				return err
 			}
 			b.Policies = append(b.Policies, nodepolicy.BundlePolicy{Name: e.Name, Current: e.Name == cur, Policy: nodepolicy.ExportPolicy(p, *full)})
+			notes = append(notes, exportNotes(e.Name, p, *full, true)...)
 		}
 		if len(b.Policies) == 0 {
 			return fmt.Errorf("no saved node policy under %s", *w.root)
@@ -93,15 +98,25 @@ func policyExportCmd(args []string, out io.Writer) error {
 		}
 		b = nodepolicy.NewBundle(nodepolicy.ScopePolicy, *full, now)
 		b.Policies = []nodepolicy.BundlePolicy{{Name: name, Current: name != "" && name == cur, Policy: nodepolicy.ExportPolicy(p, *full)}}
+		notes = exportNotes(name, p, *full, false)
 	}
-	return writeBundle(out, b, *file, fmt.Sprintf("%d node %s (%s)", len(b.Policies), plural(len(b.Policies), "policy", "policies"), b.Scope))
+	return writeBundle(out, b, *file, fmt.Sprintf("%d node %s (%s)", len(b.Policies), plural(len(b.Policies), "policy", "policies"), b.Scope), notes)
 }
 
 // writeBundle prints b, or writes it to file (readable by its owner only)
-// and says what it wrote.
-func writeBundle(out io.Writer, b nodepolicy.Bundle, file, what string) error {
+// and says what it wrote. notes, what the file holds and left out
+// (nodepolicy.ExportNotes), follow on out after a file is written, and go
+// to the invocation's Err when the bundle is printed, so the printed JSON
+// stays whole (RED-052).
+func writeBundle(out io.Writer, b nodepolicy.Bundle, file, what string, notes []string) error {
 	if file == "" {
-		return b.Write(out)
+		if err := b.Write(out); err != nil {
+			return err
+		}
+		for _, n := range notes {
+			fmt.Fprintf(errOf(out), "note: %s\n", n)
+		}
+		return nil
 	}
 	var buf bytes.Buffer
 	if err := b.Write(&buf); err != nil {
@@ -111,7 +126,22 @@ func writeBundle(out io.Writer, b nodepolicy.Bundle, file, what string) error {
 		return err
 	}
 	fmt.Fprintf(out, "exported %s to %s\n", what, file)
+	for _, n := range notes {
+		fmt.Fprintf(out, "  note: %s\n", n)
+	}
 	return nil
+}
+
+// exportNotes returns nodepolicy.ExportNotes for p, each line named after
+// its node policy when a bundle holds more than one.
+func exportNotes(name string, p nodepolicy.Policy, full, many bool) []string {
+	ns := nodepolicy.ExportNotes(p, full)
+	if many {
+		for i := range ns {
+			ns[i] = name + ": " + ns[i]
+		}
+	}
+	return ns
 }
 
 // thisMachine describes this machine for an import's fit check
@@ -166,11 +196,11 @@ func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
 	var replace, full *bool
 	if settingsOnly {
 		replace = fs.Bool("replace", false, "put the file's settings in place of this node's instead of merging, keeping what it follows and this machine's machine-local settings")
-		full = fs.Bool("full", false, "take the machine-local settings too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): moving to a new machine or restoring a backup")
+		full = fs.Bool("full", false, "take the machine-local settings (rpc, no_sync, p2p listen and advertise, grind device and threads) and local registry files too: moving to a new machine or restoring a backup")
 	} else {
 		replace = fs.Bool("replace", false, "put the file's node policy in place of this one's instead of merging, keeping this machine's machine-local settings")
 		settings = fs.Bool("settings", false, "take the file's node settings too (peers, registries, grind jobs, tracking, the p2p switches and limits); by default only what to follow is taken")
-		full = fs.Bool("full", false, "take every setting, machine-local ones too (rpc, no_sync, p2p listen and advertise, grind device and threads, registry files): restoring a backup on this machine")
+		full = fs.Bool("full", false, "take every setting: machine-local ones (rpc, no_sync, p2p listen and advertise, grind device and threads) and local registry files too: restoring a backup on this machine")
 	}
 	var maps stringList
 	fs.Var(&maps, "map-path", "OLD=NEW: read a registry file path that starts with OLD as starting with NEW, for a file made on another machine (repeatable)")
@@ -361,12 +391,45 @@ func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
 // field alone ("+ k") did not say what would be set (GREEN-042).
 func planLine(field, value string, short func(string) string) string {
 	if i := strings.LastIndex(field, ".["); i >= 0 && strings.HasSuffix(field, "]") {
-		return field[:i] + ": " + short(field[i+2:len(field)-1])
+		return termSafe(field[:i]) + ": " + short(field[i+2:len(field)-1])
 	}
 	if value == "" {
-		return field
+		return short(field)
 	}
-	return field + ": " + short(value)
+	return termSafe(field) + ": " + short(value)
+}
+
+// termSafe returns s as it may be printed to a terminal: a control
+// character (an escape, a newline, a carriage return, a backspace) or a
+// bidirectional override becomes its Go escape (\x1b, \n, \u202e), so text
+// from a file can neither move the cursor, erase what was printed, start a
+// line of its own nor reorder what is shown (RED-053, D156).
+func termSafe(s string) string {
+	ok := true
+	for _, r := range s {
+		if unsafeRune(r) {
+			ok = false
+			break
+		}
+	}
+	if ok {
+		return s
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if unsafeRune(r) {
+			q := strconv.QuoteRune(r)
+			b.WriteString(q[1 : len(q)-1])
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// unsafeRune reports whether r must not reach a terminal as it is.
+func unsafeRune(r rune) bool {
+	return r == utf8.RuneError || unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) || r == '\u2028' || r == '\u2029'
 }
 
 // importOne plans, and with apply makes, the import into one node policy:
@@ -453,8 +516,12 @@ func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 		state = "running"
 	}
 	p := r.Plan
-	fmt.Fprintf(out, "%s (%s, %s): %s\n", label, r.Dir, state, r.Mode)
+	fmt.Fprintf(out, "%s (%s, %s): %s\n", termSafe(label), termSafe(r.Dir), state, r.Mode)
+	// Every value from the file goes through termSafe, so a control
+	// character in it cannot move the cursor, erase lines or start a line
+	// of its own (RED-053, D156).
 	short := func(s string) string {
+		s = termSafe(s)
 		if len(s) > 60 {
 			return s[:57] + "..."
 		}
@@ -463,8 +530,11 @@ func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 	if len(p.Defences) > 0 {
 		fmt.Fprintf(out, "  read first: these change how this node runs, guards itself or reaches out, or take on many pools: %s\n", listSome(planFields(p.Defences, short), 20))
 	}
+	if len(p.NowUsed) > 0 {
+		fmt.Fprintf(out, "  now used: series %s, listed but not accepted before: the node will follow, mine into and relay %s (RED-056)\n", termSafe(strings.Join(p.NowUsed, ", ")), plural(len(p.NowUsed), "it", "them"))
+	}
 	for _, f := range p.Fit {
-		fmt.Fprintf(out, "  may not fit this machine: %s\n", f)
+		fmt.Fprintf(out, "  may not fit this machine: %s\n", termSafe(f))
 	}
 	for _, f := range p.Follows {
 		if f.Whole && f.Except == 0 {
@@ -477,20 +547,20 @@ func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 		fmt.Fprintf(out, "  + %s\n", planLine(c.Field, c.File, short))
 	}
 	for _, c := range p.Changed {
-		fmt.Fprintf(out, "  ~ %s: %s -> %s\n", c.Field, short(c.Local), short(c.File))
+		fmt.Fprintf(out, "  ~ %s: %s -> %s\n", termSafe(c.Field), short(c.Local), short(c.File))
 	}
 	for _, c := range p.Removed {
 		fmt.Fprintf(out, "  - %s\n", planLine(c.Field, c.Local, short))
 	}
 	for _, c := range p.Conflicts {
 		if c.Took == "file" {
-			fmt.Fprintf(out, "  ! %s: took the file's %s (was %s)\n", c.Field, short(c.File), short(c.Local))
+			fmt.Fprintf(out, "  ! %s: took the file's %s (was %s)\n", termSafe(c.Field), short(c.File), short(c.Local))
 		} else {
-			fmt.Fprintf(out, "  ! %s: kept %s (file: %s); -prefer-file takes the file's\n", c.Field, short(c.Local), short(c.File))
+			fmt.Fprintf(out, "  ! %s: kept %s (file: %s); -prefer-file takes the file's\n", termSafe(c.Field), short(c.Local), short(c.File))
 		}
 	}
 	if len(p.Skipped) > 0 {
-		fmt.Fprintf(out, "  skipped, machine-local (-full takes them): %s\n", strings.Join(p.Skipped, ", "))
+		fmt.Fprintf(out, "  skipped, machine-local (-full takes them): %s\n", termSafe(strings.Join(p.Skipped, ", ")))
 	}
 	if len(p.SkippedSettings) > 0 {
 		hint := "-settings takes them"
@@ -500,7 +570,7 @@ func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 		fmt.Fprintf(out, "  skipped, node settings (%s): %s\n", hint, listSome(planFields(p.SkippedSettings, short), 20))
 	}
 	for _, s := range p.Refused {
-		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", s)
+		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", termSafe(s))
 	}
 	if p.Same > 0 {
 		verb := "are"

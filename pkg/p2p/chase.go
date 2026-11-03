@@ -32,8 +32,10 @@ func (h *Host) offer(pi *poolInfo, p *peer, stated weight.Weight, at *hash.Hash)
 		return
 	}
 	if h.big[pi.key.Series] != nil {
-		// A branch to chase puts the pool in use (RED-049).
-		pi = h.index(pi)
+		// A pool of a big series is held for the chase only; it joins the
+		// index when something is kept in it, not for a stated weight,
+		// which is only the sender's claim (RED-057, D156).
+		pi = h.chaseIn(pi)
 	}
 	now := time.Now()
 	text := pi.section.Text()

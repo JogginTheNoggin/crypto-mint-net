@@ -3162,3 +3162,59 @@ a chase takes in after checking their work are not charged.
   `TestMergeSettingsOnly`, `TestMapPaths` and `TestFit` in
   `pkg/nodepolicy`, and `TestSettingsExportImport` and
   `TestSettingsImportIntoRunningNode` in `pkg/cli`.
+
+### D156. Round 20 fixes: RED-052 to RED-057 (BLUE-021)
+
+- **Decision:**
+  - **RED-052.** A plain export (settings or node policy) leaves out what
+    is personal (`nodepolicy.Personal`): a registry that is a local
+    file, a registry URL with a user, password, query or fragment, and a
+    grind job on one payment or entry (`tx:TID` or an entry hash). `-full`
+    keeps them. Peers and `tracking.peers` stay in, as a setup is made of
+    them. The export prints what the file holds and left out
+    (`ExportNotes`): after the "exported" line, or on stderr when the
+    bundle is printed. The docs no longer say "nothing personal", and the
+    `-full` help lists what it keeps.
+  - **RED-053.**
+    - `Validate` refuses a control character, a bidirectional override or
+      bytes that are not UTF-8 in any text of a node policy (`checkText`).
+      Its error quotes the value escaped.
+    - The CLI prints every value from a file through `termSafe`.
+    - `Fit` never opens a network or device path (`\\host\share`,
+      `//host/share`, `\\?\`). It names it as not checked.
+  - **RED-054.** `Plan.Empty` counts a conflict that took the file's
+    value. A plan made of such conflicts alone is saved.
+  - **RED-055.**
+    - `-map-path` joins the rest of a path with one separator, `To`'s own.
+    - A `From` written the Windows way matches in any case and with either
+      separator.
+    - A registry file a map rewrote is taken without `-full`.
+  - **RED-056.** A series local lists but refuses that the result uses is
+    named in `Plan.NowUsed` and under "read first".
+  - **RED-057.** A branch offered in a pool of a large whole series that
+    is not indexed no longer indexes it. The record is held in `chasing`
+    for the chase alone. `sweepChasing` drops it at the next check once the
+    chase queue (`Queue.Pools`) holds no group for it. A pool is indexed
+    when something is kept in it.
+- **Why:** Red's Round 20 findings, on D155 and D154:
+  - A shared setup file carried user names, passwords and home
+    addresses.
+  - A file could erase the preview's warnings with escape sequences.
+  - `-prefer-file` could report a change and save nothing.
+  - `-map-path` glued names and needed `-full`.
+  - A settings import could start using refused series unnamed.
+  - A message with a stated weight added a pool to the index for good.
+- **Consensus:** none.
+  - Leaving a record out of the p2p index until something is kept limits
+    no ledger and no follow. A pool offered again gets its record again,
+    and the chase runs as before.
+  - The text check refuses only text that no valid setting holds.
+  - Nothing here touches which ledger a node selects.
+- **Tier:** Node policy, the CLI and p2p.
+  - `pkg/nodepolicy/blue021_test.go`: `TestExportLeavesOutPersonal`,
+    `TestControlCharactersRefused`, `TestFitDoesNotOpenNetworkPaths`,
+    `TestPreferFileConflictAloneIsAChange`, `TestMapPathJoins`,
+    `TestMapPathWithoutFull`, `TestSettingsImportNamesSeriesNowUsed`.
+  - `pkg/cli/blue021_test.go`: `TestImportRefusesTerminalEscapes`,
+    `TestTermSafe`, `TestPreferFileAppliesALoneConflict`.
+  - `pkg/p2p/blue021_test.go`: `TestStatedWeightIndexesNoPool`.

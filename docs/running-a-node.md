@@ -258,8 +258,13 @@ One file carries node policies to another node or machine:
 A node's settings are everything in its node policy but what it
 follows: its peers, registries, limits, p2p switches, tracking, logs and
 grind jobs. `poo settings` writes them to one file and reads them back
-(D155). The file holds nothing personal: node.json has no key, seed,
-passphrase or token, and the wallet is a file of its own.
+(D155). node.json has no key, seed, passphrase or token, and the wallet
+is a file of its own. A plain export also leaves out what names you or
+opens a door: registry files, registry URLs with a user name, password
+or query, and grind jobs on one of your payments or entries (`-full`
+keeps them). It still holds your peer addresses and `tracking.peers`,
+since a setup is made of them; the export says how many, so check them
+before you share the file (D156).
 
 ```sh
 ./poo settings export -out settings.json            # the settings, without this machine's own
@@ -273,7 +278,8 @@ The preview lists, as "may not fit this machine", anything the file
 brings that the new machine may lack:
 
 - a grind device, or more threads than it has;
-- a registry file that is not there (`-map-path OLD=NEW` points it at one);
+- a registry file that is not there (`-map-path OLD=NEW` points it at one,
+  and a mapped file is taken without `-full`);
 - a listen address that is not one of its own;
 - an advertised address from the old machine;
 - a grind job for a series this node does not list.

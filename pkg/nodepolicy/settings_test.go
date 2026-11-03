@@ -119,7 +119,8 @@ func TestMapPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := mapPaths(p, []PathMap{m}).P2P.Registries
+	mp, _ := mapPaths(p, []PathMap{m})
+	got := mp.P2P.Registries
 	want := []string{"/new/reg.txt", "/older/reg.txt", "/new", "https://old/reg"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("mapped %v, want %v", got, want)

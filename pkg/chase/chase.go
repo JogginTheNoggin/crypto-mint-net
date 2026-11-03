@@ -760,6 +760,17 @@ func (q *Queue) Drop(sender string) {
 	}
 }
 
+// Pools returns the pools the queue holds a group for.
+func (q *Queue) Pools() map[string]bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	out := make(map[string]bool, len(q.groups))
+	for _, g := range q.groups {
+		out[g.Pool] = true
+	}
+	return out
+}
+
 // Groups returns a copy of the groups of pool ("" for all), in queue
 // order.
 func (q *Queue) Groups(pool string, now time.Time) []Group {

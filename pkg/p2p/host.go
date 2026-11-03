@@ -432,7 +432,13 @@ type Host struct {
 	byKey    map[engine.PoolKey]*poolInfo
 	sorted   []*poolInfo // byKey in order, nil when to be built again
 	big      map[hash.Hash]*series.Series
-	issuers  map[hash.Hash]hash.Hash // series id → issuer (zero if none)
+	// chasing holds, by pool id, the records of pools of a big series that
+	// a chase was offered in and nothing has been kept in yet. They are not
+	// in the index: a stated weight is only a claim, and a claim must not
+	// add to what the node keeps for good (RED-057, D156). sweepChasing
+	// drops a record once the chase queue holds no group for its pool.
+	chasing map[hash.Hash]*poolInfo
+	issuers map[hash.Hash]hash.Hash // series id → issuer (zero if none)
 
 	tr    *tracking.Tracker
 	cq    *chase.Queue
@@ -510,6 +516,7 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	perSeries := map[hash.Hash]int{}
 	known := map[hash.Hash]*series.Series{}
 	h.big = map[hash.Hash]*series.Series{}
+	h.chasing = map[hash.Hash]*poolInfo{}
 	for _, id := range eng.FollowedSeries() {
 		s, _ := eng.Series(id)
 		known[id] = s
@@ -582,6 +589,7 @@ func (h *Host) makePool(s *series.Series, k engine.PoolKey) *poolInfo {
 func (h *Host) indexLocked(pi *poolInfo) {
 	h.byPoolID[pi.section.Pool] = pi
 	h.byKey[pi.key] = pi
+	delete(h.chasing, pi.section.Pool)
 	h.sorted = nil
 }
 
@@ -628,19 +636,61 @@ func (h *Host) resolveBig(sec wire.Section, serial uint64) *poolInfo {
 	return h.makePool(s, k)
 }
 
-// poolByName returns the followed pool a pool section's text names. The
-// text is parsed rather than kept for every pool, which cost a string per
-// pool of a series followed whole (RED-046, D152).
+// poolByName returns the followed pool a pool section's text names: an
+// indexed one, or a pool of a big series a chase is running in. The text
+// is parsed rather than kept for every pool, which cost a string per pool
+// of a series followed whole (RED-046, D152).
 func (h *Host) poolByName(text string) *poolInfo {
 	sec, err := wire.ParseSection(text)
 	if err != nil || sec.Depth != 3 {
 		return nil
 	}
-	pi := h.poolByID(sec.Pool)
+	h.idxMu.RLock()
+	pi := h.byPoolID[sec.Pool]
+	if pi == nil {
+		pi = h.chasing[sec.Pool]
+	}
+	h.idxMu.RUnlock()
 	if pi == nil || pi.section != sec {
 		return nil
 	}
 	return pi
+}
+
+// chaseIn returns the record to chase pool pi in. A pool of a big series
+// that is not indexed is held in chasing, not in the index, until
+// something is kept in it (RED-057, D156).
+func (h *Host) chaseIn(pi *poolInfo) *poolInfo {
+	h.idxMu.Lock()
+	defer h.idxMu.Unlock()
+	if have := h.byKey[pi.key]; have != nil {
+		return have
+	}
+	if have := h.chasing[pi.section.Pool]; have != nil {
+		return have
+	}
+	h.chasing[pi.section.Pool] = pi
+	return pi
+}
+
+// sweepChasing drops the records of pools the chase queue no longer holds
+// a group for. It limits nothing: a pool a chase is offered in again gets
+// its record again, and one an item is kept in is indexed (onKept).
+func (h *Host) sweepChasing() {
+	h.idxMu.RLock()
+	n := len(h.chasing)
+	h.idxMu.RUnlock()
+	if n == 0 {
+		return
+	}
+	held := h.cq.Pools()
+	h.idxMu.Lock()
+	defer h.idxMu.Unlock()
+	for id, pi := range h.chasing {
+		if !held[pi.section.Text()] {
+			delete(h.chasing, id)
+		}
+	}
 }
 
 // sortedPools returns the indexed pools in order. The list is built once
@@ -895,6 +945,7 @@ func (h *Host) checkLoop(ctx context.Context) {
 			return
 		case <-t.C:
 			h.sweepProgress(time.Now())
+			h.sweepChasing()
 			var order []*peer
 			per := map[*peer][]*poolInfo{}
 			for _, pi := range h.sortedPools() {

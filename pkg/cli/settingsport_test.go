@@ -20,7 +20,7 @@ func TestSettingsExportImport(t *testing.T) {
 	cli(t, nil, "init", "-example", "-root", src, "-listen", "127.0.0.1:7111", "-p2p", "off", "-peer", "a.example:1", "-registry", "/old/home/reg.txt")
 	cli(t, nil, "init", "-root", dst, "-p2p", "off")
 	file := filepath.Join(t.TempDir(), "settings.json")
-	runOut(t, "settings", "export", "-root", src, "-out", file)
+	said := runOut(t, "settings", "export", "-root", src, "-out", file)
 	b, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
@@ -28,6 +28,13 @@ func TestSettingsExportImport(t *testing.T) {
 	if strings.Contains(string(b), "7111") || !strings.Contains(string(b), `"scope": "settings"`) || strings.Contains(string(b), `"params"`) {
 		t.Fatalf("export kept the RPC address or a series, or is not a settings bundle:\n%s", b)
 	}
+	// The registry file names the owner's folders: only -full keeps it,
+	// and the export says so and what the file holds (RED-052, D156).
+	if strings.Contains(string(b), "reg.txt") || !strings.Contains(said, "left out 1 registry") || !strings.Contains(said, "the file holds 1 peer address (p2p.peers)") {
+		t.Fatalf("a plain export kept the registry file, or said:\n%s\n%s", said, b)
+	}
+	// The rest of this test carries the registry file: a full export.
+	runOut(t, "settings", "export", "-root", src, "-full", "-out", file)
 
 	dstPath := filepath.Join(dst, "policies", "default", nodepolicy.FileName)
 	before, _ := os.ReadFile(dstPath)

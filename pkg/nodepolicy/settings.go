@@ -59,26 +59,70 @@ func ParsePathMap(s string) (PathMap, error) {
 	return PathMap{From: from, To: to}, nil
 }
 
-// apply rewrites loc when From starts it at a path boundary.
+// apply rewrites loc when From starts it at a path boundary. A From
+// written the Windows way (a drive letter or a backslash) matches in any
+// case and with either separator, as Windows does. The rest of the path
+// is joined to To with one separator, To's own (a backslash when To is
+// written the Windows way, else a slash), so /home/alice/=/srv/bob gives
+// /srv/bob/reg/a.json, not /srv/bobreg/a.json (RED-055, D156).
 func (m PathMap) apply(loc string) (string, bool) {
-	rest, ok := strings.CutPrefix(loc, m.From)
-	if !ok {
-		return loc, false
+	from := m.From
+	var rest string
+	if windowsPath(from) {
+		if len(loc) < len(from) || !strings.EqualFold(slashed(loc[:len(from)]), slashed(from)) {
+			return loc, false
+		}
+		rest = loc[len(from):]
+	} else {
+		var ok bool
+		if rest, ok = strings.CutPrefix(loc, from); !ok {
+			return loc, false
+		}
 	}
-	if rest != "" && !strings.HasSuffix(m.From, "/") && !strings.HasSuffix(m.From, `\`) && rest[0] != '/' && rest[0] != '\\' {
+	if rest != "" && !isSep(from[len(from)-1]) && !isSep(rest[0]) {
 		// /data must not rewrite /database.
 		return loc, false
 	}
-	return m.To + rest, true
+	rest = strings.TrimLeft(rest, `/\`)
+	if rest == "" {
+		return m.To, true
+	}
+	sep := "/"
+	if windowsPath(m.To) {
+		sep = `\`
+	}
+	rest = strings.NewReplacer("/", sep, `\`, sep).Replace(rest)
+	to := strings.TrimRight(m.To, `/\`)
+	if to == "" && sep == "/" {
+		return "/" + rest, true
+	}
+	return to + sep + rest, true
+}
+
+func isSep(c byte) bool { return c == '/' || c == '\\' }
+
+// slashed returns p with its backslashes as slashes.
+func slashed(p string) string { return strings.ReplaceAll(p, `\`, "/") }
+
+// windowsPath reports whether p is written the Windows way: with a drive
+// letter (C:) or a backslash.
+func windowsPath(p string) bool {
+	if len(p) >= 2 && p[1] == ':' && (p[0]|0x20 >= 'a' && p[0]|0x20 <= 'z') {
+		return true
+	}
+	return strings.Contains(p, `\`)
 }
 
 // mapPaths returns p with its local paths rewritten: the registry files
-// (an http or https registry is not a path).
-func mapPaths(p Policy, maps []PathMap) Policy {
+// (an http or https registry is not a path). mapped holds the rewritten
+// locations: a registry file the user pointed at this machine is taken
+// without -full (RED-055, D156).
+func mapPaths(p Policy, maps []PathMap) (out Policy, mapped map[string]bool) {
 	if len(maps) == 0 || len(p.P2P.Registries) == 0 {
-		return p
+		return p, nil
 	}
 	p = clone(p)
+	mapped = map[string]bool{}
 	for i, r := range p.P2P.Registries {
 		if isURL(r) {
 			continue
@@ -86,11 +130,12 @@ func mapPaths(p Policy, maps []PathMap) Policy {
 		for _, m := range maps {
 			if to, ok := m.apply(r); ok {
 				p.P2P.Registries[i] = to
+				mapped[to] = true
 				break
 			}
 		}
 	}
-	return p
+	return p, mapped
 }
 
 // Machine describes the machine an import lands on, for Fit. A field left
@@ -163,8 +208,15 @@ func fitLines(p Policy, m Machine) []string {
 	}
 	if m.Exists != nil {
 		for _, r := range p.P2P.Registries {
-			if !isURL(r) && !m.Exists(r) {
-				out = append(out, fmt.Sprintf("p2p.registries[%s]: no such file here (-map-path OLD=NEW points it at one)", r))
+			switch {
+			case isURL(r):
+			case networkPath(r):
+				// A preview reaches nothing: opening \\host\share would
+				// connect to host, and on Windows offer it the user's
+				// sign-in (RED-053, D156).
+				out = append(out, fmt.Sprintf("p2p.registries[%s]: a network or device path; the preview does not open it, the node will when it reads the registry", r))
+			case !m.Exists(r):
+				out = append(out, fmt.Sprintf("p2p.registries[%s]: no such file here (-map-path OLD=NEW rewrites where the file's paths point)", r))
 			}
 		}
 	}
@@ -187,4 +239,15 @@ func fitLines(p Policy, m Machine) []string {
 		}
 	}
 	return out
+}
+
+// networkPath reports whether a local registry path names another machine
+// or a device rather than a file here: a UNC path (\\host\share, //host/share)
+// or a Windows device path (\\.\, \\?\). Fit does not open one.
+func networkPath(p string) bool {
+	if len(p) < 2 {
+		return false
+	}
+	sep := func(c byte) bool { return c == '/' || c == '\\' }
+	return sep(p[0]) && sep(p[1])
 }
