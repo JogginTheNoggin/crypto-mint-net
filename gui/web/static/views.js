@@ -178,11 +178,20 @@ export function copyButton(label, text, cls = 'small') {
 // line out of its history (GUI-006).
 export function cmdLine(args, ctx) {
   const code = el('code', {}, api.quote(args));
-  const copy = copyButton('Copy', () => api.quote(row.args), 'small copy-cmd');
+  const copy = copyButton('Copy', () => api.copyLine(row.args), 'small copy-cmd');
   copy.title = 'Copy this command line, to run it in a shell';
   const row = el('div', { class: 'cmd' }, el('span', { class: 'cmd-label' }, 'Runs'), code,
     el('button', { type: 'button', class: 'small', title: 'Type this command into the terminal and run it', onclick: () => ctx.openInTerminal(api.quote(row.args).replace(/^poo /, '')) }, 'Run in terminal'), ' ', copy);
-  const secret = () => { copy.disabled = api.secretLine(api.quote(row.args)); copy.title = copy.disabled ? 'The line holds a secret, so it is not copied' : 'Copy this command line, to run it in a shell'; };
+  // Copy is off for a line with a secret, and for one no quoting makes
+  // safe to paste into a Windows shell (GUI-024).
+  const secret = () => {
+    const held = api.secretLine(api.quote(row.args));
+    const unsafe = api.copyLine(row.args) === null;
+    copy.disabled = held || unsafe;
+    copy.title = held ? 'The line holds a secret, so it is not copied'
+      : unsafe ? 'The line has characters a Windows shell (PowerShell or cmd) would run or change, so it is not copied: use Run in terminal, or type it'
+      : 'Copy this command line, to run it in a shell';
+  };
   row.args = args;
   row.set = a => { row.args = a; code.textContent = api.quote(a); secret(); };
   secret();

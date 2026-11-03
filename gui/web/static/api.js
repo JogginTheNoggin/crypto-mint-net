@@ -105,6 +105,30 @@ export function quote(args) {
   return ['poo', ...args.map(grammar === 'windows' ? quoteWindows : quotePOSIX)].join(' ');
 }
 
+// copyLine is the line Copy puts on the clipboard, to be pasted into a
+// shell, or null when it cannot be quoted safely. On posix it is quote's.
+// On Windows the paste goes to PowerShell or cmd.exe, which do not split
+// as CommandLineToArgvW does (quoteWindows): PowerShell runs $(...) and
+// ; in a bare word, and cmd.exe ends a quoted word at \" and runs what
+// follows & (GUI-024). No quoting means the same to both, so a word is
+// copied only from a set both take literally, double-quoted when it has
+// a space, and any other word turns Copy off for the line.
+export function copyLine(args) {
+  if (grammar !== 'windows') return quote(args);
+  const words = args.map(copyWordWindows);
+  return words.includes(null) ? null : ['poo', ...words].join(' ');
+}
+
+function copyWordWindows(a) {
+  // Letters, digits, _ - . : / \ = + and space only: none of these is
+  // special to either shell outside quotes, except the space, which
+  // double quotes keep, unless a \ ends the word (CommandLineToArgvW reads
+  // \" as a quote). An empty word is refused, as PowerShell may drop "".
+  if (!/^[A-Za-z0-9_\-.:\/\\=+ ]+$/.test(a)) return null;
+  if (!a.includes(' ')) return a;
+  return a.endsWith('\\') || a.trim() !== a ? null : `"${a}"`;
+}
+
 function quotePOSIX(a) {
   return /^[A-Za-z0-9_\-.,\/:@%+=]+$/.test(a) ? a : `'${a.replaceAll("'", `'"'"'`)}'`;
 }
