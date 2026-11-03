@@ -713,14 +713,17 @@ function saveAs(text, name) {
 // -apply), draws the plan poo printed, and offers Apply with the same
 // flags. poo makes the plan; the GUI only lays it out.
 function importForm(ctx, rootFlag) {
-  const importArgs = v => ['policy', 'import', ...(v.every ? rootFlag() : where.flags()), ...flag('prefer-file', v.prefer), ...flag('replace', v.replace), ...flag('full', v.full), ...flag('no-reload', v.noReload), '-json', ...(v.file ? [v.file] : [])];
+  const importArgs = v => ['policy', 'import', ...(v.every ? rootFlag() : where.flags()), ...flag('prefer-file', v.prefer), ...flag('replace', v.replace), ...flag('settings', v.settings), ...flag('full', v.full), ...flag('no-reload', v.noReload), '-json', ...(v.file ? [v.file] : [])];
   // A file picked in the browser goes to poo on its standard input:
   // FILE is -, and the job is sent the file's text, then end of input,
   // as typing it and Ctrl-D would. poo reads and checks it (D149).
-  let picked = null; // {name, text: Promise<string>} of the file picked now
-  const feed = (args, j, file) => {
-    if (args[args.length - 1] !== '-' || file === null) return;
-    file.text.then(text => api.input(j.id, text)).then(() => api.eof(j.id)).catch(() => {});
+  // The file is read as poo reads it, not whole first (ORANGE-014), and
+  // Apply sends the digest of the file previewed (-if-digest, D151), so
+  // poo refuses anything else, the file changed on disk included (GUI-023).
+  let picked = null; // {name, file} of the file picked now
+  const feed = (args, j, p) => {
+    if (args[args.length - 1] !== '-' || p === null) return;
+    api.inputFile(j.id, p.file).catch(() => {});
   };
   // Apply runs what was previewed, and only that (GUI-023): it keeps the
   // preview's args and the very text sent to it, never what is picked
@@ -732,7 +735,8 @@ function importForm(ctx, rootFlag) {
     { name: 'every', label: 'The file holds every saved policy (exported with "every saved node policy"): each goes under its own name', type: 'check' },
     { name: 'prefer', label: 'Where both set a value differently, take the file\'s (default: keep this node\'s)', type: 'check' },
     { name: 'replace', label: 'Replace this node policy with the file\'s instead of merging (machine-local settings stay)', type: 'check' },
-    { name: 'full', label: 'Take the file\'s machine-local settings too: restoring a backup on this machine', type: 'check' },
+    { name: 'settings', label: 'Take the file\'s node settings too (peers, registries, grind jobs, tracking, p2p limits); by default only what to follow is taken', type: 'check' },
+    { name: 'full', label: 'Take every setting, machine-local ones too (rpc, p2p addresses, grind device, registry files): restoring a backup on this machine', type: 'check' },
     { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
   args: v => { last = importArgs(v); return last; }, submit: 'Preview',
   onStart: j => { dropApply(); previewing = { args: last, file: picked }; feed(last, j, picked); },
@@ -740,11 +744,13 @@ function importForm(ctx, rootFlag) {
     const { args, file } = previewing || { args: last, file: picked };
     showPlan(r, area);
     if (r.code !== 0) return;
+    let digest = '';
+    try { digest = (JSON.parse(r.out)[0] || {}).digest || ''; } catch (_) { /* no plan */ }
     const apply = el('button', { type: 'button', class: 'danger' }, 'Apply');
     const out = el('div', { class: 'area' });
     const actions = el('div', { class: 'actions' }, apply);
     apply.onclick = () => {
-      const a = [...args.slice(0, -1), '-apply', args[args.length - 1]];
+      const a = [...args.slice(0, -1), '-apply', ...flag('if-digest', digest), args[args.length - 1]];
       const what = file && args[args.length - 1] === '-' ? ` with the previewed file ${file.name}` : '';
       if (!confirm(`Run ${api.quote(a)}${what}?`)) return;
       apply.disabled = true;
@@ -761,7 +767,7 @@ function importForm(ctx, rootFlag) {
   pick.onchange = () => {
     const file = pick.files && pick.files[0];
     if (!file) return;
-    picked = { name: file.name, text: file.text() };
+    picked = { name: file.name, file };
     dropApply();
     fileIn.value = '-';
     fileIn.dispatchEvent(new Event('input', { bubbles: true }));
@@ -788,13 +794,18 @@ function showPlan(r, area, applied) {
     }
     const notes = [
       p.new ? 'A new node policy.' : null,
+      (p.skipped_settings || []).length ? `Node settings left alone (Take the file's node settings takes them): ${p.skipped_settings.join(', ')}.` : null,
       `${p.same || 0} already the same.`,
       (p.skipped || []).length ? `Machine-local settings left alone: ${p.skipped.join(', ')}.` : null,
       (p.refused || []).length ? `Not accepted here: ${p.refused.join('; ')}.` : null,
       t.saved ? (t.reloading ? 'Saved; the running node is reloading it.' : 'Saved.') : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',
     ].filter(Boolean).join(' ');
+    // Read first: lines that change a defence of this node or where it
+    // reaches out (D150), as poo prints them first.
+    const defences = (p.defences || []).length ? el('p', { class: 'next-step plan-defences', role: 'alert' },
+      `Read first: these change a defence of this node or where it reaches out: ${p.defences.join(', ')}`) : null;
     return el('div', { class: 'import-plan' },
-      el('h3', {}, `${t.name || t.dir} (${t.mode}${t.running ? ', running' : ''})`),
+      el('h3', {}, `${t.name || t.dir} (${t.mode}${t.running ? ', running' : ''})`), defences,
       rows.length ? el('div', { class: 'table-wrap' }, el('table', { class: 'data' },
         el('thead', {}, el('tr', {}, ...['', 'setting', 'this node', 'the file', ''].map(h => el('th', {}, h)))), el('tbody', {}, ...rows)))
         : el('p', {}, 'No settings change.'),
