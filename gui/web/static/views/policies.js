@@ -200,9 +200,9 @@ export function planTable(lines, cols = ['setting', 'this node', 'the file', '']
 // (ORANGE-016). The line names the first ones and how many there are;
 // "Show all" lists every one.
 const SOME = 20;
-const count = (xs, one, many = one + 's') => `${xs.length} ${xs.length === 1 ? one : many}`;
-const someOf = xs => xs.length > SOME ? `${xs.slice(0, SOME).join(', ')}, and ${xs.length - SOME} more.` : `${xs.join(', ')}.`;
-function allOf(xs) {
+export const count = (xs, one, many = one + 's') => `${xs.length} ${xs.length === 1 ? one : many}`;
+export const someOf = xs => xs.length > SOME ? `${xs.slice(0, SOME).join(', ')}, and ${xs.length - SOME} more.` : `${xs.join(', ')}.`;
+export function allOf(xs) {
   if (xs.length <= SOME) return null;
   const d = el('details', { class: 'plan-all' }, el('summary', {}, `Show all ${xs.length}`));
   // Drawn when opened, so a closed list costs nothing.

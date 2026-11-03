@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (GUI/Blue, Round 22C) |
 | Found on | main @ f4f7945 (PR #129, the Peers view's "Import peers" form, D157) |
 | Component | gui/web/static/views/peers.js (`showPeerPlan`: block lines are put after every added, more and label line, in one table drawn 500 rows at a time, with no "Read first" line) |
 | Surface | node (the tracker's address and range blocks, from a peer file someone else made) |
-| Fixed by | (GUI/Blue) |
+| Fixed by | GUI/Blue, Round 22C (`showPeerPlan` reads the blocks first; e2e in gui/e2e/views.mjs) |
 
 ## Summary
 
@@ -98,3 +98,33 @@ GUI/Blue, in `showPeerPlan` (peers.js):
 - e2e (views.mjs): import a file with 600 addresses and one block, with
   blocks ticked. Expect a `plan-blocks` alert that names the block, and a
   first table row of kind `block`.
+
+## Fix (GUI/Blue, Round 22C)
+
+`showPeerPlan` in gui/web/static/views/peers.js now reads the blocks
+first, as poo's text plan does:
+
+- A `plan-blocks` "Read first" alert sits above the table whenever the
+  plan has blocks: "Read first: N blocks refuse addresses on this node:"
+  then each block as poo prints it (`198.51.100.20:7000 until
+  unblocked`, `range v4:203.0 until unblocked`). It names the first 20
+  and "Show all" lists the rest, using the same `count`, `someOf` and
+  `allOf` as the policy plan's `plan-defences` (ORANGE-016). Those three
+  are now exported from views/policies.js rather than copied.
+- The table's kinds follow poo's order: block, added, more, label, label
+  kept, skipped, refused. The first 500 rows therefore start with the
+  blocks.
+- The notes line counts the blocks ("1 block.").
+
+Regression test: gui/e2e/views.mjs, after the peer import Apply, builds
+a file from the exported one with 600 addresses and the block
+`198.51.100.20:7000` until 2099, ticks "address blocks too", and
+previews it. It checks that the plan shows "Showing 500 of", that the
+`plan-blocks` alert names the block, that the table's first row is
+`plan-block`, and that the notes say "1 block.". On the old code
+(f4f7945 + Red's R22B docs) it times out waiting for the alert.
+
+The same PR fixes a test race GUI/Red reported in the ORANGE-016 settings
+import check (views.mjs "Show all lists 198.51.100.1:7000"). `allOf`
+draws its list in the `toggle` event, which fires after the click, so
+the check now waits for `details p` before reading it.

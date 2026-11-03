@@ -1,7 +1,7 @@
 // The Peers view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as where from '../where.js';
 import { el, flag, form, mountAll, panel } from '../views.js';
-import { importForm, planTable, saveAs } from './policies.js';
+import { allOf, count, importForm, planTable, saveAs, someOf } from './policies.js';
 
 // The peer book's states, as poo peers -category takes them.
 const CATEGORIES = 'candidate, priority, backup, archived, unlisted';
@@ -71,7 +71,11 @@ const PEERS_IMPORT = {
 };
 
 // showPeerPlan draws poo peers import -json: one table of what the import
-// adds, and a line for what it leaves alone or refuses.
+// adds, and a line for what it leaves alone or refuses. The blocks come
+// first, as poo prints them under "read first": each refuses an address,
+// or a network range, on this node. They are named above the table and
+// lead it, so no number of added addresses pushes them out of sight
+// (GUI-025).
 function showPeerPlan(r, area, applied) {
   if (r.code !== 0) return;
   let o;
@@ -80,18 +84,22 @@ function showPeerPlan(r, area, applied) {
   if (!raw || !o || typeof o !== 'object') return;
   const p = o.plan || {};
   const lines = [];
-  for (const [kind, xs] of [['added', p.added], ['more', p.more], ['label', p.labels], ['label kept', p.label_conflicts], ['block', p.blocks], ['skipped', p.skipped], ['refused', p.refused]]) {
+  for (const [kind, xs] of [['block', p.blocks], ['added', p.added], ['more', p.more], ['label', p.labels], ['label kept', p.label_conflicts], ['skipped', p.skipped], ['refused', p.refused]]) {
     for (const c of xs || []) lines.push([kind, c]);
   }
   const text = n => typeof n === 'string' ? n : [n.addr, n.detail].filter(Boolean).join(': ');
+  const blocks = (p.blocks || []).map(c => [c.addr, c.detail].filter(Boolean).join(' '));
   const notes = [
     ...(p.notes || o.notes || []).map(text),
+    blocks.length ? `${count(blocks, 'block')}.` : null,
     `${p.same || 0} already the same.`,
     o.applied ? 'Applied.' : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',
-  ].join(' ');
+  ].filter(Boolean).join(' ');
+  const readFirst = blocks.length ? el('div', { class: 'next-step plan-blocks' },
+    el('p', { role: 'alert' }, `Read first: ${count(blocks, 'block')} ${blocks.length === 1 ? 'refuses' : 'refuse'} addresses on this node: `, someOf(blocks)), allOf(blocks)) : null;
   const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
   raw.replaceWith(el('div', { class: 'import-plan peers-plan' },
-    el('h3', {}, `Peer book${o.running ? ' (node running)' : ''}`),
+    el('h3', {}, `Peer book${o.running ? ' (node running)' : ''}`), readFirst,
     lines.length ? planTable(lines, ['address', 'detail'], c => [c.addr, c.detail || '']) : el('p', {}, 'No address changes.'),
     el('p', { class: 'hint' }, notes)));
   det.append(raw);

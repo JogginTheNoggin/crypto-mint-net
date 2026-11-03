@@ -185,6 +185,23 @@ try {
   await pimp.locator('button.danger:has-text("Apply")').click();
   await pimp.locator('.area .area .peers-plan').waitFor();
   assert.match(pasked, /^Run poo peers import .* -apply -if-digest [0-9a-f]{64} /);
+  // GUI-025: a file's blocks are read first, above the table and leading
+  // it, however many addresses come with them; the notes count them.
+  {
+    const pf = JSON.parse(readFileSync(pfile, 'utf8'));
+    const policies = pf.peers[0].policies;
+    pf.peers = Array.from({ length: 600 }, (_, i) => ({ addr: `${20 + Math.floor(i / 250)}.${(i % 250) + 1}.7.9:7000`, policies }));
+    pf.blocks = [{ addr: '198.51.100.20:7000', until: '2099-01-01T00:00:00Z' }];
+    const big = join(home, 'big-peers.json');
+    writeFileSync(big, JSON.stringify(pf));
+    await fill(pimp, 'File', big);
+    await pimp.locator('button[type=submit]').click();
+    const plan = pimp.locator('.peers-plan', { hasText: 'Showing 500 of' });
+    await plan.waitFor();
+    assert.match(await plan.locator('.plan-blocks [role=alert]').innerText(), /^Read first: 1 block refuses addresses on this node: 198\.51\.100\.20:7000/, 'the block is read first');
+    assert.equal(await plan.locator('tbody tr').first().getAttribute('class'), 'plan-block', 'the table starts with the block');
+    assert.match(await plan.locator('p.hint').last().innerText(), /1 block\./, 'the notes count the blocks');
+  }
   await page.click('nav a[data-id=policies]');
   await section('Policies').locator('.result', { hasText: 'default' }).waitFor();
   // Export and import (D149): export every policy as printed, with Save as
@@ -343,6 +360,8 @@ try {
   await sdef.locator('[role=alert]', { hasText: /and \d+ more\.$/ }).waitFor();
   assert.ok(!(await sdef.locator('[role=alert]').innerText()).includes(peers30[29]), 'the line names only the first ones');
   await sdef.locator('summary', { hasText: /^Show all \d+$/ }).click();
+  // The list is drawn by the toggle event, which runs after the click.
+  await sdef.locator('details p').waitFor();
   for (const pr of peers30) assert.ok((await sdef.locator('details').innerText()).includes(pr), `Show all lists ${pr}`);
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
