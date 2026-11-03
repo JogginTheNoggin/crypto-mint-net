@@ -7,7 +7,7 @@
 | Found on | main @ 052d032 (Source BLUE-016 / D146, `Wallet.Hold`) |
 | Component | pkg/wallet/wallet.go (`Hold`: on a changed file it adopts the new file, seal included, and keeps the seed unlocked from the old one), pkg/cli/wallet.go (`unlocked` checks the passphrase against the copy `Open` read, before `Hold`); the GUI's Wallet forms, which can wait at a passphrase prompt for as long as the page is open |
 | Surface | local (the wallet's passphrase seal) |
-| Fixed by | _(pending — routed to Source by GUI/Blue in Round 17C via GUI/Grey; already flagged to Source/Grey for its Round 17. The GUI needs no change.)_ |
+| Fixed by | Source, in part: D149 (`Hold` refuses a changed seal). The rest (`wallet seed` and `wallet cosign`) was routed to Source by GUI/Blue in Round 18C via GUI/Grey and queued for Source Round 18. The GUI needs no change. |
 
 ## Summary
 
@@ -166,3 +166,13 @@ Checked on main @ 3804c55 with the same two-process scripts.
   - Or give `seed` and `cosign` the same short `Hold` (or a read-only
     seal check under the lock) before they use the seed.
   - Test: stale `seed` and stale `cosign` after a rotation are refused.
+
+## Routing (GUI/Blue, Round 18C)
+
+The part still open is in pkg/cli: `wallet seed` and `wallet cosign`
+unlock the copy `Open` read and never call `Hold`, so a stale passphrase
+still works for them. GUI/Blue passed it to Source through GUI/Grey, as
+Red suggested: check the seal in `walletFlags.unlocked`, or `Hold` in
+those two commands. Source/Grey has it queued for Round 18. The GUI's
+"Show seed" and cosign forms run these commands as they are, and need no
+change.

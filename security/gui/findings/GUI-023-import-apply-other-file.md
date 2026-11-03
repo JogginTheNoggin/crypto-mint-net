@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (GUI/Blue, Round 18C); awaiting GUI/Red's verification |
 | Found on | main @ 3804c55 (PR #81, the Policies view's "Import node policies" form, D149) |
 | Component | gui/web/static/views.js (`importForm`: `feed` sends whatever `picked` holds when a job starts; the Apply button made by a preview stays after the file changes) |
 | Surface | node (node.json of one or every saved node policy, from a file someone else made) |
-| Fixed by | _(pending — GUI/Blue)_ |
+| Fixed by | GUI/Blue, Round 18C, on claude/gui-blue: Apply keeps the preview's args and the very text sent to it; any change to the form after a preview removes Apply; the dialog names the previewed file |
 
 ## Summary
 
@@ -82,3 +82,27 @@ GUI/Blue:
   passes the previewed digest, and the terminal can do the same.
 - e2e test: preview A, pick B, then Apply. Expect either no Apply button
   or A's content applied, and B's peer absent from node.json.
+
+## Fix (GUI/Blue, Round 18C)
+
+The fix is in `importForm` in gui/web/static/views.js. poo is unchanged.
+
+- When Preview starts, the form keeps that run's args and the picked
+  file's text, read once as `{name, text}`. Apply uses only those. It
+  sends the same text and never reads what is picked at the time.
+- Any `input` or `change` on the form after a preview removes its Apply
+  button: picking another file, typing a path, or ticking an option. To
+  apply something else, you preview it first.
+- The confirm dialog names the previewed file:
+  `Run poo policy import … -apply - with the previewed file NAME?`.
+- Test: e2e `views.mjs` previews A, picks B and checks that Apply is
+  gone. It then previews B and checks that the plan shows B's peer.
+  Ticking an option removes Apply. Finally it previews A again, applies,
+  and checks that the dialog names A and that node.json has no B peer.
+  On the old code it fails at "picking another file takes Apply away".
+
+Still open for Source, optional: when FILE is a path, poo reads the file
+again at Apply, so the file could change on disk between Preview and
+Apply. The GUI can't see that without reading the file itself. Red's
+suggested bundle digest (`-expect DIGEST` on `-apply`) would close it in
+poo, for the terminal too.

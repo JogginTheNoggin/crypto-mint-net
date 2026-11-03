@@ -717,12 +717,16 @@ function importForm(ctx, rootFlag) {
   // A file picked in the browser goes to poo on its standard input:
   // FILE is -, and the job is sent the file's text, then end of input,
   // as typing it and Ctrl-D would. poo reads and checks it (D149).
-  let picked = null;
-  const feed = (args, j) => {
-    if (args[args.length - 1] !== '-' || picked === null) return;
-    picked.then(text => api.input(j.id, text)).then(() => api.eof(j.id)).catch(() => {});
+  let picked = null; // {name, text: Promise<string>} of the file picked now
+  const feed = (args, j, file) => {
+    if (args[args.length - 1] !== '-' || file === null) return;
+    file.text.then(text => api.input(j.id, text)).then(() => api.eof(j.id)).catch(() => {});
   };
-  let last = null;
+  // Apply runs what was previewed, and only that (GUI-023): it keeps the
+  // preview's args and the very text sent to it, never what is picked
+  // now. Any change to the form after a preview takes its Apply away, so
+  // the plan on show is always the plan Apply carries out.
+  let last = null, previewing = null, dropApply = () => {};
   const f = form(ctx, { title: 'Import node policies', about: 'Shows what a node policy file would change here: what is new, changed or in conflict. Nothing changes until you press Apply.', fields: [
     { name: 'file', label: 'File', placeholder: 'a path on this machine, or pick one below', required: true },
     { name: 'every', label: 'The file holds every saved policy (exported with "every saved node policy"): each goes under its own name', type: 'check' },
@@ -731,27 +735,34 @@ function importForm(ctx, rootFlag) {
     { name: 'full', label: 'Take the file\'s machine-local settings too: restoring a backup on this machine', type: 'check' },
     { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
   args: v => { last = importArgs(v); return last; }, submit: 'Preview',
-  onStart: j => feed(last, j),
+  onStart: j => { dropApply(); previewing = { args: last, file: picked }; feed(last, j, picked); },
   onResult: (r, area) => {
-    const args = last;
+    const { args, file } = previewing || { args: last, file: picked };
     showPlan(r, area);
     if (r.code !== 0) return;
     const apply = el('button', { type: 'button', class: 'danger' }, 'Apply');
     const out = el('div', { class: 'area' });
+    const actions = el('div', { class: 'actions' }, apply);
     apply.onclick = () => {
       const a = [...args.slice(0, -1), '-apply', args[args.length - 1]];
-      if (!confirm(`Run ${api.quote(a)}?`)) return;
+      const what = file && args[args.length - 1] === '-' ? ` with the previewed file ${file.name}` : '';
+      if (!confirm(`Run ${api.quote(a)}${what}?`)) return;
       apply.disabled = true;
-      runJob(a, out, { onStart: j => feed(a, j) }).then(r2 => showPlan(r2, out, true));
+      dropApply = () => {};
+      runJob(a, out, { onStart: j => feed(a, j, file) }).then(r2 => showPlan(r2, out, true));
     };
-    area.append(el('div', { class: 'actions' }, apply), out);
+    dropApply = () => { actions.remove(); dropApply = () => {}; };
+    area.append(actions, out);
   } });
+  f.form.addEventListener('input', () => dropApply());
+  f.form.addEventListener('change', () => dropApply());
   const fileIn = f.inputs.file;
   const pick = el('input', { type: 'file', accept: '.json,application/json', name: 'pick' });
   pick.onchange = () => {
     const file = pick.files && pick.files[0];
     if (!file) return;
-    picked = file.text();
+    picked = { name: file.name, text: file.text() };
+    dropApply();
     fileIn.value = '-';
     fileIn.dispatchEvent(new Event('input', { bubbles: true }));
   };
