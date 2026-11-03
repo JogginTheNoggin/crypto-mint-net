@@ -4,6 +4,7 @@
 //   node gui/e2e/views.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { launch, nodeStopped } from './lib.mjs';
 
@@ -256,6 +257,23 @@ try {
   await page.unroute('**/api/jobs/*/events*', noDigest);
   await imp.locator('.import-plan').first().waitFor();
   assert.equal(await applyBtn.count(), 0, 'no Apply without a digest to pin it');
+  // A long plan (ORANGE-015): a file following 1,000 issuers makes 2,000
+  // lines. The first 500 are drawn, and 500 more on each press.
+  const many = join(home, 'many-issuers.json');
+  const hs = Array.from({ length: 1000 }, () => randomBytes(32).toString('hex'));
+  const big = JSON.parse(readFileSync(bundle, 'utf8'));
+  big.policies[0].policy.issuers = { ...(big.policies[0].policy.issuers || {}), accept: hs };
+  big.policies[0].policy.follow = hs.map(issuer => ({ issuer }));
+  writeFileSync(many, JSON.stringify(big));
+  await fill(imp, 'File', many);
+  await imp.locator('button[type=submit]').click();
+  await imp.locator('.import-plan .plan-more', { hasText: 'Showing 500 of 2000 lines' }).waitFor();
+  assert.equal(await imp.locator('.import-plan tbody tr').count(), 500);
+  await imp.locator('.plan-more button', { hasText: 'Show more' }).click();
+  await imp.locator('.import-plan .plan-more', { hasText: 'Showing 1000 of 2000 lines' }).waitFor();
+  for (let i = 0; i < 2; i++) await imp.locator('.plan-more button').click();
+  await imp.locator('.plan-more').waitFor({ state: 'detached' });
+  assert.equal(await imp.locator('.import-plan tbody tr').count(), 2000);
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');

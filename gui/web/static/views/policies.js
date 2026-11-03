@@ -119,6 +119,39 @@ function importForm(ctx, rootFlag) {
   return f;
 }
 
+// PLAN_ROWS is how many lines of a plan are drawn at first, and then on
+// each press of "Show more". A file following tens of thousands of
+// issuers makes a plan as long: drawn whole, 40,000 lines took 4.6 s and
+// held the page for up to 0.9 s at a time, and 100,000 never showed, as
+// one call with that many rows overflowed the stack (ORANGE-015). Like
+// the other tables (render.js), 500 show at first; the person can draw
+// more, and Apply always carries out the whole plan.
+const PLAN_ROWS = 500;
+
+function planTable(lines) {
+  const body = el('tbody');
+  const row = ([kind, c]) => el('tr', { class: `plan-${kind}` }, el('td', {}, kind), el('td', {}, c.field), el('td', {}, c.local || ''), el('td', {}, c.file || ''), el('td', {}, c.took ? `took ${c.took}'s` : ''));
+  let shown = 0;
+  const more = () => {
+    const part = document.createDocumentFragment();
+    for (const end = Math.min(lines.length, shown + PLAN_ROWS); shown < end; shown++) part.append(row(lines[shown]));
+    body.append(part);
+  };
+  more();
+  const wrap = el('div', { class: 'table-wrap' }, el('table', { class: 'data' },
+    el('thead', {}, el('tr', {}, ...['', 'setting', 'this node', 'the file', ''].map(h => el('th', {}, h)))), body));
+  if (shown < lines.length) {
+    const text = document.createTextNode('');
+    const btn = el('button', { type: 'button' }, 'Show more');
+    const note = el('p', { class: 'hint plan-more' }, text, btn);
+    const label = () => { text.textContent = `Showing ${shown} of ${lines.length} lines; Apply makes every one, and "Output as printed" below has them all. `; };
+    label();
+    btn.onclick = () => { more(); if (shown < lines.length) label(); else note.remove(); };
+    wrap.append(note);
+  }
+  return wrap;
+}
+
 // showPlan draws poo policy import -json: one table per node policy, a row
 // for each setting added, removed, changed or in conflict.
 function showPlan(r, area, applied) {
@@ -129,9 +162,9 @@ function showPlan(r, area, applied) {
   if (!raw || !Array.isArray(list)) return;
   const blocks = list.map(t => {
     const p = t.plan || {};
-    const rows = [];
+    const lines = [];
     for (const [kind, xs] of [['added', p.added], ['removed', p.removed], ['changed', p.changed], ['conflict', p.conflicts]]) {
-      for (const c of xs || []) rows.push(el('tr', { class: `plan-${kind}` }, el('td', {}, kind), el('td', {}, c.field), el('td', {}, c.local || ''), el('td', {}, c.file || ''), el('td', {}, c.took ? `took ${c.took}'s` : '')));
+      for (const c of xs || []) lines.push([kind, c]);
     }
     const notes = [
       p.new ? 'A new node policy.' : null,
@@ -147,9 +180,7 @@ function showPlan(r, area, applied) {
       `Read first: these change a defence of this node or where it reaches out: ${p.defences.join(', ')}`) : null;
     return el('div', { class: 'import-plan' },
       el('h3', {}, `${t.name || t.dir} (${t.mode}${t.running ? ', running' : ''})`), defences,
-      rows.length ? el('div', { class: 'table-wrap' }, el('table', { class: 'data' },
-        el('thead', {}, el('tr', {}, ...['', 'setting', 'this node', 'the file', ''].map(h => el('th', {}, h)))), el('tbody', {}, ...rows)))
-        : el('p', {}, 'No settings change.'),
+      lines.length ? planTable(lines) : el('p', {}, 'No settings change.'),
       el('p', { class: 'hint' }, notes));
   });
   const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));

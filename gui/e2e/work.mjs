@@ -191,6 +191,9 @@ try {
   await sched.locator('table.grind-schedule tbody tr', { hasText: '0-23' }).waitFor({ state: 'detached', timeout: 10000 });
   await sched.locator('table.grind-schedule tbody tr', { hasText: '1-2' }).locator('button', { hasText: 'Remove' }).click();
   await sched.locator('table.grind-schedule tbody tr', { hasText: '1-2' }).waitFor({ state: 'detached', timeout: 10000 });
+  // The row goes when the panel starts reading the schedule again, before
+  // the new table is drawn; wait for the job that stays (3-4) to be drawn.
+  await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).waitFor({ timeout: 10000 });
   assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 1, 'one job left, and the dropped Add added none');
   // Once the table is drawn again, Add works, and its job is in the table
   // with the others' changes kept.
