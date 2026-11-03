@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 18) |
+| Status | adopted (Round 19 Part A) |
 | Based on | main @ 3804c55 |
 | Area | gui/web/static/api.js (`inputFile`), gui/web/static/views.js (Import node policies) |
 | Effort | small |

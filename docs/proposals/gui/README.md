@@ -50,7 +50,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-041](GUI-GREEN-041-flag-parity.md) | Forms take the flags poo takes: Build/Work device, threads, for, serial; one wallet series for every wallet command; Receive's named transactions | small | yes | adopted |
 | [GUI-GREEN-042](GUI-GREEN-042-flag-parity-check.md) | A check (parity.mjs, in CI) that every flag `poo CMD -h` lists is sent by a form or left out for a stated reason; fixes Explore's address -below/-tid and Pools' filters | small | yes | adopted |
 | [GUI-GREEN-043](GUI-GREEN-043-stated-defaults.md) | parity.mjs also checks every default a field states against `poo -h`; Schedule a job's device and threads say the section's default | small | yes | adopted |
-| [GUI-GREEN-044](GUI-GREEN-044-one-file-per-view.md) | One file per view in `static/views/`, one list in `views/index.js`; the e2e walks every view from the navigation | small | yes | proposed |
+| [GUI-GREEN-044](GUI-GREEN-044-one-file-per-view.md) | One file per view in `static/views/`, one list in `views/index.js`; the e2e walks every view from the navigation | small | yes | adopted |
 
 ## Orange (performance)
 
@@ -74,7 +74,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-011](ORANGE-011-one-crypto-ask-in-flight.md) | Ask `poo crypto` once while a key field waits for suggestions (8 focuses: 8 jobs → 1) | small | yes | adopted |
 | [ORANGE-012](ORANGE-012-submit-large-entry-as-read.md) | `poo submit entry` sends the hex as read (128 MiB entry: 12 s → 5 to 7 s, client heap 1 GB → 625 MB); Round 15's ask and wallet-lock measurements | small | yes | adopted by Source (D147) |
 | [ORANGE-013](ORANGE-013-long-paste-in-parts.md) | Send a long pasted line in parts and end the input only once it arrived (largest pasteable entry: about 500 KiB → any size; 8 MiB of hex in 4.7 s) | small | yes | adopted |
-| [ORANGE-014](ORANGE-014-picked-file-as-read.md) | Send a picked policy file as it is read and stop when `poo` stops (500 MB picked by mistake: 5.3 s and +491 MB of browser memory → 0.9 s and +47 MB) | small | yes | proposed |
+| [ORANGE-014](ORANGE-014-picked-file-as-read.md) | Send a picked policy file as it is read and stop when `poo` stops (500 MB picked by mistake: 5.3 s and +491 MB of browser memory → 0.9 s and +47 MB) | small | yes | adopted |
 
 ### Re-checks each round
 

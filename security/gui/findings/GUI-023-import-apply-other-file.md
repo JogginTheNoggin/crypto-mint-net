@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (GUI/Blue, Round 18C); awaiting GUI/Red's verification |
+| Status | fixed (GUI/Blue, Round 18C; Round 19A adds Source's -if-digest, D151, so a file changed on disk after its preview is refused too); awaiting GUI/Red's verification |
 | Found on | main @ 3804c55 (PR #81, the Policies view's "Import node policies" form, D149) |
 | Component | gui/web/static/views.js (`importForm`: `feed` sends whatever `picked` holds when a job starts; the Apply button made by a preview stays after the file changes) |
 | Surface | node (node.json of one or every saved node policy, from a file someone else made) |

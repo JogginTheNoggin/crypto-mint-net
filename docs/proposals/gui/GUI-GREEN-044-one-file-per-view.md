@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 18) |
+| Status | adopted (Round 19 Part A) |
 | Based on | main @ 3804c55 |
 | Area | gui/web/static (views.js, views/, app.js), gui/e2e (parity.mjs, qol.mjs), docs/FEATURES.md, docs/gui.md |
 | Effort | small (code moved, not changed) |
