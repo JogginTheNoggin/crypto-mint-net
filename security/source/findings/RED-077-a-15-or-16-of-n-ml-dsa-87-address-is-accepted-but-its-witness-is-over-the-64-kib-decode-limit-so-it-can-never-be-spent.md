@@ -7,7 +7,7 @@
 | Found | Review of the Reserve Currency Default Series doc, on `main` @ `e93eb29` |
 | Area | `pkg/policy` (`MaxDataSize`, `MaxParamsSize`, `DecodeWitness`, `Registry.CheckPolicy`), `pkg/wallet` (`CheckPolicy`, shared policies), `pkg/cli` (`wallet policy`) |
 | For Black | The decode limits are consensus (a witness that does not decode is invalid everywhere). I do not ask to change them; that needs jerry. The ask is that nothing offers an address that can never satisfy them. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-027) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `a117710` (BLUE-027) |
 
 ## What is wrong
 

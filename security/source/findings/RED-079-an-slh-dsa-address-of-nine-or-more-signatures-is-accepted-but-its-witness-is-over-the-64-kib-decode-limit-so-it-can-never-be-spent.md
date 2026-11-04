@@ -8,7 +8,7 @@
 | Area | `pkg/policy` (`slhdsa.go`, `MaxDataSize`, `Registry.CheckPolicy`), `pkg/wallet` (`CheckPolicy`) |
 | Related | RED-077 (same class, ML-DSA-87; still open) |
 | For Black | The decode limits are consensus; I do not ask to change them. The ask is that no tool offers an address that cannot be spent. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-027) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `a117710` (BLUE-027) |
 
 ## What is wrong
 

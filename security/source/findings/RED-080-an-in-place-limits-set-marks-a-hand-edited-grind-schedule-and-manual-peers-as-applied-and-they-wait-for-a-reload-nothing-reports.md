@@ -7,7 +7,7 @@
 | Found | Source Round 26 Part B, on `main` @ `439b369` (D168) |
 | Area | `pkg/nodepolicy` (`SameButInPlace`), `pkg/rpc` (`applyInPlace`), `pkg/node` (`SetRunning`) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-027) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `a117710` (BLUE-027) |
 
 ## What is wrong
 

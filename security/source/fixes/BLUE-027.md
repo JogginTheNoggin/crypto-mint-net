@@ -5,6 +5,7 @@
 | Fixes | RED-077 (medium), RED-078 (medium), RED-079 (medium), RED-080 (low), RED-081 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `439b369` (Source Round 26 Part C), with ORANGE-036 (#178) merged in |
+| Code | `a117710` |
 | Decisions | D169 |
 | With | ORANGE-036 (PR #178). Its rule of crediting and passing on only the copy taken is the start of RED-078's fix, so the PR carries its commit. |
 | Review | No consensus change. For Black: (1) `CheckSpendable` runs only where an address is made or paid, never when a witness is checked, and it refuses only policies no decodable witness could satisfy. The decode limits are unchanged. (2) Coalescing changes when a release is taken, never whether it is valid. |

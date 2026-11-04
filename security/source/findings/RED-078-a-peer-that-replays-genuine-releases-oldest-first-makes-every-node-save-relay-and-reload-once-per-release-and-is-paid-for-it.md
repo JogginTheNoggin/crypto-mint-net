@@ -7,7 +7,7 @@
 | Found | Source Round 26 Part B, on `main` @ `439b369` (D168) |
 | Area | `pkg/p2p` (`handleRelease`, `Released`, `Announce`), `pkg/node` (`AddRelease`), `pkg/tracking` (`FirstDelivery`, `Repeat`) |
 | For Black | No consensus rule is touched. Every release in the replay is genuine and valid; the issue is what a node does for each one. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-027) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `a117710` (BLUE-027) |
 
 ## What is wrong
 

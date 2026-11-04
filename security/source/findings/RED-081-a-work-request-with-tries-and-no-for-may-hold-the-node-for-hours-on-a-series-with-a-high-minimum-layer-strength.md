@@ -7,7 +7,7 @@
 | Found | Source Round 26 Part B, on `main` @ `439b369` (D168) |
 | Area | `pkg/rpc` (`WorkTriesFor`, `work`, `plan`), `pkg/cli` (`poo work`) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-027) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `a117710` (BLUE-027) |
 
 ## What is wrong
 
