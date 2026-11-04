@@ -198,6 +198,7 @@ try {
   // help of each command that has its own (poo grind help, poo wallet help).
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
+    ...Object.fromEntries(['series add-release', 'series followed'].map(c => [c, 'new in Source Round 25 (D166, variable supply phase 2); GUI/Grey adds it next'])),
   };
   const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();

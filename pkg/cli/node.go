@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -104,28 +105,28 @@ func initCmd(args []string, out io.Writer) error {
 	p.P2P.Peers = peerList
 	p.P2P.Registries = registries
 	p.P2P.Advertise = *advertise
-	var params []series.Params
+	var infos []nodepolicy.SeriesInfo
 	if *example {
-		params = append(params, testutil.ExampleParams())
+		infos = append(infos, nodepolicy.SeriesInfo{Params: testutil.ExampleParams()})
 	}
 	for _, f := range files {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			return err
 		}
-		var sp series.Params
-		if err := json.Unmarshal(b, &sp); err != nil {
+		si, err := readSeriesInfo(b)
+		if err != nil {
 			return fmt.Errorf("%s: %w", f, err)
 		}
-		params = append(params, sp)
+		infos = append(infos, si)
 	}
-	for _, sp := range params {
-		s, err := series.New(sp)
+	for _, si := range infos {
+		s, err := series.New(si.Params)
 		if err != nil {
 			return err
 		}
 		id := s.ID()
-		p.Series = append(p.Series, nodepolicy.SeriesInfo{Params: sp})
+		p.Series = append(p.Series, si)
 		p.Follow = append(p.Follow, nodepolicy.Follow{Series: &id})
 	}
 	path := filepath.Join(w.resolve(), nodepolicy.FileName)
@@ -153,8 +154,62 @@ func initCmd(args []string, out io.Writer) error {
 		}
 	}
 	fmt.Fprintf(out, "wrote %s (%d series)\n", path, len(p.Series))
+	for _, si := range infos {
+		if si.Params.SupplyType == series.Variable && si.IssuerWitness == "" {
+			s, _ := series.New(si.Params)
+			fmt.Fprintf(out, "note: series %s is a variable supply series: %s\n", s.ID().Short(), variableNote)
+		}
+	}
 	return nil
 }
+
+// signedSeries is what poo series sign prints: a series with its issuer
+// witness, which poo init -series also takes.
+type signedSeries struct {
+	ID            string        `json:"series_id,omitempty"`
+	Params        series.Params `json:"params"`
+	IssuerWitness string        `json:"issuer_witness"`
+}
+
+// readSeriesInfo reads a series file for poo init -series: a series' params
+// as poo series new prints them, or a signed series as poo series sign
+// prints it, whose witness is checked here.
+func readSeriesInfo(b []byte) (nodepolicy.SeriesInfo, error) {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(b, &keys); err != nil {
+		return nodepolicy.SeriesInfo{}, err
+	}
+	if _, signed := keys["params"]; !signed {
+		var sp series.Params
+		err := json.Unmarshal(b, &sp)
+		return nodepolicy.SeriesInfo{Params: sp}, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	var ss signedSeries
+	if err := dec.Decode(&ss); err != nil {
+		return nodepolicy.SeriesInfo{}, err
+	}
+	s, err := series.New(ss.Params)
+	if err != nil {
+		return nodepolicy.SeriesInfo{}, err
+	}
+	if ss.ID != "" && ss.ID != s.ID().String() {
+		return nodepolicy.SeriesInfo{}, fmt.Errorf("series_id %s is not the id of its params (%s)", ss.ID, s.ID())
+	}
+	w, err := nodepolicy.DecodeWitness(ss.IssuerWitness)
+	if err == nil {
+		err = s.CheckIssuer(w)
+	}
+	if err != nil {
+		return nodepolicy.SeriesInfo{}, fmt.Errorf("issuer witness: %w", err)
+	}
+	return nodepolicy.SeriesInfo{Params: ss.Params, IssuerWitness: ss.IssuerWitness}, nil
+}
+
+// variableNote says what a variable series needs before the node follows
+// it (D166, GREEN-049): it is kept, not wrong.
+const variableNote = "the node follows it once node.json has the issuer_witness its issuer published (poo series sign), which releases part 1; give it later parts with poo series add-release (docs/variable-supply.md)"
 
 // nodeCmd runs the node until interrupted.
 func nodeCmd(args []string, out io.Writer) error {
@@ -225,7 +280,9 @@ func (p *poolFlags) resolve(fs *flag.FlagSet, s *series.Series) (uint64, error) 
 	if !set["serial"] {
 		return *p.pool, nil
 	}
-	if *p.serial >= s.Mints() {
+	if err := tx.CheckMint(s, s.Mint(*p.serial)); errors.Is(err, tx.ErrWaiting) {
+		return 0, fmt.Errorf("-serial %d: %w", *p.serial, err)
+	} else if err != nil {
 		return 0, fmt.Errorf("-serial %d: the series has %d mints", *p.serial, s.Mints())
 	}
 	k := s.PoolOf(*p.serial)
@@ -279,7 +336,15 @@ func (c *clientFlags) seriesOf(cl *rpc.Client) (*series.Series, error) {
 	default:
 		return nil, fmt.Errorf("the node follows %d series; name one with -series", len(known))
 	}
-	return series.New(pick.Params)
+	s, err := series.New(pick.Params)
+	if err == nil && pick.Variable != nil && pick.Variable.Release != nil {
+		// The node's newest release, checked here too, so this copy of
+		// the series knows the parts the node does (D166).
+		if _, rerr := s.AddRelease(*pick.Variable.Release); rerr != nil {
+			return nil, fmt.Errorf("the node's release of series %s: %w", s.ID().Short(), rerr)
+		}
+	}
+	return s, err
 }
 
 func statusCmd(args []string, out io.Writer) error {
@@ -396,8 +461,8 @@ func claimCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if *serial >= s.Mints() {
-		return fmt.Errorf("serial %d out of range", *serial)
+	if err := tx.CheckMint(s, s.Mint(*serial)); err != nil {
+		return fmt.Errorf("serial %d: %w", *serial, err)
 	}
 	addr := s.Address(policy.SingleKey(policy.AlgEd25519, signer.Public()))
 	t := &tx.Tx{Mint: s.Mint(*serial), Outputs: []tx.Output{{Address: addr, Amount: s.Params().Supply}}}
@@ -1042,7 +1107,8 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 	}
 	var nodeErr error
 	if cl, err := dialNode(out, dir); err == nil {
-		r, err := cl.SetLimits(rpc.LimitsRequest{Set: set})
+		req := rpc.LimitsRequest{Set: set}
+		r, err := callThroughReload(out, dir, cl, func(c *rpc.Client) (rpc.LimitsReply, error) { return c.SetLimits(req) })
 		if err == nil {
 			return o.write(out, r)
 		}

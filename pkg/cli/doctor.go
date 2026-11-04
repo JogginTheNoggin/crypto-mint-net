@@ -155,11 +155,25 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	switch {
 	case len(refused) > 0:
 		var why []string
+		variable := 0
 		for _, r := range refused {
 			why = append(why, fmt.Sprintf("series %d: %v", r.Index, r.Reason))
+			if errors.Is(r.Reason, nodepolicy.ErrNoPartOne) {
+				variable++
+			}
+		}
+		// A variable series without its issuer witness is not wrong, only
+		// missing part 1's release (D166), so its fix is to add the
+		// witness, not to correct the series (GREEN-049).
+		fix := "a series that is not accepted is not followed; correct or remove it in the policy"
+		switch {
+		case variable == len(refused):
+			fix = variableNote
+		case variable > 0:
+			fix = "correct or remove the other series that are not accepted; " + variableNote
 		}
 		add(Check{Name: "series", Result: checkWarn, Detail: fmt.Sprintf("%d accepted, %d not: %s", len(accepted), len(refused), strings.Join(why, "; ")),
-			Fix: "a series that is not accepted is not followed; correct or remove it in the policy"})
+			Fix: fix})
 	case len(accepted) == 0:
 		add(Check{Name: "series", Result: checkWarn, Detail: "the policy lists no series, so the node follows nothing",
 			Fix: "add a series with poo init -series FILE, then poo follow"})

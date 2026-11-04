@@ -253,24 +253,53 @@ func TestAccepted(t *testing.T) {
 	}
 }
 
-// A variable series, signed by its issuer, is refused as unreadable at
-// this node until its transactions are built (D163, phase 1); the fixed
-// series beside it is accepted as before.
-func TestVariableNotFollowedYet(t *testing.T) {
-	a := newIssuer("a")
+// A variable series is followed once node.json has its issuer witness,
+// which releases part 1; a release in node.json adds its parts, a bad one
+// refuses the series, and a fixed series takes none (D166).
+func TestVariableFollowed(t *testing.T) {
+	a, b := newIssuer("a"), newIssuer("b")
 	p := testutil.ExampleParams()
 	p.Mints, p.PoolSize, p.Issuer = 8, 4, &a.addr
 	p.SupplyType, p.PartSize = series.Variable, 4
 	s := testutil.MustSeries(p)
-	v := nodepolicy.SeriesInfo{Params: p, IssuerWitness: nodepolicy.EncodeWitness(policy.SingleKeyWitness(a.signer, s.IssuerMessageTID()))}
+	wit := nodepolicy.EncodeWitness(policy.SingleKeyWitness(a.signer, s.IssuerMessageTID()))
+	rel, err := s.Unsigned(3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	good := rel
+	good.Witness = policy.SingleKeyWitness(a.signer, s.ReleaseMessage(rel.ID(s.Hash())))
+	bad := rel
+	bad.Witness = policy.SingleKeyWitness(b.signer, s.ReleaseMessage(rel.ID(s.Hash())))
+	fixedWithRelease := a.signed(8)
+	fixedWithRelease.Release = &good
+
 	pol := nodepolicy.Default()
-	pol.Series = []nodepolicy.SeriesInfo{v, a.signed(8)}
+	pol.Series = []nodepolicy.SeriesInfo{
+		{Params: p, IssuerWitness: wit},
+		{Params: p},
+		{Params: p, IssuerWitness: wit, Release: &good},
+		{Params: p, IssuerWitness: wit, Release: &bad},
+		fixedWithRelease,
+	}
 	acc, ref := pol.Accepted()
-	if len(acc) != 1 || acc[0].Series.IsVariable() || len(ref) != 1 || ref[0].Index != 0 {
+	if len(acc) != 2 || len(ref) != 3 {
 		t.Fatalf("accepted %d, refused %v", len(acc), ref)
 	}
-	if !errors.Is(ref[0].Reason, nodepolicy.ErrVariableNotFollowed) || !errors.Is(ref[0].Reason, series.ErrUnreadable) {
-		t.Fatalf("refused as %v", ref[0].Reason)
+	if acc[0].Series.Released() != 1 || acc[0].Series.Mints() != 8 || acc[0].Series.PoolCount() != 2 {
+		t.Fatalf("part 1 only: released %d, %d mints", acc[0].Series.Released(), acc[0].Series.Mints())
+	}
+	if acc[1].Series.Released() != 3 || acc[1].Series.Mints() != 16 || acc[1].Series.PoolCount() != 4 {
+		t.Fatalf("with part 3's release: released %d, %d mints", acc[1].Series.Released(), acc[1].Series.Mints())
+	}
+	if !errors.Is(ref[0].Reason, nodepolicy.ErrNoPartOne) || ref[0].Index != 1 {
+		t.Fatalf("no issuer witness: %+v", ref[0])
+	}
+	if !errors.Is(ref[1].Reason, series.ErrRelease) || ref[1].Index != 3 {
+		t.Fatalf("a release by another key: %+v", ref[1])
+	}
+	if !errors.Is(ref[2].Reason, series.ErrFixed) || ref[2].Index != 4 {
+		t.Fatalf("a fixed series with a release: %+v", ref[2])
 	}
 }
 

@@ -3639,3 +3639,142 @@ a chase takes in after checking their work are not charged.
     non-empty plan with `-if-digest` to a running node, which failed
     before this change, and checks `-counts`.
   - `pkg/cli/rivalclaim_test.go`: `TestEmptyParentRefused`.
+
+### D165. Round 24 fixes: RED-070 and RED-071 (BLUE-025)
+
+- **Decision:**
+  - **Part ids in bounded memory, with a short lock (RED-070).** This
+    builds on ORANGE-034 (#157, merged into this branch), whose marks every
+    1,024 parts gave the same ids in k/1,024 of the memory. That is still
+    2 GiB at part 2³⁶. Now:
+    - When the marks would pass 65,536, every other one is dropped and the
+      stride doubles. The chain then holds at most 2 MiB whatever part is
+      asked for.
+    - Part k up to the newest costs at most one stride of hashes from its
+      mark, and parts asked for in order cost one each (the last answer is
+      kept).
+    - Working far out runs 16,384 hashes at a time under the lock and lets
+      other calls in between.
+    - A release of part k still costs k hashes once. That is time, not
+      memory.
+  - **No cap on parts.** As Red and jerry's definition say, refusing a
+    valid release because it is far out would make nodes with the same
+    information disagree, which is a hard fork. No node policy may do it.
+    A later limit may only make a node slower, never make it say "invalid".
+  - **Phase 2 note (Red's point 4).** When phase 2 checks a transaction
+    on a part, it must first check that a known release reaches that part,
+    and answer "not released yet" with no hashing otherwise. Only then may
+    it ask for `PartID`. This is for the phase 2 design and is not built
+    here.
+  - **A variable series' JSON is unreadable to an older poo (RED-071).**
+    - `Params.MarshalJSON` writes a variable series' hash as
+      `variable_hash` and leaves `hash` out. A node built before D163
+      ignores unknown keys, so it finds hash 0, which names no hash, and
+      calls the series unreadable instead of following a look-alike fixed
+      series. I checked this with the 215d428 binary: `series info` fails,
+      and `doctor` lists the series as not accepted.
+    - A fixed series' JSON is unchanged.
+    - `UnmarshalJSON` reads both forms and refuses a key it does not know
+      (`ErrUnknownKey`), so the next extension is unreadable here instead
+      of misread.
+- **Consensus:** none. Part ids are the same ids, worked out with less
+  memory. The JSON change affects how a series is written in files, not
+  its byte form or its id.
+- **Tier:** Node policy (memory), and the series' file form.
+  - `pkg/series/blue025_internal_test.go`: `TestPartChainBoundedAndExact`
+    (small strides; the marks thin out; every id matches the naive chain in
+    any order and from 8 callers at once),
+    `TestPartIDFarOutInBoundedMemory` (part 8 million under 16 MiB of heap
+    growth; a known part is answered while a long call runs).
+  - `pkg/series/blue025_test.go`: `TestVariableJSONIsUnreadableToOlderReaders`.
+
+### D166. Variable supply phase 2: nodes follow variable series (Round 25)
+
+- **Decision:** a node follows a variable series and its released parts,
+  built to the six requirements in Black's Round 24 review
+  ([ROUND-24.md](consensus/source/ROUND-24.md)) and to PoO 16.8. Fixed
+  series are unchanged.
+  - **A mint names its part.** `series.MintID` gains `Part`, set only for a
+    variable series (0, left out, for a fixed one). A transaction's body is
+    `series ∥ part ∥ serial ∥ …` for a variable mint and stays `series ∥
+    serial ∥ …` for a fixed one, so the tid covers the part and a fixed
+    transaction keeps its bytes and tid (Black's requirement 5). The
+    decoder knows which form to read from the series id: `series.New`
+    registers each variable series id in a process-wide set
+    (`series.IsVariableID`). Only a followed series' pools are taken, and a
+    followed series is always built before its transactions are read. A
+    transaction of a variable series this process never built reads as a
+    fixed one and then fails its checks against that series, so nothing is
+    taken from it. The other choice in variable-supply.md, a marker byte,
+    was not taken: it would add a form a fixed transaction never needs.
+  - **One name per mint (requirement 4).** `Series.CheckMint` refuses a
+    part that is not `PartOf(serial)` (`ErrWrongPart`), a serial past the
+    largest number of parts (`ErrNoSerial`, shown as the serial out of
+    range), and a fixed mint that names a part.
+  - **Waiting (requirements 1 and 2).** A mint on a part past the newest
+    release this node knows returns `series.ErrWaiting` before any hashing:
+    the check compares the part with the released count, an atomic counter.
+    The engine adds a transaction to its seen list only on success, so a
+    waiting one is never cached and is taken when given again after the
+    release. Pools of unreleased parts are not counted in `PoolCount`, so
+    an entry for one is "not followed", the same as a pool this node does
+    not follow: p2p ignores it with no penalty. The RPC answers a waiting
+    transaction with 409 `waiting`. Nothing about a waiting transaction or entry is invalid.
+  - **Keeping releases (requirement 6).** A node keeps the newest release
+    of each variable series in node.json (`series[].release`). It proves
+    every part before it, so nothing else is kept. `Series.AddRelease`
+    answers a part it already has at once (no hashing), checks a newer one
+    with `CheckRelease` (witness first), and only then moves the count up.
+    The count only grows. Validity never depends on when a release arrived:
+    with the same series and release, every node has the same parts.
+  - **No size rules (requirement 3).** Nothing limits a release's part
+    number or a part's size beyond the series' own cap. Working out a far
+    part id costs time, in bounded memory (D165).
+  - **Part 1 needs the issuer witness.** A variable series listed without
+    its `issuer_witness` is kept and not followed (`nodepolicy.ErrNoPartOne`,
+    unreadable, never invalid). `poo init -series` and `poo doctor` say so.
+    `poo series sign` now prints `{series_id, params, issuer_witness}`, a
+    file `poo init -series` and `poo series info` read, checking the id
+    and the witness.
+  - **Giving a node a release.** `poo series add-release RELEASE` and
+    `POST /v1/series/release` check the release, save it in node.json and
+    reload the node. With the node stopped, the command changes node.json
+    under the policy lock. `GET /v1/series` adds `variable{released,
+    next_part, mints, units, release}` for a variable series, which
+    `poo series followed` prints. A client applies the node's release to
+    its own copy of the series, so a claim it builds on a released part is
+    checked against the same parts.
+  - **Round 25 tooling.**
+    - `poo policy limits -set` (and `add-release`) sent while the node is
+      still reloading from an earlier change used to fail with a bare EOF.
+      The client now dials again for up to 20 seconds while the connection
+      is dropped. Both calls are idempotent, so a retry is safe.
+    - `poo series info` reads a signed series file, prints the supply type,
+      part size and largest number of parts (left out when uncapped), and
+      `-h` prints its usage instead of opening a file named "-h"
+      (GUI-GREEN-051).
+    - `poo peers -counts` prints `node_id`, `listen`, the connections
+      (`peers`, which the GUI's Peers panel shows) and `counts`, without
+      the empty `book` list (GREEN-049's idea). `GET /v1/peers?counts=1` is unchanged.
+    - `poo series parts -o table` lists one row per part (GREEN-049's idea).
+    - `poo series release FILE -check -` reads the release from standard
+      input, so the GUI can check one it has just signed (GUI-027).
+  - **Left out:** ORANGE-033's in-place `-set` (a limit applied without a
+    reload). The reload path is what makes a change take effect everywhere
+    at once, and Black should see a design first. Passing releases between
+    nodes is phase 3.
+- **Consensus:** this is the consensus change jerry approved on
+  2026-11-04 (PoO 16.8 and the variable supply document), phase 2 of 3.
+  Nothing outside those documents is added. For fixed series nothing
+  changes: `TestFixedTxUnchanged` checks 2,000 random fixed transactions
+  against a frozen copy of the version 1 body, and the v1 vectors are
+  untouched.
+- **Tier:** Consensus (variable series only), node policy, RPC and CLI.
+  - `pkg/tx/variable_test.go`: `TestFixedTxUnchanged`, `TestVariableMints`.
+  - `pkg/engine/variable_test.go`: `TestVariableSeriesWaitsForRelease`.
+  - `pkg/nodepolicy`: `TestVariableFollowed`.
+  - `pkg/cli/seriesparts_test.go`: `TestVariableSeriesOnANode` (a claim on
+    part 2 waits, `add-release`, the reload, the claim, `series followed`,
+    node.json keeps the release), `TestSeriesPartsTable`.
+  - `pkg/vectors/testdata/variable.json` gains a claim of the first mint of
+    part 2 (body, tid, encoding).

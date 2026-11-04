@@ -216,6 +216,21 @@ built.
   it unreadable until phase 2 builds its transactions
   ([docs/variable-supply.md](docs/variable-supply.md)). Fixed series keep
   their bytes and ids exactly.
+- **Variable supply series, phase 2 (D166):** nodes follow variable
+  series. A variable mint names its part, which its transaction's body
+  and tid cover; fixed transactions keep their bytes and tids. A node
+  keeps the newest release of each series in node.json, and a
+  transaction on a part it has no release for waits (409 `waiting`):
+  it is never invalid and is taken once the release arrives. New:
+  `poo series add-release`, `POST /v1/series/release`, `poo series
+  followed`, and `variable` in `GET /v1/series`. `poo series sign`
+  prints a signed series file that `poo init -series` reads.
+- **Round 25 tooling (D166):** `poo policy limits -set` during a reload
+  waits for the node instead of failing with EOF; `poo series info`
+  shows a variable series' supply type, part size and cap and reads
+  signed files, and `-h` prints its usage; `poo peers -counts` leaves
+  out the empty book list; `poo series parts -o table`;
+  `poo series release -check -` reads standard input.
 - **Round 24 fixes (D162, D164):**
   - `poo peers import -apply -if-digest` works against a running node
     again.

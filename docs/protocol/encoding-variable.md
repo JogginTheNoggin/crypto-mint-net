@@ -59,6 +59,26 @@ Witness                  the issuer's, as in encoding.md
   largest number of parts, `previous` is the real `part_id(k − 1)`, and
   its witness checks.
 
+## Transactions
+
+A transaction on a variable series names the mint's part between the
+series and the serial (D166). Everything else is as in
+[encoding.md](encoding.md):
+
+```
+Hash series_id
+U64  part                (variable series only; PartOf(serial), from 1)
+U64  serial
+...                      inputs, outputs and witnesses as in encoding.md
+```
+
+- A fixed series' transactions have no part field. Their bytes and tids
+  are those of format version 1.
+- A reader knows which form it has from the series id: the series is
+  followed, so it is known before its transactions are read.
+- The part must be the one whose range holds the serial. A transaction
+  whose part is not released at the node waits: it is not invalid.
+
 ## Test vectors
 
 This table gives the example series of the variable supply document:
@@ -75,4 +95,5 @@ N = 50,000, M = 10,000, S = 1 and P = 1,000. Its issuer is the test key
 | release message of part 2 | `468897668eedeeb1e8641fb391274494e7acdd5025528f5c3b935c026edd183d` |
 
 The JSON file also holds the series' full encoding, the release's encoding
-and the issuer witness.
+and the issuer witness, and a claim of serial 50,000 (the first mint of part
+2) with its body, tid and encoding (D166).

@@ -90,7 +90,7 @@ decision that records it. Each package has its own document in
 | --- | --- | --- | --- |
 | Series of mints and pools, with an issuer witness | `poo series new`, `poo series info`, `poo series example` | `pkg/series` | M1 |
 | Choice of hash, key algorithms and address policy types per series | `poo crypto`, `poo keygen` | `pkg/hash`, `pkg/policy` | M9 |
-| **Variable supply series (phase 1 of 3):** a series can be variable: the issuer releases more parts of M mints later, in order, with an optional largest number of parts. Fixed series are unchanged. This phase covers the definition, part ranges and ids, releases and the issuer's tools. Nodes do not follow variable series yet (unreadable) | `poo series new -variable -part-size -max-parts -issuer`, `poo series sign`, `poo series release -part / -check`, `poo series parts` | `pkg/series` (parts.go), `pkg/vectors` (variable.go) | D163 |
+| **Variable supply series (phases 1 and 2 of 3):** a series can be variable: the issuer releases more parts of M mints later, in order, with an optional largest number of parts. Fixed series are unchanged. Nodes follow a variable series once they hold its issuer witness (part 1), keep the newest release, and take claims and spends on released parts; a transaction on a part not released yet waits, never invalid | `poo series new -variable -part-size -max-parts -issuer`, `poo series sign`, `poo series release -part / -check`, `poo series parts [-o table]`, `poo series add-release`, `poo series followed`, `POST /v1/series/release` | `pkg/series` (parts.go, released.go), `pkg/tx`, `pkg/nodepolicy`, `pkg/rpc` (release.go), `pkg/vectors` (variable.go) | D163, D166 |
 
 ### Tools
 

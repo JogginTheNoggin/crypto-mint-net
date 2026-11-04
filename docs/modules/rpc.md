@@ -48,7 +48,8 @@ D150).
 | Method and path | Body or query | Reply |
 | --- | --- | --- |
 | `GET /status` | | every followed pool, and replay stats; `policy_changed` when node.json differs, outside the grind section, from the policy the node runs, so a change waits for a reload (GREEN-037) |
-| `GET /series` | | followed series with their params |
+| `GET /series` | | followed series with their params; a variable series adds `variable{released, next_part, mints, units, release}` (D166) |
+| `POST /series/release` | `{release, no_reload}` | `{series, part, released, mints, added, saved, reloading}`: checks a release of a variable series, keeps it in node.json when newer than the one held, and reloads the node; 404 for a series not listed (D166) |
 | `POST /tx` | `{tx}` | `{series, pool, tid, forward}` |
 | `POST /entry` | `{series, pool, entry}` | `{hash, switched, pruned, dropped}` |
 | `POST /layer` | `{series, pool, layer}` | `{hash, strength, switched}` |
@@ -110,7 +111,10 @@ priority}`.
 Items are hex of their byte form; hashes are hex; weights are decimal
 strings. Errors are `{"error", "code"}` with codes `bad_request`,
 `unauthorized`, `not_found`, `conflict`, `invalid`, `full`,
-`nothing_pending`, `internal`, and a matching HTTP status.
+`nothing_pending`, `waiting`, `internal`, and a matching HTTP status.
+`waiting` (409) is a transaction on a part of a variable series that this
+node has no release for yet: it is not invalid, and is taken once the
+release is given (D166).
 
 ## API
 

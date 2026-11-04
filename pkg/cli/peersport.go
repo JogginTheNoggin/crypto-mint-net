@@ -75,7 +75,14 @@ func peersCmd(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return o.write(out, r)
+		// The connections and the counts, without the empty book list
+		// (GREEN-049's idea, D166). The GUI's Peers panel shows both.
+		return o.write(out, struct {
+			NodeID string          `json:"node_id"`
+			Listen string          `json:"listen,omitempty"`
+			Peers  []p2p.PeerInfo  `json:"peers"`
+			Counts *rpc.BookCounts `json:"counts"`
+		}{r.NodeID, r.Listen, r.Peers, r.Counts})
 	}
 	r, err := cl.Peers()
 	if err != nil {

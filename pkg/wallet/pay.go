@@ -292,8 +292,8 @@ func (w *Wallet) keyIndex(k policy.Key) (uint32, bool) {
 // sends it, and watches the mint. A claim is valid only while the mint is
 // unclaimed in the ledger.
 func (w *Wallet) Claim(s *series.Series, n Node, serial uint64) (*Sent, error) {
-	if serial >= s.Mints() {
-		return nil, fmt.Errorf("wallet: serial %d out of range", serial)
+	if err := tx.CheckMint(s, s.Mint(serial)); err != nil {
+		return nil, fmt.Errorf("wallet: serial %d: %w", serial, err)
 	}
 	if w.seed == nil {
 		return nil, ErrLocked
