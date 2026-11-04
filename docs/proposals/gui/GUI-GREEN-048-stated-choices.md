@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 22 Part B) |
+| Status | adopted (Round 23 Part A) |
 | Based on | main @ f4f7945 |
 | Area | gui/e2e/parity.mjs, gui/web/static/views.js (a `choices` field), views/peers.js, views/watch.js, style.css |
 | Effort | small |

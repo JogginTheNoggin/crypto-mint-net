@@ -54,8 +54,8 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-045](GUI-GREEN-045-subcommand-parity.md) | parity.mjs also checks that every subcommand poo lists (peer actions, policy, sim, submit, grind, wallet) is run by a view | small | yes | adopted |
 | [GUI-GREEN-046](GUI-GREEN-046-copy-command-line.md) | Copy beside every command line, to run it in a shell; off while the line holds a secret flag | small | yes | adopted |
 | [GUI-GREEN-047](GUI-GREEN-047-keygen-seed-masked.md) | Make a key asks for its seed in a masked field (`keygen -seed-file -`, D98) instead of putting it on the line; a secret flag set to `-` is not a secret line | small | yes | adopted |
-| [GUI-GREEN-048](GUI-GREEN-048-stated-choices.md) | parity.mjs also checks that a field offering a fixed set of values offers exactly the ones `poo -h` lists; Find and Export peers take book states as boxes, as Watch takes kinds | small | yes | proposed |
-| [GUI-GREEN-049](GUI-GREEN-049-limit-fields.md) | Set limits draws a field for each limit `poo policy limits` lists, with its value in effect, range and default, instead of typed `NAME=VALUE` pairs | small | yes | proposed |
+| [GUI-GREEN-048](GUI-GREEN-048-stated-choices.md) | parity.mjs also checks that a field offering a fixed set of values offers exactly the ones `poo -h` lists; Find and Export peers take book states as boxes, as Watch takes kinds | small | yes | adopted |
+| [GUI-GREEN-049](GUI-GREEN-049-limit-fields.md) | Set limits draws a field for each limit `poo policy limits` lists, with its value in effect, range and default, instead of typed `NAME=VALUE` pairs | small | yes | adopted |
 
 ## Orange (performance)
 
@@ -82,7 +82,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-014](ORANGE-014-picked-file-as-read.md) | Send a picked policy file as it is read and stop when `poo` stops (500 MB picked by mistake: 5.3 s and +491 MB of browser memory → 0.9 s and +47 MB) | small | yes | adopted |
 | [ORANGE-015](ORANGE-015-long-import-plan.md) | Draw a long import plan 500 lines at a time (50,000 issuers: no plan and a page error → plan in 2.2 s; 20,000: 4.6 s → 0.9 s) | small | yes | adopted |
 | [ORANGE-016](ORANGE-016-short-read-first-line.md) | Name the first 20 items of a plan's "Read first" line, with Show all (50,000 peers: a 1.5 million-character alert, 183,000 px tall → 685 characters, 151 px) | small | yes | adopted |
-| [ORANGE-017](ORANGE-017-peers-panel-without-the-book.md) | Let the Peers panel's 10 s refresh leave out the peer book, with a `poo peers` flag (16,384 addresses: 12.8 MB every 10 s, poo-gui 240 MB, pauses up to 0.5 s; up to 65,536 now settable) | small | no | proposed |
+| [ORANGE-017](ORANGE-017-peers-panel-without-the-book.md) | Let the Peers panel's 10 s refresh leave out the peer book, with a `poo peers` flag (16,384 addresses: 12.8 MB every 10 s, poo-gui 240 MB, pauses up to 0.5 s; up to 65,536 now settable) | small | no | waits on Source (a `poo peers` flag) |
 
 ### Re-checks each round
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 23 Part B) |
+| Status | adopted (Round 24 Part A) |
 | Based on | main @ 2cacdd5 |
 | Area | gui/web/static/views/policies.js (limitsParts), style.css, gui/e2e/views.mjs |
 | Effort | small |
