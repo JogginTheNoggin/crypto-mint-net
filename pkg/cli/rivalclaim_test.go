@@ -114,3 +114,65 @@ func TestPolicyLimitsSet(t *testing.T) {
 		t.Error("view-only -set taken")
 	}
 }
+
+// The next step of a build names the pool the person can name again, so a
+// -pool build's hint works (it said -serial 0, pool 0's); a plain build
+// that is not selected says to work on its entry; -bytes keeps the entry
+// with -parent too; and before-claim on a claim not yet selected says
+// where the claim is (GREEN-048).
+func TestBuildNextSteps(t *testing.T) {
+	root := t.TempDir()
+	r := []string{"-root", root}
+	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "off"}, r...)...)
+	stop := startNode(t, root+"/policies/default")
+	defer stop()
+	alice, bob := strings.Repeat("a1", 32), strings.Repeat("b2", 32)
+
+	cli(t, nil, append([]string{"claim", "-seed-file", seedFile(t, alice), "-serial", "5"}, r...)...)
+	var built struct {
+		Hash     string
+		Switched bool
+		Next     string
+	}
+	cli(t, &built, append([]string{"build", "-serial", "5"}, r...)...)
+	if built.Switched || !strings.Contains(built.Next, "poo work -pool 1 -entry "+built.Hash) {
+		t.Fatalf("plain build: %+v", built)
+	}
+	// Alice's claim is in an entry no layer has selected.
+	var out bytes.Buffer
+	err := run(append([]string{"claim", "-seed-file", seedFile(t, bob), "-serial", "5", "-parent", "before-claim"}, r...), &out)
+	if err == nil || !strings.Contains(err.Error(), "-parent root") || !strings.Contains(err.Error(), "poo pending -pool 1") {
+		t.Fatalf("before-claim on an unselected claim: %v", err)
+	}
+	var rival struct {
+		Hash  string
+		Entry string
+		Next  string
+	}
+	cli(t, &rival, append([]string{"claim", "-seed-file", seedFile(t, bob), "-serial", "6", "-parent", "root"}, r...)...)
+	if !strings.Contains(rival.Next, "poo grind start "+rival.Hash+" -pool 1") || strings.Contains(rival.Next, "-serial") || rival.Entry != "" {
+		t.Fatalf("claim -parent root: %+v", rival)
+	}
+	cli(t, nil, append([]string{"claim", "-seed-file", seedFile(t, bob), "-serial", "7"}, r...)...)
+	var kept struct{ Entry, Next string }
+	cli(t, &kept, append([]string{"build", "-pool", "1", "-parent", "root", "-bytes"}, r...)...)
+	if kept.Entry == "" || !strings.Contains(kept.Next, "-pool 1") {
+		t.Fatalf("build -pool 1 -parent root -bytes: %+v", kept)
+	}
+}
+
+// A -set name without its section, or misspelt, is refused with the
+// limit it most likely meant (GREEN-048).
+func TestLimitsSetSuggests(t *testing.T) {
+	root := t.TempDir()
+	cli(t, nil, "init", "-p2p", "off", "-root", root)
+	for kv, want := range map[string]string{"max_book=300": "did you mean p2p.max_book?", "p2p.max_bok=300": "did you mean p2p.max_book?", "log_size=20": "did you mean tracking.log_size?"} {
+		err := run([]string{"policy", "limits", "-set", kv, "-root", root}, &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("-set %s: %v", kv, err)
+		}
+	}
+	if limitHint("p2p.max_book") != "" || limitHint("zzz") != "" {
+		t.Error("a hint for a real limit, or for a name near none")
+	}
+}
