@@ -18,6 +18,9 @@ func variableForTest(t *testing.T) *Series {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Its own chain, not the one this process shares for the id
+	// (ORANGE-035), so each test starts from no part id worked out.
+	s.parts = &partChain{}
 	return s
 }
 
@@ -124,4 +127,35 @@ func TestPartIDFarOutInBoundedMemory(t *testing.T) {
 		t.Fatalf("a known part waited %v behind a long call", waited)
 	}
 	<-done
+}
+
+// RED-075, D167: a release the node checked in an earlier process seeds
+// the previous part's id, so its next check costs no chain; every other
+// part is still worked out from the chain.
+func TestTrustReleaseSeedsOnlyThatPart(t *testing.T) {
+	iss := hash.Hash{1}
+	// A series of its own id, with the chain the process shares for it.
+	f, err := New(Params{HashID: 1, Mints: 8, Supply: 7777, PoolSize: 4, PolicyTypes: []policy.TypeID{1}, KeyAlgs: []policy.AlgID{1},
+		Issuer: &iss, SupplyType: Variable, PartSize: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := naive(f, 50)
+	seed := Release{Series: f.ID(), Part: 42, Previous: hash.Hash{9}}
+	TrustRelease(seed)
+	if got, _ := f.PartID(41); got != seed.Previous {
+		t.Fatal("the seed was not used")
+	}
+	if !ReleaseChecked(seed) || ReleaseChecked(Release{Series: f.ID(), Part: 42, Previous: ids[40]}) {
+		t.Fatal("ReleaseChecked")
+	}
+	for _, k := range []uint64{40, 43, 50} {
+		if got, _ := f.PartID(k); got != ids[k-1] {
+			t.Fatalf("part %d is not the chain's", k)
+		}
+	}
+	// Once the chain itself has passed the seed, the chain answers.
+	if got, _ := f.PartID(41); got != ids[40] {
+		t.Fatal("the seed outlived the chain")
+	}
 }

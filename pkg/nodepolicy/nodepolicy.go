@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -628,12 +629,39 @@ type Accepted struct {
 	// Issuer is the verified issuer, if the series names one and its
 	// witness checked.
 	Issuer *hash.Hash
+	// ReleaseErr says why the release node.json keeps for the series was
+	// not used. The series is followed with the parts proven without it
+	// (RED-073).
+	ReleaseErr error
 }
 
 // Refused is a listed series the node does not accept, and why.
 type Refused struct {
 	Index  int
 	Reason error
+}
+
+// Build builds the series si lists and adds the release it keeps. A kept
+// release is information the node was given: one that does not check is
+// left out, and said in release, and the series is built with the parts
+// proven without it, part 1 at least, never refused for it (RED-073).
+// Every place that reads a listed series builds it here, so each sees the
+// same parts the running node does (RED-072).
+func (si SeriesInfo) Build() (s *series.Series, release error, err error) {
+	s, err = series.New(si.Params)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch {
+	case si.Release == nil:
+	case !s.IsVariable():
+		release = fmt.Errorf("release: %w", series.ErrFixed)
+	default:
+		if _, rerr := s.AddRelease(*si.Release); rerr != nil {
+			release = fmt.Errorf("release of part %d: %w", si.Release.Part, rerr)
+		}
+	}
+	return s, release, nil
 }
 
 // Accepted builds every listed series and applies the issuer rule. A series
@@ -646,17 +674,9 @@ func (p Policy) Accepted() (accepted []Accepted, refused []Refused) {
 		allow[a] = true
 	}
 	for i, si := range p.Series {
-		s, err := series.New(si.Params)
-		switch {
-		case err != nil:
-		case s.IsVariable() && si.IssuerWitness == "":
+		s, relErr, err := si.Build()
+		if err == nil && s.IsVariable() && si.IssuerWitness == "" {
 			err = ErrNoPartOne
-		case !s.IsVariable() && si.Release != nil:
-			err = fmt.Errorf("release: %w", series.ErrFixed)
-		case si.Release != nil:
-			if _, rerr := s.AddRelease(*si.Release); rerr != nil {
-				err = fmt.Errorf("release: %w", rerr)
-			}
 		}
 		if err != nil {
 			refused = append(refused, Refused{i, err})
@@ -684,7 +704,7 @@ func (p Policy) Accepted() (accepted []Accepted, refused []Refused) {
 			refused = append(refused, Refused{i, errors.New("issuer not accepted")})
 			continue
 		}
-		accepted = append(accepted, Accepted{Series: s, Issuer: issuer})
+		accepted = append(accepted, Accepted{Series: s, Issuer: issuer, ReleaseErr: relErr})
 	}
 	return accepted, refused
 }
@@ -775,6 +795,7 @@ func Load(path string) (Policy, error) {
 	if err := p.Validate(); err != nil {
 		return Policy{}, fmt.Errorf("%s: %w", path, err)
 	}
+	trustChecked(filepath.Dir(path), p)
 	return p, nil
 }
 
@@ -790,7 +811,11 @@ func Save(path string, p Policy) error {
 	// Each writer has its own temporary file, synced before the rename,
 	// so concurrent writers never tear the file, and a crash leaves the old
 	// or the new one (RED-013, decision D114; now shared, D148).
-	return fsutil.WriteFile(path, append(b, '\n'), 0o600)
+	if err := fsutil.WriteFile(path, append(b, '\n'), 0o600); err != nil {
+		return err
+	}
+	SaveChecked(filepath.Dir(path), p)
+	return nil
 }
 
 // ReleaseAdded is what AddRelease did with a release.
@@ -810,20 +835,39 @@ type ReleaseAdded struct {
 // ErrSeriesNotListed: a release names a series the policy does not list.
 var ErrSeriesNotListed = errors.New("the node policy does not list that series (add it with poo init -series FILE)")
 
-// AddRelease keeps r as the newest release of its variable series when it
-// is valid and newer than the release kept (D166). A release of a part
-// already known changes nothing. An invalid release is refused and
-// nothing changes.
-func (p *Policy) AddRelease(r series.Release) (ReleaseAdded, error) {
-	for i, si := range p.Series {
+// CheckRelease checks r in full against the series p lists, changing
+// nothing. It can take r.Part hashes the first time in a process, so a
+// caller that holds a lock checks first, without it, and then adds: the
+// part ids are shared in the process, so AddRelease after it costs no
+// more hashing (RED-075).
+func (p Policy) CheckRelease(r series.Release) error {
+	for _, si := range p.Series {
 		s, err := series.New(si.Params)
 		if err != nil || s.ID() != r.Series {
 			continue
 		}
-		if si.Release != nil {
-			if _, err := s.AddRelease(*si.Release); err != nil {
-				return ReleaseAdded{}, fmt.Errorf("the release node.json keeps: %w", err)
-			}
+		return s.CheckRelease(r)
+	}
+	return fmt.Errorf("%w: %s", ErrSeriesNotListed, r.Series.Short())
+}
+
+// AddRelease keeps r as the newest release of its variable series when it
+// is valid and newer than the release kept (D166). A release is always
+// checked in full here, also one of a part already known, so a forged
+// release is never answered as fine (RED-074); only the peer path takes a
+// known part without the hashing. A kept release that does not check is
+// replaced by a valid one (RED-073). An invalid release is refused and
+// nothing changes.
+func (p *Policy) AddRelease(r series.Release) (ReleaseAdded, error) {
+	for i, si := range p.Series {
+		// A kept release that does not check is left out by Build, so a
+		// valid r replaces it.
+		s, _, err := si.Build()
+		if err != nil || s.ID() != r.Series {
+			continue
+		}
+		if err := s.CheckRelease(r); err != nil {
+			return ReleaseAdded{}, err
 		}
 		added, err := s.AddRelease(r)
 		if err != nil {

@@ -181,6 +181,19 @@ func doctor(out io.Writer, dir string) DoctorReport {
 		add(Check{Name: "series", Result: checkOK, Detail: fmt.Sprintf("%d accepted", len(accepted))})
 	}
 
+	// A release node.json keeps that does not check is left out, and its
+	// series followed with the parts proven without it (RED-073).
+	var bad []string
+	for _, a := range accepted {
+		if a.ReleaseErr != nil {
+			bad = append(bad, fmt.Sprintf("series %s: %v", a.Series.ID().Short(), a.ReleaseErr))
+		}
+	}
+	if len(bad) > 0 {
+		add(Check{Name: "releases", Result: checkWarn, Detail: "not used: " + strings.Join(bad, "; "),
+			Fix: "give the node a valid release with poo series add-release FILE; it replaces the one kept"})
+	}
+
 	// 4. Grinding: the devices, and the grind section's.
 	add(grindCheck(p, accepted))
 

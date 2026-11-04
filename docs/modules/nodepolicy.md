@@ -179,6 +179,16 @@ applies the change at once without a reload (D113).
   concurrent writers never tear the file; RED-013; through `fsutil.WriteFile` since D148),
   `LedgerConfig`, `TrackingConfig`, `ListenAddr`, `P2PListenAddr`
   (`p2p.FromPolicy` turns the p2p section into host settings).
+- `SeriesInfo.Build()` builds a listed series with the release it keeps,
+  and reports a kept release that does not check (left out, never the
+  series; RED-072, RED-073, D167). Every reader of a listed series uses it.
+- `CheckRelease(r)` checks a release in full without changing anything.
+  `AddRelease(r)` checks every release in full, also one of a known part,
+  and replaces a kept one that does not check (RED-074). `Load` and `Save`
+  read and write the node's own cache of checked releases,
+  `releases-checked.json` (`CheckedFileName`), beside node.json, so a
+  later process checks only a kept release's witness. It is never exported,
+  and a cache that does not match is ignored (RED-075).
 - `Accepted()` builds each listed series and applies the issuer rule,
   returning accepted series (with the verified issuer) and refused ones with
   reasons. One bad series never stops a node.

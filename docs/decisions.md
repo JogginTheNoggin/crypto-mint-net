@@ -3778,3 +3778,65 @@ a chase takes in after checking their work are not charged.
     node.json keeps the release), `TestSeriesPartsTable`.
   - `pkg/vectors/testdata/variable.json` gains a claim of the first mint of
     part 2 (body, tid, encoding).
+
+### D167. Round 25 fixes: RED-072 to RED-076 (BLUE-026)
+
+- **Decision:**
+  - **One way to build a listed series (RED-072).** `SeriesInfo.Build`
+    builds the series and adds the release node.json keeps. `follow`,
+    `unfollow`, `wallet follow`, `ExportSeries`, the import merge and its
+    plan counts, and `policySeries` in the CLI all use it, so they see the
+    same parts as the running node. A pool or mint of a part this node
+    does not know released yet is still refused by `follow`, and the
+    message now says it is waiting for a release.
+  - **A variable series stays whole on `unfollow` (RED-072).** A whole
+    follow of a variable series takes the pools of later releases too, so
+    `unfollow -pool` keeps it whole with exceptions and never rewrites it
+    as a list of the pools left (the "shorter form" is kept for fixed
+    series only).
+  - **A bad kept release is left out, not the series (RED-073).** A
+    release is information the node was given. One that does not check
+    is left out: the series is followed with the parts proven without it
+    (part 1 at least), the node logs a warning, `poo doctor` shows a
+    `releases` warning, and `add-release` of a valid one replaces it. An
+    import drops a release that does not check, and names it in the plan
+    (`dropped_releases`).
+  - **`add-release` checks every release (RED-074).** A release of a part
+    already known is checked in full on the CLI and RPC path too, so a
+    forged one is refused instead of answered with `added: false`. Only
+    the peer path (phase 3) may take a known part without hashing. Release
+    JSON refuses a key it does not know (`ErrUnknownKey`). The keys `poo
+    series release` adds for people (`part_id`, the serial and pool
+    ranges, `mints`, `units`) are read and ignored.
+  - **The chain is not worked out again on each load (RED-075).**
+    - ORANGE-035 (#167, merged into this branch) shares part ids within a
+      process, so a reload no longer hashes the chain again.
+    - Across processes, the node keeps its own cache,
+      `releases-checked.json` beside node.json, holding the series, part
+      and previous id of each kept release it checked in full. `Load` uses
+      an entry only when it matches the kept release exactly, and seeds
+      the one id `part_id(k − 1)`. The release's witness is still checked
+      each time, which needs no chain. A missing, damaged or stale cache
+      only costs time. The cache is never part of an export, so a release
+      another node wrote is always checked in full.
+    - The RPC's `add-release` checks the release before it takes the
+      policy lock, so other policy commands are not held for the hashing.
+      The add after it finds the ids already worked out.
+    - Still no cap on part numbers (D165).
+  - **The series_id text is quoted (RED-076).** The id-mismatch error
+    prints the file's `series_id` with `%q`, so terminal codes in it are
+    escaped.
+- **Consensus:** none. What is valid is unchanged. The cache only seeds
+  an id this node itself worked out and checked. A cache that does not
+  match is not used, so it can make a node slower, never change a result.
+  Leaving out a bad kept release means the node knows fewer parts
+  (missing information, never a hard fork).
+- **Tier:** Node policy, RPC and CLI.
+  - `pkg/nodepolicy/blue026_test.go`: `TestFollowSeesReleasedParts`,
+    `TestUnfollowKeepsAVariableSeriesWhole`, `TestBadKeptReleaseIsReplaced`,
+    `TestAddReleaseChecksAKnownPart`, `TestCheckedReleasesCache`.
+  - `pkg/nodepolicy`: `TestVariableFollowed` (a bad release and a fixed
+    series' release are now left out, not the series).
+  - `pkg/series/blue025_internal_test.go`: `TestTrustReleaseSeedsOnlyThatPart`.
+  - `pkg/cli/blue026_test.go`: `TestSeriesIDTextIsQuoted`,
+    `TestReleaseFileKeys`.

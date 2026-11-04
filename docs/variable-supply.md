@@ -142,6 +142,13 @@ run on fixed series only.
   (`series[].release` in node.json), which proves every part before it.
   `Series.AddRelease` answers a known part at once, checks a newer one
   (witness first) and moves the count up. The count never goes down.
+  Every command that reads a listed series builds it with its kept release
+  (`SeriesInfo.Build`, D167), so `follow`, `unfollow` and policy import
+  see the same parts as the node. A kept release that does not check is
+  left out, never the series. `poo series add-release` checks every
+  release, also one of a known part. A node keeps its own record of the
+  releases it checked (`releases-checked.json`), so the next process
+  checks only the witness, not the chain.
 - **Tools.** `poo series add-release RELEASE` (and `POST
   /v1/series/release`) checks a release, saves it and reloads the node.
   `poo series followed` (and `GET /v1/series`) shows `variable{released,

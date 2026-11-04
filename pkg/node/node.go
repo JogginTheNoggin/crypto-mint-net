@@ -163,8 +163,13 @@ func (n *Node) configure() error {
 	for _, r := range refused {
 		n.logger().Warn("series not accepted", "index", r.Index, "err", r.Reason)
 	}
+	// The releases just checked, kept for the next process (RED-075).
+	nodepolicy.SaveChecked(n.dir, n.pol)
 	byIssuer := map[hash.Hash][]hash.Hash{}
 	for _, a := range accepted {
+		if a.ReleaseErr != nil {
+			n.logger().Warn("release in node.json not used; the series is followed with the parts proven without it (give it a valid one with poo series add-release)", "series", a.Series.ID().Short(), "err", a.ReleaseErr)
+		}
 		n.eng.AddSeries(a.Series)
 		if a.Issuer != nil {
 			byIssuer[*a.Issuer] = append(byIssuer[*a.Issuer], a.Series.ID())

@@ -2,6 +2,7 @@ package nodepolicy
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -48,7 +49,8 @@ func (p *Policy) AddFollow(f Follow) error {
 // series comes off entirely. Pools come off a series: off its list, or,
 // when it is followed whole, onto its Except list, so all but a few pools
 // of a large series stays one entry (RED-050, D154); when fewer pools are
-// left than are taken off, the pools left are listed instead. Mints come off the
+// left than are taken off, the pools left are listed instead, but never
+// for a variable series, which grows (RED-072). Mints come off the
 // mints listed; a mint followed only through its pool cannot be taken off
 // alone, since a mint is checked with its whole pool.
 func (p *Policy) RemoveFollow(f Follow) error {
@@ -104,6 +106,11 @@ func (p *Policy) RemoveFollow(f Follow) error {
 		rest := p.without(*f.Series)
 		left := s.PoolCount() - uint64(len(cur.Except))
 		switch {
+		case s.IsVariable():
+			// A variable series grows: a whole follow takes the pools of
+			// every later release too, and a list of the pools left would
+			// not, so it stays whole with its exceptions (RED-072).
+			rest = append(rest, cur)
 		case left == 0:
 		case left <= uint64(len(cur.Except)):
 			// The shorter form: the pools left, listed.
@@ -290,21 +297,43 @@ func checkFollowIn(f Follow, look func(hash.Hash) (*series.Series, error)) error
 	}
 	for _, k := range append(append([]uint64(nil), f.Pools...), f.Except...) {
 		if k >= s.PoolCount() {
-			return fmt.Errorf("%w: pool %d out of range", ErrInvalid, k)
+			return fmt.Errorf("%w: pool %d out of range%s", ErrInvalid, k, poolWaitingNote(s, k))
 		}
 	}
 	for _, m := range f.Mints {
 		if m >= s.Mints() {
-			return fmt.Errorf("%w: mint %d out of range", ErrInvalid, m)
+			return fmt.Errorf("%w: mint %d out of range%s", ErrInvalid, m, waitingNote(s, m))
 		}
 	}
 	return nil
 }
 
-// series returns a listed series by id.
+// poolWaitingNote is waitingNote for pool k.
+func poolWaitingNote(s *series.Series, k uint64) string {
+	if k > math.MaxUint64/s.PoolSize() {
+		return ""
+	}
+	return waitingNote(s, k*s.PoolSize())
+}
+
+// waitingNote says when serial is in a part of a variable series that this
+// node does not know released yet, which a release would change.
+func waitingNote(s *series.Series, serial uint64) string {
+	if !s.IsVariable() {
+		return ""
+	}
+	k, err := s.PartOf(serial)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf(": it is in part %d, which this node does not know released yet (waiting for a release; give it one with poo series add-release)", k)
+}
+
+// series returns a listed series by id, with the parts its kept release
+// proves (RED-072).
 func (p *Policy) series(id hash.Hash) (*series.Series, error) {
 	for _, si := range p.Series {
-		s, err := series.New(si.Params)
+		s, _, err := si.Build()
 		if err == nil && s.ID() == id {
 			return s, nil
 		}
