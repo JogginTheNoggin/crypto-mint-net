@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | proposed (prototyped) |
 | Based on | `main` @ `439b369` |
-| Area | `pkg/cli` (`seedFlags`, `claimCmd`, `payCmd`, `issuerSigner`), `pkg/cli/main.go` usage, `docs/modules/poo.md` |
+| Area | `pkg/cli` (`seedFlags`, `claimCmd`, `payCmd`, `issuerSigner`), `pkg/cli/main.go` usage, `docs/modules/poo.md`, three `LEFT_OUT` reasons in `gui/e2e/parity.mjs` |
 | Effort | small |
 | Consensus | none: which key a command signs with, and refusals made before anything is sent. What a node accepts is unchanged. A series still allows an algorithm only by listing it in `key_algs` (D168) |
 | Decided by | Grey (Black may skip it) |
@@ -103,6 +103,7 @@ journey on one node:
 
 ## Ideas for later
 
-- The GUI's claim and pay forms may want an algorithm choice to match.
-  That is GUI Grey's call, and the parity e2e still passes, since a flag is
-  not a subcommand.
+- The GUI's claim, series sign and series release forms sign with
+  Ed25519. `gui/e2e/parity.mjs` checks every flag, so this branch adds
+  `alg` to their `LEFT_OUT` entries with that reason. Adding an algorithm
+  choice to those forms is GUI Grey's call.
