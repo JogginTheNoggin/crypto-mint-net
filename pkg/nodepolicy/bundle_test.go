@@ -2,6 +2,7 @@ package nodepolicy_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 )
 
@@ -341,5 +344,37 @@ func TestLimitsSayInPlace(t *testing.T) {
 	}
 	if seen == 0 || seen != len(nodepolicy.InPlace) {
 		t.Fatalf("%d in place, the list has %d", seen, len(nodepolicy.InPlace))
+	}
+}
+
+// GUI-028: checking a release of a far part stops when the context is
+// done; the release's own witness is checked first, so it must be the
+// issuer's.
+func TestCheckReleaseContextCancels(t *testing.T) {
+	signer, err := policy.NewSigner(policy.AlgEd25519, bytes.Repeat([]byte{0x5e}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pol := policy.SingleKey(policy.AlgEd25519, signer.Public())
+	h, _ := hash.Lookup(hash.SHA256)
+	iss := policy.Address(h, pol)
+	p := testutil.ExampleParams()
+	p.Issuer, p.SupplyType, p.PartSize = &iss, series.Variable, 4
+	s, err := series.New(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := series.Release{Series: s.ID(), Part: 1 << 40, Previous: hash.Hash{9}}
+	r.Witness = policy.SingleKeyWitness(signer, s.ReleaseMessage(r.ID(s.Hash())))
+	np := nodepolicy.Default()
+	np.Series = []nodepolicy.SeriesInfo{{Params: p}}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if err := np.CheckReleaseContext(ctx, r); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("%v", err)
+	}
+	if d := time.Since(start); d > 10*time.Second {
+		t.Fatalf("took %v", d)
 	}
 }

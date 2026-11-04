@@ -4136,8 +4136,9 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
   - **A far part id can be cancelled** (GUI-028). `Series.PartIDContext`,
     `UnsignedContext` and `CheckReleaseContext` stop when their context
     is done, between two chunks of hashes, and keep what they worked out.
-    `poo series release`, `poo series release -check`, `poo series parts`
-    and `poo series info` use the command's context, so a GUI job's
+    `poo series release`, `poo series release -check`, `poo series parts`,
+    `poo series info` and `poo series add-release` with the node stopped
+    (`nodepolicy.Policy.CheckReleaseContext`) use the command's context, so a GUI job's
     Cancel (or Ctrl-C) stops a part far out instead of hashing for hours.
     Stopping says nothing about validity. The plain methods are unchanged.
 - **Why:** The documents ask for declared per-type and per-algorithm
@@ -4168,4 +4169,5 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
   - `pkg/nodepolicy/bundle_test.go`: `TestSeriesCeilingDeclinesNewSeries`,
     `TestLimitsSayInPlace`.
   - `pkg/series/gui028_internal_test.go`: `TestPartIDContextCancels`;
-    `pkg/cli/d170_test.go`: `TestFarPartIsCancellable`.
+    `pkg/cli/d170_test.go`: `TestFarPartIsCancellable`;
+    `pkg/nodepolicy/bundle_test.go`: `TestCheckReleaseContextCancels`.

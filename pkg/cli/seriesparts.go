@@ -375,6 +375,11 @@ func seriesAddRelease(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// Checked first, cancellably: a far part can take long the first time
+	// (GUI-028). AddRelease then finds the part ids worked out.
+	if err := p.CheckReleaseContext(contextOf(out), r); err != nil {
+		return err
+	}
 	res, err := p.AddRelease(r)
 	if err != nil {
 		return err

@@ -16,6 +16,7 @@
 package nodepolicy
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -865,12 +866,18 @@ var ErrSeriesNotListed = errors.New("the node policy does not list that series (
 // part ids are shared in the process, so AddRelease after it costs no
 // more hashing (RED-075).
 func (p Policy) CheckRelease(r series.Release) error {
+	return p.CheckReleaseContext(context.Background(), r)
+}
+
+// CheckReleaseContext is CheckRelease that stops when ctx is done
+// (series.PartIDContext, GUI-028).
+func (p Policy) CheckReleaseContext(ctx context.Context, r series.Release) error {
 	for _, si := range p.Series {
 		s, err := series.New(si.Params)
 		if err != nil || s.ID() != r.Series {
 			continue
 		}
-		return s.CheckRelease(r)
+		return s.CheckReleaseContext(ctx, r)
 	}
 	return fmt.Errorf("%w: %s", ErrSeriesNotListed, r.Series.Short())
 }
