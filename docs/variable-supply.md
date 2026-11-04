@@ -37,7 +37,7 @@ built only as those documents specify. Anything else needs his permission.
 | --- | --- | --- | --- |
 | 1 | 24 | The definition, parts and releases: params, byte form v2, validation, part ranges and ids, release records and checks, issuer tools (`poo series new -variable`, `sign`, `release`, `parts`), vectors. A node refuses to follow a variable series: it is unreadable at this node, never invalid. | Built (D163) |
 | 2 | 25 | Mints and transactions: a mint names its part, the tid covers it, claims and spends on released parts, a node keeps the newest release it knows for each series, and a transaction past it waits instead of failing. Pools past part 1. A node follows variable series. | Built (D166) |
-| 3 | 26 | Passing releases on: nodes hand releases to their peers and through the RPC, the GUI shows parts and releases, and Red and Black test the whole path. | Later |
+| 3 | 26 | Passing releases on: nodes hand releases to their peers and through the RPC, the GUI shows parts and releases, and Red and Black test the whole path. | Built (D168); the GUI and the Red and Black passes follow in Round 26 |
 
 Fixed series stay exactly as they are in every phase. Each phase adds
 regression tests for this: `TestFixedSeriesUnchanged` and
@@ -150,7 +150,8 @@ run on fixed series only.
   releases it checked (`releases-checked.json`), so the next process
   checks only the witness, not the chain.
 - **Tools.** `poo series add-release RELEASE` (and `POST
-  /v1/series/release`) checks a release, saves it and reloads the node.
+  /v1/series/release`) checks a release, saves it and reloads the node
+  (since D168, takes it in place).
   `poo series followed` (and `GET /v1/series`) shows `variable{released,
   next_part, mints, units, release}`. `poo series sign` prints a signed
   series file that `poo init -series` and `poo series info` read.
@@ -158,6 +159,40 @@ run on fixed series only.
   a frozen v1 body), `TestVariableMints`, `TestVariableSeriesWaitsForRelease`,
   `TestVariableFollowed`, `TestVariableSeriesOnANode`, and a part 2 claim in
   `pkg/vectors/testdata/variable.json`.
+
+## Phase 3, as built (D168)
+
+- **Passing releases on.** A new wire v1 message, `release` (type 14),
+  carries a release's byte form in its series' section. A node that does
+  not know the type ignores it, so no protocol version changes. A node
+  sends a peer the newest release of each variable series it follows
+  when they connect, and passes a release it has just taken to its
+  connected peers that follow the series.
+- **Taking one.** A release of a series the node does not follow, or of a
+  part it already knows, is dropped with no hashing (D165's point 4), and
+  counted as a repeat. A later one is checked in full, witness first, so
+  only the issuer can make a node work out a long chain. It is then kept
+  in node.json under the same lock as every other edit of it, and added
+  to the series the node runs (`node.AddRelease`). A release that does not
+  check is an offence: its validity depends only on the series, so no
+  honest node passes one on.
+- **In place, as a reload would.** The p2p host indexes the new part's
+  pools as it does on start (`Host.AddPools`). Where that cannot give what
+  a start gives, the node reloads onto the saved node.json instead: a
+  series followed by a list of pools (its coverage can change), or one
+  followed whole that the release makes large enough to be indexed by the
+  pools in use (D154). `poo series add-release` takes the same path and
+  replies `in_place`, or `reloading` when it cannot.
+- **A series is built before its transactions are read** (Black, Round 25).
+  A release names a series the node already built at start; a release of
+  any other series is dropped. Nothing about a release changes how a
+  transaction is decoded: the variable form follows from the series id,
+  registered when the series was built.
+- **Tests.** `TestReleasesPassBetweenPeers` (on connect, onward, a list
+  follow reloads, a bad release is refused) and
+  `TestReleaseInPlaceMatchesReopen` (released parts, followed and listed
+  pools, the host's index and coverage, against a node opened on the same
+  node.json) in `pkg/p2p`; `TestVariableSeriesOnANode` in `pkg/cli`.
 
 ## Phase 1's open questions, answered
 

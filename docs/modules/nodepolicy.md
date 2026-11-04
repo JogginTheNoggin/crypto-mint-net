@@ -143,6 +143,16 @@ from the one list `Validate` checks; `poo policy limits` prints it
 (GREEN-047).
 `poo policy limits -set NAME=VALUE` (`Policy.SetLimits`,
 `POST /v1/policy/limits`) changes them, checked whole first (D161).
+A running node applies the ones `InPlace` names without a reload (D168):
+`p2p.max_book`, `p2p.book_per_range`, `p2p.retry_seconds`,
+`p2p.candidate_seconds`, the four `tracking.*` limits and `seen_size`.
+Each part ends as a reload onto the same node.json would leave it: the
+book takes its limits and runs the same `Fit` as on start, the tracker
+its retention, and the engine a new, empty seen list. `ChangedLimits`
+lists what changed and `SameButInPlace` says whether node.json holds
+anything else the node does not run yet, in which case the reload is
+used. `verified_per_range`, `registry_seconds`, `max_pending` and `ties`
+stay on the reload.
 
 What the ceilings cost, as Orange measured them (ORANGE-032): a tracker
 at `tracking.max_addresses` 131072 takes about 420 MiB (3.3 KB an

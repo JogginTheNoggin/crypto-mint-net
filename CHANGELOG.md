@@ -225,6 +225,27 @@ built.
   `poo series add-release`, `POST /v1/series/release`, `poo series
   followed`, and `variable` in `GET /v1/series`. `poo series sign`
   prints a signed series file that `poo init -series` reads.
+- **Variable supply series, phase 3 (D168):** nodes pass releases on. A
+  node sends a peer the newest release of each variable series it
+  follows when they connect (wire message type 14, ignored by nodes that
+  do not know it) and passes on each new one; the receiver checks it in
+  full, keeps it in node.json and opens the new part's pools with no
+  reload. `poo series add-release` takes a release in place too
+  (`in_place` in the reply). `poo series parts` adds `mints_released`,
+  and a command refused only because its part is not released yet exits
+  with code 3.
+- **Round 26 (D168):**
+  - `poo policy limits -set` applies the peer book's limits, the
+    tracker's retention and `seen_size` in place, with no reload
+    (`in_place` in the reply); the other limits still reload.
+  - `poo work` with no `-tries` or `-for` tries 2^(floor + 2) nonces for
+    a series whose layer floor needs more than the old 2^16, and the
+    node's cap on one work call grows with the floor (2^(floor + 4), at
+    most 2^40); `poo build -work` gets the same cap.
+  - A new key algorithm, `slh-dsa-sha2-128s` (FIPS 205, number 10), for
+    series that allow it.
+  - The tracker trims records with the same age in address order, so the
+    same records and bounds always trim alike.
 - **Round 25 tooling (D166):** `poo policy limits -set` during a reload
   waits for the node instead of failing with EOF; `poo series info`
   shows a variable series' supply type, part size and cap and reads

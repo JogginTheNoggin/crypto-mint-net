@@ -98,6 +98,7 @@ the clock skew (2 minutes) ahead.
 | 11 | entry | an entry's byte form |
 | 12 | layer | a layer's byte form |
 | 13 | notice | `Hash` tip |
+| 14 | release | a release's byte form: `Hash` series ∥ `U64` part ∥ `Hash` previous ∥ witness (D168) |
 | 20 | extension request | Common ∥ `Hash` from ∥ `Bytes` weight to beat ∥ `U8` variant |
 | 21 | hash chain request | Common ∥ `Bool` has anchor ∥ [`Hash` anchor ∥ `U8` direction] ∥ `U32` count |
 | 22 | entries by hash request | Common ∥ `U8` variant ∥ `List<Hash>` |
@@ -175,6 +176,16 @@ forwards, or that displaced entries, a node sends its peers a **notice**:
 its new tip in the body and its new weight in the header. A peer decides
 for itself whether to look into it. Notices are on by default
 (`no_notices` in the node policy turns them off).
+
+A **release** (variable supply phase 3, D168) carries the newest release
+a node knows of a variable series, in the series' section (depth 2). A
+node sends one for each such series it follows when a peer connects, and
+passes on each new one it takes. The receiver drops a release of a series
+it does not follow or of a part it already knows, with no hashing, and
+checks any later one in full, witness first; one that does not check is
+an offence. A node that does not know the type ignores it, as it ignores
+every unknown type, so the protocol version stays 1. The release form is
+in [encoding-variable.md](encoding-variable.md).
 
 ## Replies
 
