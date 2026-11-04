@@ -1,6 +1,6 @@
 // The Series and keys view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
-import { el, flag, form, mountAll, panel } from '../views.js';
+import { el, flag, form, mountAll, panel, runJob } from '../views.js';
 import { saveAs } from './policies.js';
 
 // cryptoChoices offers the hashes and key algorithms poo crypto printed as
@@ -62,11 +62,8 @@ export const cryptoView = {
       form(ctx, { title: 'Parts of a variable series', about: 'Each part\'s serials, pools and part id, worked out by poo from the series file. Up to 1,000 parts at a time.',
         fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'from', label: 'From part', type: 'number', placeholder: 'default 1' }, { name: 'to', label: 'To part', type: 'number', placeholder: 'from + 9, or the most parts' }],
         args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.from), ...flag('to', v.to)], submit: 'Show' }),
-      form(ctx, { title: 'Release a part', about: 'Signs part K of a variable series as its issuer and prints the release to publish. A release is permanent: nothing can take it back, and it also releases every part before it. Check a release first with the form below. poo asks for the issuer key\'s seed in a masked field.',
-        fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'part', label: 'Part', type: 'number', placeholder: 'from 2 on', required: true }],
-        args: v => ['series', 'release', ...(v.file ? [v.file] : []), ...flag('part', v.part), '-seed-file', '-'], submit: 'Release', danger: true,
-        onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'release.json')); } }),
-      form(ctx, { title: 'Check a release', about: 'Checks a release file against its series and says which serials it releases.',
+      releaseForm(ctx),
+      form(ctx, { title: 'Check a release', about: 'Checks a saved release file against its series and says which serials it releases: for a release made elsewhere, or after Sign above.',
         fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'check', label: 'Release file', placeholder: 'release.json', required: true }],
         args: v => ['series', 'release', ...(v.file ? [v.file] : []), ...flag('check', v.check)], submit: 'Check' }),
       // The last two commands poo help lists that no view ran (GREEN-040).
@@ -81,3 +78,59 @@ export const cryptoView = {
     ]);
   },
 };
+
+// releaseForm is Release a part (D163) in two steps, like the imports
+// (GUI-023): Preview runs poo series parts for part K and says which
+// serials the release brings into being, then Sign, under the preview,
+// signs that part of that series and nothing else. A release can never be
+// taken back and releases every part before it, so the seed is asked for
+// only once the person has seen the range (GUI-027). Any change to the
+// form takes Sign away. After signing, the release poo printed is held to
+// the preview: the same series and the same part.
+function releaseForm(ctx) {
+  let previewed = null, dropSign = () => {};
+  const f = form(ctx, { title: 'Release a part', about: 'Signs part K of a variable series as its issuer and prints the release to publish. Preview first shows which serials the release brings into being; Sign, under it, then signs that part. A release is permanent: nothing can take it back, and it also releases every part before it. poo asks for the issuer key\'s seed in a masked field.',
+    fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'part', label: 'Part', type: 'number', placeholder: 'from 2 on', required: true }],
+    args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.part), ...flag('to', v.part)], submit: 'Preview',
+    onStart: () => dropSign(),
+    onResult: (r, area) => {
+      if (r.code !== 0) return;
+      let info;
+      try { info = JSON.parse(r.out); } catch (_) { return; }
+      const pt = info && Array.isArray(info.parts) && info.parts.length === 1 ? info.parts[0] : null;
+      if (!pt || typeof info.series_id !== 'string') return;
+      // Part 1 is released by the series' own issuer witness (Sign a
+      // series); poo releases parts from 2 on.
+      if (pt.part < 2) { area.append(el('p', { class: 'hint' }, 'Part 1 is released by the issuer witness on the series (Sign a series above); a release is for part 2 on.')); return; }
+      const file = f.inputs.file.value.trim();
+      previewed = { file, part: pt.part, series: info.series_id, last: pt.last_serial };
+      const range = `serials ${pt.first_serial} to ${pt.last_serial}, and with every part before it, serials 0 to ${pt.last_serial}: ${pt.last_serial + 1} mints`;
+      const what = el('p', { class: 'next-step release-range', role: 'alert' },
+        `Read first: releasing part ${pt.part} of series ${info.series_id.slice(0, 12)} brings into being ${range}. It can never be taken back.`);
+      const sign = el('button', { type: 'button', class: 'danger' }, `Sign part ${pt.part}`);
+      const out = el('div', { class: 'area' });
+      const actions = el('div', { class: 'actions' }, sign);
+      sign.onclick = () => {
+        const p = previewed;
+        const a = ['series', 'release', p.file, '-part', String(p.part), '-seed-file', '-'];
+        if (!confirm(`Release part ${p.part} of series ${p.series.slice(0, 12)}: ${range}? This runs ${api.quote(a)} and cannot be taken back.`)) return;
+        sign.disabled = true;
+        dropSign = () => {};
+        runJob(a, out).then(r2 => {
+          if (r2.code !== 0 || !r2.out.trim().startsWith('{')) return;
+          let rel = null;
+          try { rel = JSON.parse(r2.out); } catch (_) { /* shown as printed */ }
+          const same = rel && rel.series === p.series && rel.part === p.part;
+          out.append(same
+            ? el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. Save it, then Check a release below confirms it.`)
+            : el('p', { class: 'run-status bad release-differs', role: 'alert' }, 'This release is not the part previewed (the series file changed?): do not publish it. Preview again.'),
+          saveAs(r2.out, `release-${p.part}.json`));
+        });
+      };
+      dropSign = () => { what.remove(); actions.remove(); previewed = null; dropSign = () => {}; };
+      area.append(what, actions, out);
+    } });
+  f.form.addEventListener('input', () => dropSign());
+  f.form.addEventListener('change', () => dropSign());
+  return f;
+}

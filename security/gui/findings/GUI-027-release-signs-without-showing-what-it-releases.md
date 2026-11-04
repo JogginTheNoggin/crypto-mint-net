@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (GUI/Blue, Round 25C) |
 | Found on | main @ 88bd534 (PR #161, Series and keys → "Release a part", D163) |
 | Component | gui/web/static/views/crypto.js (the Release form: one danger confirm naming only the command line, then `poo series release FILE -part K -seed-file -`); pkg/cli/seriesparts.go (`seriesRelease` prints the signed release only, without the range `-check` prints) |
 | Surface | the series itself (a signed release, valid for anyone to publish, creating every mint up to the end of part K) |
-| Fixed by | (GUI/Blue; the printed summary, optionally, by Source) |
+| Fixed by | GUI/Blue, Round 25C (`releaseForm` in crypto.js: Preview, then Sign; e2e in gui/e2e/views.mjs). The printed summary in poo itself is left to Source, optionally |
 
 ## Summary
 
@@ -95,3 +95,52 @@ GUI/Blue (crypto.js):
 - e2e: Release with Part 50 on a series without max parts. Expect the
   range ("serials 0 to 203", "204 mints") in the confirm or preview
   before the masked field appears.
+
+## Fix (GUI/Blue, Round 25C)
+
+"Release a part" is now two steps, like the import forms (GUI-023).
+`releaseForm` in gui/web/static/views/crypto.js does this:
+
+- **Preview.** The form's own line is `poo series parts FILE -from K
+  -to K`, which needs no seed. From its JSON, a `release-range` "Read
+  first" alert names the release: "releasing part K of series
+  <id12> brings into being serials F to L, and with every part before it,
+  serials 0 to L: L+1 mints. It can never be taken back." Part 1 gets no
+  Sign. It is released by the series' issuer witness, which "Sign a
+  series" makes.
+- **Sign part K**, under the preview, runs `poo series release FILE
+  -part K -seed-file -`. It uses the previewed file and part, never what
+  the form holds now. Its confirm names the part, the series and the
+  range again. Any input or change in the form takes Sign away, so the
+  range on show is always the range Sign signs.
+- **After signing,** the release poo printed is held to the preview, by
+  its `series` and `part`. If they match, it says "Signed: part K of
+  series …, <range>. Save it, then Check a release below confirms it."
+  If they don't, for example because the series file changed between
+  Preview and Sign, a `release-differs` alert says not to publish it.
+- **About text.** The Release form's text now says what Preview and Sign
+  do. "Check a release" says it checks a saved release, one made
+  elsewhere or after Sign. The old "Check a release first" read the
+  wrong way round.
+
+Not done: running `series release FILE -check` on the signed output.
+`-check` reads a file (`os.ReadFile`), and the GUI writes none. Its
+summary (`releases part K, serials F to L …`) is the range the preview
+already showed, and the series and part are compared above. A
+`-check -` that reads standard input, or the summary printed with the
+release itself, would be a pkg/cli change for Source.
+
+Regression test: gui/e2e/views.mjs. On the 8-mint series with part size
+4 and at most 5 parts, the test does the following:
+- The form's line is `poo series parts … -from 2 -to 2`.
+- The preview names "serials 8 to 11, … serials 0 to 11: 12 mints" with
+  no seed asked for.
+- Changing Part takes Sign away.
+- Sign's confirm names the range and the release line.
+- After the seed, `release-made` and Save as file are shown.
+- On a second series with no most parts, part 50 is named as
+  "serials 0 to 203: 204 mints" before anything is signed.
+
+On the old code (88bd534 + Red's R25B docs) it fails at "the form runs
+the preview". In gui/e2e/parity.mjs, `series release -part` is noted as
+run by Sign, as the imports' `-apply` is.
