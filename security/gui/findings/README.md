@@ -5,6 +5,49 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 27 Part B reviewed main @ b9fed52 (PR #182):
+- "waiting for a release" now read from poo's exit code 3 (D168);
+- the release preview's mint count taken from poo's `mints_released`;
+- one file picker for every form that reads a file (GUI-GREEN-052),
+  now also on Check a release (`-check -`);
+- the Variable series table drawn 500 rows at a time (ORANGE-019).
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass. The
+coordinator named security/gui-red/findings/, but AGENTS.md and every
+earlier round use this directory, so the finding stays here.
+
+New:
+- GUI-028 (Low): a far part number (Preview of part 50000000000, a slip
+  of a few zeros) starts a job that hashes for hours. Stop doesn't end
+  it, since `PartID` never looks at the job's context, and 16 such jobs
+  fill every job slot, so the GUI refuses every new command until
+  poo-gui restarts. The real fix is a cancellable part id chain in
+  Source; the GUI can confirm a far part's cost first and say when Stop
+  hasn't taken.
+
+Held up:
+- **Exit code 3.** Only `series.ErrWaiting`, or the RPC's `CodeWaiting`,
+  gives it (`cli.ExitCode`), and nothing in the GUI's job runner uses 3
+  for anything else. So "waiting" can't be shown for an invalid mint,
+  and it no longer hangs on matching poo's wording.
+- **`mints_released`** is poo's count: serials 0 to `last_serial`,
+  the same as `release -check` says (checked on parts 1 to 3). The
+  preview leaves the count out, rather than adding it up, when poo
+  gives none.
+- **pickFile.** The imports keep GUI-023's pin: picking a file drops
+  Apply, Apply sends the File previewed and names it in its confirm,
+  and `-if-digest` still refuses a changed file. A picked file is sent
+  only while its field reads `-`, and typing a path drops it.
+- **The Variable series table** draws ids and counts as text.
+
+Hardening notes from R26B, still open (optional): the waiting status
+could say the transaction is not kept; Add a release's confirm still
+shows `-` without the picked file's name; Save as file is still offered
+next to "do not publish it"; and `series add-release -` and now
+`release -check -` read a picked file with an unbounded `io.ReadAll`
+(Source).
+
 Round 26 Part B reviewed main @ eb74797 (PR #172):
 - the Variable series panel (`series followed`);
 - Add a release, from a path or a picked file sent as `-` (D166);
@@ -550,3 +593,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-025](GUI-025-peer-import-hides-blocks.md) | Low | The Import peers preview lists the file's blocks after every added address, with no "Read first" line, so with over 500 addresses no block is on show before Apply | fixed by GUI/Blue (Round 22C), merged Round 23; verified R23B @ 2cacdd5 |
 | [GUI-026](GUI-026-rival-claim-without-parent-submits.md) | Low | "Build a rival claim" with Parent empty submits the claim to the node and peers instead of building it: `required` is never applied by `form()` | fixed by GUI/Blue (Round 23C), merged Round 24; verified R24B @ 2aceb1a |
 | [GUI-027](GUI-027-release-signs-without-showing-what-it-releases.md) | Low | "Release a part" asks for the issuer's seed and signs before showing which serials the release creates; the confirm shows only the command line, and the result has no range | fixed by GUI/Blue (Round 25C), merged Round 26; verified R26B @ eb74797 |
+| [GUI-028](GUI-028-far-part-job-cannot-be-stopped.md) | Low | A far part number (Preview, Sign, Show parts, or an issuer-signed far release) starts a job that hashes for hours; Stop doesn't end it, and 16 such jobs fill every job slot until poo-gui restarts | mitigated by GUI/Blue (Round 27C: cost confirm, Stop note); core fix routed to Source |

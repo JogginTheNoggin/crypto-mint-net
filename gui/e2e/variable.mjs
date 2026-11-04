@@ -68,6 +68,9 @@ try {
   page.once('dialog', d => d.accept());
   await add.locator('button[type=submit]').click();
   await add.locator('.run-status.ok').waitFor();
+  // The line over the result says what the node did with it, from poo's
+  // in_place or reloading (GUI-GREEN-053).
+  assert.match(await add.locator('.result .applied').innerText(), /^Saved to node\.json; the running node (applied it at once, with no reload|is reloading to apply it)\.$/);
   // The node reloads to follow part 2; the panel then says so.
   for (let i = 0; !/\t2\t3\t12\t/.test(await row()); i++) {
     assert.ok(i < 60, `the panel never showed part 2 released: ${await row()}`);

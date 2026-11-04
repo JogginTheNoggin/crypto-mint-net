@@ -1,7 +1,7 @@
 // The Node policies view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { el, flag, flags, form, mountAll, panel, pickFile, runJob } from '../views.js';
+import { appliedNote, el, flag, flags, form, mountAll, panel, pickFile, rawFold, runJob } from '../views.js';
 
 export const policiesView = {
   id: 'policies',
@@ -54,10 +54,10 @@ function limitsParts(ctx) {
   // saved is set by a successful save, so the redraw after it starts empty;
   // any other redraw (Refresh) keeps what was typed and not yet saved.
   let saved = false;
-  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json; a running node takes them at once. Fill only the ones to change. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
+  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json. A running node applies them at once where poo can, else it reloads; the line above the result says which. Fill only the ones to change. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
     { name: 'set', label: 'Other limits (NAME=VALUE)', type: 'list', placeholder: 'any poo policy limits names that are not listed above' }],
   args: v => ['policy', 'limits', ...where.flags(), ...flags('set', [...typed.filter(i => i.value.trim()).map(i => `${i.name}=${i.value.trim()}`), ...v.set])], submit: 'Save', danger: true,
-  onResult: r => { if (r.code === 0) { saved = true; limits.reload(); } } });
+  onResult: (r, area) => { appliedNote(r, area); if (r.code === 0) { saved = true; limits.reload(); } } });
   const grid = el('div', { class: 'limit-fields' });
   set.form.prepend(grid);
   const limits = panel(ctx, { title: 'Settable limits', about: 'Each limit this node policy can set: its range, its default, what node.json sets (0: the default) and the value in effect.', args: () => ['policy', 'limits', ...where.flags()],
@@ -70,7 +70,7 @@ function limitsParts(ctx) {
       saved = false;
       typed = named.map(l => el('input', { name: l.name, type: 'text', inputmode: 'numeric', placeholder: String(l.used ?? ''), spellcheck: 'false', 'data-limit': l.name, value: before[l.name] || '' }));
       grid.replaceChildren(...named.map((l, n) => {
-        return el('label', {}, el('span', {}, l.name), typed[n], el('small', {}, `${l.min} to ${l.max}, default ${l.default}${l.set ? `; node.json sets ${l.set}` : ''}`));
+        return el('label', {}, el('span', {}, l.name), typed[n], el('small', {}, `${l.min} to ${l.max}, default ${l.default}${l.set ? `; node.json sets ${l.set}` : ''}${l.in_place === true ? '; a running node takes it at once' : l.in_place === false ? '; a running node takes it on reload' : ''}`));
       }));
       set.form.dispatchEvent(new Event('input', { bubbles: true }));
     } });
@@ -257,6 +257,8 @@ function showPlan(r, area, applied) {
       `${p.same || 0} already the same.`,
       (p.skipped || []).length ? `Machine-local settings left alone: ${p.skipped.join(', ')}.` : null,
       (p.refused || []).length ? `Not accepted here: ${p.refused.join('; ')}.` : null,
+      // Series the node policy's series_ceiling left out, with poo's reason (D170).
+      (p.declined || []).length ? `Left out by this node's series ceiling: ${p.declined.slice(0, SOME).join('; ')}${p.declined.length > SOME ? `; and ${p.declined.length - SOME} more` : ''}.` : null,
       (p.follows || []).length ? `Follows: ${p.follows.slice(0, SOME).map(c => `series ${c.series.slice(0, 12)}: ${c.followed} of ${c.pools} pools${c.whole ? ' (the whole series)' : ''}`).join('; ')}${p.follows.length > SOME ? `; and ${p.follows.length - SOME} more series ("Output as printed" has them all)` : ''}.` : null,
       (p.fit || []).length ? `May not fit this machine: ${p.fit.join('; ')}.` : null,
       t.saved ? (t.reloading ? 'Saved; the running node is reloading it.' : 'Saved.') : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',
@@ -274,8 +276,6 @@ function showPlan(r, area, applied) {
       lines.length ? planTable(lines) : el('p', {}, 'No settings change.'),
       el('p', { class: 'hint' }, notes));
   });
-  const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
   raw.replaceWith(el('div', {}, ...blocks));
-  det.append(raw);
-  area.append(det);
+  area.append(rawFold(raw));
 }

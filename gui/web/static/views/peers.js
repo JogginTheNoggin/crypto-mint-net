@@ -1,6 +1,6 @@
 // The Peers view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as where from '../where.js';
-import { el, flag, form, mountAll, panel } from '../views.js';
+import { el, flag, form, mountAll, panel, rawFold } from '../views.js';
 import { allOf, count, importForm, planTable, saveAs, someOf } from './policies.js';
 
 // The peer book's states, as poo peers -category takes them; export also
@@ -105,11 +105,9 @@ function showPeerPlan(r, area, applied) {
   ].filter(Boolean).join(' ');
   const readFirst = blocks.length ? el('div', { class: 'next-step plan-blocks' },
     el('p', { role: 'alert' }, `Read first: ${count(blocks, 'block')} ${blocks.length === 1 ? 'refuses' : 'refuse'} addresses on this node: `, someOf(blocks)), allOf(blocks)) : null;
-  const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
   raw.replaceWith(el('div', { class: 'import-plan peers-plan' },
     el('h3', {}, `Peer book${o.running ? ' (node running)' : ''}`), readFirst,
     lines.length ? planTable(lines, ['address', 'detail'], c => [c.addr, c.detail || '']) : el('p', {}, 'No address changes.'),
     el('p', { class: 'hint' }, notes)));
-  det.append(raw);
-  area.append(det);
+  area.append(rawFold(raw));
 }

@@ -29,6 +29,13 @@ try {
   await init.locator('label', { hasText: 'worked example' }).locator('input').check();
   await fill(init, 'RPC address', '127.0.0.1:0');
   await fill(init, 'P2P address', 'off');
+  // With no series poo follows the built-in reserve series; these say
+  // otherwise (D170).
+  await init.locator('input[name=noSeries]').check();
+  await init.locator('input[name=anyCeiling]').check();
+  assert.equal(await init.locator('.cmd code').innerText(), `poo init -root ${home} -example -listen 127.0.0.1:0 -p2p off -no-series -any-ceiling`);
+  await init.locator('input[name=noSeries]').uncheck();
+  await init.locator('input[name=anyCeiling]').uncheck();
   assert.equal(await init.locator('.cmd code').innerText(), `poo init -root ${home} -example -listen 127.0.0.1:0 -p2p off`);
   await init.locator('button[type=submit]').click();
   await init.locator('.result', { hasText: '1 series' }).waitFor();
@@ -414,6 +421,8 @@ try {
   await maxBook.waitFor();
   assert.equal(await maxBook.getAttribute('placeholder'), '4096', 'the field shows the value in effect');
   assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /256 to 65536, default 4096/);
+  // Whether a running node takes it at once is poo's in_place (D170).
+  assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /a running node takes it (at once|on reload)/);
   await maxBook.fill('8192');
   await setLim.locator('input[data-limit="tracking.log_size"]').fill('512');
   // Refresh redraws the fields from poo's list and keeps what was typed
@@ -426,6 +435,9 @@ try {
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
   await setLim.locator('.run-status.ok').waitFor();
+  // Both limits are ones a running node applies in place (D168), and the
+  // line over the result says so, from poo's in_place (GUI-GREEN-053).
+  assert.equal(await setLim.locator('.result .applied').innerText(), 'Saved to node.json; the running node applied it at once, with no reload.');
   await lim.locator('table.data tr', { hasText: 'p2p.max_book' }).filter({ hasText: '8192' }).first().waitFor();
   // Redrawn from the new list: empty again, showing the new value.
   await setLim.locator('input[data-limit="p2p.max_book"][placeholder="8192"]').waitFor();
@@ -463,6 +475,9 @@ try {
   await sn.locator('input[name=partSize]').fill('4');
   await sn.locator('input[name=maxParts]').fill('5');
   assert.equal(await sn.locator('.cmd code').innerText(), `poo series new -mints 8 -issuer ${issuer} -variable -part-size 4 -max-parts 5`);
+  await sn.locator('input[name=maxWitness]').fill('4096');
+  assert.equal(await sn.locator('.cmd code').innerText(), `poo series new -mints 8 -max-witness 4096 -issuer ${issuer} -variable -part-size 4 -max-parts 5`);
+  await sn.locator('input[name=maxWitness]').fill('');
   await sn.locator('button[type=submit]').click();
   await sn.locator('.run-status.ok').waitFor();
   await sn.locator('.result', { hasText: 'variable' }).waitFor();
@@ -495,7 +510,8 @@ try {
   };
   const sign = section('Sign a series');
   await fill(sign, 'Series file', vfile);
-  assert.equal(await sign.locator('.cmd code').innerText(), `poo series sign ${vfile} -seed-file -`);
+  await sign.locator('input[name=alg]').fill('ed25519');
+  assert.equal(await sign.locator('.cmd code').innerText(), `poo series sign ${vfile} -alg ed25519 -seed-file -`);
   await sign.locator('button[type=submit]').click();
   await masked(sign, vseed);
   await sign.locator('.run-status.ok').waitFor();
@@ -524,12 +540,14 @@ try {
   await rel.locator('input[name=part]').fill('3');
   assert.equal(await rel.locator('button', { hasText: /^Sign part/ }).count(), 0, 'a change takes Sign away');
   await rel.locator('input[name=part]').fill('2');
+  // The key algorithm is kept with the preview, so Sign uses it.
+  await rel.locator('input[name=alg]').fill('ed25519');
   await rel.locator('button[type=submit]').click();
   await rel.locator('.release-range').waitFor();
   let relAsked = '';
   page.once('dialog', d => { relAsked = d.message(); d.accept(); });
   await rel.locator('button', { hasText: 'Sign part 2' }).click();
-  assert.match(relAsked, /^Release part 2 of series [0-9a-f]{12}: serials 8 to 11, .*serials 0 to 11: 12 mints\? This runs poo series release .* -part 2 -seed-file - and cannot be taken back\.$/);
+  assert.match(relAsked, /^Release part 2 of series [0-9a-f]{12}: serials 8 to 11, .*serials 0 to 11: 12 mints\? This runs poo series release .* -part 2 -alg ed25519 -seed-file - and cannot be taken back\.$/);
   await masked(rel, vseed);
   await rel.locator('.release-made').waitFor();
   assert.match(await rel.locator('.area .area').first().innerText(), /previous/i, 'the release is printed');
@@ -561,6 +579,36 @@ try {
   await chk.locator('button[type=submit]').click();
   await chk.locator('.run-status.ok').waitFor();
   await chk.locator('.result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
+  // GUI-028: a far part is asked about first, with its cost, as poo
+  // hashes every part id before it and Stop cannot end that. Declined,
+  // nothing runs. Run, then Stopped, the job says it is still working and
+  // holds a job slot, rather than "running…", until poo ends it.
+  {
+    const partsJobs = () => page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => j.args[0] === 'series' && j.args[1] === 'parts').length);
+    const before = await partsJobs();
+    await rel.locator('input[name=part]').fill('50000000000');
+    let asked = '';
+    page.once('dialog', d => { asked = d.message(); d.dismiss(); });
+    await rel.locator('button[type=submit]').click();
+    assert.match(asked, /^Part 50000000000 takes poo about 50000000000 hashes to work out.*Stop cannot end it.*job slots.*Run it\?$/);
+    await page.waitForTimeout(300);
+    assert.equal(await partsJobs(), before, 'a declined far part runs nothing');
+    const showParts = section('Parts of a variable series');
+    page.once('dialog', d => { asked = d.message(); d.dismiss(); });
+    await showParts.locator('input[name=from]').fill('');
+    await showParts.locator('input[name=to]').fill('200000000');
+    await showParts.locator('button[type=submit]').click();
+    assert.match(asked, /^Part 200000000 takes/, 'Show parts asks about a far To too');
+    assert.equal(await partsJobs(), before);
+    page.once('dialog', d => d.accept());
+    await rel.locator('button[type=submit]').click();
+    await rel.locator('.run-bar button', { hasText: 'Stop' }).click();
+    // Until Source makes the part chain stop on cancel, it runs on; once
+    // it does, the job ends at Stop. Either way the page says which.
+    await rel.locator('.run-status.stop-pending, .run-status.bad').first().waitFor({ timeout: 10000 });
+    const st = await rel.locator('.run-status').first().innerText();
+    assert.match(st, /^Stop asked; poo is still working and will end on its own\. .*job slots|^exit /, 'Stop says what happened');
+  }
 
   // Stop the node from the Node view.
   await page.click('nav a[data-id=node]');

@@ -31,8 +31,11 @@ export function el(tag, attrs = {}, ...kids) {
 // mint's part is not released at this node yet (cli.ExitWaiting, D168): it
 // waits for a release, it is not invalid.
 const EXIT_WAITING = 3;
+// STOP_WAIT is how long after Stop a command still running is said to be
+// working on (GUI-028).
+const STOP_WAIT = 3000;
 
-export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {}) {
+export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy } = {}) {
   // A job still followed in this area gives up its stream before its
   // output is cleared away, as leaving the view does (GUI-012).
   if (area.unfollow) { area.unfollow(); area.unfollow = null; }
@@ -66,7 +69,20 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
       if (area.gone) { resolve({ code: -1, out: '', err: '' }); return; }
       if (onStart) onStart(j);
       let out = '', err = '', tail = '';
-      stopBtn.onclick = () => api.cancel(j.id).catch(() => {});
+      // Stop cancels the command, which ends at its next check. One that
+      // never checks (a far part's id chain, GUI-028) runs on, and holds
+      // one of poo-gui's job slots until it ends: after STOP_WAIT, say so
+      // rather than "running…", so a later "too many commands running"
+      // has its reason on the page.
+      let stopWait = null;
+      stopBtn.onclick = () => {
+        api.cancel(j.id).catch(() => {});
+        if (stopWait) return;
+        stopWait = setTimeout(() => {
+          status.className = 'run-status stop-pending';
+          status.textContent = 'Stop asked; poo is still working and will end on its own. Until then it holds one of the GUI\'s job slots (Jobs lists it).';
+        }, STOP_WAIT);
+      };
       ask.onsubmit = ev => {
         ev.preventDefault();
         const v = askInput.value;
@@ -102,6 +118,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
           }
         },
         exit: e => {
+          clearTimeout(stopWait);
           stopBtn.remove();
           ask.remove();
           // poo's exit code says a mint of a part not released yet waits
@@ -112,7 +129,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
           live.remove();
           area.unfollow = null;
           // The server marks a command that prints a secret (GUI-009).
-          area.append(showResult(out, err, { empty, secretOutput: secretOutput || j.secretOutput }));
+          area.append(showResult(out, err, { empty, secretOutput: secretOutput || j.secretOutput, lazy }));
           resolve({ code: e.code, out, err });
         },
         error: () => { area.unfollow = null; status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err }); },
@@ -138,14 +155,23 @@ function leave(area) {
 // the text the command printed. Errors are shown as printed, with a next
 // step under them when one is known (hints.js). empty is what to say when
 // the command printed nothing.
-export function showResult(out, err, { empty, secretOutput } = {}) {
+//
+// lazy leaves JSON undrawn at first, with box.draw to draw it: a panel or
+// form whose onResult folds the result into "Output as printed" (rawFold)
+// draws it only when that is opened, and drawn() draws it at once
+// otherwise (ORANGE-020).
+export function showResult(out, err, { empty, secretOutput, lazy } = {}) {
   const box = el('div', { class: 'result' });
   if (out.trim()) {
     let v, ok = false;
     try { v = JSON.parse(out); ok = true; } catch (_) { /* text output */ }
     // A command that prints a secret shows plain text hidden; render
     // hides a seed field in JSON (GUI-009).
-    if (ok) box.append(render(v));
+    if (ok && lazy) {
+      const spot = el('div', { class: 'undrawn' });
+      box.append(spot);
+      box.draw = () => { box.draw = null; spot.replaceWith(render(v)); };
+    } else if (ok) box.append(render(v));
     else if (secretOutput) box.append(secretValue(out.trim()));
     else {
       // A long text result shows its last MAX_CHARS characters, as the
@@ -165,6 +191,22 @@ export function showResult(out, err, { empty, secretOutput } = {}) {
   }
   if (!out.trim() && !err.trim()) box.append(el('p', { class: 'hint empty' }, empty || 'No output.'));
   return box;
+}
+
+// rawFold puts a result its panel has drawn another way into a closed
+// "Output as printed". A lazy result (showResult) is drawn only when that
+// is opened: a long answer drawn and then hidden cost the Node view
+// 32,000 elements it never showed (ORANGE-020).
+export function rawFold(raw) {
+  const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
+  det.append(raw);
+  if (raw.draw) det.addEventListener('toggle', () => { if (det.open && raw.draw) raw.draw(); });
+  return det;
+}
+
+// drawn draws a lazy result left in area that no onResult folded away.
+function drawn(area) {
+  for (const r of area.querySelectorAll('.result')) if (r.draw && !r.closest('details.raw')) r.draw();
 }
 
 // cmdLine shows a command line with a button that runs it in the terminal.
@@ -227,9 +269,9 @@ export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
     waiting = [];
     const a = args();
     line.set(a);
-    const r = await runJob(a, area, { empty, refresh: auto === true });
+    const r = await runJob(a, area, { empty, refresh: auto === true, lazy: true });
     noNode(sec, area, r);
-    if (onResult) onResult(r, area);
+    try { if (onResult) onResult(r, area); } finally { drawn(area); }
     busy = false;
     answers.forEach(done => done(r));
     if (waiting.length) go(false);
@@ -304,7 +346,7 @@ function noNode(sec, area, r) {
 // onResult, if given, is called with the finished job's {code, out, err}
 // and the result area, so a view can act on the data rather than on the
 // rendered page.
-export function form(ctx, { title, about, fields, args, submit = 'Run', danger, onResult, onStart, secretOutput, gate: g }) {
+export function form(ctx, { title, about, fields, args, submit = 'Run', danger, ask: askFirst, onResult, onStart, secretOutput, gate: g }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
   const labels = {};
@@ -380,12 +422,17 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
       inputs[missing[0].name].focus?.();
       return;
     }
+    // ask(values), if given, returns a question to confirm first, or
+    // nothing: the cost of a far part (GUI-028).
+    const q = askFirst && askFirst(v);
+    if (q && !confirm(q)) return;
     if (danger && !confirm(`Run ${api.quote(args(values()))}?`)) return;
     if (g) g.take();
     busy = submitBtn.disabled = true;
-    runJob(args(values()), area, { secretOutput, onStart }).then(async r => {
+    runJob(args(values()), area, { secretOutput, onStart, lazy: true }).then(async r => {
       busy = false;
       try { if (onResult) await onResult(r, area); } finally {
+        drawn(area);
         if (g) g.release(); else submitBtn.disabled = false;
       }
     });
@@ -443,6 +490,26 @@ export function pickFile(f, { field = 'file', onPick } = {}) {
     get: () => picked,
     feed: (j, file = picked) => { if (file && fileIn.value.trim() === '-') api.inputFile(j.id, file).catch(() => {}); },
   };
+}
+
+// appliedNote puts one plain line at the top of a form's result, saying
+// what poo's reply says the change did: saved and applied in place,
+// saved and the node reloading, saved for the next start, or nothing
+// changed (with poo's own note, when it gives one). It reads only the
+// reply's saved, in_place, reloading and note fields, so it holds no
+// rule of its own (D84); the reply stays below as poo printed it. Set
+// limits and Add a release use it (GUI-GREEN-053).
+export function appliedNote(r, area) {
+  if (!r || r.code !== 0) return;
+  let v;
+  try { v = JSON.parse(r.out); } catch (_) { return; }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return;
+  const text = v.in_place ? 'Saved to node.json; the running node applied it at once, with no reload.'
+    : v.reloading ? 'Saved to node.json; the running node is reloading to apply it.'
+    : v.saved ? 'Saved to node.json; no running node took it, so it applies when the node next starts.'
+    : `Nothing changed${v.note ? `: ${v.note}` : '.'}`;
+  const box = area && area.querySelector('.result');
+  if (box) box.prepend(el('p', { class: 'next-step applied' }, text));
 }
 
 // flag adds -name value when value is set.

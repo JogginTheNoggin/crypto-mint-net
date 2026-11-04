@@ -1,7 +1,7 @@
 // The Node view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { cmdLine, el, flag, flags, form, mountAll, panel, pickFile } from '../views.js';
+import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile, rawFold } from '../views.js';
 import { scrollback } from '../scroll.js';
 
 // node finds the node job this GUI is running, if any.
@@ -97,10 +97,14 @@ export const nodeView = {
         { name: 'peer', label: 'Peers', type: 'list', placeholder: 'host:port …' },
         { name: 'registry', label: 'Address registries', type: 'list', placeholder: 'URL or file …' },
         { name: 'advertise', label: 'Advertise as', placeholder: 'host:port' },
+        // With no series, poo follows the built-in reserve series (D170).
+        { name: 'reserve', label: 'Also follow the default reserve series (what happens anyway when no series is given)', type: 'check' },
+        { name: 'noSeries', label: 'Follow no series, not even the default reserve series', type: 'check' },
+        { name: 'anyCeiling', label: 'Accept a series file whose witness ceiling is not set or above 4 MiB', type: 'check' },
         { name: 'force', label: 'Replace the settings of an existing policy (its data is kept)', type: 'check' },
       ],
       args: v => ['init', ...where.flags(), ...flag('example', v.example), ...flags('series', v.series), ...flag('listen', v.listen),
-        ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('force', v.force)],
+        ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('reserve', v.reserve), ...flag('no-series', v.noSeries), ...flag('any-ceiling', v.anyCeiling), ...flag('force', v.force)],
       submit: 'Write policy',
     });
     const followFields = [
@@ -135,8 +139,7 @@ export const nodeView = {
           ...[x.variable.released, x.variable.next_part ?? 'none (the cap is reached)', x.variable.mints, x.variable.units, x.variable.release ? `part ${x.variable.release.part}` : 'none: part 1 only'].map(String)];
         const body = vs.length ? variableTable(vs, cells) :
           el('p', { class: 'hint empty' }, `None of the ${all.length} followed series is variable.`);
-        const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
-        if (raw) { raw.replaceWith(body); det.append(raw); area.append(det); }
+        if (raw) { raw.replaceWith(body); area.append(rawFold(raw)); }
       } });
     // A release made by the issuer reaches a node as a file (D166): poo
     // checks it, keeps it in node.json and the node reloads to follow the
@@ -146,7 +149,7 @@ export const nodeView = {
       fields: [{ name: 'file', label: 'Release file', placeholder: 'a path on this machine, or pick one below', required: true }],
       args: v => ['series', 'add-release', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Add release', danger: true,
       onStart: j => picker.feed(j),
-      onResult: r => { if (r.code === 0) { variable.reload(); status.reload(); } } });
+      onResult: (r, area) => { appliedNote(r, area); if (r.code === 0) { variable.reload(); status.reload(); } } });
     picker = pickFile(addRelease);
     const t = setInterval(showRunning, 3000);
     // poo doctor checks the policy, files, series, RPC and P2P in one go.
@@ -157,8 +160,7 @@ export const nodeView = {
         let rep;
         try { rep = JSON.parse(r.out); } catch (_) { return; }
         const raw = area.querySelector('.result');
-        const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
-        if (raw) { raw.replaceWith(doctorReport(rep, ctx)); det.append(raw); area.append(det); }
+        if (raw) { raw.replaceWith(doctorReport(rep, ctx)); area.append(rawFold(raw)); }
       } });
     const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, status, follows, variable, addRelease, follow, unfollow, reload, init]);
     return stop;

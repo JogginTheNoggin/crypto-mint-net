@@ -49,23 +49,26 @@ export const cryptoView = {
           // multiples of P, so P is here beside them (GUI-GREEN-051).
           { name: 'supply', label: 'Units in every mint', type: 'number', placeholder: 'default 100' },
           { name: 'poolSize', label: 'Pool size', type: 'number', placeholder: 'mints per pool, default 4' },
+          { name: 'maxWitness', label: 'Witness ceiling', type: 'number', placeholder: 'largest witness in bytes, default 131072' },
+          { name: 'anyCeiling', label: 'Allow a witness ceiling of 0 (not set) or above 4 MiB (-any-ceiling)', type: 'check' },
           { name: 'issuer', label: 'Issuer address', placeholder: 'hex: who signs the series (needed for a variable series)' },
           { name: 'variable', label: 'Variable supply: the issuer can release more parts later, one at a time and in order; a release can never be taken back', type: 'check' },
           { name: 'partSize', label: 'Part size', type: 'number', placeholder: 'mints in every part after the first', only: { field: 'variable', values: [true] } },
           { name: 'maxParts', label: 'Most parts ever', type: 'number', placeholder: 'the first part included (empty: no cap)', only: { field: 'variable', values: [true] } }],
-        args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints), ...flag('supply', v.supply), ...flag('pool-size', v.poolSize), ...flag('issuer', v.issuer), ...flag('variable', v.variable), ...flag('part-size', v.partSize), ...flag('max-parts', v.maxParts)], submit: 'Make series',
+        args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints), ...flag('supply', v.supply), ...flag('pool-size', v.poolSize), ...flag('max-witness', v.maxWitness), ...flag('any-ceiling', v.anyCeiling), ...flag('issuer', v.issuer), ...flag('variable', v.variable), ...flag('part-size', v.partSize), ...flag('max-parts', v.maxParts)], submit: 'Make series',
         onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'series.json')); } }),
       form(ctx, { title: 'Series file info', fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json' }],
         args: v => ['series', 'info', ...(v.file ? [v.file] : [])], submit: 'Show' }),
       form(ctx, { title: 'Sign a series', about: 'Signs a series file as its issuer and prints the issuer witness for node.json. poo asks for the issuer key\'s seed in a masked field.',
-        fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }],
-        args: v => ['series', 'sign', ...(v.file ? [v.file] : []), '-seed-file', '-'], submit: 'Sign',
+        fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs', help: 'The issuer key\'s algorithm, from the list above (-alg).' }],
+        args: v => ['series', 'sign', ...(v.file ? [v.file] : []), ...flag('alg', v.alg), '-seed-file', '-'], submit: 'Sign',
         onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'series-witness.json')); } }),
       // Parts of a variable series, as poo prints them: ranges, never the
       // serials one by one (ORANGE-018); run when asked, not on a timer.
       form(ctx, { title: 'Parts of a variable series', about: 'Each part\'s serials, pools and part id, worked out by poo from the series file. Up to 1,000 parts at a time.',
         fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'from', label: 'From part', type: 'number', placeholder: 'default 1' }, { name: 'to', label: 'To part', type: 'number', placeholder: 'from + 9, or the most parts' }],
-        args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.from), ...flag('to', v.to)], submit: 'Show' }),
+        args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.from), ...flag('to', v.to)], submit: 'Show',
+        ask: v => farPart(v.from, v.to) }),
       releaseForm(ctx),
       checkReleaseForm(ctx),
       // The last two commands poo help lists that no view ran (GREEN-040).
@@ -81,6 +84,20 @@ export const cryptoView = {
   },
 };
 
+// FAR_PART is the part from which working out a part's id takes long
+// enough to ask first. poo hashes every part id up to K the first time a
+// process needs part K, at a few million a second: part 10^8 takes some
+// 30 s, part 5x10^10 hours. Stop cannot end that until poo checks for it
+// (GUI-028, routed to Source), and the job holds one of poo-gui's job
+// slots while it runs. The GUI knows K, so it asks without a poo call.
+const FAR_PART = 100000000n;
+function farPart(...parts) {
+  let far = 0n;
+  for (const p of parts) if (/^\d+$/.test(p || '')) { const k = BigInt(p); if (k > far) far = k; }
+  if (far < FAR_PART) return null;
+  return `Part ${far} takes poo about ${far} hashes to work out, some 30 s for each 10^8, so a far part takes hours. Once started, Stop cannot end it, and it holds one of the GUI's job slots until it ends. Run it?`;
+}
+
 // releaseForm is Release a part (D163) in two steps, like the imports
 // (GUI-023): Preview runs poo series parts for part K and says which
 // serials the release brings into being, then Sign, under the preview,
@@ -92,8 +109,9 @@ export const cryptoView = {
 function releaseForm(ctx) {
   let previewed = null, dropSign = () => {};
   const f = form(ctx, { title: 'Release a part', about: 'Signs part K of a variable series as its issuer and prints the release to publish. Preview first shows which serials the release brings into being; Sign, under it, then signs that part. A release is permanent: nothing can take it back, and it also releases every part before it. poo asks for the issuer key\'s seed in a masked field.',
-    fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'part', label: 'Part', type: 'number', placeholder: 'from 2 on', required: true }],
+    fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'part', label: 'Part', type: 'number', placeholder: 'from 2 on', required: true }, { name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs', help: 'The issuer key\'s algorithm, from the list above (-alg).' }],
     args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.part), ...flag('to', v.part)], submit: 'Preview',
+    ask: v => farPart(v.part),
     onStart: () => dropSign(),
     onResult: (r, area) => {
       if (r.code !== 0) return;
@@ -105,7 +123,9 @@ function releaseForm(ctx) {
       // series); poo releases parts from 2 on.
       if (pt.part < 2) { area.append(el('p', { class: 'hint' }, 'Part 1 is released by the issuer witness on the series (Sign a series above); a release is for part 2 on.')); return; }
       const file = f.inputs.file.value.trim();
-      previewed = { file, part: pt.part, series: info.series_id, last: pt.last_serial };
+      // The key algorithm is kept with what was previewed, so Sign signs
+      // with the one shown when the preview ran.
+      previewed = { file, part: pt.part, series: info.series_id, last: pt.last_serial, alg: f.inputs.alg.value.trim() };
       // The mints that exist once the part is released are poo's count
       // (mints_released, D168); the GUI adds nothing up.
       const range = `serials ${pt.first_serial} to ${pt.last_serial}, and with every part before it, serials 0 to ${pt.last_serial}${pt.mints_released !== undefined ? `: ${pt.mints_released} mints` : ''}`;
@@ -116,7 +136,7 @@ function releaseForm(ctx) {
       const actions = el('div', { class: 'actions' }, sign);
       sign.onclick = () => {
         const p = previewed;
-        const a = ['series', 'release', p.file, '-part', String(p.part), '-seed-file', '-'];
+        const a = ['series', 'release', p.file, '-part', String(p.part), ...flag('alg', p.alg), '-seed-file', '-'];
         if (!confirm(`Release part ${p.part} of series ${p.series.slice(0, 12)}: ${range}? This runs ${api.quote(a)} and cannot be taken back.`)) return;
         sign.disabled = true;
         dropSign = () => {};
@@ -125,10 +145,10 @@ function releaseForm(ctx) {
           let rel = null;
           try { rel = JSON.parse(r2.out); } catch (_) { /* shown as printed */ }
           const same = rel && rel.series === p.series && rel.part === p.part;
-          out.append(same
-            ? el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. poo checks it below.`)
-            : el('p', { class: 'run-status bad release-differs', role: 'alert' }, 'This release is not the part previewed (the series file changed?): do not publish it. Preview again.'),
-          saveAs(r2.out, `release-${p.part}.json`));
+          // A release that is not the one previewed is not offered to
+          // save: it says do not publish it (GUI/Red R26B).
+          if (same) out.append(el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. poo checks it below.`), saveAs(r2.out, `release-${p.part}.json`));
+          else out.append(el('p', { class: 'run-status bad release-differs', role: 'alert' }, 'This release is not the part previewed (the series file changed?): do not publish it. Preview again.'));
           // poo checks the release just printed, read from its input
           // (-check -), so what is saved is what poo says it releases.
           if (same) {
