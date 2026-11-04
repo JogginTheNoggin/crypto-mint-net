@@ -65,7 +65,8 @@ export const cryptoView = {
       // serials one by one (ORANGE-018); run when asked, not on a timer.
       form(ctx, { title: 'Parts of a variable series', about: 'Each part\'s serials, pools and part id, worked out by poo from the series file. Up to 1,000 parts at a time.',
         fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'from', label: 'From part', type: 'number', placeholder: 'default 1' }, { name: 'to', label: 'To part', type: 'number', placeholder: 'from + 9, or the most parts' }],
-        args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.from), ...flag('to', v.to)], submit: 'Show' }),
+        args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.from), ...flag('to', v.to)], submit: 'Show',
+        ask: v => farPart(v.from, v.to) }),
       releaseForm(ctx),
       checkReleaseForm(ctx),
       // The last two commands poo help lists that no view ran (GREEN-040).
@@ -81,6 +82,20 @@ export const cryptoView = {
   },
 };
 
+// FAR_PART is the part from which working out a part's id takes long
+// enough to ask first. poo hashes every part id up to K the first time a
+// process needs part K, at a few million a second: part 10^8 takes some
+// 30 s, part 5x10^10 hours. Stop cannot end that until poo checks for it
+// (GUI-028, routed to Source), and the job holds one of poo-gui's job
+// slots while it runs. The GUI knows K, so it asks without a poo call.
+const FAR_PART = 100000000n;
+function farPart(...parts) {
+  let far = 0n;
+  for (const p of parts) if (/^\d+$/.test(p || '')) { const k = BigInt(p); if (k > far) far = k; }
+  if (far < FAR_PART) return null;
+  return `Part ${far} takes poo about ${far} hashes to work out, some 30 s for each 10^8, so a far part takes hours. Once started, Stop cannot end it, and it holds one of the GUI's job slots until it ends. Run it?`;
+}
+
 // releaseForm is Release a part (D163) in two steps, like the imports
 // (GUI-023): Preview runs poo series parts for part K and says which
 // serials the release brings into being, then Sign, under the preview,
@@ -94,6 +109,7 @@ function releaseForm(ctx) {
   const f = form(ctx, { title: 'Release a part', about: 'Signs part K of a variable series as its issuer and prints the release to publish. Preview first shows which serials the release brings into being; Sign, under it, then signs that part. A release is permanent: nothing can take it back, and it also releases every part before it. poo asks for the issuer key\'s seed in a masked field.',
     fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'part', label: 'Part', type: 'number', placeholder: 'from 2 on', required: true }],
     args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.part), ...flag('to', v.part)], submit: 'Preview',
+    ask: v => farPart(v.part),
     onStart: () => dropSign(),
     onResult: (r, area) => {
       if (r.code !== 0) return;
@@ -125,10 +141,10 @@ function releaseForm(ctx) {
           let rel = null;
           try { rel = JSON.parse(r2.out); } catch (_) { /* shown as printed */ }
           const same = rel && rel.series === p.series && rel.part === p.part;
-          out.append(same
-            ? el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. poo checks it below.`)
-            : el('p', { class: 'run-status bad release-differs', role: 'alert' }, 'This release is not the part previewed (the series file changed?): do not publish it. Preview again.'),
-          saveAs(r2.out, `release-${p.part}.json`));
+          // A release that is not the one previewed is not offered to
+          // save: it says do not publish it (GUI/Red R26B).
+          if (same) out.append(el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. poo checks it below.`), saveAs(r2.out, `release-${p.part}.json`));
+          else out.append(el('p', { class: 'run-status bad release-differs', role: 'alert' }, 'This release is not the part previewed (the series file changed?): do not publish it. Preview again.'));
           // poo checks the release just printed, read from its input
           // (-check -), so what is saved is what poo says it releases.
           if (same) {
