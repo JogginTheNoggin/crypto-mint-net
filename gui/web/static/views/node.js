@@ -1,7 +1,7 @@
 // The Node view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile } from '../views.js';
+import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile, rawFold } from '../views.js';
 import { scrollback } from '../scroll.js';
 
 // node finds the node job this GUI is running, if any.
@@ -135,8 +135,7 @@ export const nodeView = {
           ...[x.variable.released, x.variable.next_part ?? 'none (the cap is reached)', x.variable.mints, x.variable.units, x.variable.release ? `part ${x.variable.release.part}` : 'none: part 1 only'].map(String)];
         const body = vs.length ? variableTable(vs, cells) :
           el('p', { class: 'hint empty' }, `None of the ${all.length} followed series is variable.`);
-        const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
-        if (raw) { raw.replaceWith(body); det.append(raw); area.append(det); }
+        if (raw) { raw.replaceWith(body); area.append(rawFold(raw)); }
       } });
     // A release made by the issuer reaches a node as a file (D166): poo
     // checks it, keeps it in node.json and the node reloads to follow the
@@ -157,8 +156,7 @@ export const nodeView = {
         let rep;
         try { rep = JSON.parse(r.out); } catch (_) { return; }
         const raw = area.querySelector('.result');
-        const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
-        if (raw) { raw.replaceWith(doctorReport(rep, ctx)); det.append(raw); area.append(det); }
+        if (raw) { raw.replaceWith(doctorReport(rep, ctx)); area.append(rawFold(raw)); }
       } });
     const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, status, follows, variable, addRelease, follow, unfollow, reload, init]);
     return stop;

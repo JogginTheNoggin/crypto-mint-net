@@ -139,6 +139,17 @@ try {
   assert.equal(await health.locator('li.doctor-fail .doctor-fix button', { hasText: 'Run in terminal' }).count(), 1);
   assert.equal(await health.locator('.cmd code').innerText(), 'poo doctor -o json');
   assert.equal(await health.locator('details.raw').count(), 1);
+  // "Output as printed" is drawn only when opened (ORANGE-020); Copy
+  // output is there before, with poo's exact output.
+  const raw = health.locator('details.raw');
+  assert.equal(await raw.locator('.result .undrawn').count(), 1, 'the folded output is not drawn yet');
+  assert.equal(await raw.locator('.result dl, .result table').count(), 0);
+  await raw.locator('summary').click();
+  await raw.locator('.result dl, .result table').first().waitFor();
+  assert.equal(await raw.locator('.result .undrawn').count(), 0, 'opening it draws it');
+  await raw.locator('summary').click();
+  await raw.locator('summary').click();
+  assert.equal(await raw.locator('.result > dl, .result > table, .result > .table-wrap').count(), 1, 'opened again, it is drawn once');
   if (shots) await page.screenshot({ path: join(shots, 'doctor.png') });
 
   // Peers: the action form shows only the flags poo peer takes for the
