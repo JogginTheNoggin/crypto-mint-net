@@ -474,6 +474,18 @@ try {
   await sn.locator('button[type=submit]').click();
   await sn.locator('.run-status.bad').waitFor();
   assert.match(await sn.locator('.area').innerText(), /whole multiples of the pool size/);
+  // The pool size poo names is a field of the form, so the definition can
+  // be fixed there (GUI-GREEN-051): with P = 3, N = 9 and M = 3 fit.
+  await sn.locator('input[name=poolSize]').fill('3');
+  await sn.locator('input[name=mints]').fill('9');
+  await sn.locator('input[name=supply]').fill('50');
+  assert.equal(await sn.locator('.cmd code').innerText(), `poo series new -mints 9 -supply 50 -pool-size 3 -issuer ${issuer} -variable -part-size 3 -max-parts 5`);
+  await sn.locator('button[type=submit]').click();
+  await sn.locator('.run-status.ok').waitFor();
+  await sn.locator('input[name=poolSize]').fill('');
+  await sn.locator('input[name=supply]').fill('');
+  await sn.locator('input[name=mints]').fill('8');
+  await sn.locator('input[name=partSize]').fill('4');
   const masked = async (sec, seed) => {
     const ask = sec.locator('form.ask');
     await ask.waitFor();
@@ -496,17 +508,42 @@ try {
   await parts.locator('.run-status.ok').waitFor();
   const wantParts = JSON.parse(String(spawnSync(bin, ['poo', 'series', 'parts', vfile, '-from', '2'], penv).stdout));
   for (const pt of wantParts.parts) await parts.locator('.result', { hasText: pt.part_id.slice(0, 8) }).first().waitFor();
+  // GUI-027: Release a part previews the serials it brings into being
+  // before it asks for the seed; Sign signs only the part previewed, and
+  // any change to the form takes Sign away.
   const rel = section('Release a part');
   await fill(rel, 'Series file', vfile);
   await rel.locator('input[name=part]').fill('2');
-  assert.equal(await rel.locator('.cmd code').innerText(), `poo series release ${vfile} -part 2 -seed-file -`);
-  assert.match(await rel.locator('p.hint').first().innerText(), /permanent.*every part before it/);
-  page.once('dialog', d => d.accept());
+  assert.equal(await rel.locator('.cmd code').innerText(), `poo series parts ${vfile} -from 2 -to 2`, 'the form runs the preview');
+  assert.match(await rel.locator('p.hint').first().innerText(), /Preview first shows which serials.*permanent.*every part before it/);
   await rel.locator('button[type=submit]').click();
+  const range = rel.locator('.release-range');
+  await range.waitFor();
+  assert.match(await range.innerText(), /^Read first: releasing part 2 of series [0-9a-f]{12} brings into being serials 8 to 11, and with every part before it, serials 0 to 11: 12 mints\./);
+  assert.equal(await rel.locator('form.ask').count(), 0, 'no seed is asked for by the preview');
+  await rel.locator('input[name=part]').fill('3');
+  assert.equal(await rel.locator('button', { hasText: /^Sign part/ }).count(), 0, 'a change takes Sign away');
+  await rel.locator('input[name=part]').fill('2');
+  await rel.locator('button[type=submit]').click();
+  await rel.locator('.release-range').waitFor();
+  let relAsked = '';
+  page.once('dialog', d => { relAsked = d.message(); d.accept(); });
+  await rel.locator('button', { hasText: 'Sign part 2' }).click();
+  assert.match(relAsked, /^Release part 2 of series [0-9a-f]{12}: serials 8 to 11, .*serials 0 to 11: 12 mints\? This runs poo series release .* -part 2 -seed-file - and cannot be taken back\.$/);
   await masked(rel, vseed);
-  await rel.locator('.run-status.ok').waitFor();
-  assert.match(await rel.locator('.area').innerText(), /previous/i, 'the release is printed');
-  await rel.locator('button.save-as').waitFor();
+  await rel.locator('.release-made').waitFor();
+  assert.match(await rel.locator('.area .area').first().innerText(), /previous/i, 'the release is printed');
+  await rel.locator('.area .area button.save-as').first().waitFor();
+  // poo checks the release just signed, sent on its input (-check -).
+  await rel.locator('.release-check .result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
+  // A series with no most parts takes any part: part 50 of an 8-mint
+  // series is named as serials 0 to 203 before anything is signed.
+  const open = join(home, 'open-series.json');
+  writeFileSync(open, spawnSync(bin, ['poo', 'series', 'new', '-mints', '8', '-issuer', issuer, '-variable', '-part-size', '4'], penv).stdout);
+  await fill(rel, 'Series file', open);
+  await rel.locator('input[name=part]').fill('50');
+  await rel.locator('button[type=submit]').click();
+  await rel.locator('.release-range', { hasText: 'serials 0 to 203: 204 mints' }).waitFor();
   const rfile = join(home, 'release-2.json');
   const sf = join(home, 'issuer-seed');
   writeFileSync(sf, vseed);

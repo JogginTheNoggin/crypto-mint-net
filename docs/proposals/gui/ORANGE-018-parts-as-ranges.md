@@ -133,3 +133,20 @@ checks it: a list of 10,000 draws 500 items and the note "Showing 500 of
 The rest needs Source's commands, which do not exist yet. The probe that
 made the numbers above is described under Measurements and can be run
 again once Source prints real output.
+
+## Measured after adoption (Round 25)
+
+Source built `poo series parts` (D163), which prints each part as
+`first_serial`, `last_serial`, `first_pool`, `last_pool` and `part_id`.
+It takes at most 1,000 parts a run (`-to` at most `-from` + 999). The
+Series and keys view runs it from the "Parts of a variable series" form,
+only when asked. Measured on main @ 88bd534 with the design document's
+example series (N = 50,000, M = 10,000, P = 1,000), twice each:
+
+| Run | poo prints, in | Shown in the page | Rows drawn | Long tasks |
+| --- | --- | --- | --- | --- |
+| Default (parts 1 to 10) | 2.3 KB, 9 ms | 71 to 80 ms | 10 | none |
+| Parts 1 to 1,000, the most a run takes | 228 KB, 14 ms | 167 to 192 ms | 500, with "Showing 500 of 1000 rows" | none |
+
+That is in line with the ranges rows above. Nothing more to propose:
+the 1,000-part cap keeps one run under 230 KB, whatever the series.

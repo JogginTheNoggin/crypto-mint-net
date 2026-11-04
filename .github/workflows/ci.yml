@@ -74,3 +74,4 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/work.mjs "$RUNNER_TEMP/poo-gui"
           NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/streams.mjs "$RUNNER_TEMP/poo-gui"
           NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/parity.mjs "$RUNNER_TEMP/poo-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/variable.mjs "$RUNNER_TEMP/poo-gui"

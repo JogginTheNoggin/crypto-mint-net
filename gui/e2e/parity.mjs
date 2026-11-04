@@ -31,7 +31,7 @@ const EVERYWHERE = {
 const LEFT_OUT = {
   node: { 'log-level': 'the live log is for reading; the terminal sets a level', 'log-format': 'the live log is for reading; the terminal sets a format' },
   sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poo sim load -h has them'])),
-  'series new': { ...Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength', 'pool-size', 'supply'].map(f => [f, 'the form says poo series new -h has the rest'])) },
+  'series new': { ...Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])) },
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
   keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)' },
   watch: { once: 'the Watch view reconnects by itself, as poo watch without -once does' },
@@ -48,7 +48,7 @@ const LEFT_OUT = {
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
   claim: { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
   'series sign': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
-  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
+  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', part: 'Sign, under the Release a part preview (poo series parts), runs the previewed part with -part (GUI-027)' },
   peers: { counts: 'the timed Peers panel runs it, leaving the book to Find peers (ORANGE-017); a panel line is not a form' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
@@ -198,7 +198,6 @@ try {
   // help of each command that has its own (poo grind help, poo wallet help).
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
-    ...Object.fromEntries(['series add-release', 'series followed'].map(c => [c, 'new in Source Round 25 (D166, variable supply phase 2); GUI/Grey adds it next'])),
   };
   const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();

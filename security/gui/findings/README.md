@@ -5,6 +5,38 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 25 Part B reviewed main @ 88bd534 (PR #161):
+- the variable supply views (D163): New series with Variable, Sign a
+  series, Parts, Release a part, and Check a release;
+- the Peers panel on `peers -counts` (ORANGE-017);
+- Set limits keeping typed values on Refresh;
+- GUI-GREEN-050's "(required)" marks;
+- the long-list notice (ORANGE-018).
+
+Actions is off, so I checked everything locally. The coordinator named
+security/gui-red/findings/, but AGENTS.md and every earlier round use
+this directory, so the findings stay here.
+
+New:
+- GUI-027 (Low): "Release a part" asks for the issuer's seed and signs
+  before it shows which mints the release creates. The confirm repeats
+  only the command line, and the result has no range. Part 50 of an
+  8-mint series signed cleanly. `-check` later said it creates serials 0
+  to 203.
+
+Held up:
+- **The issuer's seed.** Sign and Release use `-seed-file -`, and the
+  seed is asked for in the masked field (`Stdio.Secret`). After a
+  release it was not in the page. poo checks the part before it asks for
+  the seed, and checks that the key is the series' issuer before it
+  prints anything.
+- **Flag injection.** The file fields go in as single arguments. A file
+  value such as `-part=99` is overridden by the form's own later flag,
+  or is refused as a usage error. A seed can't be smuggled onto the
+  line: `-seed` is refused by poo (D98).
+- **Peers `-counts`.** The timed panel no longer prints the book, and
+  Find peers still does when asked.
+
 Round 24 Part B reviewed main @ 2aceb1a (PR #151):
 - GUI-026's fix, with `required` enforced in `form()`;
 - GUI-GREEN-049, one field per limit in Set limits;
@@ -475,3 +507,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-024](GUI-024-copied-line-runs-in-windows-shell.md) | Medium | On Windows, Copy quotes the command line for `CommandLineToArgvW`, not a shell, so a field value (one a link can fill) runs other commands when the line is pasted into PowerShell or cmd.exe | fixed by GUI/Blue (Round 21C, #123), merged Round 22; verified R22B @ f4f7945 |
 | [GUI-025](GUI-025-peer-import-hides-blocks.md) | Low | The Import peers preview lists the file's blocks after every added address, with no "Read first" line, so with over 500 addresses no block is on show before Apply | fixed by GUI/Blue (Round 22C), merged Round 23; verified R23B @ 2cacdd5 |
 | [GUI-026](GUI-026-rival-claim-without-parent-submits.md) | Low | "Build a rival claim" with Parent empty submits the claim to the node and peers instead of building it: `required` is never applied by `form()` | fixed by GUI/Blue (Round 23C), merged Round 24; verified R24B @ 2aceb1a |
+| [GUI-027](GUI-027-release-signs-without-showing-what-it-releases.md) | Low | "Release a part" asks for the issuer's seed and signs before showing which serials the release creates; the confirm shows only the command line, and the result has no range | fixed by GUI/Blue (Round 25C) |

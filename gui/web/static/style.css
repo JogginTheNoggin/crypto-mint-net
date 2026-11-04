@@ -96,6 +96,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .area:empty { display: none; }
 .run-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 12px; }
 .run-status { font-size: 12px; }
+.run-status.waiting { color: var(--muted); font-weight: 600; }
 .live-out, .text-out { margin: 6px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--term-bg); color: var(--term-ink); white-space: pre-wrap; word-break: break-word; font-size: 12px; max-height: 340px; overflow: auto; }
 .live-out:empty { display: none; }
 .text-out.err, .live-out .err { color: var(--term-err); }

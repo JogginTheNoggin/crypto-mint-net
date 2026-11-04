@@ -27,6 +27,10 @@ export function el(tag, attrs = {}, ...kids) {
 // passphrase or seed), and the result rendered once it ends. It resolves to
 // {code, out, err}. secretOutput leaves out the Copy output button, for a
 // command whose output holds a secret (keygen prints its seed).
+// WAITING is poo's word for a transaction on a part of a variable series
+// the node has no release for yet (D166).
+const WAITING = /waiting for a release/;
+
 export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {}) {
   // A job still followed in this area gives up its stream before its
   // output is cleared away, as leaving the view does (GUI-012).
@@ -99,8 +103,11 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
         exit: e => {
           stopBtn.remove();
           ask.remove();
-          status.className = 'run-status ' + (e.code === 0 ? 'ok' : 'bad');
-          status.textContent = e.code === 0 ? 'done' : `exit ${e.code}`;
+          // poo refuses a mint of a part not released yet as waiting for a
+          // release, not as invalid (D166): said as poo says it.
+          const waiting = e.code !== 0 && WAITING.test(err);
+          status.className = 'run-status ' + (e.code === 0 ? 'ok' : waiting ? 'waiting' : 'bad');
+          status.textContent = e.code === 0 ? 'done' : waiting ? `waiting for a release (exit ${e.code})` : `exit ${e.code}`;
           live.remove();
           area.unfollow = null;
           // The server marks a command that prints a secret (GUI-009).
