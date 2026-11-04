@@ -31,6 +31,9 @@ export function el(tag, attrs = {}, ...kids) {
 // mint's part is not released at this node yet (cli.ExitWaiting, D168): it
 // waits for a release, it is not invalid.
 const EXIT_WAITING = 3;
+// STOP_WAIT is how long after Stop a command still running is said to be
+// working on (GUI-028).
+const STOP_WAIT = 3000;
 
 export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy } = {}) {
   // A job still followed in this area gives up its stream before its
@@ -66,7 +69,20 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
       if (area.gone) { resolve({ code: -1, out: '', err: '' }); return; }
       if (onStart) onStart(j);
       let out = '', err = '', tail = '';
-      stopBtn.onclick = () => api.cancel(j.id).catch(() => {});
+      // Stop cancels the command, which ends at its next check. One that
+      // never checks (a far part's id chain, GUI-028) runs on, and holds
+      // one of poo-gui's job slots until it ends: after STOP_WAIT, say so
+      // rather than "running…", so a later "too many commands running"
+      // has its reason on the page.
+      let stopWait = null;
+      stopBtn.onclick = () => {
+        api.cancel(j.id).catch(() => {});
+        if (stopWait) return;
+        stopWait = setTimeout(() => {
+          status.className = 'run-status stop-pending';
+          status.textContent = 'Stop asked; poo is still working and will end on its own. Until then it holds one of the GUI\'s job slots (Jobs lists it).';
+        }, STOP_WAIT);
+      };
       ask.onsubmit = ev => {
         ev.preventDefault();
         const v = askInput.value;
@@ -102,6 +118,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
           }
         },
         exit: e => {
+          clearTimeout(stopWait);
           stopBtn.remove();
           ask.remove();
           // poo's exit code says a mint of a part not released yet waits
@@ -329,7 +346,7 @@ function noNode(sec, area, r) {
 // onResult, if given, is called with the finished job's {code, out, err}
 // and the result area, so a view can act on the data rather than on the
 // rendered page.
-export function form(ctx, { title, about, fields, args, submit = 'Run', danger, onResult, onStart, secretOutput, gate: g }) {
+export function form(ctx, { title, about, fields, args, submit = 'Run', danger, ask: askFirst, onResult, onStart, secretOutput, gate: g }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
   const labels = {};
@@ -405,6 +422,10 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
       inputs[missing[0].name].focus?.();
       return;
     }
+    // ask(values), if given, returns a question to confirm first, or
+    // nothing: the cost of a far part (GUI-028).
+    const q = askFirst && askFirst(v);
+    if (q && !confirm(q)) return;
     if (danger && !confirm(`Run ${api.quote(args(values()))}?`)) return;
     if (g) g.take();
     busy = submitBtn.disabled = true;

@@ -3,10 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | mitigated in the GUI (GUI/Blue, Round 27C); the real fix, a part chain that stops on cancel, is routed to Source |
 | Found on | main @ b9fed52 (PR #182, Series and keys → "Release a part", Show parts, Check a release; D165, D168) |
 | Component | gui/web/static/views/crypto.js (`releaseForm`: Preview runs `poo series parts FILE -from K -to K` for any K); gui/jobs/jobs.go (Stop is `Job.Cancel`, a context cancel; a cancelled job still counts against `DefaultMaxRunning` = 16); pkg/series/parts.go (`PartID` hashes up to K part ids and never looks at a context); pkg/cli/seriesparts.go (`series parts`, `series release -part`, `-check` call `PartID`) |
 | Surface | local (the GUI process: its CPU and its job slots) |
+| Fixed by | GUI/Blue, Round 27C (crypto.js `farPart`, views.js `form` ask and `runJob` Stop note; e2e in gui/e2e/views.mjs). Source: a `ctx` check between `partChunk` chunks (routed through GUI/Grey) |
 
 ## Summary
 
@@ -90,3 +91,48 @@ is to restart poo-gui. Rated **low**.
 - e2e (views.mjs): Release a part with Part 50000000000. Expect the
   confirm, or, after the Source fix, Stop to end the job (`/api/jobs`
   done) within 2 s.
+
+## Fix (GUI/Blue, Round 27C)
+
+The GUI can't make poo's part chain stop: that is pkg/series, Source's.
+It now asks before it starts one, and says what Stop did when the job
+runs on.
+
+- **A far part is asked about first.** `farPart` in
+  gui/web/static/views/crypto.js runs before Release a part's Preview
+  and before "Parts of a variable series" (From or To). For a part of
+  10^8 or more, compared as BigInt, it confirms with the cost: "Part K
+  takes poo about K hashes to work out, some 30 s for each 10^8, so a far
+  part takes hours. Once started, Stop cannot end it, and it holds one of
+  the GUI's job slots until it ends. Run it?" Declined, nothing runs.
+  This uses a new `ask(values)` option on `form()` in views.js: a
+  question to confirm before the job starts, or nothing. It is checked
+  after the required fields and before `danger`'s confirm. Sign needs no
+  second ask, because Preview has already worked out the chain in this
+  poo-gui process.
+- **Stop says when poo runs on.** In `runJob`, if a job has not ended
+  3 s (`STOP_WAIT`) after Stop, the status changes from "running…" to
+  "Stop asked; poo is still working and will end on its own. Until then
+  it holds one of the GUI's job slots (Jobs lists it)." (`run-status
+  stop-pending`). That applies to every form and panel, not only parts.
+  A later "too many commands running" then has its reason on the page.
+- **Red's R26B note.** A signed release that doesn't match the preview
+  ("do not publish it") is no longer offered Save as file.
+
+Not covered here:
+- Check a release and Add a release take K from a file, which the GUI
+  doesn't read before running.
+- The terminal runs what is typed, as a shell does.
+- Jobs' own Stop button.
+
+Source's ctx check covers all of these.
+
+Regression test: gui/e2e/views.mjs, after Check a release:
+- Part 50000000000 on the uncapped series. Preview shows the cost
+  confirm. Declining it starts no `series parts` job.
+- "Parts of a variable series" with To 200000000 asks too.
+- Accepting runs the preview. Stop then shows `stop-pending` (or, once
+  Source's fix lands, the job's exit), within 10 s.
+
+On the old code (b9fed52 + Orange #185 + Red's R27B docs), the test
+fails at the confirm, because there is none.

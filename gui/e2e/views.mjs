@@ -564,6 +564,36 @@ try {
   await chk.locator('button[type=submit]').click();
   await chk.locator('.run-status.ok').waitFor();
   await chk.locator('.result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
+  // GUI-028: a far part is asked about first, with its cost, as poo
+  // hashes every part id before it and Stop cannot end that. Declined,
+  // nothing runs. Run, then Stopped, the job says it is still working and
+  // holds a job slot, rather than "running…", until poo ends it.
+  {
+    const partsJobs = () => page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => j.args[0] === 'series' && j.args[1] === 'parts').length);
+    const before = await partsJobs();
+    await rel.locator('input[name=part]').fill('50000000000');
+    let asked = '';
+    page.once('dialog', d => { asked = d.message(); d.dismiss(); });
+    await rel.locator('button[type=submit]').click();
+    assert.match(asked, /^Part 50000000000 takes poo about 50000000000 hashes to work out.*Stop cannot end it.*job slots.*Run it\?$/);
+    await page.waitForTimeout(300);
+    assert.equal(await partsJobs(), before, 'a declined far part runs nothing');
+    const showParts = section('Parts of a variable series');
+    page.once('dialog', d => { asked = d.message(); d.dismiss(); });
+    await showParts.locator('input[name=from]').fill('');
+    await showParts.locator('input[name=to]').fill('200000000');
+    await showParts.locator('button[type=submit]').click();
+    assert.match(asked, /^Part 200000000 takes/, 'Show parts asks about a far To too');
+    assert.equal(await partsJobs(), before);
+    page.once('dialog', d => d.accept());
+    await rel.locator('button[type=submit]').click();
+    await rel.locator('.run-bar button', { hasText: 'Stop' }).click();
+    // Until Source makes the part chain stop on cancel, it runs on; once
+    // it does, the job ends at Stop. Either way the page says which.
+    await rel.locator('.run-status.stop-pending, .run-status.bad').first().waitFor({ timeout: 10000 });
+    const st = await rel.locator('.run-status').first().innerText();
+    assert.match(st, /^Stop asked; poo is still working and will end on its own\. .*job slots|^exit /, 'Stop says what happened');
+  }
 
   // Stop the node from the Node view.
   await page.click('nav a[data-id=node]');
