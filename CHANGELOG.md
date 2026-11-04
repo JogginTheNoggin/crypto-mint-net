@@ -206,3 +206,21 @@ built.
   bounded settings and `-set` changes them, live in a running node.
   `seen_size`, `max_pending` and `ties` have bounds, and a full book makes
   room by the oldest unreached candidate (D160).
+- **Variable supply series, phase 1 (D163):** a series can be variable.
+  Its issuer releases more parts of M mints later, in order, and each
+  release proves every part before it (PoO section 16.8). This round
+  builds the definition (format version 2), part ranges and ids, release
+  records and checks, the issuer tools `poo series new -variable`,
+  `poo series sign`, `poo series release` and `poo series parts`, and
+  test vectors. A node does not follow a variable series yet: it reports
+  it unreadable until phase 2 builds its transactions
+  ([docs/variable-supply.md](docs/variable-supply.md)). Fixed series keep
+  their bytes and ids exactly.
+- **Round 24 fixes (D162, D164):**
+  - `poo peers import -apply -if-digest` works against a running node
+    again.
+  - `poo peers -counts` gives the book's size without its records.
+  - `poo claim` and `poo build` refuse an empty `-parent`.
+  - **Restart after upgrading.** `rpc.Dial` sends the token only after
+    `GET /v1/hello` proves the node (D162). A node that was started
+    before this upgrade has no `/hello`, so restart it.

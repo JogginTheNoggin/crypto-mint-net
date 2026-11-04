@@ -23,3 +23,8 @@ fixed, so any change to a byte form or hash fails loudly.
 `testdata/vectors.json`. After an intended change, record a decision and run
 `go test ./pkg/vectors -update`. The values are listed in
 [../protocol/encoding.md](../protocol/encoding.md#test-vectors).
+
+The vectors of a variable supply series (format version 2, D163) are in
+`testdata/variable.json`, computed by `ComputeVariable` and checked by
+`TestGoldenVariable`. They are kept apart, so the frozen v1 file never
+changes.

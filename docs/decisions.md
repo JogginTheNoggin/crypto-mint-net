@@ -3544,3 +3544,98 @@ a chase takes in after checking their work are not charged.
   - `pkg/ledger/blue024_test.go`: `TestCheckPendingOnIsLinear`,
     `TestCheckPendingOnMatchesCheckOn`.
   - `pkg/engine/blue024_test.go`: `TestBuildOnRefusesAnotherPool`.
+
+### D163. Variable supply series, phase 1: the definition, parts and releases
+
+- **Decision:** jerry approved variable supply series as a consensus
+  change. They are specified in *Mint Series: Fixed and Variable Supply*
+  and Proof of Ownership section 16.8. They are built over several rounds,
+  as [variable-supply.md](variable-supply.md) plans. Phase 1 builds what a
+  series and its parts are:
+  - **Params.** `series.Params` gains `SupplyType` (left out for a fixed
+    series), `PartSize` (M) and `MaxParts` (0: no limit).
+  - **Byte form.** A variable series is written in format version 2:
+    version 1's fields, then supply type, part size and largest number of
+    parts ([protocol/encoding-variable.md](protocol/encoding-variable.md)).
+    A fixed series stays version 1, byte for byte.
+  - **Validation.** A variable series names an issuer, has M ≥ 1, has N
+    and M as multiples of P, and has a cap whose serials fit in 64 bits.
+    A fixed series may not set M or a cap.
+  - **Parts.** `PartRange`, `PartOf`, `MintsThrough` and `PartID`
+    (`H("PoO-part" ∥ series_id ∥ U64(k) ∥ part_id(k − 1))`).
+  - **Releases.** `Release` has a byte form and a JSON form.
+    `CheckRelease` checks the issuer's witness over `H("PoO-part-v1" ∥
+    part_id)` first, then the previous part id.
+  - **Not followed yet.** `nodepolicy.ErrVariableNotFollowed` wraps
+    `series.ErrUnreadable`. A node refuses to follow a variable series
+    until phase 2 builds its transactions.
+  - **Tools.** `poo series new -variable -part-size -max-parts -issuer`,
+    `poo series sign`, `poo series release -part | -check` and
+    `poo series parts`.
+  - **Vectors.** `pkg/vectors/testdata/variable.json`.
+- **Choices made here, within the documents:**
+  - Format version 2 for the new fields, as encoding.md's stability rule
+    asks for any extension. A node from before this change reads a
+    variable series as unreadable, never as invalid.
+  - The part number is written as U64, like a pool index.
+  - The release message tag is "PoO-part-v1", from the documents. It is
+    used the way the issuer message "PoO-issuer-v1" is, as a pseudo-tid
+    under the witness message.
+  - `MaxParts` counts part 1.
+  - A serial whose part would hold serials past 64 bits is in no part.
+- **Why:** jerry: "the next couple of rounds should include implementing
+  this new concept", with "due diligence to ensure nothing gets broken".
+- **Consensus:** this is the consensus change jerry approved. Phase 1
+  changes nothing a node decides about any ledger:
+  - A fixed series keeps its bytes, series_id, JSON, pools, tids and
+    entries.
+  - A variable series is refused as unreadable, so no transaction of it
+    is checked, kept or selected.
+  - The new checks decide only what a variable series and a release are.
+    Nodes that hold the same series and releases reach the same answers,
+    because nothing in a part can be chosen. Black reviews the change in
+    Part D.
+- **Tier:** Series, node policy, CLI and vectors.
+  - `pkg/series/variable_test.go`:
+    - `TestFixedSeriesUnchanged`: 2,000 random fixed series against a
+      frozen copy of the version 1 encoder, their ids, and JSON with no
+      new keys.
+    - `TestFixedSeriesIDPinned`.
+    - `TestVariableByteForm`, `TestVariableRules`.
+    - `TestPartRanges`, which uses the document's table.
+    - `TestPartIDs`.
+    - `TestRelease`: a wrong previous id, another signer, a tid or the
+      issuer message signed instead, part 1, part 0, past the cap, and a
+      fixed series.
+  - `pkg/nodepolicy`: `TestVariableNotFollowedYet`.
+  - `pkg/cli/seriesparts_test.go`: `TestSeriesReleaseCLI`.
+  - `pkg/vectors`: `TestGoldenVariable`. `TestByteFormV1Frozen` still
+    passes, unchanged.
+
+### D164. Round 24 tooling fixes: peer import on a running node, peer counts, an empty -parent
+
+- **Decision:**
+  - **Peer import (GUI/Orange's report).** `rpc.PeersImportRequest` carries
+    `file_digest`. `peerport.File.Digest` is left out of JSON, so a running
+    node computed the import digest with an empty file digest, and every
+    `poo peers import -apply -if-digest` against it was refused as not
+    previewed. The node now uses the caller's file digest, which is the one
+    its preview covered.
+  - **Peer counts (GUI ORANGE-017).** `poo peers -counts` and
+    `GET /v1/peers?counts=1` reply with the connections and
+    `counts{addresses, connected, states}`, without the book's records. A
+    full book of 16,384 addresses is about 12.8 MB of JSON for each
+    refresh.
+  - **An empty -parent (GUI/Blue).** `poo claim` and `poo build` refuse an
+    explicitly empty `-parent`. Before, it read as if `-parent` had been
+    left out, so the claim was submitted.
+- **Left out, for a later Part A:** the `-set` that arrives while the node
+  is still reloading from an earlier one (a bare EOF), and ORANGE-033's
+  in-place `-set`. Both need the reload path changed, and Black should
+  see the in-place one.
+- **Consensus:** none. These are local tools and the local RPC.
+- **Tier:** CLI and RPC.
+  - `pkg/cli/peersport_test.go`: `TestPeersRunning` applies a previewed
+    non-empty plan with `-if-digest` to a running node, which failed
+    before this change, and checks `-counts`.
+  - `pkg/cli/rivalclaim_test.go`: `TestEmptyParentRefused`.

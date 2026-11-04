@@ -51,3 +51,26 @@ func TestByteFormV1Frozen(t *testing.T) {
 		t.Fatalf("testdata/vectors.json has digest %s, want %s: byte form v1 is frozen (docs/protocol/encoding.md, Stability)", got, v1Digest)
 	}
 }
+
+// The variable supply vectors (format version 2, D163) live in a file of
+// their own, so the frozen version 1 file never changes.
+func TestGoldenVariable(t *testing.T) {
+	got, err := json.MarshalIndent(ComputeVariable(), "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = append(got, '\n')
+	path := filepath.Join("testdata", "variable.json")
+	if *update {
+		if err := os.WriteFile(path, got, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%v (run go test ./pkg/vectors -update to create it)", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("variable supply vectors changed; record it in docs/decisions.md and run go test ./pkg/vectors -update.\n got:\n%s\nwant:\n%s", got, want)
+	}
+}

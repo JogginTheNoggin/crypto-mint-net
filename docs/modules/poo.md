@@ -22,6 +22,7 @@ without a wallet. See
 | `poo init [-example] [-series FILE]... [-listen ADDR] [-p2p ADDR] [-advertise ADDR] [-peer ADDR]... [-registry LOC]... [-force]` | Writes a node policy that knows and follows the given series, and makes it current |
 | `poo node [-log-level L] [-log-format F]` | Runs the node until interrupted; SIGHUP makes it reload its node policy. The log flags override the policy's `log` section for this run ([logging.md](logging.md)) |
 | `poo peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT]` | The node's id, its p2p address, its connected peers with their categories and points, and its peer book; the filters keep the addresses in one of the listed book states, with a mint policy, label or address holding the text (D157). Runs offline on the files when the node is stopped |
+| `poo peers -counts` | The node's connections and its peer book's size and addresses per state, without the book's records, for a view that refreshes often (D164). Does not go with the filters |
 | `poo peers export [-category LIST] [-out FILE]` | Writes the peer book, or only the chosen categories (the book states, `blocked`, `timed-out`), to a peer file with labels and blocks ([peerport.md](peerport.md)) |
 | `poo peers import FILE\|- [-apply] [-blocks [-ranges]] [-json] [-if-digest D]` | Shows the plan, then with `-apply` adds the file's addresses to the book as unlisted, with labels where the book has none; blocks only with `-blocks`, adding or lengthening only, never on an address the node policy lists; network ranges only with `-ranges` |
 | `poo peer timeout\|block\|unblock\|clear\|template\|delete ADDR [-seconds N] [-range] [-what flags\|measures\|all] [-template NAME]` | Acts on one peer: pause it, block it (or its range; `-seconds -1` until unblocked), lift either, clear its records, choose its tracking template, or delete it from the book (the address may come before or after the flags) |
@@ -70,8 +71,12 @@ without a wallet. See
 | `poo crypto` | Lists the hashes, key algorithms (with key and signature sizes) and policy types, with their numbers ([../cryptography.md](../cryptography.md)) |
 | `poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE]` | A new key (default Ed25519; `-seed HEX` is kept for test vectors only, since other users can read a command line) and its 1-of-1 address under a hash (default SHA-256; `address_sha256` is kept for SHA-256) |
 | `poo series example` | The example series parameters as JSON |
-| `poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] [-supply S] [-pool-size P] [-min-layer-strength] [-min-entry-strength] [-entry-hash-credit] [-max-witness]` | Checked parameters of a new series as JSON; names or numbers, lists comma-separated |
+| `poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] [-supply S] [-pool-size P] [-min-layer-strength] [-min-entry-strength] [-entry-hash-credit] [-max-witness] [-issuer ADDR] [-variable -part-size M [-max-parts K]]` | Checked parameters of a new series as JSON; names or numbers, lists comma-separated |
 | `poo series info FILE` | Validates a series file and prints its id and pools |
+| `poo series sign FILE [-seed-file F]` | Signs a series as its issuer (a 1-of-1 Ed25519 key whose address is the series' issuer) and prints the `issuer_witness` node.json takes |
+| `poo series release FILE -part K [-seed-file F]` | Releases part K (from 2) of a variable series as its issuer and prints the release (D163); refuses a key that is not the issuer's, part 1 and a part past the largest number of parts |
+| `poo series release FILE -check RELEASE` | Checks a release file against the series and prints the part, its id, its serials and the serials it releases |
+| `poo series parts FILE [-from K] [-to K]` | A variable series' parts, released or not: serials, pools and part ids (at most 1,000 at a time) |
 | `poo sim load\|partition\|attack\|sizing [flags]` | Runs a scenario of the network simulator and prints JSON; `-seed` and `-runs` pick the seeds, other flags shape the network and the attack ([sim.md](sim.md), [../simulation.md](../simulation.md)) |
 | `poo demo [-quiet]` | Four in-process nodes: claims, payments, a rival double spend that wins, a carried payment, and the honest ledger restored |
 

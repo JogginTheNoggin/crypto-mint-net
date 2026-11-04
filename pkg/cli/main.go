@@ -141,6 +141,15 @@ Usage:
   poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
                               print a new series' params, checked
   poo series info FILE        print the id and pools of a series JSON file
+  poo series sign FILE [-seed-file F]
+                              sign a series as its issuer: the
+                              issuer_witness for node.json
+  poo series release FILE -part K [-seed-file F] | -check RELEASE
+                              release part K of a variable series as its
+                              issuer, or check a release (D163)
+  poo series parts FILE [-from K] [-to K]
+                              a variable series' parts: serials, pools
+                              and part ids
   poo demo [-quiet]           run in-process full nodes through a payment,
                               a double spend and its resolution
   poo sim load|partition|attack|sizing [flags]
@@ -433,13 +442,19 @@ func keygen(args []string, out io.Writer) error {
 
 func seriesCmd(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("series needs a subcommand: example, new or info")
+		return fmt.Errorf("series needs a subcommand: example, new, info, sign, release or parts")
 	}
 	switch args[0] {
 	case "example":
 		return writeJSON(out, testutil.ExampleParams())
 	case "new":
 		return seriesNew(args[1:], out)
+	case "sign":
+		return seriesSign(args[1:], out)
+	case "release":
+		return seriesRelease(args[1:], out)
+	case "parts":
+		return seriesParts(args[1:], out)
 	case "info":
 		if len(args) != 2 {
 			return fmt.Errorf("usage: poo series info FILE")

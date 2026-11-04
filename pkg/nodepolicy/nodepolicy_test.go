@@ -253,6 +253,27 @@ func TestAccepted(t *testing.T) {
 	}
 }
 
+// A variable series, signed by its issuer, is refused as unreadable at
+// this node until its transactions are built (D163, phase 1); the fixed
+// series beside it is accepted as before.
+func TestVariableNotFollowedYet(t *testing.T) {
+	a := newIssuer("a")
+	p := testutil.ExampleParams()
+	p.Mints, p.PoolSize, p.Issuer = 8, 4, &a.addr
+	p.SupplyType, p.PartSize = series.Variable, 4
+	s := testutil.MustSeries(p)
+	v := nodepolicy.SeriesInfo{Params: p, IssuerWitness: nodepolicy.EncodeWitness(policy.SingleKeyWitness(a.signer, s.IssuerMessageTID()))}
+	pol := nodepolicy.Default()
+	pol.Series = []nodepolicy.SeriesInfo{v, a.signed(8)}
+	acc, ref := pol.Accepted()
+	if len(acc) != 1 || acc[0].Series.IsVariable() || len(ref) != 1 || ref[0].Index != 0 {
+		t.Fatalf("accepted %d, refused %v", len(acc), ref)
+	}
+	if !errors.Is(ref[0].Reason, nodepolicy.ErrVariableNotFollowed) || !errors.Is(ref[0].Reason, series.ErrUnreadable) {
+		t.Fatalf("refused as %v", ref[0].Reason)
+	}
+}
+
 func TestWitnessHex(t *testing.T) {
 	iss := newIssuer("a")
 	si := iss.signed(8)

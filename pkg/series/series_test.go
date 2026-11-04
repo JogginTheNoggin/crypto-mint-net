@@ -104,9 +104,15 @@ func TestEncodeDecode(t *testing.T) {
 		t.Fatal("trailing bytes must be refused")
 	}
 	bad := p.Encode()
-	bad[0] = 2
+	bad[0] = 3
 	if _, err := DecodeParams(bad); !errors.Is(err, ErrUnreadable) {
 		t.Fatal("unknown format version must be unreadable")
+	}
+	// Version 2 is a variable series' (D163): a fixed series' fields under
+	// it are cut short, never read as a second form of the fixed series.
+	bad[0] = FormatVariable
+	if _, err := DecodeParams(bad); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("a fixed body under version 2: %v", err)
 	}
 }
 
