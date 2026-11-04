@@ -7,7 +7,7 @@
 | Found | Source Round 27 Part B, on `main` @ `1a1c729` (D170) |
 | Area | `pkg/nodepolicy` (`bundle.go`, `Declined`), `pkg/cli` (`policy import`, `doctor`) |
 | For Black | No consensus rule is touched; this is about what the tools tell the owner (jerry chose tools and node policy for the ceiling). |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-028) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `60471a7` (BLUE-028) |
 
 ## What is wrong
 

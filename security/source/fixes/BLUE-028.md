@@ -5,6 +5,7 @@
 | Fixes | RED-082 (medium), RED-083 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `1a1c729` (Source Round 27 Part C) |
+| Code | `60471a7` |
 | Decisions | D171 |
 | With | Not carried: Orange #188 (a doc; its 4 MiB default is left to Grey and jerry) and Green #189 (no overlap). |
 | Review | No consensus change. For Black: (1) a release is checked by the same `CheckRelease`, only in a worker and with a context; a cancelled check leaves the part waiting. (2) The ceiling warnings change nothing a node accepts, and the `series_ceiling` default stays 0. |

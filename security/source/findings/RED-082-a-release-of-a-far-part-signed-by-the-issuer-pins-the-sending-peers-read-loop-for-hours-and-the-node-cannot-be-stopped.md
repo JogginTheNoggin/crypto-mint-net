@@ -8,7 +8,7 @@
 | Area | `pkg/p2p` (`handleRelease`, `takeRelease`), `pkg/node` (`AddRelease`), `pkg/series` (`CheckRelease`, `PartIDContext`) |
 | Related | RED-070 (memory; fixed), RED-075 (reload time; fixed), GUI-028 (cancellable far part, D170) |
 | For Black | No consensus rule is touched. D165's point is kept: no cap on parts. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-028) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `60471a7` (BLUE-028) |
 
 ## What is wrong
 
