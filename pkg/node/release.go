@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -28,6 +29,15 @@ var ErrNotKnown = fmt.Errorf("%w (or the node has not taken it: poo reload)", no
 // peer path skips those before calling, with no hashing. The p2p host
 // indexes the new pools after it (p2p.Host.AddPools).
 func (n *Node) AddRelease(r series.Release) (nodepolicy.ReleaseAdded, error) {
+	return n.AddReleaseContext(context.Background(), r)
+}
+
+// AddReleaseContext is AddRelease with a context that ends the walk of
+// the part-id chain: the p2p host passes its own, so stopping the node
+// ends the check of a far release, and the RPC passes the request's
+// (RED-082). An ended check says nothing about the release: it is not
+// kept, and it is checked again when it arrives again.
+func (n *Node) AddReleaseContext(ctx context.Context, r series.Release) (nodepolicy.ReleaseAdded, error) {
 	s, ok := n.eng.Series(r.Series)
 	if !ok {
 		return nodepolicy.ReleaseAdded{}, fmt.Errorf("%w: %s", ErrNotKnown, r.Series.Short())
@@ -35,7 +45,7 @@ func (n *Node) AddRelease(r series.Release) (nodepolicy.ReleaseAdded, error) {
 	// Working out a far part takes its part number in hashes the first
 	// time, so it is done before the lock (RED-075); the adds below find
 	// the part ids worked out.
-	if err := s.CheckRelease(r); err != nil {
+	if err := s.CheckReleaseContext(ctx, r); err != nil {
 		return nodepolicy.ReleaseAdded{}, err
 	}
 	n.policyMu.Lock()

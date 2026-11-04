@@ -21,7 +21,8 @@ func TestLimitsDefaults(t *testing.T) {
 		t.Errorf("retention %+v, want %+v", got, want)
 	}
 	for _, b := range Bounds() {
-		if b.Default < b.Min || b.Default > b.Max {
+		// series_ceiling defaults to 0, which is off (D171).
+		if (b.Default < b.Min || b.Default > b.Max) && !(b.Name == BoundSeriesCeiling.Name && b.Default == 0) {
 			t.Errorf("%s: default %d outside %d..%d", b.Name, b.Default, b.Min, b.Max)
 		}
 	}
@@ -62,6 +63,7 @@ func TestLimitsBounds(t *testing.T) {
 		"seen_size":                     func(p *Policy, v int) { p.SeenSize = v },
 		"max_pending":                   func(p *Policy, v int) { p.MaxPending = v },
 		"ties":                          func(p *Policy, v int) { p.Ties = v },
+		"series_ceiling":                func(p *Policy, v int) { p.SeriesCeiling = v },
 	}
 	if len(set) != len(Bounds()) {
 		t.Fatalf("%d setters for %d bounds", len(set), len(Bounds()))

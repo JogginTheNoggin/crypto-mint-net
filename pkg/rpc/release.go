@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -51,7 +52,7 @@ func (h *Handler) addRelease(w http.ResponseWriter, r *http.Request) {
 	// (RED-075).
 	if !req.NoReload {
 		if _, ok := h.n.Engine().Series(req.Release.Series); ok {
-			h.addReleaseInPlace(w, req.Release, refuse)
+			h.addReleaseInPlace(r.Context(), w, req.Release, refuse)
 			return
 		}
 	}
@@ -63,7 +64,7 @@ func (h *Handler) addRelease(w http.ResponseWriter, r *http.Request) {
 		writeError(w, classify(err))
 		return
 	}
-	if err := p.CheckRelease(req.Release); err != nil {
+	if err := p.CheckReleaseContext(r.Context(), req.Release); err != nil {
 		refuse(err)
 		return
 	}
@@ -101,8 +102,8 @@ func (h *Handler) addRelease(w http.ResponseWriter, r *http.Request) {
 // running series; the host then indexes the part's pools as on start and
 // passes r on. When the host cannot index them so, the node reloads onto
 // the saved node.json instead.
-func (h *Handler) addReleaseInPlace(w http.ResponseWriter, r series.Release, refuse func(error)) {
-	res, err := h.n.AddRelease(r)
+func (h *Handler) addReleaseInPlace(ctx context.Context, w http.ResponseWriter, r series.Release, refuse func(error)) {
+	res, err := h.n.AddReleaseContext(ctx, r)
 	if err != nil {
 		if errors.Is(err, series.ErrRelease) || errors.Is(err, series.ErrFixed) || errors.Is(err, nodepolicy.ErrSeriesNotListed) {
 			refuse(err)

@@ -448,12 +448,13 @@ type followedRow struct {
 	Released uint64    `json:"released_through,omitempty"`
 	NextPart uint64    `json:"next_part,omitempty"`
 	Builtin  string    `json:"builtin,omitempty"`
+	Warning  string    `json:"warning,omitempty"`
 }
 
 func followedRows(known []rpc.SeriesInfo) []followedRow {
 	rows := make([]followedRow, 0, len(known))
 	for _, k := range known {
-		r := followedRow{ID: k.ID, Supply: "fixed", Pools: k.Pools, Mints: k.Params.Mints, Builtin: k.Builtin}
+		r := followedRow{ID: k.ID, Supply: "fixed", Pools: k.Pools, Mints: k.Params.Mints, Builtin: k.Builtin, Warning: k.Warning}
 		if v := k.Variable; v != nil {
 			r.Supply, r.Mints, r.Units, r.Released, r.NextPart = "variable", v.Mints, v.Units, v.Released, v.NextPart
 		} else {

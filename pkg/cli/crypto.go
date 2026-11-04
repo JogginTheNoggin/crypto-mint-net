@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"io"
 	"strconv"
 	"strings"
@@ -185,7 +186,7 @@ func seriesNew(args []string, out io.Writer) error {
 
 // CeilingLimit is the largest witness ceiling poo series new and poo init
 // take without -any-ceiling (Red's condition 1 as tool policy, D170).
-const CeilingLimit = 4 << 20
+const CeilingLimit = nodepolicy.CeilingLimit
 
 // checkCeiling refuses a series witness ceiling that is not set or above
 // CeilingLimit, unless the author forces it. It is tool policy, not a

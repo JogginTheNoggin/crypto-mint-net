@@ -23,6 +23,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"io"
 	"os"
 	"strings"
@@ -515,7 +516,10 @@ func seriesCmd(args []string, out io.Writer) error {
 			MaxParts   uint64    `json:"max_parts,omitempty"`
 			Pools      []pool    `json:"pools"`
 			Parts      []partRow `json:"parts,omitempty"`
-		}{ID: s.ID().String(), Builtin: rpc.Builtin(s.ID())}
+			// Warning: no witness ceiling, or one above CeilingLimit
+			// (RED-083).
+			Warning string `json:"warning,omitempty"`
+		}{ID: s.ID().String(), Builtin: rpc.Builtin(s.ID()), Warning: nodepolicy.CeilingWarning(s.Params())}
 		for k := uint64(0); k < s.PoolCount() && k < 1000; k++ {
 			f, l := s.PoolRange(k)
 			info.Pools = append(info.Pools, pool{k, f, l, s.PoolID(k).String()})

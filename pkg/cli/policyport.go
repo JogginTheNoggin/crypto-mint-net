@@ -547,6 +547,12 @@ func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 	for _, s := range p.Refused {
 		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", termSafe(s))
 	}
+	for _, s := range p.Declined {
+		fmt.Fprintf(out, "  declined: series %s; poo policy limits -set series_ceiling=N changes which series an import adds\n", termSafe(s))
+	}
+	for _, s := range p.Unbounded {
+		fmt.Fprintf(out, "  warning: series %s\n", termSafe(s))
+	}
 	for _, s := range p.DroppedReleases {
 		fmt.Fprintf(out, "  warning: %s; the release is left out, and the series is followed with the parts proven without it\n", termSafe(s))
 	}
@@ -558,6 +564,8 @@ func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 		fmt.Fprintf(out, "  %d of the file's settings %s already the same\n", p.Same, verb)
 	}
 	switch {
+	case p.Empty() && len(p.Declined) > 0:
+		fmt.Fprintln(out, "  nothing else to change")
 	case p.Empty():
 		fmt.Fprintln(out, "  nothing to change")
 	case !apply:

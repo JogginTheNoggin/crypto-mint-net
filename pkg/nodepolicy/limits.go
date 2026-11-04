@@ -59,11 +59,18 @@ var (
 	BoundTies       = Bound{"ties", 1, 4096, ledger.DefaultTies}
 )
 
+// BoundSeriesCeiling is series_ceiling (D170), settable since D171: the
+// largest witness ceiling of a series a policy import may add. 0, the
+// default, declines none. It only decides which series this node adds,
+// which is a lack of information when it declines, never a verdict on a
+// ledger.
+var BoundSeriesCeiling = Bound{"series_ceiling", 1024, 1 << 30, 0}
+
 // Bounds lists every bounded setting, for docs, the CLI and the GUI.
 func Bounds() []Bound {
 	return []Bound{BoundMaxBook, BoundBookPerRange, BoundVerifiedPerRange, BoundRetrySeconds, BoundRegistrySeconds,
 		BoundCandidateSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
-		BoundSeenSize, BoundMaxPending, BoundTies}
+		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling}
 }
 
 // Check refuses v when it is neither zero (the default) nor in range.
@@ -181,6 +188,8 @@ func (p *Policy) limitField(name string) *int {
 		return &p.Tracking.LogSeconds
 	case BoundLogSize.Name:
 		return &p.Tracking.LogSize
+	case BoundSeriesCeiling.Name:
+		return &p.SeriesCeiling
 	}
 	return nil
 }
@@ -226,6 +235,8 @@ var InPlace = map[string]bool{
 	BoundRetrySeconds.Name: true, BoundCandidateSeconds.Name: true,
 	BoundMaxAddresses.Name: true, BoundFlagHistory.Name: true, BoundLogSeconds.Name: true, BoundLogSize.Name: true,
 	BoundSeenSize.Name: true,
+	// Read only by a policy import, from node.json.
+	BoundSeriesCeiling.Name: true,
 }
 
 // ChangedLimits lists the bounded settings whose used value differs
