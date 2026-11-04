@@ -6,110 +6,140 @@ import (
 	"sort"
 )
 
-// ErrUnspendable: no witness for the policy can decode or fit the series'
-// witness ceiling, so funds paid to its address could never be spent
-// (RED-077, RED-079, D169). It is a check where an address is made or
-// paid, never a rule of validity: every witness that decodes and fits
-// already passes it, because the sizes it adds up are the least any
-// witness of the policy can have.
-var ErrUnspendable = errors.New("policy: no witness for this policy can be spent")
+// ErrUnspendable: a witness for the policy might not fit the series'
+// witness ceiling, so funds paid to its address could not be spent by
+// every set of signers it allows, or by any (RED-077, RED-079, D169,
+// D170). It is a check where an address is made or paid, never a rule of
+// validity.
+var ErrUnspendable = errors.New("policy: a witness for this policy might not fit the series")
 
-// impossible stands for a size no witness can have.
-const impossible = int(^uint(0) >> 1)
-
-// CheckSpendable reports whether some witness for p could decode at every
-// node and fit rules' witness ceiling. It adds up the least witness data
-// p can be satisfied with: for a threshold, K signatures of the smallest
-// sizes among its keys; for k-of-policies, the K cheapest parts; for a
-// hashlock, an empty preimage. A type it does not know counts as no data.
-// The decode limits (MaxDataSize, MaxParamsSize) are consensus and are
-// not changed here.
+// CheckSpendable reports whether every witness p allows fits rules'
+// witness ceiling (Red's condition 5, D170): the worst case, so that any
+// set of signers the policy accepts can spend. It adds up the largest
+// witness data p can be satisfied with: for a threshold, K signatures of
+// the largest sizes among its keys; for k-of-policies, the K dearest
+// parts; for a hashlock, a preimage of MaxPreimageSize bytes. A type it
+// does not know counts as no data. With no ceiling every policy fits.
+//
+// There is no network-wide size limit (D170), so the series' ceiling is
+// the only one checked.
 func (r *Registry) CheckSpendable(rules Rules, p Policy) error {
-	if len(p.Params) > MaxParamsSize {
-		return fmt.Errorf("%w: its params are %d bytes, and a node reads at most %d", ErrUnspendable, len(p.Params), MaxParamsSize)
-	}
-	min, hint, err := r.minData(p, 1)
+	most, err := r.witnessData(p, 1, true)
 	if err != nil {
 		return err
 	}
-	if min > MaxDataSize {
-		size := "more than the limit"
-		if min != impossible {
-			size = fmt.Sprintf("at least %d bytes", min)
-		}
-		return fmt.Errorf("%w: its witness data is %s, and a node reads at most %d%s", ErrUnspendable, size, MaxDataSize, hint)
+	max := rules.MaxWitnessSize()
+	if max <= 0 {
+		return nil
 	}
-	if max := rules.MaxWitnessSize(); max > 0 {
-		if w := 12 + len(p.Params) + 4 + min; w > max {
-			return fmt.Errorf("%w: its witness is at least %d bytes, and the series allows at most %d (max_witness)", ErrUnspendable, w, max)
-		}
+	frame := 12 + len(p.Params) + 4
+	if frame+most <= max {
+		return nil
 	}
-	return nil
+	least, err := r.witnessData(p, 1, false)
+	if err != nil {
+		return err
+	}
+	if frame+least > max {
+		return fmt.Errorf("%w: its smallest witness is %d bytes, and the series allows at most %d (max_witness)%s", ErrUnspendable, frame+least, max, r.fitHint(p, max-frame))
+	}
+	return fmt.Errorf("%w: its largest witness is %d bytes, and the series allows at most %d (max_witness), so some sets of signers could not spend%s", ErrUnspendable, frame+most, max, r.fitHint(p, max-frame))
 }
 
-// minData returns the least witness data that satisfies p, impossible when
-// none fits MaxDataSize, and a hint that says how many signatures fit.
-func (r *Registry) minData(p Policy, depth int) (int, string, error) {
+// witnessData returns the largest (most) or the least witness data that
+// satisfies p.
+func (r *Registry) witnessData(p Policy, depth int, most bool) (int, error) {
+	pick := func(sizes []int, k int) int {
+		if most {
+			sort.Sort(sort.Reverse(sort.IntSlice(sizes)))
+		} else {
+			sort.Ints(sizes)
+		}
+		total := 4
+		for _, s := range sizes[:k] {
+			total += s
+		}
+		return total
+	}
 	switch p.Type {
 	case TypeThreshold:
 		tp, err := DecodeThresholdParams(r, p.Params)
 		if err != nil {
-			return 0, "", err
+			return 0, err
 		}
 		sizes := make([]int, len(tp.Keys))
 		for i, k := range tp.Keys {
 			a, _ := r.Alg(k.Alg)
 			sizes[i] = 2 + 4 + a.SignatureSize()
 		}
-		sort.Ints(sizes)
-		total, fit, sum := 4, 0, 4
-		for i, s := range sizes {
-			if sum += s; sum <= MaxDataSize {
-				fit = i + 1
-			}
-			if i < int(tp.K) {
-				total += s
-			}
-		}
-		hint := ""
-		if total > MaxDataSize {
-			hint = fmt.Sprintf(": it needs %d signatures, and at most %d of these keys' signatures fit; ask for fewer, or use keys with smaller signatures", tp.K, fit)
-		}
-		return total, hint, nil
+		return pick(sizes, int(tp.K)), nil
 	case TypeHashlock:
-		return 4, "", nil
+		if most {
+			return 4 + MaxPreimageSize, nil
+		}
+		return 4, nil
 	case TypeKOfPolicies:
 		if depth > MaxPolicyDepth {
-			return 0, "", fmt.Errorf("%w: nested deeper than %d", ErrBadParams, MaxPolicyDepth)
+			return 0, fmt.Errorf("%w: nested deeper than %d", ErrBadParams, MaxPolicyDepth)
 		}
 		kp, err := DecodeKOfPoliciesParams(p.Params)
 		if err != nil {
-			return 0, "", err
+			return 0, err
 		}
-		var parts []int
-		hint := ""
-		for _, q := range kp.Policies {
-			m, h, err := r.minData(q, depth+1)
+		sizes := make([]int, len(kp.Policies))
+		for i, q := range kp.Policies {
+			m, err := r.witnessData(q, depth+1, most)
 			if err != nil {
-				return 0, "", err
+				return 0, err
 			}
-			if m > MaxDataSize {
-				if hint == "" {
-					hint = h
-				}
-				continue
-			}
-			parts = append(parts, 2+4+m)
+			sizes[i] = 2 + 4 + m
 		}
-		if len(parts) < int(kp.K) {
-			return impossible, fmt.Sprintf(": %d of its policies are needed and only %d can be satisfied%s", kp.K, len(parts), hint), nil
-		}
-		sort.Ints(parts)
-		total := 4
-		for _, s := range parts[:kp.K] {
-			total += s
-		}
-		return total, "", nil
+		return pick(sizes, int(kp.K)), nil
 	}
-	return 0, "", nil
+	return 0, nil
+}
+
+// fitHint says, for a threshold policy, how many of its keys' signatures
+// fit in budget bytes of witness data, the largest first.
+func (r *Registry) fitHint(p Policy, budget int) string {
+	if p.Type != TypeThreshold {
+		return ""
+	}
+	tp, err := DecodeThresholdParams(r, p.Params)
+	if err != nil {
+		return ""
+	}
+	sizes := make([]int, len(tp.Keys))
+	for i, k := range tp.Keys {
+		a, _ := r.Alg(k.Alg)
+		sizes[i] = 2 + 4 + a.SignatureSize()
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(sizes)))
+	fit, sum := 0, 4
+	for i, s := range sizes {
+		if sum += s; sum <= budget {
+			fit = i + 1
+		}
+	}
+	return fmt.Sprintf(": it needs %d signatures, and at most %d of these keys' signatures surely fit; ask for fewer, use keys with smaller signatures, or use a series with a larger ceiling", tp.K, fit)
+}
+
+// MaxK returns the largest k for which a k-of-k threshold policy of
+// algorithm a fits a witness ceiling of max bytes (0: none), counting the
+// policy's params as well as its signatures. It is at most
+// MaxThresholdKeys. poo crypto shows it (Red's condition 5, D170).
+func MaxK(a KeyAlg, max int) int {
+	if max <= 0 {
+		return MaxThresholdKeys
+	}
+	k := 0
+	for n := 1; n <= MaxThresholdKeys; n++ {
+		params := 2 + 4 + n*(4+4+a.PublicKeySize())
+		data := 4 + n*(2+4+a.SignatureSize())
+		if 12+params+4+data > max {
+			break
+		}
+		k = n
+	}
+	return k
 }

@@ -27,7 +27,7 @@ func runOut(t *testing.T, args ...string) string {
 func TestPolicyExportImport(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	cli(t, nil, "init", "-example", "-root", src, "-listen", "127.0.0.1:7111", "-p2p", "off", "-peer", "a.example:1")
-	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	cli(t, nil, "init", "-no-series", "-root", dst, "-p2p", "off")
 	bundle := filepath.Join(t.TempDir(), "share.json")
 	runOut(t, "policy", "export", "-root", src, "-out", bundle)
 
@@ -184,7 +184,7 @@ func TestPolicyImportKeepsRunningRPC(t *testing.T) {
 func TestPolicyImportFromStdin(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off")
-	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	cli(t, nil, "init", "-no-series", "-root", dst, "-p2p", "off")
 	bundle := runOut(t, "policy", "export", "-root", src)
 	var out bytes.Buffer
 	if err := Run(context.Background(), []string{"policy", "import", "-", "-apply", "-root", dst}, Stdio{In: strings.NewReader(bundle), Out: &out, Err: &out}); err != nil {
@@ -229,7 +229,7 @@ func TestPlanLinesShowValues(t *testing.T) {
 func TestPolicyImportIfDigest(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off")
-	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	cli(t, nil, "init", "-no-series", "-root", dst, "-p2p", "off")
 	a := filepath.Join(t.TempDir(), "a.json")
 	runOut(t, "policy", "export", "-root", src, "-out", a)
 	var res []importResult
@@ -262,7 +262,7 @@ func TestPolicyImportIfDigest(t *testing.T) {
 func TestPlanNotesReadLikeItsLines(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off", "-peer", "a.example:1")
-	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	cli(t, nil, "init", "-no-series", "-root", dst, "-p2p", "off")
 	bundle := filepath.Join(t.TempDir(), "share.json")
 	runOut(t, "policy", "export", "-root", src, "-out", bundle)
 

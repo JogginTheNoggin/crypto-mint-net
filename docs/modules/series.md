@@ -31,7 +31,8 @@ The phases are in [../variable-supply.md](../variable-supply.md).
 - Variable supply (parts.go):
   - `SupplyType` (`Fixed`, `Variable`), `IsVariable`, `PartSize` and
     `MaxParts`.
-  - `MintsThrough(k)`, `PartRange(k)`, `PartOf(serial)` and `PartID(k)`.
+  - `MintsThrough(k)`, `PartRange(k)`, `PartOf(serial)` and `PartID(k)`; `PartIDContext`, `UnsignedContext` and `CheckReleaseContext` stop when their context is done (GUI-028, D170).
+  - `Reserve()` and `ReserveID`: the built-in default reserve series and its pinned id; `IsReserve(id)` matches the full id only (D170).
   - `ReleaseMessage(part_id)` and `Unsigned(k)`.
   - `Release{Series, Part, Previous, Witness}` with `ID`, `Encode`,
     `DecodeRelease` and JSON, and `CheckRelease`.

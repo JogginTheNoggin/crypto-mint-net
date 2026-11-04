@@ -65,6 +65,12 @@ type Policy struct {
 	Series []SeriesInfo `json:"series"`
 	// Issuers says which series are accepted.
 	Issuers Issuers `json:"issuers"`
+	// SeriesCeiling, when set, declines a series being added to this
+	// policy (by a policy import) whose witness ceiling is not set or
+	// above it (D170). Declining is a lack of information, never a
+	// verdict on a ledger, and it never drops a series already listed.
+	// 0 declines none.
+	SeriesCeiling uint32 `json:"series_ceiling,omitempty"`
 	// Follow lists the mint policies this node follows.
 	Follow []Follow `json:"follow"`
 	// K is how many inactive branches to keep per pool; nil means the
@@ -714,6 +720,20 @@ func EncodeWitness(w policy.Witness) string {
 	enc := encoding.NewWriter(w.Size())
 	w.Encode(enc)
 	return hex.EncodeToString(enc.Bytes())
+}
+
+// DeclinesSeries reports why the policy declines to add a series with
+// params sp (SeriesCeiling, D170), or nil when it takes it.
+func (p Policy) DeclinesSeries(sp series.Params) error {
+	switch c := p.SeriesCeiling; {
+	case c == 0:
+		return nil
+	case sp.MaxWitness == 0:
+		return fmt.Errorf("the series sets no witness ceiling, and series_ceiling is %d", c)
+	case sp.MaxWitness > c:
+		return fmt.Errorf("the series' witness ceiling is %d, above series_ceiling %d", sp.MaxWitness, c)
+	}
+	return nil
 }
 
 // DecodeWitness reads the hex form written by EncodeWitness.

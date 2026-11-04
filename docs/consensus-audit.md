@@ -381,7 +381,7 @@ changes how a node selects from what it holds:
 | Witness size at most the series' ceiling, measured as encoded | (b) | D19 | |
 | Threshold: 1 to 16 distinct keys, exactly K signatures, increasing indices | (b) | D7 | A declared type bound and one form per witness |
 | Hashlock: preimage at most 1,024 bytes; k-of-policies: 1 to 16 parts, nested at most 4 deep | (b) | D82 | Type bounds |
-| Public keys at most 4,096 bytes, signatures 8,192; params and data at most 64 KiB each | (b) | D81, `pkg/policy/policy.go` | Bounds every type and algorithm must declare (section 6.2); they hold even where a series sets no ceiling |
+| ~~Public keys at most 4,096 bytes, signatures 8,192; params and data at most 64 KiB each~~ | (b) | D81, `pkg/policy/policy.go` | Bounds every type and algorithm must declare (section 6.2); they hold even where a series sets no ceiling. **Replaced by D170** (jerry decided on 2026-11-04): no network-wide limit; each algorithm's exact sizes, each type's bounds and the series' witness ceiling |
 | ECDSA signatures in the lower half of s only | (b) | D81 | Section 6.3 asks for one encoding per signature |
 | Algorithm numbers 1 to 9, hash numbers 1 to 5, policy types 1 to 3 | (b) | D7, D80, D81, D82 | Entries in the number lists, which the design lets grow |
 

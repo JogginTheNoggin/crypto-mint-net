@@ -88,6 +88,9 @@ func initCmd(args []string, out io.Writer) error {
 	var files stringList
 	fs.Var(&files, "series", "series parameters JSON file to know and follow (repeatable)")
 	example := fs.Bool("example", false, "know and follow the worked example's series")
+	reserve := fs.Bool("reserve", false, "know and follow the default reserve series (what init does when given no series, D170)")
+	noSeries := fs.Bool("no-series", false, "follow no series, not even the default reserve series")
+	anyCeiling := fs.Bool("any-ceiling", false, "accept a -series file whose witness ceiling is not set or above 4 MiB (D170)")
 	listen := fs.String("listen", "", "RPC listen address (default "+nodepolicy.DefaultListen+"; \"off\" to disable)")
 	p2pListen := fs.String("p2p", "", "address for peers (default "+nodepolicy.DefaultP2PListen+"; \"off\" to accept none)")
 	var peerList stringList
@@ -105,7 +108,13 @@ func initCmd(args []string, out io.Writer) error {
 	p.P2P.Peers = peerList
 	p.P2P.Registries = registries
 	p.P2P.Advertise = *advertise
+	if *noSeries && (*example || *reserve || len(files) > 0) {
+		return errors.New("-no-series goes with no -series, -example or -reserve")
+	}
 	var infos []nodepolicy.SeriesInfo
+	if *reserve || (!*noSeries && !*example && len(files) == 0) {
+		infos = append(infos, nodepolicy.SeriesInfo{Params: series.Reserve()})
+	}
 	if *example {
 		infos = append(infos, nodepolicy.SeriesInfo{Params: testutil.ExampleParams()})
 	}
@@ -116,6 +125,9 @@ func initCmd(args []string, out io.Writer) error {
 		}
 		si, err := readSeriesInfo(b)
 		if err != nil {
+			return fmt.Errorf("%s: %w", f, err)
+		}
+		if err := checkCeiling(si.Params.MaxWitness, *anyCeiling); err != nil {
 			return fmt.Errorf("%s: %w", f, err)
 		}
 		infos = append(infos, si)
@@ -155,6 +167,9 @@ func initCmd(args []string, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "wrote %s (%d series)\n", path, len(p.Series))
 	for _, si := range infos {
+		if s, err := series.New(si.Params); err == nil && series.IsReserve(s.ID()) {
+			fmt.Fprintf(out, "following series %s, the built-in reserve series\n", s.ID())
+		}
 		if si.Params.SupplyType == series.Variable && si.IssuerWitness == "" {
 			s, _ := series.New(si.Params)
 			fmt.Fprintf(out, "note: series %s is a variable supply series: %s\n", s.ID().Short(), variableNote)

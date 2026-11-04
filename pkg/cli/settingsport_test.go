@@ -18,7 +18,7 @@ import (
 func TestSettingsExportImport(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	cli(t, nil, "init", "-example", "-root", src, "-listen", "127.0.0.1:7111", "-p2p", "off", "-peer", "a.example:1", "-registry", "/old/home/reg.txt")
-	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	cli(t, nil, "init", "-no-series", "-root", dst, "-p2p", "off")
 	file := filepath.Join(t.TempDir(), "settings.json")
 	said := runOut(t, "settings", "export", "-root", src, "-out", file)
 	b, err := os.ReadFile(file)
@@ -126,7 +126,7 @@ func TestSettingsImportIntoRunningNode(t *testing.T) {
 func TestMapPathNotes(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()
 	cli(t, nil, "init", "-example", "-root", src, "-p2p", "off", "-registry", "/old/home/reg.txt")
-	cli(t, nil, "init", "-root", dst, "-p2p", "off")
+	cli(t, nil, "init", "-no-series", "-root", dst, "-p2p", "off")
 	file := filepath.Join(t.TempDir(), "settings.json")
 	// A plain export leaves local registry files out (RED-052), so the
 	// file that carries one is a full export.

@@ -91,6 +91,10 @@ type Limit struct {
 	Default int    `json:"default"`
 	Set     int    `json:"set"`
 	Used    int    `json:"used"`
+	// InPlace says whether a running node applies a change of this limit
+	// without a reload (InPlace, D168), so a front end need not keep its
+	// own list (GUI-GREEN-053).
+	InPlace bool `json:"in_place"`
 }
 
 // Limits lists every bounded setting of p with its value, in the order
@@ -100,7 +104,7 @@ func (p Policy) Limits() []Limit {
 	var out []Limit
 	for _, b := range Bounds() {
 		v := *p.limitField(b.Name)
-		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v)})
+		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v), InPlace: InPlace[b.Name]})
 	}
 	return out
 }

@@ -1,0 +1,27 @@
+{
+  "note": "The default reserve series (D170). Never edit: every value is inside the series id.",
+  "params": {
+    "hash": 2,
+    "mints": 32768,
+    "supply": 100000000000000,
+    "pool_size": 32,
+    "min_layer_strength": 24,
+    "min_entry_strength": 20,
+    "entry_hash_credit": false,
+    "policy_types": [
+      1,
+      2
+    ],
+    "key_algs": [
+      1,
+      8,
+      9,
+      10,
+      11
+    ],
+    "max_witness": 131072
+  },
+  "encoded_params": "0100000002000000000000800000005af3107a400000000000000000200018001400000000020000000100000002000000050000000100000008000000090000000a0000000b0002000000",
+  "series_id": "fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f139",
+  "pools": 1024
+}

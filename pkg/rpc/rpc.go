@@ -469,6 +469,18 @@ type SeriesInfo struct {
 	// Variable is set for a variable series: what this node knows released
 	// (D166). A fixed series' reply is as before.
 	Variable *VariableInfo `json:"variable,omitempty"`
+	// Builtin is "reserve" when the series is the built-in default reserve
+	// series, matched on its full id (D170).
+	Builtin string `json:"builtin,omitempty"`
+}
+
+// Builtin returns "reserve" for the built-in reserve series' full id and
+// "" for any other (D170).
+func Builtin(id hash.Hash) string {
+	if series.IsReserve(id) {
+		return "reserve"
+	}
+	return ""
 }
 
 // VariableInfo is what a node knows of a variable series' parts, worked out
@@ -513,7 +525,7 @@ func (h *Handler) series(w http.ResponseWriter, r *http.Request) {
 	out := []SeriesInfo{}
 	for _, id := range h.n.Engine().FollowedSeries() {
 		s, _ := h.n.Engine().Series(id)
-		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount(), Variable: VariableOf(s)})
+		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount(), Variable: VariableOf(s), Builtin: Builtin(s.ID())})
 	}
 	writeJSON(w, out)
 }

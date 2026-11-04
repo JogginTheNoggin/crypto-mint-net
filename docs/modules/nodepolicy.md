@@ -18,6 +18,7 @@ D25). Nothing here changes what is valid.
   "format": 1,
   "series": [{"params": {"hash": 1, "mints": 8, "...": "..."}, "issuer_witness": "hex, optional"}],
   "issuers": {"any": true, "accept": ["issuer address hex"]},
+  "series_ceiling": 0,
   "follow": [
     {"series": "series id hex"},
     {"series": "series id hex", "pools": [1], "mints": [9]},
@@ -140,7 +141,9 @@ its range, or `Validate` refuses the policy and names the setting
 
 `Policy.Limits` lists them with the value node.json sets and the value used,
 from the one list `Validate` checks; `poo policy limits` prints it
-(GREEN-047).
+(GREEN-047). Each limit's `in_place` says whether a running node applies a
+change of it without a reload, from the `InPlace` list below
+(GUI-GREEN-053, D170).
 `poo policy limits -set NAME=VALUE` (`Policy.SetLimits`,
 `POST /v1/policy/limits`) changes them, checked whole first (D161).
 A running node applies the ones `InPlace` names without a reload (D168):
@@ -279,7 +282,7 @@ none and only notes that a file has them.
 - **Merging** (`Merge(local, file, MergeOptions)`) returns the result and
   a `Plan`. By default it takes only what to follow (`Followed`, D150):
   - series new to local (a witness local lacks is added; two different
-    witnesses are a conflict);
+    witnesses are a conflict), except those `series_ceiling` declines;
   - followed issuers, series, pools and mints, merged as `AddFollow` does
     (in time linear in the entries, RED-044);
   - accepted issuers, as a set.
@@ -390,3 +393,16 @@ checks as any other change, and node.json has no depth limit.
 
 A new setting is a new optional field with a documented default. Bump
 `Format` only for a change that old nodes would misread.
+
+## Series witness ceilings (D170)
+
+`series_ceiling` (0, the default, is off) lets a node decline series whose
+witness ceiling it finds too large to check. When it is set, a policy
+import leaves out any series it would add whose `max_witness` is 0 (not
+set) or above it, with that series' follow rules, and lists each in the
+plan's `declined` with the reason (`Policy.DeclinesSeries`). It never
+drops a series the policy already lists. Declining a series is a lack of
+information, not a verdict on any ledger, so it cannot split nodes that
+have the same information. It is a node setting, so an import takes it
+only with `-settings`. `poo init` and `poo series new` refuse such a
+series on their own, unless `-any-ceiling` forces it.

@@ -50,7 +50,7 @@ func NewSigner(alg AlgID, seed []byte) (Signer, error) {
 			return nil, err
 		}
 		return mldsaSigner{alg: alg, sk: sk}, nil
-	case AlgSLHDSASHA2128s:
+	case AlgSLHDSASHA2128s, AlgSLHDSASHA2256s:
 		return slhdsaAlgs[alg].signer(seed)
 	}
 	return nil, fmt.Errorf("%w: %d", ErrUnknownSigner, alg)

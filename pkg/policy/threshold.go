@@ -57,7 +57,14 @@ func DecodeThresholdParams(reg *Registry, b []byte) (ThresholdParams, error) {
 	p.Keys = make([]Key, 0, n)
 	for i := 0; i < n && r.Err() == nil; i++ {
 		alg := AlgID(r.U32())
-		pub := r.VarBytes(MaxKeySize)
+		// A known algorithm's key is read at most at its exact size, so a
+		// long one fails before its bytes are copied (D170). The exact
+		// size is checked below either way.
+		limit := 0
+		if a, ok := reg.Alg(alg); ok {
+			limit = a.PublicKeySize()
+		}
+		pub := r.VarBytes(limit)
 		p.Keys = append(p.Keys, Key{Alg: alg, Public: pub})
 	}
 	if err := r.Finish(); err != nil {
@@ -109,14 +116,52 @@ func (d ThresholdData) Encode() []byte {
 	return w.Bytes()
 }
 
-// DecodeThresholdData parses threshold witness data.
+// DecodeThresholdData parses threshold witness data without its params,
+// for tools. Checking a witness uses decodeThresholdDataFor, which knows
+// each signature's exact size from the params.
 func DecodeThresholdData(b []byte) (ThresholdData, error) {
 	r := encoding.NewReader(b)
 	n := r.Count(MaxThresholdKeys, 6)
 	d := ThresholdData{Sigs: make([]Sig, 0, n)}
 	for i := 0; i < n && r.Err() == nil; i++ {
 		idx := r.U16()
-		sig := r.VarBytes(MaxSigSize)
+		sig := r.VarBytes(0)
+		d.Sigs = append(d.Sigs, Sig{Index: idx, Signature: sig})
+	}
+	if err := r.Finish(); err != nil {
+		return d, fmt.Errorf("%w: %v", ErrBadData, err)
+	}
+	return d, nil
+}
+
+// decodeThresholdDataFor parses threshold witness data against its params
+// (Red's condition 2, D170): exactly K signatures, key indices increasing
+// and in range, and each signature at the exact size of its key's
+// algorithm, all checked before a signature's bytes are read. It refuses
+// exactly what DecodeThresholdData followed by Satisfy's shape checks
+// refuses, only sooner.
+func decodeThresholdDataFor(reg *Registry, p ThresholdParams, b []byte) (ThresholdData, error) {
+	r := encoding.NewReader(b)
+	n := r.Count(MaxThresholdKeys, 6)
+	if r.Err() == nil && n != int(p.K) {
+		return ThresholdData{}, fmt.Errorf("%w: %d signatures, policy needs exactly %d", ErrBadData, n, p.K)
+	}
+	d := ThresholdData{Sigs: make([]Sig, 0, n)}
+	last := -1
+	for i := 0; i < n && r.Err() == nil; i++ {
+		idx := r.U16()
+		if r.Err() != nil {
+			break
+		}
+		if int(idx) <= last || int(idx) >= len(p.Keys) {
+			return d, fmt.Errorf("%w: key indices must be increasing and in range", ErrBadData)
+		}
+		last = int(idx)
+		a, _ := reg.Alg(p.Keys[idx].Alg) // present: checked by DecodeThresholdParams
+		sig := r.VarBytes(a.SignatureSize())
+		if r.Err() == nil && len(sig) != a.SignatureSize() {
+			return d, fmt.Errorf("%w: signature for key %d has wrong size", ErrBadData, idx)
+		}
 		d.Sigs = append(d.Sigs, Sig{Index: idx, Signature: sig})
 	}
 	if err := r.Finish(); err != nil {
@@ -150,24 +195,13 @@ func (thresholdType) Satisfy(reg *Registry, params, data, msg []byte) error {
 	if err != nil {
 		return err
 	}
-	d, err := DecodeThresholdData(data)
+	d, err := decodeThresholdDataFor(reg, p, data)
 	if err != nil {
 		return err
 	}
-	if len(d.Sigs) != int(p.K) {
-		return fmt.Errorf("%w: %d signatures, policy needs exactly %d", ErrBadData, len(d.Sigs), p.K)
-	}
-	last := -1
 	for _, s := range d.Sigs {
-		if int(s.Index) <= last || int(s.Index) >= len(p.Keys) {
-			return fmt.Errorf("%w: key indices must be increasing and in range", ErrBadData)
-		}
-		last = int(s.Index)
 		k := p.Keys[s.Index]
-		a, _ := reg.Alg(k.Alg) // present: checked by DecodeThresholdParams
-		if len(s.Signature) != a.SignatureSize() {
-			return fmt.Errorf("%w: signature for key %d has wrong size", ErrBadData, s.Index)
-		}
+		a, _ := reg.Alg(k.Alg)
 		if !a.Verify(k.Public, msg, s.Signature) {
 			return fmt.Errorf("%w: signature for key %d", ErrUnsatisfied, s.Index)
 		}

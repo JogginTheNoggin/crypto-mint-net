@@ -28,30 +28,40 @@ func keysOf(t *testing.T, alg AlgID, n int) []Key {
 	return keys
 }
 
-// RED-077, RED-079, D169: a policy whose smallest witness cannot decode is
-// refused where the address is made; one that fits is not.
+// RED-077, RED-079, D169, D170: there is no network-wide size limit, so
+// only the series' witness ceiling decides whether a policy can be spent,
+// and every set of signers it allows must fit (Red's condition 5).
 func TestCheckSpendable(t *testing.T) {
 	reg := Default()
+	const reserve = 128 * 1024
 	cases := []struct {
 		name string
 		p    Policy
+		max  int
 		ok   bool
 	}{
-		{"14 of 16 ML-DSA-87", ThresholdParams{K: 14, Keys: keysOf(t, AlgMLDSA87, 16)}.Policy(), true},
-		{"15 of 16 ML-DSA-87", ThresholdParams{K: 15, Keys: keysOf(t, AlgMLDSA87, 16)}.Policy(), false},
-		{"16 of 16 ML-DSA-65", ThresholdParams{K: 16, Keys: keysOf(t, AlgMLDSA65, 16)}.Policy(), true},
-		{"8 of 10 SLH-DSA", ThresholdParams{K: 8, Keys: keysOf(t, AlgSLHDSASHA2128s, 10)}.Policy(), true},
-		{"9 of 10 SLH-DSA", ThresholdParams{K: 9, Keys: keysOf(t, AlgSLHDSASHA2128s, 10)}.Policy(), false},
-		// 6 SLH-DSA and 4 ML-DSA-87, all needed: over the limit.
-		{"10 of a mix", ThresholdParams{K: 10, Keys: append(keysOf(t, AlgSLHDSASHA2128s, 6), keysOf(t, AlgMLDSA87, 4)...)}.Policy(), false},
-		// 9 of the mix fits with the smallest signatures (4 ML-DSA-87 and
-		// 5 SLH-DSA would not, but the owner chooses which keys sign).
-		{"9 of SLH-DSA and Ed25519", ThresholdParams{K: 9, Keys: append(keysOf(t, AlgSLHDSASHA2128s, 8), keysOf(t, AlgEd25519, 1)...)}.Policy(), true},
-		{"all of two halves", AllOf(ThresholdParams{K: 8, Keys: keysOf(t, AlgSLHDSASHA2128s, 8)}.Policy(), ThresholdParams{K: 8, Keys: keysOf(t, AlgSLHDSASHA2128s, 9)[1:]}.Policy()), false},
-		{"one of a bad and a good", AnyOf(ThresholdParams{K: 9, Keys: keysOf(t, AlgSLHDSASHA2128s, 9)}.Policy(), SingleKey(AlgEd25519, keysOf(t, AlgEd25519, 1)[0].Public)), true},
+		// What the old 64 KiB caps refused now fits the reserve ceiling.
+		{"16 of 16 ML-DSA-87", ThresholdParams{K: 16, Keys: keysOf(t, AlgMLDSA87, 16)}.Policy(), reserve, true},
+		{"16 of 16 SLH-DSA-128s", ThresholdParams{K: 16, Keys: keysOf(t, AlgSLHDSASHA2128s, 16)}.Policy(), reserve, true},
+		{"4 of 4 SLH-DSA-256s", ThresholdParams{K: 4, Keys: keysOf(t, AlgSLHDSASHA2256s, 4)}.Policy(), reserve, true},
+		{"5 of 5 SLH-DSA-256s", ThresholdParams{K: 5, Keys: keysOf(t, AlgSLHDSASHA2256s, 5)}.Policy(), reserve, false},
+		// Under a 64 KiB ceiling the old limits come back from the series.
+		{"14 of 16 ML-DSA-87, 64 KiB", ThresholdParams{K: 14, Keys: keysOf(t, AlgMLDSA87, 16)}.Policy(), 64 * 1024, false},
+		{"8 of 8 SLH-DSA-128s, 64 KiB", ThresholdParams{K: 8, Keys: keysOf(t, AlgSLHDSASHA2128s, 8)}.Policy(), 70 * 1024, true},
+		// The worst case counts: 1 of an Ed25519 and an SLH-DSA-256s key
+		// fits with Ed25519 but not with SLH-DSA-256s.
+		{"1 of Ed25519 and SLH-DSA-256s, 8 KB", ThresholdParams{K: 1, Keys: append(keysOf(t, AlgEd25519, 1), keysOf(t, AlgSLHDSASHA2256s, 1)...)}.Policy(), 8000, false},
+		{"1 of Ed25519 and SLH-DSA-256s, 64 KB", ThresholdParams{K: 1, Keys: append(keysOf(t, AlgEd25519, 1), keysOf(t, AlgSLHDSASHA2256s, 1)...)}.Policy(), 64000, true},
+		{"all of two halves", AllOf(ThresholdParams{K: 8, Keys: keysOf(t, AlgSLHDSASHA2128s, 8)}.Policy(), ThresholdParams{K: 8, Keys: keysOf(t, AlgSLHDSASHA2128s, 9)[1:]}.Policy()), reserve, true},
+		{"all of two halves, 64 KiB", AllOf(ThresholdParams{K: 8, Keys: keysOf(t, AlgSLHDSASHA2128s, 8)}.Policy(), ThresholdParams{K: 8, Keys: keysOf(t, AlgSLHDSASHA2128s, 9)[1:]}.Policy()), 64 * 1024, false},
+		// A hashlock's worst case is a preimage of MaxPreimageSize.
+		{"ed25519 and a hashlock, 1 KB", AllOf(SingleKey(AlgEd25519, keysOf(t, AlgEd25519, 1)[0].Public), HashlockParams{Hash: 1}.Policy()), 1000, false},
+		{"ed25519 and a hashlock, 2 KB", AllOf(SingleKey(AlgEd25519, keysOf(t, AlgEd25519, 1)[0].Public), HashlockParams{Hash: 1}.Policy()), 2000, true},
+		// No ceiling: every policy fits.
+		{"16 of 16 SLH-DSA-256s, no ceiling", ThresholdParams{K: 16, Keys: keysOf(t, AlgSLHDSASHA2256s, 16)}.Policy(), 0, true},
 	}
 	for _, c := range cases {
-		err := reg.CheckPolicy(anyRules{}, c.p)
+		err := reg.CheckPolicy(ceiling{max: c.max}, c.p)
 		if c.ok != (err == nil) {
 			t.Errorf("%s: %v", c.name, err)
 		}
@@ -59,16 +69,34 @@ func TestCheckSpendable(t *testing.T) {
 			t.Errorf("%s: %v is not ErrUnspendable", c.name, err)
 		}
 	}
-	err := reg.CheckPolicy(anyRules{}, ThresholdParams{K: 15, Keys: keysOf(t, AlgMLDSA87, 16)}.Policy())
-	if err == nil || !strings.Contains(err.Error(), "at most 14") {
+	err := reg.CheckPolicy(ceiling{max: reserve}, ThresholdParams{K: 5, Keys: keysOf(t, AlgSLHDSASHA2256s, 6)}.Policy())
+	if err == nil || !strings.Contains(err.Error(), "at most 4") || !strings.Contains(err.Error(), "smallest") {
 		t.Fatalf("the error names how many fit: %v", err)
 	}
-	// The series' witness ceiling counts too.
-	p := ThresholdParams{K: 2, Keys: keysOf(t, AlgMLDSA87, 2)}.Policy()
-	if err := reg.CheckPolicy(ceiling{max: 8000}, p); !errors.Is(err, ErrUnspendable) {
-		t.Fatalf("over max_witness: %v", err)
+	err = reg.CheckPolicy(ceiling{max: 8000}, ThresholdParams{K: 1, Keys: append(keysOf(t, AlgEd25519, 1), keysOf(t, AlgSLHDSASHA2256s, 1)...)}.Policy())
+	if err == nil || !strings.Contains(err.Error(), "some sets of signers") {
+		t.Fatalf("the error says some signers could not spend: %v", err)
 	}
-	if err := reg.CheckPolicy(ceiling{max: 20000}, p); err != nil {
-		t.Fatal(err)
+}
+
+// MaxK is Red's table for the reserve ceiling, and every algorithm fits 16
+// with no ceiling.
+func TestMaxK(t *testing.T) {
+	want := map[AlgID]int{AlgEd25519: 16, AlgMLDSA65: 16, AlgMLDSA87: 16, AlgSLHDSASHA2128s: 16, AlgSLHDSASHA2256s: 4}
+	for id, k := range want {
+		a, _ := Default().Alg(id)
+		if got := MaxK(a, 128*1024); got != k {
+			t.Errorf("%s: %d, want %d", a.Name(), got, k)
+		}
+		if got := MaxK(a, 0); got != MaxThresholdKeys {
+			t.Errorf("%s with no ceiling: %d", a.Name(), got)
+		}
+	}
+	a, _ := Default().Alg(AlgMLDSA87)
+	if got := MaxK(a, 115754); got != 16 {
+		t.Errorf("16 ML-DSA-87 is 115,754 bytes, MaxK %d", got)
+	}
+	if got := MaxK(a, 115753); got != 15 {
+		t.Errorf("one byte less: %d", got)
 	}
 }

@@ -13,12 +13,12 @@ import (
 // fall. It signs the witness message itself, with an empty context, as a
 // pure (not pre-hashed) signature.
 //
-// Only SLH-DSA-SHA2-128s is registered: its 32-byte keys and 7,856-byte
-// signatures fit MaxKeySize and MaxSigSize, so a witness holds up to 8
-// of them within MaxDataSize. CheckPolicy (CheckSpendable) refuses a
-// policy that needs more where its address is made (RED-079, D169). The 192- and 256-bit sets have signatures
-// of 16,224 and 29,792 bytes, over MaxSigSize; adding them would raise a
-// decoding limit, which is for the owner and Black to decide first.
+// Two sets are registered: SLH-DSA-SHA2-128s (NIST category 1, 32-byte
+// keys, 7,856-byte signatures, D168) and SLH-DSA-SHA2-256s (category 5,
+// 64-byte keys, 29,792-byte signatures, D170). There is no network-wide
+// size limit (D170): how many signatures one witness holds is set by the
+// series' witness ceiling, which CheckPolicy (CheckSpendable) applies
+// where an address is made. The 192-bit set is left out on purpose.
 type slhdsaAlg struct {
 	id   AlgID
 	name string
@@ -29,6 +29,7 @@ type slhdsaAlg struct {
 
 var slhdsaAlgs = map[AlgID]slhdsaAlg{
 	AlgSLHDSASHA2128s: {AlgSLHDSASHA2128s, "slh-dsa-sha2-128s", slhdsa.SHA2_128s, 32, 7856},
+	AlgSLHDSASHA2256s: {AlgSLHDSASHA2256s, "slh-dsa-sha2-256s", slhdsa.SHA2_256s, 64, 29792},
 }
 
 func (a slhdsaAlg) ID() AlgID          { return a.id }

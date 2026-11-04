@@ -234,6 +234,29 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 27 (D170):**
+  - **Per-series witness size limits.** The network-wide caps (4,096-byte
+    keys, 8,192-byte signatures, 64 KiB params and data) are gone: a
+    series' witness ceiling, its algorithms' exact sizes and its types'
+    bounds decide. Series with a ceiling at or below 64 KiB decide as
+    before; looser series now take, for example, 16-of-16 ML-DSA-87. A
+    pinned cross-version test, with verdicts from a build of the code
+    before the change, shows nothing valid became invalid.
+  - A new key algorithm, `slh-dsa-sha2-256s` (FIPS 205, number 11).
+  - The default reserve series: `poo init` with no series follows it, and
+    tools name it `"builtin": "reserve"` on its full id. Its id is pinned
+    (`fe52c1ac…f139`).
+  - `poo series new` writes a 128 KiB ceiling by default and, like
+    `poo init -series`, refuses a series with no ceiling or one above
+    4 MiB without `-any-ceiling`. Node policy `series_ceiling` lets a node
+    decline such a series on import.
+  - An address whose largest witness would not fit its series is refused
+    where it is made; `poo crypto -max-witness N` shows each algorithm's
+    largest k.
+  - `poo policy limits` says for each limit whether a running node
+    applies it in place (`in_place`).
+  - `poo series release` and `poo series parts` on a part far out can be
+    cancelled (a GUI job's Cancel, or Ctrl-C).
 - **Round 26 (D168):**
   - `poo policy limits -set` applies the peer book's limits, the
     tracker's retention and `seen_size` in place, with no reload

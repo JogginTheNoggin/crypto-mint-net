@@ -2,6 +2,7 @@ package series
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -216,6 +217,14 @@ func (s *Series) partID(k uint64, previous hash.Hash) hash.Hash {
 // far out is never refused for being far: that would make nodes with the
 // same release disagree on whether it is valid.
 func (s *Series) PartID(k uint64) (hash.Hash, error) {
+	return s.PartIDContext(context.Background(), k)
+}
+
+// PartIDContext is PartID that stops when ctx is done, between two chunks
+// of partChunk hashes, and returns ctx's error (GUI-028): a far part can
+// take hours the first time, and a command working it out must be
+// cancellable. What was worked out before the stop is kept.
+func (s *Series) PartIDContext(ctx context.Context, k uint64) (hash.Hash, error) {
 	if err := s.checkPart(k); err != nil {
 		return hash.Zero, err
 	}
@@ -231,6 +240,9 @@ func (s *Series) PartID(k uint64) (hash.Hash, error) {
 		if c.next < k {
 			// Let other calls in between two chunks.
 			c.mu.Unlock()
+			if err := ctx.Err(); err != nil {
+				return hash.Zero, err
+			}
 			c.mu.Lock()
 		}
 	}
@@ -253,6 +265,9 @@ func (s *Series) PartID(k uint64) (hash.Hash, error) {
 	}
 	c.mu.Unlock()
 	for ; n < k; n++ {
+		if (n+1)%partChunk == 0 && ctx.Err() != nil {
+			return hash.Zero, ctx.Err()
+		}
 		id = s.partID(n+1, id)
 	}
 	c.mu.Lock()
@@ -374,13 +389,18 @@ func (r *Release) UnmarshalJSON(b []byte) error {
 // Unsigned returns the release of part k without its witness, for the
 // issuer to sign ReleaseMessage(part_id(k)).
 func (s *Series) Unsigned(k uint64) (Release, error) {
+	return s.UnsignedContext(context.Background(), k)
+}
+
+// UnsignedContext is Unsigned that stops when ctx is done (PartIDContext).
+func (s *Series) UnsignedContext(ctx context.Context, k uint64) (Release, error) {
 	if err := s.checkPart(k); err != nil {
 		return Release{}, err
 	}
 	if k < 2 {
 		return Release{}, fmt.Errorf("%w: part 1 is released by the issuer witness on the series", ErrRelease)
 	}
-	prev, err := s.PartID(k - 1)
+	prev, err := s.PartIDContext(ctx, k-1)
 	if err != nil {
 		return Release{}, err
 	}
@@ -394,6 +414,12 @@ func (s *Series) Unsigned(k uint64) (Release, error) {
 // checked first, from the release's own fields, so only the issuer can
 // make a node work out a long chain of part ids.
 func (s *Series) CheckRelease(r Release) error {
+	return s.CheckReleaseContext(context.Background(), r)
+}
+
+// CheckReleaseContext is CheckRelease that stops when ctx is done, with
+// ctx's error, which says nothing of whether r is valid (PartIDContext).
+func (s *Series) CheckReleaseContext(ctx context.Context, r Release) error {
 	// The same bytes, checked in full before in this process, check again
 	// (ORANGE-036).
 	if err := s.checkReleaseFields(r); err != nil {
@@ -406,7 +432,7 @@ func (s *Series) CheckRelease(r Release) error {
 	if err := s.checkReleaseWitness(r); err != nil {
 		return err
 	}
-	prev, err := s.PartID(r.Part - 1)
+	prev, err := s.PartIDContext(ctx, r.Part-1)
 	if err != nil {
 		return err
 	}

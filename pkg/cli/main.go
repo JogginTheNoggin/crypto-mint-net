@@ -336,7 +336,7 @@ func run(args []string, out io.Writer) error {
 	case "keygen":
 		return keygen(args[1:], out)
 	case "crypto":
-		return cryptoCmd(out)
+		return cryptoCmd(args[1:], out)
 	case "series":
 		return seriesCmd(args[1:], out)
 	case "demo":
@@ -509,12 +509,13 @@ func seriesCmd(args []string, out io.Writer) error {
 		}
 		info := struct {
 			ID         string    `json:"series_id"`
+			Builtin    string    `json:"builtin,omitempty"`
 			SupplyType string    `json:"supply_type,omitempty"`
 			PartSize   uint64    `json:"part_size,omitempty"`
 			MaxParts   uint64    `json:"max_parts,omitempty"`
 			Pools      []pool    `json:"pools"`
 			Parts      []partRow `json:"parts,omitempty"`
-		}{ID: s.ID().String()}
+		}{ID: s.ID().String(), Builtin: rpc.Builtin(s.ID())}
 		for k := uint64(0); k < s.PoolCount() && k < 1000; k++ {
 			f, l := s.PoolRange(k)
 			info.Pools = append(info.Pools, pool{k, f, l, s.PoolID(k).String()})
@@ -523,7 +524,7 @@ func seriesCmd(args []string, out io.Writer) error {
 		// (poo series parts lists any others).
 		if s.IsVariable() {
 			info.SupplyType, info.PartSize, info.MaxParts = "variable", s.PartSize(), s.MaxParts()
-			if info.Parts, err = partRows(s, 1, 10); err != nil {
+			if info.Parts, err = partRows(contextOf(out), s, 1, 10); err != nil {
 				return err
 			}
 		}

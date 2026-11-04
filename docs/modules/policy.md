@@ -24,14 +24,19 @@ sizes, in [../cryptography.md](../cryptography.md).
 - `Registry.CheckPolicy(rules, p)`: the same allowed checks on a policy
   alone, at every depth. `Types`, `Algs`, `TypeByName`, `AlgByName`.
 - `Registry.CheckSpendable(rules, p)`, which `CheckPolicy` also runs:
-  refuses (`ErrUnspendable`) a policy whose smallest witness cannot be
-  spent. That is a witness whose data is over `MaxDataSize`, whose params
-  are over `MaxParamsSize`, or that is over the series' `max_witness`.
-  For example, at most 14 ML-DSA-87 or 8 SLH-DSA-SHA2-128s signatures fit.
-  It is checked where an address is made or paid, never when a witness is
-  checked, and it refuses nothing a valid witness could have (RED-077,
-  RED-079, D169). `poo crypto` prints `max_signatures_per_witness` for
-  each algorithm.
+  refuses (`ErrUnspendable`) a policy whose largest witness is over the
+  series' `max_witness`, so every set of signers it allows can spend
+  (worst case, D170). With no ceiling every policy passes. Under the
+  reserve series' 128 KiB, 16-of-16 ML-DSA-87 and SLH-DSA-SHA2-128s fit,
+  and SLH-DSA-SHA2-256s up to 4. It is checked where an address is made or
+  paid, never when a witness is checked (RED-077, RED-079, D169, D170).
+- `MaxK(alg, ceiling)`: the largest k of a k-of-k policy of one algorithm
+  under a ceiling, params included. `poo crypto` prints it as
+  `max_signatures_per_witness`.
+- No network-wide size limit (D170): `DecodeWitness` needs no series and
+  is bounded only by the bytes received; threshold data is read against
+  its params, each signature at its key's exact size; the series' ceiling
+  is checked first in `Check`.
 - Threshold: `ThresholdParams`, `ThresholdData`, `SignThreshold`, and the
   shortcuts `SingleKey` and `SingleKeyWitness`.
 - Keys: `Signer`, `NewSigner(alg, seed)` for any algorithm from a 32-byte

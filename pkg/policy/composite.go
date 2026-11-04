@@ -219,7 +219,7 @@ func DecodeKOfPoliciesData(b []byte) (KOfPoliciesData, error) {
 	var d KOfPoliciesData
 	for i := 0; i < n && r.Err() == nil; i++ {
 		idx := r.U16()
-		d.Parts = append(d.Parts, Part{Index: idx, Data: r.VarBytes(MaxDataSize)})
+		d.Parts = append(d.Parts, Part{Index: idx, Data: r.VarBytes(0)})
 	}
 	if err := r.Finish(); err != nil {
 		return d, fmt.Errorf("%w: %v", ErrBadData, err)

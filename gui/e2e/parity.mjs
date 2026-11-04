@@ -31,7 +31,8 @@ const EVERYWHERE = {
 const LEFT_OUT = {
   node: { 'log-level': 'the live log is for reading; the terminal sets a level', 'log-format': 'the live log is for reading; the terminal sets a format' },
   sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poo sim load -h has them'])),
-  'series new': { ...Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])) },
+  'series new': { ...Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])), 'any-ceiling': 'D170 (Source R27): new; the form writes the default 128 KiB ceiling, and a form field for it is GUI Grey\'s call' },
+  init: Object.fromEntries(['any-ceiling', 'no-series', 'reserve'].map(f => [f, 'D170 (Source R27): new; the form follows the built-in reserve series when given no series, and form fields for these are GUI Grey\'s call'])),
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
   keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)' },
   watch: { once: 'the Watch view reconnects by itself, as poo watch without -once does' },

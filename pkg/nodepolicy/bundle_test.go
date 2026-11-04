@@ -283,3 +283,63 @@ func TestMergeRefusesWhatWouldNotValidate(t *testing.T) {
 		t.Fatalf("follow of an unlisted series: %v", err)
 	}
 }
+
+// D170: series_ceiling declines a series being added whose witness ceiling
+// is not set or above it, with its follow rules, and never drops a series
+// the node already lists.
+func TestSeriesCeilingDeclinesNewSeries(t *testing.T) {
+	sa, sb, ida, idb := twoSeries() // both with no ceiling
+	sc := nodepolicy.SeriesInfo{Params: testutil.ExampleParams()}
+	sc.Params.Mints, sc.Params.MaxWitness = 16, 4096
+	local := nodepolicy.Default()
+	local.Series = []nodepolicy.SeriesInfo{sa}
+	local.Follow = []nodepolicy.Follow{{Series: &ida}}
+	local.SeriesCeiling = 8192
+
+	file := nodepolicy.Default()
+	file.Series = []nodepolicy.SeriesInfo{sa, sb, sc}
+	file.Follow = []nodepolicy.Follow{{Series: &ida}, {Series: &idb}}
+	res, plan, err := nodepolicy.Merge(local, file, nodepolicy.MergeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Series) != 2 || len(plan.Declined) != 1 || !strings.Contains(plan.Declined[0], idb.Short()) {
+		t.Fatalf("series %d, declined %v", len(res.Series), plan.Declined)
+	}
+	for _, f := range res.Follow {
+		if f.Series != nil && *f.Series == idb {
+			t.Fatal("the declined series' follow was kept")
+		}
+	}
+	for _, c := range []struct {
+		max  uint32
+		fine bool
+	}{{0, false}, {8192, true}, {8193, false}} {
+		p := testutil.ExampleParams()
+		p.MaxWitness = c.max
+		if err := local.DeclinesSeries(p); (err == nil) != c.fine {
+			t.Errorf("max_witness %d: %v", c.max, err)
+		}
+	}
+	local.SeriesCeiling = 0
+	if err := local.DeclinesSeries(testutil.ExampleParams()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// GUI-GREEN-053: each limit says whether a running node applies it in
+// place, from the same list the node uses.
+func TestLimitsSayInPlace(t *testing.T) {
+	seen := 0
+	for _, l := range nodepolicy.Default().Limits() {
+		if l.InPlace != nodepolicy.InPlace[l.Name] {
+			t.Errorf("%s: in_place %v", l.Name, l.InPlace)
+		}
+		if l.InPlace {
+			seen++
+		}
+	}
+	if seen == 0 || seen != len(nodepolicy.InPlace) {
+		t.Fatalf("%d in place, the list has %d", seen, len(nodepolicy.InPlace))
+	}
+}
