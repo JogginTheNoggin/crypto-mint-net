@@ -160,3 +160,10 @@ max parts.
   fix note leaves the terminal out, and the line is on show, but the
   button could ask `farPart` too, or open the line in the terminal
   without running it. Source's `ctx` check would cover this as well.
+
+Round 28C (GUI/Blue), from GUI/Red's R28B note: Run in terminal on a
+form's line now asks the same question as the form (`cmdLine`'s `ask`,
+which `form()` passes from its own `ask`). Release a part's line for a
+far part can't skip the cost confirm by going through the terminal.
+e2e: views.mjs dismisses it, and checks that the terminal isn't opened
+and nothing runs.

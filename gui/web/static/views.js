@@ -226,12 +226,14 @@ export function copyButton(label, text, cls = 'small') {
 // pasted into a shell runs the same poo command (GUI-GREEN-046). Copy is
 // off while the line holds a secret flag, as the terminal keeps such a
 // line out of its history (GUI-006).
-export function cmdLine(args, ctx) {
+// ask, if given, returns a question to confirm before Run in terminal
+// runs the line, as the form asks before it does (GUI-028).
+export function cmdLine(args, ctx, { ask } = {}) {
   const code = el('code', {}, api.quote(args));
   const copy = copyButton('Copy', () => api.copyLine(row.args), 'small copy-cmd');
   copy.title = 'Copy this command line, to run it in a shell';
   const row = el('div', { class: 'cmd' }, el('span', { class: 'cmd-label' }, 'Runs'), code,
-    el('button', { type: 'button', class: 'small', title: 'Type this command into the terminal and run it', onclick: () => ctx.openInTerminal(api.quote(row.args).replace(/^poo /, '')) }, 'Run in terminal'), ' ', copy);
+    el('button', { type: 'button', class: 'small', title: 'Type this command into the terminal and run it', onclick: () => { const q = ask && ask(); if (q && !confirm(q)) return; ctx.openInTerminal(api.quote(row.args).replace(/^poo /, '')); } }, 'Run in terminal'), ' ', copy);
   // Copy is off for a line with a secret, and for one no quoting makes
   // safe to paste into a Windows shell (GUI-024).
   const secret = () => {
@@ -396,7 +398,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   };
   showOnly();
   f.addEventListener('input', showOnly);
-  const line = cmdLine(args(values()), ctx);
+  const line = cmdLine(args(values()), ctx, { ask: askFirst && (() => askFirst(values())) });
   f.addEventListener('input', () => line.set(args(values())));
   const submitBtn = el('button', { type: 'submit', class: danger ? 'danger' : 'primary' }, submit);
   f.append(el('div', { class: 'actions' }, submitBtn));

@@ -593,6 +593,14 @@ try {
     assert.match(asked, /^Part 50000000000 takes poo about 50000000000 hashes to work out.*Stop cannot end it.*job slots.*Run it\?$/);
     await page.waitForTimeout(300);
     assert.equal(await partsJobs(), before, 'a declined far part runs nothing');
+    // Run in terminal on the same line asks the same (GUI/Red R28B).
+    asked = '';
+    page.once('dialog', d => { asked = d.message(); d.dismiss(); });
+    await rel.locator('.cmd button', { hasText: 'Run in terminal' }).click();
+    assert.match(asked, /^Part 50000000000 takes poo about/, 'Run in terminal asks about a far part too');
+    await page.waitForTimeout(300);
+    assert.ok(!page.url().includes('#/terminal'), 'declined, the terminal is not opened');
+    assert.equal(await partsJobs(), before, 'and nothing runs');
     const showParts = section('Parts of a variable series');
     page.once('dialog', d => { asked = d.message(); d.dismiss(); });
     await showParts.locator('input[name=from]').fill('');

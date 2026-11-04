@@ -3,10 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | open: waiting on Source (a plan warning in pkg/nodepolicy), then the GUI line |
 | Found on | main @ adcf216 (PR #193, D170: `-any-ceiling`, `series_ceiling`, declined series in import plans) |
 | Component | pkg/nodepolicy/bundle.go (`mergeInto`: a file's series is checked only by `DeclinesSeries`, and `series_ceiling` is 0, off, by default); pkg/cli/crypto.go (`checkCeiling`, used by `series new` and `init -series` only); gui/web/static/views/policies.js (`showPlan`: an added series is one `+ series` row) |
 | Surface | node (the series a node follows, from a policy file someone else made) |
+| Fixed by | (Source: the plan names the series; then GUI/Blue: a Read first line) |
 
 ## Summary
 
@@ -90,3 +91,37 @@ series is node policy, not consensus, so it can be unfollowed. Rated
   warning) and not in the added rows. A declined plan has no e2e yet,
   as GUI Grey noted. The test with `series_ceiling` set, above, can be
   that one.
+
+## Notes — GUI/Blue, Round 28C (routed, not fixed in the GUI)
+
+**The owner's decision (jerry, 2026-11-04 22:40, relayed by the
+coordinator).** The 4 MiB default ceiling stays off. An import must not
+refuse such a series by default, and must not need an opt-in. Of the
+recommendations above, only a warning is open: the first option,
+declining without `-any-ceiling`, is out, and so is the second, a
+default `series_ceiling`.
+
+**Why the GUI can't warn on its own yet.** `poo policy import -json`
+prints the plan (`pkg/nodepolicy.Plan`). An added series shows up there
+only as a change line (`+ series: 61d1cc6c`), with nothing about its
+`max_witness`. To warn, the GUI would have to read the series out of the
+file and judge its ceiling itself. That is node policy worked out in
+the browser, and the GUI must never diverge from poo (the owner's hard
+rule). It also can't read a file given by path, since only poo-gui's
+poo can.
+
+**Routed to Source (through GUI/Grey).** The plan should name a new
+series whose ceiling is unset or above `CeilingLimit`. That could be a
+line in `Defences`, which poo prints under "read first" and the GUI
+already draws as the `plan-defences` alert, or a new field. It should
+not decline the series. `init -series` and `series new` keep their
+`-any-ceiling` box. Once Source merges, the GUI shows it. With
+`Defences`, it needs no change. With a new field, it gets a Read first
+line like `plan-blocks`, plus an e2e test from Red's repro.
+
+The optional nit (a plan where every series is declined still offers
+Apply) is left as it is this round. Hiding Apply on an empty plan
+changes the GUI-023 tests in views.mjs, which pin Apply's digest on an
+unchanged file ("already the same"). Grey can decide, and poo's JSON
+could carry what its text already does (no digest when nothing
+changes).
