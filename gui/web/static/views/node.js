@@ -131,11 +131,9 @@ export const nodeView = {
         if (!all) return;
         const raw = area.querySelector('.result');
         const vs = all.filter(x => x && x.variable);
-        const body = vs.length ? el('div', { class: 'table-wrap' }, el('table', { class: 'data variable-series' },
-          el('thead', {}, el('tr', {}, ...['series', 'parts released', 'next part', 'mints', 'units', 'newest release'].map(h => el('th', {}, h)))),
-          el('tbody', {}, ...vs.map(x => el('tr', {},
-            el('td', {}, el('code', { class: 'hex', title: x.id }, String(x.id).slice(0, 16) + '…')),
-            ...[x.variable.released, x.variable.next_part ?? 'none (the cap is reached)', x.variable.mints, x.variable.units, x.variable.release ? `part ${x.variable.release.part}` : 'none: part 1 only'].map(c => el('td', {}, String(c)))))))) :
+        const cells = x => [el('code', { class: 'hex', title: x.id }, String(x.id).slice(0, 16) + '…'),
+          ...[x.variable.released, x.variable.next_part ?? 'none (the cap is reached)', x.variable.mints, x.variable.units, x.variable.release ? `part ${x.variable.release.part}` : 'none: part 1 only'].map(String)];
+        const body = vs.length ? variableTable(vs, cells) :
           el('p', { class: 'hint empty' }, `None of the ${all.length} followed series is variable.`);
         const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
         if (raw) { raw.replaceWith(body); det.append(raw); area.append(det); }
@@ -178,3 +176,33 @@ export const nodeView = {
     return stop;
   },
 };
+
+// VARIABLE_ROWS is how many variable series the panel draws at first, and
+// then on each press of Show more. A node can follow up to 4,096 series
+// (pkg/p2p): drawn whole, 4,096 rows were 32,800 elements and doubled the
+// time the Node view took to open (ORANGE-019). Like render.js's tables,
+// 500 show at first.
+const VARIABLE_ROWS = 500;
+
+export function variableTable(vs, cells) {
+  const body = el('tbody');
+  let shown = 0;
+  const more = () => {
+    const part = document.createDocumentFragment();
+    for (const end = Math.min(vs.length, shown + VARIABLE_ROWS); shown < end; shown++) part.append(el('tr', {}, ...cells(vs[shown]).map(c => el('td', {}, c))));
+    body.append(part);
+  };
+  more();
+  const wrap = el('div', { class: 'table-wrap' }, el('table', { class: 'data variable-series' },
+    el('thead', {}, el('tr', {}, ...['series', 'parts released', 'next part', 'mints', 'units', 'newest release'].map(h => el('th', {}, h)))), body));
+  if (shown < vs.length) {
+    const text = document.createTextNode('');
+    const btn = el('button', { type: 'button' }, 'Show more');
+    const note = el('p', { class: 'hint variable-more' }, text, btn);
+    const label = () => { text.textContent = `Showing ${shown} of ${vs.length} variable series. `; };
+    label();
+    btn.onclick = () => { more(); if (shown < vs.length) label(); else note.remove(); };
+    wrap.append(note);
+  }
+  return wrap;
+}

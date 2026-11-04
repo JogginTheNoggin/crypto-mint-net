@@ -249,6 +249,22 @@ try {
     return { items: d.querySelectorAll('li').length, hints: [...d.querySelectorAll('.hint')].map(h => h.textContent) };
   });
   assert.deepEqual(cut, { items: 503, hints: ['Showing 500 of 10000 items; the terminal shows all.'] }, 'a long list is cut at 500 and says so');
+  // The Variable series table draws 500 rows, then 500 more a press
+  // (ORANGE-019): a node can follow 4,096 series.
+  const vt = await page.evaluate(async () => {
+    const { variableTable } = await import('/views/node.js');
+    const vs = Array.from({ length: 1200 }, (_, i) => ({ id: String(i) }));
+    const t = variableTable(vs, x => [x.id, '1', '2', '8', '800', 'none: part 1 only']);
+    const rows = () => t.querySelectorAll('tbody tr').length;
+    const note = () => t.querySelector('.variable-more')?.firstChild.textContent ?? null;
+    const seen = [[rows(), note()]];
+    t.querySelector('.variable-more button').click(); seen.push([rows(), note()]);
+    t.querySelector('.variable-more button').click(); seen.push([rows(), note()]);
+    const small = variableTable(vs.slice(0, 3), x => [x.id, '1', '2', '8', '800', '']);
+    seen.push([small.querySelectorAll('tbody tr').length, small.querySelector('.variable-more')]);
+    return seen;
+  });
+  assert.deepEqual(vt, [[500, 'Showing 500 of 1200 variable series. '], [1000, 'Showing 1000 of 1200 variable series. '], [1200, null], [3, null]], 'the Variable series table draws 500 rows a press');
   await key.locator('button', { hasText: 'Make key' }).click();
   const ask = key.locator('form.ask');
   await ask.waitFor();
