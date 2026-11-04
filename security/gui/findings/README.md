@@ -5,6 +5,48 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 26 Part B reviewed main @ eb74797 (PR #172):
+- the Variable series panel (`series followed`);
+- Add a release, from a path or a picked file sent as `-` (D166);
+- the two-step Release a part, with its self-check (GUI-027's fix);
+- the "waiting for a release" status;
+- GUI-GREEN-051's supply and pool size fields.
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass.
+
+There are no new findings.
+
+Held up:
+- **GUI-027 is fixed.** See its notes: the range shows before the seed,
+  any edit drops Sign, and a series file changed between Preview and
+  Sign is caught.
+- **Add a release.** A release is only accepted if the series' issuer
+  signed it. poo checks it against a followed series, and a release for
+  a series the node doesn't list is refused. So a file from anyone can
+  only add what the issuer really released, and accepting it is
+  correct. View-only refuses `series add-release`. A picked file goes as
+  the job's input, and a typed path drops the pick.
+- **The new panels are drawn as text** from poo's JSON.
+
+Hardening notes for GUI/Blue (optional, not findings):
+- **"Waiting for a release" on a refused submission.** A `pay`, `claim`
+  or `submit` refused this way is not kept by the node: series/released.go
+  says "nothing about it is kept as refused". The muted status could be
+  read as "queued". The status line could add "(not kept: send it again
+  once the part is released; if the issuer never releases it, it never
+  becomes valid)", so that neither payer nor payee counts it as
+  received.
+- **Add a release's confirm** shows `poo series add-release -` for a
+  picked file. Naming the file, as the import dialog does (GUI-023),
+  would say what is being added. It has no security effect, since only
+  a genuine issuer-signed release is accepted.
+- **Release a part, "not the part previewed".** Don't offer Save as file
+  for a release the GUI has just said not to publish.
+- **Source, optional:** `series add-release -` reads standard input
+  with an unbounded `io.ReadAll`. A cap like the peer file's `MaxSize`
+  would bound a huge pick.
+
 Round 25 Part B reviewed main @ 88bd534 (PR #161):
 - the variable supply views (D163): New series with Variable, Sign a
   series, Parts, Release a part, and Check a release;
@@ -507,4 +549,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-024](GUI-024-copied-line-runs-in-windows-shell.md) | Medium | On Windows, Copy quotes the command line for `CommandLineToArgvW`, not a shell, so a field value (one a link can fill) runs other commands when the line is pasted into PowerShell or cmd.exe | fixed by GUI/Blue (Round 21C, #123), merged Round 22; verified R22B @ f4f7945 |
 | [GUI-025](GUI-025-peer-import-hides-blocks.md) | Low | The Import peers preview lists the file's blocks after every added address, with no "Read first" line, so with over 500 addresses no block is on show before Apply | fixed by GUI/Blue (Round 22C), merged Round 23; verified R23B @ 2cacdd5 |
 | [GUI-026](GUI-026-rival-claim-without-parent-submits.md) | Low | "Build a rival claim" with Parent empty submits the claim to the node and peers instead of building it: `required` is never applied by `form()` | fixed by GUI/Blue (Round 23C), merged Round 24; verified R24B @ 2aceb1a |
-| [GUI-027](GUI-027-release-signs-without-showing-what-it-releases.md) | Low | "Release a part" asks for the issuer's seed and signs before showing which serials the release creates; the confirm shows only the command line, and the result has no range | fixed by GUI/Blue (Round 25C) |
+| [GUI-027](GUI-027-release-signs-without-showing-what-it-releases.md) | Low | "Release a part" asks for the issuer's seed and signs before showing which serials the release creates; the confirm shows only the command line, and the result has no range | fixed by GUI/Blue (Round 25C), merged Round 26; verified R26B @ eb74797 |
