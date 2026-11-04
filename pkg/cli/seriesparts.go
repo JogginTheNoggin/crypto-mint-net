@@ -49,7 +49,18 @@ func issuerSigner(seed *seedFlags, s *series.Series, out io.Writer) (policy.Sign
 		return nil, err
 	}
 	if a := s.Address(policy.SingleKey(signer.Alg(), signer.Public())); a != *iss {
-		return nil, fmt.Errorf("this key's 1-of-1 address is %s, not the series' issuer %s", a, iss)
+		// The same seed under another algorithm is another key: name the
+		// one that is the issuer, if any is (GREEN-051).
+		hint := ""
+		for _, k := range policy.Default().Algs() {
+			if k.ID() == signer.Alg() {
+				continue
+			}
+			if o, err := policy.NewSigner(k.ID(), seed.seed); err == nil && s.Address(policy.SingleKey(o.Alg(), o.Public())) == *iss {
+				hint = fmt.Sprintf("; this seed's %s key is the issuer: add -alg %s", k.Name(), k.Name())
+			}
+		}
+		return nil, fmt.Errorf("this key's 1-of-1 address is %s (%s), not the series' issuer %s%s", a, algName(signer.Alg()), iss, hint)
 	}
 	return signer, nil
 }
@@ -64,7 +75,7 @@ func seriesSign(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: poo series sign FILE [-seed-file F]")
+		return errors.New("usage: poo series sign FILE [-seed-file F] [-alg NAME]")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {
@@ -92,7 +103,7 @@ func seriesRelease(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 || (*part == 0) == (*check == "") {
-		return errors.New("usage: poo series release FILE -part K [-seed-file F], or poo series release FILE -check RELEASE|-")
+		return errors.New("usage: poo series release FILE -part K [-seed-file F] [-alg NAME], or poo series release FILE -check RELEASE|-")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {

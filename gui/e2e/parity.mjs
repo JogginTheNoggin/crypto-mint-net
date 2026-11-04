@@ -46,9 +46,9 @@ const LEFT_OUT = {
   'settings import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, D155); a preview has none to send' },
   'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, GUI-023); a preview has none to send' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
-  claim: { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
-  'series sign': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
-  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', part: 'Sign, under the Release a part preview (poo series parts), runs the previewed part with -part (GUI-027)' },
+  claim: { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', alg: 'GREEN-051: the forms sign with Ed25519, the default; choosing another key algorithm in a form is GUI Grey\'s call' },
+  'series sign': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', alg: 'GREEN-051: the forms sign with Ed25519, the default; choosing another key algorithm in a form is GUI Grey\'s call' },
+  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', alg: 'GREEN-051: the forms sign with Ed25519, the default; choosing another key algorithm in a form is GUI Grey\'s call', part: 'Sign, under the Release a part preview (poo series parts), runs the previewed part with -part (GUI-027)' },
   peers: { counts: 'the timed Peers panel runs it, leaving the book to Find peers (ORANGE-017); a panel line is not a form' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
