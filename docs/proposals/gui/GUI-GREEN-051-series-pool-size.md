@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 25 Part B) |
+| Status | adopted (Round 26 Part A) |
 | Based on | main @ 88bd534 |
 | Area | gui/web/static/views/crypto.js (New series parameters), gui/e2e/parity.mjs, gui/e2e/views.mjs |
 | Effort | small |

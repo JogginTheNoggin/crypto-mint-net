@@ -126,9 +126,16 @@ function releaseForm(ctx) {
           try { rel = JSON.parse(r2.out); } catch (_) { /* shown as printed */ }
           const same = rel && rel.series === p.series && rel.part === p.part;
           out.append(same
-            ? el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. Save it, then Check a release below confirms it.`)
+            ? el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. poo checks it below.`)
             : el('p', { class: 'run-status bad release-differs', role: 'alert' }, 'This release is not the part previewed (the series file changed?): do not publish it. Preview again.'),
           saveAs(r2.out, `release-${p.part}.json`));
+          // poo checks the release just printed, read from its input
+          // (-check -), so what is saved is what poo says it releases.
+          if (same) {
+            const checked = el('div', { class: 'area release-check' });
+            out.append(checked);
+            runJob(['series', 'release', p.file, '-check', '-'], checked, { onStart: j => api.inputFile(j.id, new Blob([r2.out])).catch(() => {}) });
+          }
         });
       };
       dropSign = () => { what.remove(); actions.remove(); previewed = null; dropSign = () => {}; };

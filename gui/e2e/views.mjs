@@ -532,8 +532,10 @@ try {
   assert.match(relAsked, /^Release part 2 of series [0-9a-f]{12}: serials 8 to 11, .*serials 0 to 11: 12 mints\? This runs poo series release .* -part 2 -seed-file - and cannot be taken back\.$/);
   await masked(rel, vseed);
   await rel.locator('.release-made').waitFor();
-  assert.match(await rel.locator('.area .area').innerText(), /previous/i, 'the release is printed');
-  await rel.locator('.area .area button.save-as').waitFor();
+  assert.match(await rel.locator('.area .area').first().innerText(), /previous/i, 'the release is printed');
+  await rel.locator('.area .area button.save-as').first().waitFor();
+  // poo checks the release just signed, sent on its input (-check -).
+  await rel.locator('.release-check .result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
   // A series with no most parts takes any part: part 50 of an 8-mint
   // series is named as serials 0 to 203 before anything is signed.
   const open = join(home, 'open-series.json');

@@ -145,16 +145,17 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Settable limits | Every limit the node policy can set, with its range, default, the value node.json sets and the one in effect, read from `poo policy limits`, so a new limit shows without a GUI change; Set limits has a field for each limit `poo policy limits` listed, showing its value in effect, range and default (GUI-GREEN-049), and saves the ones filled as `NAME=VALUE` pairs, refused whole when one is out of range; a running node takes them at once | `poo policy limits`, `-set` (D159, D160, D161) |
 | Series and keys | Crypto choices, keygen, new series (with an example) with its mints, units per mint and pool size (GUI-GREEN-051), with Save as file, and series info | `poo crypto`, `keygen`, `series` |
 | Variable supply series | A new series can be variable: an issuer, the part size and an optional cap on parts (empty: no cap), checked by poo. Sign a series as its issuer; the parts of a variable series as ranges (serials, pools, part id), 1,000 at a time and never on a timer (ORANGE-018); release part K in two steps: Preview names the serials it brings into being (and every part before it), then Sign signs that part only, and any change takes Sign away (GUI-027); it says it is permanent, with Save as file; check a release file. Seeds go in the masked field. Phase 1: a node does not follow a variable series yet | `poo series new -variable`, `series sign`, `series parts`, `series release` (D163) |
+| Variable series on a node | The Node view's Variable series panel shows each followed series that can grow, as `poo series followed` prints it: parts released, the next part, the mints and units that exist now, and the newest release held. Add a release gives the node an issuer's release, as a path or a file picked in the browser (sent as `-`); it is checked and kept, and the node follows the new mints. After Sign, Release a part checks the release just printed (`-check -`). A claim on a part not released yet is shown as waiting for a release, in the node's own words, not as a failure | `poo series followed`, `series add-release`, `series release -check -` (D166) |
 | Simulate | The network simulator's scenarios | `poo sim` |
 
-Planned: the rest of variable supply series (released parts, total supply, a transaction waiting for a release), built once Source merges phase 2 ([gui-variable-supply-plan.md](gui-variable-supply-plan.md)).
+Planned: the variable supply views of Source phase 3, built once Source merges them ([gui-variable-supply-plan.md](gui-variable-supply-plan.md)).
 
 ### Quality checks
 
 | Feature | What it does | Code |
 | --- | --- | --- |
 | Flag parity | CI fails if a subcommand `poo help` lists is run by no view, a flag `poo CMD -h` lists is sent by no form (unless listed with a reason), a field's stated default differs from `poo -h`, or a field's fixed set of values (book states, event kinds) differs from the one `poo -h` lists | `gui/e2e/parity.mjs` (GUI-GREEN-042, 043, 045, 048) |
-| End-to-end tests | Nine browser scripts run in CI against real nodes | `gui/e2e` |
+| End-to-end tests | Ten browser scripts run in CI against real nodes (`variable.mjs`: a node following a variable series) | `gui/e2e` |
 | Performance re-checks | GUI/Orange measures a soak, page load, Watch and Work at high rates and large results every round | `gui/perf`, `docs/proposals/gui/README.md` |
 
 ## Adding a feature
