@@ -74,16 +74,18 @@ type Options struct {
 
 // Node is a running full node.
 type Node struct {
-	mu     sync.Mutex
-	dir    string
-	pol    nodepolicy.Policy
+	mu  sync.Mutex
+	dir string
+	pol nodepolicy.Policy
 	// run is pol with the limits applied in place since Open (D168),
 	// guarded by mu.
 	run nodepolicy.Policy
-	eng    *engine.Engine
-	logs   map[engine.PoolKey]*store.Log
-	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
-	failed sync.Map     // pool keys whose store stopped, logged once
+	// policyMu: PolicyMu.
+	policyMu sync.Mutex
+	eng      *engine.Engine
+	logs     map[engine.PoolKey]*store.Log
+	log      *slog.Logger // the node's logger; Logger gives it to p2p and rpc
+	failed   sync.Map     // pool keys whose store stopped, logged once
 	// kept paces the extra layers a layer floor keeps (RED-018).
 	kept   keptBucket
 	cmin   int

@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
@@ -58,4 +59,14 @@ func (h *Host) Chasing() int {
 	h.idxMu.RLock()
 	defer h.idxMu.RUnlock()
 	return len(h.chasing)
+}
+
+// SendRelease sends r to every connected peer as it is, unchecked, so a
+// test can pass on a release that does not check.
+func (h *Host) SendRelease(r series.Release) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, p := range h.peers {
+		p.send(h.releaseMsg(r))
+	}
 }

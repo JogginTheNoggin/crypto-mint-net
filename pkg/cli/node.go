@@ -209,7 +209,7 @@ func readSeriesInfo(b []byte) (nodepolicy.SeriesInfo, error) {
 
 // waitingHint follows a mint that waits for its part's release: what
 // releases it at this node (GREEN-050).
-const waitingHint = "; once the issuer publishes that part's release, give it to the node with poo series add-release FILE (poo series followed shows what is released here)"
+const waitingHint = "; once the issuer publishes that part's release, peers pass it on, or give it to the node with poo series add-release FILE (poo series followed shows what is released here)"
 
 // variableNote says what a variable series needs before the node follows
 // it (D166, GREEN-049): it is kept, not wrong.

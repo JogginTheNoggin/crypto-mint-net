@@ -82,9 +82,20 @@ func startNodeIn(t *testing.T, name string, s *series.Series, edit func(*p2p.Con
 // is still pool 1.
 func startNodeWith(t *testing.T, name string, s *series.Series, follow nodepolicy.Follow, edit func(*p2p.Config)) *tnode {
 	t.Helper()
+	return startNodeInfo(t, name, nodepolicy.SeriesInfo{Params: s.Params()}, follow, edit)
+}
+
+// startNodeInfo is startNodeWith for the series node.json lists as info,
+// such as a variable series with its issuer witness.
+func startNodeInfo(t *testing.T, name string, info nodepolicy.SeriesInfo, follow nodepolicy.Follow, edit func(*p2p.Config)) *tnode {
+	t.Helper()
+	s, err := series.New(info.Params)
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := s.ID()
 	pol := nodepolicy.Default()
-	pol.Series = []nodepolicy.SeriesInfo{{Params: s.Params()}}
+	pol.Series = []nodepolicy.SeriesInfo{info}
 	pol.Follow = []nodepolicy.Follow{follow}
 	pol.RPC.Listen = "off"
 	pol.NoSync = true

@@ -58,6 +58,11 @@ const (
 	TypeEntry  Type = 11
 	TypeLayer  Type = 12
 	TypeNotice Type = 13
+	// TypeRelease passes on the newest release of a variable series the
+	// sender knows: the release's byte form (series.Release.Encode) in a
+	// series section. A node that does not know the type ignores it, so
+	// it needs no new protocol version (variable supply phase 3, D168).
+	TypeRelease Type = 14
 
 	TypeExtensionReq  Type = 20
 	TypeHashChainReq  Type = 21
@@ -95,7 +100,7 @@ const (
 )
 
 var typeNames = map[Type]string{
-	TypeHello: "hello", TypeTx: "tx", TypeEntry: "entry", TypeLayer: "layer", TypeNotice: "notice",
+	TypeHello: "hello", TypeTx: "tx", TypeEntry: "entry", TypeLayer: "layer", TypeNotice: "notice", TypeRelease: "release",
 	TypeExtensionReq: "extension-request", TypeHashChainReq: "hash-chain-request", TypeEntriesReq: "entries-request",
 	TypeFullLedgerReq: "full-ledger-request", TypeLayersReq: "layers-request", TypeWeightReq: "weight-request",
 	TypeExtension: "extension", TypeNothingHeavier: "nothing-heavier", TypeNotFromHere: "heavier-not-from-here",

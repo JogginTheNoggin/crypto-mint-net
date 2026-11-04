@@ -259,7 +259,11 @@ type partRow struct {
 	LastPool  uint64 `json:"last_pool"`
 	Mints     uint64 `json:"mints"`
 	Units     uint64 `json:"units"`
-	ID        string `json:"part_id"`
+	// MintsReleased is the mints that exist once the part is released:
+	// every part's through this one, serials 0 to last_serial (GUI Grey,
+	// R26), as release -check gives it.
+	MintsReleased uint64 `json:"mints_released"`
+	ID            string `json:"part_id"`
 }
 
 // partRowOf returns part k's row.
@@ -277,7 +281,11 @@ func partRowOf(s *series.Series, k uint64) (partRow, error) {
 	if n != 0 && units/n != s.Supply() {
 		units = 0 // more than 64 bits hold; left out
 	}
-	return partRow{k, f, l, s.PoolOf(f), s.PoolOf(l), n, units, id.String()}, nil
+	through, err := s.MintsThrough(k)
+	if err != nil {
+		return partRow{}, err
+	}
+	return partRow{k, f, l, s.PoolOf(f), s.PoolOf(l), n, units, through, id.String()}, nil
 }
 
 // partRows returns the rows of parts from to last, stopping early at the

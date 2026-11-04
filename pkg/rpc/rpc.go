@@ -186,13 +186,18 @@ type Handler struct {
 	addr   string // the address in rpc.addr, which hello binds
 	mux    *http.ServeMux
 	// policyMu serialises the edits of node.json (follow, unfollow, the
-	// grind schedule), each a read, a change and a write (RED-013).
-	policyMu sync.Mutex
+	// grind schedule), each a read, a change and a write (RED-013). It is
+	// the node's own (node.PolicyMu), which the p2p host takes too when it
+	// keeps a release a peer passed on (D168).
+	policyMu *sync.Mutex
 }
 
 // NewHandler returns the HTTP handler for n, accepting only token.
 func NewHandler(n *node.Node, token string) *Handler {
-	h := &Handler{n: n, token: []byte(token), mux: http.NewServeMux()}
+	h := &Handler{n: n, token: []byte(token), mux: http.NewServeMux(), policyMu: &sync.Mutex{}}
+	if n != nil {
+		h.policyMu = n.PolicyMu()
+	}
 	h.mux.HandleFunc("GET /v1/status", h.status)
 	h.mux.HandleFunc("GET /v1/series", h.series)
 	h.mux.HandleFunc("POST /v1/tx", h.submitTx)

@@ -108,8 +108,14 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	rs := n.Replayed()
 	nlog.Info("started", "dir", dir, "pools", n.Engine().FollowedCount(),
 		"records", rs.Records, "stores", rs.Pools, "kept", rs.Kept)
+	var once sync.Once
+	asked := make(chan struct{})
+	ask := func() { once.Do(func() { close(asked) }) }
 	cfg := p2p.FromPolicy(n.Policy())
 	cfg.Logger = n.Logger()
+	// A release passed on by a peer that the host cannot take in place
+	// reloads the node (D168).
+	cfg.Reload = ask
 	book, err := peers.Open(filepath.Join(dir, peers.FileName), n.Policy().BookLimits())
 	if err != nil {
 		return false, errors.Join(err, n.Close())
@@ -138,9 +144,6 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 
 	inner, cancel := context.WithCancel(ctx)
 	defer cancel()
-	var once sync.Once
-	asked := make(chan struct{})
-	ask := func() { once.Do(func() { close(asked) }) }
 	go func() {
 		for {
 			select {

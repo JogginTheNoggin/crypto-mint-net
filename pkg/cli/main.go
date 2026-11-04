@@ -29,6 +29,8 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 )
 
@@ -195,9 +197,31 @@ type Stdio struct {
 func Main(ctx context.Context, args []string, s Stdio) int {
 	if err := Run(ctx, args, s); err != nil {
 		fmt.Fprintln(s.Err, "poo:", err)
-		return 1
+		return ExitCode(err)
 	}
 	return 0
+}
+
+// The exit codes of poo: 0 done, 1 refused or failed, and ExitWaiting.
+const (
+	ExitFailed = 1
+	// ExitWaiting: refused only because the mint's part is not released at
+	// this node yet (D166), as the RPC's 409 waiting says. It is not an
+	// invalid mint, and the same command works once the release arrives,
+	// from a peer or from poo series add-release (D168).
+	ExitWaiting = 3
+)
+
+// ExitCode returns the exit code for a command's error.
+func ExitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	var re *rpc.Error
+	if errors.Is(err, series.ErrWaiting) || (errors.As(err, &re) && re.Code == rpc.CodeWaiting) {
+		return ExitWaiting
+	}
+	return ExitFailed
 }
 
 // Run runs the command line args and returns its error.
