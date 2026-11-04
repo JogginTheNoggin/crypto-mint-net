@@ -5,6 +5,55 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 24 Part B reviewed main @ 2aceb1a (PR #151):
+- GUI-026's fix, with `required` enforced in `form()`;
+- GUI-GREEN-049, one field per limit in Set limits;
+- the ORANGE-017 note sentences;
+- docs/gui-variable-supply-plan.md.
+
+GitHub Actions is off, so I checked everything locally.
+
+There are no new findings.
+
+Held up:
+- **GUI-026 is fixed.** See its notes. A Parent that is empty or only
+  spaces runs nothing. That holds through the button and through a raw
+  submit event. Nothing reaches the pending pool.
+- **Per-limit fields.** Each field's name comes from poo's `policy limits`
+  JSON, and each value goes into one `-set NAME=VALUE` argument. I typed
+  `1 -set seen_size=1024` into `ties`. It went as a single argument,
+  `'ties=1 -set seen_size=1024'`, and poo refused it with "want
+  NAME=VALUE". No second `-set` was made. The confirm dialog shows the
+  whole line before anything is saved.
+
+Plan review (docs/gui-variable-supply-plan.md), notes for GUI/Grey from
+the security side. None of these is a finding yet, since nothing is
+built:
+- **Release import.** "The same way the other imports work" should say
+  so outright:
+  - a preview whose Apply is pinned by `-if-digest` to the file
+    previewed (GUI-023);
+  - the issuer's key and the series named in a "Read first" line, so a
+    release signed by someone else, or for another series, stands out
+    (GUI-025);
+  - a required File (GUI-026).
+- **"Waiting for a release" must not read as money received.** A
+  transaction for a part the issuer hasn't released may never become
+  valid. If the issuer never releases, it never will. The Wallet and
+  Explore should neither count it in a balance nor show it as pending
+  income. They should say it may never be valid, so that a payee doesn't
+  hand over goods for it. Whether the node keeps such transactions at
+  all (pending pool space) is Source's call.
+- **The issuer's seed** should only go through `-seed-file -` and the
+  masked prompt, as the rival claim does now. Release's preview should
+  run without the seed where Source allows it, so a typo in the part
+  number costs no signature.
+- **A release from outside** (a picked file, a link, or a Watch
+  "release" event) should only ever fill a form for preview. It should
+  never import on its own.
+- **Untrusted text.** Part tables and release files from others should be
+  drawn as text, as the plan tables are today.
+
 Round 23 Part B reviewed main @ 2cacdd5 (PR #146: the Settable limits
 panel and Set limits (D159-D161), Build's `-parent`, "Build a rival
 claim", GUI-GREEN-048's tick boxes, and Blue's GUI-025 fix). GitHub
@@ -425,4 +474,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-023](GUI-023-import-apply-other-file.md) | Low | Import's Apply sends whatever file is picked now, not the one previewed, so a file never reviewed is applied; the confirm shows only `-apply -` | fixed by GUI/Blue (Round 18C) and Source `-if-digest` (D151), merged Round 19; verified R19B @ e71e317 |
 | [GUI-024](GUI-024-copied-line-runs-in-windows-shell.md) | Medium | On Windows, Copy quotes the command line for `CommandLineToArgvW`, not a shell, so a field value (one a link can fill) runs other commands when the line is pasted into PowerShell or cmd.exe | fixed by GUI/Blue (Round 21C, #123), merged Round 22; verified R22B @ f4f7945 |
 | [GUI-025](GUI-025-peer-import-hides-blocks.md) | Low | The Import peers preview lists the file's blocks after every added address, with no "Read first" line, so with over 500 addresses no block is on show before Apply | fixed by GUI/Blue (Round 22C), merged Round 23; verified R23B @ 2cacdd5 |
-| [GUI-026](GUI-026-rival-claim-without-parent-submits.md) | Low | "Build a rival claim" with Parent empty submits the claim to the node and peers instead of building it: `required` is never applied by `form()` | fixed by GUI/Blue (Round 23C) |
+| [GUI-026](GUI-026-rival-claim-without-parent-submits.md) | Low | "Build a rival claim" with Parent empty submits the claim to the node and peers instead of building it: `required` is never applied by `form()` | fixed by GUI/Blue (Round 23C), merged Round 24; verified R24B @ 2aceb1a |
