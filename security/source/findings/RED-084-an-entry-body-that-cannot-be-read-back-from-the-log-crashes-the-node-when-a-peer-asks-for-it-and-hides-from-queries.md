@@ -65,9 +65,11 @@ switched between 0, 1 KiB and 1 GiB, 60 compactions, `-race`: 28,116 reads,
 
 - A node whose log is damaged after start (bit rot, a failing disk, a
   restore or `logrotate copytruncate` over a running node, a log trimmed by
-  hand) is crashed by **any** peer that asks for the unreadable entry, as
-  often as the node restarts, since the peers ask again after it reconnects.
-  Before D172 a node could only fail this way at start, where the log is cut
+  hand) is crashed by **any** peer that asks for the unreadable entry. The node
+  starts again, finds the log cut at the first bad record, and refetches
+  what was lost, so the crash is one per damage, but a peer can cause it at
+  the moment it likes and for every node that shares the damage (a restored
+  backup, a bad batch of disks). Before D172 a node could only fail this way at start, where the log is cut
   at the first bad record.
 - A wallet or receiver reading `payment`/`rivals` can be told "no rivals".
 - The damage is invisible until the crash.
