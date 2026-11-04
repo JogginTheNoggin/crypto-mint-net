@@ -417,6 +417,33 @@ export function choices(name, options, legend, flagName) {
   return set;
 }
 
+// pickFile adds "Or pick a file" under a form's file field. A file picked
+// in the browser goes to poo on its standard input: the field becomes -,
+// and feed(job) sends the file's text, then end of input, as poo reads it
+// (ORANGE-014). Typing a path again drops the picked file. Nothing is
+// stored by the GUI. get() is the file picked now, or null; onPick runs
+// when one is picked. Every form that takes a file this way uses it
+// (GUI-GREEN-052).
+export function pickFile(f, { field = 'file', onPick } = {}) {
+  const fileIn = f.inputs[field];
+  let picked = null;
+  const pick = el('input', { type: 'file', accept: '.json,application/json', name: field === 'file' ? 'pick' : `pick-${field}` });
+  pick.onchange = () => {
+    const file = pick.files && pick.files[0];
+    if (!file) return;
+    picked = file;
+    if (onPick) onPick(file);
+    fileIn.value = '-';
+    fileIn.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  fileIn.addEventListener('input', () => { if (fileIn.value.trim() !== '-') { picked = null; pick.value = ''; } });
+  fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poo as its input (- above); nothing is stored by the GUI')));
+  return {
+    get: () => picked,
+    feed: (j, file = picked) => { if (file && fileIn.value.trim() === '-') api.inputFile(j.id, file).catch(() => {}); },
+  };
+}
+
 // flag adds -name value when value is set.
 export const flag = (name, value) => (value === '' || value === undefined || value === false) ? [] : value === true ? [`-${name}`] : [`-${name}`, value];
 export const flags = (name, list) => list.flatMap(v => [`-${name}`, v]);

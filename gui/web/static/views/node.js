@@ -1,7 +1,7 @@
 // The Node view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { cmdLine, el, flag, flags, form, mountAll, panel } from '../views.js';
+import { cmdLine, el, flag, flags, form, mountAll, panel, pickFile } from '../views.js';
 import { scrollback } from '../scroll.js';
 
 // node finds the node job this GUI is running, if any.
@@ -143,25 +143,13 @@ export const nodeView = {
     // A release made by the issuer reaches a node as a file (D166): poo
     // checks it, keeps it in node.json and the node reloads to follow the
     // new parts' mints. A file picked here goes to poo as its input (-).
-    let picked = null;
+    let picker = null;
     const addRelease = form(ctx, { title: 'Add a release', about: 'Gives the node a release of a variable series it follows. poo checks it against the series, saves it in node.json, and the node then follows the new parts\' mints. A release can never be taken back.',
       fields: [{ name: 'file', label: 'Release file', placeholder: 'a path on this machine, or pick one below', required: true }],
       args: v => ['series', 'add-release', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Add release', danger: true,
-      onStart: j => { if (picked && addRelease.inputs.file.value.trim() === '-') api.inputFile(j.id, picked).catch(() => {}); },
+      onStart: j => picker.feed(j),
       onResult: r => { if (r.code === 0) { variable.reload(); status.reload(); } } });
-    {
-      const fileIn = addRelease.inputs.file;
-      const pick = el('input', { type: 'file', accept: '.json,application/json', name: 'pick' });
-      pick.onchange = () => {
-        const file = pick.files && pick.files[0];
-        if (!file) return;
-        picked = file;
-        fileIn.value = '-';
-        fileIn.dispatchEvent(new Event('input', { bubbles: true }));
-      };
-      fileIn.addEventListener('input', () => { if (fileIn.value.trim() !== '-') { picked = null; pick.value = ''; } });
-      fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poo as its input (FILE is -); nothing is stored by the GUI')));
-    }
+    picker = pickFile(addRelease);
     const t = setInterval(showRunning, 3000);
     // poo doctor checks the policy, files, series, RPC and P2P in one go.
     // Its report is drawn as a checklist; the raw output stays one click away.
