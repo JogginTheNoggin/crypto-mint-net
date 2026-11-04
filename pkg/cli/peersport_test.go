@@ -218,6 +218,9 @@ func TestPeersRunning(t *testing.T) {
 	if cr.Counts == nil || cr.Counts.Addresses != 3 || len(cr.Book) != 0 || cr.Counts.States["unlisted"] != 2 {
 		t.Fatalf("-counts: %+v %+v", cr.Counts, cr.Book)
 	}
+	if out := runOut(t, "peers", "-counts", "-root", root); strings.Contains(out, `"book"`) || strings.Contains(out, `"peers"`) {
+		t.Fatalf("-counts printed the lists it leaves out:\n%s", out)
+	}
 	if err := run([]string{"peers", "-counts", "-label", "x", "-root", root}, &o); err == nil {
 		t.Fatal("-counts went with a filter")
 	}

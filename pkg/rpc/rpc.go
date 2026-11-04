@@ -64,6 +64,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -119,7 +120,10 @@ const (
 	CodeInvalid        = "invalid"
 	CodeFull           = "full"
 	CodeNothingPending = "nothing_pending"
-	CodeInternal       = "internal"
+	// CodeWaiting: a transaction on a mint whose part this node has not
+	// seen released; not invalid, it waits for a release (D166).
+	CodeWaiting  = "waiting"
+	CodeInternal = "internal"
 )
 
 // Error is an error reply.
@@ -204,6 +208,7 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("POST /v1/peer", h.peer)
 	h.mux.HandleFunc("POST /v1/peers/import", h.importPeers)
 	h.mux.HandleFunc("POST /v1/policy/limits", h.setLimits)
+	h.mux.HandleFunc("POST /v1/series/release", h.addRelease)
 	h.mux.HandleFunc("POST /v1/peers/forget-imported", h.forgetImported)
 	h.mux.HandleFunc("GET /v1/metrics", h.metrics)
 	h.viewRoutes()
@@ -351,6 +356,10 @@ func classify(err error) *Error {
 		code, status = CodeInvalid, http.StatusUnprocessableEntity
 	case errors.Is(err, mempool.ErrFull):
 		code, status = CodeFull, http.StatusServiceUnavailable
+	case errors.Is(err, tx.ErrWaiting):
+		// Not invalid: the node has not seen the release of the mint's
+		// part yet (D166).
+		code, status = CodeWaiting, http.StatusConflict
 	case errors.Is(err, engine.ErrNothingPending), errors.Is(err, engine.ErrNoStrongerLayer):
 		code, status = CodeNothingPending, http.StatusConflict
 	}
@@ -361,6 +370,7 @@ func isTxRule(err error) bool {
 	for _, e := range []error{
 		tx.ErrWrongSeries, tx.ErrSerialRange, tx.ErrNoOutputs, tx.ErrZeroAmount, tx.ErrRepeatedAddress,
 		tx.ErrRepeatedInput, tx.ErrOverflow, tx.ErrClaimSupply, tx.ErrWitnessCount, tx.ErrWitness,
+		tx.ErrWrongPart,
 	} {
 		if errors.Is(err, e) {
 			return true
@@ -449,13 +459,54 @@ type SeriesInfo struct {
 	ID     hash.Hash     `json:"id"`
 	Params series.Params `json:"params"`
 	Pools  uint64        `json:"pools"`
+	// Variable is set for a variable series: what this node knows released
+	// (D166). A fixed series' reply is as before.
+	Variable *VariableInfo `json:"variable,omitempty"`
+}
+
+// VariableInfo is what a node knows of a variable series' parts, worked out
+// by poo so a front end holds no rule of its own (GUI-GREEN-050).
+type VariableInfo struct {
+	// Released is the newest part released at this node.
+	Released uint64 `json:"released"`
+	// NextPart is the next part the issuer can release, left out when the
+	// largest number of parts is reached.
+	NextPart uint64 `json:"next_part,omitempty"`
+	// Mints is the serials that exist here: 0 to Mints − 1.
+	Mints uint64 `json:"mints"`
+	// Units is Mints × S in decimal, the supply so far, which may pass 64
+	// bits.
+	Units string `json:"units"`
+	// Release is the newest release the node keeps, left out while only
+	// part 1 is released. A client adds it to its own copy of the series
+	// (Series.AddRelease checks it), so it knows the same parts.
+	Release *series.Release `json:"release,omitempty"`
+}
+
+// VariableOf returns what is known of a variable series, nil for a fixed one.
+func VariableOf(s *series.Series) *VariableInfo {
+	if !s.IsVariable() {
+		return nil
+	}
+	v := &VariableInfo{Released: s.Released(), Mints: s.Mints()}
+	if m := s.MaxParts(); m == 0 || v.Released < m {
+		if _, err := s.MintsThrough(v.Released + 1); err == nil {
+			v.NextPart = v.Released + 1
+		}
+	}
+	if r, ok := s.NewestRelease(); ok {
+		v.Release = &r
+	}
+	u := new(big.Int).SetUint64(v.Mints)
+	v.Units = u.Mul(u, new(big.Int).SetUint64(s.Supply())).String()
+	return v
 }
 
 func (h *Handler) series(w http.ResponseWriter, r *http.Request) {
 	out := []SeriesInfo{}
 	for _, id := range h.n.Engine().FollowedSeries() {
 		s, _ := h.n.Engine().Series(id)
-		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount()})
+		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount(), Variable: VariableOf(s)})
 	}
 	writeJSON(w, out)
 }
@@ -831,7 +882,9 @@ func (h *Handler) mintRef(r *http.Request) (*series.Series, uint64, *Error) {
 	if !ok {
 		return nil, 0, classify(engine.ErrUnknownSeries)
 	}
-	if serial >= s.Mints() {
+	if err := tx.CheckMint(s, s.Mint(serial)); errors.Is(err, tx.ErrWaiting) {
+		return nil, 0, classify(err)
+	} else if err != nil {
 		return nil, 0, badRequest("serial out of range")
 	}
 	return s, serial, nil

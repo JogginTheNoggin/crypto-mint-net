@@ -36,7 +36,7 @@ built only as those documents specify. Anything else needs his permission.
 | Phase | Round | What | State |
 | --- | --- | --- | --- |
 | 1 | 24 | The definition, parts and releases: params, byte form v2, validation, part ranges and ids, release records and checks, issuer tools (`poo series new -variable`, `sign`, `release`, `parts`), vectors. A node refuses to follow a variable series: it is unreadable at this node, never invalid. | Built (D163) |
-| 2 | 25 | Mints and transactions: a mint names its part, the tid covers it, claims and spends on released parts, a node keeps the newest release it knows for each series, and a transaction past it waits instead of failing. Pools past part 1. A node follows variable series. | Next |
+| 2 | 25 | Mints and transactions: a mint names its part, the tid covers it, claims and spends on released parts, a node keeps the newest release it knows for each series, and a transaction past it waits instead of failing. Pools past part 1. A node follows variable series. | Built (D166) |
 | 3 | 26 | Passing releases on: nodes hand releases to their peers and through the RPC, the GUI shows parts and releases, and Red and Black test the whole path. | Later |
 
 Fixed series stay exactly as they are in every phase. Each phase adds
@@ -117,10 +117,48 @@ run on fixed series only.
   example series (N = 50,000, M = 10,000, S = 1, P = 1,000), its part ids
   and a release of part 2. It sits beside the frozen v1 file.
 
-## Open for phase 2
+## Phase 2, as built (D166)
+
+- **Naming a mint.** `series.MintID` has a `Part`, set for a variable series
+  only. A variable transaction's body is `series ∥ U64 part ∥ U64 serial ∥ …`,
+  so the tid covers the part. A fixed transaction is unchanged, byte for
+  byte. The decoder reads the part when the series id is one of the
+  variable series this process has built (`series.IsVariableID`): every
+  entry belongs to a pool of a followed series, so the series is known
+  before its transactions are read. The form is in
+  [protocol/encoding-variable.md](protocol/encoding-variable.md#transactions).
+- **One name.** The part must be `PartOf(serial)`. A fixed mint may not name
+  a part (`series.ErrWrongPart`).
+- **Released parts.** A series counts its released parts. Part 1 is
+  released by the issuer witness: a variable series in node.json without
+  one is kept and not followed (`nodepolicy.ErrNoPartOne`). `Mints()` and
+  `PoolCount()` count released parts only.
+- **Waiting.** A mint on a part past the newest release returns
+  `series.ErrWaiting`, decided before any hashing. It is never invalid and
+  never cached, so the same transaction is taken once the release arrives.
+  Pools of unreleased parts are not followed yet, so p2p ignores their
+  entries with no penalty. The RPC answers 409 `waiting`.
+- **Releases.** A node keeps only the newest release of each series
+  (`series[].release` in node.json), which proves every part before it.
+  `Series.AddRelease` answers a known part at once, checks a newer one
+  (witness first) and moves the count up. The count never goes down.
+- **Tools.** `poo series add-release RELEASE` (and `POST
+  /v1/series/release`) checks a release, saves it and reloads the node.
+  `poo series followed` (and `GET /v1/series`) shows `variable{released,
+  next_part, mints, units, release}`. `poo series sign` prints a signed
+  series file that `poo init -series` and `poo series info` read.
+- **Tests.** `TestFixedTxUnchanged` (2,000 random fixed transactions against
+  a frozen v1 body), `TestVariableMints`, `TestVariableSeriesWaitsForRelease`,
+  `TestVariableFollowed`, `TestVariableSeriesOnANode`, and a part 2 claim in
+  `pkg/vectors/testdata/variable.json`.
+
+## Phase 1's open questions, answered
+
+These were the implementation questions phase 2 had to settle.
+
 
 These are implementation questions. The documents settle what is valid, but
-not how this code carries it.
+not how this code carries it. D166 answers each one.
 
 - **Where the part goes in a transaction's bytes.** A transaction is
   decoded today without knowing its series. A part in the body changes the
@@ -138,4 +176,5 @@ not how this code carries it.
   the first time. Only the issuer can make a node do this, because the
   witness is checked first. A node policy may limit how far a node works
   out part ids, as a limit on what it follows. It may never limit what is
-  valid.
+  valid. None is built: D165 keeps the memory bounded, so only time is
+  spent.

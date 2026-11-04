@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 )
 
@@ -24,11 +26,12 @@ func readSeriesFile(file string) (*series.Series, error) {
 	if err != nil {
 		return nil, err
 	}
-	var p series.Params
-	if err := json.Unmarshal(b, &p); err != nil {
+	// A params file or a signed series file (poo series sign) both read.
+	info, err := readSeriesInfo(b)
+	if err != nil {
 		return nil, fmt.Errorf("%s: %w", file, err)
 	}
-	return series.New(p)
+	return series.New(info.Params)
 }
 
 // issuerSigner reads the issuer's seed and checks that its 1-of-1
@@ -70,10 +73,9 @@ func seriesSign(args []string, out io.Writer) error {
 		return err
 	}
 	w := policy.SingleKeyWitness(signer, s.IssuerMessageTID())
-	return writeJSON(out, struct {
-		ID      string `json:"series_id"`
-		Witness string `json:"issuer_witness"`
-	}{s.ID().String(), nodepolicy.EncodeWitness(w)})
+	// The series with its witness: poo init -series takes this file, and
+	// node.json's issuer_witness is the witness.
+	return writeJSON(out, signedSeries{ID: s.ID().String(), Params: s.Params(), IssuerWitness: nodepolicy.EncodeWitness(w)})
 }
 
 // seriesRelease is poo series release: sign part K of a variable series as
@@ -194,12 +196,16 @@ func seriesParts(args []string, out io.Writer) error {
 	fs := newFlagSet("series parts", out)
 	from := fs.Uint64("from", 1, "the first part to list")
 	to := fs.Uint64("to", 0, "the last part to list (default: from + 9, or the largest number of parts)")
+	o := addOutput(fs)
 	pos, err := parseMixed(fs, args)
 	if err != nil {
 		return err
 	}
+	if err := o.check(); err != nil {
+		return err
+	}
 	if len(pos) != 1 || *from == 0 {
-		return errors.New("usage: poo series parts FILE [-from K] [-to K] (parts count from 1)")
+		return errors.New("usage: poo series parts FILE [-from K] [-to K] [-o json|table] (parts count from 1)")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {
@@ -230,7 +236,7 @@ func seriesParts(args []string, out io.Writer) error {
 	if info.Parts, err = partRows(s, *from, last); err != nil {
 		return err
 	}
-	return writeJSON(out, info)
+	return o.write(out, info)
 }
 
 // partRow is one part as the tools print it: its serials and pools as
@@ -280,4 +286,111 @@ func partRows(s *series.Series, from, last uint64) ([]partRow, error) {
 		rows = append(rows, r)
 	}
 	return rows, nil
+}
+
+// seriesAddRelease is poo series add-release: give the node a release of a
+// variable series (D166). A running node checks it, keeps it in node.json
+// when it is newer than the release kept, and reloads to follow the new
+// parts; with the node stopped, node.json is changed under its lock.
+func seriesAddRelease(args []string, out io.Writer) error {
+	fs := newFlagSet("series add-release", out)
+	w := addWhere(fs)
+	o := addOutput(fs)
+	pos, err := parseMixed(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return errors.New("usage: poo series add-release RELEASE (a file poo series release printed, - for standard input)")
+	}
+	if err := o.check(); err != nil {
+		return err
+	}
+	if viewOnlyOf(out) {
+		return errViewOnly("series add-release")
+	}
+	var b []byte
+	if pos[0] == "-" {
+		b, err = io.ReadAll(inputOf(out))
+	} else {
+		b, err = os.ReadFile(pos[0])
+	}
+	if err != nil {
+		return err
+	}
+	var r series.Release
+	if err := json.Unmarshal(b, &r); err != nil {
+		return fmt.Errorf("%s: not a release: %w", pos[0], err)
+	}
+	dir := w.resolve()
+	var nodeErr error
+	if cl, err := dialNode(out, dir); err == nil {
+		req := rpc.ReleaseRequest{Release: r}
+		rep, err := callThroughReload(out, dir, cl, func(c *rpc.Client) (rpc.ReleaseReply, error) { return c.AddRelease(req) })
+		if err == nil {
+			return o.write(out, rep)
+		}
+		var re *rpc.Error
+		if errors.As(err, &re) {
+			return err
+		}
+		nodeErr = err
+	}
+	unlock, err := lockPolicy(dir, "node policy", nodeErr)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	path := filepath.Join(dir, nodepolicy.FileName)
+	p, err := nodepolicy.Load(path)
+	if err != nil {
+		return err
+	}
+	res, err := p.AddRelease(r)
+	if err != nil {
+		return err
+	}
+	rep := rpc.ReleaseReply{ReleaseAdded: res}
+	if res.Added {
+		if err := nodepolicy.Save(path, p); err != nil {
+			return err
+		}
+		rep.Saved = true
+	}
+	return o.write(out, rep)
+}
+
+// seriesFollowed is poo series followed: the series the running node
+// follows, as GET /v1/series gives them. A variable series carries what
+// this node has released: the newest part, the next part the issuer can
+// release, the mints and units so far, and the newest release (D166). It
+// reads and works in view-only mode.
+func seriesFollowed(args []string, out io.Writer) error {
+	fs := newFlagSet("series followed", out)
+	w := addWhere(fs)
+	o := addOutput(fs)
+	pos, err := parseMixed(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 0 {
+		return errors.New("usage: poo series followed [-o json|table] (the series the running node follows)")
+	}
+	if err := o.check(); err != nil {
+		return err
+	}
+	cl, err := dialNode(out, w.resolve())
+	if err != nil {
+		return err
+	}
+	known, err := cl.Series()
+	if err != nil {
+		return err
+	}
+	if known == nil {
+		known = []rpc.SeriesInfo{}
+	}
+	return o.write(out, struct {
+		Series []rpc.SeriesInfo `json:"series"`
+	}{known})
 }

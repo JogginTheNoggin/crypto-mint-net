@@ -26,6 +26,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
+	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -221,6 +223,13 @@ type Series struct {
 	verified *policy.Verified
 	// parts caches part ids of a variable series (parts.go).
 	parts partChain
+	// released is the newest part of a variable series this node knows
+	// released: 1 until a release of a later part is added, then only
+	// ever higher (released.go).
+	released atomic.Uint64
+	// newest is the release that set released, under newestMu.
+	newestMu sync.Mutex
+	newest   *Release
 }
 
 // New validates params against the default policy registry and returns the
@@ -252,6 +261,10 @@ func NewWithRegistry(p Params, reg *policy.Registry) (*Series, error) {
 		s.algs[a] = true
 	}
 	s.id = h(hash.TagSeries, p.Encode())
+	if s.IsVariable() {
+		s.released.Store(1) // part 1, released by the issuer witness
+		variableIDs.Store(s.id, struct{}{})
+	}
 	return s, nil
 }
 
@@ -325,8 +338,16 @@ func (s *Series) Hash() hash.Func { return s.h }
 // Registry returns the policy registry the series was checked against.
 func (s *Series) Registry() *policy.Registry { return s.reg }
 
-// Mints returns N.
-func (s *Series) Mints() uint64 { return s.params.Mints }
+// Mints returns the number of serials that exist at this node: N for a
+// fixed series, and for a variable series the serials of every part up to
+// the newest release the node knows (MintsThrough(Released()), D166).
+func (s *Series) Mints() uint64 {
+	if s.IsVariable() {
+		n, _ := mintsThrough(s.params, s.released.Load())
+		return n
+	}
+	return s.params.Mints
+}
 
 // Supply returns S.
 func (s *Series) Supply() uint64 { return s.params.Supply }
@@ -382,9 +403,11 @@ func (s *Series) Remembered() int { return s.verified.Len() }
 // Address returns the address of a policy under this series' hash.
 func (s *Series) Address(p policy.Policy) hash.Hash { return policy.Address(s.h, p) }
 
-// PoolCount returns the number of pools, N / P rounded up.
+// PoolCount returns the number of pools, Mints() / P rounded up: for a
+// variable series, the pools of its released parts.
 func (s *Series) PoolCount() uint64 {
-	return (s.params.Mints + s.params.PoolSize - 1) / s.params.PoolSize
+	n := s.Mints()
+	return n/s.params.PoolSize + min(1, n%s.params.PoolSize)
 }
 
 // PoolOf returns the pool index of a serial. The serial must be below N.
@@ -394,8 +417,8 @@ func (s *Series) PoolOf(serial uint64) uint64 { return serial / s.params.PoolSiz
 func (s *Series) PoolRange(k uint64) (first, last uint64) {
 	first = k * s.params.PoolSize
 	last = first + s.params.PoolSize - 1
-	if last >= s.params.Mints {
-		last = s.params.Mints - 1
+	if n := s.Mints(); last >= n {
+		last = n - 1
 	}
 	return first, last
 }
@@ -407,8 +430,15 @@ func (s *Series) PoolID(k uint64) hash.Hash {
 	return s.h(hash.TagPool, s.id[:], w.Bytes())
 }
 
-// Mint returns the id of the mint with the given serial.
-func (s *Series) Mint(serial uint64) MintID { return MintID{Series: s.id, Serial: serial} }
+// Mint returns the id of the mint with the given serial; for a variable
+// series it names the part that holds the serial (0 when no part can).
+func (s *Series) Mint(serial uint64) MintID {
+	m := MintID{Series: s.id, Serial: serial}
+	if s.IsVariable() {
+		m.Part, _ = s.PartOf(serial)
+	}
+	return m
+}
 
 // IssuerMessageTID returns H("PoO-issuer-v1" ∥ series_id), the value an
 // issuer witness signs in place of a tid. The tag keeps it from ever equal
@@ -428,11 +458,20 @@ func (s *Series) CheckIssuer(w policy.Witness) error {
 	return s.reg.Check(s.h, s, w, *s.params.Issuer, s.IssuerMessageTID())
 }
 
-// MintID names one mint: the series_id and a serial from 0 to N-1.
+// MintID names one mint: (series_id, serial) for a fixed series, and
+// (series_id, part, serial) for a variable series, whose part must be the
+// one that holds the serial (PoO section 16.8). Part is 0 for a fixed
+// series and left out of its JSON and bytes.
 type MintID struct {
 	Series hash.Hash `json:"series"`
+	Part   uint64    `json:"part,omitempty"`
 	Serial uint64    `json:"serial"`
 }
 
-// String returns "<series short>/<serial>".
-func (m MintID) String() string { return fmt.Sprintf("%s/%d", m.Series.Short(), m.Serial) }
+// String returns "<series short>/<serial>", or "<series short>/p<part>/<serial>".
+func (m MintID) String() string {
+	if m.Part != 0 {
+		return fmt.Sprintf("%s/p%d/%d", m.Series.Short(), m.Part, m.Serial)
+	}
+	return fmt.Sprintf("%s/%d", m.Series.Short(), m.Serial)
+}

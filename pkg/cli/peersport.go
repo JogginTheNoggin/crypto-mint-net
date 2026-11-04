@@ -75,7 +75,13 @@ func peersCmd(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return o.write(out, r)
+		// Only what was asked for: no empty peers and book lists
+		// (GREEN-049's idea, D166).
+		return o.write(out, struct {
+			NodeID string          `json:"node_id"`
+			Listen string          `json:"listen,omitempty"`
+			Counts *rpc.BookCounts `json:"counts"`
+		}{r.NodeID, r.Listen, r.Counts})
 	}
 	r, err := cl.Peers()
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
 
 // Variable are the vectors of a variable supply series (format version 2,
@@ -24,6 +25,11 @@ type Variable struct {
 	Part2FirstSerial      uint64 `json:"part_2_first_serial"`
 	Part2LastSerial       uint64 `json:"part_2_last_serial"`
 	IssuerWitnessEncoding string `json:"issuer_witness_encoding"`
+	// Part2Claim* are a claim of serial 50,000, the first mint of part 2:
+	// its body carries the part after the series (D166).
+	Part2ClaimBody     string `json:"part_2_claim_body"`
+	Part2ClaimTID      string `json:"part_2_claim_tid"`
+	Part2ClaimEncoding string `json:"part_2_claim_encoding"`
 }
 
 // VariableParams is the example series of the variable supply document:
@@ -54,6 +60,13 @@ func ComputeVariable() Variable {
 	}
 	first, last, _ := s.PartRange(2)
 	iw := policy.SingleKeyWitness(key.Signer, s.IssuerMessageTID())
+	if _, err := s.AddRelease(r); err != nil {
+		panic(err)
+	}
+	claim := testutil.NewKeys(s).Claim(first, testutil.P("alice", 1))
+	if err := tx.CheckForm(s, claim); err != nil {
+		panic(err)
+	}
 	return Variable{
 		SeriesEncoding:        hex.EncodeToString(s.Params().Encode()),
 		SeriesID:              s.ID().String(),
@@ -66,6 +79,9 @@ func ComputeVariable() Variable {
 		Part2FirstSerial:      first,
 		Part2LastSerial:       last,
 		IssuerWitnessEncoding: witnessHex(iw),
+		Part2ClaimBody:        hex.EncodeToString(claim.Body()),
+		Part2ClaimTID:         claim.TID(s.Hash()).String(),
+		Part2ClaimEncoding:    hex.EncodeToString(claim.Encode()),
 	}
 }
 

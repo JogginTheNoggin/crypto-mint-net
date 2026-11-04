@@ -26,7 +26,8 @@ The phases are in [../variable-supply.md](../variable-supply.md).
   `Mint(serial)`, `EntriesHaveNonce`, `MinEntryStrength`, `EntryHashCredit`,
   `AllowsPolicyType`, `AllowsKeyAlg`, `MaxWitnessSize`, `CheckWitness`,
   `Address`, `IssuerMessageTID`, `CheckIssuer`.
-- `MintID{Series, Serial}`.
+- `MintID{Series, Part, Serial}`: `Part` is set for a variable series only
+  (D166).
 - Variable supply (parts.go):
   - `SupplyType` (`Fixed`, `Variable`), `IsVariable`, `PartSize` and
     `MaxParts`.
@@ -35,6 +36,16 @@ The phases are in [../variable-supply.md](../variable-supply.md).
   - `Release{Series, Part, Previous, Witness}` with `ID`, `Encode`,
     `DecodeRelease` and JSON, and `CheckRelease`.
   - Errors `ErrFixed`, `ErrNoPart` and `ErrRelease`.
+- Released parts (released.go, D166):
+  - `Released()`, `AddRelease(r)` (a known part is answered with no
+    hashing; a newer one is checked, then the count moves up; it never goes
+    down), `NewestRelease()`.
+  - `CheckMint(m)`: `ErrWrongPart` when the part is not `PartOf(serial)` or
+    a fixed mint names one, `ErrNoSerial` past the series, `ErrWaiting`
+    for a part not released here yet (checked before any hashing).
+  - `IsVariableID(id)`: whether this process built a variable series with
+    that id, which the transaction decoder uses to read the part.
+  - `Mints()` and `PoolCount()` count released parts only.
 - JSON (json.go): `Params.MarshalJSON` writes a variable series' hash as
   `variable_hash`, with no `hash`, so an older node refuses it;
   `UnmarshalJSON` reads both forms and refuses an unknown key
@@ -57,6 +68,10 @@ issuer can make a node compute a long chain of part ids. That chain costs
 time, not memory: `PartID` keeps at most 65,536 ids and holds its lock for
 16,384 hashes at a time (RED-070, D165). A part is never refused for being
 far out.
+
+A series' released count only grows, and two nodes holding the same series
+and newest release have the same parts. A mint past them waits
+(`ErrWaiting`): never invalid.
 
 ## Extending
 

@@ -29,7 +29,6 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
-	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 )
 
@@ -140,16 +139,22 @@ Usage:
   poo series example          print the worked example's series as JSON
   poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
                               print a new series' params, checked
-  poo series info FILE        print the id and pools of a series JSON file
+  poo series info FILE        print the id, supply type and pools of a series
+                              file (params or signed)
   poo series sign FILE [-seed-file F]
                               sign a series as its issuer: the
                               issuer_witness for node.json
   poo series release FILE -part K [-seed-file F] | -check RELEASE
                               release part K of a variable series as its
                               issuer, or check a release (D163)
-  poo series parts FILE [-from K] [-to K]
+  poo series parts FILE [-from K] [-to K] [-o table]
                               a variable series' parts: serials, pools
                               and part ids
+  poo series add-release RELEASE
+                              give the node a release of a variable
+                              series: it follows the new parts' mints
+  poo series followed         the series the running node follows, with
+                              the parts it has released (D166)
   poo demo [-quiet]           run in-process full nodes through a payment,
                               a double spend and its resolution
   poo sim load|partition|attack|sizing [flags]
@@ -442,7 +447,7 @@ func keygen(args []string, out io.Writer) error {
 
 func seriesCmd(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("series needs a subcommand: example, new, info, sign, release or parts")
+		return fmt.Errorf("series needs a subcommand: example, new, info, sign, release, parts, add-release or followed")
 	}
 	switch args[0] {
 	case "example":
@@ -455,19 +460,20 @@ func seriesCmd(args []string, out io.Writer) error {
 		return seriesRelease(args[1:], out)
 	case "parts":
 		return seriesParts(args[1:], out)
+	case "add-release":
+		return seriesAddRelease(args[1:], out)
+	case "followed":
+		return seriesFollowed(args[1:], out)
 	case "info":
+		const infoUsage = "usage: poo series info FILE (a series params file or a signed series file)"
+		if len(args) == 2 && (args[1] == "-h" || args[1] == "-help" || args[1] == "--help") {
+			fmt.Fprintln(out, infoUsage)
+			return nil
+		}
 		if len(args) != 2 {
-			return fmt.Errorf("usage: poo series info FILE")
+			return errors.New(infoUsage)
 		}
-		b, err := os.ReadFile(args[1])
-		if err != nil {
-			return err
-		}
-		var p series.Params
-		if err := json.Unmarshal(b, &p); err != nil {
-			return err
-		}
-		s, err := series.New(p)
+		s, err := readSeriesFile(args[1])
 		if err != nil {
 			return err
 		}

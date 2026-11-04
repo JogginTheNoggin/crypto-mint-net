@@ -12,7 +12,12 @@ checks can run before any state lookup.
 
 - `Tx{Mint, Inputs, Outputs, Witnesses}`, `Input{TID, Index}`,
   `Output{Address, Amount}`; `Body`, `TID`, `Encode`, `EncodeTo`, `Decode`,
-  `DecodeFrom`, `OutputSum`, `IsClaim`.
+  `DecodeFrom`, `OutputSum`, `IsClaim`. A variable series' transaction
+  carries its part after the series in the body (D166); a fixed one has
+  the v1 body, byte for byte.
+- `CheckMint(s, m)`: the mint's part and serial against the series
+  (`ErrWrongPart`, `ErrSerialRange`, `ErrWaiting` for a part not released
+  at this node: it waits and is never invalid).
 - `Portion{Serial, Address, Amount}` and `View` (`Unspent`, `Claimed`).
 - `CheckStateless(s, t, tid)`: series, serial in range, at least one output,
   no zero amounts, no repeated output address, no overflow, no repeated

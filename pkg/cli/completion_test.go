@@ -23,7 +23,7 @@ func TestComplete(t *testing.T) {
 		{[]string{"help", "led"}, []string{"ledger"}},
 		{[]string{"policy", "un"}, []string{"unarchive"}},
 		{[]string{"peer", "bl"}, []string{"block"}},
-		{[]string{"series", ""}, []string{"example", "new", "info", "sign", "release", "parts"}},
+		{[]string{"series", ""}, []string{"example", "new", "info", "sign", "release", "parts", "add-release", "followed"}},
 		{[]string{"wallet", "pa"}, []string{"passwd", "pay"}},
 		{[]string{"sim", "a"}, []string{"attack"}},
 		{[]string{"ledger", "-po"}, []string{"-policy", "-pool"}},

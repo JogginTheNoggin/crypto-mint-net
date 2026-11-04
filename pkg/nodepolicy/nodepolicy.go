@@ -294,8 +294,12 @@ type Tracking struct {
 type SeriesInfo struct {
 	Params series.Params `json:"params"`
 	// IssuerWitness is the hex of the witness's byte form, signing the
-	// series' issuer message. Required for a series accepted by issuer.
+	// series' issuer message. Required for a series accepted by issuer,
+	// and for a variable series, whose part 1 it releases.
 	IssuerWitness string `json:"issuer_witness,omitempty"`
+	// Release is the newest release of a variable series this node knows
+	// (D166). It proves every part before it, so it is the only one kept.
+	Release *series.Release `json:"release,omitempty"`
 }
 
 // Issuers is the rule for which series a node accepts.
@@ -611,12 +615,12 @@ func isLoopback(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// ErrVariableNotFollowed refuses a variable supply series (PoO section
-// 16.8): this node can read its definition, its parts and its releases,
-// but not yet its mints' transactions, which name a part (D163, phase 1
-// of docs/variable-supply.md). Like any number a node does not
-// implement, it makes the series unreadable at this node, never invalid.
-var ErrVariableNotFollowed = fmt.Errorf("%w: variable supply series are not followed yet; this node reads their parts and releases only (D163)", series.ErrUnreadable)
+// ErrNoPartOne refuses a variable supply series listed without its issuer
+// witness: part 1 of a variable series is released by the issuer witness
+// on the series (PoO section 16.8), so without it no mint of the series is
+// released at this node. Missing information, never a series found
+// invalid (D166).
+var ErrNoPartOne = errors.New("a variable supply series' mints are released by its issuer witness, and node.json has none for it: add the issuer_witness its issuer published (poo series sign)")
 
 // Accepted is a known series the node accepts.
 type Accepted struct {
@@ -643,8 +647,16 @@ func (p Policy) Accepted() (accepted []Accepted, refused []Refused) {
 	}
 	for i, si := range p.Series {
 		s, err := series.New(si.Params)
-		if err == nil && s.IsVariable() {
-			err = ErrVariableNotFollowed
+		switch {
+		case err != nil:
+		case s.IsVariable() && si.IssuerWitness == "":
+			err = ErrNoPartOne
+		case !s.IsVariable() && si.Release != nil:
+			err = fmt.Errorf("release: %w", series.ErrFixed)
+		case si.Release != nil:
+			if _, rerr := s.AddRelease(*si.Release); rerr != nil {
+				err = fmt.Errorf("release: %w", rerr)
+			}
 		}
 		if err != nil {
 			refused = append(refused, Refused{i, err})
@@ -779,4 +791,49 @@ func Save(path string, p Policy) error {
 	// so concurrent writers never tear the file, and a crash leaves the old
 	// or the new one (RED-013, decision D114; now shared, D148).
 	return fsutil.WriteFile(path, append(b, '\n'), 0o600)
+}
+
+// ReleaseAdded is what AddRelease did with a release.
+type ReleaseAdded struct {
+	Series hash.Hash `json:"series"`
+	// Part is the release's part.
+	Part uint64 `json:"part"`
+	// Released is the newest part the policy now knows released.
+	Released uint64 `json:"released"`
+	// Mints is the number of serials that now exist, parts 1 to Released.
+	Mints uint64 `json:"mints"`
+	// Added is true when the release was newer than the one kept and
+	// replaced it; false when the policy already knew that part released.
+	Added bool `json:"added"`
+}
+
+// ErrSeriesNotListed: a release names a series the policy does not list.
+var ErrSeriesNotListed = errors.New("the node policy does not list that series (add it with poo init -series FILE)")
+
+// AddRelease keeps r as the newest release of its variable series when it
+// is valid and newer than the release kept (D166). A release of a part
+// already known changes nothing. An invalid release is refused and
+// nothing changes.
+func (p *Policy) AddRelease(r series.Release) (ReleaseAdded, error) {
+	for i, si := range p.Series {
+		s, err := series.New(si.Params)
+		if err != nil || s.ID() != r.Series {
+			continue
+		}
+		if si.Release != nil {
+			if _, err := s.AddRelease(*si.Release); err != nil {
+				return ReleaseAdded{}, fmt.Errorf("the release node.json keeps: %w", err)
+			}
+		}
+		added, err := s.AddRelease(r)
+		if err != nil {
+			return ReleaseAdded{}, err
+		}
+		if added {
+			rel := r
+			p.Series[i].Release = &rel
+		}
+		return ReleaseAdded{Series: s.ID(), Part: r.Part, Released: s.Released(), Mints: s.Mints(), Added: added}, nil
+	}
+	return ReleaseAdded{}, fmt.Errorf("%w: %s", ErrSeriesNotListed, r.Series.Short())
 }

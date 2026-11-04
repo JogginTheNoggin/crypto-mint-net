@@ -6,7 +6,8 @@
 // spent, or, with no inputs, it claims the whole supply of an unclaimed mint.
 //
 //	Tx {
-//	    mint      : (series_id, serial)
+//	    mint      : (series_id, serial), or (series_id, part, serial) for a
+//	                variable series (PoO section 16.8, D166)
 //	    inputs    : [ (tid, index) ]       // empty only for a claim
 //	    outputs   : [ (address, amount) ]  // distinct addresses, amounts >= 1
 //	    witnesses : [ Witness ]            // outside the tid
@@ -49,6 +50,13 @@ var (
 	ErrMissingInput    = errors.New("tx: an input is not an unspent portion in this ledger")
 	ErrWrongMint       = errors.New("tx: an input is a portion of another mint")
 	ErrConservation    = errors.New("tx: outputs do not add up to the inputs")
+	// ErrWrongPart: a mint of a variable series names a part that does
+	// not hold its serial, or a fixed series' mint names a part. Invalid
+	// at every node.
+	ErrWrongPart = series.ErrWrongPart
+	// ErrWaiting: the mint's part is not released at this node yet. The
+	// transaction is not invalid; it waits for a release (D166).
+	ErrWaiting = series.ErrWaiting
 )
 
 // Input names a portion: the tid of the transaction that created it and its
@@ -86,8 +94,16 @@ func (t *Tx) Body() []byte {
 	return w.Bytes()
 }
 
+// The mint is series ∥ serial for a fixed series, as in byte form v1, and
+// series ∥ part ∥ serial for a variable series, so the tid covers the part
+// (D166). Every fixed transaction keeps its bytes and tid: its part is 0,
+// and a 0 part is never written.
 func (t *Tx) writeBody(w *encoding.Writer) {
-	w.Raw(t.Mint.Series[:]).U64(t.Mint.Serial)
+	w.Raw(t.Mint.Series[:])
+	if t.Mint.Part != 0 {
+		w.U64(t.Mint.Part)
+	}
+	w.U64(t.Mint.Serial)
 	w.Count(len(t.Inputs))
 	for _, in := range t.Inputs {
 		w.Raw(in.TID[:]).U32(in.Index)
@@ -144,6 +160,13 @@ func Decode(b []byte) (*Tx, error) {
 func DecodeFrom(r *encoding.Reader) *Tx {
 	t := &Tx{}
 	r.Into(t.Mint.Series[:])
+	// A variable series' mint carries its part. The reader tells one from
+	// its id, which it knows when it has built the series; a series it has
+	// not built reads as fixed, and its transactions cannot be checked
+	// here in any case (D166).
+	if series.IsVariableID(t.Mint.Series) {
+		t.Mint.Part = r.U64()
+	}
 	t.Mint.Serial = r.U64()
 	n := r.Count(0, 36)
 	if n > 0 {
@@ -165,6 +188,20 @@ func DecodeFrom(r *encoding.Reader) *Tx {
 		t.Witnesses = append(t.Witnesses, policy.DecodeWitness(r))
 	}
 	return t
+}
+
+// CheckMint checks that m is a mint of s named by its one name and that it
+// exists at this node: ErrSerialRange or ErrWrongPart when it never can,
+// ErrWaiting when its part is not released here yet (D166).
+func CheckMint(s *series.Series, m series.MintID) error {
+	err := s.CheckMint(m)
+	if errors.Is(err, series.ErrNoSerial) {
+		if !s.IsVariable() {
+			return ErrSerialRange
+		}
+		return fmt.Errorf("%w: %v", ErrSerialRange, err)
+	}
+	return err
 }
 
 // OutputSum returns the sum of the output amounts.
@@ -199,8 +236,8 @@ func CheckForm(s *series.Series, t *Tx) error {
 	if t.Mint.Series != s.ID() {
 		return ErrWrongSeries
 	}
-	if t.Mint.Serial >= s.Mints() {
-		return ErrSerialRange
+	if err := CheckMint(s, t.Mint); err != nil {
+		return err
 	}
 	if len(t.Outputs) == 0 {
 		return ErrNoOutputs

@@ -507,8 +507,11 @@ func (e *Engine) KeyOf(t *tx.Tx) (PoolKey, error) {
 	if !ok {
 		return PoolKey{}, ErrUnknownSeries
 	}
-	if t.Mint.Serial >= s.Mints() {
-		return PoolKey{}, tx.ErrSerialRange
+	// A wrong part or a serial no part holds is invalid; a part this node
+	// has not seen released waits (tx.ErrWaiting). Neither is kept on the
+	// seen list, which HandleTx adds to only once a transaction is taken.
+	if err := tx.CheckMint(s, t.Mint); err != nil {
+		return PoolKey{}, err
 	}
 	return PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}, nil
 }
@@ -680,7 +683,7 @@ func (e *Engine) WarmStored(txs []*tx.Tx) {
 	e.mu.Lock()
 	for _, t := range txs {
 		s, ok := e.series[t.Mint.Series]
-		if !ok || t.Mint.Serial >= s.Mints() {
+		if !ok || tx.CheckMint(s, t.Mint) != nil {
 			continue
 		}
 		if _, err := e.peek(PoolKey{Series: s.ID(), Index: s.PoolOf(t.Mint.Serial)}); err != nil {
