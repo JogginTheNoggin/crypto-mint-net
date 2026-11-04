@@ -120,6 +120,48 @@ export const nodeView = {
       args: v => followArgs('unfollow', v), submit: 'Unfollow', danger: true });
     const reload = form(ctx, { title: 'Reload the node policy', about: 'Makes the running node apply its node policy file as it now stands.', fields: [],
       args: () => ['reload', ...where.flags()], submit: 'Reload', onResult: r => { if (r.code === 0) status.reload(); } });
+    // Variable supply series the running node follows (D166): what poo
+    // says it has released, the next part, the mints and units so far and
+    // the newest release it holds. The GUI only lays out poo's answer.
+    const variable = panel(ctx, { title: 'Variable series', about: 'Each followed series that can grow: the parts released so far, the next part, the mints and units that exist now, and the newest release the node holds.', args: () => ['series', 'followed', ...where.flags()],
+      onResult: (r, area) => {
+        let o;
+        try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        const all = o && Array.isArray(o.series) ? o.series : null;
+        if (!all) return;
+        const raw = area.querySelector('.result');
+        const vs = all.filter(x => x && x.variable);
+        const body = vs.length ? el('div', { class: 'table-wrap' }, el('table', { class: 'data variable-series' },
+          el('thead', {}, el('tr', {}, ...['series', 'parts released', 'next part', 'mints', 'units', 'newest release'].map(h => el('th', {}, h)))),
+          el('tbody', {}, ...vs.map(x => el('tr', {},
+            el('td', {}, el('code', { class: 'hex', title: x.id }, String(x.id).slice(0, 16) + '…')),
+            ...[x.variable.released, x.variable.next_part ?? 'none (the cap is reached)', x.variable.mints, x.variable.units, x.variable.release ? `part ${x.variable.release.part}` : 'none: part 1 only'].map(c => el('td', {}, String(c)))))))) :
+          el('p', { class: 'hint empty' }, `None of the ${all.length} followed series is variable.`);
+        const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
+        if (raw) { raw.replaceWith(body); det.append(raw); area.append(det); }
+      } });
+    // A release made by the issuer reaches a node as a file (D166): poo
+    // checks it, keeps it in node.json and the node reloads to follow the
+    // new parts' mints. A file picked here goes to poo as its input (-).
+    let picked = null;
+    const addRelease = form(ctx, { title: 'Add a release', about: 'Gives the node a release of a variable series it follows. poo checks it against the series, saves it in node.json, and the node then follows the new parts\' mints. A release can never be taken back.',
+      fields: [{ name: 'file', label: 'Release file', placeholder: 'a path on this machine, or pick one below', required: true }],
+      args: v => ['series', 'add-release', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Add release', danger: true,
+      onStart: j => { if (picked && addRelease.inputs.file.value.trim() === '-') api.inputFile(j.id, picked).catch(() => {}); },
+      onResult: r => { if (r.code === 0) { variable.reload(); status.reload(); } } });
+    {
+      const fileIn = addRelease.inputs.file;
+      const pick = el('input', { type: 'file', accept: '.json,application/json', name: 'pick' });
+      pick.onchange = () => {
+        const file = pick.files && pick.files[0];
+        if (!file) return;
+        picked = file;
+        fileIn.value = '-';
+        fileIn.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      fileIn.addEventListener('input', () => { if (fileIn.value.trim() !== '-') { picked = null; pick.value = ''; } });
+      fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poo as its input (FILE is -); nothing is stored by the GUI')));
+    }
     const t = setInterval(showRunning, 3000);
     // poo doctor checks the policy, files, series, RPC and P2P in one go.
     // Its report is drawn as a checklist; the raw output stays one click away.
@@ -132,7 +174,7 @@ export const nodeView = {
         const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
         if (raw) { raw.replaceWith(doctorReport(rep, ctx)); det.append(raw); area.append(det); }
       } });
-    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, status, follows, follow, unfollow, reload, init]);
+    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, status, follows, variable, addRelease, follow, unfollow, reload, init]);
     return stop;
   },
 };

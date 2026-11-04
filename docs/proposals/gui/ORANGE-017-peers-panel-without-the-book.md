@@ -96,6 +96,27 @@ through the coordinator, and to GUI Grey for the panel.
 Nothing to challenge. The flag keeps the command one command with one
 more output choice.
 
+## Measured after adoption (Round 25)
+
+Measured on main @ 88bd534, which has `poo peers -counts` and the panel
+that uses it, with the same 16,384-address book and the same probe as
+above, for 60 s, twice:
+
+| Peers panel, 16,384 addresses | Round 23 (whole book) | Round 25 (`-counts`) |
+| --- | --- | --- |
+| `poo peers` prints, in | 12.8 MB, 0.44 to 0.52 s | 333 bytes, 24 ms |
+| Peers view opens | 1.1 to 2.0 s | 0.09 to 0.15 s |
+| Page busy | 6 to 7% | 1% |
+| Longest pause | 0.48 to 0.49 s | none |
+| Longest frame gap | 0.75 to 0.85 s | 33 to 50 ms |
+| poo-gui memory (RSS) | 236 to 243 MB | 16 MB |
+
+The panel with 16,384 addresses now costs what it did with an empty
+book. Find peers with no field filled in prints the whole book when
+pressed: 1.7 to 2.6 s, one pause of 0.4 to 0.6 s, and 500 of 16,384
+rows drawn with the note. poo-gui then holds about 125 MB until Go gives
+the memory back, and the timed refresh does not add to it.
+
 ## Found on the way (not performance)
 
 On 2cacdd5, `poo peers import -apply -if-digest D` against a running
