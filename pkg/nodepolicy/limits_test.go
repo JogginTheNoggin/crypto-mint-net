@@ -64,6 +64,7 @@ func TestLimitsBounds(t *testing.T) {
 		"max_pending":                   func(p *Policy, v int) { p.MaxPending = v },
 		"ties":                          func(p *Policy, v int) { p.Ties = v },
 		"series_ceiling":                func(p *Policy, v int) { p.SeriesCeiling = v },
+		"entry_cache_mib":               func(p *Policy, v int) { p.EntryCacheMiB = v },
 	}
 	if len(set) != len(Bounds()) {
 		t.Fatalf("%d setters for %d bounds", len(set), len(Bounds()))

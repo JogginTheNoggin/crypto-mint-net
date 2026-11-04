@@ -28,6 +28,7 @@ D25). Nothing here changes what is valid.
   "ties": 64,
   "max_pending": 10000,
   "seen_size": 65536,
+  "entry_cache_mib": 512,
   "no_sync": false,
   "rpc": {"listen": "127.0.0.1:8645", "allow_remote": false},
   "p2p": {
@@ -138,6 +139,7 @@ its range, or `Validate` refuses the policy and names the setting
 | `seen_size` | 65536 | 1024 to 4194304 | items on the seen list; it grows as items arrive (D160) |
 | `max_pending` | 10000 | 16 to 1048576 | pending transactions per pool (D160) |
 | `ties` | 64 | 1 to 4096 | off-chain entries kept that tie with the selected ledger's weight, beyond `k` (D160) |
+| `entry_cache_mib` | 512 | 1 to 1048576 | MiB of entry bodies kept in memory across all pools, read back from the pool logs; every entry's skeleton stays in memory whatever this is (D172) |
 
 `Policy.Limits` lists them with the value node.json sets and the value used,
 from the one list `Validate` checks; `poo policy limits` prints it
@@ -148,7 +150,9 @@ change of it without a reload, from the `InPlace` list below
 `POST /v1/policy/limits`) changes them, checked whole first (D161).
 A running node applies the ones `InPlace` names without a reload (D168):
 `p2p.max_book`, `p2p.book_per_range`, `p2p.retry_seconds`,
-`p2p.candidate_seconds`, the four `tracking.*` limits and `seen_size`.
+`p2p.candidate_seconds`, the four `tracking.*` limits, `seen_size` and
+`entry_cache_mib` (the cache takes its new bound and drops what no longer
+fits; a reload would start it empty, which costs reads, not verdicts).
 Each part ends as a reload onto the same node.json would leave it: the
 book takes its limits and runs the same `Fit` as on start, the tracker
 its retention, and the engine a new, empty seen list. `ChangedLimits`
@@ -393,6 +397,15 @@ checks as any other change, and node.json has no depth limit.
 
 A new setting is a new optional field with a documented default. Bump
 `Format` only for a change that old nodes would misread.
+
+## Open file limit (ORANGE-037, D172)
+
+`CheckFileLimit(followed)` compares the process's soft `RLIMIT_NOFILE`
+(as Go raised it at start; unknown off Unix) with the followed pools plus
+`FileRoom` (256). `Policy.FollowedPools(accepted)` counts, at most, the
+pools the follow rules take on without starting a node. A node logs a
+warning at `Open` and `poo doctor` adds an `open-files` check when the
+limit is low.
 
 ## Series witness ceilings (D170)
 

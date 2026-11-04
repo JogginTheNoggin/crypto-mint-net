@@ -4211,3 +4211,65 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
   - `pkg/nodepolicy/blue028_test.go`: `TestImportWarnsOfUnboundedSeries`,
     `TestDeclinedSeriesCountsItsFollows`, `TestSeriesCeilingIsBounded`.
   - `pkg/cli/blue028_test.go`: `TestPlanTextNamesDeclinedAndUnbounded`.
+
+### D172. Entry bodies on disk, behind a bounded cache (disk-backed state, step 1)
+
+- **Decision:**
+  - **Store locations.** Every log record has a location (`store.Loc`:
+    the file's generation, offset and framed length). `Log.ReadAt` reads
+    one record back, checking every frame's checksum; bytes that are not
+    one whole record give `ErrBadRecord`, and a location from before a
+    compaction gives `ErrStaleLoc`, so nothing is ever read at the wrong
+    place. `OpenFunc` streams the records with their locations instead
+    of returning them all, `AppendLaterAt` returns the new record's
+    location, and `RewriteFunc` asks for the records one at a time and
+    returns their new locations.
+  - **Entry skeleton.** A pool keeps, for every held entry, what
+    selection, switching and checking read: hash, parent, height, own and
+    ledger weight, layers, items and undo. With a `ledger.BodySource`,
+    an entry's body (transactions and witnesses) is dropped from memory
+    once the source can give it back, and read through one
+    `ledger.BodyCache` per node, a byte-bounded LRU, when something asks
+    for it: serving a peer or a query, a rival search, a compaction. **No
+    verdict reads a body that is not in memory**, so the cache's size
+    changes what a node costs, never what it decides. A failed read is
+    counted and hides the body from that query only.
+  - **Node.** Each pool's locations are built while its log is replayed
+    at start (one window of 1,024 records at a time, never the whole
+    log) and as records are appended, and rebuilt by each compaction,
+    which copies entry records from the old file by location rather than
+    reading every body into memory. A read back is used only when the
+    record is an entry whose hash is the one asked for.
+  - **`entry_cache_mib`** (node policy, bounded 1 to 1,048,576, default
+    512) bounds the cache across all pools, and is applied in place.
+    `GET /v1/status` (`poo status`) shows `bodies` (bound, use, hits,
+    loads, errors, held, in memory, located) and `/v1/metrics` the
+    `poo_entry_cache_*` and `poo_entry_body_*` series.
+  - **Open-file warning (ORANGE-037, proposal 2).** A node logs one
+    warning at start, and `poo doctor` an `open-files` check, when the
+    soft open file limit is below the followed pools plus 256.
+    `GET /v1/status` shows `file_limit`.
+  - **Deferred.** The sidecar index file of the plan moves to R30, beside
+    snapshots: start-up reads the whole log anyway, so locations cost
+    nothing to build then. Items and undo outside a recent window, and
+    peer sync served from disk, are R29.
+- **Why:** jerry's priority (2026-11-04): a node held every entry body in
+  memory for its whole history, tens of GB a year for a busy series.
+  Bodies are the largest part and are read only to serve, so they move
+  first.
+- **Consensus:** None. No rule, encoding or wire message changes. No
+  depth limit: every entry is still held and checked as before; only where
+  its bytes live changes. A node with a tiny cache selects, holds and
+  serves exactly what a node with every body in memory does (the
+  differential tests below). A body that cannot be read back is a lack of
+  information for one query, never a verdict.
+- **Tier:** Store, ledger, node, node policy, RPC, CLI.
+  - `pkg/store/readat_test.go`: `TestReadAtLocations`.
+  - `pkg/ledger/bodies_test.go`: `TestBodyCacheBound`; `runRandom`
+    (`property_test.go`) now runs a twin pool with a 1 KiB cache beside
+    every random history and compares tip, weight, state and bodies.
+  - `pkg/node/bodies_test.go`: `TestBodiesFromDisk` (no cache, through a
+    compaction and a restart), `TestEntryCacheLimit`;
+    `bodies_internal_test.go`: `TestPoolBodiesChecks`.
+  - `pkg/nodepolicy/filelimit_test.go`: `TestCheckFileLimit`,
+    `TestFollowedPools`.

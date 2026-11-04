@@ -34,6 +34,23 @@ Kinds: 1 entry, 2 layer, 3 transaction. Numbers are never reused.
   reopening, which replays what is on disk, brings it back (RED-010, D108).
 - `Records`, `Path`, `Close`. `ErrNotLog` for a file without the header.
 
+### Locations (D172)
+
+- Every record has a `Loc{Gen, Off, Len}`: the file's generation (each
+  compaction starts a new one), the offset of its first frame and the
+  bytes its frames take, parts included.
+- `OpenFunc(path, opt, fn)` hands each record, its location and the log
+  to `fn` as it reads them, holding none; `fn` may `ReadAt` a record
+  already handed over. `Open` is `OpenFunc` collecting the records.
+- `AppendLaterAt(Record)` is `AppendLater` that also returns the location.
+- `ReadAt(loc)` reads one record back, checking every frame's checksum,
+  beside appends and `Durable`. A location from an older generation or
+  past the end gives `ErrStaleLoc`; bytes that are not one whole record
+  give `ErrBadRecord`. Neither is ever read as another record.
+- `RewriteFunc(n, next)` asks for the n records one at a time (`next` may
+  `ReadAt` the old file, which is replaced only at the end) and returns
+  their locations in the new generation. `Rewrite` wraps it.
+
 ## Guarantees
 
 - A crash mid-append loses at most the record being written. `Open` keeps
@@ -50,3 +67,6 @@ Kinds: 1 entry, 2 layer, 3 transaction. Numbers are never reused.
 
 `store_test.go` cuts the last record at every possible byte, flips bytes,
 writes impossible lengths, and checks rewrite and reopen.
+`readat_test.go` reads records back by location, parts included, refuses
+locations off by one, too long, stale after a compaction or over corrupt
+bytes, and checks that locations match after a reopen and appends.

@@ -436,6 +436,11 @@ type StatusReply struct {
 	// with -no-reload or by hand waits for poo reload (GREEN-037). Limits
 	// applied in place count as applied (D168).
 	PolicyChanged bool `json:"policy_changed,omitempty"`
+	// Bodies is where the node's entry bodies are: the cache bounded by
+	// entry_cache_mib, and how many are still in memory (D172).
+	Bodies node.BodyStats `json:"bodies"`
+	// FileLimit is the open file limit checked at start (ORANGE-037).
+	FileLimit nodepolicy.FileLimit `json:"file_limit"`
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -443,7 +448,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	for _, s := range h.n.Stores() {
 		stored[s.Key] = s.Records
 	}
-	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed()}
+	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed(), Bodies: h.n.Bodies(), FileLimit: h.n.FileLimit()}
 	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
 		rep.PolicyChanged = !p.SameApplied(h.n.Running())
 	}

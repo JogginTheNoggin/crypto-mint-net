@@ -11,8 +11,19 @@ plus the top K other branches. It reproduces the design's worked example
 
 ## API
 
-- `New(series, poolIndex, Config{K, Ties, Clock})`; `DefaultK`,
-  `DefaultTies`, `Unlimited`.
+- `New(series, poolIndex, Config{K, Ties, Clock, Source, Bodies})`;
+  `DefaultK`, `DefaultTies`, `Unlimited`.
+- Entry bodies on disk (D172): with `Config.Source`, a `BodySource`
+  (`Has(h)`, `Load(h)`; the node's reads the pool log), the pool keeps
+  each held entry's skeleton (hash, parent, height, weights, layers,
+  items, undo) and drops the body once the source has it, on the next
+  `AddEntry` or `ReleaseBodies()`. `Entry`, `Rivals` and `ReplayOrder`
+  users read bodies back through `Config.Bodies`, a `BodyCache`
+  (`NewBodyCache(maxBytes)`, `SetMax`, `Stats`) shared by every pool of a
+  node and bounded in bytes. No check of an entry reads a body that is not
+  in memory, so the cache changes cost, never verdicts. A failed read
+  hides the body from that query and is counted (`BodyStats.Errors`).
+  `InMemory()` counts bodies still held by the pool.
 - `AddEntry(e) (AddResult, error)` and `AddLayer(l) (AddResult, error)`.
   `AddResult` carries the entry hash, an optional `*Switch` and the pruned
   hashes.

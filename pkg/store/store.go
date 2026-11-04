@@ -21,6 +21,13 @@
 // up to the first one that is incomplete or fails its checksum, and cuts the
 // file there. What is lost can be fetched from peers again.
 //
+// Every record has a location (Loc): where its first frame starts and how
+// many bytes its frames take, in one generation of the file. ReadAt reads a
+// record back by its location, checking every frame's checksum, so a node
+// can keep an item's bytes on disk and read them when it needs them
+// (D172). A compaction starts a new generation: locations from before it
+// are refused, never read at the wrong place.
+//
 // Compaction rewrites a log with only what the node still holds, through a
 // temporary file that is renamed over the old one, so a crash during
 // compaction leaves either the old log or the new one.
@@ -73,6 +80,23 @@ type Record struct {
 	Data []byte
 }
 
+// Loc is where a record sits in a log: the generation of the file (each
+// compaction starts a new one), the offset of its first frame, and the
+// bytes its frames take (D172).
+type Loc struct {
+	Gen uint64
+	Off int64
+	Len int64
+}
+
+// ErrStaleLoc is returned by ReadAt for a location from an older
+// generation of the file, or one past its end.
+var ErrStaleLoc = errors.New("store: location is not in this generation of the log")
+
+// ErrBadRecord is returned by ReadAt when the bytes at a location are not
+// one whole record with good checksums.
+var ErrBadRecord = errors.New("store: no whole record at this location")
+
 // MaxRecordSize bounds the data of one record on disk, so a corrupt length
 // cannot make Open allocate without limit. A larger item is split.
 const MaxRecordSize = 64 << 20
@@ -97,6 +121,11 @@ type Log struct {
 	w       *bufio.Writer
 	sync    bool
 	records int
+	// size is the file's length: where the next record starts. Only the
+	// appending goroutine changes it, under fmu.
+	size int64
+	// gen counts compactions, guarded by fmu; see Loc.
+	gen uint64
 
 	// fmu guards f against Durable, and the append counters.
 	fmu     sync.Mutex
@@ -153,6 +182,22 @@ type Opened struct {
 // Open opens the log at path, creating it (and its directory) if needed,
 // and returns every whole record in it.
 func Open(path string, opt Options) (*Log, Opened, error) {
+	var recs []Record
+	l, op, err := OpenFunc(path, opt, func(_ *Log, r Record, _ Loc) error {
+		recs = append(recs, r)
+		return nil
+	})
+	op.Records = recs
+	return l, op, err
+}
+
+// OpenFunc is Open that hands each whole record and its location to fn as
+// it reads them, instead of holding them all (D172). Opened.Records is
+// nil. An error from fn stops the read and is returned. fn is also given
+// the log being opened, which it may only ReadAt, so a record already
+// handed over can be read back before Open returns (a node drops bodies
+// from memory while it replays).
+func OpenFunc(path string, opt Options, fn func(*Log, Record, Loc) error) (*Log, Opened, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, Opened{}, err
 	}
@@ -177,12 +222,13 @@ func Open(path string, opt Options) (*Log, Opened, error) {
 			return nil, Opened{}, err
 		}
 	} else {
-		recs, good, err := read(f, info.Size())
+		l.size = info.Size() // for ReadAt from fn; set to the end below
+		n, good, err := read(f, info.Size(), func(r Record, loc Loc) error { return fn(l, r, loc) })
 		if err != nil {
 			f.Close()
 			return nil, Opened{}, err
 		}
-		op.Records = recs
+		l.records = n
 		op.Cut = info.Size() - good
 		if op.Cut > 0 {
 			if err := f.Truncate(good); err != nil {
@@ -195,49 +241,50 @@ func Open(path string, opt Options) (*Log, Opened, error) {
 			}
 		}
 	}
-	if _, err := f.Seek(0, io.SeekEnd); err != nil {
+	end, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
 		f.Close()
 		return nil, Opened{}, err
 	}
-	l.records = len(op.Records)
+	l.size = end
 	l.w = bufio.NewWriter(f)
 	return l, op, nil
 }
 
-// read returns the whole records of a log and the offset just after the
-// last one.
-func read(f *os.File, size int64) ([]Record, int64, error) {
+// read hands every whole record of a log and its location to fn, and
+// returns how many there were and the offset just after the last one.
+func read(f *os.File, size int64, fn func(Record, Loc) error) (int, int64, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return nil, 0, err
+		return 0, 0, err
 	}
 	r := bufio.NewReader(f)
 	head := make([]byte, len(magic))
 	if _, err := io.ReadFull(r, head); err != nil || !bytes.Equal(head, magic) {
-		return nil, 0, ErrNotLog
+		return 0, 0, ErrNotLog
 	}
-	var recs []Record
+	count := 0
 	off := int64(len(magic))
 	good := off // just after the last whole item
 	var parts []byte
 	var hdr [5]byte
 	for {
 		if _, err := io.ReadFull(r, hdr[:]); err != nil {
-			return recs, good, nil
+			return count, good, nil
 		}
 		n := binary.BigEndian.Uint32(hdr[1:])
 		if n > MaxRecordSize || int64(n) > size-off-9 {
-			return recs, good, nil
+			return count, good, nil
 		}
 		data := make([]byte, n)
 		if _, err := io.ReadFull(r, data); err != nil {
-			return recs, good, nil
+			return count, good, nil
 		}
 		var sum [4]byte
 		if _, err := io.ReadFull(r, sum[:]); err != nil {
-			return recs, good, nil
+			return count, good, nil
 		}
 		if binary.BigEndian.Uint32(sum[:]) != checksum(hdr[:], data) {
-			return recs, good, nil
+			return count, good, nil
 		}
 		off += 9 + int64(n)
 		if Kind(hdr[0]) == KindPart {
@@ -248,7 +295,10 @@ func read(f *os.File, size int64) ([]Record, int64, error) {
 			data = append(parts, data...)
 			parts = nil
 		}
-		recs = append(recs, Record{Kind: Kind(hdr[0]), Data: data})
+		if err := fn(Record{Kind: Kind(hdr[0]), Data: data}, Loc{Off: good, Len: off - good}); err != nil {
+			return count, good, err
+		}
+		count++
 		good = off
 	}
 }
@@ -269,6 +319,15 @@ func frame(w io.Writer, rec Record) error {
 		data = data[pieceSize:]
 	}
 	return framePiece(w, rec.Kind, data)
+}
+
+// framedSize is how many bytes frame writes for data of n bytes.
+func framedSize(n int) int64 {
+	pieces := int64(1)
+	if n > pieceSize {
+		pieces = int64((n + pieceSize - 1) / pieceSize)
+	}
+	return int64(n) + 9*pieces
 }
 
 func framePiece(w io.Writer, k Kind, data []byte) error {
@@ -307,8 +366,15 @@ func (l *Log) syncFile() error {
 // pass the returned ticket to Durable to wait until it would also survive
 // a power loss.
 func (l *Log) AppendLater(rec Record) (uint64, error) {
+	t, _, err := l.AppendLaterAt(rec)
+	return t, err
+}
+
+// AppendLaterAt is AppendLater that also returns the record's location,
+// for ReadAt (D172).
+func (l *Log) AppendLaterAt(rec Record) (uint64, Loc, error) {
 	if err := l.Err(); err != nil {
-		return 0, err
+		return 0, Loc{}, err
 	}
 	err := frame(l.w, rec)
 	if err == nil {
@@ -317,11 +383,63 @@ func (l *Log) AppendLater(rec Record) (uint64, error) {
 	l.fmu.Lock()
 	defer l.fmu.Unlock()
 	if err != nil {
-		return 0, l.failLocked(err)
+		return 0, Loc{}, l.failLocked(err)
 	}
+	n := framedSize(len(rec.Data))
+	loc := Loc{Gen: l.gen, Off: l.size, Len: n}
+	l.size += n
 	l.records++
 	l.written++
-	return l.written, nil
+	return l.written, loc, nil
+}
+
+// ReadAt reads back the record at loc, checking each frame's checksum. It
+// may run beside appends and Durable. A location from an older generation
+// is refused (ErrStaleLoc), and bytes that are not one whole record give
+// ErrBadRecord: neither is ever read as some other record.
+func (l *Log) ReadAt(loc Loc) (Record, error) {
+	l.fmu.Lock()
+	defer l.fmu.Unlock()
+	if loc.Gen != l.gen || loc.Off < int64(len(magic)) || loc.Len < 9 || loc.Off+loc.Len > l.size {
+		return Record{}, ErrStaleLoc
+	}
+	buf := make([]byte, loc.Len)
+	if _, err := l.f.ReadAt(buf, loc.Off); err != nil {
+		return Record{}, fmt.Errorf("store: read %s at %d: %w", l.path, loc.Off, err)
+	}
+	var data []byte
+	for len(buf) > 0 {
+		if len(buf) < 9 {
+			return Record{}, ErrBadRecord
+		}
+		n := int(binary.BigEndian.Uint32(buf[1:5]))
+		if n > len(buf)-9 {
+			return Record{}, ErrBadRecord
+		}
+		piece := buf[5 : 5+n]
+		if binary.BigEndian.Uint32(buf[5+n:9+n]) != checksum(buf[:5], piece) {
+			return Record{}, ErrBadRecord
+		}
+		k := Kind(buf[0])
+		buf = buf[9+n:]
+		if k == KindPart {
+			if len(buf) == 0 {
+				return Record{}, ErrBadRecord
+			}
+			data = append(data, piece...)
+			continue
+		}
+		if len(buf) != 0 {
+			return Record{}, ErrBadRecord
+		}
+		if data != nil {
+			piece = append(data, piece...)
+		} else {
+			piece = append([]byte(nil), piece...)
+		}
+		return Record{Kind: k, Data: piece}, nil
+	}
+	return Record{}, ErrBadRecord
 }
 
 // Durable waits until the append with this ticket is on disk, unless
@@ -372,26 +490,45 @@ func (l *Log) Path() string { return l.path }
 // beside the log, syncs it and renames it into place, then reopens the log
 // for appending.
 func (l *Log) Rewrite(recs []Record) error {
+	_, err := l.RewriteFunc(len(recs), func(i int) (Record, error) { return recs[i], nil })
+	return err
+}
+
+// RewriteFunc is Rewrite that asks next for the n records one at a time,
+// so they need not all be in memory, and returns their locations in the
+// new generation (D172). An error from next leaves the old log as it was.
+// next may read the old log with ReadAt: the new file only replaces it
+// at the end.
+func (l *Log) RewriteFunc(n int, next func(i int) (Record, error)) ([]Loc, error) {
 	if err := l.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	if err := l.w.Flush(); err != nil {
-		return err
+		return nil, err
 	}
 	tmp := l.path + ".tmp"
 	f, err := os.OpenFile(tmp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	w := bufio.NewWriter(f)
+	locs := make([]Loc, 0, n)
+	size := int64(len(magic))
 	err = func() error {
 		if _, err := w.Write(magic); err != nil {
 			return err
 		}
-		for _, r := range recs {
+		for i := 0; i < n; i++ {
+			r, err := next(i)
+			if err != nil {
+				return err
+			}
 			if err := frame(w, r); err != nil {
 				return err
 			}
+			fs := framedSize(len(r.Data))
+			locs = append(locs, Loc{Off: size, Len: fs})
+			size += fs
 		}
 		if err := w.Flush(); err != nil {
 			return err
@@ -401,17 +538,19 @@ func (l *Log) Rewrite(recs []Record) error {
 	if err != nil {
 		f.Close()
 		os.Remove(tmp)
-		return err
+		return nil, err
 	}
 	// Close the old file first: some systems cannot rename over a file
 	// that is still open.
+	l.fmu.Lock()
 	l.f.Close()
+	l.fmu.Unlock()
 	if err := os.Rename(tmp, l.path); err != nil {
 		f.Close()
 		os.Remove(tmp)
 		old, oerr := os.OpenFile(l.path, os.O_RDWR|os.O_APPEND, 0o600)
 		if oerr != nil {
-			return errors.Join(err, oerr)
+			return nil, errors.Join(err, oerr)
 		}
 		serr := old.Sync()
 		l.fmu.Lock()
@@ -421,20 +560,25 @@ func (l *Log) Rewrite(recs []Record) error {
 		}
 		l.fmu.Unlock()
 		l.w = bufio.NewWriter(old)
-		return err
+		return nil, err
 	}
 	syncDir(filepath.Dir(l.path))
 	if _, err := f.Seek(0, io.SeekEnd); err != nil {
 		f.Close()
-		return err
+		return nil, err
 	}
 	l.fmu.Lock()
 	l.f = f
 	l.synced = l.written // the new file holds every live record, synced
+	l.gen++
+	l.size = size
+	for i := range locs {
+		locs[i].Gen = l.gen
+	}
 	l.fmu.Unlock()
 	l.w = bufio.NewWriter(f)
-	l.records = len(recs)
-	return nil
+	l.records = n
+	return locs, nil
 }
 
 // syncDir makes a rename durable where the platform supports it.

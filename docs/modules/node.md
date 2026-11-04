@@ -46,12 +46,37 @@ again picks up its history.
 - `Engine()` for reads (changes made directly on the engine are not
   stored), `Policy`, `Dir`, `Replayed` (`ReplayStats`), `Stores`,
   `Compact(key)`.
+- `BodyCache()`, `Bodies()` (`BodyStats`: the cache's bound, use, hits,
+  loads and errors, and the entries held, in memory and located),
+  `FileLimit()` (the open file check at `Open`, ORANGE-037).
 - `ErrClosed`.
+
+## Entry bodies on disk (D172)
+
+Each pool's ledger gets a body source that reads the pool's log by
+location. Locations are built while the log is replayed (`store.OpenFunc`,
+one window of 1,024 records at a time) and as records are appended, and
+rebuilt by each compaction, which copies entry records from the old file
+by location. A body read back is used only if the record is an entry with
+the hash asked for. The node's one `ledger.BodyCache` is bounded by
+`entry_cache_mib`. Lock order: the engine's lock, then a pool's location
+lock, then the log's; a compaction holds the location lock while it
+rewrites, so reads wait for the new locations. No index file is kept yet;
+start-up reads the whole log anyway (a sidecar index comes with snapshots,
+R30).
+
+`Open` logs one warning when the soft open file limit is below the
+followed pools plus 256 (`nodepolicy.CheckFileLimit`).
 
 ## Tests
 
 `node_test.go`: restart restores tip, weight, branches, holdings and
 pending; compaction (explicit and automatic) keeps state; a torn write is
 cut; a record edited on disk is refused on replay; a second node on the
-same directory is refused; follow rules and unaccepted series. Events are
+same directory is refused; follow rules and unaccepted series.
+`bodies_test.go`: with no cache, every body reads back from disk and the
+node selects and holds the same, through a compaction, a restart and
+entries taken in after each; `entry_cache_mib` sets the bound.
+`bodies_internal_test.go`: a location holding another entry or another
+kind of record is never given as the body. Events are
 exercised by the p2p tests.

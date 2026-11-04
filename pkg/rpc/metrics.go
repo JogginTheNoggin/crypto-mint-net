@@ -76,7 +76,19 @@ func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
 		waiting.add(l, float64(st.Waiting))
 		stored.add(l, float64(stores[k.Series.String()+"/"+fmt.Sprint(k.Index)]))
 	}
-	ms := []*metric{height, weight, entries, branches, pending, waiting, stored}
+	bs := h.n.Bodies()
+	cacheUsed := g("entry_cache_bytes", "Bytes of entry bodies in the cache (entry_cache_mib bounds it).")
+	cacheUsed.add("", float64(bs.UsedBytes))
+	cacheMax := g("entry_cache_max_bytes", "The entry body cache's bound.")
+	cacheMax.add("", float64(bs.MaxBytes))
+	inMem := g("entry_bodies_in_memory", "Held entries whose bodies are in the pool, not yet dropped to the log.")
+	inMem.add("", float64(bs.InMemory))
+	c := func(name, help string) *metric { return &metric{name: "poo_" + name, help: help, kind: "counter"} }
+	loads := c("entry_body_loads_total", "Entry bodies read back from the logs.")
+	loads.add("", float64(bs.Loads))
+	loadErrs := c("entry_body_load_errors_total", "Entry body reads from the logs that failed.")
+	loadErrs.add("", float64(bs.Errors))
+	ms := []*metric{height, weight, entries, branches, pending, waiting, stored, cacheUsed, cacheMax, inMem, loads, loadErrs}
 	if h.host != nil {
 		ps := h.host.Peers()
 		conn := g("peers_connected", "Connected peers, by direction.")

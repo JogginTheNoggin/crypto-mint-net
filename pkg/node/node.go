@@ -84,14 +84,20 @@ type Node struct {
 	policyMu sync.Mutex
 	eng      *engine.Engine
 	logs     map[engine.PoolKey]*store.Log
-	log      *slog.Logger // the node's logger; Logger gives it to p2p and rpc
-	failed   sync.Map     // pool keys whose store stopped, logged once
+	// bodies holds each pool's entry record locations, and cache the
+	// bodies read back from them (D172); bmu guards the map.
+	bmu    sync.Mutex
+	bodies map[engine.PoolKey]*poolBodies
+	cache  *ledger.BodyCache
+	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
+	failed sync.Map     // pool keys whose store stopped, logged once
 	// kept paces the extra layers a layer floor keeps (RED-018).
 	kept   keptBucket
 	cmin   int
 	unlock func()
 	closed bool
 	replay ReplayStats
+	files  nodepolicy.FileLimit
 
 	observers []func(Event)
 }
@@ -139,11 +145,16 @@ func Open(dir string, opt Options) (*Node, error) {
 	}
 	n := &Node{
 		dir: dir, pol: pol, run: pol, log: lg, unlock: unlock, cmin: opt.CompactMin,
-		eng: engine.New(engine.Config{
-			Ledger: pol.LedgerConfig(), MaxPending: pol.MaxPending, SeenSize: pol.SeenSize,
-		}),
-		logs: map[engine.PoolKey]*store.Log{},
+		logs:   map[engine.PoolKey]*store.Log{},
+		bodies: map[engine.PoolKey]*poolBodies{},
+		cache:  ledger.NewBodyCache(pol.EntryCacheBytes()),
 	}
+	lc := pol.LedgerConfig()
+	lc.Bodies = n.cache
+	n.eng = engine.New(engine.Config{
+		Ledger: lc, MaxPending: pol.MaxPending, SeenSize: pol.SeenSize,
+		Source: func(k engine.PoolKey) ledger.BodySource { return source{n, k} },
+	})
 	if err := n.configure(); err != nil {
 		unlock()
 		return nil, err
@@ -152,6 +163,13 @@ func Open(dir string, opt Options) (*Node, error) {
 		n.closeLogs()
 		unlock()
 		return nil, err
+	}
+	// One store file per pool in use: say so before it runs out
+	// (ORANGE-037).
+	n.files = nodepolicy.CheckFileLimit(n.eng.FollowedCount())
+	if n.files.Low {
+		n.logger().Warn("open file limit may be too low", "limit", n.files.Soft, "need", n.files.Need,
+			"note", n.files.String()+"; raise it (ulimit -n, or LimitNOFILE= in a systemd unit) or follow fewer pools")
 	}
 	return n, nil
 }
@@ -280,44 +298,83 @@ func (n *Node) load() error {
 		return err
 	}
 	for _, k := range keys {
-		path := n.logPath(k)
-		l, op, err := store.Open(path, store.Options{NoSync: n.pol.NoSync})
-		if err != nil {
-			return fmt.Errorf("node: %s: %w", path, err)
-		}
-		n.logs[k] = l
-		n.replay.Pools++
-		n.replay.Cut += op.Cut
-		if op.Cut > 0 {
-			n.logger().Warn("dropped an unfinished write", "pool", k.String(), "bytes", op.Cut)
-		}
-		// A window of records is decoded, its witnesses are checked on
-		// every core, and then it is replayed in order, finding them
-		// verified (ORANGE-021).
-		for i := 0; i < len(op.Records); i += replayWindow {
-			win := decodeAll(op.Records[i:min(i+replayWindow, len(op.Records))])
-			var txs []*tx.Tx
-			for _, d := range win {
-				switch {
-				case d.t != nil:
-					txs = append(txs, d.t)
-				case d.e != nil:
-					txs = append(txs, d.e.Txs...)
-				}
-			}
-			n.eng.WarmStored(txs)
-			for _, d := range win {
-				n.replay.Records++
-				if n.apply(k, d) {
-					n.replay.Kept++
-				}
-			}
-		}
-		if err := n.maybeCompact(k); err != nil {
+		if err := n.loadPool(k); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// storedRec is one record read back at start, with its place in the log.
+type storedRec struct {
+	rec store.Record
+	loc store.Loc
+}
+
+// loadPool replays pool k's log. Records are read one window at a time:
+// a window is decoded, its witnesses are checked on every core, and then
+// it is replayed in order, finding them verified (ORANGE-021). The place
+// of each entry the engine keeps is noted, and its body dropped from
+// memory once the next entry comes, so start-up holds one window of
+// records and the bodies the cache keeps, not the whole log (D172).
+func (n *Node) loadPool(k engine.PoolKey) error {
+	path := n.logPath(k)
+	s, _ := n.eng.Series(k.Series)
+	var b *poolBodies
+	win := make([]storedRec, 0, replayWindow)
+	flush := func() {
+		recs := make([]store.Record, len(win))
+		for i, r := range win {
+			recs[i] = r.rec
+		}
+		ds := decodeAll(recs)
+		var txs []*tx.Tx
+		for _, d := range ds {
+			switch {
+			case d.t != nil:
+				txs = append(txs, d.t)
+			case d.e != nil:
+				txs = append(txs, d.e.Txs...)
+			}
+		}
+		n.eng.WarmStored(txs)
+		for i, d := range ds {
+			n.replay.Records++
+			if !n.apply(k, d) {
+				continue
+			}
+			n.replay.Kept++
+			if d.e != nil {
+				b.add(d.e.Hash(s), win[i].loc)
+			}
+		}
+		win = win[:0]
+	}
+	l, op, err := store.OpenFunc(path, store.Options{NoSync: n.pol.NoSync}, func(ol *store.Log, r store.Record, loc store.Loc) error {
+		if b == nil {
+			b = n.openBodies(k, ol)
+		}
+		win = append(win, storedRec{r, loc})
+		if len(win) == replayWindow {
+			flush()
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("node: %s: %w", path, err)
+	}
+	if len(win) > 0 {
+		flush()
+	}
+	n.openBodies(k, l)
+	n.logs[k] = l
+	n.replay.Pools++
+	n.replay.Cut += op.Cut
+	if op.Cut > 0 {
+		n.logger().Warn("dropped an unfinished write", "pool", k.String(), "bytes", op.Cut)
+	}
+	n.eng.Ledger(k, func(p *ledger.Pool) { p.ReleaseBodies() })
+	return n.maybeCompact(k)
 }
 
 // replayWindow is how many stored records are decoded and warmed at a
@@ -369,20 +426,48 @@ func (n *Node) apply(k engine.PoolKey, d decoded) bool {
 	return err == nil
 }
 
+// liveItem is one record a compaction writes: an entry copied from its
+// place in the old log, or bytes from memory.
+type liveItem struct {
+	kind store.Kind
+	h    hash.Hash // for an entry
+	loc  store.Loc
+	at   bool // copy the record at loc
+	data []byte
+}
+
 // liveRecords returns what pool k still needs: the entries it holds, each
 // followed by its layers, in an order that rebuilds the same selected
-// ledger, then the pending transactions.
-func (n *Node) liveRecords(k engine.PoolKey) ([]store.Record, error) {
-	var recs []store.Record
+// ledger, then the pending transactions. An entry whose record is in the
+// log is copied from there when the log is rewritten, so a compaction
+// never reads every body into memory (D172).
+func (n *Node) liveRecords(k engine.PoolKey) ([]liveItem, error) {
+	b := n.poolBodies(k)
+	var items []liveItem
+	var bad error
 	err := n.eng.Ledger(k, func(p *ledger.Pool) {
 		for _, h := range p.ReplayOrder() {
-			e, _ := p.Entry(h)
-			recs = append(recs, store.Record{Kind: store.KindEntry, Data: e.Encode()})
+			it := liveItem{kind: store.KindEntry, h: h}
+			if b != nil {
+				it.loc, it.at = b.locOf(h)
+			}
+			if !it.at {
+				e, ok := p.Entry(h)
+				if !ok {
+					bad = fmt.Errorf("node: compact %s: no body for entry %s", k, h.Short())
+					return
+				}
+				it.data = e.Encode()
+			}
+			items = append(items, it)
 			for _, l := range p.Layers(h) {
-				recs = append(recs, store.Record{Kind: store.KindLayer, Data: l.Encode()})
+				items = append(items, liveItem{kind: store.KindLayer, data: l.Encode()})
 			}
 		}
 	})
+	if err == nil {
+		err = bad
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -391,9 +476,9 @@ func (n *Node) liveRecords(k engine.PoolKey) ([]store.Record, error) {
 		return nil, err
 	}
 	for _, it := range pending {
-		recs = append(recs, store.Record{Kind: store.KindTx, Data: it.Tx.Encode()})
+		items = append(items, liveItem{kind: store.KindTx, data: it.Tx.Encode()})
 	}
-	return recs, nil
+	return items, nil
 }
 
 func (n *Node) maybeCompact(k engine.PoolKey) error {
@@ -401,23 +486,50 @@ func (n *Node) maybeCompact(k engine.PoolKey) error {
 	if l == nil || l.Records() < n.cmin {
 		return nil
 	}
-	recs, err := n.liveRecords(k)
+	items, err := n.liveRecords(k)
 	if err != nil {
 		return err
 	}
-	if l.Records() <= compactRatio*len(recs) {
+	if l.Records() <= compactRatio*len(items) {
 		return nil
 	}
-	return n.compact(k, recs)
+	return n.compact(k, items)
 }
 
-func (n *Node) compact(k engine.PoolKey, recs []store.Record) error {
+// compact rewrites pool k's log with items, copying entry records from
+// the old file, and gives the pool the new locations. It holds the pool's
+// location lock throughout, so body reads wait for the new locations.
+func (n *Node) compact(k engine.PoolKey, items []liveItem) error {
 	l := n.logs[k]
+	b := n.openBodies(k, l)
 	before := l.Records()
-	if err := l.Rewrite(recs); err != nil {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	locs, err := l.RewriteFunc(len(items), func(i int) (store.Record, error) {
+		it := items[i]
+		if !it.at {
+			return store.Record{Kind: it.kind, Data: it.data}, nil
+		}
+		r, err := l.ReadAt(it.loc)
+		if err != nil {
+			return r, err
+		}
+		if r.Kind != store.KindEntry {
+			return r, fmt.Errorf("%w: entry %s's record is of kind %d", store.ErrBadRecord, it.h.Short(), r.Kind)
+		}
+		return r, nil
+	})
+	if err != nil {
 		return fmt.Errorf("node: compact %s: %w", k, err)
 	}
-	n.logger().Info("compacted store", "pool", k.String(), "from", before, "to", len(recs))
+	m := make(map[hash.Hash]store.Loc, len(items))
+	for i, it := range items {
+		if it.kind == store.KindEntry {
+			m[it.h] = locs[i]
+		}
+	}
+	b.locs = m
+	n.logger().Info("compacted store", "pool", k.String(), "from", before, "to", len(items))
 	return nil
 }
 
@@ -431,11 +543,11 @@ func (n *Node) Compact(k engine.PoolKey) error {
 	if n.logs[k] == nil {
 		return nil
 	}
-	recs, err := n.liveRecords(k)
+	items, err := n.liveRecords(k)
 	if err != nil {
 		return err
 	}
-	return n.compact(k, recs)
+	return n.compact(k, items)
 }
 
 // record appends an accepted item to the store of pool k, opening the
@@ -443,19 +555,30 @@ func (n *Node) Compact(k engine.PoolKey) error {
 // that waits until it is on disk. The caller calls that after releasing
 // the node's lock, so items taken in from many peers share one fsync
 // instead of each holding the lock through its own (ORANGE-005).
-func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte) (func() error, error) {
+//
+// An entry's record place is noted under its hash h, so the pool can drop
+// the body from memory and read it back (D172).
+func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte, h hash.Hash) (func() error, error) {
 	l := n.logs[k]
 	if l == nil {
 		var err error
-		l, _, err = store.Open(n.logPath(k), store.Options{NoSync: n.pol.NoSync})
+		// A log of a pool not replayed at start (followed since) is
+		// appended to; its old records are not read (D172).
+		l, _, err = store.OpenFunc(n.logPath(k), store.Options{NoSync: n.pol.NoSync}, func(*store.Log, store.Record, store.Loc) error { return nil })
 		if err != nil {
 			return nil, err
 		}
 		n.logs[k] = l
+		n.openBodies(k, l)
 	}
-	t, err := l.AppendLater(store.Record{Kind: kind, Data: data})
+	t, loc, err := l.AppendLaterAt(store.Record{Kind: kind, Data: data})
 	if err != nil {
 		return nil, n.storeFailed(k, err)
+	}
+	if kind == store.KindEntry {
+		if b := n.poolBodies(k); b != nil {
+			b.add(h, loc)
+		}
 	}
 	return func() error {
 		if err := l.Durable(t); err != nil {
@@ -542,7 +665,7 @@ func (n *Node) HandleTxFrom(t *tx.Tx, origin engine.Origin, from string) (engine
 		if err != nil {
 			return res, err
 		}
-		if durable, err = n.record(res.Key, store.KindTx, t.Encode()); err != nil {
+		if durable, err = n.record(res.Key, store.KindTx, t.Encode(), hash.Hash{}); err != nil {
 			return res, err
 		}
 		n.emit(Event{Key: res.Key, Tx: t, Origin: origin, From: from, Forward: res.Forward})
@@ -573,7 +696,7 @@ func (n *Node) HandleEntryFrom(k engine.PoolKey, e *entry.Entry, origin engine.O
 		if err != nil {
 			return res, err
 		}
-		if durable, err = n.record(k, store.KindEntry, e.Encode()); err != nil {
+		if durable, err = n.record(k, store.KindEntry, e.Encode(), res.Hash); err != nil {
 			return res, err
 		}
 		n.emit(Event{Key: k, Entry: e, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
@@ -603,7 +726,7 @@ func (n *Node) HandleLayerFrom(k engine.PoolKey, l layer.Layer, origin engine.Or
 		if err != nil {
 			return res, err
 		}
-		if durable, err = n.record(k, store.KindLayer, l.Encode()); err != nil {
+		if durable, err = n.record(k, store.KindLayer, l.Encode(), hash.Hash{}); err != nil {
 			return res, err
 		}
 		n.emit(Event{Key: k, Layer: &l, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
@@ -802,6 +925,9 @@ func (n *Node) UpdateRunning(f func(*nodepolicy.Policy)) {
 
 // Dir returns the data directory.
 func (n *Node) Dir() string { return n.dir }
+
+// FileLimit reports the open file limit checked at Open (ORANGE-037).
+func (n *Node) FileLimit() nodepolicy.FileLimit { return n.files }
 
 // Replayed reports what Open read back from the stores.
 func (n *Node) Replayed() ReplayStats { return n.replay }

@@ -86,6 +86,9 @@ type Policy struct {
 	MaxPending int `json:"max_pending,omitempty"`
 	// SeenSize is the size of the seen list (0: default).
 	SeenSize int `json:"seen_size,omitempty"`
+	// EntryCacheMiB bounds the entry bodies kept in memory, read back
+	// from the pool logs, in MiB (0: default; D172).
+	EntryCacheMiB int `json:"entry_cache_mib,omitempty"`
 	// NoSync skips the fsync after each write to the store. Faster; a power
 	// loss can then lose the latest items, which peers can send again.
 	NoSync bool `json:"no_sync,omitempty"`

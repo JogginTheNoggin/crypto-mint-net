@@ -41,7 +41,7 @@ func (p *Pool) ParentOf(h hash.Hash) (hash.Hash, bool) {
 	if !ok {
 		return hash.Zero, false
 	}
-	return n.entry.Parent, true
+	return p.parentHash(n), true
 }
 
 // Refused is a transaction CheckOn left out, and why.

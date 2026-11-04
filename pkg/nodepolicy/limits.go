@@ -66,11 +66,28 @@ var (
 // ledger.
 var BoundSeriesCeiling = Bound{"series_ceiling", 1024, 1 << 30, 0}
 
+// BoundEntryCacheMiB is entry_cache_mib (D172): the MiB of entry bodies a
+// node keeps in memory, read back from its pool logs, across all pools.
+// Every held entry's skeleton (what selection, switching and checking
+// read) stays in memory whatever this is; only bodies, which no verdict
+// reads from the cache, are bounded. A small cache makes serving peers and
+// queries read the disk more, never decide differently. The ceiling is
+// 1 TiB, enough to keep every body of a busy node in memory.
+var BoundEntryCacheMiB = Bound{"entry_cache_mib", 1, 1 << 20, DefaultEntryCacheMiB}
+
+// DefaultEntryCacheMiB is entry_cache_mib's default.
+const DefaultEntryCacheMiB = 512
+
+// EntryCacheBytes returns the entry body cache bound this policy asks for.
+func (p Policy) EntryCacheBytes() int64 {
+	return int64(BoundEntryCacheMiB.Or(p.EntryCacheMiB)) << 20
+}
+
 // Bounds lists every bounded setting, for docs, the CLI and the GUI.
 func Bounds() []Bound {
 	return []Bound{BoundMaxBook, BoundBookPerRange, BoundVerifiedPerRange, BoundRetrySeconds, BoundRegistrySeconds,
 		BoundCandidateSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
-		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling}
+		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB}
 }
 
 // Check refuses v when it is neither zero (the default) nor in range.
@@ -190,6 +207,8 @@ func (p *Policy) limitField(name string) *int {
 		return &p.Tracking.LogSize
 	case BoundSeriesCeiling.Name:
 		return &p.SeriesCeiling
+	case BoundEntryCacheMiB.Name:
+		return &p.EntryCacheMiB
 	}
 	return nil
 }
@@ -237,6 +256,10 @@ var InPlace = map[string]bool{
 	BoundSeenSize.Name: true,
 	// Read only by a policy import, from node.json.
 	BoundSeriesCeiling.Name: true,
+	// The body cache takes its new bound and drops what no longer fits
+	// (D172); a reload would start it empty, which costs reads, not
+	// verdicts.
+	BoundEntryCacheMiB.Name: true,
 }
 
 // ChangedLimits lists the bounded settings whose used value differs

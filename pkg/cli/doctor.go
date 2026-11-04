@@ -194,6 +194,17 @@ func doctor(out io.Writer, dir string) DoctorReport {
 			Fix: "follow such a series only on purpose; poo policy limits -set series_ceiling=N declines new ones on import"})
 	}
 
+	// One store file per pool in use, and room for peers: a limit below
+	// that fails later with "too many open files" (ORANGE-037). The
+	// limit is this process's, as Go raised it at start, which is the
+	// node's when it is started from the same shell or service.
+	if fl := nodepolicy.CheckFileLimit(p.FollowedPools(accepted)); fl.Low {
+		add(Check{Name: "open-files", Result: checkWarn, Detail: fl.String(),
+			Fix: fmt.Sprintf("raise the open file limit to at least %d (ulimit -n, or LimitNOFILE= in a systemd unit), or follow fewer pools", fl.Need)})
+	} else if fl.Known {
+		add(Check{Name: "open-files", Result: checkOK, Detail: fmt.Sprintf("the open file limit is %d; following these pools needs at most %d", fl.Soft, fl.Need)})
+	}
+
 	// A release node.json keeps that does not check is left out, and its
 	// series followed with the parts proven without it (RED-073).
 	var bad []string
