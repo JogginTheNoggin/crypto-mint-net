@@ -41,10 +41,57 @@ var (
 	ErrRelease = errors.New("series: invalid release")
 )
 
-// partChain caches part ids; it never changes a result.
+// partChain caches part ids; it never changes a result. It keeps a mark
+// (one id) every stride parts and the newest id worked out, and, when the
+// marks pass maxPartMarks, drops every other one and doubles the stride.
+// So its memory never passes maxPartMarks ids (2 MiB) however far out a
+// part is asked for, and part k up to the newest costs at most stride
+// hashes from its mark (ORANGE-034, RED-070, D165). It also keeps the
+// last answer, so parts asked for in order cost one hash each.
 type partChain struct {
-	mu  sync.Mutex
-	ids []hash.Hash // ids[i] is part_id(i+1)
+	mu     sync.Mutex
+	stride uint64      // parts between two marks: firstPartStride, doubled
+	marks  []hash.Hash // marks[j] is part_id(j×stride + 1)
+	next   uint64      // the newest part worked out (0: none)
+	at     hash.Hash   // part_id(next)
+	lastK  uint64      // the last part answered (0: none)
+	last   hash.Hash   // part_id(lastK)
+}
+
+// The chain's sizes; variables only so tests can make them small.
+var (
+	// firstPartStride is the stride the marks start with.
+	firstPartStride uint64 = 1024
+	// maxPartMarks bounds the marks a series keeps.
+	maxPartMarks = 1 << 16
+	// partChunk is how many ids PartID works out at a time while holding
+	// the chain's lock, so a call far out never holds it for long.
+	partChunk uint64 = 1 << 14
+)
+
+// extendLocked works the newest id out towards part to, at most partChunk
+// parts further, keeping marks as it passes them.
+func (s *Series) extendLocked(c *partChain, to uint64) {
+	if c.next == 0 {
+		c.stride = firstPartStride
+		c.at, c.next = s.partID(1, s.id), 1
+		c.marks = append(c.marks[:0], c.at)
+	}
+	for end := min(to, c.next+partChunk); c.next < end; {
+		c.next++
+		c.at = s.partID(c.next, c.at)
+		if c.next == uint64(len(c.marks))*c.stride+1 {
+			c.marks = append(c.marks, c.at)
+			if len(c.marks) > maxPartMarks {
+				kept := c.marks[:0]
+				for i := 0; i < len(c.marks); i += 2 {
+					kept = append(kept, c.marks[i])
+				}
+				clear(c.marks[len(kept):])
+				c.marks, c.stride = kept, c.stride*2
+			}
+		}
+	}
 }
 
 // IsVariable reports whether the series is variable.
@@ -137,23 +184,51 @@ func (s *Series) partID(k uint64, previous hash.Hash) hash.Hash {
 
 // PartID returns part_id(k). Part ids follow from the series alone, so
 // anyone can work out every future part id in advance. Working out part k
-// takes k hashes the first time; the ids are then remembered.
+// takes k hashes the first time, in time and never in memory: the chain
+// keeps at most maxPartMarks ids, and no call holds its lock for more
+// than partChunk hashes, so other calls go on meanwhile (RED-070). After
+// that, a part up to k costs at most the stride between two marks. A part
+// far out is never refused for being far: that would make nodes with the
+// same release disagree on whether it is valid.
 func (s *Series) PartID(k uint64) (hash.Hash, error) {
 	if err := s.checkPart(k); err != nil {
 		return hash.Zero, err
 	}
 	c := &s.parts
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	for uint64(len(c.ids)) < k {
-		n := uint64(len(c.ids)) + 1
-		prev := s.id
-		if n > 1 {
-			prev = c.ids[n-2]
+	for c.next < k {
+		s.extendLocked(c, k)
+		if c.next < k {
+			// Let other calls in between two chunks.
+			c.mu.Unlock()
+			c.mu.Lock()
 		}
-		c.ids = append(c.ids, s.partID(n, prev))
 	}
-	return c.ids[k-1], nil
+	if k == c.next {
+		id := c.at
+		c.mu.Unlock()
+		return id, nil
+	}
+	if k == c.lastK {
+		id := c.last
+		c.mu.Unlock()
+		return id, nil
+	}
+	// From the nearest mark at or below k, or from the last answer when it
+	// is nearer, without the lock.
+	j := (k - 1) / c.stride
+	n, id := j*c.stride+1, c.marks[j]
+	if c.lastK > n && c.lastK < k {
+		n, id = c.lastK, c.last
+	}
+	c.mu.Unlock()
+	for ; n < k; n++ {
+		id = s.partID(n+1, id)
+	}
+	c.mu.Lock()
+	c.lastK, c.last = k, id
+	c.mu.Unlock()
+	return id, nil
 }
 
 // ReleaseMessage returns H("PoO-part-v1" ∥ part_id), the value a release

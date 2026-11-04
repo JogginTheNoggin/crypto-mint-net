@@ -266,15 +266,19 @@ func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
 	if !h.needHost(w) {
 		return
 	}
-	book := h.host.Book().Records()
-	if book == nil {
-		book = []peers.Record{}
-	}
 	conns := h.host.Peers()
-	reply := PeersReply{NodeID: h.host.ID().String(), Listen: h.host.Addr(), Peers: conns, Book: book}
+	reply := PeersReply{NodeID: h.host.ID().String(), Listen: h.host.Addr(), Peers: conns, Book: []peers.Record{}}
 	if r.URL.Query().Get("counts") == "1" {
-		c := CountBook(book, len(conns))
-		reply.Book, reply.Counts = []peers.Record{}, &c
+		// Counted in place: a counts-only reply copies no record
+		// (ORANGE-034).
+		n, states := h.host.Book().Counts()
+		c := BookCounts{Addresses: n, Connected: len(conns), States: map[string]int{}}
+		for _, st := range peers.States {
+			c.States[st.String()] = states[st]
+		}
+		reply.Counts = &c
+	} else if book := h.host.Book().Records(); book != nil {
+		reply.Book = book
 	}
 	writeJSON(w, reply)
 }

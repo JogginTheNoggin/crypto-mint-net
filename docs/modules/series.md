@@ -35,6 +35,10 @@ The phases are in [../variable-supply.md](../variable-supply.md).
   - `Release{Series, Part, Previous, Witness}` with `ID`, `Encode`,
     `DecodeRelease` and JSON, and `CheckRelease`.
   - Errors `ErrFixed`, `ErrNoPart` and `ErrRelease`.
+- JSON (json.go): `Params.MarshalJSON` writes a variable series' hash as
+  `variable_hash`, with no `hash`, so an older node refuses it;
+  `UnmarshalJSON` reads both forms and refuses an unknown key
+  (`ErrUnknownKey`, RED-071, D165).
 
 ## Guarantees
 
@@ -49,7 +53,10 @@ copy of the version 1 encoder. A variable series names an issuer, and its N
 and M are whole multiples of P, so every pool sits inside one part. The id
 of a part follows from the series and the part number alone, so there is
 one part k. `CheckRelease` checks the issuer's witness first, so only the
-issuer can make a node compute a long chain of part ids.
+issuer can make a node compute a long chain of part ids. That chain costs
+time, not memory: `PartID` keeps at most 65,536 ids and holds its lock for
+16,384 hashes at a time (RED-070, D165). A part is never refused for being
+far out.
 
 ## Extending
 

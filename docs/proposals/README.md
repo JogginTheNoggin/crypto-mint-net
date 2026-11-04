@@ -82,3 +82,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-031](source/ORANGE-031-peer-import-at-its-limits.md) | Source | Round 21 measured; peer imports at their limits | adopted (D159) |
 | [ORANGE-032](source/ORANGE-032-limits-at-their-ceilings.md) | Source | Round 22 measured; the settable limits at their ceilings | adopted (D161) |
 | [ORANGE-033](source/ORANGE-033-rival-builds-and-live-limits.md) | Source | Round 23 measured; rival-claim builds and live limit changes | proposed |
+| [ORANGE-034](source/ORANGE-034-parts-as-ranges-and-part-ids.md) | Source | Round 24 measured; parts as ranges, part ids, peer counts | proposed |

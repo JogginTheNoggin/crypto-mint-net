@@ -1276,6 +1276,25 @@ func (b *Book) Records() []Record {
 	return out
 }
 
+// Counts returns how many records the book holds and, for each state,
+// how many records hold it for at least one policy: what Records gives
+// rpc.CountBook, without copying or sorting the book (ORANGE-034).
+func (b *Book) Counts() (records int, states map[State]int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	states = make(map[State]int, len(States))
+	for _, r := range b.recs {
+		var seen [8]bool // indexed by State, which is one of States
+		for _, p := range r.Policies {
+			if i := int(p.State); i >= 0 && i < len(seen) && !seen[i] {
+				seen[i] = true
+				states[p.State]++
+			}
+		}
+	}
+	return len(b.recs), states
+}
+
 // Record returns a copy of addr's record.
 func (b *Book) Record(addr string) (Record, bool) {
 	b.mu.Lock()

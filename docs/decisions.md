@@ -3639,3 +3639,51 @@ a chase takes in after checking their work are not charged.
     non-empty plan with `-if-digest` to a running node, which failed
     before this change, and checks `-counts`.
   - `pkg/cli/rivalclaim_test.go`: `TestEmptyParentRefused`.
+
+### D165. Round 24 fixes: RED-070 and RED-071 (BLUE-025)
+
+- **Decision:**
+  - **Part ids in bounded memory, with a short lock (RED-070).** This
+    builds on ORANGE-034 (#157, merged into this branch), whose marks every
+    1,024 parts gave the same ids in k/1,024 of the memory. That is still
+    2 GiB at part 2³⁶. Now:
+    - When the marks would pass 65,536, every other one is dropped and the
+      stride doubles. The chain then holds at most 2 MiB whatever part is
+      asked for.
+    - Part k up to the newest costs at most one stride of hashes from its
+      mark, and parts asked for in order cost one each (the last answer is
+      kept).
+    - Working far out runs 16,384 hashes at a time under the lock and lets
+      other calls in between.
+    - A release of part k still costs k hashes once. That is time, not
+      memory.
+  - **No cap on parts.** As Red and jerry's definition say, refusing a
+    valid release because it is far out would make nodes with the same
+    information disagree, which is a hard fork. No node policy may do it.
+    A later limit may only make a node slower, never make it say "invalid".
+  - **Phase 2 note (Red's point 4).** When phase 2 checks a transaction
+    on a part, it must first check that a known release reaches that part,
+    and answer "not released yet" with no hashing otherwise. Only then may
+    it ask for `PartID`. This is for the phase 2 design and is not built
+    here.
+  - **A variable series' JSON is unreadable to an older poo (RED-071).**
+    - `Params.MarshalJSON` writes a variable series' hash as
+      `variable_hash` and leaves `hash` out. A node built before D163
+      ignores unknown keys, so it finds hash 0, which names no hash, and
+      calls the series unreadable instead of following a look-alike fixed
+      series. I checked this with the 215d428 binary: `series info` fails,
+      and `doctor` lists the series as not accepted.
+    - A fixed series' JSON is unchanged.
+    - `UnmarshalJSON` reads both forms and refuses a key it does not know
+      (`ErrUnknownKey`), so the next extension is unreadable here instead
+      of misread.
+- **Consensus:** none. Part ids are the same ids, worked out with less
+  memory. The JSON change affects how a series is written in files, not
+  its byte form or its id.
+- **Tier:** Node policy (memory), and the series' file form.
+  - `pkg/series/blue025_internal_test.go`: `TestPartChainBoundedAndExact`
+    (small strides; the marks thin out; every id matches the naive chain in
+    any order and from 8 callers at once),
+    `TestPartIDFarOutInBoundedMemory` (part 8 million under 16 MiB of heap
+    growth; a known part is answered while a long call runs).
+  - `pkg/series/blue025_test.go`: `TestVariableJSONIsUnreadableToOlderReaders`.

@@ -478,12 +478,24 @@ func seriesCmd(args []string, out io.Writer) error {
 			ID    string `json:"pool_id"`
 		}
 		info := struct {
-			ID    string `json:"series_id"`
-			Pools []pool `json:"pools"`
+			ID         string    `json:"series_id"`
+			SupplyType string    `json:"supply_type,omitempty"`
+			PartSize   uint64    `json:"part_size,omitempty"`
+			MaxParts   uint64    `json:"max_parts,omitempty"`
+			Pools      []pool    `json:"pools"`
+			Parts      []partRow `json:"parts,omitempty"`
 		}{ID: s.ID().String()}
 		for k := uint64(0); k < s.PoolCount() && k < 1000; k++ {
 			f, l := s.PoolRange(k)
 			info.Pools = append(info.Pools, pool{k, f, l, s.PoolID(k).String()})
+		}
+		// A variable series also lists its first parts, each as ranges
+		// (poo series parts lists any others).
+		if s.IsVariable() {
+			info.SupplyType, info.PartSize, info.MaxParts = "variable", s.PartSize(), s.MaxParts()
+			if info.Parts, err = partRows(s, 1, 10); err != nil {
+				return err
+			}
 		}
 		return writeJSON(out, info)
 	default:

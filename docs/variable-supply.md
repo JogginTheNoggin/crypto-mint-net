@@ -50,6 +50,17 @@ run on fixed series only.
 - **Params.** `series.Params` gains `SupplyType` (`fixed`, which is left out,
   or `variable`), `PartSize` (M) and `MaxParts` (0 means no limit). For a
   fixed series all three stay zero, and its JSON gains no key.
+- **JSON form** (RED-071, D165). A variable series' JSON names its hash
+  under `variable_hash` and leaves `hash` out. A node built before D163
+  ignores keys it does not know, so with `hash` it would read the JSON as a
+  fixed series with the same mints and another id. Without it, that node
+  finds hash 0, which names no hash, and says the series is unreadable:
+  `poo series info` fails, and a node lists it as not accepted. A fixed
+  series' JSON is unchanged. This node also reads D163's first form (with
+  `hash`), and refuses any key it does not know (`series.ErrUnknownKey`),
+  so a later extension is unreadable here instead of misread. Compare the
+  `series_id` that `poo series info` prints with the one you were given: a
+  series with another id is not the series.
 - **Byte form.** A fixed series is written in format version 1, unchanged.
   A variable series is written in format version 2: version 1's fields,
   then `U8 supply type (1)`, `U64 part size` and `U64 max parts`. This
@@ -69,7 +80,15 @@ run on fixed series only.
   A fixed series may not set M or a largest number of parts.
 - **Parts.** These are in `pkg/series/parts.go`:
   - `PartRange`, `PartOf` and `MintsThrough`;
-  - `PartID`, which computes the chain and remembers it;
+  - `PartID`, which computes the chain. It keeps a mark every so many
+    parts (1,024 at first, doubled whenever there would be more than
+    65,536 marks), the newest id and the last answer, so its memory stays
+    under 2 MiB however far out a part is, and part k up to the newest
+    costs at most one stride of hashes. It works far out in chunks of
+    16,384 hashes under its lock, so other calls go on meanwhile. Part k
+    costs k hashes once: time, never memory, and never a refusal, since
+    refusing a valid release for being far out would make nodes with the
+    same release disagree (RED-070, ORANGE-034, D165);
   - `ReleaseMessage`, which is `H("PoO-part-v1" ∥ part_id)`. A release
     witness is checked against this message, the same way the issuer
     witness on the series is checked against `H("PoO-issuer-v1" ∥

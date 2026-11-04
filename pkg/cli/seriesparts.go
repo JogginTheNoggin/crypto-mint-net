@@ -123,7 +123,48 @@ func seriesRelease(args []string, out io.Writer) error {
 	if err := s.CheckRelease(r); err != nil {
 		return err // unreachable for a key that matched the issuer
 	}
-	return writeJSON(out, r)
+	o, err := releaseOut(s, r)
+	if err != nil {
+		return err
+	}
+	return writeJSON(out, o)
+}
+
+// releaseOut is a release as poo series release prints it: the release's
+// own fields, which are what -check and a node read, then the part's id and
+// ranges for people and the GUI's preview. A reader ignores the extra keys
+// and works them out again from the series.
+func releaseOut(s *series.Series, r series.Release) (any, error) {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	var rel struct {
+		Series   string `json:"series"`
+		Part     uint64 `json:"part"`
+		Previous string `json:"previous"`
+		Witness  string `json:"witness"`
+	}
+	if err := json.Unmarshal(b, &rel); err != nil {
+		return nil, err
+	}
+	row, err := partRowOf(s, r.Part)
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		Series    string `json:"series"`
+		Part      uint64 `json:"part"`
+		Previous  string `json:"previous"`
+		Witness   string `json:"witness"`
+		PartID    string `json:"part_id"`
+		First     uint64 `json:"first_serial"`
+		Last      uint64 `json:"last_serial"`
+		FirstPool uint64 `json:"first_pool"`
+		LastPool  uint64 `json:"last_pool"`
+		Mints     uint64 `json:"mints"`
+		Units     uint64 `json:"units"`
+	}{rel.Series, rel.Part, rel.Previous, rel.Witness, row.ID, row.First, row.Last, row.FirstPool, row.LastPool, row.Mints, row.Units}, nil
 }
 
 // releaseInfo is what a valid release proves.
@@ -133,6 +174,8 @@ type releaseInfo struct {
 	PartID  string `json:"part_id"`
 	First   uint64 `json:"first_serial"`
 	Last    uint64 `json:"last_serial"`
+	FirstP  uint64 `json:"first_pool"`
+	LastP   uint64 `json:"last_pool"`
 	Mints   uint64 `json:"mints_released"`
 	Summary string `json:"summary"`
 }
@@ -140,7 +183,8 @@ type releaseInfo struct {
 func releaseReport(s *series.Series, r series.Release) releaseInfo {
 	first, last, _ := s.PartRange(r.Part)
 	n, _ := s.MintsThrough(r.Part)
-	return releaseInfo{Valid: true, Part: r.Part, PartID: r.ID(s.Hash()).String(), First: first, Last: last, Mints: n,
+	return releaseInfo{Valid: true, Part: r.Part, PartID: r.ID(s.Hash()).String(), First: first, Last: last,
+		FirstP: s.PoolOf(first), LastP: s.PoolOf(last), Mints: n,
 		Summary: fmt.Sprintf("releases part %d, serials %d to %d, and with it every part before: serials 0 to %d exist", r.Part, first, last, n-1)}
 }
 
@@ -174,30 +218,63 @@ func seriesParts(args []string, out io.Writer) error {
 	if last < *from || last-*from >= 1000 {
 		return errors.New("-to must be from -from to -from + 999")
 	}
-	type part struct {
-		Part      uint64 `json:"part"`
-		First     uint64 `json:"first_serial"`
-		Last      uint64 `json:"last_serial"`
-		FirstPool uint64 `json:"first_pool"`
-		LastPool  uint64 `json:"last_pool"`
-		ID        string `json:"part_id"`
-	}
 	info := struct {
-		ID       string `json:"series_id"`
-		PartSize uint64 `json:"part_size"`
-		MaxParts uint64 `json:"max_parts,omitempty"`
-		Parts    []part `json:"parts"`
+		ID       string    `json:"series_id"`
+		PartSize uint64    `json:"part_size"`
+		MaxParts uint64    `json:"max_parts,omitempty"`
+		Parts    []partRow `json:"parts"`
 	}{ID: s.ID().String(), PartSize: s.PartSize(), MaxParts: s.MaxParts()}
-	for k := *from; k <= last; k++ {
-		f, l, err := s.PartRange(k)
+	if info.Parts, err = partRows(s, *from, last); err != nil {
+		return err
+	}
+	return writeJSON(out, info)
+}
+
+// partRow is one part as the tools print it: its serials and pools as
+// ranges, never as lists, so a part of any size is one short row (GUI
+// ORANGE-018, ORANGE-034).
+type partRow struct {
+	Part      uint64 `json:"part"`
+	First     uint64 `json:"first_serial"`
+	Last      uint64 `json:"last_serial"`
+	FirstPool uint64 `json:"first_pool"`
+	LastPool  uint64 `json:"last_pool"`
+	Mints     uint64 `json:"mints"`
+	Units     uint64 `json:"units"`
+	ID        string `json:"part_id"`
+}
+
+// partRowOf returns part k's row.
+func partRowOf(s *series.Series, k uint64) (partRow, error) {
+	f, l, err := s.PartRange(k)
+	if err != nil {
+		return partRow{}, err
+	}
+	id, err := s.PartID(k)
+	if err != nil {
+		return partRow{}, err
+	}
+	n := l - f + 1
+	units := n * s.Supply()
+	if n != 0 && units/n != s.Supply() {
+		units = 0 // more than 64 bits hold; left out
+	}
+	return partRow{k, f, l, s.PoolOf(f), s.PoolOf(l), n, units, id.String()}, nil
+}
+
+// partRows returns the rows of parts from to last, stopping early at the
+// last part the series can have; it fails only when there is none.
+func partRows(s *series.Series, from, last uint64) ([]partRow, error) {
+	var rows []partRow
+	for k := from; k <= last; k++ {
+		r, err := partRowOf(s, k)
 		if err != nil {
-			if len(info.Parts) == 0 {
-				return err
+			if len(rows) == 0 {
+				return nil, err
 			}
 			break
 		}
-		id, _ := s.PartID(k)
-		info.Parts = append(info.Parts, part{k, f, l, s.PoolOf(f), s.PoolOf(l), id.String()})
+		rows = append(rows, r)
 	}
-	return writeJSON(out, info)
+	return rows, nil
 }
