@@ -9,6 +9,7 @@ require github.com/JogginTheNoggin/crypto-mint-net v0.0.0
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.5.1 // indirect
 	github.com/btcsuite/btcd/chainhash/v2 v2.0.0 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.12 // indirect
