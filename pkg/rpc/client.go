@@ -131,6 +131,13 @@ func (c *Client) Peers() (PeersReply, error) {
 	return r, c.do("GET", "/v1/peers", nil, &r)
 }
 
+// PeerCounts returns the node's connections and its peer book's counts,
+// without the book's records.
+func (c *Client) PeerCounts() (PeersReply, error) {
+	var r PeersReply
+	return r, c.do("GET", "/v1/peers?counts=1", nil, &r)
+}
+
 // Series returns the known series that are followed.
 func (c *Client) Series() ([]SeriesInfo, error) {
 	var r []SeriesInfo

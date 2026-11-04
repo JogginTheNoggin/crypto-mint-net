@@ -51,6 +51,7 @@ Usage:
                               the running node's peers, their categories
                               and points, and its peer book, filtered
                               (blocked, timed out: poo tracking)
+  poo peers -counts           only the book's size and counts per state
   poo peers export [-category LIST] [-out FILE]
                               write the peer book, or some categories of
                               it, and the blocks to one shareable file

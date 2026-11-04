@@ -378,6 +378,9 @@ func claimCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := refuseEmptyFlag(fs, "parent"); err != nil {
+		return err
+	}
 	if *parent == "" && (*tries != 0 || *work != 0) {
 		return errors.New("-max-tries and -work go with -parent; a claim submitted to the pending pool is built with poo build")
 	}
@@ -545,6 +548,9 @@ func buildCmd(args []string, out io.Writer) error {
 	g := addGrindOptions(fs)
 	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := refuseEmptyFlag(fs, "parent"); err != nil {
 		return err
 	}
 	cl, err := c.dial(out)
@@ -1097,4 +1103,17 @@ func limitHint(name string) string {
 		ends = suggest(name, names)
 	}
 	return strings.Join(ends, " or ")
+}
+
+// refuseEmptyFlag refuses a flag given with an empty value, which would
+// otherwise read as the flag left out: poo claim -parent "" submitted the
+// claim to the pending pool instead of building it on a parent.
+func refuseEmptyFlag(fs *flag.FlagSet, name string) error {
+	var err error
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name && f.Value.String() == "" {
+			err = fmt.Errorf("-%s was given empty: name an entry hash, root or before-claim, or leave -%s out; nothing was done", name, name)
+		}
+	})
+	return err
 }

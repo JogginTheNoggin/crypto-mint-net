@@ -176,3 +176,19 @@ func TestLimitsSetSuggests(t *testing.T) {
 		t.Error("a hint for a real limit, or for a name near none")
 	}
 }
+
+// An explicitly empty -parent is refused before anything is sent, instead
+// of reading as -parent left out and submitting the claim (GUI/Blue, R23).
+func TestEmptyParentRefused(t *testing.T) {
+	for _, args := range [][]string{
+		{"claim", "-serial", "0", "-parent", ""},
+		{"claim", "-serial", "0", "-parent="},
+		{"build", "-parent", ""},
+	} {
+		var o bytes.Buffer
+		err := run(append(args, "-root", t.TempDir()), &o)
+		if err == nil || !strings.Contains(err.Error(), "-parent was given empty") {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+}

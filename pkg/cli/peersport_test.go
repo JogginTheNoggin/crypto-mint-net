@@ -194,6 +194,33 @@ func TestPeersRunning(t *testing.T) {
 	if len(r.Book) != 1 || r.Book[0].Addr != "8.8.5.5:1" {
 		t.Fatalf("a file's priority peer came in as: %+v", r.Book)
 	}
+	// A previewed plan that changes something applies on a running node
+	// with -if-digest; before, the node hashed an empty file digest (it is
+	// left out of JSON) and refused every such apply as not previewed.
+	file2 := filepath.Join(t.TempDir(), "p2.json")
+	if err := os.WriteFile(file2, []byte(`{"kind":"poo-peers","format":1,"peers":[{"addr":"8.8.6.6:1","policies":[{"section":"*/*/*/*","state":"priority"}]}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	preview := runOut(t, "peers", "import", file2, "-root", root)
+	dg := regexp.MustCompile(`import digest ([0-9a-f]{64})`).FindStringSubmatch(preview)
+	if dg == nil || !strings.Contains(preview, "+ 8.8.6.6:1") {
+		t.Fatalf("running preview:\n%s", preview)
+	}
+	if out := runOut(t, "peers", "import", file2, "-apply", "-if-digest", dg[1], "-root", root); !strings.Contains(out, "applied") {
+		t.Fatalf("running -if-digest apply:\n%s", out)
+	}
+	cli(t, &r, "peers", "-addr", "8.8.6.6", "-root", root)
+	if len(r.Book) != 1 {
+		t.Fatalf("the -if-digest apply added nothing: %+v", r.Book)
+	}
+	var cr rpc.PeersReply
+	cli(t, &cr, "peers", "-counts", "-root", root)
+	if cr.Counts == nil || cr.Counts.Addresses != 3 || len(cr.Book) != 0 || cr.Counts.States["unlisted"] != 2 {
+		t.Fatalf("-counts: %+v %+v", cr.Counts, cr.Book)
+	}
+	if err := run([]string{"peers", "-counts", "-label", "x", "-root", root}, &o); err == nil {
+		t.Fatal("-counts went with a filter")
+	}
 	cli(t, &pr, "peer", "remove", "8.8.4.4:1", "-root", root)
 	if !pr.Held {
 		t.Fatalf("remove: %+v", pr)
