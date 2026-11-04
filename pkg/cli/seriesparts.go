@@ -83,14 +83,14 @@ func seriesSign(args []string, out io.Writer) error {
 func seriesRelease(args []string, out io.Writer) error {
 	fs := newFlagSet("series release", out)
 	part := fs.Uint64("part", 0, "the part to release, from 2 on (part 1 is released by the issuer witness on the series)")
-	check := fs.String("check", "", "check this release file instead of signing one")
+	check := fs.String("check", "", "check this release file (- for standard input) instead of signing one")
 	seed := addSeed(fs, "the issuer's key's seed")
 	pos, err := parseMixed(fs, args)
 	if err != nil {
 		return err
 	}
 	if len(pos) != 1 || (*part == 0) == (*check == "") {
-		return errors.New("usage: poo series release FILE -part K [-seed-file F], or poo series release FILE -check RELEASE")
+		return errors.New("usage: poo series release FILE -part K [-seed-file F], or poo series release FILE -check RELEASE|-")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {
@@ -100,7 +100,14 @@ func seriesRelease(args []string, out io.Writer) error {
 		return fmt.Errorf("series %s is fixed: it has no parts to release", s.ID().Short())
 	}
 	if *check != "" {
-		b, err := os.ReadFile(*check)
+		// - reads the release from standard input, so a caller can check
+		// one it has just signed without writing it to disk (GUI-027).
+		var b []byte
+		if *check == "-" {
+			b, err = io.ReadAll(inputOf(out))
+		} else {
+			b, err = os.ReadFile(*check)
+		}
 		if err != nil {
 			return err
 		}

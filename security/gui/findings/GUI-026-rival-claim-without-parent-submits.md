@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (GUI/Blue, Round 23C) |
+| Status | fixed (GUI/Blue, Round 23C), merged; verified by GUI/Red R24B @ 2aceb1a |
 | Found on | main @ 2cacdd5 (PR #146, the Pools view's "Build a rival claim" form, D161) |
 | Component | gui/web/static/views.js (`form`: a field's `required` is listed in the field spec but never applied, so an empty required field is sent as no flag); gui/web/static/views/pools.js (the rival claim's `args` drop `-parent` when it is empty); pkg/cli/node.go (`claimCmd`: without `-parent` it submits the claim) |
 | Surface | node, then the network (a signed claim handed to the node, which keeps it pending and forwards it) |
@@ -141,3 +141,18 @@ network range`), and the GUI ran them together. Each is now made a
 sentence, with a capital letter and a full stop. The GUI adds its own
 block count only when poo's notes have none, so the count isn't given
 twice. The GUI-025 e2e check now asserts both.
+
+## Notes — Round 24B verification (held up)
+
+I checked this with Playwright on 2aceb1a, with a node running as a GUI
+job and Mint serial 5 filled in.
+
+- **Parent empty, or only spaces:** pressing "Build claim" starts no job
+  and asks for no seed. The form shows "Nothing was run: fill in Parent."
+- **The handler check stands on its own.** A raw `submit` event sent to
+  the form, which skips the browser's own `required` check, is also
+  refused with the same message.
+- **Nothing was submitted.** No `claim` job appears in `/api/jobs`, and
+  `poo pending -serial 5` stays `[]`.
+- **Hidden fields.** `required` follows `only`, so a hidden field can't
+  block a form, and an empty hidden field is never sent.

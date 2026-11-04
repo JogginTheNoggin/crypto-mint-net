@@ -12,7 +12,9 @@ export const peersView = {
   title: 'Peers',
   mount(root, ctx) {
     return mountAll(root, 'Peers', 'Who the node is connected to, how they behave, and what it is checking.', [
-      panel(ctx, { title: 'Peers', about: 'Connected peers, their categories and points, and the peer book.', args: () => ['peers', ...where.flags()], refresh: 10000 }),
+      // The timed panel leaves the book out (-counts, ORANGE-017): a book
+      // can hold 65,536 addresses. Find peers prints it when asked.
+      panel(ctx, { title: 'Peers', about: 'Connected peers, their categories and points, and how many addresses the peer book holds in each state. Find peers below shows the book itself.', args: () => ['peers', ...where.flags(), '-counts'], refresh: 10000 }),
       // The book filtered as poo peers filters it (D157).
       form(ctx, { title: 'Find peers', about: 'The peer book, only the addresses that match every field filled in.', fields: [
         { name: 'category', label: 'Categories (none ticked: all)', type: 'choices', options: CATEGORIES, flag: 'category' },

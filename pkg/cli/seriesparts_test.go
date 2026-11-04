@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"io"
@@ -71,6 +72,12 @@ func TestSeriesReleaseCLI(t *testing.T) {
 		Mints  uint64 `json:"mints_released"`
 	}
 	cli(t, &check, "series", "release", file, "-check", rel)
+	// -check - reads the release from standard input (GUI-027).
+	var piped bytes.Buffer
+	b, _ := os.ReadFile(rel)
+	if err := run([]string{"series", "release", file, "-check", "-"}, &stdio{Writer: &piped, in: bufio.NewReader(bytes.NewReader(b))}); err != nil || !strings.Contains(piped.String(), `"valid": true`) {
+		t.Fatalf("-check -: %v\n%s", err, piped.String())
+	}
 	if !check.Valid || check.PartID != parts.Parts[1].ID || check.Mints != 12 {
 		t.Fatalf("check: %+v", check)
 	}

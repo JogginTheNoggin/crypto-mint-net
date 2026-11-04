@@ -3753,9 +3753,12 @@ a chase takes in after checking their work are not charged.
       part size and largest number of parts (left out when uncapped), and
       `-h` prints its usage instead of opening a file named "-h"
       (GUI-GREEN-051).
-    - `poo peers -counts` prints only `node_id`, `listen` and `counts`
-      (GREEN-049's idea). `GET /v1/peers?counts=1` is unchanged.
+    - `poo peers -counts` prints `node_id`, `listen`, the connections
+      (`peers`, which the GUI's Peers panel shows) and `counts`, without
+      the empty `book` list (GREEN-049's idea). `GET /v1/peers?counts=1` is unchanged.
     - `poo series parts -o table` lists one row per part (GREEN-049's idea).
+    - `poo series release FILE -check -` reads the release from standard
+      input, so the GUI can check one it has just signed (GUI-027).
   - **Left out:** ORANGE-033's in-place `-set` (a limit applied without a
     reload). The reload path is what makes a change take effect everywhere
     at once, and Black should see a design first. Passing releases between

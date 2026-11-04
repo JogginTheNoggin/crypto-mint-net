@@ -1,6 +1,7 @@
 // The Series and keys view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import { el, flag, form, mountAll, panel } from '../views.js';
+import { saveAs } from './policies.js';
 
 // cryptoChoices offers the hashes and key algorithms poo crypto printed as
 // suggestions in the fields that name one (a datalist suggests, poo still
@@ -39,11 +40,35 @@ export const cryptoView = {
       form(ctx, { title: 'Make a key', about: 'A key and its 1-of-1 address, from a random seed unless you give your own; the output includes the seed.',
         fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs' }, { name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'own', label: 'Use my own seed', type: 'check', help: 'poo asks for it in a masked field after you press Make key (-seed-file -), so it is never on the command line (D98).' }],
         args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...(v.own ? ['-seed-file', '-'] : [])], submit: 'Make key', secretOutput: true }),
-      form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked. More options are in the terminal (poo series new -h).',
-        fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list: ' + 'see the list above' }, { name: 'types', label: 'Policy types', placeholder: 'comma list: see the list above' }, { name: 'mints', label: 'Mints', type: 'number' }],
-        args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints)], submit: 'Make series' }),
+      // A series is fixed unless Variable is ticked (D163): then the issuer
+      // releases more parts later. poo checks the definition; the GUI only
+      // passes the fields on and offers what poo printed as a file.
+      form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked by poo, with Save as file. More options are in the terminal (poo series new -h).',
+        fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list: ' + 'see the list above' }, { name: 'types', label: 'Policy types', placeholder: 'comma list: see the list above' }, { name: 'mints', label: 'Mints', type: 'number' },
+          { name: 'issuer', label: 'Issuer address', placeholder: 'hex: who signs the series (needed for a variable series)' },
+          { name: 'variable', label: 'Variable supply: the issuer can release more parts later, one at a time and in order; a release can never be taken back', type: 'check' },
+          { name: 'partSize', label: 'Part size', type: 'number', placeholder: 'mints in every part after the first', only: { field: 'variable', values: [true] } },
+          { name: 'maxParts', label: 'Most parts ever', type: 'number', placeholder: 'the first part included (empty: no cap)', only: { field: 'variable', values: [true] } }],
+        args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints), ...flag('issuer', v.issuer), ...flag('variable', v.variable), ...flag('part-size', v.partSize), ...flag('max-parts', v.maxParts)], submit: 'Make series',
+        onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'series.json')); } }),
       form(ctx, { title: 'Series file info', fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json' }],
         args: v => ['series', 'info', ...(v.file ? [v.file] : [])], submit: 'Show' }),
+      form(ctx, { title: 'Sign a series', about: 'Signs a series file as its issuer and prints the issuer witness for node.json. poo asks for the issuer key\'s seed in a masked field.',
+        fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }],
+        args: v => ['series', 'sign', ...(v.file ? [v.file] : []), '-seed-file', '-'], submit: 'Sign',
+        onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'series-witness.json')); } }),
+      // Parts of a variable series, as poo prints them: ranges, never the
+      // serials one by one (ORANGE-018); run when asked, not on a timer.
+      form(ctx, { title: 'Parts of a variable series', about: 'Each part\'s serials, pools and part id, worked out by poo from the series file. Up to 1,000 parts at a time.',
+        fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'from', label: 'From part', type: 'number', placeholder: 'default 1' }, { name: 'to', label: 'To part', type: 'number', placeholder: 'from + 9, or the most parts' }],
+        args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.from), ...flag('to', v.to)], submit: 'Show' }),
+      form(ctx, { title: 'Release a part', about: 'Signs part K of a variable series as its issuer and prints the release to publish. A release is permanent: nothing can take it back, and it also releases every part before it. Check a release first with the form below. poo asks for the issuer key\'s seed in a masked field.',
+        fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'part', label: 'Part', type: 'number', placeholder: 'from 2 on', required: true }],
+        args: v => ['series', 'release', ...(v.file ? [v.file] : []), ...flag('part', v.part), '-seed-file', '-'], submit: 'Release', danger: true,
+        onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'release.json')); } }),
+      form(ctx, { title: 'Check a release', about: 'Checks a release file against its series and says which serials it releases.',
+        fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'check', label: 'Release file', placeholder: 'release.json', required: true }],
+        args: v => ['series', 'release', ...(v.file ? [v.file] : []), ...flag('check', v.check)], submit: 'Check' }),
       // The last two commands poo help lists that no view ran (GREEN-040).
       form(ctx, { title: 'The worked example\'s series', about: 'The series poo init -example follows, as JSON: a starting point for a series file.', fields: [],
         args: () => ['series', 'example'], submit: 'Show' }),

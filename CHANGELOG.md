@@ -228,8 +228,9 @@ built.
 - **Round 25 tooling (D166):** `poo policy limits -set` during a reload
   waits for the node instead of failing with EOF; `poo series info`
   shows a variable series' supply type, part size and cap and reads
-  signed files, and `-h` prints its usage; `poo peers -counts` prints
-  only the counts; `poo series parts -o table`.
+  signed files, and `-h` prints its usage; `poo peers -counts` leaves
+  out the empty book list; `poo series parts -o table`;
+  `poo series release -check -` reads standard input.
 - **Round 24 fixes (D162, D164):**
   - `poo peers import -apply -if-digest` works against a running node
     again.
