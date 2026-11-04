@@ -5,6 +5,7 @@
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { launch, nodeStopped } from './lib.mjs';
 
@@ -417,6 +418,17 @@ try {
   // Redrawn from the new list: empty again, showing the new value.
   await setLim.locator('input[data-limit="p2p.max_book"][placeholder="8192"]').waitFor();
   assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home}`, 'nothing is sent again after a save');
+  // A save reloads the running node, which restarts its RPC; wait until
+  // poo status answers with the saved node.json loaded before asking it
+  // again, as a person would see on the Node view.
+  for (let i = 0; ; i++) {
+    const r = spawnSync(bin, ['poo', 'status', '-root', home], { env: { ...process.env, POO_HOME: home } });
+    let st = null;
+    try { st = r.status === 0 && JSON.parse(String(r.stdout)); } catch (_) { st = null; }
+    if (st && !st.policy_changed) break;
+    assert.ok(i < 100, 'the node came back from its reload');
+    await page.waitForTimeout(100);
+  }
   // A name the list lacks can still be typed, and poo checks it.
   await fill(setLim, 'Other limits', 'p2p.max_book=1');
   page.once('dialog', d => d.accept());

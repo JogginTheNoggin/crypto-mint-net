@@ -142,6 +142,8 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | Series and keys | Crypto choices, keygen, new series (with an example) and series info | `poo crypto`, `keygen`, `series` |
 | Simulate | The network simulator's scenarios | `poo sim` |
 
+Planned: variable supply series. Each view is built once Source merges the headless command it runs ([gui-variable-supply-plan.md](gui-variable-supply-plan.md)).
+
 ### Quality checks
 
 | Feature | What it does | Code |
