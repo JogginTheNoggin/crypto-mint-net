@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
 
@@ -45,4 +46,28 @@ func callThroughReload[T any](out io.Writer, dir string, cl *rpc.Client, call fu
 		v, err = call(c)
 	}
 	return v, err
+}
+
+// dialThroughReload dials the running node. When no node answers but one
+// holds the data directory, it is between stopping and starting its RPC
+// in a reload, so this dials again for up to reloadWait. Before, a second
+// add-release or -set made in that gap fell to the offline path and failed
+// with "a node or another command holds ..." (GREEN-050). With no node at
+// all it returns the dial error at once, for the offline path.
+func dialThroughReload(out io.Writer, dir string) (*rpc.Client, error) {
+	cl, err := dialNode(out, dir)
+	deadline := time.Now().Add(reloadWait)
+	for err != nil && time.Now().Before(deadline) {
+		unlock, lerr := nodepolicy.Lock(dir)
+		if lerr == nil {
+			unlock()
+			return nil, err
+		}
+		if !errors.Is(lerr, nodepolicy.ErrLocked) {
+			return nil, err
+		}
+		time.Sleep(200 * time.Millisecond)
+		cl, err = dialNode(out, dir)
+	}
+	return cl, err
 }

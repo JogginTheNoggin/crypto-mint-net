@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -331,11 +333,11 @@ func seriesAddRelease(args []string, out io.Writer) error {
 	}
 	dir := w.resolve()
 	var nodeErr error
-	if cl, err := dialNode(out, dir); err == nil {
+	if cl, err := dialThroughReload(out, dir); err == nil {
 		req := rpc.ReleaseRequest{Release: r}
 		rep, err := callThroughReload(out, dir, cl, func(c *rpc.Client) (rpc.ReleaseReply, error) { return c.AddRelease(req) })
 		if err == nil {
-			return o.write(out, rep)
+			return o.write(out, releaseNote(rep))
 		}
 		var re *rpc.Error
 		if errors.As(err, &re) {
@@ -364,7 +366,7 @@ func seriesAddRelease(args []string, out io.Writer) error {
 		}
 		rep.Saved = true
 	}
-	return o.write(out, rep)
+	return o.write(out, releaseNote(rep))
 }
 
 // seriesFollowed is poo series followed: the series the running node
@@ -397,7 +399,61 @@ func seriesFollowed(args []string, out io.Writer) error {
 	if known == nil {
 		known = []rpc.SeriesInfo{}
 	}
+	if *o.format == "table" {
+		// The params are fourteen fields, which a table cell can only
+		// count ({14}); a row says what a reader asks of a followed
+		// series instead. The JSON, which the GUI reads, is unchanged
+		// (GREEN-050).
+		return o.write(out, struct {
+			Series []followedRow `json:"series"`
+		}{followedRows(known)})
+	}
 	return o.write(out, struct {
 		Series []rpc.SeriesInfo `json:"series"`
 	}{known})
+}
+
+// followedRow is one followed series in poo series followed -o table.
+type followedRow struct {
+	ID       hash.Hash `json:"id"`
+	Supply   string    `json:"supply"`
+	Pools    uint64    `json:"pools"`
+	Mints    uint64    `json:"mints"`
+	Units    string    `json:"units"`
+	Released uint64    `json:"released_through,omitempty"`
+	NextPart uint64    `json:"next_part,omitempty"`
+}
+
+func followedRows(known []rpc.SeriesInfo) []followedRow {
+	rows := make([]followedRow, 0, len(known))
+	for _, k := range known {
+		r := followedRow{ID: k.ID, Supply: "fixed", Pools: k.Pools, Mints: k.Params.Mints}
+		if v := k.Variable; v != nil {
+			r.Supply, r.Mints, r.Units, r.Released, r.NextPart = "variable", v.Mints, v.Units, v.Released, v.NextPart
+		} else {
+			r.Units = new(big.Int).Mul(new(big.Int).SetUint64(k.Params.Mints), new(big.Int).SetUint64(k.Params.Supply)).String()
+		}
+		rows = append(rows, r)
+	}
+	return rows
+}
+
+// releaseOut is poo series add-release's reply, with a note when the
+// release changed nothing, so "added": false is not read as a refusal
+// (GREEN-050).
+type addedOut struct {
+	rpc.ReleaseReply
+	Note string `json:"note,omitempty"`
+}
+
+func releaseNote(rep rpc.ReleaseReply) addedOut {
+	o := addedOut{ReleaseReply: rep}
+	switch {
+	case rep.Added:
+	case rep.Part < rep.Released:
+		o.Note = fmt.Sprintf("part %d is already released here: the kept release of part %d proves every part before it; nothing changed", rep.Part, rep.Released)
+	default:
+		o.Note = fmt.Sprintf("part %d is the release this node already keeps; nothing changed", rep.Part)
+	}
+	return o
 }

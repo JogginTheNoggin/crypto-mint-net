@@ -296,7 +296,7 @@ func TestVariableSeriesOnANode(t *testing.T) {
 	defer stop()
 	alice := seedFile(t, strings.Repeat("a1", 32))
 	cli(t, nil, append([]string{"claim", "-seed-file", alice, "-serial", "2"}, r...)...)
-	if _, err := runErr(append([]string{"claim", "-seed-file", alice, "-serial", "9"}, r...)...); err == nil || !strings.Contains(err.Error(), "waiting for a release") {
+	if _, err := runErr(append([]string{"claim", "-seed-file", alice, "-serial", "9"}, r...)...); err == nil || !strings.Contains(err.Error(), "waiting for a release") || !strings.Contains(err.Error(), "poo series add-release FILE") {
 		t.Fatalf("a claim on part 2 before its release: %v", err)
 	}
 	var followed struct{ Series []rpc.SeriesInfo }
@@ -328,8 +328,35 @@ func TestVariableSeriesOnANode(t *testing.T) {
 	if again.Added || again.Saved || again.Released != 2 {
 		t.Fatalf("the same release again: %+v", again)
 	}
+	// GREEN-050: a release that changes nothing says why, and the table
+	// of followed series has a row a reader can use.
+	var note struct{ Note string }
+	cli(t, &note, append([]string{"series", "add-release", rel}, r...)...)
+	if !strings.Contains(note.Note, "already keeps") {
+		t.Errorf("the same release again: note %q", note.Note)
+	}
+	rel3 := filepath.Join(dir, "part3.json")
+	if err := os.WriteFile(rel3, []byte(runOut(t, "series", "release", file, "-part", "3", "-seed-file", issuerSeed)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cli(t, nil, append([]string{"series", "add-release", rel3}, r...)...)
+	cli(t, &note, append([]string{"series", "add-release", rel}, r...)...)
+	if !strings.Contains(note.Note, "part 2 is already released here: the kept release of part 3") {
+		t.Errorf("an older release: note %q", note.Note)
+	}
+	var table string
+	for i := 0; i < 100; i++ {
+		// Read through the reload the release started.
+		if table, _ = runErr(append([]string{"series", "followed", "-o", "table"}, r...)...); strings.Contains(table, "16") {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !strings.Contains(table, "SUPPLY") || !strings.Contains(table, "variable") || !strings.Contains(table, "RELEASED_THROUGH") || strings.Contains(table, "{") {
+		t.Errorf("series followed -o table:\n%s", table)
+	}
 	p, err := nodepolicy.Load(filepath.Join(root, "policies", "default", nodepolicy.FileName))
-	if err != nil || p.Series[0].Release == nil || p.Series[0].Release.Part != 2 {
+	if err != nil || p.Series[0].Release == nil || p.Series[0].Release.Part != 3 {
 		t.Fatalf("node.json keeps %+v: %v", p.Series, err)
 	}
 }

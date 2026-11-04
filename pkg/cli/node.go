@@ -207,6 +207,10 @@ func readSeriesInfo(b []byte) (nodepolicy.SeriesInfo, error) {
 	return nodepolicy.SeriesInfo{Params: ss.Params, IssuerWitness: ss.IssuerWitness}, nil
 }
 
+// waitingHint follows a mint that waits for its part's release: what
+// releases it at this node (GREEN-050).
+const waitingHint = "; once the issuer publishes that part's release, give it to the node with poo series add-release FILE (poo series followed shows what is released here)"
+
 // variableNote says what a variable series needs before the node follows
 // it (D166, GREEN-049): it is kept, not wrong.
 const variableNote = "the node follows it once node.json has the issuer_witness its issuer published (poo series sign), which releases part 1; give it later parts with poo series add-release (docs/variable-supply.md)"
@@ -281,7 +285,7 @@ func (p *poolFlags) resolve(fs *flag.FlagSet, s *series.Series) (uint64, error) 
 		return *p.pool, nil
 	}
 	if err := tx.CheckMint(s, s.Mint(*p.serial)); errors.Is(err, tx.ErrWaiting) {
-		return 0, fmt.Errorf("-serial %d: %w", *p.serial, err)
+		return 0, fmt.Errorf("-serial %d: %w%s", *p.serial, err, waitingHint)
 	} else if err != nil {
 		return 0, fmt.Errorf("-serial %d: the series has %d mints", *p.serial, s.Mints())
 	}
@@ -461,7 +465,9 @@ func claimCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := tx.CheckMint(s, s.Mint(*serial)); err != nil {
+	if err := tx.CheckMint(s, s.Mint(*serial)); errors.Is(err, tx.ErrWaiting) {
+		return fmt.Errorf("serial %d: %w%s", *serial, err, waitingHint)
+	} else if err != nil {
 		return fmt.Errorf("serial %d: %w", *serial, err)
 	}
 	addr := s.Address(policy.SingleKey(policy.AlgEd25519, signer.Public()))
@@ -1106,7 +1112,7 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 		set[name] = v
 	}
 	var nodeErr error
-	if cl, err := dialNode(out, dir); err == nil {
+	if cl, err := dialThroughReload(out, dir); err == nil {
 		req := rpc.LimitsRequest{Set: set}
 		r, err := callThroughReload(out, dir, cl, func(c *rpc.Client) (rpc.LimitsReply, error) { return c.SetLimits(req) })
 		if err == nil {
