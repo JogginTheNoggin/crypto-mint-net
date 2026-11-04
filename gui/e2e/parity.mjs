@@ -48,7 +48,7 @@ const LEFT_OUT = {
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
   claim: { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
   'series sign': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
-  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
+  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', part: 'Sign, under the Release a part preview (poo series parts), runs the previewed part with -part (GUI-027)' },
   peers: { counts: 'the timed Peers panel runs it, leaving the book to Find peers (ORANGE-017); a panel line is not a form' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
