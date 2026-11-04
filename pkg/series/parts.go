@@ -41,11 +41,21 @@ var (
 	ErrRelease = errors.New("series: invalid release")
 )
 
-// partChain caches part ids; it never changes a result.
+// partChain caches part ids; it never changes a result. It keeps one id in
+// every partStride (a mark) and the ids of the stride last asked for, so
+// its memory is k/partStride ids rather than k, and listing parts in order
+// works each id out once (ORANGE-034).
 type partChain struct {
-	mu  sync.Mutex
-	ids []hash.Hash // ids[i] is part_id(i+1)
+	mu    sync.Mutex
+	marks []hash.Hash // marks[j] is part_id(j×partStride + 1)
+	next  uint64      // parts 1 to next have their marks
+	at    hash.Hash   // part_id(next), where the marks stop
+	block uint64      // the stride held in ids, numbered from 1 (0: none)
+	ids   []hash.Hash // ids[i] is part_id((block−1)×partStride + i + 1)
 }
+
+// partStride is how many parts lie between two marks.
+const partStride = 1024
 
 // IsVariable reports whether the series is variable.
 func (s *Series) IsVariable() bool { return s.params.SupplyType == Variable }
@@ -137,7 +147,8 @@ func (s *Series) partID(k uint64, previous hash.Hash) hash.Hash {
 
 // PartID returns part_id(k). Part ids follow from the series alone, so
 // anyone can work out every future part id in advance. Working out part k
-// takes k hashes the first time; the ids are then remembered.
+// takes k hashes the first time; after that, any part up to k takes at
+// most partStride.
 func (s *Series) PartID(k uint64) (hash.Hash, error) {
 	if err := s.checkPart(k); err != nil {
 		return hash.Zero, err
@@ -145,15 +156,36 @@ func (s *Series) PartID(k uint64) (hash.Hash, error) {
 	c := &s.parts
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for uint64(len(c.ids)) < k {
-		n := uint64(len(c.ids)) + 1
-		prev := s.id
-		if n > 1 {
-			prev = c.ids[n-2]
-		}
-		c.ids = append(c.ids, s.partID(n, prev))
+	if c.next == 0 {
+		c.at = s.partID(1, s.id)
+		c.next = 1
+		c.marks = append(c.marks, c.at)
 	}
-	return c.ids[k-1], nil
+	for c.next < k {
+		c.next++
+		c.at = s.partID(c.next, c.at)
+		if (c.next-1)%partStride == 0 {
+			c.marks = append(c.marks, c.at)
+		}
+	}
+	if k == c.next {
+		return c.at, nil
+	}
+	b := (k-1)/partStride + 1
+	i := k - (b-1)*partStride - 1
+	// The stride is worked out again when another is asked for, or when
+	// it was worked out before the marks reached k.
+	if c.block != b || i >= uint64(len(c.ids)) {
+		first := (b-1)*partStride + 1
+		id := c.marks[b-1]
+		c.ids = append(c.ids[:0], id)
+		for n := first + 1; n < first+partStride && n <= c.next; n++ {
+			id = s.partID(n, id)
+			c.ids = append(c.ids, id)
+		}
+		c.block = b
+	}
+	return c.ids[i], nil
 }
 
 // ReleaseMessage returns H("PoO-part-v1" ∥ part_id), the value a release

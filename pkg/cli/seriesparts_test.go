@@ -126,3 +126,87 @@ func runErr(args ...string) (string, error) {
 	err := run(args, &out)
 	return out.String(), err
 }
+
+// series info, the signed release and its check print a part's serials and
+// pools as ranges, never lists (GUI ORANGE-018, ORANGE-034). The release
+// file keeps its own fields first and -check reads it back, and a fixed
+// series' info is unchanged.
+func TestSeriesPartsAsRanges(t *testing.T) {
+	dir := t.TempDir()
+	seedFile := filepath.Join(dir, "seed")
+	if err := os.WriteFile(seedFile, []byte(strings.Repeat("cd", 32)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var key struct{ Address string }
+	cli(t, &key, "keygen", "-seed-file", seedFile)
+	file := filepath.Join(dir, "series.json")
+	if err := os.WriteFile(file, []byte(runOut(t, "series", "new", "-mints", "8", "-pool-size", "4", "-variable", "-part-size", "1000000", "-issuer", key.Address)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	type row struct {
+		Part      uint64
+		First     uint64 `json:"first_serial"`
+		Last      uint64 `json:"last_serial"`
+		FirstPool uint64 `json:"first_pool"`
+		LastPool  uint64 `json:"last_pool"`
+		Mints     uint64
+		Units     uint64
+		ID        string `json:"part_id"`
+	}
+	var info struct {
+		SupplyType string `json:"supply_type"`
+		PartSize   uint64 `json:"part_size"`
+		Pools      []struct{ Index uint64 }
+		Parts      []row
+	}
+	out := runOut(t, "series", "info", file)
+	cli(t, &info, "series", "info", file)
+	if info.SupplyType != "variable" || info.PartSize != 1000000 || len(info.Pools) != 2 || len(info.Parts) != 10 {
+		t.Fatalf("series info:\n%s", out)
+	}
+	if p := info.Parts[1]; p.Part != 2 || p.First != 8 || p.Last != 1000007 || p.FirstPool != 2 || p.LastPool != 250001 || p.Mints != 1000000 || p.Units != 100000000 {
+		t.Fatalf("part 2: %+v", p)
+	}
+	if len(out) > 8000 {
+		t.Fatalf("series info is %d bytes for parts of a million mints: not ranges", len(out))
+	}
+	var parts struct{ Parts []row }
+	cli(t, &parts, "series", "parts", file, "-from", "2", "-to", "2")
+	if len(parts.Parts) != 1 || parts.Parts[0] != info.Parts[1] {
+		t.Fatalf("series parts %+v, series info %+v", parts.Parts, info.Parts[1])
+	}
+
+	rel := filepath.Join(dir, "part2.json")
+	out = runOut(t, "series", "release", file, "-part", "2", "-seed-file", seedFile)
+	if err := os.WriteFile(rel, []byte(out), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var r struct {
+		Series, Previous, Witness string
+		row
+	}
+	cli(t, &r, "series", "release", file, "-part", "2", "-seed-file", seedFile)
+	if r.Witness == "" || r.Previous == "" || r.row != info.Parts[1] {
+		t.Fatalf("release:\n%s", out)
+	}
+	var check struct {
+		Valid     bool
+		ID        string `json:"part_id"`
+		First     uint64 `json:"first_serial"`
+		Last      uint64 `json:"last_serial"`
+		FirstPool uint64 `json:"first_pool"`
+		LastPool  uint64 `json:"last_pool"`
+	}
+	cli(t, &check, "series", "release", file, "-check", rel)
+	if !check.Valid || check.ID != r.ID || check.First != 8 || check.Last != 1000007 || check.FirstPool != 2 || check.LastPool != 250001 {
+		t.Fatalf("check: %+v", check)
+	}
+
+	fixed := filepath.Join(dir, "fixed.json")
+	if err := os.WriteFile(fixed, []byte(runOut(t, "series", "new", "-mints", "8")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out := runOut(t, "series", "info", fixed); strings.Contains(out, "part") || strings.Contains(out, "supply_type") {
+		t.Fatalf("fixed series info gained part keys:\n%s", out)
+	}
+}
