@@ -7,7 +7,7 @@
 | Found | Source Round 24 Part B, on `main` @ `08404df` (D163), against `215d428` as the older poo |
 | Area | `pkg/series` (`Params` JSON), `pkg/nodepolicy` (`Load`), `pkg/cli` (`series info`, `init -series`) |
 | For Black | No rule changes. This is about how a series is handed around as JSON; the byte form is right. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-025) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `c05286b` (BLUE-025) |
 
 ## What is wrong
 

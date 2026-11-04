@@ -8,7 +8,7 @@
 | Area | `pkg/series` (`PartID`, `partChain`, `CheckRelease`, `Unsigned`), `pkg/cli` (`poo series parts`, `poo series release`) |
 | Raised by | Red, and Source Green saw it too (measured with the poo binary) |
 | For Black | **Read the note on node policy below.** The fix is memory and speed, not a refusal. A node policy that refuses a part number it will not work out would let two nodes that hold the same release disagree about whether it is valid, which is a hard fork by the owner's definition. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-025) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `c05286b` (BLUE-025) |
 
 ## What is wrong
 

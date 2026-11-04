@@ -5,6 +5,7 @@
 | Fixes | RED-070 (medium), RED-071 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `08404df` (Source Round 24 Part C), with ORANGE-034 (#157) merged in |
+| Code | `c05286b` |
 | Decisions | D165 |
 | With | ORANGE-034 (PR #157): its marks every 1,024 parts are the start of RED-070's fix, so the PR carries its commit |
 | Review | No consensus change. For Black: no part number is refused at any size; the JSON form of a fixed series is unchanged. |
