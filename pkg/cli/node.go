@@ -153,8 +153,18 @@ func initCmd(args []string, out io.Writer) error {
 		}
 	}
 	fmt.Fprintf(out, "wrote %s (%d series)\n", path, len(p.Series))
+	for _, sp := range params {
+		if sp.SupplyType == series.Variable {
+			s, _ := series.New(sp)
+			fmt.Fprintf(out, "note: series %s is a variable supply series: %s\n", s.ID().Short(), variableNote)
+		}
+	}
 	return nil
 }
+
+// variableNote says what a node does with a variable series until it
+// follows them (D163, GREEN-049): it is kept, not wrong.
+const variableNote = "this node keeps a variable supply series in its policy but does not follow it yet; leave it there, and a node that follows variable series will (docs/variable-supply.md)"
 
 // nodeCmd runs the node until interrupted.
 func nodeCmd(args []string, out io.Writer) error {

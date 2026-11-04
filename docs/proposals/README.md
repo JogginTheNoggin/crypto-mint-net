@@ -74,6 +74,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-046](source/GREEN-046-offline-peer-add-label-and-zero-times.md) | Source | Offline peer add checks its label first, and zero times read "-" | adopted (D159) |
 | [GREEN-047](source/GREEN-047-policy-limits-and-other-limits.md) | Source | poo policy limits, and which other limits could be settable | adopted (D161) |
 | [GREEN-048](source/GREEN-048-build-next-steps-and-limit-names.md) | Source | Build and claim next steps that work, and -set names it suggests | proposed |
+| [GREEN-049](source/GREEN-049-variable-series-notes.md) | Source | Say a variable series is kept, not wrong: init and doctor notes, parts -from past the cap | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
