@@ -4171,3 +4171,105 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
   - `pkg/series/gui028_internal_test.go`: `TestPartIDContextCancels`;
     `pkg/cli/d170_test.go`: `TestFarPartIsCancellable`;
     `pkg/nodepolicy/bundle_test.go`: `TestCheckReleaseContextCancels`.
+
+### D171. Round 27 fixes: RED-082 and RED-083 (BLUE-028)
+
+- **Decision:**
+  - **RED-082.** A release from a peer is checked in full in one worker
+    per series, never in the peer's read loop. The witness is still
+    checked on arrival (one signature) and bursts still coalesce (D169):
+    the worker takes the first release at once and, after it, the highest
+    one held. The walk runs under the host's context
+    (`node.AddReleaseContext`, `nodepolicy.CheckReleaseContext`), so
+    stopping the node cancels it, and a cancelled check is not an offence.
+    `POST /v1/series/release` and the RPC policy check use the request's
+    context. A part above 2^20 is logged when its check starts.
+  - **RED-083.** `series_ceiling` is now a bounded setting (0, or 1,024
+    bytes to 1 GiB), settable with `poo policy limits -set`. An import
+    plan lists in `unbounded` each series it adds, or whose follow it
+    changes, that sets no witness ceiling or one above 4 MiB
+    (`nodepolicy.CeilingWarning`, `CeilingLimit`). The text plan prints
+    declined and unbounded series, each declined one with the number of
+    follow rules left out, and says `nothing else to change` rather than
+    `nothing to change` when it declined one. `poo series info`,
+    `poo series followed`, `GET /v1/series` and `poo doctor` (`ceiling`)
+    show the warning for followed series.
+  - **Not done here.** A 4 MiB `series_ceiling` default for new nodes
+    (Orange #188, proposal 1): it would decline the documents' example
+    series (no ceiling) on import, so it is left to Grey and jerry. The
+    open-file-limit warning (#188, proposal 2) and keygen addresses per
+    series (Green #189) are separate PRs.
+- **Why:** A far part is a long walk by design (D165: no cap on parts), so
+  the fix is to keep it from blocking anything else and to let it stop,
+  not to refuse it. A ceiling-less series is valid and may be wanted, so
+  it gets a warning, not a refusal.
+- **Consensus:** None. Where and when a release is checked changes, never
+  whether it is valid. A cancelled check leaves the part waiting, which is
+  missing information. Warnings change nothing a node accepts.
+- **Tier:** Node, p2p, node policy, CLI, RPC.
+  - `pkg/p2p/blue027_test.go`: `TestFarReleaseDoesNotHoldTheNode`.
+  - `pkg/nodepolicy/blue028_test.go`: `TestImportWarnsOfUnboundedSeries`,
+    `TestDeclinedSeriesCountsItsFollows`, `TestSeriesCeilingIsBounded`.
+  - `pkg/cli/blue028_test.go`: `TestPlanTextNamesDeclinedAndUnbounded`.
+
+### D172. Entry bodies on disk, behind a bounded cache (disk-backed state, step 1)
+
+- **Decision:**
+  - **Store locations.** Every log record has a location (`store.Loc`:
+    the file's generation, offset and framed length). `Log.ReadAt` reads
+    one record back, checking every frame's checksum; bytes that are not
+    one whole record give `ErrBadRecord`, and a location from before a
+    compaction gives `ErrStaleLoc`, so nothing is ever read at the wrong
+    place. `OpenFunc` streams the records with their locations instead
+    of returning them all, `AppendLaterAt` returns the new record's
+    location, and `RewriteFunc` asks for the records one at a time and
+    returns their new locations.
+  - **Entry skeleton.** A pool keeps, for every held entry, what
+    selection, switching and checking read: hash, parent, height, own and
+    ledger weight, layers, items and undo. With a `ledger.BodySource`,
+    an entry's body (transactions and witnesses) is dropped from memory
+    once the source can give it back, and read through one
+    `ledger.BodyCache` per node, a byte-bounded LRU, when something asks
+    for it: serving a peer or a query, a rival search, a compaction. **No
+    verdict reads a body that is not in memory**, so the cache's size
+    changes what a node costs, never what it decides. A failed read is
+    counted and hides the body from that query only.
+  - **Node.** Each pool's locations are built while its log is replayed
+    at start (one window of 1,024 records at a time, never the whole
+    log) and as records are appended, and rebuilt by each compaction,
+    which copies entry records from the old file by location rather than
+    reading every body into memory. A read back is used only when the
+    record is an entry whose hash is the one asked for.
+  - **`entry_cache_mib`** (node policy, bounded 1 to 1,048,576, default
+    512) bounds the cache across all pools, and is applied in place.
+    `GET /v1/status` (`poo status`) shows `bodies` (bound, use, hits,
+    loads, errors, held, in memory, located) and `/v1/metrics` the
+    `poo_entry_cache_*` and `poo_entry_body_*` series.
+  - **Open-file warning (ORANGE-037, proposal 2).** A node logs one
+    warning at start, and `poo doctor` an `open-files` check, when the
+    soft open file limit is below the followed pools plus 256.
+    `GET /v1/status` shows `file_limit`.
+  - **Deferred.** The sidecar index file of the plan moves to R30, beside
+    snapshots: start-up reads the whole log anyway, so locations cost
+    nothing to build then. Items and undo outside a recent window, and
+    peer sync served from disk, are R29.
+- **Why:** jerry's priority (2026-11-04): a node held every entry body in
+  memory for its whole history, tens of GB a year for a busy series.
+  Bodies are the largest part and are read only to serve, so they move
+  first.
+- **Consensus:** None. No rule, encoding or wire message changes. No
+  depth limit: every entry is still held and checked as before; only where
+  its bytes live changes. A node with a tiny cache selects, holds and
+  serves exactly what a node with every body in memory does (the
+  differential tests below). A body that cannot be read back is a lack of
+  information for one query, never a verdict.
+- **Tier:** Store, ledger, node, node policy, RPC, CLI.
+  - `pkg/store/readat_test.go`: `TestReadAtLocations`.
+  - `pkg/ledger/bodies_test.go`: `TestBodyCacheBound`; `runRandom`
+    (`property_test.go`) now runs a twin pool with a 1 KiB cache beside
+    every random history and compares tip, weight, state and bodies.
+  - `pkg/node/bodies_test.go`: `TestBodiesFromDisk` (no cache, through a
+    compaction and a restart), `TestEntryCacheLimit`;
+    `bodies_internal_test.go`: `TestPoolBodiesChecks`.
+  - `pkg/nodepolicy/filelimit_test.go`: `TestCheckFileLimit`,
+    `TestFollowedPools`.

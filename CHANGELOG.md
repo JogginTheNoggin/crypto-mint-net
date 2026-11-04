@@ -234,6 +234,16 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 28 (D172):**
+  - **Entry bodies on disk.** A node keeps every held entry's skeleton in
+    memory and reads entry bodies back from its pool logs when it needs
+    them, through one cache bounded by node policy `entry_cache_mib`
+    (default 512 MiB, applied in place). Start-up reads the logs one
+    window at a time, and compaction copies records from the old file,
+    so neither holds the whole history. What a node decides is
+    unchanged. `poo status` shows `bodies` and `file_limit`.
+  - A node warns at start, and `poo doctor` checks (`open-files`), when
+    the open file limit is below the followed pools plus 256.
 - **Round 27 (D170):**
   - **Per-series witness size limits.** The network-wide caps (4,096-byte
     keys, 8,192-byte signatures, 64 KiB params and data) are gone: a

@@ -70,8 +70,10 @@ type Policy struct {
 	// policy (by a policy import) whose witness ceiling is not set or
 	// above it (D170). Declining is a lack of information, never a
 	// verdict on a ledger, and it never drops a series already listed.
-	// 0 declines none.
-	SeriesCeiling uint32 `json:"series_ceiling,omitempty"`
+	// 0 declines none. It is a bounded setting (BoundSeriesCeiling), so
+	// poo policy limits shows and sets it; poo init writes CeilingLimit
+	// in a new node.json (RED-083, D171).
+	SeriesCeiling int `json:"series_ceiling,omitempty"`
 	// Follow lists the mint policies this node follows.
 	Follow []Follow `json:"follow"`
 	// K is how many inactive branches to keep per pool; nil means the
@@ -84,6 +86,9 @@ type Policy struct {
 	MaxPending int `json:"max_pending,omitempty"`
 	// SeenSize is the size of the seen list (0: default).
 	SeenSize int `json:"seen_size,omitempty"`
+	// EntryCacheMiB bounds the entry bodies kept in memory, read back
+	// from the pool logs, in MiB (0: default; D172).
+	EntryCacheMiB int `json:"entry_cache_mib,omitempty"`
 	// NoSync skips the fsync after each write to the store. Faster; a power
 	// loss can then lose the latest items, which peers can send again.
 	NoSync bool `json:"no_sync,omitempty"`
@@ -723,6 +728,26 @@ func EncodeWitness(w policy.Witness) string {
 	return hex.EncodeToString(enc.Bytes())
 }
 
+// CeilingLimit is the largest witness ceiling poo series new and poo init
+// take without being forced, and the series_ceiling poo init writes in a
+// new node.json (D170, ORANGE-037, D171): one witness up to 4 MiB checks
+// in about 3 s of one core.
+const CeilingLimit = 4 << 20
+
+// CeilingWarning says why a series' witness ceiling is worth a warning,
+// or "" when it is not: it sets none, or one above CeilingLimit, so one
+// witness can take seconds and hundreds of MB to check (RED-083). It
+// refuses nothing.
+func CeilingWarning(sp series.Params) string {
+	switch {
+	case sp.MaxWitness == 0:
+		return "the series sets no witness ceiling: one witness can take seconds and hundreds of MB to check"
+	case sp.MaxWitness > CeilingLimit:
+		return fmt.Sprintf("the series' witness ceiling is %d bytes, above %d: one witness can take seconds to check", sp.MaxWitness, CeilingLimit)
+	}
+	return ""
+}
+
 // DeclinesSeries reports why the policy declines to add a series with
 // params sp (SeriesCeiling, D170), or nil when it takes it.
 func (p Policy) DeclinesSeries(sp series.Params) error {
@@ -731,7 +756,7 @@ func (p Policy) DeclinesSeries(sp series.Params) error {
 		return nil
 	case sp.MaxWitness == 0:
 		return fmt.Errorf("the series sets no witness ceiling, and series_ceiling is %d", c)
-	case sp.MaxWitness > c:
+	case int64(sp.MaxWitness) > int64(c):
 		return fmt.Errorf("the series' witness ceiling is %d, above series_ceiling %d", sp.MaxWitness, c)
 	}
 	return nil

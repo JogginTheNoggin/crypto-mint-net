@@ -109,6 +109,7 @@ func TestRandomPruned(t *testing.T) {
 func runRandom(t *testing.T, seed int64, steps int, k int) int {
 	rng := rand.New(rand.NewSource(seed))
 	f := newFixture(t, ledger.Config{K: k, Ties: 2})
+	tw := newTwin(f.s, ledger.Config{K: k, Ties: 2})
 	owners := map[hash.Hash]string{}
 	for i := 0; i < 6; i++ {
 		l := fmt.Sprintf("o%d", i)
@@ -142,6 +143,9 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 			h := held[rng.Intn(len(held))]
 			l := layerOf(t, f.s, h, rng.Intn(6), uint64(rng.Int63()))
 			res, err := f.pool.AddLayer(l)
+			if _, terr := tw.pool.AddLayer(l); (terr == nil) != (err == nil) {
+				t.Fatalf("step %d: twin AddLayer %v, pool %v", step, terr, err)
+			}
 			if err != nil {
 				continue // a repeated nonce is fine to skip
 			}
@@ -190,6 +194,7 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 			e := f.build(parent, txs...)
 			h := e.Hash(f.s)
 			res, err := f.pool.AddEntry(e)
+			tw.addEntry(t, step, e, err)
 			if err != nil {
 				continue // same entry twice
 			}
@@ -200,6 +205,10 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 		}
 		if err := ledger.CheckOff(f.pool); err != nil {
 			t.Fatalf("step %d: %v", step, err)
+		}
+		tw.compare(t, step, f.pool)
+		if step%50 == 49 {
+			tw.compareBodies(t, f.pool, held)
 		}
 		if k != ledger.Unlimited {
 			continue
@@ -228,6 +237,7 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 			}
 		}
 	}
+	tw.compareBodies(t, f.pool, held)
 	if k == ledger.Unlimited {
 		checkReplayOrder(t, f)
 	}

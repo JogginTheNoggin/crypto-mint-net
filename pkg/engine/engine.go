@@ -114,6 +114,11 @@ type Config struct {
 	MaxPending int
 	// SeenSize is the size of the seen list (0: default).
 	SeenSize int
+	// Source, if set, gives each pool the BodySource its ledger drops
+	// entry bodies to (D172); Ledger.Bodies is the cache they are read
+	// back through. It is called for every pool state made, including
+	// ones only read and not kept, so it should be cheap.
+	Source func(PoolKey) ledger.BodySource
 }
 
 // DefaultConfig returns the provisional defaults.
@@ -310,9 +315,13 @@ func (e *Engine) poolFor(k PoolKey) (*poolState, bool, error) {
 	if !e.followsLocked(k) {
 		return nil, false, ErrNotFollowed
 	}
+	lc := e.cfg.Ledger
+	if e.cfg.Source != nil {
+		lc.Source = e.cfg.Source(k)
+	}
 	return &poolState{
 		s:       s,
-		ledger:  ledger.New(s, k.Index, e.cfg.Ledger),
+		ledger:  ledger.New(s, k.Index, lc),
 		pending: mempool.New(s, e.cfg.MaxPending),
 	}, true, nil
 }

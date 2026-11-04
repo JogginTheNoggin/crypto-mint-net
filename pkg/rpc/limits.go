@@ -112,6 +112,9 @@ func (h *Handler) applyInPlace(p nodepolicy.Policy) bool {
 	if n := nodepolicy.BoundSeenSize.Or(p.SeenSize); nodepolicy.BoundSeenSize.Or(run.SeenSize) != n {
 		h.n.Engine().SetSeenSize(n)
 	}
+	if b := p.EntryCacheBytes(); b != run.EntryCacheBytes() {
+		h.n.BodyCache().SetMax(b)
+	}
 	h.n.SetRunning(p)
 	return true
 }

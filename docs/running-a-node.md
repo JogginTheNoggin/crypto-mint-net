@@ -190,6 +190,15 @@ weights, and the replay line reports how many records it read back. Every
 record is checked again on the way in; a file damaged by a crash loses at
 most its last record.
 
+Memory: the node keeps every entry's skeleton in memory and reads entry
+bodies back from the pool logs when it serves them, keeping up to
+`entry_cache_mib` (512 MiB by default) of them cached. `poo status` shows
+the cache under `bodies`; `poo policy limits -set entry_cache_mib=N`
+changes it in a running node. Each pool in use keeps its log open, so
+`poo doctor` and the node's start-up warn when the open file limit is
+below the followed pools plus 256 (raise it with `ulimit -n` or
+`LimitNOFILE=`).
+
 ## 6. A second node
 
 Give the second node its own policy, its own RPC port, and the first node

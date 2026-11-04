@@ -77,6 +77,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-049](source/GREEN-049-variable-series-notes.md) | Source | Say a variable series is kept, not wrong: init and doctor notes, parts -from past the cap | proposed |
 | [GREEN-050](source/GREEN-050-releases-and-the-reload-gap.md) | Source | Release tooling notes, a readable followed table, and a reload that waits for its lock | proposed |
 | [GREEN-051](source/GREEN-051-seed-commands-take-alg.md) | Source | Commands that take a seed take -alg, so SLH-DSA keys can claim, pay, sign and release | proposed |
+| [GREEN-052](source/GREEN-052-keygen-series-addresses.md) | Source | keygen gives the key's address in the node's own series (the reserve hashes with SHA-512/256); poo crypto -o table | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
@@ -88,3 +89,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-034](source/ORANGE-034-parts-as-ranges-and-part-ids.md) | Source | Round 24 measured; parts as ranges, part ids, peer counts | proposed |
 | [ORANGE-035](source/ORANGE-035-releases-and-in-place-limits.md) | Source | Round 25 measured; releases, the waiting path, and a design for in-place limits | proposed |
 | [ORANGE-036](source/ORANGE-036-release-gossip-and-work-sizing.md) | Source | Round 26 measured; release gossip, in-place limits, SLH-DSA and work sizing | proposed |
+| [ORANGE-037](source/ORANGE-037-reserve-default-and-slh-dsa-256s.md) | Source | Round 27 measured; the reserve default, SLH-DSA-256s and witnesses with no network-wide cap | proposed |

@@ -436,6 +436,11 @@ type StatusReply struct {
 	// with -no-reload or by hand waits for poo reload (GREEN-037). Limits
 	// applied in place count as applied (D168).
 	PolicyChanged bool `json:"policy_changed,omitempty"`
+	// Bodies is where the node's entry bodies are: the cache bounded by
+	// entry_cache_mib, and how many are still in memory (D172).
+	Bodies node.BodyStats `json:"bodies"`
+	// FileLimit is the open file limit checked at start (ORANGE-037).
+	FileLimit nodepolicy.FileLimit `json:"file_limit"`
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -443,7 +448,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	for _, s := range h.n.Stores() {
 		stored[s.Key] = s.Records
 	}
-	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed()}
+	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed(), Bodies: h.n.Bodies(), FileLimit: h.n.FileLimit()}
 	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
 		rep.PolicyChanged = !p.SameApplied(h.n.Running())
 	}
@@ -472,6 +477,9 @@ type SeriesInfo struct {
 	// Builtin is "reserve" when the series is the built-in default reserve
 	// series, matched on its full id (D170).
 	Builtin string `json:"builtin,omitempty"`
+	// Warning says the series sets no witness ceiling, or one above
+	// nodepolicy.CeilingLimit (RED-083); left out otherwise.
+	Warning string `json:"warning,omitempty"`
 }
 
 // Builtin returns "reserve" for the built-in reserve series' full id and
@@ -525,7 +533,7 @@ func (h *Handler) series(w http.ResponseWriter, r *http.Request) {
 	out := []SeriesInfo{}
 	for _, id := range h.n.Engine().FollowedSeries() {
 		s, _ := h.n.Engine().Series(id)
-		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount(), Variable: VariableOf(s), Builtin: Builtin(s.ID())})
+		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount(), Variable: VariableOf(s), Builtin: Builtin(s.ID()), Warning: nodepolicy.CeilingWarning(s.Params())})
 	}
 	writeJSON(w, out)
 }

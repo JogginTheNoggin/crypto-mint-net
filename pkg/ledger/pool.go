@@ -96,6 +96,13 @@ type Config struct {
 	// kept so the layers that will make it selected can be counted. 0
 	// means DefaultTies.
 	Ties int
+	// Source, when set, gives back entry bodies from outside memory, so
+	// the pool drops each body once Source has it (D172). Nil keeps every
+	// body in memory, as before.
+	Source BodySource
+	// Bodies caches the bodies read back from Source; one cache may serve
+	// many pools. Nil caches none.
+	Bodies *BodyCache
 	// Clock gives the local time recorded when an entry is first seen. It
 	// is never read by selection. Defaults to time.Now.
 	Clock func() time.Time
@@ -135,6 +142,9 @@ type Pool struct {
 	// Any change to the selected chain or to viewOf drops it.
 	view   *state.State
 	viewOf *node
+	// held are the entries added since their bodies were last released
+	// to the source (releaseBodies, D172).
+	held []*node
 }
 
 // New returns an empty pool: no entries, weight 0, nothing claimed.
@@ -210,7 +220,7 @@ func (p *Pool) Entry(h hash.Hash) (*entry.Entry, bool) {
 	if !ok {
 		return nil, false
 	}
-	return n.entry, true
+	return p.body(n)
 }
 
 // Info describes a held entry.
@@ -232,7 +242,7 @@ func (p *Pool) Info(h hash.Hash) (Info, bool) {
 		return Info{}, false
 	}
 	return Info{
-		Hash: n.hash, Parent: n.entry.Parent, Height: n.height, Own: n.own,
+		Hash: n.hash, Parent: p.parentHash(n), Height: n.height, Own: n.own,
 		Ledger: p.weightOf(n), Layers: len(n.layers), Selected: n.onChain, FirstSeen: n.seen,
 	}, true
 }
@@ -364,6 +374,7 @@ type AddResult struct {
 func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 	// The cheap shape and the parent come before any signature: an entry
 	// on a parent not held costs no signature check (RED-009).
+	p.releaseBodies()
 	h, items, err := entry.CheckShape(p.s, p.index, e)
 	if err != nil {
 		return AddResult{}, fmt.Errorf("%w: %v", ErrInvalidEntry, err)
@@ -411,6 +422,9 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 		}
 	}
 	p.nodes[h] = n
+	if p.cfg.Source != nil {
+		p.held = append(p.held, n)
+	}
 	p.off[n] = struct{}{}
 	p.leaves[n] = struct{}{}
 	p.newest = n
@@ -855,7 +869,11 @@ func (p *Pool) Rivals(t *tx.Tx, tid hash.Hash) []Rival {
 	for _, b := range p.Branches() {
 		for x := p.nodes[b.Tip]; x != nil && !x.onChain; x = x.parent {
 			found := false
-			for _, o := range x.entry.Txs {
+			body, ok := p.body(x)
+			if !ok {
+				continue
+			}
+			for _, o := range body.Txs {
 				if o.IsClaim() {
 					continue
 				}
