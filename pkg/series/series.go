@@ -221,8 +221,10 @@ type Series struct {
 	// verified remembers witnesses already satisfied, a local cache that
 	// never changes a result (see policy.Verified).
 	verified *policy.Verified
-	// parts caches part ids of a variable series (parts.go).
-	parts partChain
+	// parts caches part ids of a variable series (parts.go), shared by
+	// every Series of the same id in this process (chainFor); nil for a
+	// fixed series.
+	parts *partChain
 	// released is the newest part of a variable series this node knows
 	// released: 1 until a release of a later part is added, then only
 	// ever higher (released.go).
@@ -263,7 +265,8 @@ func NewWithRegistry(p Params, reg *policy.Registry) (*Series, error) {
 	s.id = h(hash.TagSeries, p.Encode())
 	if s.IsVariable() {
 		s.released.Store(1) // part 1, released by the issuer witness
-		variableIDs.Store(s.id, struct{}{})
+		addVariableID(s.id)
+		s.parts = chainFor(s.id)
 	}
 	return s, nil
 }

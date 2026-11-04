@@ -58,6 +58,24 @@ type partChain struct {
 	last   hash.Hash   // part_id(lastK)
 }
 
+// chains holds one partChain per variable series id this process has
+// built. A part id is a function of the series id alone, so every Series
+// built from the same params shares the ids already worked out: a node
+// that builds its series again (each reload, nodepolicy.Accepted, an
+// added release) does not hash a far release's chain again (ORANGE-035).
+// Like variableIDs it holds only facts and only grows; each chain stays
+// within maxPartMarks ids.
+var chains sync.Map // hash.Hash → *partChain
+
+// chainFor returns the chain shared by every series with id id.
+func chainFor(id hash.Hash) *partChain {
+	if c, ok := chains.Load(id); ok {
+		return c.(*partChain)
+	}
+	c, _ := chains.LoadOrStore(id, &partChain{})
+	return c.(*partChain)
+}
+
 // The chain's sizes; variables only so tests can make them small.
 var (
 	// firstPartStride is the stride the marks start with.
@@ -194,7 +212,7 @@ func (s *Series) PartID(k uint64) (hash.Hash, error) {
 	if err := s.checkPart(k); err != nil {
 		return hash.Zero, err
 	}
-	c := &s.parts
+	c := s.parts
 	c.mu.Lock()
 	for c.next < k {
 		s.extendLocked(c, k)

@@ -18,6 +18,9 @@ func variableForTest(t *testing.T) *Series {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Its own chain, not the one this process shares for the id
+	// (ORANGE-035), so each test starts from no part id worked out.
+	s.parts = &partChain{}
 	return s
 }
 
