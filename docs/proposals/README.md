@@ -88,3 +88,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-034](source/ORANGE-034-parts-as-ranges-and-part-ids.md) | Source | Round 24 measured; parts as ranges, part ids, peer counts | proposed |
 | [ORANGE-035](source/ORANGE-035-releases-and-in-place-limits.md) | Source | Round 25 measured; releases, the waiting path, and a design for in-place limits | proposed |
 | [ORANGE-036](source/ORANGE-036-release-gossip-and-work-sizing.md) | Source | Round 26 measured; release gossip, in-place limits, SLH-DSA and work sizing | proposed |
+| [ORANGE-037](source/ORANGE-037-reserve-default-and-slh-dsa-256s.md) | Source | Round 27 measured; the reserve default, SLH-DSA-256s and witnesses with no network-wide cap | proposed |
