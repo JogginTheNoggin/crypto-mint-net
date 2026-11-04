@@ -19,11 +19,15 @@ func cryptoCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("crypto", out)
 	addWhere(fs) // taken and ignored, like every command that needs no node
 	maxWitness := fs.Uint("max-witness", series.ReserveMaxWitness, "the series witness ceiling to count signatures against (0: none; the default is the reserve series')")
+	o := addOutput(fs) // a table of the key algorithms reads at a glance (GREEN-052)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := o.check(); err != nil {
+		return err
+	}
 	if fs.NArg() != 0 || *maxWitness > 1<<32-1 {
-		return fmt.Errorf("usage: poo crypto [-max-witness BYTES]")
+		return fmt.Errorf("usage: poo crypto [-max-witness BYTES] [-o json|table]")
 	}
 	type named struct {
 		ID   uint32 `json:"id"`
@@ -54,7 +58,7 @@ func cryptoCmd(args []string, out io.Writer) error {
 	for _, t := range policy.Default().Types() {
 		v.Types = append(v.Types, named{uint32(t.ID()), t.Name()})
 	}
-	return writeJSON(out, v)
+	return o.write(out, v)
 }
 
 // number reads a decimal number, or looks a name up.

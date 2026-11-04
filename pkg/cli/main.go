@@ -25,9 +25,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -413,6 +415,7 @@ func keygen(args []string, out io.Writer) error {
 	seedFile := fs.String("seed-file", "", "file holding the seed in hex, - for standard input (random if neither)")
 	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")
 	hashName := fs.String("hash", "sha256", "hash of the series the address is for")
+	w := addWhere(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -455,7 +458,7 @@ func keygen(args []string, out io.Writer) error {
 	h, _ := hash.Lookup(hid)
 	addr := policy.Address(h, pol).String()
 	a, _ := policy.Default().Alg(alg)
-	v := map[string]string{
+	v := map[string]any{
 		"seed":       hex.EncodeToString(seed),
 		"alg":        a.Name(),
 		"public_key": hex.EncodeToString(signer.Public()),
@@ -466,7 +469,55 @@ func keygen(args []string, out io.Writer) error {
 	if hid == hash.SHA256 {
 		v["address_sha256"] = addr // the field's name before there was a choice
 	}
+	// The address under each series the node policy lists, which is the
+	// one to give a payer: poo init follows the reserve series by default
+	// (D170), whose hash is SHA-512/256, so the sha256 "address" above is
+	// not this key's address there (GREEN-052).
+	if fa, note := followedAddresses(w, pol, alg, hid); len(fa) > 0 {
+		v["series_addresses"] = fa
+		if note != "" {
+			v["note"] = note
+		}
+	}
 	return writeJSON(out, v)
+}
+
+// seriesAddress is a key's address in one series a node policy lists.
+type seriesAddress struct {
+	Series  string `json:"series"`
+	Builtin string `json:"builtin,omitempty"`
+	Hash    string `json:"hash"`
+	Allowed bool   `json:"allowed"`
+	Address string `json:"address"`
+}
+
+// followedAddresses gives pol's address in each series the node policy at
+// w lists, and a note when "address" (hash hid) is the address in none of
+// them. No node policy, or one that cannot be read, gives none: keygen
+// works without a node.
+func followedAddresses(w *where, pol policy.Policy, alg policy.AlgID, hid hash.ID) ([]seriesAddress, string) {
+	p, err := nodepolicy.Load(filepath.Join(w.resolve(), nodepolicy.FileName))
+	if err != nil {
+		return nil, ""
+	}
+	var fa []seriesAddress
+	matched := false
+	for _, si := range p.Series {
+		s, err := series.New(si.Params)
+		if err != nil {
+			continue
+		}
+		a := seriesAddress{Series: s.ID().String(), Hash: si.Params.HashID.Name(), Allowed: s.AllowsKeyAlg(alg), Address: s.Address(pol).String()}
+		if s.ID().String() == series.ReserveID {
+			a.Builtin = "reserve"
+		}
+		matched = matched || si.Params.HashID == hid
+		fa = append(fa, a)
+	}
+	if len(fa) == 0 || matched {
+		return fa, ""
+	}
+	return fa, fmt.Sprintf("address is for a %s series; this node's series use another hash, so give a payer the address in series_addresses (or pass -hash)", hid.Name())
 }
 
 func seriesCmd(args []string, out io.Writer) error {
