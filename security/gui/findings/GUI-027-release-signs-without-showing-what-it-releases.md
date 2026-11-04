@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (GUI/Blue, Round 25C) |
+| Status | fixed (GUI/Blue, Round 25C), merged; verified by GUI/Red R26B @ eb74797 |
 | Found on | main @ 88bd534 (PR #161, Series and keys → "Release a part", D163) |
 | Component | gui/web/static/views/crypto.js (the Release form: one danger confirm naming only the command line, then `poo series release FILE -part K -seed-file -`); pkg/cli/seriesparts.go (`seriesRelease` prints the signed release only, without the range `-check` prints) |
 | Surface | the series itself (a signed release, valid for anyone to publish, creating every mint up to the end of part K) |
@@ -144,3 +144,29 @@ Regression test: gui/e2e/views.mjs. On the 8-mint series with part size
 On the old code (88bd534 + Red's R25B docs) it fails at "the form runs
 the preview". In gui/e2e/parity.mjs, `series release -part` is noted as
 run by Sign, as the imports' `-apply` is.
+
+## Notes — Round 26B verification (held up)
+
+I checked this with Playwright on eb74797, on the same 8-mint series
+with no max parts, at Part 50.
+
+- **Preview comes first, and asks for no seed.** It runs
+  `poo series parts FILE -from 50 -to 50`, and the alert reads "Read
+  first: releasing part 50 of series 61d1cc6c5ea1 brings into being
+  serials 200 to 203, and with every part before it, serials 0 to 203:
+  204 mints. It can never be taken back."
+- **Sign repeats the range in its confirm** before the masked field
+  appears.
+- **Any edit to the form removes Sign.**
+- **Changing the file on disk between Preview and Sign is caught.** I
+  changed `part_size` in the series file after Preview. The signed
+  output then names another series. The GUI says "This release is not
+  the part previewed (the series file changed?): do not publish it." It
+  runs no `-check`.
+  - Hardening, not a finding: in that case Save as file is still
+    offered for the release it says not to publish. That release is for
+    a different series id, so it can't release mints of the previewed
+    series. Leaving out Save as (and Copy output) there would make the
+    warning final.
+- **On success, `-check -` runs on the signed output**, and its summary
+  is shown next to Save as file.
