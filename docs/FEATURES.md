@@ -130,8 +130,8 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 
 | Feature | What it does | Commands |
 | --- | --- | --- |
-| Getting started | First steps, each a command line to run | |
-| Node | Start and stop the node, status, follow (with `-replace`), unfollow, reload, init (with no series it follows the default reserve series; `-reserve`, `-no-series` and `-any-ceiling` as boxes, D170); a notice when a node.json change waits for a reload, with Reload now | `poo node`, `status`, `follow`, `unfollow`, `reload`, `init` |
+| Getting started | First steps, each a command line to run; Write a node policy is `poo init`, which follows the built-in reserve series (GUI-GREEN-054) | |
+| Node | Start and stop the node, status, follow (with `-replace`), unfollow, reload, init (with no series it follows the default reserve series; `-reserve`, `-no-series` and `-any-ceiling` as boxes, D170); a notice when a node.json change waits for a reload, with Reload now; a Followed series panel with one row per series, naming the built-in reserve series by poo's `builtin` field (GUI-GREEN-054) | `poo node`, `status`, `follow`, `unfollow`, `reload`, `init`, `series followed` |
 | Doctor | `poo doctor`'s report, where each problem offers its fix command exactly as printed | `poo doctor` |
 | Watch | Live events, newest first, with the filter flags, pause, counts and each event in full | `poo watch` |
 | Work | Devices, benchmarks and jobs; a live run shows the plan, the rate and each layer or entry found | `poo grind` |

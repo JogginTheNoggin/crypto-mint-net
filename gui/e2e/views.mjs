@@ -50,6 +50,12 @@ try {
     await page.waitForTimeout(250);
   }
   await shot('node');
+  // Followed series: one row for the worked example's series, which is
+  // not built into poo, so it has no name (GUI-GREEN-054).
+  const fs = section('Followed series');
+  await fs.locator('button:has-text("Refresh")').click();
+  await fs.locator('table.followed-series tbody tr').first().waitFor();
+  assert.match(await fs.locator('table.followed-series tbody tr').first().innerText(), /^\t[0-9a-f]{16}…\tfixed\t/);
   // Follow more offers Replace (poo follow -replace) only once a series is
   // named, as poo takes it only with -series.
   const more = section('Follow more');
