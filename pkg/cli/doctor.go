@@ -93,10 +93,16 @@ func doctorCmd(args []string, out io.Writer) error {
 		}
 	} else {
 		fmt.Fprintf(out, "data directory %s\n", rep.Dir)
+		// The name column is as wide as the longest name, so a longer one
+		// (open-files, D172) keeps every detail and fix in line (GREEN-053).
+		w := 8
 		for _, c := range rep.Checks {
-			fmt.Fprintf(out, "%-4s  %-8s  %s\n", c.Result, c.Name, c.Detail)
+			w = max(w, len(c.Name))
+		}
+		for _, c := range rep.Checks {
+			fmt.Fprintf(out, "%-4s  %-*s  %s\n", c.Result, w, c.Name, c.Detail)
 			if c.Fix != "" {
-				fmt.Fprintf(out, "                fix: %s\n", c.Fix)
+				fmt.Fprintf(out, "%s  fix: %s\n", strings.Repeat(" ", 4+2+w), c.Fix)
 			}
 		}
 	}

@@ -699,6 +699,12 @@ func (n *Node) HandleEntryFrom(k engine.PoolKey, e *entry.Entry, origin engine.O
 		if durable, err = n.record(k, store.KindEntry, e.Encode(), res.Hash); err != nil {
 			return res, err
 		}
+		// The entry is written, so the pool can drop its body now, into
+		// the bounded cache. Left to the pool's next AddEntry, the newest
+		// entry of every pool stayed in memory outside entry_cache_mib,
+		// up to one body per followed pool for as long as the pool is
+		// quiet (GREEN-053).
+		n.eng.Ledger(k, func(p *ledger.Pool) { p.ReleaseBodies() })
 		n.emit(Event{Key: k, Entry: e, Origin: origin, From: from, Forward: res.Forward, Switch: res.Switch, Dropped: res.Dropped})
 		return res, nil
 	}()

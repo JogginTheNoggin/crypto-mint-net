@@ -78,6 +78,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-050](source/GREEN-050-releases-and-the-reload-gap.md) | Source | Release tooling notes, a readable followed table, and a reload that waits for its lock | proposed |
 | [GREEN-051](source/GREEN-051-seed-commands-take-alg.md) | Source | Commands that take a seed take -alg, so SLH-DSA keys can claim, pay, sign and release | proposed |
 | [GREEN-052](source/GREEN-052-keygen-series-addresses.md) | Source | keygen gives the key's address in the node's own series (the reserve hashes with SHA-512/256); poo crypto -o table | proposed |
+| [GREEN-053](source/GREEN-053-bodies-released-on-write.md) | Source | Drop an entry's body into the cache when it is written; doctor's columns in line | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
