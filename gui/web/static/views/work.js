@@ -4,7 +4,7 @@
 // commands print. Which device and grinder run, and why, is the plan poo
 // prints, never a guess here.
 import * as api from '../api.js';
-import { el, cmdLine, panel, form, flag, mountAll, gate } from '../views.js';
+import { el, cmdLine, panel, form, flag, mountAll, gate, rawFold } from '../views.js';
 import { render, rateText } from '../render.js';
 import * as where from '../where.js';
 import { paced } from '../scroll.js';
@@ -140,10 +140,8 @@ function tableResult(r, area, draw) {
   try { v = JSON.parse(r.out); } catch (_) { return; }
   const raw = area.querySelector('.result');
   if (!raw) return;
-  const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
   raw.replaceWith(draw(v));
-  det.append(raw);
-  area.append(det);
+  area.append(rawFold(raw));
 }
 
 // deviceChoices offers the device ids poo grind devices printed, plus

@@ -1,7 +1,7 @@
 // The Node policies view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { el, flag, flags, form, mountAll, panel, pickFile, runJob } from '../views.js';
+import { el, flag, flags, form, mountAll, panel, pickFile, rawFold, runJob } from '../views.js';
 
 export const policiesView = {
   id: 'policies',
@@ -274,8 +274,6 @@ function showPlan(r, area, applied) {
       lines.length ? planTable(lines) : el('p', {}, 'No settings change.'),
       el('p', { class: 'hint' }, notes));
   });
-  const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
   raw.replaceWith(el('div', {}, ...blocks));
-  det.append(raw);
-  area.append(det);
+  area.append(rawFold(raw));
 }
