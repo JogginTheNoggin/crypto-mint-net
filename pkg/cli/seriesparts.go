@@ -164,6 +164,9 @@ func seriesParts(args []string, out io.Writer) error {
 	if !s.IsVariable() {
 		return fmt.Errorf("series %s is fixed: its %d mints are set for life", s.ID().Short(), s.Mints())
 	}
+	if m := s.MaxParts(); m != 0 && *from > m {
+		return fmt.Errorf("-from %d is past the last part: series %s has at most %d parts", *from, s.ID().Short(), m)
+	}
 	last := *to
 	if last == 0 {
 		last = *from + 9

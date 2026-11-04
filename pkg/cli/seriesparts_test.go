@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,4 +126,35 @@ func runErr(args ...string) (string, error) {
 	var out bytes.Buffer
 	err := run(args, &out)
 	return out.String(), err
+}
+
+// A node keeps a variable series it does not follow yet: poo init says so,
+// and poo doctor says to leave it, not to correct it; and poo series parts
+// -from past the last part names the cap (GREEN-049).
+func TestVariableSeriesNotes(t *testing.T) {
+	dir := t.TempDir()
+	addr := strings.Repeat("9d", 32)
+	file := filepath.Join(dir, "series.json")
+	out := runOut(t, "series", "new", "-variable", "-part-size", "4", "-max-parts", "3", "-issuer", addr)
+	if err := os.WriteFile(file, []byte(out), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runErr("series", "parts", file, "-from", "5"); err == nil || !strings.Contains(err.Error(), "at most 3 parts") {
+		t.Errorf("parts -from past the cap: %v", err)
+	}
+	node := filepath.Join(dir, "node")
+	os.MkdirAll(node, 0o700)
+	init := runOut(t, "init", "-dir", node, "-p2p", "off", "-series", file)
+	if !strings.Contains(init, "is a variable supply series") || !strings.Contains(init, "leave it there") {
+		t.Errorf("init:\n%s", init)
+	}
+	c := checkNamed(doctor(io.Discard, node), "series")
+	if c.Result != checkWarn || strings.Contains(c.Fix, "correct or remove") || !strings.Contains(c.Fix, "leave it there") {
+		t.Errorf("doctor series: %+v", c)
+	}
+	// With a fixed series beside it, init says nothing extra.
+	fixed := runOut(t, "init", "-dir", t.TempDir(), "-p2p", "off", "-example")
+	if strings.Contains(fixed, "note:") {
+		t.Errorf("init of a fixed series:\n%s", fixed)
+	}
 }
