@@ -1,6 +1,6 @@
 // The Series and keys view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
-import { el, flag, form, mountAll, panel, runJob } from '../views.js';
+import { el, flag, form, mountAll, panel, pickFile, runJob } from '../views.js';
 import { saveAs } from './policies.js';
 
 // cryptoChoices offers the hashes and key algorithms poo crypto printed as
@@ -67,9 +67,7 @@ export const cryptoView = {
         fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'from', label: 'From part', type: 'number', placeholder: 'default 1' }, { name: 'to', label: 'To part', type: 'number', placeholder: 'from + 9, or the most parts' }],
         args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.from), ...flag('to', v.to)], submit: 'Show' }),
       releaseForm(ctx),
-      form(ctx, { title: 'Check a release', about: 'Checks a saved release file against its series and says which serials it releases: for a release made elsewhere, or after Sign above.',
-        fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'check', label: 'Release file', placeholder: 'release.json', required: true }],
-        args: v => ['series', 'release', ...(v.file ? [v.file] : []), ...flag('check', v.check)], submit: 'Check' }),
+      checkReleaseForm(ctx),
       // The last two commands poo help lists that no view ran (GREEN-040).
       form(ctx, { title: 'The worked example\'s series', about: 'The series poo init -example follows, as JSON: a starting point for a series file.', fields: [],
         args: () => ['series', 'example'], submit: 'Show' }),
@@ -108,7 +106,9 @@ function releaseForm(ctx) {
       if (pt.part < 2) { area.append(el('p', { class: 'hint' }, 'Part 1 is released by the issuer witness on the series (Sign a series above); a release is for part 2 on.')); return; }
       const file = f.inputs.file.value.trim();
       previewed = { file, part: pt.part, series: info.series_id, last: pt.last_serial };
-      const range = `serials ${pt.first_serial} to ${pt.last_serial}, and with every part before it, serials 0 to ${pt.last_serial}: ${pt.last_serial + 1} mints`;
+      // The mints that exist once the part is released are poo's count
+      // (mints_released, D168); the GUI adds nothing up.
+      const range = `serials ${pt.first_serial} to ${pt.last_serial}, and with every part before it, serials 0 to ${pt.last_serial}${pt.mints_released !== undefined ? `: ${pt.mints_released} mints` : ''}`;
       const what = el('p', { class: 'next-step release-range', role: 'alert' },
         `Read first: releasing part ${pt.part} of series ${info.series_id.slice(0, 12)} brings into being ${range}. It can never be taken back.`);
       const sign = el('button', { type: 'button', class: 'danger' }, `Sign part ${pt.part}`);
@@ -143,5 +143,19 @@ function releaseForm(ctx) {
     } });
   f.form.addEventListener('input', () => dropSign());
   f.form.addEventListener('change', () => dropSign());
+  return f;
+}
+
+// Check a release takes the release file by path, or picked in the
+// browser and sent to poo as its input (-check -, D166), as Add a release
+// and the imports take theirs (GUI-GREEN-052): a release made elsewhere
+// can be checked before it is given to a node.
+function checkReleaseForm(ctx) {
+  let picker = null;
+  const f = form(ctx, { title: 'Check a release', about: 'Checks a saved release file against its series and says which serials it releases: for a release made elsewhere, or after Sign above.',
+    fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'check', label: 'Release file', placeholder: 'release.json, or pick one below', required: true }],
+    args: v => ['series', 'release', ...(v.file ? [v.file] : []), ...flag('check', v.check)], submit: 'Check',
+    onStart: j => picker.feed(j) });
+  picker = pickFile(f, { field: 'check' });
   return f;
 }

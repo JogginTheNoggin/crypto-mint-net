@@ -554,6 +554,13 @@ try {
   assert.equal(await chk.locator('.cmd code').innerText(), `poo series release ${vfile} -check ${rfile}`);
   await chk.locator('button[type=submit]').click();
   await chk.locator('.result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
+  // The release file can be picked in the browser too, sent as -check -,
+  // as Add a release and the imports take theirs (GUI-GREEN-052).
+  await chk.locator('input[name=pick-check]').setInputFiles({ name: 'release-2.json', mimeType: 'application/json', buffer: readFileSync(rfile) });
+  assert.equal(await chk.locator('.cmd code').innerText(), `poo series release ${vfile} -check -`);
+  await chk.locator('button[type=submit]').click();
+  await chk.locator('.run-status.ok').waitFor();
+  await chk.locator('.result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
 
   // Stop the node from the Node view.
   await page.click('nav a[data-id=node]');

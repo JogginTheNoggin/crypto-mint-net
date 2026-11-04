@@ -58,7 +58,7 @@ try {
   await ask.waitFor();
   await ask.locator('input').fill('a1'.repeat(32));
   await ask.locator('input').press('Enter');
-  await rival.locator('.run-status.waiting', { hasText: 'waiting for a release' }).waitFor();
+  await rival.locator('.run-status.waiting', { hasText: 'waiting for a release (exit 3)' }).waitFor();
 
   // Add a release: the file picked in the browser goes to poo as -.
   await page.click('nav a[data-id=node]');

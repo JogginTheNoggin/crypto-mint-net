@@ -1,7 +1,7 @@
 // The Node policies view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { el, flag, flags, form, mountAll, panel, runJob } from '../views.js';
+import { el, flag, flags, form, mountAll, panel, pickFile, runJob } from '../views.js';
 
 export const policiesView = {
   id: 'policies',
@@ -136,10 +136,10 @@ export function importForm(ctx, spec) {
   // The file is read as poo reads it, not whole first (ORANGE-014), and
   // Apply sends the digest of the file previewed (-if-digest, D151), so
   // poo refuses anything else, the file changed on disk included (GUI-023).
-  let picked = null; // {name, file} of the file picked now
-  const feed = (args, j, p) => {
-    if (args[args.length - 1] !== '-' || p === null) return;
-    api.inputFile(j.id, p.file).catch(() => {});
+  let picker = null; // pickFile's; the file picked now is picker.get()
+  const feed = (args, j, file) => {
+    if (args[args.length - 1] !== '-' || !file) return;
+    picker.feed(j, file);
   };
   // Apply runs what was previewed, and only that (GUI-023): it keeps the
   // preview's args and the very text sent to it, never what is picked
@@ -150,9 +150,9 @@ export function importForm(ctx, spec) {
     { name: 'file', label: 'File', placeholder: 'a path on this machine, or pick one below', required: true },
     ...spec.fields],
   args: v => { last = importArgs(v); return last; }, submit: 'Preview',
-  onStart: j => { dropApply(); previewing = { args: last, file: picked }; feed(last, j, picked); },
+  onStart: j => { dropApply(); previewing = { args: last, file: picker.get() }; feed(last, j, picker.get()); },
   onResult: (r, area) => {
-    const { args, file } = previewing || { args: last, file: picked };
+    const { args, file } = previewing || { args: last, file: picker.get() };
     show(r, area);
     if (r.code !== 0) return;
     let digest = '';
@@ -179,19 +179,7 @@ export function importForm(ctx, spec) {
   } });
   f.form.addEventListener('input', () => dropApply());
   f.form.addEventListener('change', () => dropApply());
-  const fileIn = f.inputs.file;
-  const pick = el('input', { type: 'file', accept: '.json,application/json', name: 'pick' });
-  pick.onchange = () => {
-    const file = pick.files && pick.files[0];
-    if (!file) return;
-    picked = { name: file.name, file };
-    dropApply();
-    fileIn.value = '-';
-    fileIn.dispatchEvent(new Event('input', { bubbles: true }));
-  };
-  // Typing a path again drops the picked file.
-  fileIn.addEventListener('input', () => { if (fileIn.value.trim() !== '-') { picked = null; pick.value = ''; } });
-  fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poo as its input (FILE is -); nothing is stored by the GUI')));
+  picker = pickFile(f, { onPick: () => dropApply() });
   return f;
 }
 

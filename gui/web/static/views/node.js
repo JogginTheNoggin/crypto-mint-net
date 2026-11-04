@@ -1,7 +1,7 @@
 // The Node view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { cmdLine, el, flag, flags, form, mountAll, panel } from '../views.js';
+import { cmdLine, el, flag, flags, form, mountAll, panel, pickFile } from '../views.js';
 import { scrollback } from '../scroll.js';
 
 // node finds the node job this GUI is running, if any.
@@ -131,11 +131,9 @@ export const nodeView = {
         if (!all) return;
         const raw = area.querySelector('.result');
         const vs = all.filter(x => x && x.variable);
-        const body = vs.length ? el('div', { class: 'table-wrap' }, el('table', { class: 'data variable-series' },
-          el('thead', {}, el('tr', {}, ...['series', 'parts released', 'next part', 'mints', 'units', 'newest release'].map(h => el('th', {}, h)))),
-          el('tbody', {}, ...vs.map(x => el('tr', {},
-            el('td', {}, el('code', { class: 'hex', title: x.id }, String(x.id).slice(0, 16) + '…')),
-            ...[x.variable.released, x.variable.next_part ?? 'none (the cap is reached)', x.variable.mints, x.variable.units, x.variable.release ? `part ${x.variable.release.part}` : 'none: part 1 only'].map(c => el('td', {}, String(c)))))))) :
+        const cells = x => [el('code', { class: 'hex', title: x.id }, String(x.id).slice(0, 16) + '…'),
+          ...[x.variable.released, x.variable.next_part ?? 'none (the cap is reached)', x.variable.mints, x.variable.units, x.variable.release ? `part ${x.variable.release.part}` : 'none: part 1 only'].map(String)];
+        const body = vs.length ? variableTable(vs, cells) :
           el('p', { class: 'hint empty' }, `None of the ${all.length} followed series is variable.`);
         const det = el('details', { class: 'raw' }, el('summary', {}, 'Output as printed'));
         if (raw) { raw.replaceWith(body); det.append(raw); area.append(det); }
@@ -143,25 +141,13 @@ export const nodeView = {
     // A release made by the issuer reaches a node as a file (D166): poo
     // checks it, keeps it in node.json and the node reloads to follow the
     // new parts' mints. A file picked here goes to poo as its input (-).
-    let picked = null;
+    let picker = null;
     const addRelease = form(ctx, { title: 'Add a release', about: 'Gives the node a release of a variable series it follows. poo checks it against the series, saves it in node.json, and the node then follows the new parts\' mints. A release can never be taken back.',
       fields: [{ name: 'file', label: 'Release file', placeholder: 'a path on this machine, or pick one below', required: true }],
       args: v => ['series', 'add-release', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Add release', danger: true,
-      onStart: j => { if (picked && addRelease.inputs.file.value.trim() === '-') api.inputFile(j.id, picked).catch(() => {}); },
+      onStart: j => picker.feed(j),
       onResult: r => { if (r.code === 0) { variable.reload(); status.reload(); } } });
-    {
-      const fileIn = addRelease.inputs.file;
-      const pick = el('input', { type: 'file', accept: '.json,application/json', name: 'pick' });
-      pick.onchange = () => {
-        const file = pick.files && pick.files[0];
-        if (!file) return;
-        picked = file;
-        fileIn.value = '-';
-        fileIn.dispatchEvent(new Event('input', { bubbles: true }));
-      };
-      fileIn.addEventListener('input', () => { if (fileIn.value.trim() !== '-') { picked = null; pick.value = ''; } });
-      fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poo as its input (FILE is -); nothing is stored by the GUI')));
-    }
+    picker = pickFile(addRelease);
     const t = setInterval(showRunning, 3000);
     // poo doctor checks the policy, files, series, RPC and P2P in one go.
     // Its report is drawn as a checklist; the raw output stays one click away.
@@ -178,3 +164,33 @@ export const nodeView = {
     return stop;
   },
 };
+
+// VARIABLE_ROWS is how many variable series the panel draws at first, and
+// then on each press of Show more. A node can follow up to 4,096 series
+// (pkg/p2p): drawn whole, 4,096 rows were 32,800 elements and doubled the
+// time the Node view took to open (ORANGE-019). Like render.js's tables,
+// 500 show at first.
+const VARIABLE_ROWS = 500;
+
+export function variableTable(vs, cells) {
+  const body = el('tbody');
+  let shown = 0;
+  const more = () => {
+    const part = document.createDocumentFragment();
+    for (const end = Math.min(vs.length, shown + VARIABLE_ROWS); shown < end; shown++) part.append(el('tr', {}, ...cells(vs[shown]).map(c => el('td', {}, c))));
+    body.append(part);
+  };
+  more();
+  const wrap = el('div', { class: 'table-wrap' }, el('table', { class: 'data variable-series' },
+    el('thead', {}, el('tr', {}, ...['series', 'parts released', 'next part', 'mints', 'units', 'newest release'].map(h => el('th', {}, h)))), body));
+  if (shown < vs.length) {
+    const text = document.createTextNode('');
+    const btn = el('button', { type: 'button' }, 'Show more');
+    const note = el('p', { class: 'hint variable-more' }, text, btn);
+    const label = () => { text.textContent = `Showing ${shown} of ${vs.length} variable series. `; };
+    label();
+    btn.onclick = () => { more(); if (shown < vs.length) label(); else note.remove(); };
+    wrap.append(note);
+  }
+  return wrap;
+}

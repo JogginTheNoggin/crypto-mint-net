@@ -27,9 +27,10 @@ export function el(tag, attrs = {}, ...kids) {
 // passphrase or seed), and the result rendered once it ends. It resolves to
 // {code, out, err}. secretOutput leaves out the Copy output button, for a
 // command whose output holds a secret (keygen prints its seed).
-// WAITING is poo's word for a transaction on a part of a variable series
-// the node has no release for yet (D166).
-const WAITING = /waiting for a release/;
+// EXIT_WAITING is poo's exit code for a command refused only because the
+// mint's part is not released at this node yet (cli.ExitWaiting, D168): it
+// waits for a release, it is not invalid.
+const EXIT_WAITING = 3;
 
 export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {}) {
   // A job still followed in this area gives up its stream before its
@@ -103,9 +104,9 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput } = {
         exit: e => {
           stopBtn.remove();
           ask.remove();
-          // poo refuses a mint of a part not released yet as waiting for a
-          // release, not as invalid (D166): said as poo says it.
-          const waiting = e.code !== 0 && WAITING.test(err);
+          // poo's exit code says a mint of a part not released yet waits
+          // for a release, not that it is invalid (D166, D168).
+          const waiting = e.code === EXIT_WAITING;
           status.className = 'run-status ' + (e.code === 0 ? 'ok' : waiting ? 'waiting' : 'bad');
           status.textContent = e.code === 0 ? 'done' : waiting ? `waiting for a release (exit ${e.code})` : `exit ${e.code}`;
           live.remove();
@@ -415,6 +416,33 @@ export function choices(name, options, legend, flagName) {
     ...options.map((o, i) => el('label', { class: 'check' }, boxes[i], ` ${o}`)));
   set.value = () => boxes.filter(b => b.checked).map(b => b.value).join(',');
   return set;
+}
+
+// pickFile adds "Or pick a file" under a form's file field. A file picked
+// in the browser goes to poo on its standard input: the field becomes -,
+// and feed(job) sends the file's text, then end of input, as poo reads it
+// (ORANGE-014). Typing a path again drops the picked file. Nothing is
+// stored by the GUI. get() is the file picked now, or null; onPick runs
+// when one is picked. Every form that takes a file this way uses it
+// (GUI-GREEN-052).
+export function pickFile(f, { field = 'file', onPick } = {}) {
+  const fileIn = f.inputs[field];
+  let picked = null;
+  const pick = el('input', { type: 'file', accept: '.json,application/json', name: field === 'file' ? 'pick' : `pick-${field}` });
+  pick.onchange = () => {
+    const file = pick.files && pick.files[0];
+    if (!file) return;
+    picked = file;
+    if (onPick) onPick(file);
+    fileIn.value = '-';
+    fileIn.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  fileIn.addEventListener('input', () => { if (fileIn.value.trim() !== '-') { picked = null; pick.value = ''; } });
+  fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poo as its input (- above); nothing is stored by the GUI')));
+  return {
+    get: () => picked,
+    feed: (j, file = picked) => { if (file && fileIn.value.trim() === '-') api.inputFile(j.id, file).catch(() => {}); },
+  };
 }
 
 // flag adds -name value when value is set.
