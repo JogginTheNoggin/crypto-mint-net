@@ -3950,3 +3950,69 @@ a chase takes in after checking their work are not charged.
   - `pkg/cli`: `TestRivalClaimCLI` (in place and reload),
     `TestVariableSeriesOnANode` (`add-release` in place, exit code 3),
     `TestExitCodeWaiting`, the parts test (`mints_released`).
+
+### D169. Round 26 fixes: RED-077 to RED-081 (BLUE-027)
+
+- **Decision:**
+  - **No tool offers an address that can never be spent (RED-077,
+    RED-079).**
+    - `Registry.CheckSpendable` works out the least witness data a policy
+      can be satisfied with:
+      - a threshold needs K signatures of the smallest sizes among its
+        keys;
+      - k-of-policies needs its K cheapest parts;
+      - a hashlock needs an empty preimage.
+    - It refuses (`ErrUnspendable`) a policy for which even that data is
+      over `MaxDataSize`, whose params are over `MaxParamsSize`, or whose
+      witness is over the series' `max_witness`.
+    - The error says how many of the keys' signatures fit: at most 14
+      ML-DSA-87, or 8 SLH-DSA-SHA2-128s.
+    - `CheckPolicy` runs it, so `poo wallet policy`, a payment request,
+      and a payer's check before paying an address with its policy all
+      refuse such a policy.
+    - `poo crypto` prints `max_signatures_per_witness` for each algorithm.
+    - The decode limits stay as they are. The check is never part of
+      checking a witness. Every witness that decodes and fits already
+      passes it, since the sizes it adds up are the least a witness of
+      the policy can have.
+  - **Releases from peers are coalesced (RED-078).** This builds on
+    ORANGE-036 (#178, merged into this branch), which credits and passes
+    on only the copy that was taken.
+    - A release has its witness checked on arrival
+      (`Series.CheckReleaseSigned`: one signature, no chain). A forged one
+      is an offence at once, so a forger cannot hold a place in the queue.
+    - The first release of a series is taken at once. Any that arrive in
+      the next 2 seconds (`releaseWindow`) wait, and only the highest is
+      taken when the window ends; its sender is the one credited. A release
+      proves every part before it, so nothing is lost.
+    - A replay of parts 2 to 200, oldest first, now makes a node take
+      about two of them, not 199. Each take is a save, a relay, a reload
+      where one is needed, and a first-delivery credit.
+    - A copy of the part the node holds is not counted as a repeat,
+      because honest links cross. Older parts still are.
+  - **Hand edits of grind jobs and manual peers wait for the reload
+    (RED-080).** `SameButInPlace` no longer strips `grind` and `p2p.peers`.
+    The RPC edits that apply them at once write them into the running
+    policy (`node.UpdateRunning`): a peer kept with `peer add -keep`, and a
+    grind schedule the grind manager started. Any other difference is a
+    hand edit, so `limits -set` reloads.
+  - **A large work request is bounded in time (RED-081).** A work request
+    with more than `MaxWorkTries` (2^24) tries and no `for` stops at
+    `MaxGrindFor` (4 minutes), as a `for` request does. The reply says
+    `stopped_on_time`, or the error says where it stopped. `poo work -h`
+    says so.
+- **Consensus:** none.
+  - `CheckSpendable` refuses only policies that no valid witness could
+    satisfy, and only where addresses are made or paid.
+  - Coalescing changes when a node takes a release, never whether it is
+    valid. A release waiting in the window leaves its part waiting, which
+    is missing information, and the highest one is still checked in full.
+  - The in-place and work changes are local.
+- **Tier:** Wallet and CLI checks, p2p, RPC.
+  - `pkg/policy/blue027_test.go`: `TestCheckSpendable` (14 and 15 of 16
+    ML-DSA-87, 16 of 16 ML-DSA-65, 8 and 9 of 10 SLH-DSA, mixes, nested
+    policies, `max_witness`).
+  - `pkg/p2p/blue027_test.go`: `TestReleaseReplayIsCoalesced`. With no
+    window, the same replay takes 199 releases.
+  - `pkg/rpc/inplace_test.go`: `TestInPlaceLeavesHandEditsToTheReload`.
+  - `pkg/rpc/blue027_test.go`: `TestLargeWorkStopsOnTime`.

@@ -238,18 +238,19 @@ func ChangedLimits(old, new Policy) []string {
 }
 
 // SameButInPlace reports whether a and b differ only in what a running
-// node applies without a reload: the bounded settings InPlace names, the
-// grind schedule (applied by the grind manager) and p2p.peers (already in
-// the running book). An in-place change of limits is taken only when the
-// node.json on disk and the policy the node runs with are the same in all
-// else, so a hand edit waiting for a reload is never left unapplied
-// (D168).
+// node applies without a reload: the bounded settings InPlace names. An
+// in-place change of limits is taken only when the node.json on disk and
+// the policy the node runs with are the same in all else, so a hand edit
+// waiting for a reload is never left unapplied (D168). The grind schedule
+// and p2p.peers are compared too: the RPC edits that apply them at once
+// write them into the running policy (node.UpdateRunning), so a
+// difference there is a hand edit, which waits for the reload (RED-080).
 func SameButInPlace(a, b Policy) bool {
 	strip := func(p Policy) ([]byte, error) {
 		for name := range InPlace {
 			*p.limitField(name) = 0
 		}
-		p.Grind, p.P2P.Peers, p.Lowered = nil, nil, nil
+		p.Lowered = nil
 		return json.Marshal(p)
 	}
 	x, err1 := strip(a)

@@ -205,7 +205,7 @@ func (h *Handler) peer(w http.ResponseWriter, r *http.Request) {
 
 // keepPeer adds addr to, or takes it out of, node.json's p2p.peers under
 // the same lock as the other edits of node.json. The running node already
-// has it in its book; the change is for its next start or reload.
+// has it in its book, and its running policy says so.
 func (h *Handler) keepPeer(addr string, keep bool) (bool, *Error) {
 	h.policyMu.Lock()
 	defer h.policyMu.Unlock()
@@ -220,6 +220,10 @@ func (h *Handler) keepPeer(addr string, keep bool) (bool, *Error) {
 	if err := nodepolicy.Save(path, p); err != nil {
 		return false, classify(err)
 	}
+	// The book already has it: the running policy says so, so an in-place
+	// limit change does not take a hand edit of p2p.peers for applied
+	// (RED-080).
+	h.n.UpdateRunning(func(run *nodepolicy.Policy) { run.P2P.Peers = p.P2P.Peers })
 	return true, nil
 }
 

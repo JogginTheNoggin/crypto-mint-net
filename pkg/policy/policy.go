@@ -393,10 +393,13 @@ func (r *Registry) allowed(rules Rules, p Policy) (Type, error) {
 	return t, nil
 }
 
-// CheckPolicy reports whether a policy is well formed and allowed by the
-// rules, without a witness: what a receiver checks before giving out an
-// address.
+// CheckPolicy reports whether a policy is well formed, allowed by the
+// rules and can be spent (CheckSpendable), without a witness: what a
+// receiver checks before giving out an address, and a payer before paying
+// one. It is never part of checking a witness.
 func (r *Registry) CheckPolicy(rules Rules, p Policy) error {
-	_, err := r.allowed(rules, p)
-	return err
+	if _, err := r.allowed(rules, p); err != nil {
+		return err
+	}
+	return r.CheckSpendable(rules, p)
 }

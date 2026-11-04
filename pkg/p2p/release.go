@@ -68,13 +68,11 @@ func (h *Host) Announce(r series.Release, skip string) {
 
 // handleRelease takes in a release a peer passed on. A release of a
 // series this node does not follow, or of a part it already knows, is
-// dropped with no hashing (D165's point 4). A later one is checked in
-// full, witness first, and kept as poo series add-release keeps one; then
-// its pools are indexed and it is passed on. A release that does not
-// check is an offence: it depends only on the series, so no honest node
-// passes one on. A copy that arrives while another peer's copy is being
-// taken is dropped like a known part: only the first is credited and
-// passed on.
+// dropped with no hashing (D165's point 4). A later one has its witness
+// checked at once (one signature, no chain), and is then taken as
+// takeRelease says, or held a moment so that only the highest of a burst
+// is taken (RED-078). A release that does not check is an offence: it
+// depends only on the series, so no honest node passes one on.
 func (h *Host) handleRelease(p *peer, m wire.Message) error {
 	r, err := series.DecodeRelease(m.Body)
 	if err != nil {
@@ -87,9 +85,13 @@ func (h *Host) handleRelease(p *peer, m wire.Message) error {
 	if s == nil || m.Section.Issuer != h.issuers[r.Series] {
 		return nil // not a series this node follows
 	}
-	text := m.Section.Text()
 	now := time.Now()
-	if r.Part <= s.Released() {
+	switch released := s.Released(); {
+	case r.Part == released:
+		// The release this node holds, crossing with its own on an honest
+		// link: nothing to take, and not a repeat (RED-078).
+		return nil
+	case r.Part < released:
 		// Not checked, so not credited; counted as a repeat, so a flood of
 		// them is acted on like any other.
 		if a := h.tr.Repeat(p.key, now); a != tracking.None {
@@ -97,6 +99,20 @@ func (h *Host) handleRelease(p *peer, m wire.Message) error {
 		}
 		return nil
 	}
+	if err := s.CheckReleaseSigned(r); err != nil {
+		return invalidItem{fmt.Errorf("passed on a release that does not check: %w", err)}
+	}
+	if !h.rel.offer(r, p, now, h.flushRelease) {
+		return nil // held, or covered by a higher one held
+	}
+	return h.takeRelease(r, p)
+}
+
+// takeRelease checks r in full and keeps it, credits p, the peer that
+// passed it on, with a first delivery, and passes it on. A copy taken by
+// another call at the same time is dropped: only the first is credited
+// and passed on (ORANGE-036).
+func (h *Host) takeRelease(r series.Release, p *peer) error {
 	res, err := h.n.AddRelease(r)
 	switch {
 	case errors.Is(err, series.ErrRelease):
@@ -105,15 +121,24 @@ func (h *Host) handleRelease(p *peer, m wire.Message) error {
 		h.log.Warn("release not kept", "series", r.Series.Short(), "part", r.Part, "err", err)
 		return nil
 	case !res.Added && !res.Taken:
-		// Another peer passed the same release on at the same time and
-		// that one was taken and passed on; this copy adds nothing
-		// (ORANGE-036).
 		return nil
 	}
-	h.tr.FirstDelivery(p.key, text, "release", now)
+	h.tr.FirstDelivery(p.key, wire.SeriesSection(h.issuers[r.Series], r.Series).Text(), "release", time.Now())
 	h.log.Info("release kept", "series", r.Series.Short(), "part", r.Part, "released", res.Released, "from", p.short())
 	h.Released(r, p.id)
 	return nil
+}
+
+// flushRelease takes the highest release held for a series when its wait
+// ends.
+func (h *Host) flushRelease(r series.Release, p *peer) {
+	s := h.followedVariable(r.Series)
+	if s == nil || r.Part <= s.Released() {
+		return
+	}
+	if err := h.takeRelease(r, p); err != nil {
+		h.misbehave(p, err)
+	}
 }
 
 // Released brings the host up to date after the node took r in place

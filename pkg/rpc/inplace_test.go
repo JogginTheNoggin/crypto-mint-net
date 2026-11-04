@@ -111,3 +111,78 @@ func TestLimitsSetInPlace(t *testing.T) {
 		t.Fatalf("with a change waiting for the reload: %+v, book %+v", rep, book.Limits())
 	}
 }
+
+// inPlaceFixture is TestLimitsSetInPlace's node, host and client.
+func inPlaceFixture(t *testing.T) (*fixture, *rpc.Client, *atomic.Int32, func()) {
+	t.Helper()
+	f := newFixture(t)
+	book, err := peers.Open(filepath.Join(f.dir, peers.FileName), f.n.Policy().BookLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr, err := tracking.New(f.n.Policy().TrackingConfig(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := p2p.New(f.n, p2p.Config{Listen: "127.0.0.1:0", CheckEvery: -1, Book: book, Tracker: tr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	ready, done := make(chan struct{}), make(chan error, 1)
+	go func() { done <- host.Run(ctx, func() { close(ready) }) }()
+	<-ready
+	tok, _ := rpc.LoadOrCreateToken(f.dir)
+	h := rpc.NewHandler(f.n, tok)
+	h.SetHost(host)
+	var reloads atomic.Int32
+	h.SetReload(func() { reloads.Add(1) })
+	srv := httptest.NewServer(h)
+	c := rpc.NewClient(strings.TrimPrefix(srv.URL, "http://"), tok)
+
+	return f, c, &reloads, func() { srv.Close(); cancel(); <-done }
+}
+
+// RED-080, D169: a grind schedule or a manual peer edited into node.json
+// by hand waits for the reload, so a limit set after it takes the reload
+// too; a peer the RPC kept is already in the book and the running
+// policy, so the limit is still taken in place.
+func TestInPlaceLeavesHandEditsToTheReload(t *testing.T) {
+	path := func(f *fixture) string { return filepath.Join(f.dir, nodepolicy.FileName) }
+	for name, edit := range map[string]func(*nodepolicy.Policy){
+		"p2p.peers":  func(p *nodepolicy.Policy) { p.P2P.Peers = []string{"127.0.0.1:19999"} },
+		"grind.jobs": func(p *nodepolicy.Policy) { p.Grind = &nodepolicy.Grind{Jobs: []nodepolicy.GrindJob{{Target: "tip"}}} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f, c, reloads, stop := inPlaceFixture(t)
+			defer stop()
+			p, err := nodepolicy.Load(path(f))
+			if err != nil {
+				t.Fatal(err)
+			}
+			edit(&p)
+			if err := nodepolicy.Save(path(f), p); err != nil {
+				t.Fatal(err)
+			}
+			rep, err := c.SetLimits(rpc.LimitsRequest{Set: map[string]int{"p2p.max_book": 2000}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.InPlace || !rep.Reloading || reloads.Load() != 1 {
+				t.Fatalf("after a hand edit of %s: %+v", name, rep)
+			}
+		})
+	}
+	_, c, reloads, stop := inPlaceFixture(t)
+	defer stop()
+	if _, err := c.Peer(rpc.PeerRequest{Addr: "127.0.0.1:19998", Action: "add", Keep: true}); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := c.SetLimits(rpc.LimitsRequest{Set: map[string]int{"p2p.max_book": 2000}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rep.InPlace || rep.Reloading || reloads.Load() != 0 {
+		t.Fatalf("after a peer kept by the RPC: %+v", rep)
+	}
+}

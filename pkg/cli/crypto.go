@@ -23,6 +23,9 @@ func cryptoCmd(out io.Writer) error {
 		named
 		PublicKey int `json:"public_key_bytes"`
 		Signature int `json:"signature_bytes"`
+		// MaxSigs is how many of its signatures fit in one witness's
+		// data, the limit every node decodes (RED-077, RED-079).
+		MaxSigs int `json:"max_signatures_per_witness"`
 	}
 	var v struct {
 		Hashes []named `json:"hashes"`
@@ -33,7 +36,8 @@ func cryptoCmd(out io.Writer) error {
 		v.Hashes = append(v.Hashes, named{uint32(id), id.Name()})
 	}
 	for _, a := range policy.Default().Algs() {
-		v.Algs = append(v.Algs, alg{named{uint32(a.ID()), a.Name()}, a.PublicKeySize(), a.SignatureSize()})
+		fit := min((policy.MaxDataSize-4)/(6+a.SignatureSize()), policy.MaxThresholdKeys)
+		v.Algs = append(v.Algs, alg{named{uint32(a.ID()), a.Name()}, a.PublicKeySize(), a.SignatureSize(), fit})
 	}
 	for _, t := range policy.Default().Types() {
 		v.Types = append(v.Types, named{uint32(t.ID()), t.Name()})

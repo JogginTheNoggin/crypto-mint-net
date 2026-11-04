@@ -417,6 +417,9 @@ type poolInfo struct {
 
 // Host runs the p2p side of one node.
 type Host struct {
+	// rel coalesces releases passed on by peers (RED-078).
+	rel releaseQueue
+
 	// prog holds what yielded chases learned (see progress).
 	progMu    sync.Mutex
 	prog      map[progressKey]*progress
@@ -794,6 +797,7 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 		ready()
 	}
 	<-ctx.Done()
+	h.stopReleases()
 	h.mu.Lock()
 	if h.ln != nil {
 		h.ln.Close()

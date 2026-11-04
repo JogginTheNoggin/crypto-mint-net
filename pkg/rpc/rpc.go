@@ -56,6 +56,7 @@ package rpc
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -714,6 +715,10 @@ type LayerReply struct {
 	Switched bool      `json:"switched"`
 	// Grind, for work: how it ground.
 	Grind *GrindStats `json:"grind,omitempty"`
+	// StoppedOnTime, for work: the request gave more than MaxWorkTries
+	// tries and no for, and stopped at MaxGrindFor before trying them
+	// all (RED-081).
+	StoppedOnTime bool `json:"stopped_on_time,omitempty"`
 }
 
 func (h *Handler) submitLayer(w http.ResponseWriter, r *http.Request) {
@@ -821,6 +826,10 @@ func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
 // needs more allows more: see WorkTriesFor.
 const MaxWorkTries = 1 << 24
 
+// workTimeBound is the time bound on a work request of more than
+// MaxWorkTries tries with no for: MaxGrindFor, a variable only for tests.
+var workTimeBound = MaxGrindFor
+
 // maxWorkShift is the largest power of two WorkTriesFor allows (2^40).
 const maxWorkShift = 40
 
@@ -880,16 +889,28 @@ func (h *Handler) work(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
+	// More tries than MaxWorkTries with no for are bounded in time too,
+	// as for is: a series with a high floor allows up to 2^40 tries,
+	// which is hours (RED-081, D169).
+	timed := d == 0 && req.Tries > MaxWorkTries
+	if timed {
+		d = workTimeBound
+	}
 	var tried atomic.Uint64
 	ctx, cancel, g := grindCtx(r, p, d, &tried)
 	defer cancel()
 	t0 := time.Now()
 	l, res, err := h.n.WorkWith(ctx, req.key(), req.Entry, req.Start, req.Tries, g)
+	stopped := timed && errors.Is(ctx.Err(), context.DeadlineExceeded)
 	if err != nil {
-		writeError(w, classify(err))
+		e := *classify(err)
+		if stopped {
+			e.Message += fmt.Sprintf(" (stopped after %s, the bound on a request of more than %d tries with no for, at %d tries; use a grind job for longer)", workTimeBound, MaxWorkTries, tried.Load())
+		}
+		writeError(w, &e)
 		return
 	}
-	writeJSON(w, LayerReply{Hash: res.Hash, Layer: hex.EncodeToString(l.Encode()), Strength: res.Hash.Strength(), Switched: res.Switch != nil, Grind: stats(p, tried.Load(), t0)})
+	writeJSON(w, LayerReply{Hash: res.Hash, Layer: hex.EncodeToString(l.Encode()), Strength: res.Hash.Strength(), Switched: res.Switch != nil, Grind: stats(p, tried.Load(), t0), StoppedOnTime: stopped})
 }
 
 func queryHash(r *http.Request, name string) (hash.Hash, *Error) {

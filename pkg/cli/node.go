@@ -682,7 +682,7 @@ func workCmd(args []string, out io.Writer) error {
 	pf := addPool(fs)
 	entryHex := fs.String("entry", "", "entry hash (default: the pool's selected tip)")
 	start := fs.Uint64("start", 0, "first nonce")
-	tries := fs.Uint64("tries", 1<<16, "nonces to try (default: 65,536, or 2^(floor+2) for a series whose minimum layer strength needs more; with -for: 0, as many as fit)")
+	tries := fs.Uint64("tries", 1<<16, "nonces to try (default: 65,536, or 2^(floor+2) for a series whose minimum layer strength needs more; with -for: 0, as many as fit). More than 16,777,216 tries with no -for stop after 4 minutes, about 2^31 tries on 3 threads of SHA-512/256; use a grind job for longer")
 	g := addGrindOptions(fs)
 	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {

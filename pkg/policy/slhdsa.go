@@ -15,7 +15,8 @@ import (
 //
 // Only SLH-DSA-SHA2-128s is registered: its 32-byte keys and 7,856-byte
 // signatures fit MaxKeySize and MaxSigSize, so a witness holds up to 8
-// of them within MaxDataSize. The 192- and 256-bit sets have signatures
+// of them within MaxDataSize. CheckPolicy (CheckSpendable) refuses a
+// policy that needs more where its address is made (RED-079, D169). The 192- and 256-bit sets have signatures
 // of 16,224 and 29,792 bytes, over MaxSigSize; adding them would raise a
 // decoding limit, which is for the owner and Black to decide first.
 type slhdsaAlg struct {

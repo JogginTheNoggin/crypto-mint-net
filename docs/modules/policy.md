@@ -23,6 +23,15 @@ sizes, in [../cryptography.md](../cryptography.md).
   algorithms allowed, then signatures.
 - `Registry.CheckPolicy(rules, p)`: the same allowed checks on a policy
   alone, at every depth. `Types`, `Algs`, `TypeByName`, `AlgByName`.
+- `Registry.CheckSpendable(rules, p)`, which `CheckPolicy` also runs:
+  refuses (`ErrUnspendable`) a policy whose smallest witness cannot be
+  spent. That is a witness whose data is over `MaxDataSize`, whose params
+  are over `MaxParamsSize`, or that is over the series' `max_witness`.
+  For example, at most 14 ML-DSA-87 or 8 SLH-DSA-SHA2-128s signatures fit.
+  It is checked where an address is made or paid, never when a witness is
+  checked, and it refuses nothing a valid witness could have (RED-077,
+  RED-079, D169). `poo crypto` prints `max_signatures_per_witness` for
+  each algorithm.
 - Threshold: `ThresholdParams`, `ThresholdData`, `SignThreshold`, and the
   shortcuts `SingleKey` and `SingleKeyWitness`.
 - Keys: `Signer`, `NewSigner(alg, seed)` for any algorithm from a 32-byte
