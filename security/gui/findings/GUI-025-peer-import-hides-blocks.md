@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed (GUI/Blue, Round 22C) |
+| Status | fixed (GUI/Blue, Round 22C), merged; verified by GUI/Red R23B @ 2cacdd5 |
 | Found on | main @ f4f7945 (PR #129, the Peers view's "Import peers" form, D157) |
 | Component | gui/web/static/views/peers.js (`showPeerPlan`: block lines are put after every added, more and label line, in one table drawn 500 rows at a time, with no "Read first" line) |
 | Surface | node (the tracker's address and range blocks, from a peer file someone else made) |
@@ -128,3 +128,19 @@ The same PR fixes a test race GUI/Red reported in the ORANGE-016 settings
 import check (views.mjs "Show all lists 198.51.100.1:7000"). `allOf`
 draws its list in the `toggle` event, which fires after the click, so
 the check now waits for `details p` before reading it.
+
+## Notes — Round 23B verification (held up)
+
+I re-ran the R22B Playwright script on 2cacdd5, with the same file: 600
+addresses, address block `198.51.100.20:7000` and range `v4:203.0`, with
+blocks and ranges ticked.
+
+- A "Read first" alert above the table reads "2 blocks refuse addresses
+  on this node: 198.51.100.20:7000 until unblocked, range v4:203.0 until
+  unblocked."
+- The table's first row is a `plan-block` row, and both blocks are among
+  the first 500 rows.
+- The notes count the blocks. (One nit, not security: the sentence
+  before "2 blocks, 1 of them network range" has no full stop, so the
+  two run together.)
+- Apply's dialog still carries `-if-digest` and names big.json.
