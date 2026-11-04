@@ -112,6 +112,9 @@ export function render(v, depth = 0, key = '') {
     if (v.every(isObj)) return depth >= 2 && v.length > 3 ? collapsed(`${v.length} items`, () => table(v)) : table(v);
     const ul = el('ul', 'list');
     for (const x of v.slice(0, MAX_ROWS)) { const li = el('li'); li.append(render(x, depth + 1)); ul.append(li); }
+    // Like a table, a long list says it was cut: a part's serials, say,
+    // must not seem to end at the 500th (ORANGE-018).
+    if (v.length > MAX_ROWS) { const w = el('div'); w.append(ul, el('p', 'hint', `Showing ${MAX_ROWS} of ${v.length} items; the terminal shows all.`)); return w; }
     return ul;
   }
   const keys = Object.keys(v);

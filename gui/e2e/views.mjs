@@ -119,6 +119,10 @@ try {
   // refuses it itself. Neither starts a job or asks for the seed.
   await rival.locator('input[name=parent]').fill('');
   assert.equal(await rival.locator('input[name=parent]').getAttribute('required'), '', 'Parent is required');
+  // and says so in its label before anything is run (GUI-GREEN-050).
+  const after = loc => loc.evaluate(s => getComputedStyle(s, '::after').content);
+  assert.equal(await after(rival.locator('label:has(input[name=parent]) > span')), '" (required)"', 'a required field is marked');
+  assert.equal(await after(rival.locator('label:has(input[name=work]) > span')), 'none', 'an optional one is not');
   const claims = () => page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => j.args[0] === 'claim').length);
   await rival.locator('button[type=submit]').click();
   assert.ok(await rival.locator('input[name=parent]').evaluate(i => i.matches(':invalid')), 'the browser holds the empty Parent');
@@ -174,6 +178,8 @@ try {
   // Peers, policies and crypto render their commands' output.
   await page.click('nav a[data-id=peers]');
   await section('Peers').locator('.run-status').first().waitFor();
+  // The timed panel leaves the book out (ORANGE-017); Find peers prints it.
+  assert.equal(await section('Peers').locator('.cmd code').first().innerText(), `poo peers -root ${home} -counts`);
   // The peer book by hand, its filters, and peer export and import (D157).
   const addPeer = section('Add, remove, label or connect a peer');
   await fill(addPeer, 'Peer address', '1.0.0.9:7000');
@@ -410,6 +416,12 @@ try {
   assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /256 to 65536, default 4096/);
   await maxBook.fill('8192');
   await setLim.locator('input[data-limit="tracking.log_size"]').fill('512');
+  // Refresh redraws the fields from poo's list and keeps what was typed
+  // and not yet saved (ORANGE-018 note).
+  await setLim.locator('input[data-limit="p2p.max_book"]').evaluate(i => i.setAttribute('data-old', ''));
+  await lim.locator('button', { hasText: 'Refresh' }).click();
+  await setLim.locator('input[data-limit="p2p.max_book"]:not([data-old])').waitFor();
+  assert.equal(await setLim.locator('input[data-limit="p2p.max_book"]').inputValue(), '8192', 'a refresh keeps an unsaved value');
   assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home} -set p2p.max_book=8192 -set tracking.log_size=512`);
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
@@ -438,6 +450,73 @@ try {
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');
+  // Variable supply series (D163): the definition, signing, parts and a
+  // release, each a poo series command; poo works out every range.
+  const vseed = 'cd'.repeat(32);
+  const penv = { env: { ...process.env, POO_HOME: home } };
+  const issuer = JSON.parse(String(spawnSync(bin, ['poo', 'keygen', '-seed', vseed], penv).stdout)).address;
+  const sn = section('New series parameters');
+  assert.ok(!(await sn.locator('input[name=partSize]').isVisible()), 'Part size is for a variable series only');
+  await sn.locator('input[name=mints]').fill('8');
+  await sn.locator('input[name=issuer]').fill(issuer);
+  await sn.locator('input[name=variable]').check();
+  await sn.locator('input[name=partSize]').fill('4');
+  await sn.locator('input[name=maxParts]').fill('5');
+  assert.equal(await sn.locator('.cmd code').innerText(), `poo series new -mints 8 -issuer ${issuer} -variable -part-size 4 -max-parts 5`);
+  await sn.locator('button[type=submit]').click();
+  await sn.locator('.run-status.ok').waitFor();
+  await sn.locator('.result', { hasText: 'variable' }).waitFor();
+  await sn.locator('button.save-as').waitFor();
+  const vfile = join(home, 'variable-series.json');
+  writeFileSync(vfile, spawnSync(bin, ['poo', 'series', 'new', '-mints', '8', '-issuer', issuer, '-variable', '-part-size', '4', '-max-parts', '5'], penv).stdout);
+  // poo, not the GUI, refuses a part size that is not a multiple of the pool size.
+  await sn.locator('input[name=partSize]').fill('3');
+  await sn.locator('button[type=submit]').click();
+  await sn.locator('.run-status.bad').waitFor();
+  assert.match(await sn.locator('.area').innerText(), /whole multiples of the pool size/);
+  const masked = async (sec, seed) => {
+    const ask = sec.locator('form.ask');
+    await ask.waitFor();
+    assert.equal(await ask.locator('input').getAttribute('type'), 'password', 'the issuer seed is asked in a masked field');
+    await ask.locator('input').fill(seed);
+    await ask.locator('input').press('Enter');
+  };
+  const sign = section('Sign a series');
+  await fill(sign, 'Series file', vfile);
+  assert.equal(await sign.locator('.cmd code').innerText(), `poo series sign ${vfile} -seed-file -`);
+  await sign.locator('button[type=submit]').click();
+  await masked(sign, vseed);
+  await sign.locator('.run-status.ok').waitFor();
+  assert.match(await sign.locator('.area').innerText(), /witness/i, 'the issuer witness is printed');
+  const parts = section('Parts of a variable series');
+  await fill(parts, 'Series file', vfile);
+  await parts.locator('input[name=from]').fill('2');
+  assert.equal(await parts.locator('.cmd code').innerText(), `poo series parts ${vfile} -from 2`);
+  await parts.locator('button[type=submit]').click();
+  await parts.locator('.run-status.ok').waitFor();
+  const wantParts = JSON.parse(String(spawnSync(bin, ['poo', 'series', 'parts', vfile, '-from', '2'], penv).stdout));
+  for (const pt of wantParts.parts) await parts.locator('.result', { hasText: pt.part_id.slice(0, 8) }).first().waitFor();
+  const rel = section('Release a part');
+  await fill(rel, 'Series file', vfile);
+  await rel.locator('input[name=part]').fill('2');
+  assert.equal(await rel.locator('.cmd code').innerText(), `poo series release ${vfile} -part 2 -seed-file -`);
+  assert.match(await rel.locator('p.hint').first().innerText(), /permanent.*every part before it/);
+  page.once('dialog', d => d.accept());
+  await rel.locator('button[type=submit]').click();
+  await masked(rel, vseed);
+  await rel.locator('.run-status.ok').waitFor();
+  assert.match(await rel.locator('.area').innerText(), /previous/i, 'the release is printed');
+  await rel.locator('button.save-as').waitFor();
+  const rfile = join(home, 'release-2.json');
+  const sf = join(home, 'issuer-seed');
+  writeFileSync(sf, vseed);
+  writeFileSync(rfile, spawnSync(bin, ['poo', 'series', 'release', vfile, '-part', '2', '-seed-file', sf], penv).stdout);
+  const chk = section('Check a release');
+  await fill(chk, 'Series file', vfile);
+  await fill(chk, 'Release file', rfile);
+  assert.equal(await chk.locator('.cmd code').innerText(), `poo series release ${vfile} -check ${rfile}`);
+  await chk.locator('button[type=submit]').click();
+  await chk.locator('.result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
 
   // Stop the node from the Node view.
   await page.click('nav a[data-id=node]');

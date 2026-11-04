@@ -56,6 +56,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-047](GUI-GREEN-047-keygen-seed-masked.md) | Make a key asks for its seed in a masked field (`keygen -seed-file -`, D98) instead of putting it on the line; a secret flag set to `-` is not a secret line | small | yes | adopted |
 | [GUI-GREEN-048](GUI-GREEN-048-stated-choices.md) | parity.mjs also checks that a field offering a fixed set of values offers exactly the ones `poo -h` lists; Find and Export peers take book states as boxes, as Watch takes kinds | small | yes | adopted |
 | [GUI-GREEN-049](GUI-GREEN-049-limit-fields.md) | Set limits draws a field for each limit `poo policy limits` lists, with its value in effect, range and default, instead of typed `NAME=VALUE` pairs | small | yes | adopted |
+| [GUI-GREEN-050](GUI-GREEN-050-variable-supply-review.md) | Review of the variable supply plan against the design and D84 (four plan lines to word so the GUI holds no rule; a release cannot be undone); a required field says "(required)" in its label | small | yes | adopted |
 
 ## Orange (performance)
 
@@ -82,7 +83,8 @@ ORANGE-005 explains how to measure.
 | [ORANGE-014](ORANGE-014-picked-file-as-read.md) | Send a picked policy file as it is read and stop when `poo` stops (500 MB picked by mistake: 5.3 s and +491 MB of browser memory → 0.9 s and +47 MB) | small | yes | adopted |
 | [ORANGE-015](ORANGE-015-long-import-plan.md) | Draw a long import plan 500 lines at a time (50,000 issuers: no plan and a page error → plan in 2.2 s; 20,000: 4.6 s → 0.9 s) | small | yes | adopted |
 | [ORANGE-016](ORANGE-016-short-read-first-line.md) | Name the first 20 items of a plan's "Read first" line, with Show all (50,000 peers: a 1.5 million-character alert, 183,000 px tall → 685 characters, 151 px) | small | yes | adopted |
-| [ORANGE-017](ORANGE-017-peers-panel-without-the-book.md) | Let the Peers panel's 10 s refresh leave out the peer book, with a `poo peers` flag (16,384 addresses: 12.8 MB every 10 s, poo-gui 240 MB, pauses up to 0.5 s; up to 65,536 now settable) | small | no | waits on Source (a `poo peers` flag) |
+| [ORANGE-017](ORANGE-017-peers-panel-without-the-book.md) | Let the Peers panel's 10 s refresh leave out the peer book, with a `poo peers` flag (16,384 addresses: 12.8 MB every 10 s, poo-gui 240 MB, pauses up to 0.5 s; up to 65,536 now settable) | small | no | adopted (`poo peers -counts`) |
+| [ORANGE-018](ORANGE-018-parts-as-ranges.md) | Print a variable series' parts as ranges, not lists of every serial and pool, and say when a list is cut at 500 (100 parts of 1,000 as lists: 2.9 s and 121,000 elements → as ranges: 30 ms and 6,500) | small | the note on a cut list | adopted |
 
 ### Re-checks each round
 
@@ -90,18 +92,18 @@ Each Part B runs every scenario again on Grey's new base, so a change that
 undoes an earlier gain shows up. Numbers are from a cloud container with
 Playwright Chromium, so compare them with each other, not with a laptop.
 
-| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) | Round 11 (4be2230) | Round 12 (c9c9e1f) | Round 13 (376e964) | Round 14 (3a7a39c) | Round 15 (55cf745) | Round 16 (6a1cdce) | Round 17 (052d032) | Round 18 (3804c55) | Round 19 (e71e317) | Round 20 (9628426) | Round 21 (4dc7d3d) | Round 22 (f4f7945) | Round 23 (2cacdd5) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms | 3.2 MB, 27.7k, 1, 40 MB, 50 ms | 3.1 MB, 27.7k, 1, 40 MB, 33 ms | 3.2 MB, 27.6k, 1, 42 MB, 50 ms | 3.2 MB, 27.6k, 1, 42 MB, 56 ms | 3.2 MB, 27.7k, 1, 42 MB, 57 ms | 3.2 MB, 27.7k, 1, 41 MB, 54 ms | 3.2 MB, 27.7k, 1, 40 MB, 37 ms | 3.2 MB, 27.7k, 1, 40 MB, 61 ms | 3.2 MB, 27.7k, 1, 39 MB, 51 ms | 3.3 MB, 27.7k, 1, 40 MB, 61 ms | 3.3 MB, 27.7k, 1, 41 MB, 71 ms | 3.5 MB, 27.7k, 1, 42 MB, 68 ms | 3.3 MB, 27.7k, 1, 40 MB, 66 ms |
-| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests | 33 ms, 64 ms, 142 KB in 15 requests | 30 ms, 60 ms, 144 KB in 15 requests | 32 ms, 62 ms, 145 KB in 15 requests | 33 ms, 62 ms, 149 KB in 15 requests | 31 ms, 59 ms, 150 KB in 15 requests | 39 ms, 76 ms, 155 KB in 15 requests | 38 ms, 74 ms, 155 KB in 15 requests | 30 ms, 62 ms, 164 KB in 15 requests | 36 ms, 68 ms, 171 KB in 24 requests | 39 ms, 72 ms, 171 KB in 24 requests | 43 ms, 79 ms, 177 KB in 24 requests | 50 ms, 88 ms, 186 KB in 24 requests | 35 ms, 60 ms, 191 KB in 24 requests |
-| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 19% busy | 60 fps, 18% busy | 60 fps, 20% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 22% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 19% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 18% busy |
-| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s | 29 fps, 0.72 s | 32 fps, 0.67 s | 35 fps, 0.51 s | 30 fps, 0.67 s | 30 fps, 0.57 s | 32 fps, 0.68 s | 17 to 24 fps, 0.70 to 1.07 s | 31 fps, 0.71 s | 30 fps, 0.66 s | 31 fps, 0.57 s | 31 fps, 0.64 s | 27 fps, 0.69 s | 32 fps, 0.65 s |
-| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s | 0.63 s | 0.65 s | 0.62 s | 0.70 s | 0.64 s | 0.63 s | 0.74 to 1.33 s | 0.85 s | 0.62 s | 0.80 s | 0.79 s | 0.81 s | 0.82 s |
-| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat |
-| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 14% busy | 60 fps, 14% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 14% busy | 60 fps, 12% busy |
-| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms | 192 to 306 ms | 261 ms | 237 ms | 235 ms | 219 ms | 300 ms | 278 ms | 255 ms | 252 ms | 209 ms | 219 ms | 243 ms | 182 ms |
-| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms | 217 ms | 279 ms | 226 ms | 219 to 384 ms | 237 ms | 241 ms | 259 ms | 232 ms | 231 ms | 228 ms | 205 ms | 296 ms | 253 ms |
-| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 31% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 29% busy, 500 rows |
+| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) | Round 11 (4be2230) | Round 12 (c9c9e1f) | Round 13 (376e964) | Round 14 (3a7a39c) | Round 15 (55cf745) | Round 16 (6a1cdce) | Round 17 (052d032) | Round 18 (3804c55) | Round 19 (e71e317) | Round 20 (9628426) | Round 21 (4dc7d3d) | Round 22 (f4f7945) | Round 23 (2cacdd5) | Round 24 (2aceb1a) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms | 3.2 MB, 27.7k, 1, 40 MB, 50 ms | 3.1 MB, 27.7k, 1, 40 MB, 33 ms | 3.2 MB, 27.6k, 1, 42 MB, 50 ms | 3.2 MB, 27.6k, 1, 42 MB, 56 ms | 3.2 MB, 27.7k, 1, 42 MB, 57 ms | 3.2 MB, 27.7k, 1, 41 MB, 54 ms | 3.2 MB, 27.7k, 1, 40 MB, 37 ms | 3.2 MB, 27.7k, 1, 40 MB, 61 ms | 3.2 MB, 27.7k, 1, 39 MB, 51 ms | 3.3 MB, 27.7k, 1, 40 MB, 61 ms | 3.3 MB, 27.7k, 1, 41 MB, 71 ms | 3.5 MB, 27.7k, 1, 42 MB, 68 ms | 3.3 MB, 27.7k, 1, 40 MB, 66 ms | 3.3 MB, 27.6k, 1, 41 MB, 70 ms |
+| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests | 33 ms, 64 ms, 142 KB in 15 requests | 30 ms, 60 ms, 144 KB in 15 requests | 32 ms, 62 ms, 145 KB in 15 requests | 33 ms, 62 ms, 149 KB in 15 requests | 31 ms, 59 ms, 150 KB in 15 requests | 39 ms, 76 ms, 155 KB in 15 requests | 38 ms, 74 ms, 155 KB in 15 requests | 30 ms, 62 ms, 164 KB in 15 requests | 36 ms, 68 ms, 171 KB in 24 requests | 39 ms, 72 ms, 171 KB in 24 requests | 43 ms, 79 ms, 177 KB in 24 requests | 50 ms, 88 ms, 186 KB in 24 requests | 35 ms, 60 ms, 191 KB in 24 requests | 44 ms, 83 ms, 194 KB in 24 requests |
+| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 19% busy | 60 fps, 18% busy | 60 fps, 20% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 22% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 19% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 18% busy | 60 fps, 18% busy |
+| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s | 29 fps, 0.72 s | 32 fps, 0.67 s | 35 fps, 0.51 s | 30 fps, 0.67 s | 30 fps, 0.57 s | 32 fps, 0.68 s | 17 to 24 fps, 0.70 to 1.07 s | 31 fps, 0.71 s | 30 fps, 0.66 s | 31 fps, 0.57 s | 31 fps, 0.64 s | 27 fps, 0.69 s | 32 fps, 0.65 s | 29 fps, 0.58 s |
+| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s | 0.63 s | 0.65 s | 0.62 s | 0.70 s | 0.64 s | 0.63 s | 0.74 to 1.33 s | 0.85 s | 0.62 s | 0.80 s | 0.79 s | 0.81 s | 0.82 s | 0.74 s |
+| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 4% busy, flat |
+| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 14% busy | 60 fps, 14% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 14% busy | 60 fps, 12% busy | 60 fps, 12% busy |
+| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms | 192 to 306 ms | 261 ms | 237 ms | 235 ms | 219 ms | 300 ms | 278 ms | 255 ms | 252 ms | 209 ms | 219 ms | 243 ms | 182 ms | 199 ms |
+| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms | 217 ms | 279 ms | 226 ms | 219 to 384 ms | 237 ms | 241 ms | 259 ms | 232 ms | 231 ms | 228 ms | 205 ms | 296 ms | 253 ms | 219 ms |
+| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 31% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 29% busy, 500 rows | 60 fps, 27% busy, 500 rows |
 
 Round 8 found nothing new to fix. The jump list, one job per form and
 the Schedule Remove guard did not show up in any measurement.
@@ -226,6 +228,23 @@ The finding is ORANGE-017. `p2p.max_book` now goes up to 65,536, and the
 Peers panel prints the whole book every 10 s. At 16,384 addresses that
 is 12.8 MB each time: poo-gui holds about 240 MB and the page pauses for
 up to 0.5 s.
+
+Round 24 measured Grey's Part A changes and the variable supply plan,
+and every row above held. GitHub Actions was not running, so every e2e
+check was run here on 2aceb1a.
+
+- Set limits now draws one field per limit from the panel's run. That is
+  about 15 fields from the same 1.7 KB `poo policy limits` output, drawn
+  once per run, and the panel has no timer.
+- The required-field check (GUI-026) reads the form's values once per
+  press, which does not show in any measurement.
+
+The finding is ORANGE-018, for the variable supply plan, which is not
+built yet. If poo prints each part's serials and pools as lists, Series
+info takes seconds and hundreds of thousands of elements to draw. As
+ranges, it takes about 30 ms for any number of parts. On the way it
+found that a plain list longer than 500 was cut without a note, so a
+part's serials would seem to end at the 500th. That note is built here.
 
 ## How to try the prototypes
 

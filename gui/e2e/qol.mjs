@@ -241,6 +241,14 @@ try {
     return ['poo keygen -seed ' + 'ab'.repeat(32), 'poo keygen -seed=ab', 'poo wallet create -restore -', 'poo wallet create -restore=-', 'poo keygen -seed-file -', 'poo sim -seed 3', 'poo keygen -seed'].map(secretLine);
   });
   assert.deepEqual(secret, [true, true, false, false, false, false, true], 'secretLine: a value of - is read in a masked field, not on the line');
+  // A list longer than 500 says it was cut, as a table does (ORANGE-018).
+  const cut = await page.evaluate(async () => {
+    const { render } = await import('/render.js');
+    const d = document.createElement('div');
+    d.append(render({ serials: Array.from({ length: 10000 }, (_, i) => i), short: [1, 2, 3] }));
+    return { items: d.querySelectorAll('li').length, hints: [...d.querySelectorAll('.hint')].map(h => h.textContent) };
+  });
+  assert.deepEqual(cut, { items: 503, hints: ['Showing 500 of 10000 items; the terminal shows all.'] }, 'a long list is cut at 500 and says so');
   await key.locator('button', { hasText: 'Make key' }).click();
   const ask = key.locator('form.ask');
   await ask.waitFor();
