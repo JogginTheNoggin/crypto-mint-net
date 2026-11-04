@@ -2,6 +2,7 @@ package nodepolicy_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 )
 
@@ -281,5 +284,97 @@ func TestMergeRefusesWhatWouldNotValidate(t *testing.T) {
 	file.Follow = []nodepolicy.Follow{{Series: &missing}}
 	if _, _, err := nodepolicy.Merge(nodepolicy.Default(), file, nodepolicy.MergeOptions{}); !errors.Is(err, nodepolicy.ErrInvalid) {
 		t.Fatalf("follow of an unlisted series: %v", err)
+	}
+}
+
+// D170: series_ceiling declines a series being added whose witness ceiling
+// is not set or above it, with its follow rules, and never drops a series
+// the node already lists.
+func TestSeriesCeilingDeclinesNewSeries(t *testing.T) {
+	sa, sb, ida, idb := twoSeries() // both with no ceiling
+	sc := nodepolicy.SeriesInfo{Params: testutil.ExampleParams()}
+	sc.Params.Mints, sc.Params.MaxWitness = 16, 4096
+	local := nodepolicy.Default()
+	local.Series = []nodepolicy.SeriesInfo{sa}
+	local.Follow = []nodepolicy.Follow{{Series: &ida}}
+	local.SeriesCeiling = 8192
+
+	file := nodepolicy.Default()
+	file.Series = []nodepolicy.SeriesInfo{sa, sb, sc}
+	file.Follow = []nodepolicy.Follow{{Series: &ida}, {Series: &idb}}
+	res, plan, err := nodepolicy.Merge(local, file, nodepolicy.MergeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Series) != 2 || len(plan.Declined) != 1 || !strings.Contains(plan.Declined[0], idb.Short()) {
+		t.Fatalf("series %d, declined %v", len(res.Series), plan.Declined)
+	}
+	for _, f := range res.Follow {
+		if f.Series != nil && *f.Series == idb {
+			t.Fatal("the declined series' follow was kept")
+		}
+	}
+	for _, c := range []struct {
+		max  uint32
+		fine bool
+	}{{0, false}, {8192, true}, {8193, false}} {
+		p := testutil.ExampleParams()
+		p.MaxWitness = c.max
+		if err := local.DeclinesSeries(p); (err == nil) != c.fine {
+			t.Errorf("max_witness %d: %v", c.max, err)
+		}
+	}
+	local.SeriesCeiling = 0
+	if err := local.DeclinesSeries(testutil.ExampleParams()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// GUI-GREEN-053: each limit says whether a running node applies it in
+// place, from the same list the node uses.
+func TestLimitsSayInPlace(t *testing.T) {
+	seen := 0
+	for _, l := range nodepolicy.Default().Limits() {
+		if l.InPlace != nodepolicy.InPlace[l.Name] {
+			t.Errorf("%s: in_place %v", l.Name, l.InPlace)
+		}
+		if l.InPlace {
+			seen++
+		}
+	}
+	if seen == 0 || seen != len(nodepolicy.InPlace) {
+		t.Fatalf("%d in place, the list has %d", seen, len(nodepolicy.InPlace))
+	}
+}
+
+// GUI-028: checking a release of a far part stops when the context is
+// done; the release's own witness is checked first, so it must be the
+// issuer's.
+func TestCheckReleaseContextCancels(t *testing.T) {
+	signer, err := policy.NewSigner(policy.AlgEd25519, bytes.Repeat([]byte{0x5e}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pol := policy.SingleKey(policy.AlgEd25519, signer.Public())
+	h, _ := hash.Lookup(hash.SHA256)
+	iss := policy.Address(h, pol)
+	p := testutil.ExampleParams()
+	p.Issuer, p.SupplyType, p.PartSize = &iss, series.Variable, 4
+	s, err := series.New(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := series.Release{Series: s.ID(), Part: 1 << 40, Previous: hash.Hash{9}}
+	r.Witness = policy.SingleKeyWitness(signer, s.ReleaseMessage(r.ID(s.Hash())))
+	np := nodepolicy.Default()
+	np.Series = []nodepolicy.SeriesInfo{{Params: p}}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if err := np.CheckReleaseContext(ctx, r); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("%v", err)
+	}
+	if d := time.Since(start); d > 10*time.Second {
+		t.Fatalf("took %v", d)
 	}
 }

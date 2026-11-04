@@ -1095,6 +1095,9 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   fixed at creation; key *i* comes from `HMAC-SHA256(seed,
   "PoO-wallet-<name>-v1" ∥ U32 i)`, which for Ed25519 is D63's derivation
   unchanged. Public keys are at most 4096 bytes and signatures 8192.
+  *(Replaced by D170, 2026-11-04: there is no network-wide size limit;
+  each key and signature is read at its algorithm's exact size, and the
+  series' witness ceiling is the only overall limit.)*
 - **Why:** These cover the keys holders already have: hardware tokens and
   cloud key services (P-256), Bitcoin tooling (secp256k1), and resistance
   to quantum computers (ML-DSA, the NIST standard). One encoding per
@@ -3914,7 +3917,8 @@ a chase takes in after checking their work are not charged.
     256s and the "f" sets) do not fit `MaxSigSize`, a decode limit every
     node shares; adding them means raising it, which is for jerry and
     Black, so they are not added. A series allows the algorithm only by
-    listing it in `key_algs`, so no existing series changes.
+    listing it in `key_algs`, so no existing series changes. *(D170
+    removed `MaxSigSize` and added SLH-DSA-SHA2-256s as algorithm 11.)*
   - **Work tries follow the series' floor** (Orange's condition for the
     raised floors in the reserve series advice, jerry 08:16).
     `rpc.WorkTriesFor(series)` is the node's cap on one work call: 2^24,
@@ -3950,3 +3954,220 @@ a chase takes in after checking their work are not charged.
   - `pkg/cli`: `TestRivalClaimCLI` (in place and reload),
     `TestVariableSeriesOnANode` (`add-release` in place, exit code 3),
     `TestExitCodeWaiting`, the parts test (`mints_released`).
+
+### D169. Round 26 fixes: RED-077 to RED-081 (BLUE-027)
+
+- **Decision:**
+  - **No tool offers an address that can never be spent (RED-077,
+    RED-079).**
+    - `Registry.CheckSpendable` works out the least witness data a policy
+      can be satisfied with:
+      - a threshold needs K signatures of the smallest sizes among its
+        keys;
+      - k-of-policies needs its K cheapest parts;
+      - a hashlock needs an empty preimage.
+    - It refuses (`ErrUnspendable`) a policy for which even that data is
+      over `MaxDataSize`, whose params are over `MaxParamsSize`, or whose
+      witness is over the series' `max_witness`.
+    - The error says how many of the keys' signatures fit: at most 14
+      ML-DSA-87, or 8 SLH-DSA-SHA2-128s.
+    - `CheckPolicy` runs it, so `poo wallet policy`, a payment request,
+      and a payer's check before paying an address with its policy all
+      refuse such a policy.
+    - `poo crypto` prints `max_signatures_per_witness` for each algorithm.
+      *(D170: the decode limits are gone. The check now uses the worst
+      case and the series' ceiling only, and `poo crypto` counts against
+      a ceiling, the reserve series' by default.)*
+    - The decode limits stay as they are. The check is never part of
+      checking a witness. Every witness that decodes and fits already
+      passes it, since the sizes it adds up are the least a witness of
+      the policy can have.
+  - **Releases from peers are coalesced (RED-078).** This builds on
+    ORANGE-036 (#178, merged into this branch), which credits and passes
+    on only the copy that was taken.
+    - A release has its witness checked on arrival
+      (`Series.CheckReleaseSigned`: one signature, no chain). A forged one
+      is an offence at once, so a forger cannot hold a place in the queue.
+    - The first release of a series is taken at once. Any that arrive in
+      the next 2 seconds (`releaseWindow`) wait, and only the highest is
+      taken when the window ends; its sender is the one credited. A release
+      proves every part before it, so nothing is lost.
+    - A replay of parts 2 to 200, oldest first, now makes a node take
+      about two of them, not 199. Each take is a save, a relay, a reload
+      where one is needed, and a first-delivery credit.
+    - A copy of the part the node holds is not counted as a repeat,
+      because honest links cross. Older parts still are.
+  - **Hand edits of grind jobs and manual peers wait for the reload
+    (RED-080).** `SameButInPlace` no longer strips `grind` and `p2p.peers`.
+    The RPC edits that apply them at once write them into the running
+    policy (`node.UpdateRunning`): a peer kept with `peer add -keep`, and a
+    grind schedule the grind manager started. Any other difference is a
+    hand edit, so `limits -set` reloads.
+  - **A large work request is bounded in time (RED-081).** A work request
+    with more than `MaxWorkTries` (2^24) tries and no `for` stops at
+    `MaxGrindFor` (4 minutes), as a `for` request does. The reply says
+    `stopped_on_time`, or the error says where it stopped. `poo work -h`
+    says so.
+- **Consensus:** none.
+  - `CheckSpendable` refuses only policies that no valid witness could
+    satisfy, and only where addresses are made or paid.
+  - Coalescing changes when a node takes a release, never whether it is
+    valid. A release waiting in the window leaves its part waiting, which
+    is missing information, and the highest one is still checked in full.
+  - The in-place and work changes are local.
+- **Tier:** Wallet and CLI checks, p2p, RPC.
+  - `pkg/policy/blue027_test.go`: `TestCheckSpendable` (14 and 15 of 16
+    ML-DSA-87, 16 of 16 ML-DSA-65, 8 and 9 of 10 SLH-DSA, mixes, nested
+    policies, `max_witness`).
+  - `pkg/p2p/blue027_test.go`: `TestReleaseReplayIsCoalesced`. With no
+    window, the same replay takes 199 releases.
+  - `pkg/rpc/inplace_test.go`: `TestInPlaceLeavesHandEditsToTheReload`.
+  - `pkg/rpc/blue027_test.go`: `TestLargeWorkStopsOnTime`.
+
+### D170. Round 27: per-series size limits, SLH-DSA-SHA2-256s, the default reserve series
+
+jerry approved all three on 2026-11-04: the per-series limits ("Yes I'd
+like this to be worked in and refactored"), Red's revised key list for the
+default series, and Black's approach to Red's first condition ("Blacks
+approach"). The plan is Black's `consensus/size-caps-trace.md`, with Red's
+conditions from `consensus/red-size-caps-review.md` and the doc list from
+`consensus/size-caps-doc-changes.md`.
+
+- **Decision:**
+  - **No network-wide witness size limit.** `MaxKeySize` (4,096),
+    `MaxSigSize` (8,192), `MaxParamsSize` and `MaxDataSize` (64 KiB each)
+    are removed. No design document named them (Black's trace): Proof of
+    Ownership 6.2, 6.3 and 6.5 ask each type and algorithm to declare its
+    bounds and each series to set its ceiling, and that is now all there
+    is.
+    - A witness is bounded by its **type's declared bounds** (16 keys,
+      16 parts nested 4 deep, a 1,024-byte preimage; unchanged), by its
+      **algorithms' exact key and signature sizes**, and by its
+      **series' witness ceiling** (`max_witness`, D19), which `Check`
+      applies first, before any hash or signature.
+    - Decoding reads params and data bounded only by the bytes received
+      (`Reader.Raw` refuses a length the input cannot hold), so what a
+      node allocates stays in proportion to what it was sent (as D117).
+      Decoding needs no series, so a node that has not built a series
+      still frames its transactions and never judges them: an unknown
+      series is unreadable, never invalid (Red's condition 3, PoO 16.7).
+      `tx.DecodeFrom`, a series part's issuer witness, a node policy's
+      issuer witness, the wallet and the fuzz targets all go through the
+      same `policy.DecodeWitness`.
+    - **Each signature is read at its key's exact size** (Red's condition
+      2). Threshold data is decoded against its params: exactly K
+      signatures, key indices increasing and in range, and each signature
+      read with its algorithm's `SignatureSize` as the limit, all before
+      a signature's bytes are copied. A known algorithm's public key is
+      read at its exact size too. The verdict is the one the exact checks
+      at verify time gave before; it only comes sooner.
+    - Series with a ceiling at or below 64 KiB decide exactly as before.
+      Series with no ceiling ("Not set", still valid under PoO 16.1) or a
+      larger one become looser: ML-DSA-87 16-of-16 and SLH-DSA-128s
+      16-of-16 now fit the reserve series' 128 KiB.
+  - **The cross-version test** (Black's condition 2, Red's condition 4).
+    `pkg/policy/testdata/crossversion.json` holds nine witnesses, each
+    judged under ceilings 0, 64 KiB and 128 KiB. Its `old` verdicts were
+    made once by a real build of main @ `439b369`, before this change
+    (`testdata/crossversion-old/main.go`), and are pinned.
+    `TestCrossVersion` checks that every witness the old build took this
+    build takes, that the two decide the same under a ceiling at or below
+    64 KiB, and that the witnesses over the old caps (16-of-16 ML-DSA-87,
+    9-of-9 SLH-DSA-128s, params over 64 KiB) are refused by the old build
+    and taken by this one under no ceiling or 128 KiB. The SLH-DSA-256s
+    vector is marked unreadable to the old build: it cannot build a series
+    that lists algorithm 11. The change is safe only because no build has
+    been released (no v0.1.0, private repo). After a release, the same
+    kind of change would need new algorithm or type numbers.
+  - **Red's condition 1 as tool and node policy, not a rule** (jerry chose
+    Black's approach). No design document changes, and `max_witness` 0
+    stays a valid series.
+    - `poo series new` writes a 128 KiB ceiling by default and refuses
+      `-max-witness 0` or one above `CeilingLimit` (4 MiB) without
+      `-any-ceiling`. `poo init -series FILE` refuses such a file the same
+      way. `poo init -example` is exempt: it is the documents' worked
+      example.
+    - Node policy `series_ceiling` (0, the default: off): when set, a
+      policy import declines a series it would add whose ceiling is not
+      set or above it, with its follow rules, and the plan lists it under
+      `declined`. It never drops a series the policy already lists.
+      Declining is a lack of information, not a verdict on a ledger, so it
+      cannot be a hard fork. Nodes are not required to set it; Orange and
+      Red may recommend a default.
+  - **Spendability per series, worst case** (Red's condition 5).
+    `CheckSpendable` (D169) now refuses a policy whose largest witness
+    does not fit the series' ceiling, so every set of signers the policy
+    allows can spend: K of its largest signatures for a threshold, the K
+    dearest parts for k-of-policies, a 1,024-byte preimage for a
+    hashlock. With no ceiling every policy passes. The error says whether
+    even the smallest witness is over, and how many of the keys'
+    signatures surely fit. `policy.MaxK(alg, ceiling)` gives the largest
+    k of a k-of-k policy of one algorithm under a ceiling, params
+    included. `poo crypto [-max-witness N]` shows it for every algorithm,
+    against the reserve ceiling by default.
+  - **SLH-DSA-SHA2-256s, key algorithm 11** (Red's revised list, jerry
+    20:21). FIPS 205 category 5: 64-byte keys, 29,792-byte signatures,
+    through circl's `SHA2_256s`, derived from a seed as algorithm 10 is
+    (HKDF-SHA512, info `"PoO-key-v1 slh-dsa-sha2-256s 0"`, three 32-byte
+    seeds). A series allows it only by listing it. The 192-bit set is left
+    out on purpose. The known-answer vectors gained its entry.
+  - **The default reserve series** (adopted 2026-11-04).
+    `series.Reserve()` returns it: fixed, 32,768 mints of 10^14 units,
+    pools of 32 (1,024 pools), SHA-512/256, entry floor 20 and layer
+    floor 24 with no entry credit, threshold and hashlock, Ed25519,
+    ML-DSA-65, ML-DSA-87, SLH-DSA-SHA2-128s and SLH-DSA-SHA2-256s, a
+    131,072-byte ceiling, no issuer.
+    - Its id is pinned: `fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f139`
+      (`series.ReserveID`). `pkg/series/testdata/reserve.json` holds its
+      params, their canonical byte form and the id;
+      `TestReserveSeriesPinned` checks all three.
+    - `poo init` with no `-series`, `-example` or `-reserve` follows it
+      and prints "the built-in reserve series" with its full id.
+      `-reserve` adds it beside others and `-no-series` follows none.
+    - `poo series info`, `poo series followed` and the RPC's series list
+      add `"builtin": "reserve"` only when the full id matches, never on a
+      prefix, so a look-alike id is not named the reserve (Red's earlier
+      advice).
+    - It is node policy, not a rule: any node may follow any series.
+  - **`in_place` on every limit** (GUI-GREEN-053). `poo policy limits`
+    and the RPC's limits reply say, for each bounded setting, whether a
+    running node applies a change without a reload, from the same
+    `nodepolicy.InPlace` list the node uses.
+  - **A far part id can be cancelled** (GUI-028). `Series.PartIDContext`,
+    `UnsignedContext` and `CheckReleaseContext` stop when their context
+    is done, between two chunks of hashes, and keep what they worked out.
+    `poo series release`, `poo series release -check`, `poo series parts`,
+    `poo series info` and `poo series add-release` with the node stopped
+    (`nodepolicy.Policy.CheckReleaseContext`) use the command's context, so a GUI job's
+    Cancel (or Ctrl-C) stops a part far out instead of hashing for hours.
+    Stopping says nothing about validity. The plain methods are unchanged.
+- **Why:** The documents ask for declared per-type and per-algorithm
+  bounds and a per-series ceiling, and never for a network-wide number. A
+  network-wide cap stopped custody the documents allow (RED-077, RED-079)
+  and kept SLH-DSA-256s out, while a limit that lives in the series id and
+  the algorithm list is the same on every node that reads the series, so
+  two nodes with the same information cannot disagree. The reserve series
+  is the one place where the ceiling and the key list are fixed for ever,
+  so it had to be built with both.
+- **Consensus:** jerry-approved consensus change, made before v0.1.0 as
+  Black and Red required. It only loosens: no witness valid before
+  becomes invalid (the cross-version test). New algorithm 11 is
+  unreadable to older builds, never a disagreement. The tool refusals,
+  `series_ceiling`, the reserve default and `in_place` are tools and node
+  policy.
+- **Tier:** Consensus (decoding and verification), CLI, node policy, RPC.
+  - `pkg/policy/crossversion_test.go`: `TestCrossVersion`.
+  - `pkg/policy/d170_test.go`: `TestDecodeWitnessNeedsNoSeries`,
+    `TestThresholdSignatureAtExactSize`.
+  - `pkg/policy/blue027_test.go`: `TestCheckSpendable` (now worst case
+    and per series), `TestMaxK`.
+  - `pkg/series/reserve_test.go`: `TestReserveSeriesPinned`,
+    `TestReserveSeriesValues`.
+  - `pkg/cli/d170_test.go`: `TestInitWritesTheReserveSeries`,
+    `TestToolsRefuseAMissingOrHugeCeiling`, `TestCryptoMaxK`,
+    `TestSeriesInfoNamesTheReserve`.
+  - `pkg/nodepolicy/bundle_test.go`: `TestSeriesCeilingDeclinesNewSeries`,
+    `TestLimitsSayInPlace`.
+  - `pkg/series/gui028_internal_test.go`: `TestPartIDContextCancels`;
+    `pkg/cli/d170_test.go`: `TestFarPartIsCancellable`;
+    `pkg/nodepolicy/bundle_test.go`: `TestCheckReleaseContextCancels`.

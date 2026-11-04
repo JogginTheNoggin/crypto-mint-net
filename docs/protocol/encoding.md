@@ -118,9 +118,13 @@ List<{U16 policy index, Bytes data}>   exactly K, indices strictly increasing
 
 Each part's data is the witness data of the policy at its index.
 
-The key algorithms (1 Ed25519 to 9 ML-DSA-87), their key and signature
-forms, and the hash list are in [../cryptography.md](../cryptography.md).
-Public keys are at most 4096 bytes and signatures 8192.
+The key algorithms (1 Ed25519 to 11 SLH-DSA-SHA2-256s), their key and
+signature forms, and the hash list are in [../cryptography.md](../cryptography.md).
+Each public key and signature has its algorithm's exact length, and
+threshold data is read against its params, so each signature is read at
+its key's exact size (D170). There is no other length limit: `params` and
+`data` are bounded by the series' witness ceiling and by the bytes
+received.
 
 ## Witnesses
 

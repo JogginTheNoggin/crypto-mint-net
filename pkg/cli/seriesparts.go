@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,7 +50,18 @@ func issuerSigner(seed *seedFlags, s *series.Series, out io.Writer) (policy.Sign
 		return nil, err
 	}
 	if a := s.Address(policy.SingleKey(signer.Alg(), signer.Public())); a != *iss {
-		return nil, fmt.Errorf("this key's 1-of-1 address is %s, not the series' issuer %s", a, iss)
+		// The same seed under another algorithm is another key: name the
+		// one that is the issuer, if any is (GREEN-051).
+		hint := ""
+		for _, k := range policy.Default().Algs() {
+			if k.ID() == signer.Alg() {
+				continue
+			}
+			if o, err := policy.NewSigner(k.ID(), seed.seed); err == nil && s.Address(policy.SingleKey(o.Alg(), o.Public())) == *iss {
+				hint = fmt.Sprintf("; this seed's %s key is the issuer: add -alg %s", k.Name(), k.Name())
+			}
+		}
+		return nil, fmt.Errorf("this key's 1-of-1 address is %s (%s), not the series' issuer %s%s", a, algName(signer.Alg()), iss, hint)
 	}
 	return signer, nil
 }
@@ -64,7 +76,7 @@ func seriesSign(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: poo series sign FILE [-seed-file F]")
+		return errors.New("usage: poo series sign FILE [-seed-file F] [-alg NAME]")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {
@@ -92,7 +104,7 @@ func seriesRelease(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 || (*part == 0) == (*check == "") {
-		return errors.New("usage: poo series release FILE -part K [-seed-file F], or poo series release FILE -check RELEASE|-")
+		return errors.New("usage: poo series release FILE -part K [-seed-file F] [-alg NAME], or poo series release FILE -check RELEASE|-")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {
@@ -117,12 +129,12 @@ func seriesRelease(args []string, out io.Writer) error {
 		if err := json.Unmarshal(b, &r); err != nil {
 			return fmt.Errorf("%s: %w", *check, err)
 		}
-		if err := s.CheckRelease(r); err != nil {
+		if err := s.CheckReleaseContext(contextOf(out), r); err != nil {
 			return err
 		}
 		return writeJSON(out, releaseReport(s, r))
 	}
-	r, err := s.Unsigned(*part)
+	r, err := s.UnsignedContext(contextOf(out), *part)
 	if err != nil {
 		return err
 	}
@@ -134,7 +146,7 @@ func seriesRelease(args []string, out io.Writer) error {
 	if err := s.CheckRelease(r); err != nil {
 		return err // unreachable for a key that matched the issuer
 	}
-	o, err := releaseOut(s, r)
+	o, err := releaseOut(contextOf(out), s, r)
 	if err != nil {
 		return err
 	}
@@ -145,7 +157,7 @@ func seriesRelease(args []string, out io.Writer) error {
 // own fields, which are what -check and a node read, then the part's id and
 // ranges for people and the GUI's preview. A reader ignores the extra keys
 // and works them out again from the series.
-func releaseOut(s *series.Series, r series.Release) (any, error) {
+func releaseOut(ctx context.Context, s *series.Series, r series.Release) (any, error) {
 	b, err := json.Marshal(r)
 	if err != nil {
 		return nil, err
@@ -159,7 +171,7 @@ func releaseOut(s *series.Series, r series.Release) (any, error) {
 	if err := json.Unmarshal(b, &rel); err != nil {
 		return nil, err
 	}
-	row, err := partRowOf(s, r.Part)
+	row, err := partRowOf(ctx, s, r.Part)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +254,7 @@ func seriesParts(args []string, out io.Writer) error {
 		MaxParts uint64    `json:"max_parts,omitempty"`
 		Parts    []partRow `json:"parts"`
 	}{ID: s.ID().String(), PartSize: s.PartSize(), MaxParts: s.MaxParts()}
-	if info.Parts, err = partRows(s, *from, last); err != nil {
+	if info.Parts, err = partRows(contextOf(out), s, *from, last); err != nil {
 		return err
 	}
 	return o.write(out, info)
@@ -267,12 +279,12 @@ type partRow struct {
 }
 
 // partRowOf returns part k's row.
-func partRowOf(s *series.Series, k uint64) (partRow, error) {
+func partRowOf(ctx context.Context, s *series.Series, k uint64) (partRow, error) {
 	f, l, err := s.PartRange(k)
 	if err != nil {
 		return partRow{}, err
 	}
-	id, err := s.PartID(k)
+	id, err := s.PartIDContext(ctx, k)
 	if err != nil {
 		return partRow{}, err
 	}
@@ -290,12 +302,12 @@ func partRowOf(s *series.Series, k uint64) (partRow, error) {
 
 // partRows returns the rows of parts from to last, stopping early at the
 // last part the series can have; it fails only when there is none.
-func partRows(s *series.Series, from, last uint64) ([]partRow, error) {
+func partRows(ctx context.Context, s *series.Series, from, last uint64) ([]partRow, error) {
 	var rows []partRow
 	for k := from; k <= last; k++ {
-		r, err := partRowOf(s, k)
+		r, err := partRowOf(ctx, s, k)
 		if err != nil {
-			if len(rows) == 0 {
+			if len(rows) == 0 || ctx.Err() != nil {
 				return nil, err
 			}
 			break
@@ -361,6 +373,11 @@ func seriesAddRelease(args []string, out io.Writer) error {
 	path := filepath.Join(dir, nodepolicy.FileName)
 	p, err := nodepolicy.Load(path)
 	if err != nil {
+		return err
+	}
+	// Checked first, cancellably: a far part can take long the first time
+	// (GUI-028). AddRelease then finds the part ids worked out.
+	if err := p.CheckReleaseContext(contextOf(out), r); err != nil {
 		return err
 	}
 	res, err := p.AddRelease(r)
@@ -430,12 +447,13 @@ type followedRow struct {
 	Units    string    `json:"units"`
 	Released uint64    `json:"released_through,omitempty"`
 	NextPart uint64    `json:"next_part,omitempty"`
+	Builtin  string    `json:"builtin,omitempty"`
 }
 
 func followedRows(known []rpc.SeriesInfo) []followedRow {
 	rows := make([]followedRow, 0, len(known))
 	for _, k := range known {
-		r := followedRow{ID: k.ID, Supply: "fixed", Pools: k.Pools, Mints: k.Params.Mints}
+		r := followedRow{ID: k.ID, Supply: "fixed", Pools: k.Pools, Mints: k.Params.Mints, Builtin: k.Builtin}
 		if v := k.Variable; v != nil {
 			r.Supply, r.Mints, r.Units, r.Released, r.NextPart = "variable", v.Mints, v.Units, v.Released, v.NextPart
 		} else {

@@ -16,6 +16,7 @@
 package nodepolicy
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -65,6 +66,12 @@ type Policy struct {
 	Series []SeriesInfo `json:"series"`
 	// Issuers says which series are accepted.
 	Issuers Issuers `json:"issuers"`
+	// SeriesCeiling, when set, declines a series being added to this
+	// policy (by a policy import) whose witness ceiling is not set or
+	// above it (D170). Declining is a lack of information, never a
+	// verdict on a ledger, and it never drops a series already listed.
+	// 0 declines none.
+	SeriesCeiling uint32 `json:"series_ceiling,omitempty"`
 	// Follow lists the mint policies this node follows.
 	Follow []Follow `json:"follow"`
 	// K is how many inactive branches to keep per pool; nil means the
@@ -716,6 +723,20 @@ func EncodeWitness(w policy.Witness) string {
 	return hex.EncodeToString(enc.Bytes())
 }
 
+// DeclinesSeries reports why the policy declines to add a series with
+// params sp (SeriesCeiling, D170), or nil when it takes it.
+func (p Policy) DeclinesSeries(sp series.Params) error {
+	switch c := p.SeriesCeiling; {
+	case c == 0:
+		return nil
+	case sp.MaxWitness == 0:
+		return fmt.Errorf("the series sets no witness ceiling, and series_ceiling is %d", c)
+	case sp.MaxWitness > c:
+		return fmt.Errorf("the series' witness ceiling is %d, above series_ceiling %d", sp.MaxWitness, c)
+	}
+	return nil
+}
+
 // DecodeWitness reads the hex form written by EncodeWitness.
 func DecodeWitness(s string) (policy.Witness, error) {
 	b, err := hex.DecodeString(s)
@@ -830,6 +851,10 @@ type ReleaseAdded struct {
 	// Added is true when the release was newer than the one kept and
 	// replaced it; false when the policy already knew that part released.
 	Added bool `json:"added"`
+	// Taken is true when node.AddRelease added the release to the series
+	// the running node's engine runs; false when another call took it
+	// first. It is not printed.
+	Taken bool `json:"-"`
 }
 
 // ErrSeriesNotListed: a release names a series the policy does not list.
@@ -841,12 +866,18 @@ var ErrSeriesNotListed = errors.New("the node policy does not list that series (
 // part ids are shared in the process, so AddRelease after it costs no
 // more hashing (RED-075).
 func (p Policy) CheckRelease(r series.Release) error {
+	return p.CheckReleaseContext(context.Background(), r)
+}
+
+// CheckReleaseContext is CheckRelease that stops when ctx is done
+// (series.PartIDContext, GUI-028).
+func (p Policy) CheckReleaseContext(ctx context.Context, r series.Release) error {
 	for _, si := range p.Series {
 		s, err := series.New(si.Params)
 		if err != nil || s.ID() != r.Series {
 			continue
 		}
-		return s.CheckRelease(r)
+		return s.CheckReleaseContext(ctx, r)
 	}
 	return fmt.Errorf("%w: %s", ErrSeriesNotListed, r.Series.Short())
 }

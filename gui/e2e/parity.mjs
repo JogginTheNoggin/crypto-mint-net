@@ -31,7 +31,8 @@ const EVERYWHERE = {
 const LEFT_OUT = {
   node: { 'log-level': 'the live log is for reading; the terminal sets a level', 'log-format': 'the live log is for reading; the terminal sets a format' },
   sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poo sim load -h has them'])),
-  'series new': { ...Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])) },
+  'series new': { ...Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])), 'any-ceiling': 'D170 (Source R27): new; the form writes the default 128 KiB ceiling, and a form field for it is GUI Grey\'s call' },
+  init: Object.fromEntries(['any-ceiling', 'no-series', 'reserve'].map(f => [f, 'D170 (Source R27): new; the form follows the built-in reserve series when given no series, and form fields for these are GUI Grey\'s call'])),
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
   keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)' },
   watch: { once: 'the Watch view reconnects by itself, as poo watch without -once does' },
@@ -46,9 +47,9 @@ const LEFT_OUT = {
   'settings import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, D155); a preview has none to send' },
   'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, GUI-023); a preview has none to send' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
-  claim: { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
-  'series sign': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
-  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', part: 'Sign, under the Release a part preview (poo series parts), runs the previewed part with -part (GUI-027)' },
+  claim: { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', alg: 'GREEN-051: the forms sign with Ed25519, the default; choosing another key algorithm in a form is GUI Grey\'s call' },
+  'series sign': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', alg: 'GREEN-051: the forms sign with Ed25519, the default; choosing another key algorithm in a form is GUI Grey\'s call' },
+  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', alg: 'GREEN-051: the forms sign with Ed25519, the default; choosing another key algorithm in a form is GUI Grey\'s call', part: 'Sign, under the Release a part preview (poo series parts), runs the previewed part with -part (GUI-027)' },
   peers: { counts: 'the timed Peers panel runs it, leaving the book to Find peers (ORANGE-017); a panel line is not a form' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's

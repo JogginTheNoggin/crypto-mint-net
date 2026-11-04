@@ -193,6 +193,8 @@ func (h *Handler) changeSchedule(w http.ResponseWriter, f func(nodepolicy.Grind)
 	reply := ScheduleReply{Grind: g, Version: g.Version(), Limits: nodepolicy.Limits()}
 	if h.grind != nil {
 		started, failed := h.grind.Schedule(p.Grind)
+		// The grind manager runs this schedule now (RED-080).
+		h.n.UpdateRunning(func(run *nodepolicy.Policy) { run.Grind = p.Grind })
 		reply.Started = started
 		for i, err := range failed {
 			if reply.Failed == nil {

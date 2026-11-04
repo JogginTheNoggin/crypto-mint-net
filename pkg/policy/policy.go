@@ -61,20 +61,17 @@ const (
 	// AlgSLHDSASHA2128s is SLH-DSA-SHA2-128s (FIPS 205), the post-quantum
 	// hash-based signature: 32-byte keys, 7,856-byte signatures (D168).
 	AlgSLHDSASHA2128s AlgID = 10
+	// AlgSLHDSASHA2256s is SLH-DSA-SHA2-256s (FIPS 205), NIST category 5:
+	// 64-byte keys, 29,792-byte signatures (D170).
+	AlgSLHDSASHA2256s AlgID = 11
 )
 
-// Limits that bound decoding before any policy-specific check runs.
-const (
-	// MaxParamsSize bounds the params of any policy.
-	MaxParamsSize = 64 * 1024
-	// MaxDataSize bounds the witness data of any policy.
-	MaxDataSize = 64 * 1024
-	// MaxKeySize and MaxSigSize bound one public key and one signature,
-	// with room above the largest algorithm (ML-DSA-87: 2,592 and 4,627
-	// bytes).
-	MaxKeySize = 4096
-	MaxSigSize = 8192
-)
+// There is no size limit shared by every series (D170). A witness is
+// bounded by its type's declared bounds (keys, parts, depth, preimage),
+// by its algorithms' exact key and signature sizes, and by its series'
+// witness ceiling, which Check applies before any hash or signature work.
+// Decoding refuses only lengths the bytes received cannot hold, so what
+// a node allocates stays in proportion to what it was sent.
 
 // Errors returned by witness checks. All of them make a witness invalid;
 // there is no partial credit.
@@ -120,7 +117,7 @@ func DecodePolicy(r *encoding.Reader) Policy {
 		r.Fail(fmt.Errorf("%w: type length %d", ErrBadParams, n))
 	}
 	t := TypeID(r.U32())
-	params := r.VarBytes(MaxParamsSize)
+	params := r.VarBytes(0)
 	return Policy{Type: t, Params: params}
 }
 
@@ -147,7 +144,7 @@ func (w Witness) Size() int {
 // DecodeWitness reads a witness written by Witness.Encode.
 func DecodeWitness(r *encoding.Reader) Witness {
 	p := DecodePolicy(r)
-	data := r.VarBytes(MaxDataSize)
+	data := r.VarBytes(0)
 	return Witness{Policy: p, Data: data}
 }
 
@@ -218,6 +215,7 @@ var defaultRegistry = func() *Registry {
 		r.RegisterAlg(mldsaAlgs[id])
 	}
 	r.RegisterAlg(slhdsaAlgs[AlgSLHDSASHA2128s])
+	r.RegisterAlg(slhdsaAlgs[AlgSLHDSASHA2256s])
 	return r
 }()
 
@@ -393,10 +391,13 @@ func (r *Registry) allowed(rules Rules, p Policy) (Type, error) {
 	return t, nil
 }
 
-// CheckPolicy reports whether a policy is well formed and allowed by the
-// rules, without a witness: what a receiver checks before giving out an
-// address.
+// CheckPolicy reports whether a policy is well formed, allowed by the
+// rules and can be spent (CheckSpendable), without a witness: what a
+// receiver checks before giving out an address, and a payer before paying
+// one. It is never part of checking a witness.
 func (r *Registry) CheckPolicy(rules Rules, p Policy) error {
-	_, err := r.allowed(rules, p)
-	return err
+	if _, err := r.allowed(rules, p); err != nil {
+		return err
+	}
+	return r.CheckSpendable(rules, p)
 }

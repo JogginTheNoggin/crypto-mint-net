@@ -13,8 +13,18 @@ import (
 )
 
 // cryptoCmd lists the hashes, key algorithms and policy types this build
-// knows, with the numbers a series names them by.
-func cryptoCmd(out io.Writer) error {
+// knows, with the numbers a series names them by, and how many of each
+// algorithm's signatures fit a witness ceiling (D170).
+func cryptoCmd(args []string, out io.Writer) error {
+	fs := newFlagSet("crypto", out)
+	addWhere(fs) // taken and ignored, like every command that needs no node
+	maxWitness := fs.Uint("max-witness", series.ReserveMaxWitness, "the series witness ceiling to count signatures against (0: none; the default is the reserve series')")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 || *maxWitness > 1<<32-1 {
+		return fmt.Errorf("usage: poo crypto [-max-witness BYTES]")
+	}
 	type named struct {
 		ID   uint32 `json:"id"`
 		Name string `json:"name"`
@@ -23,17 +33,23 @@ func cryptoCmd(out io.Writer) error {
 		named
 		PublicKey int `json:"public_key_bytes"`
 		Signature int `json:"signature_bytes"`
+		// MaxSigs is the largest k of a k-of-k policy of these keys whose
+		// witness fits the ceiling (max_witness), at most 16 (D170).
+		MaxSigs int `json:"max_signatures_per_witness"`
 	}
 	var v struct {
-		Hashes []named `json:"hashes"`
-		Algs   []alg   `json:"key_algs"`
-		Types  []named `json:"policy_types"`
+		MaxWitness uint    `json:"max_witness"`
+		Hashes     []named `json:"hashes"`
+		Algs       []alg   `json:"key_algs"`
+		Types      []named `json:"policy_types"`
 	}
+	v.MaxWitness = *maxWitness
 	for _, id := range hash.IDs() {
 		v.Hashes = append(v.Hashes, named{uint32(id), id.Name()})
 	}
 	for _, a := range policy.Default().Algs() {
-		v.Algs = append(v.Algs, alg{named{uint32(a.ID()), a.Name()}, a.PublicKeySize(), a.SignatureSize()})
+		fit := policy.MaxK(a, int(*maxWitness))
+		v.Algs = append(v.Algs, alg{named{uint32(a.ID()), a.Name()}, a.PublicKeySize(), a.SignatureSize(), fit})
 	}
 	for _, t := range policy.Default().Types() {
 		v.Types = append(v.Types, named{uint32(t.ID()), t.Name()})
@@ -118,7 +134,8 @@ func seriesNew(args []string, out io.Writer) error {
 	minLayer := fs.Uint("min-layer-strength", 0, "layers below this strength are ignored")
 	minEntry := fs.Uint("min-entry-strength", 0, "entries below this strength are invalid (0: none)")
 	credit := fs.Bool("entry-hash-credit", false, "an entry's own hash adds its credit")
-	maxWitness := fs.Uint("max-witness", 0, "largest witness in bytes (0: not set)")
+	maxWitness := fs.Uint("max-witness", series.ReserveMaxWitness, "largest witness in bytes, the series' witness ceiling (0: not set, which needs -any-ceiling)")
+	anyCeiling := fs.Bool("any-ceiling", false, "allow a witness ceiling of 0 (not set) or above 4 MiB (D170)")
 	issuer := fs.String("issuer", "", "the issuer's address (hex), who signs the series (poo series sign) and, for a variable series, releases its parts")
 	variable := fs.Bool("variable", false, "a variable supply series: the issuer releases more parts of -part-size mints later (D163); needs -issuer")
 	partSize := fs.Uint64("part-size", 0, "with -variable: mints in every part after the first, a whole multiple of -pool-size")
@@ -131,6 +148,9 @@ func seriesNew(args []string, out io.Writer) error {
 	}
 	if *minLayer > 256 || *minEntry > 256 || *maxWitness > 1<<32-1 {
 		return fmt.Errorf("a flag is out of range")
+	}
+	if err := checkCeiling(uint32(*maxWitness), *anyCeiling); err != nil {
+		return err
 	}
 	p := series.Params{
 		Mints: *mints, Supply: *supply, PoolSize: *poolSize,
@@ -161,4 +181,24 @@ func seriesNew(args []string, out io.Writer) error {
 		return err
 	}
 	return writeJSON(out, p)
+}
+
+// CeilingLimit is the largest witness ceiling poo series new and poo init
+// take without -any-ceiling (Red's condition 1 as tool policy, D170).
+const CeilingLimit = 4 << 20
+
+// checkCeiling refuses a series witness ceiling that is not set or above
+// CeilingLimit, unless the author forces it. It is tool policy, not a
+// rule: "not set" stays a valid series (Proof of Ownership 16.1), but
+// with no ceiling one witness can cost as much as a whole frame to check.
+func checkCeiling(max uint32, force bool) error {
+	switch {
+	case force:
+		return nil
+	case max == 0:
+		return fmt.Errorf("the series sets no witness ceiling (max_witness 0), so one witness could be as large as a frame; set -max-witness (the reserve series uses %d), or pass -any-ceiling", series.ReserveMaxWitness)
+	case max > CeilingLimit:
+		return fmt.Errorf("the series' witness ceiling (max_witness %d) is above %d bytes, so one witness could take seconds to check; set a smaller -max-witness, or pass -any-ceiling", max, CeilingLimit)
+	}
+	return nil
 }

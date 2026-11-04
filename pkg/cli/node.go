@@ -88,6 +88,9 @@ func initCmd(args []string, out io.Writer) error {
 	var files stringList
 	fs.Var(&files, "series", "series parameters JSON file to know and follow (repeatable)")
 	example := fs.Bool("example", false, "know and follow the worked example's series")
+	reserve := fs.Bool("reserve", false, "know and follow the default reserve series (what init does when given no series, D170)")
+	noSeries := fs.Bool("no-series", false, "follow no series, not even the default reserve series")
+	anyCeiling := fs.Bool("any-ceiling", false, "accept a -series file whose witness ceiling is not set or above 4 MiB (D170)")
 	listen := fs.String("listen", "", "RPC listen address (default "+nodepolicy.DefaultListen+"; \"off\" to disable)")
 	p2pListen := fs.String("p2p", "", "address for peers (default "+nodepolicy.DefaultP2PListen+"; \"off\" to accept none)")
 	var peerList stringList
@@ -105,7 +108,13 @@ func initCmd(args []string, out io.Writer) error {
 	p.P2P.Peers = peerList
 	p.P2P.Registries = registries
 	p.P2P.Advertise = *advertise
+	if *noSeries && (*example || *reserve || len(files) > 0) {
+		return errors.New("-no-series goes with no -series, -example or -reserve")
+	}
 	var infos []nodepolicy.SeriesInfo
+	if *reserve || (!*noSeries && !*example && len(files) == 0) {
+		infos = append(infos, nodepolicy.SeriesInfo{Params: series.Reserve()})
+	}
 	if *example {
 		infos = append(infos, nodepolicy.SeriesInfo{Params: testutil.ExampleParams()})
 	}
@@ -116,6 +125,9 @@ func initCmd(args []string, out io.Writer) error {
 		}
 		si, err := readSeriesInfo(b)
 		if err != nil {
+			return fmt.Errorf("%s: %w", f, err)
+		}
+		if err := checkCeiling(si.Params.MaxWitness, *anyCeiling); err != nil {
 			return fmt.Errorf("%s: %w", f, err)
 		}
 		infos = append(infos, si)
@@ -155,6 +167,9 @@ func initCmd(args []string, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "wrote %s (%d series)\n", path, len(p.Series))
 	for _, si := range infos {
+		if s, err := series.New(si.Params); err == nil && series.IsReserve(s.ID()) {
+			fmt.Fprintf(out, "following series %s, the built-in reserve series\n", s.ID())
+		}
 		if si.Params.SupplyType == series.Variable && si.IssuerWitness == "" {
 			s, _ := series.New(si.Params)
 			fmt.Fprintf(out, "note: series %s is a variable supply series: %s\n", s.ID().Short(), variableNote)
@@ -381,12 +396,20 @@ var errSeedFlag = errors.New("-seed is not accepted: other users can read the co
 // (-seed-file, "-" for standard input), never the command line.
 type seedFlags struct {
 	file, flag *string
+	// alg is the key's algorithm, as poo keygen -alg makes it; nil (keygen,
+	// which has its own -alg) is Ed25519. The same seed makes a different
+	// key, and so a different address, under each algorithm (GREEN-051).
+	alg *string
+	// seed is what signer last read, so a hint can try it under other
+	// algorithms without asking for it again.
+	seed []byte
 }
 
 func addSeed(fs *flag.FlagSet, use string) *seedFlags {
 	return &seedFlags{
 		file: fs.String("seed-file", "", "file holding "+use+" in hex, - for standard input (or set POO_SEED)"),
 		flag: fs.String("seed", "", "not accepted: use POO_SEED or -seed-file"),
+		alg:  fs.String("alg", "ed25519", "the key's algorithm, by name or number, as given to poo keygen -alg (poo crypto)"),
 	}
 }
 
@@ -420,7 +443,15 @@ func (f *seedFlags) read(out io.Writer, env bool) (string, error) {
 }
 
 // signer reads the seed and returns its Ed25519 key.
-func (f *seedFlags) signer(out io.Writer) (*policy.Ed25519Signer, error) {
+func (f *seedFlags) signer(out io.Writer) (policy.Signer, error) {
+	alg := policy.AlgEd25519
+	if f.alg != nil {
+		a, err := parseAlg(*f.alg)
+		if err != nil {
+			return nil, fmt.Errorf("-alg: %w", err)
+		}
+		alg = a
+	}
 	seedHex, err := f.read(out, true)
 	if err != nil {
 		return nil, err
@@ -432,7 +463,31 @@ func (f *seedFlags) signer(out io.Writer) (*policy.Ed25519Signer, error) {
 	if err != nil || len(seed) != 32 {
 		return nil, fmt.Errorf("the seed must be 64 hex digits (see poo keygen)")
 	}
-	return policy.NewEd25519Signer(seed)
+	f.seed = seed
+	return policy.NewSigner(alg, seed)
+}
+
+// algName is a key algorithm's name, or its number when unknown here.
+func algName(a policy.AlgID) string {
+	if k, ok := policy.Default().Alg(a); ok {
+		return k.Name()
+	}
+	return fmt.Sprint(uint32(a))
+}
+
+// checkKeyAlg refuses, before anything is signed or sent, a key whose
+// algorithm the series does not allow: the node would refuse the
+// transaction anyway, as "key algorithm not allowed by the series", with
+// no word of which ones it allows (GREEN-051).
+func checkKeyAlg(s *series.Series, signer policy.Signer) error {
+	if s.AllowsKeyAlg(signer.Alg()) {
+		return nil
+	}
+	var names []string
+	for _, a := range s.Params().KeyAlgs {
+		names = append(names, algName(a))
+	}
+	return fmt.Errorf("series %s allows the key algorithms %s, not this key's %s (-alg)", s.ID().Short(), strings.Join(names, ", "), algName(signer.Alg()))
 }
 
 // claimCmd claims a whole mint for a key's 1-of-1 address and submits it.
@@ -470,7 +525,10 @@ func claimCmd(args []string, out io.Writer) error {
 	} else if err != nil {
 		return fmt.Errorf("serial %d: %w", *serial, err)
 	}
-	addr := s.Address(policy.SingleKey(policy.AlgEd25519, signer.Public()))
+	if err := checkKeyAlg(s, signer); err != nil {
+		return err
+	}
+	addr := s.Address(policy.SingleKey(signer.Alg(), signer.Public()))
 	t := &tx.Tx{Mint: s.Mint(*serial), Outputs: []tx.Output{{Address: addr, Amount: s.Params().Supply}}}
 	t.Witnesses = []policy.Witness{policy.SingleKeyWitness(signer, t.TID(s.Hash()))}
 	if *parent != "" {
@@ -573,7 +631,10 @@ func payCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	self := s.Address(policy.SingleKey(policy.AlgEd25519, signer.Public()))
+	if err := checkKeyAlg(s, signer); err != nil {
+		return err
+	}
+	self := s.Address(policy.SingleKey(signer.Alg(), signer.Public()))
 	hs, err := cl.Holdings(s.ID(), *serial)
 	if err != nil {
 		return err
@@ -682,7 +743,7 @@ func workCmd(args []string, out io.Writer) error {
 	pf := addPool(fs)
 	entryHex := fs.String("entry", "", "entry hash (default: the pool's selected tip)")
 	start := fs.Uint64("start", 0, "first nonce")
-	tries := fs.Uint64("tries", 1<<16, "nonces to try (default: 65,536, or 2^(floor+2) for a series whose minimum layer strength needs more; with -for: 0, as many as fit)")
+	tries := fs.Uint64("tries", 1<<16, "nonces to try (default: 65,536, or 2^(floor+2) for a series whose minimum layer strength needs more; with -for: 0, as many as fit). More than 16,777,216 tries with no -for stop after 4 minutes, about 2^31 tries on 3 threads of SHA-512/256; use a grind job for longer")
 	g := addGrindOptions(fs)
 	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {

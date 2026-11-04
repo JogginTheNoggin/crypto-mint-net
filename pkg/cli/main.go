@@ -91,11 +91,11 @@ Usage:
                               live events, one JSON object per line
                               FILTER: -series -pool -serial -address
                               -address-policy -tid -kind (repeatable, comma lists)
-  poo claim -seed-file FILE -serial N [-parent HASH|root|before-claim [-work N]]
+  poo claim -seed-file FILE [-alg NAME] -serial N [-parent HASH|root|before-claim [-work N]]
                               claim a whole mint for a key's address; with
                               -parent, build it on that branch to outweigh
                               a claim the selected ledger holds
-  poo pay -seed-file FILE -serial N -to ADDR -amount A
+  poo pay -seed-file FILE [-alg NAME] -serial N -to ADDR -amount A
                               pay from a key's address, change back to it
   poo build -pool K | -serial N [-parent HASH|root|before-claim] [-work N] [-device D] [-threads N] [-for 30s]
                               build an entry from the pending transactions,
@@ -143,10 +143,10 @@ Usage:
                               print a new series' params, checked
   poo series info FILE        print the id, supply type and pools of a series
                               file (params or signed)
-  poo series sign FILE [-seed-file F]
+  poo series sign FILE [-seed-file F] [-alg NAME]
                               sign a series as its issuer: the
                               issuer_witness for node.json
-  poo series release FILE -part K [-seed-file F] | -check RELEASE
+  poo series release FILE -part K [-seed-file F] [-alg NAME] | -check RELEASE
                               release part K of a variable series as its
                               issuer, or check a release (D163)
   poo series parts FILE [-from K] [-to K] [-o table]
@@ -336,7 +336,7 @@ func run(args []string, out io.Writer) error {
 	case "keygen":
 		return keygen(args[1:], out)
 	case "crypto":
-		return cryptoCmd(out)
+		return cryptoCmd(args[1:], out)
 	case "series":
 		return seriesCmd(args[1:], out)
 	case "demo":
@@ -509,12 +509,13 @@ func seriesCmd(args []string, out io.Writer) error {
 		}
 		info := struct {
 			ID         string    `json:"series_id"`
+			Builtin    string    `json:"builtin,omitempty"`
 			SupplyType string    `json:"supply_type,omitempty"`
 			PartSize   uint64    `json:"part_size,omitempty"`
 			MaxParts   uint64    `json:"max_parts,omitempty"`
 			Pools      []pool    `json:"pools"`
 			Parts      []partRow `json:"parts,omitempty"`
-		}{ID: s.ID().String()}
+		}{ID: s.ID().String(), Builtin: rpc.Builtin(s.ID())}
 		for k := uint64(0); k < s.PoolCount() && k < 1000; k++ {
 			f, l := s.PoolRange(k)
 			info.Pools = append(info.Pools, pool{k, f, l, s.PoolID(k).String()})
@@ -523,7 +524,7 @@ func seriesCmd(args []string, out io.Writer) error {
 		// (poo series parts lists any others).
 		if s.IsVariable() {
 			info.SupplyType, info.PartSize, info.MaxParts = "variable", s.PartSize(), s.MaxParts()
-			if info.Parts, err = partRows(s, 1, 10); err != nil {
+			if info.Parts, err = partRows(contextOf(out), s, 1, 10); err != nil {
 				return err
 			}
 		}

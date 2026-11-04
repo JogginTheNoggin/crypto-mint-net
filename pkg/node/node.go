@@ -786,6 +786,20 @@ func (n *Node) SetRunning(p nodepolicy.Policy) {
 	n.mu.Unlock()
 }
 
+// UpdateRunning changes the policy the node runs with in place, for an
+// RPC edit that the running node applied itself (a manual peer it added
+// to its book, a grind schedule it started), so that a later difference
+// between node.json and the running policy means an edit nothing applied
+// (RED-080).
+func (n *Node) UpdateRunning(f func(*nodepolicy.Policy)) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	run := n.run
+	run.P2P.Peers = slices.Clone(run.P2P.Peers)
+	f(&run)
+	n.run = run
+}
+
 // Dir returns the data directory.
 func (n *Node) Dir() string { return n.dir }
 

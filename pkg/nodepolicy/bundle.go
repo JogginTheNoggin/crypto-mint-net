@@ -496,6 +496,10 @@ type Plan struct {
 	// (Policy.Accepted): the import still applies, but they stay unused
 	// until their issuer is accepted.
 	Refused []string `json:"refused"`
+	// Declined are series the file lists that the import left out, by
+	// short id and why: the node policy's series_ceiling declines them
+	// (D170). Their follow rules are left out too.
+	Declined []string `json:"declined,omitempty"`
 	// NowUsed are series local lists but does not use (Refused) that the
 	// result uses, by short id: an issuer setting turned them on (RED-056,
 	// D156). They are named in Defences too.
@@ -898,12 +902,20 @@ func mergeInto(local, file Policy, opt MergeOptions, settings bool, plan *Plan) 
 			}
 		}
 	}
+	declined := map[hash.Hash]bool{}
 	for _, si := range file.Series {
 		s, _, err := si.Build()
 		if err != nil {
 			return Policy{}, fmt.Errorf("%w: series in the file: %v", ErrInvalid, err)
 		}
 		i, ok := have[s.ID()]
+		if !ok {
+			if err := res.DeclinesSeries(si.Params); err != nil {
+				declined[s.ID()] = true
+				plan.Declined = append(plan.Declined, s.ID().Short()+": "+err.Error())
+				continue
+			}
+		}
 		switch {
 		case !ok:
 			built[s.ID()] = s
@@ -928,7 +940,16 @@ func mergeInto(local, file Policy, opt MergeOptions, settings bool, plan *Plan) 
 		}
 		return nil, fmt.Errorf("%w: series %s is not listed in the node policy", ErrInvalid, id.Short())
 	}
-	if err := res.addFollows(file.Follow, look); err != nil {
+	follows := file.Follow
+	if len(declined) > 0 {
+		follows = nil
+		for _, f := range file.Follow {
+			if f.Series == nil || !declined[*f.Series] {
+				follows = append(follows, f)
+			}
+		}
+	}
+	if err := res.addFollows(follows, look); err != nil {
 		return Policy{}, fmt.Errorf("follow in the file: %w", err)
 	}
 	res.Issuers.Accept = unionHashes(res.Issuers.Accept, file.Issuers.Accept)
