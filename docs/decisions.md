@@ -3778,3 +3778,175 @@ a chase takes in after checking their work are not charged.
     node.json keeps the release), `TestSeriesPartsTable`.
   - `pkg/vectors/testdata/variable.json` gains a claim of the first mint of
     part 2 (body, tid, encoding).
+
+### D167. Round 25 fixes: RED-072 to RED-076 (BLUE-026)
+
+- **Decision:**
+  - **One way to build a listed series (RED-072).** `SeriesInfo.Build`
+    builds the series and adds the release node.json keeps. `follow`,
+    `unfollow`, `wallet follow`, `ExportSeries`, the import merge and its
+    plan counts, and `policySeries` in the CLI all use it, so they see the
+    same parts as the running node. A pool or mint of a part this node
+    does not know released yet is still refused by `follow`, and the
+    message now says it is waiting for a release.
+  - **A variable series stays whole on `unfollow` (RED-072).** A whole
+    follow of a variable series takes the pools of later releases too, so
+    `unfollow -pool` keeps it whole with exceptions and never rewrites it
+    as a list of the pools left (the "shorter form" is kept for fixed
+    series only).
+  - **A bad kept release is left out, not the series (RED-073).** A
+    release is information the node was given. One that does not check
+    is left out: the series is followed with the parts proven without it
+    (part 1 at least), the node logs a warning, `poo doctor` shows a
+    `releases` warning, and `add-release` of a valid one replaces it. An
+    import drops a release that does not check, and names it in the plan
+    (`dropped_releases`).
+  - **`add-release` checks every release (RED-074).** A release of a part
+    already known is checked in full on the CLI and RPC path too, so a
+    forged one is refused instead of answered with `added: false`. Only
+    the peer path (phase 3) may take a known part without hashing. Release
+    JSON refuses a key it does not know (`ErrUnknownKey`). The keys `poo
+    series release` adds for people (`part_id`, the serial and pool
+    ranges, `mints`, `units`) are read and ignored.
+  - **The chain is not worked out again on each load (RED-075).**
+    - ORANGE-035 (#167, merged into this branch) shares part ids within a
+      process, so a reload no longer hashes the chain again.
+    - Across processes, the node keeps its own cache,
+      `releases-checked.json` beside node.json, holding the series, part
+      and previous id of each kept release it checked in full. `Load` uses
+      an entry only when it matches the kept release exactly, and seeds
+      the one id `part_id(k − 1)`. The release's witness is still checked
+      each time, which needs no chain. A missing, damaged or stale cache
+      only costs time. The cache is never part of an export, so a release
+      another node wrote is always checked in full.
+    - The RPC's `add-release` checks the release before it takes the
+      policy lock, so other policy commands are not held for the hashing.
+      The add after it finds the ids already worked out.
+    - Still no cap on part numbers (D165).
+  - **The series_id text is quoted (RED-076).** The id-mismatch error
+    prints the file's `series_id` with `%q`, so terminal codes in it are
+    escaped.
+- **Consensus:** none. What is valid is unchanged. The cache only seeds
+  an id this node itself worked out and checked. A cache that does not
+  match is not used, so it can make a node slower, never change a result.
+  Leaving out a bad kept release means the node knows fewer parts
+  (missing information, never a hard fork).
+- **Tier:** Node policy, RPC and CLI.
+  - `pkg/nodepolicy/blue026_test.go`: `TestFollowSeesReleasedParts`,
+    `TestUnfollowKeepsAVariableSeriesWhole`, `TestBadKeptReleaseIsReplaced`,
+    `TestAddReleaseChecksAKnownPart`, `TestCheckedReleasesCache`.
+  - `pkg/nodepolicy`: `TestVariableFollowed` (a bad release and a fixed
+    series' release are now left out, not the series).
+  - `pkg/series/blue025_internal_test.go`: `TestTrustReleaseSeedsOnlyThatPart`.
+  - `pkg/cli/blue026_test.go`: `TestSeriesIDTextIsQuoted`,
+    `TestReleaseFileKeys`.
+
+### D168. Round 26: releases between nodes, limits in place, SLH-DSA, work tries from the floor
+
+- **Decision:** four pieces of Source Round 26 Part A, and Green's daemon
+  change from Round 25 (GREEN-050, #168), which is accepted as merged: a
+  node reloading onto a changed node.json waits up to 10 s for its own
+  directory lock, held for a moment by a command, instead of stopping.
+  - **Variable supply phase 3: releases pass between nodes.**
+    - A new wire v1 message, `release` (type 14), carries a release's byte
+      form in its series' section. A node that does not know it ignores
+      it, as every unknown type is ignored, so the protocol version stays
+      1 (wire protocol v2 is not built).
+    - A node sends a peer the newest release of each variable series it
+      follows when they connect, and passes each release it takes on to
+      its connected peers that follow the series.
+    - The receiver drops a release of a series it does not follow, or of
+      a part it already knows, with no hashing (D165's point 4), and
+      counts it as a repeat. A later one is checked in full, witness
+      first, so only the issuer can make a node work out a long chain. It
+      is then kept in node.json and added to the running series
+      (`node.AddRelease`). A release that does not check is an offence:
+      its validity depends only on the series, so no honest node passes
+      one on.
+    - The node's edits of node.json now share one lock, the node's own
+      (`node.PolicyMu`), which the RPC and the p2p host both take, so a
+      release from a peer and a command's edit never lose each other's
+      change.
+    - **In place, as a reload would (ORANGE-035's design, accepted by
+      Black in Round 25).** The host indexes the part's pools as it does
+      on start (`Host.AddPools`). Where it cannot promise what a start
+      gives, the node reloads onto the saved node.json instead: a series
+      followed by a list of pools (its coverage can change) and a series
+      followed whole that the release makes large enough to be indexed by
+      the pools in use (D154). `poo series add-release` and `POST
+      /v1/series/release` take the same path and reply `in_place`, or
+      `reloading`.
+    - A series is built before its transactions are read (Black, Round
+      25): a release only names a series the node built at start, and a
+      release changes nothing about how a transaction is decoded.
+  - **In-place `poo policy limits -set` (ORANGE-033, on Black's Round 25
+    terms).**
+    - `nodepolicy.InPlace` names the limits a running node applies with no
+      reload: `p2p.max_book`, `p2p.book_per_range`, `p2p.retry_seconds`,
+      `p2p.candidate_seconds`, the four `tracking.*` limits and
+      `seen_size`. Each part ends as a reload onto the same node.json
+      would leave it. The book takes the limits and runs the same `Fit` as
+      on start (`Book.SetLimits`); the tracker takes its retention and
+      trims nothing until its next record, as `New` does
+      (`Tracker.SetRetention`); the engine gets a new, empty seen list, as
+      a reload has (`Engine.SetSeenSize`).
+    - The change is taken against the policy the node runs with
+      (`node.Running`), not the node.json read before it. When node.json
+      holds anything else the node does not run yet, such as a hand edit
+      waiting for `poo reload`, the reload is used, so that edit is never
+      left out (`nodepolicy.SameButInPlace`). `GET /v1/status`'s
+      `policy_changed` compares with the running policy too.
+    - `p2p.verified_per_range`, `p2p.registry_seconds`, `max_pending` and
+      `ties` stay on the reload. A reload makes every verified peer a
+      candidate again, so a lowered `verified_per_range` would hold after
+      a reload but not in place; the other three need their own in-place
+      path and test first. `k`, `check_seconds` and chase pacing are not
+      settable limits and are untouched.
+    - The tracker now trims records of the same age in address order, so
+      the same records and bounds always trim alike: in place, after a
+      reload, and between two reloads. The order before was the map's.
+  - **SLH-DSA-SHA2-128s, key algorithm 10** (jerry, 2026-11-04 08:09). FIPS
+    205, pure form, empty context, randomised signing, through
+    `github.com/cloudflare/circl/sign/slhdsa` (v1.6.3). A 32-byte key and
+    a 7,856-byte signature, under `MaxSigSize` (8,192). Keys come from a
+    seed as every algorithm's do (HKDF-SHA512, info `"PoO-key-v1
+    slh-dsa-sha2-128s 0"`, three 16-byte seeds). The larger sets (192s,
+    256s and the "f" sets) do not fit `MaxSigSize`, a decode limit every
+    node shares; adding them means raising it, which is for jerry and
+    Black, so they are not added. A series allows the algorithm only by
+    listing it in `key_algs`, so no existing series changes.
+  - **Work tries follow the series' floor** (Orange's condition for the
+    raised floors in the reserve series advice, jerry 08:16).
+    `rpc.WorkTriesFor(series)` is the node's cap on one work call: 2^24,
+    or 2^(floor + 4) when the layer floor (`min_layer_strength`) makes that
+    larger, at most 2^40. `rpc.DefaultWorkTries(series)` is `poo work`'s
+    default with no `-tries` or `-for`: 2^16, or 2^(floor + 2) when that
+    is larger, within the cap. `poo build -work N` is capped the same way
+    by the node.
+  - **GUI Grey's asks (GUI-GREEN-052):** a command refused only because
+    its part is not released yet exits 3 (`cli.ExitWaiting`, `cli.ExitCode`),
+    as the RPC answers 409 `waiting`; `poo series parts` adds
+    `mints_released` to each part, the mints that exist once it is
+    released.
+- **Consensus:** none new. Passing releases is information: a node that
+  has not seen a release only waits for it (D166), so how soon it hears
+  changes nothing it accepts. In-place limits are an optimisation of the
+  reload and end in the same state, checked by comparison tests at the
+  floors and ceilings, lowered and raised. SLH-DSA is the key type jerry
+  asked for in this round; it is a new algorithm number that a series must
+  list, and a series a node cannot build is unreadable there, never
+  misread. The work cap and default are tooling.
+- **Tier:** P2P, node, node policy, RPC and CLI.
+  - `pkg/p2p/release_test.go`: `TestReleasesPassBetweenPeers`,
+    `TestReleaseInPlaceMatchesReopen`.
+  - `pkg/peers/inplace_test.go`: `TestSetLimitsMatchesReopen`.
+  - `pkg/tracking/inplace_test.go`: `TestSetRetentionMatchesReopen`.
+  - `pkg/rpc/inplace_test.go`: `TestLimitsSetInPlace` (floors, ceilings,
+    back to the defaults, the selected tips and followed pools unchanged,
+    the limits that reload, a waiting hand edit reloads).
+  - `pkg/rpc/worktries_test.go`: `TestWorkTriesFollowTheFloor`.
+  - `pkg/policy`: `TestEveryAlgorithm` and the known answers gain
+    `slh-dsa-sha2-128s`.
+  - `pkg/cli`: `TestRivalClaimCLI` (in place and reload),
+    `TestVariableSeriesOnANode` (`add-release` in place, exit code 3),
+    `TestExitCodeWaiting`, the parts test (`mints_released`).

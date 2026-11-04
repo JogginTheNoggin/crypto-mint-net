@@ -55,13 +55,47 @@ func Run(ctx context.Context, dir string, o Options) error {
 		log = io.Discard
 	}
 	log = &lockedWriter{w: log}
+	reloading := false
+	var lockedSince time.Time
 	for {
 		again, err := runOnce(ctx, dir, log, o)
+		// A reload closes the node, which lets go of the data directory's
+		// lock, then opens it again. A command that takes the lock in that
+		// gap (an offline poo policy limits -set or series add-release,
+		// which found no node answering) made the node stop for good.
+		// After a reload the node waits for the lock instead, for up to
+		// reloadLockWait (GREEN-050). The first start still refuses a
+		// directory in use at once.
+		if reloading && errors.Is(err, nodepolicy.ErrLocked) && ctx.Err() == nil {
+			if lockedSince.IsZero() {
+				lockedSince = time.Now()
+			}
+			if time.Since(lockedSince) < reloadLockWait {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(100 * time.Millisecond):
+				}
+				continue
+			}
+		}
 		if err != nil || !again || ctx.Err() != nil {
 			return err
 		}
+		reloading, lockedSince = true, time.Time{}
+		if beforeReopen != nil {
+			beforeReopen(dir)
+		}
 	}
 }
+
+// beforeReopen, set by tests only, runs in the gap of a reload, after the
+// node let go of its lock and before it opens again.
+var beforeReopen func(dir string)
+
+// reloadLockWait is how long a reloading node waits for its data
+// directory's lock, held by a command for a moment.
+var reloadLockWait = 10 * time.Second
 
 // runOnce runs the node until ctx is done or a reload is asked for, and
 // reports which.
@@ -74,8 +108,14 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	rs := n.Replayed()
 	nlog.Info("started", "dir", dir, "pools", n.Engine().FollowedCount(),
 		"records", rs.Records, "stores", rs.Pools, "kept", rs.Kept)
+	var once sync.Once
+	asked := make(chan struct{})
+	ask := func() { once.Do(func() { close(asked) }) }
 	cfg := p2p.FromPolicy(n.Policy())
 	cfg.Logger = n.Logger()
+	// A release passed on by a peer that the host cannot take in place
+	// reloads the node (D168).
+	cfg.Reload = ask
 	book, err := peers.Open(filepath.Join(dir, peers.FileName), n.Policy().BookLimits())
 	if err != nil {
 		return false, errors.Join(err, n.Close())
@@ -104,9 +144,6 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 
 	inner, cancel := context.WithCancel(ctx)
 	defer cancel()
-	var once sync.Once
-	asked := make(chan struct{})
-	ask := func() { once.Do(func() { close(asked) }) }
 	go func() {
 		for {
 			select {

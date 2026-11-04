@@ -648,7 +648,8 @@ func policySeries(p nodepolicy.Policy, id string) (*series.Series, error) {
 	}
 	var found []*series.Series
 	for _, si := range p.Series {
-		sr, err := series.New(si.Params)
+		// With the parts the kept release proves (RED-072).
+		sr, _, err := si.Build()
 		if err != nil {
 			continue
 		}

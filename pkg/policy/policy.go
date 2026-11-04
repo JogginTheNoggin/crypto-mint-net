@@ -58,6 +58,9 @@ const (
 	AlgMLDSA44 AlgID = 7
 	AlgMLDSA65 AlgID = 8
 	AlgMLDSA87 AlgID = 9
+	// AlgSLHDSASHA2128s is SLH-DSA-SHA2-128s (FIPS 205), the post-quantum
+	// hash-based signature: 32-byte keys, 7,856-byte signatures (D168).
+	AlgSLHDSASHA2128s AlgID = 10
 )
 
 // Limits that bound decoding before any policy-specific check runs.
@@ -214,6 +217,7 @@ var defaultRegistry = func() *Registry {
 	for _, id := range []AlgID{AlgMLDSA44, AlgMLDSA65, AlgMLDSA87} {
 		r.RegisterAlg(mldsaAlgs[id])
 	}
+	r.RegisterAlg(slhdsaAlgs[AlgSLHDSASHA2128s])
 	return r
 }()
 

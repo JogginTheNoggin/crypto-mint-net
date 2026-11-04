@@ -74,13 +74,18 @@ type Options struct {
 
 // Node is a running full node.
 type Node struct {
-	mu     sync.Mutex
-	dir    string
-	pol    nodepolicy.Policy
-	eng    *engine.Engine
-	logs   map[engine.PoolKey]*store.Log
-	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
-	failed sync.Map     // pool keys whose store stopped, logged once
+	mu  sync.Mutex
+	dir string
+	pol nodepolicy.Policy
+	// run is pol with the limits applied in place since Open (D168),
+	// guarded by mu.
+	run nodepolicy.Policy
+	// policyMu: PolicyMu.
+	policyMu sync.Mutex
+	eng      *engine.Engine
+	logs     map[engine.PoolKey]*store.Log
+	log      *slog.Logger // the node's logger; Logger gives it to p2p and rpc
+	failed   sync.Map     // pool keys whose store stopped, logged once
 	// kept paces the extra layers a layer floor keeps (RED-018).
 	kept   keptBucket
 	cmin   int
@@ -133,7 +138,7 @@ func Open(dir string, opt Options) (*Node, error) {
 		return nil, err
 	}
 	n := &Node{
-		dir: dir, pol: pol, log: lg, unlock: unlock, cmin: opt.CompactMin,
+		dir: dir, pol: pol, run: pol, log: lg, unlock: unlock, cmin: opt.CompactMin,
 		eng: engine.New(engine.Config{
 			Ledger: pol.LedgerConfig(), MaxPending: pol.MaxPending, SeenSize: pol.SeenSize,
 		}),
@@ -163,8 +168,13 @@ func (n *Node) configure() error {
 	for _, r := range refused {
 		n.logger().Warn("series not accepted", "index", r.Index, "err", r.Reason)
 	}
+	// The releases just checked, kept for the next process (RED-075).
+	nodepolicy.SaveChecked(n.dir, n.pol)
 	byIssuer := map[hash.Hash][]hash.Hash{}
 	for _, a := range accepted {
+		if a.ReleaseErr != nil {
+			n.logger().Warn("release in node.json not used; the series is followed with the parts proven without it (give it a valid one with poo series add-release)", "series", a.Series.ID().Short(), "err", a.ReleaseErr)
+		}
 		n.eng.AddSeries(a.Series)
 		if a.Issuer != nil {
 			byIssuer[*a.Issuer] = append(byIssuer[*a.Issuer], a.Series.ID())
@@ -757,8 +767,24 @@ func (b *keptBucket) take(now time.Time) bool {
 // node's own Handle calls, or they are not stored.
 func (n *Node) Engine() *engine.Engine { return n.eng }
 
-// Policy returns the node policy in use.
+// Policy returns the node policy the node was opened with.
 func (n *Node) Policy() nodepolicy.Policy { return n.pol }
+
+// Running returns the node policy the node runs with now: the one it was
+// opened with, with the limits applied in place since (D168).
+func (n *Node) Running() nodepolicy.Policy {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.run
+}
+
+// SetRunning records p as the policy the node runs with, after its limits
+// were applied in place (D168).
+func (n *Node) SetRunning(p nodepolicy.Policy) {
+	n.mu.Lock()
+	n.run = p
+	n.mu.Unlock()
+}
 
 // Dir returns the data directory.
 func (n *Node) Dir() string { return n.dir }

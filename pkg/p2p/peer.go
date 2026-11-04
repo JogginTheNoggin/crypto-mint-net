@@ -328,6 +328,9 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 	}
 	h.log.Info("connected", "peer", p.short(), "addr", addr, "outbound", outbound)
 	go p.writeLoop()
+	// The newest releases this node knows, so the peer's parts open too
+	// (D168).
+	h.sendReleases(p)
 	// The hello proves nothing about what the peer follows: ask it.
 	go func() {
 		err := h.verifyPeer(p)
@@ -494,7 +497,7 @@ func budgetKind(t wire.Type) string {
 	switch {
 	case t == wire.TypeTx:
 		return tracking.KindTx
-	case t == wire.TypeEntry || t == wire.TypeNotice:
+	case t == wire.TypeEntry || t == wire.TypeNotice || t == wire.TypeRelease:
 		return tracking.KindEntry
 	case t == wire.TypeLayer:
 		return tracking.KindLayer
@@ -528,7 +531,7 @@ func (h *Host) dispatch(p *peer, m wire.Message, size int) error {
 			return errors.New("reply chunks arrive faster than they are read")
 		}
 		return nil
-	case !m.Type.IsRequest() && !m.Type.IsDiscovery() && !isPushed(m.Type):
+	case !m.Type.IsRequest() && !m.Type.IsDiscovery() && !isPushed(m.Type) && m.Type != wire.TypeRelease:
 		// Unknown types are ignored, so later versions can add messages.
 		return nil
 	}
@@ -551,6 +554,8 @@ func isPushed(t wire.Type) bool {
 // disconnects the peer (see misbehave).
 func (h *Host) handle(p *peer, m wire.Message, size int) error {
 	switch {
+	case m.Type == wire.TypeRelease:
+		return h.handleRelease(p, m)
 	case isPushed(m.Type):
 		if pi := h.poolFor(m.Section); pi != nil && size > 0 {
 			h.tr.Cost(p.key, pi.section.Text(), 0, size, false, time.Now())

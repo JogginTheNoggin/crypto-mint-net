@@ -64,6 +64,9 @@ const Protocol = 1
 // Config holds the p2p settings, all node policy. Zero values mean the
 // provisional defaults in DefaultConfig.
 type Config struct {
+	// Reload, when set, makes the node apply its node policy again: the
+	// host asks for it when it cannot take a release in place (D168).
+	Reload func()
 	// Listen is the TCP address for inbound connections; empty means none.
 	Listen string
 	// Advertise is the address peers are told to connect to; empty means

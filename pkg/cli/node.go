@@ -195,7 +195,7 @@ func readSeriesInfo(b []byte) (nodepolicy.SeriesInfo, error) {
 		return nodepolicy.SeriesInfo{}, err
 	}
 	if ss.ID != "" && ss.ID != s.ID().String() {
-		return nodepolicy.SeriesInfo{}, fmt.Errorf("series_id %s is not the id of its params (%s)", ss.ID, s.ID())
+		return nodepolicy.SeriesInfo{}, fmt.Errorf("series_id %q is not the id of its params (%s)", ss.ID, s.ID())
 	}
 	w, err := nodepolicy.DecodeWitness(ss.IssuerWitness)
 	if err == nil {
@@ -206,6 +206,10 @@ func readSeriesInfo(b []byte) (nodepolicy.SeriesInfo, error) {
 	}
 	return nodepolicy.SeriesInfo{Params: ss.Params, IssuerWitness: ss.IssuerWitness}, nil
 }
+
+// waitingHint follows a mint that waits for its part's release: what
+// releases it at this node (GREEN-050).
+const waitingHint = "; once the issuer publishes that part's release, peers pass it on, or give it to the node with poo series add-release FILE (poo series followed shows what is released here)"
 
 // variableNote says what a variable series needs before the node follows
 // it (D166, GREEN-049): it is kept, not wrong.
@@ -281,7 +285,7 @@ func (p *poolFlags) resolve(fs *flag.FlagSet, s *series.Series) (uint64, error) 
 		return *p.pool, nil
 	}
 	if err := tx.CheckMint(s, s.Mint(*p.serial)); errors.Is(err, tx.ErrWaiting) {
-		return 0, fmt.Errorf("-serial %d: %w", *p.serial, err)
+		return 0, fmt.Errorf("-serial %d: %w%s", *p.serial, err, waitingHint)
 	} else if err != nil {
 		return 0, fmt.Errorf("-serial %d: the series has %d mints", *p.serial, s.Mints())
 	}
@@ -461,7 +465,9 @@ func claimCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := tx.CheckMint(s, s.Mint(*serial)); err != nil {
+	if err := tx.CheckMint(s, s.Mint(*serial)); errors.Is(err, tx.ErrWaiting) {
+		return fmt.Errorf("serial %d: %w%s", *serial, err, waitingHint)
+	} else if err != nil {
 		return fmt.Errorf("serial %d: %w", *serial, err)
 	}
 	addr := s.Address(policy.SingleKey(policy.AlgEd25519, signer.Public()))
@@ -676,7 +682,7 @@ func workCmd(args []string, out io.Writer) error {
 	pf := addPool(fs)
 	entryHex := fs.String("entry", "", "entry hash (default: the pool's selected tip)")
 	start := fs.Uint64("start", 0, "first nonce")
-	tries := fs.Uint64("tries", 1<<16, "nonces to try (with -for: 0, as many as fit)")
+	tries := fs.Uint64("tries", 1<<16, "nonces to try (default: 65,536, or 2^(floor+2) for a series whose minimum layer strength needs more; with -for: 0, as many as fit)")
 	g := addGrindOptions(fs)
 	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {
@@ -694,6 +700,11 @@ func workCmd(args []string, out io.Writer) error {
 	s, err := c.seriesOf(cl)
 	if err != nil {
 		return err
+	}
+	if !triesSet && *g.dur == "" {
+		// Sized from the series' floor, so the default finds a layer
+		// that counts (D168).
+		*tries = rpc.DefaultWorkTries(s)
 	}
 	pool, err := pf.resolve(fs, s)
 	if err != nil {
@@ -1106,7 +1117,7 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 		set[name] = v
 	}
 	var nodeErr error
-	if cl, err := dialNode(out, dir); err == nil {
+	if cl, err := dialThroughReload(out, dir); err == nil {
 		req := rpc.LimitsRequest{Set: set}
 		r, err := callThroughReload(out, dir, cl, func(c *rpc.Client) (rpc.LimitsReply, error) { return c.SetLimits(req) })
 		if err == nil {

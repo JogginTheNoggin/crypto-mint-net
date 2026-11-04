@@ -62,13 +62,20 @@ func TestRivalClaimCLI(t *testing.T) {
 	if err := run(append([]string{"build", "-pool", "1", "-parent", strings.Repeat("ab", 32)}, r...), &out); err == nil || !strings.Contains(err.Error(), "not held") {
 		t.Fatalf("a parent not held: %v", err)
 	}
-	// -set through the running node, which saves and reloads.
+	// -set through the running node saves and applies the book's limit in
+	// place (D168), and one that needs it reloads.
 	var set struct {
 		Saved, Reloading bool
+		InPlace          bool `json:"in_place"`
 	}
 	cli(t, &set, append([]string{"policy", "limits", "-set", "p2p.max_book=8192"}, r...)...)
-	if !set.Saved || !set.Reloading {
-		t.Fatalf("set through the node: %+v", set)
+	if !set.Saved || set.Reloading || !set.InPlace {
+		t.Fatalf("set through the node in place: %+v", set)
+	}
+	set.InPlace = false
+	cli(t, &set, append([]string{"policy", "limits", "-set", "ties=8"}, r...)...)
+	if !set.Saved || !set.Reloading || set.InPlace {
+		t.Fatalf("set through the node with a reload: %+v", set)
 	}
 }
 

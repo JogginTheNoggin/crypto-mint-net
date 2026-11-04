@@ -186,13 +186,18 @@ type Handler struct {
 	addr   string // the address in rpc.addr, which hello binds
 	mux    *http.ServeMux
 	// policyMu serialises the edits of node.json (follow, unfollow, the
-	// grind schedule), each a read, a change and a write (RED-013).
-	policyMu sync.Mutex
+	// grind schedule), each a read, a change and a write (RED-013). It is
+	// the node's own (node.PolicyMu), which the p2p host takes too when it
+	// keeps a release a peer passed on (D168).
+	policyMu *sync.Mutex
 }
 
 // NewHandler returns the HTTP handler for n, accepting only token.
 func NewHandler(n *node.Node, token string) *Handler {
-	h := &Handler{n: n, token: []byte(token), mux: http.NewServeMux()}
+	h := &Handler{n: n, token: []byte(token), mux: http.NewServeMux(), policyMu: &sync.Mutex{}}
+	if n != nil {
+		h.policyMu = n.PolicyMu()
+	}
 	h.mux.HandleFunc("GET /v1/status", h.status)
 	h.mux.HandleFunc("GET /v1/series", h.series)
 	h.mux.HandleFunc("POST /v1/tx", h.submitTx)
@@ -427,7 +432,8 @@ type StatusReply struct {
 	Replay node.ReplayStats `json:"replay"`
 	// PolicyChanged says node.json now differs from the policy the node
 	// runs, outside the grind section it applies at once: a change made
-	// with -no-reload or by hand waits for poo reload (GREEN-037).
+	// with -no-reload or by hand waits for poo reload (GREEN-037). Limits
+	// applied in place count as applied (D168).
 	PolicyChanged bool `json:"policy_changed,omitempty"`
 }
 
@@ -438,7 +444,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed()}
 	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
-		rep.PolicyChanged = !p.SameApplied(h.n.Policy())
+		rep.PolicyChanged = !p.SameApplied(h.n.Running())
 	}
 	for _, k := range h.n.Engine().ListedPools() {
 		st, err := h.n.Engine().Status(k)
@@ -811,8 +817,41 @@ func (h *Handler) build(w http.ResponseWriter, r *http.Request) {
 }
 
 // MaxWorkTries bounds the nonces one work request may try, so a request
-// cannot hold the node for long.
+// cannot hold the node for long. A series whose minimum layer strength
+// needs more allows more: see WorkTriesFor.
 const MaxWorkTries = 1 << 24
+
+// maxWorkShift is the largest power of two WorkTriesFor allows (2^40).
+const maxWorkShift = 40
+
+// WorkTriesFor is the most nonces one work request may try on series s:
+// MaxWorkTries, or 2^(floor+4) for a series whose minimum layer strength
+// (the floor) is high, so a full-length request finds a layer at the
+// floor with near certainty (1 − e^−16), up to 2^40 (D168).
+func WorkTriesFor(s *series.Series) uint64 {
+	n := uint64(MaxWorkTries)
+	if s == nil {
+		return n
+	}
+	if sh := min(s.MinLayerStrength()+4, maxWorkShift); sh > 24 {
+		n = 1 << uint(sh)
+	}
+	return n
+}
+
+// DefaultWorkTries is the nonces poo work tries when neither -tries nor
+// -for is given: 65,536, or 2^(floor+2) for a series whose floor needs
+// more (about a 98% chance of a layer at the floor), within WorkTriesFor.
+func DefaultWorkTries(s *series.Series) uint64 {
+	n := uint64(1 << 16)
+	if s == nil {
+		return n
+	}
+	if sh := s.MinLayerStrength() + 2; sh > 16 {
+		n = 1 << uint(min(sh, maxWorkShift))
+	}
+	return min(n, WorkTriesFor(s))
+}
 
 // WorkRequest asks the node to add a layer to an entry.
 type WorkRequest struct {
@@ -831,8 +870,9 @@ func (h *Handler) work(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
-	if req.Tries > MaxWorkTries || (req.Tries == 0 && req.For == "") {
-		writeError(w, badRequest("tries must be 1 to %d, or 0 with for", MaxWorkTries))
+	s, _ := h.n.Engine().Series(req.Series)
+	if most := WorkTriesFor(s); req.Tries > most || (req.Tries == 0 && req.For == "") {
+		writeError(w, badRequest("tries must be 1 to %d, or 0 with for", most))
 		return
 	}
 	p, d, e := h.plan(req.key(), req.GrindOptions)

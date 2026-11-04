@@ -3,7 +3,8 @@ package cli
 import (
 	"bufio"
 	"bytes"
-	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 )
 
@@ -48,11 +50,13 @@ func TestSeriesReleaseCLI(t *testing.T) {
 			Part        uint64
 			FirstSerial uint64 `json:"first_serial"`
 			LastSerial  uint64 `json:"last_serial"`
+			Released    uint64 `json:"mints_released"`
 			ID          string `json:"part_id"`
 		}
 	}
 	cli(t, &parts, "series", "parts", file)
-	if len(parts.Parts) != 3 || parts.Parts[1].FirstSerial != 8 || parts.Parts[1].LastSerial != 11 || parts.Parts[2].LastSerial != 15 {
+	if len(parts.Parts) != 3 || parts.Parts[1].FirstSerial != 8 || parts.Parts[1].LastSerial != 11 || parts.Parts[2].LastSerial != 15 ||
+		parts.Parts[0].Released != 8 || parts.Parts[2].Released != 16 {
 		t.Fatalf("parts: %+v", parts)
 	}
 
@@ -296,8 +300,8 @@ func TestVariableSeriesOnANode(t *testing.T) {
 	defer stop()
 	alice := seedFile(t, strings.Repeat("a1", 32))
 	cli(t, nil, append([]string{"claim", "-seed-file", alice, "-serial", "2"}, r...)...)
-	if _, err := runErr(append([]string{"claim", "-seed-file", alice, "-serial", "9"}, r...)...); err == nil || !strings.Contains(err.Error(), "waiting for a release") {
-		t.Fatalf("a claim on part 2 before its release: %v", err)
+	if _, err := runErr(append([]string{"claim", "-seed-file", alice, "-serial", "9"}, r...)...); err == nil || !strings.Contains(err.Error(), "waiting for a release") || !strings.Contains(err.Error(), "poo series add-release FILE") || ExitCode(err) != ExitWaiting {
+		t.Fatalf("a claim on part 2 before its release: %v (exit %d)", err, ExitCode(err))
 	}
 	var followed struct{ Series []rpc.SeriesInfo }
 	cli(t, &followed, append([]string{"series", "followed"}, r...)...)
@@ -306,7 +310,7 @@ func TestVariableSeriesOnANode(t *testing.T) {
 	}
 	var added rpc.ReleaseReply
 	cli(t, &added, append([]string{"series", "add-release", rel}, r...)...)
-	if !added.Added || !added.Saved || !added.Reloading || added.Released != 2 || added.Mints != 12 {
+	if !added.Added || !added.Saved || added.Reloading || !added.InPlace || added.Released != 2 || added.Mints != 12 {
 		t.Fatalf("add-release: %+v", added)
 	}
 	var err error
@@ -328,8 +332,35 @@ func TestVariableSeriesOnANode(t *testing.T) {
 	if again.Added || again.Saved || again.Released != 2 {
 		t.Fatalf("the same release again: %+v", again)
 	}
+	// GREEN-050: a release that changes nothing says why, and the table
+	// of followed series has a row a reader can use.
+	var note struct{ Note string }
+	cli(t, &note, append([]string{"series", "add-release", rel}, r...)...)
+	if !strings.Contains(note.Note, "already keeps") {
+		t.Errorf("the same release again: note %q", note.Note)
+	}
+	rel3 := filepath.Join(dir, "part3.json")
+	if err := os.WriteFile(rel3, []byte(runOut(t, "series", "release", file, "-part", "3", "-seed-file", issuerSeed)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cli(t, nil, append([]string{"series", "add-release", rel3}, r...)...)
+	cli(t, &note, append([]string{"series", "add-release", rel}, r...)...)
+	if !strings.Contains(note.Note, "part 2 is already released here: the kept release of part 3") {
+		t.Errorf("an older release: note %q", note.Note)
+	}
+	var table string
+	for i := 0; i < 100; i++ {
+		// Read through the reload the release started.
+		if table, _ = runErr(append([]string{"series", "followed", "-o", "table"}, r...)...); strings.Contains(table, "16") {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !strings.Contains(table, "SUPPLY") || !strings.Contains(table, "variable") || !strings.Contains(table, "RELEASED_THROUGH") || strings.Contains(table, "{") {
+		t.Errorf("series followed -o table:\n%s", table)
+	}
 	p, err := nodepolicy.Load(filepath.Join(root, "policies", "default", nodepolicy.FileName))
-	if err != nil || p.Series[0].Release == nil || p.Series[0].Release.Part != 2 {
+	if err != nil || p.Series[0].Release == nil || p.Series[0].Release.Part != 3 {
 		t.Fatalf("node.json keeps %+v: %v", p.Series, err)
 	}
 }
@@ -347,5 +378,26 @@ func TestSeriesPartsTable(t *testing.T) {
 	}
 	if _, err := runErr("series", "parts", file, "-o", "yaml"); err == nil {
 		t.Fatal("-o yaml was taken")
+	}
+}
+
+// A refusal only for a part not yet released exits 3, from the node's
+// 409 waiting or a check made here, so the GUI need not read the message;
+// anything else that fails exits 1 (GUI Grey, R26).
+func TestExitCodeWaiting(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want int
+	}{
+		{nil, 0},
+		{errors.New("no"), ExitFailed},
+		{fmt.Errorf("serial 9: %w", series.ErrWaiting), ExitWaiting},
+		{&rpc.Error{Code: rpc.CodeWaiting, Message: "waiting"}, ExitWaiting},
+		{fmt.Errorf("claim: %w", &rpc.Error{Code: rpc.CodeWaiting}), ExitWaiting},
+		{&rpc.Error{Code: rpc.CodeInvalid}, ExitFailed},
+	} {
+		if got := ExitCode(c.err); got != c.want {
+			t.Errorf("%v: exit %d, want %d", c.err, got, c.want)
+		}
 	}
 }

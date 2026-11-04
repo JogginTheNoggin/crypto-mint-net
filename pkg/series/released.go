@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 )
@@ -33,14 +34,44 @@ var (
 // variableIDs holds the id of every variable series this process has
 // built, so a transaction's bytes can be read: a variable series' mint
 // carries its part (tx package). An id is a hash of the params, so the set
-// holds only facts and only grows.
-var variableIDs sync.Map
+// holds only facts and only grows. Every transaction decoded reads it, so
+// it is a map replaced whole under variableMu when an id is added, read
+// with one atomic load and no lock, and nil while there is none
+// (ORANGE-035).
+var (
+	variableMu  sync.Mutex
+	variableIDs atomic.Pointer[map[hash.Hash]struct{}]
+)
+
+// addVariableID adds id to the set.
+func addVariableID(id hash.Hash) {
+	variableMu.Lock()
+	defer variableMu.Unlock()
+	old := variableIDs.Load()
+	if old != nil {
+		if _, ok := (*old)[id]; ok {
+			return
+		}
+	}
+	m := make(map[hash.Hash]struct{}, 1)
+	if old != nil {
+		for k := range *old {
+			m[k] = struct{}{}
+		}
+	}
+	m[id] = struct{}{}
+	variableIDs.Store(&m)
+}
 
 // IsVariableID reports whether id is the id of a variable series this
 // process has built. A series it has not built reads as fixed; a node
 // cannot check such a series' transactions in any case.
 func IsVariableID(id hash.Hash) bool {
-	_, ok := variableIDs.Load(id)
+	m := variableIDs.Load()
+	if m == nil {
+		return false
+	}
+	_, ok := (*m)[id]
 	return ok
 }
 
@@ -112,4 +143,54 @@ func (s *Series) CheckMint(m MintID) error {
 		return fmt.Errorf("%w (part %d; released through part %d)", ErrWaiting, k, s.released.Load())
 	}
 	return nil
+}
+
+// checked holds, for each variable series id, the newest release this
+// process checked in full (CheckRelease) or took from its own cache
+// (TrustRelease). A node writes it beside node.json so its next process
+// need not work the chain out again (RED-075). Like variableIDs it holds
+// only facts: one release per series.
+var (
+	checkedMu sync.Mutex
+	checked   = map[hash.Hash]Release{}
+)
+
+// noteChecked records that r was checked in full.
+func noteChecked(r Release) {
+	checkedMu.Lock()
+	defer checkedMu.Unlock()
+	if old, ok := checked[r.Series]; !ok || r.Part >= old.Part {
+		checked[r.Series] = r
+	}
+}
+
+// ReleaseChecked reports whether this process checked r in full, or took
+// it from the node's own cache, so its chain need not be worked out again.
+// Only the series, part and previous id are compared: the witness is
+// checked again each time, which costs no hashing of the chain.
+func ReleaseChecked(r Release) bool {
+	checkedMu.Lock()
+	defer checkedMu.Unlock()
+	c, ok := checked[r.Series]
+	return ok && c.Part == r.Part && c.Previous == r.Previous
+}
+
+// TrustRelease takes r's previous id as part_id(r.Part − 1) without
+// working the chain out, because this node checked r in full in an
+// earlier process and kept that in its own cache (RED-075). It is a
+// cache: it is read only from the node's own directory, never from a
+// policy file another node wrote, and CheckRelease still checks r's
+// witness. A cache that does not match the release kept is not used, so
+// a damaged one costs time, never a result.
+func TrustRelease(r Release) {
+	if r.Part < 2 {
+		return
+	}
+	c := chainFor(r.Series)
+	c.mu.Lock()
+	if c.next < r.Part-1 {
+		c.trustK, c.trust = r.Part-1, r.Previous
+	}
+	c.mu.Unlock()
+	noteChecked(r)
 }

@@ -1,6 +1,8 @@
 package nodepolicy
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -201,4 +203,56 @@ func (p *Policy) SetLimits(set map[string]int) (bool, error) {
 	}
 	*p = q
 	return changed, nil
+}
+
+// Retention returns the tracker's retention bounds this policy asks for.
+func (p Policy) Retention() tracking.Retention { return p.retention() }
+
+// InPlace names the bounded settings a running node applies without a
+// reload (ORANGE-035's design, accepted by Black in Round 25, D168): the
+// peer book's limits and the tracker's retention, which are information,
+// and the seen list, which only saves work. Each part ends as a reload
+// onto the same node.json would leave it. The others (verified_per_range,
+// registry_seconds, max_pending, ties) stay on the reload until each has
+// its own in-place path and comparison test: a reload makes every verified
+// peer a candidate again, so a lowered verified_per_range holds after a
+// reload but not in place.
+var InPlace = map[string]bool{
+	BoundMaxBook.Name: true, BoundBookPerRange.Name: true,
+	BoundRetrySeconds.Name: true, BoundCandidateSeconds.Name: true,
+	BoundMaxAddresses.Name: true, BoundFlagHistory.Name: true, BoundLogSeconds.Name: true, BoundLogSize.Name: true,
+	BoundSeenSize.Name: true,
+}
+
+// ChangedLimits lists the bounded settings whose used value differs
+// between old and new, in the order of Bounds.
+func ChangedLimits(old, new Policy) []string {
+	var out []string
+	o := old.Limits()
+	for i, l := range new.Limits() {
+		if l.Used != o[i].Used {
+			out = append(out, l.Name)
+		}
+	}
+	return out
+}
+
+// SameButInPlace reports whether a and b differ only in what a running
+// node applies without a reload: the bounded settings InPlace names, the
+// grind schedule (applied by the grind manager) and p2p.peers (already in
+// the running book). An in-place change of limits is taken only when the
+// node.json on disk and the policy the node runs with are the same in all
+// else, so a hand edit waiting for a reload is never left unapplied
+// (D168).
+func SameButInPlace(a, b Policy) bool {
+	strip := func(p Policy) ([]byte, error) {
+		for name := range InPlace {
+			*p.limitField(name) = 0
+		}
+		p.Grind, p.P2P.Peers, p.Lowered = nil, nil, nil
+		return json.Marshal(p)
+	}
+	x, err1 := strip(a)
+	y, err2 := strip(b)
+	return err1 == nil && err2 == nil && bytes.Equal(x, y)
 }

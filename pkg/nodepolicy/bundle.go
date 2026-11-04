@@ -263,7 +263,7 @@ func plural(n int, one, many string) string {
 func ExportSeries(p Policy, id hash.Hash) (Policy, error) {
 	out := Policy{Format: Format}
 	for _, si := range p.Series {
-		s, err := series.New(si.Params)
+		s, _, err := si.Build()
 		if err != nil || s.ID() != id {
 			continue
 		}
@@ -500,6 +500,11 @@ type Plan struct {
 	// result uses, by short id: an issuer setting turned them on (RED-056,
 	// D156). They are named in Defences too.
 	NowUsed []string `json:"now_used"`
+	// DroppedReleases are releases of a variable series the file held
+	// that do not check, and why: the import leaves them out (or, for a
+	// series local already lists, the node does not use them), and the
+	// series is followed with the parts proven without them (RED-073).
+	DroppedReleases []string `json:"dropped_releases,omitempty"`
 	// Fit lists what the import brings in that may not fit this machine:
 	// a device or thread count it lacks, a file it does not have, an
 	// address that is not its own (Fit, D155). The caller fills it, as
@@ -595,6 +600,7 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 			return Policy{}, Plan{}, err
 		}
 	}
+	res.Series, plan.DroppedReleases = withoutBadReleases(res.Series)
 	if err := res.Validate(); err != nil {
 		return Policy{}, Plan{}, err
 	}
@@ -643,7 +649,7 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 	plan.Follows = []FollowCount{}
 	if len(touched) > 0 {
 		for _, si := range res.Series {
-			s, err := series.New(si.Params)
+			s, _, err := si.Build()
 			if err != nil || !touched[s.ID().Short()] {
 				continue
 			}
@@ -818,6 +824,30 @@ func isMachine(k string) bool {
 	return false
 }
 
+// withoutBadReleases returns list with every kept release that does not
+// check left out, and why: an import never saves a release the node would
+// not use (RED-073). The series stay, followed with the parts proven
+// without it. list itself is not changed.
+func withoutBadReleases(list []SeriesInfo) ([]SeriesInfo, []string) {
+	var out []SeriesInfo
+	var dropped []string
+	for i, si := range list {
+		s, relErr, err := si.Build()
+		if err != nil || relErr == nil {
+			continue
+		}
+		if out == nil {
+			out = append([]SeriesInfo(nil), list...)
+		}
+		out[i].Release = nil
+		dropped = append(dropped, fmt.Sprintf("series %s: %v", s.ID().Short(), relErr))
+	}
+	if out == nil {
+		return list, nil
+	}
+	return out, dropped
+}
+
 // mergeInto is Merge without Replace.
 func mergeInto(local, file Policy, opt MergeOptions, settings bool, plan *Plan) (Policy, error) {
 	// Single settings, compared one by one.
@@ -862,14 +892,14 @@ func mergeInto(local, file Policy, opt MergeOptions, settings bool, plan *Plan) 
 	have := map[hash.Hash]int{}
 	built := map[hash.Hash]*series.Series{}
 	for i, si := range res.Series {
-		if s, err := series.New(si.Params); err == nil {
+		if s, _, err := si.Build(); err == nil {
 			if _, ok := have[s.ID()]; !ok {
 				have[s.ID()], built[s.ID()] = i, s
 			}
 		}
 	}
 	for _, si := range file.Series {
-		s, err := series.New(si.Params)
+		s, _, err := si.Build()
 		if err != nil {
 			return Policy{}, fmt.Errorf("%w: series in the file: %v", ErrInvalid, err)
 		}

@@ -58,3 +58,22 @@ func (s *Seen) Len() int {
 	}
 	return s.next
 }
+
+// SetSeenSize gives the running engine a seen list of size n (0: the
+// default). The list starts empty, as a reload's does, so the engine
+// ends as a reload onto the same node.json would leave it (ORANGE-035's
+// in-place rule, D168). The seen list only saves checking an item twice,
+// so emptying it changes no result.
+func (e *Engine) SetSeenSize(n int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.seen = NewSeen(n)
+	e.cfg.SeenSize = n
+}
+
+// SeenSize returns the seen list's size.
+func (e *Engine) SeenSize() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.seen.size
+}

@@ -8,20 +8,20 @@ their sizes, standards, where each is used and why it was chosen.
 
 - **A mint chooses its own.** A series names its hash, the signature
   algorithms it allows and the address policy types it allows, by number,
-  when it is published. The node ships five hashes, nine signature
+  when it is published. The node ships five hashes, ten signature
   algorithms and three policy types (decisions D80 to D82). A series picks
   any hash and any subset of the others; `poo crypto` lists them and
   `poo series new` builds checked params from their names.
 - **Hashes** (all 32-byte output): SHA-256, SHA-512/256, SHA3-256,
   BLAKE2b-256, BLAKE3.
 - **Signatures:** Ed25519; ECDSA over P-256, P-384 and P-521; ECDSA and
-  BIP-340 Schnorr over secp256k1; and the post-quantum ML-DSA-44, -65 and
-  -87.
+  BIP-340 Schnorr over secp256k1; the post-quantum ML-DSA-44, -65 and
+  -87; and the hash-based post-quantum SLH-DSA-SHA2-128s (D168).
 - **Address policy types:** threshold (K of up to 16 keys), hashlock (show
   a preimage) and k-of-policies (K of up to 16 policies, nested up to 4
   deep), so a series can allow joint accounts, mixed classical and
   post-quantum keys, and the claim side of atomic swaps.
-- **Not offered, on purpose:** RSA, SLH-DSA, Ed448, and timelocks. Each is
+- **Not offered, on purpose:** RSA, the larger SLH-DSA sets, Ed448, and timelocks. Each is
   explained under [Advised against or deferred](#advised-against-or-deferred).
 - **Off consensus**, the node uses HMAC-SHA256 for wallet keys, Argon2id
   (PBKDF2-SHA256 for older wallets) for the passphrase, HKDF-SHA512 to turn a seed into a key of any algorithm,
@@ -29,7 +29,8 @@ their sizes, standards, where each is used and why it was chosen.
   log, and the operating system's random number generator.
 - **Where the code comes from:** the Go standard library for everything
   except BLAKE2b and Argon2id (`golang.org/x/crypto`, maintained by the Go team), BLAKE3
-  (`zeebo/blake3`) and secp256k1 (`decred/dcrd` and `btcsuite/btcd`, the
+  (`zeebo/blake3`), SLH-DSA (`cloudflare/circl`, Cloudflare's audited
+  post-quantum library) and secp256k1 (`decred/dcrd` and `btcsuite/btcd`, the
   libraries of two production Bitcoin-family nodes). No primitive is
   implemented by this project (decision D83).
 
@@ -75,6 +76,7 @@ stay with ordinary machines should weigh that.
 | 7 | `ml-dsa-44` | 1312 | 2420 | FIPS 204 | `crypto/mldsa` |
 | 8 | `ml-dsa-65` | 1952 | 3309 | FIPS 204 | `crypto/mldsa` |
 | 9 | `ml-dsa-87` | 2592 | 4627 | FIPS 204 | `crypto/mldsa` |
+| 10 | `slh-dsa-sha2-128s` | 32 | 7856 | FIPS 205 | `github.com/cloudflare/circl/sign/slhdsa` |
 
 Sizes are in bytes. Every signature signs the witness message
 `"PoO-witness-v1" ∥ tid` (decision D9), as each scheme defines:
@@ -95,13 +97,24 @@ Sizes are in bytes. Every signature signs the witness message
 - **ML-DSA** (the lattice scheme NIST standardised in 2024 for
   resistance to quantum computers) signs the message itself, with an empty
   context string. Signing is hedged: fresh randomness mixed with the key.
+- **SLH-DSA** (FIPS 205, the stateless hash-based scheme once called
+  SPHINCS+) signs the message itself with an empty context string, in the
+  pure form (no pre-hash). Signing is randomised. Its security rests only
+  on SHA-256, the most conservative post-quantum choice, at the price of a
+  7,856-byte signature and a slow signer: about 0.27 s to sign and 0.28 ms
+  to verify here (Ed25519: 40 µs, ML-DSA-65: 150 µs). A key comes from a
+  seed as every other algorithm's does: HKDF-SHA512 with the info
+  `"PoO-key-v1 slh-dsa-sha2-128s 0"` gives the three 16-byte seeds FIPS
+  205's key generation takes.
 
 How to choose: Ed25519 is the default, small and fast. P-256 suits
 holders whose keys live in hardware tokens, phones and cloud key services,
 which mostly support NIST curves. secp256k1 lets holders reuse Bitcoin
 tooling and hardware wallets. ML-DSA resists a quantum computer, at the
 price of much larger keys and signatures: ML-DSA-44 is enough for most
-uses, ML-DSA-65 and -87 trade size for margin. A series can allow several,
+uses, ML-DSA-65 and -87 trade size for margin. SLH-DSA-SHA2-128s suits a key
+that signs rarely and must last, such as an issuer's or a reserve's cold
+key: it trusts only the hash. A series can allow several,
 and an any-of policy lets a holder keep a post-quantum key beside an
 elliptic-curve one (see below).
 
@@ -140,7 +153,7 @@ Examples and their addresses under every hash are pinned in
 | A hashlock on its own | The preimage is public once a spend is seen, so anyone watching the network can copy it into a spend of their own and race the owner. Use a hashlock only inside a k-of-policies policy beside a key. The code allows it alone, since a series may want it for a puzzle, but nobody should keep value behind one. |
 | Timelocks (hash time-locked contracts, refunds after a deadline) | Validity in this design depends only on the transaction and the pool state. Nothing in consensus knows the time or a height, and each pool's ledger grows on its own. A timelock needs an agreed clock first; adding one is a design question, not a policy type. Without it, the refund branch of a swap cannot be expressed. |
 | RSA | Keys and signatures of 256 to 512 bytes for security no better than P-256's, many encodings and padding schemes to get wrong, and no advantage here. |
-| SLH-DSA (SPHINCS+, FIPS 205) | Very conservative, but signatures are 8 to 50 KB, larger than the signature limit and slow to verify. Not in Go's standard library. A candidate if a mint wants a hash-based post-quantum scheme and accepts the size. |
+| SLH-DSA's larger sets (SHA2-192s/256s, SHAKE, and the fast "f" sets) | Their signatures (16 to 50 KB) are over the 8,192-byte signature limit, a decode limit every node shares, so adding them means raising `MaxSigSize`, which is for jerry and Black. SHA2-128s (number 10) fits and is offered (D168). |
 | Ed448 | Not in Go's standard library, and the third-party packages are less used than the ones chosen here. P-521 or ML-DSA cover the need for a larger margin. |
 | Falcon (FN-DSA) | Smaller than ML-DSA, but its standard (FIPS 206) is not final, and correct constant-time signing is hard. A candidate once it is. |
 | Hashes with output other than 32 bytes, MD5, SHA-1 | Ids are 32 bytes throughout. MD5 and SHA-1 are broken. |
