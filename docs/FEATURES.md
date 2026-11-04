@@ -109,6 +109,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | --- | --- | --- | --- |
 | Same code as headless | Every action is a `poo` command line run through `cli.Main`. The GUI may import only `pkg/cli`, and a test enforces it | `gui/`, `gui/imports_test.go` | D84 to D89 |
 | Shows its command | Each panel and form shows the exact line it runs, quoted for the platform's shell, with Run in terminal and Copy (off while the line holds a secret flag, and on Windows off for a word PowerShell or cmd.exe would run or change) | `gui/web/static/views.js`, `gui/web/static/api.js` (`copyLine`) | GUI-GREEN-046, GUI-024 |
+| Required fields | A field a command needs is marked "(required)" while it is shown, and a form with one left empty runs nothing, since the command without it could do something else | `gui/web/static/views.js`, `style.css` | GUI-026, GUI-GREEN-050 |
 | One file per view | Each view is a module in `views/` listed once in `views/index.js`; navigation and the e2e walks read that list | `gui/web/static/views/` | GUI-GREEN-044 |
 | Terminal | Runs `poo` itself: a typed line runs exactly as in a shell, split the way the platform's shell splits it, with history, Ctrl-C and Ctrl-D | `gui/shell`, `gui/web/static/terminal.js` | D86, GUI-021 |
 | Local web app | One Go binary on loopback that opens the system browser, or an app window with `-app`. No CGO and no JavaScript build | `gui/cmd/poo-gui`, `gui/server` | D85 |

@@ -119,6 +119,10 @@ try {
   // refuses it itself. Neither starts a job or asks for the seed.
   await rival.locator('input[name=parent]').fill('');
   assert.equal(await rival.locator('input[name=parent]').getAttribute('required'), '', 'Parent is required');
+  // and says so in its label before anything is run (GUI-GREEN-050).
+  const after = loc => loc.evaluate(s => getComputedStyle(s, '::after').content);
+  assert.equal(await after(rival.locator('label:has(input[name=parent]) > span')), '" (required)"', 'a required field is marked');
+  assert.equal(await after(rival.locator('label:has(input[name=work]) > span')), 'none', 'an optional one is not');
   const claims = () => page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => j.args[0] === 'claim').length);
   await rival.locator('button[type=submit]').click();
   assert.ok(await rival.locator('input[name=parent]').evaluate(i => i.matches(':invalid')), 'the browser holds the empty Parent');
