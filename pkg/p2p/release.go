@@ -102,10 +102,10 @@ func (h *Host) handleRelease(p *peer, m wire.Message) error {
 	if err := s.CheckReleaseSigned(r); err != nil {
 		return invalidItem{fmt.Errorf("passed on a release that does not check: %w", err)}
 	}
-	if !h.rel.offer(r, p, now, h.flushRelease) {
-		return nil // held, or covered by a higher one held
-	}
-	return h.takeRelease(r, p)
+	// Taken in the series' worker, or held, or covered by a higher one
+	// held: the read loop goes on either way (RED-082).
+	h.rel.offer(r, p, now, h.workRelease)
+	return nil
 }
 
 // takeRelease checks r in full and keeps it, credits p, the peer that
@@ -113,8 +113,13 @@ func (h *Host) handleRelease(p *peer, m wire.Message) error {
 // another call at the same time is dropped: only the first is credited
 // and passed on (ORANGE-036).
 func (h *Host) takeRelease(r series.Release, p *peer) error {
-	res, err := h.n.AddRelease(r)
+	ctx := h.hostContext()
+	res, err := h.n.AddReleaseContext(ctx, r)
 	switch {
+	case err != nil && ctx.Err() != nil:
+		// The node is stopping: the check ended, which says nothing of
+		// the release.
+		return nil
 	case errors.Is(err, series.ErrRelease):
 		return invalidItem{fmt.Errorf("passed on a release that does not check: %w", err)}
 	case err != nil:
@@ -129,12 +134,17 @@ func (h *Host) takeRelease(r series.Release, p *peer) error {
 	return nil
 }
 
-// flushRelease takes the highest release held for a series when its wait
-// ends.
-func (h *Host) flushRelease(r series.Release, p *peer) {
+// workRelease is the series' worker: it takes r unless a release since
+// covered it, and acts on the peer that passed r when r does not check.
+func (h *Host) workRelease(r series.Release, p *peer) {
 	s := h.followedVariable(r.Series)
 	if s == nil || r.Part <= s.Released() {
 		return
+	}
+	if r.Part > 1<<20 {
+		// Worked out once in a process, in time: say so, so an owner sees
+		// what the node is doing (RED-082).
+		h.log.Info("checking a release of a far part", "series", r.Series.Short(), "part", r.Part, "from", p.short())
 	}
 	if err := h.takeRelease(r, p); err != nil {
 		h.misbehave(p, err)

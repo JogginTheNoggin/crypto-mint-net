@@ -472,6 +472,9 @@ type SeriesInfo struct {
 	// Builtin is "reserve" when the series is the built-in default reserve
 	// series, matched on its full id (D170).
 	Builtin string `json:"builtin,omitempty"`
+	// Warning says the series sets no witness ceiling, or one above
+	// nodepolicy.CeilingLimit (RED-083); left out otherwise.
+	Warning string `json:"warning,omitempty"`
 }
 
 // Builtin returns "reserve" for the built-in reserve series' full id and
@@ -525,7 +528,7 @@ func (h *Handler) series(w http.ResponseWriter, r *http.Request) {
 	out := []SeriesInfo{}
 	for _, id := range h.n.Engine().FollowedSeries() {
 		s, _ := h.n.Engine().Series(id)
-		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount(), Variable: VariableOf(s), Builtin: Builtin(s.ID())})
+		out = append(out, SeriesInfo{ID: s.ID(), Params: s.Params(), Pools: s.PoolCount(), Variable: VariableOf(s), Builtin: Builtin(s.ID()), Warning: nodepolicy.CeilingWarning(s.Params())})
 	}
 	writeJSON(w, out)
 }

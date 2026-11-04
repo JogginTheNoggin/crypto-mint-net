@@ -181,6 +181,19 @@ func doctor(out io.Writer, dir string) DoctorReport {
 		add(Check{Name: "series", Result: checkOK, Detail: fmt.Sprintf("%d accepted", len(accepted))})
 	}
 
+	// A followed series with no witness ceiling, or one above
+	// CeilingLimit: one witness can take seconds to check (RED-083).
+	var loose []string
+	for _, a := range accepted {
+		if w := nodepolicy.CeilingWarning(a.Series.Params()); w != "" {
+			loose = append(loose, fmt.Sprintf("series %s: %s", a.Series.ID().Short(), w))
+		}
+	}
+	if len(loose) > 0 {
+		add(Check{Name: "ceiling", Result: checkWarn, Detail: strings.Join(loose, "; "),
+			Fix: "follow such a series only on purpose; poo policy limits -set series_ceiling=N declines new ones on import"})
+	}
+
 	// A release node.json keeps that does not check is left out, and its
 	// series followed with the parts proven without it (RED-073).
 	var bad []string

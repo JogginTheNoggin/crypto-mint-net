@@ -498,8 +498,13 @@ type Plan struct {
 	Refused []string `json:"refused"`
 	// Declined are series the file lists that the import left out, by
 	// short id and why: the node policy's series_ceiling declines them
-	// (D170). Their follow rules are left out too.
+	// (D170). Their follow rules are left out too, and each says how
+	// many.
 	Declined []string `json:"declined,omitempty"`
+	// Unbounded are series the result adds or whose follow the import
+	// changes that set no witness ceiling, or one above CeilingLimit, by
+	// short id and why (CeilingWarning, RED-083). A warning only.
+	Unbounded []string `json:"unbounded,omitempty"`
 	// NowUsed are series local lists but does not use (Refused) that the
 	// result uses, by short id: an issuer setting turned them on (RED-056,
 	// D156). They are named in Defences too.
@@ -648,6 +653,21 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 			if id, ok := strings.CutPrefix(c.Field, "follow.[series "); ok {
 				touched[strings.TrimSuffix(id, "]")] = true
 			}
+		}
+	}
+	had := map[hash.Hash]bool{}
+	for _, si := range local.Series {
+		if s, err := series.New(si.Params); err == nil {
+			had[s.ID()] = true
+		}
+	}
+	for _, si := range res.Series {
+		s, err := series.New(si.Params)
+		if err != nil || (had[s.ID()] && !touched[s.ID().Short()]) {
+			continue
+		}
+		if w := CeilingWarning(si.Params); w != "" {
+			plan.Unbounded = append(plan.Unbounded, s.ID().Short()+": "+w)
 		}
 	}
 	plan.Follows = []FollowCount{}
@@ -912,7 +932,17 @@ func mergeInto(local, file Policy, opt MergeOptions, settings bool, plan *Plan) 
 		if !ok {
 			if err := res.DeclinesSeries(si.Params); err != nil {
 				declined[s.ID()] = true
-				plan.Declined = append(plan.Declined, s.ID().Short()+": "+err.Error())
+				dropped := 0
+				for _, f := range file.Follow {
+					if f.Series != nil && *f.Series == s.ID() {
+						dropped++
+					}
+				}
+				note := ""
+				if dropped > 0 {
+					note = fmt.Sprintf(" (its %d follow rule(s) are left out too)", dropped)
+				}
+				plan.Declined = append(plan.Declined, s.ID().Short()+": "+err.Error()+note)
 				continue
 			}
 		}

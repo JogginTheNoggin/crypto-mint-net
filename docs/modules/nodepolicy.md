@@ -406,3 +406,14 @@ information, not a verdict on any ledger, so it cannot split nodes that
 have the same information. It is a node setting, so an import takes it
 only with `-settings`. `poo init` and `poo series new` refuse such a
 series on their own, unless `-any-ceiling` forces it.
+
+Since D171 (RED-083) it is a bounded setting like the others (0, or 1,024
+bytes to 1 GiB): `poo policy limits -set series_ceiling=N`. It stays 0 for
+a new node, because the documents' example series sets no ceiling. An
+import plan also lists in `unbounded` each series it adds, or whose
+follow it changes, that sets no ceiling or one above 4 MiB
+(`CeilingWarning`), and the text plan prints both lists, with the number
+of follow rules a declined series took with it. `poo series info`,
+`poo series followed` and `poo doctor` (check `ceiling`) show the same
+warning for series the node already follows. A warning changes nothing
+a node accepts.

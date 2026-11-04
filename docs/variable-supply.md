@@ -184,6 +184,13 @@ run on fixed series only.
   a node one save, relay, reload and credit per window, not one per
   release. A copy of the part the node holds is neither taken nor counted
   as a repeat, since honest links cross.
+- **Off the read loop, and stoppable** (RED-082, D171). The full check of
+  a release runs in one worker per series, never in the peer's read loop,
+  so that peer's later messages (claims, blocks) are still read while a
+  far part is worked out. The walk uses the host's context, so stopping
+  the node cancels it, and a cancelled check is not counted against the
+  peer. A part above 2^20 is logged when its check starts. There is still
+  no cap on parts (D165).
 - **In place, as a reload would.** The p2p host indexes the new part's
   pools as it does on start (`Host.AddPools`). Where that cannot give what
   a start gives, the node reloads onto the saved node.json instead: a

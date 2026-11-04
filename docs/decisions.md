@@ -4171,3 +4171,43 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
   - `pkg/series/gui028_internal_test.go`: `TestPartIDContextCancels`;
     `pkg/cli/d170_test.go`: `TestFarPartIsCancellable`;
     `pkg/nodepolicy/bundle_test.go`: `TestCheckReleaseContextCancels`.
+
+### D171. Round 27 fixes: RED-082 and RED-083 (BLUE-028)
+
+- **Decision:**
+  - **RED-082.** A release from a peer is checked in full in one worker
+    per series, never in the peer's read loop. The witness is still
+    checked on arrival (one signature) and bursts still coalesce (D169):
+    the worker takes the first release at once and, after it, the highest
+    one held. The walk runs under the host's context
+    (`node.AddReleaseContext`, `nodepolicy.CheckReleaseContext`), so
+    stopping the node cancels it, and a cancelled check is not an offence.
+    `POST /v1/series/release` and the RPC policy check use the request's
+    context. A part above 2^20 is logged when its check starts.
+  - **RED-083.** `series_ceiling` is now a bounded setting (0, or 1,024
+    bytes to 1 GiB), settable with `poo policy limits -set`. An import
+    plan lists in `unbounded` each series it adds, or whose follow it
+    changes, that sets no witness ceiling or one above 4 MiB
+    (`nodepolicy.CeilingWarning`, `CeilingLimit`). The text plan prints
+    declined and unbounded series, each declined one with the number of
+    follow rules left out, and says `nothing else to change` rather than
+    `nothing to change` when it declined one. `poo series info`,
+    `poo series followed`, `GET /v1/series` and `poo doctor` (`ceiling`)
+    show the warning for followed series.
+  - **Not done here.** A 4 MiB `series_ceiling` default for new nodes
+    (Orange #188, proposal 1): it would decline the documents' example
+    series (no ceiling) on import, so it is left to Grey and jerry. The
+    open-file-limit warning (#188, proposal 2) and keygen addresses per
+    series (Green #189) are separate PRs.
+- **Why:** A far part is a long walk by design (D165: no cap on parts), so
+  the fix is to keep it from blocking anything else and to let it stop,
+  not to refuse it. A ceiling-less series is valid and may be wanted, so
+  it gets a warning, not a refusal.
+- **Consensus:** None. Where and when a release is checked changes, never
+  whether it is valid. A cancelled check leaves the part waiting, which is
+  missing information. Warnings change nothing a node accepts.
+- **Tier:** Node, p2p, node policy, CLI, RPC.
+  - `pkg/p2p/blue027_test.go`: `TestFarReleaseDoesNotHoldTheNode`.
+  - `pkg/nodepolicy/blue028_test.go`: `TestImportWarnsOfUnboundedSeries`,
+    `TestDeclinedSeriesCountsItsFollows`, `TestSeriesCeilingIsBounded`.
+  - `pkg/cli/blue028_test.go`: `TestPlanTextNamesDeclinedAndUnbounded`.
