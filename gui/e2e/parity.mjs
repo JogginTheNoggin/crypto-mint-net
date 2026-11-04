@@ -31,7 +31,7 @@ const EVERYWHERE = {
 const LEFT_OUT = {
   node: { 'log-level': 'the live log is for reading; the terminal sets a level', 'log-format': 'the live log is for reading; the terminal sets a format' },
   sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poo sim load -h has them'])),
-  'series new': { ...Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength', 'pool-size', 'supply'].map(f => [f, 'the form says poo series new -h has the rest'])) },
+  'series new': { ...Object.fromEntries(['entry-hash-credit', 'max-witness', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])) },
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
   keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)' },
   watch: { once: 'the Watch view reconnects by itself, as poo watch without -once does' },

@@ -474,6 +474,18 @@ try {
   await sn.locator('button[type=submit]').click();
   await sn.locator('.run-status.bad').waitFor();
   assert.match(await sn.locator('.area').innerText(), /whole multiples of the pool size/);
+  // The pool size poo names is a field of the form, so the definition can
+  // be fixed there (GUI-GREEN-051): with P = 3, N = 9 and M = 3 fit.
+  await sn.locator('input[name=poolSize]').fill('3');
+  await sn.locator('input[name=mints]').fill('9');
+  await sn.locator('input[name=supply]').fill('50');
+  assert.equal(await sn.locator('.cmd code').innerText(), `poo series new -mints 9 -supply 50 -pool-size 3 -issuer ${issuer} -variable -part-size 3 -max-parts 5`);
+  await sn.locator('button[type=submit]').click();
+  await sn.locator('.run-status.ok').waitFor();
+  await sn.locator('input[name=poolSize]').fill('');
+  await sn.locator('input[name=supply]').fill('');
+  await sn.locator('input[name=mints]').fill('8');
+  await sn.locator('input[name=partSize]').fill('4');
   const masked = async (sec, seed) => {
     const ask = sec.locator('form.ask');
     await ask.waitFor();
