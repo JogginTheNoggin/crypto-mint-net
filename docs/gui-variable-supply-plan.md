@@ -35,3 +35,16 @@ series that exist now.
 - parity.mjs already fails on any new flag or subcommand that no form
   covers, and on a new event kind that the boxes lack.
 - FEATURES.md gets one GUI row per feature as each one lands.
+
+## Round 27: key algorithms and series limits (Source #176 and after)
+
+Source is adding `-alg` to the commands that take a seed (GREEN-051), plus
+per-series size limits, a default reserve series and SLH-DSA-256s. Each
+of these is built once it reaches main:
+
+| Where | What the GUI will show or run | Waits on |
+| --- | --- | --- |
+| Sign a series, Release a part, Build a rival claim | A Key algorithm field, with suggestions from the list `poo crypto` prints (the same list Make a key uses). Release a part keeps the algorithm in what it previewed, so Sign signs with the key previewed | `-alg` on `series sign`, `series release`, `claim` |
+| Settable limits | Per-series size limits show up as fields in Set limits by themselves, since the fields come from `poo policy limits` (GUI-GREEN-049). If Source puts them on each series instead, they go on a per-series form, with the floors and ceilings the headless output gives | Source's per-series limits |
+| Node, Series and keys | The default reserve series, shown as the headless output gives it, with no rule of its own in the GUI | Source's reserve series |
+| Make a key | SLH-DSA-256s appears in the algorithm suggestions by itself, because they come from `poo crypto` | Already covered |
