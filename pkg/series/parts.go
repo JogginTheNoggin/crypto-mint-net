@@ -1,11 +1,13 @@
 package series
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/bits"
+	"strings"
 	"sync"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
@@ -56,6 +58,11 @@ type partChain struct {
 	at     hash.Hash   // part_id(next)
 	lastK  uint64      // the last part answered (0: none)
 	last   hash.Hash   // part_id(lastK)
+	// trustK and trust are one id this node worked out in an earlier
+	// process, from its own cache (TrustRelease, RED-075): part_id(trustK)
+	// is trust. 0: none.
+	trustK uint64
+	trust  hash.Hash
 }
 
 // chains holds one partChain per variable series id this process has
@@ -214,6 +221,11 @@ func (s *Series) PartID(k uint64) (hash.Hash, error) {
 	}
 	c := s.parts
 	c.mu.Lock()
+	if k == c.trustK && c.next < k {
+		id := c.trust
+		c.mu.Unlock()
+		return id, nil
+	}
 	for c.next < k {
 		s.extendLocked(c, k)
 		if c.next < k {
@@ -316,12 +328,36 @@ func (r Release) MarshalJSON() ([]byte, error) {
 	return json.Marshal(releaseJSON{r.Series, r.Part, r.Previous, hex.EncodeToString(w.Bytes())})
 }
 
-// UnmarshalJSON reads what MarshalJSON writes.
+// releaseRead is what a release file may hold: the release's own fields,
+// and the part's id and ranges that poo series release adds for people
+// (ORANGE-034), which a reader ignores and works out again from the
+// series.
+type releaseRead struct {
+	releaseJSON
+	PartID    json.RawMessage `json:"part_id"`
+	First     json.RawMessage `json:"first_serial"`
+	Last      json.RawMessage `json:"last_serial"`
+	FirstPool json.RawMessage `json:"first_pool"`
+	LastPool  json.RawMessage `json:"last_pool"`
+	Mints     json.RawMessage `json:"mints"`
+	Units     json.RawMessage `json:"units"`
+}
+
+// UnmarshalJSON reads what MarshalJSON writes, and what poo series release
+// prints. Any other key is refused (ErrUnknownKey), as in a series file,
+// so a later field of a release is unreadable here instead of dropped
+// (RED-074).
 func (r *Release) UnmarshalJSON(b []byte) error {
-	var j releaseJSON
-	if err := json.Unmarshal(b, &j); err != nil {
+	var rr releaseRead
+	d := json.NewDecoder(bytes.NewReader(b))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&rr); err != nil {
+		if strings.HasPrefix(err.Error(), "json: unknown field") {
+			return fmt.Errorf("%w: release: %v", ErrUnknownKey, err)
+		}
 		return err
 	}
+	j := rr.releaseJSON
 	wb, err := hex.DecodeString(j.Witness)
 	if err != nil {
 		return fmt.Errorf("%w: witness: %v", ErrRelease, err)
@@ -380,5 +416,6 @@ func (s *Series) CheckRelease(r Release) error {
 	if r.Previous != prev {
 		return fmt.Errorf("%w: previous part id %s is not part %d's", ErrRelease, r.Previous.Short(), r.Part-1)
 	}
+	noteChecked(r)
 	return nil
 }

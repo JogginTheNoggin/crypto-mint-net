@@ -255,7 +255,7 @@ func TestAccepted(t *testing.T) {
 
 // A variable series is followed once node.json has its issuer witness,
 // which releases part 1; a release in node.json adds its parts, a bad one
-// refuses the series, and a fixed series takes none (D166).
+// is left out (RED-073), and a fixed series takes none (D166).
 func TestVariableFollowed(t *testing.T) {
 	a, b := newIssuer("a"), newIssuer("b")
 	p := testutil.ExampleParams()
@@ -283,23 +283,25 @@ func TestVariableFollowed(t *testing.T) {
 		fixedWithRelease,
 	}
 	acc, ref := pol.Accepted()
-	if len(acc) != 2 || len(ref) != 3 {
+	if len(acc) != 4 || len(ref) != 1 {
 		t.Fatalf("accepted %d, refused %v", len(acc), ref)
 	}
-	if acc[0].Series.Released() != 1 || acc[0].Series.Mints() != 8 || acc[0].Series.PoolCount() != 2 {
+	if acc[0].Series.Released() != 1 || acc[0].Series.Mints() != 8 || acc[0].Series.PoolCount() != 2 || acc[0].ReleaseErr != nil {
 		t.Fatalf("part 1 only: released %d, %d mints", acc[0].Series.Released(), acc[0].Series.Mints())
 	}
-	if acc[1].Series.Released() != 3 || acc[1].Series.Mints() != 16 || acc[1].Series.PoolCount() != 4 {
+	if acc[1].Series.Released() != 3 || acc[1].Series.Mints() != 16 || acc[1].Series.PoolCount() != 4 || acc[1].ReleaseErr != nil {
 		t.Fatalf("with part 3's release: released %d, %d mints", acc[1].Series.Released(), acc[1].Series.Mints())
 	}
 	if !errors.Is(ref[0].Reason, nodepolicy.ErrNoPartOne) || ref[0].Index != 1 {
 		t.Fatalf("no issuer witness: %+v", ref[0])
 	}
-	if !errors.Is(ref[1].Reason, series.ErrRelease) || ref[1].Index != 3 {
-		t.Fatalf("a release by another key: %+v", ref[1])
+	// A release by another key is left out, never the series: part 1
+	// stays followed (RED-073).
+	if !errors.Is(acc[2].ReleaseErr, series.ErrRelease) || acc[2].Series.Released() != 1 {
+		t.Fatalf("a release by another key: %+v", acc[2])
 	}
-	if !errors.Is(ref[2].Reason, series.ErrFixed) || ref[2].Index != 4 {
-		t.Fatalf("a fixed series with a release: %+v", ref[2])
+	if !errors.Is(acc[3].ReleaseErr, series.ErrFixed) || acc[3].Series.IsVariable() {
+		t.Fatalf("a fixed series with a release: %+v", acc[3])
 	}
 }
 

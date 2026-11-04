@@ -144,3 +144,53 @@ func (s *Series) CheckMint(m MintID) error {
 	}
 	return nil
 }
+
+// checked holds, for each variable series id, the newest release this
+// process checked in full (CheckRelease) or took from its own cache
+// (TrustRelease). A node writes it beside node.json so its next process
+// need not work the chain out again (RED-075). Like variableIDs it holds
+// only facts: one release per series.
+var (
+	checkedMu sync.Mutex
+	checked   = map[hash.Hash]Release{}
+)
+
+// noteChecked records that r was checked in full.
+func noteChecked(r Release) {
+	checkedMu.Lock()
+	defer checkedMu.Unlock()
+	if old, ok := checked[r.Series]; !ok || r.Part >= old.Part {
+		checked[r.Series] = r
+	}
+}
+
+// ReleaseChecked reports whether this process checked r in full, or took
+// it from the node's own cache, so its chain need not be worked out again.
+// Only the series, part and previous id are compared: the witness is
+// checked again each time, which costs no hashing of the chain.
+func ReleaseChecked(r Release) bool {
+	checkedMu.Lock()
+	defer checkedMu.Unlock()
+	c, ok := checked[r.Series]
+	return ok && c.Part == r.Part && c.Previous == r.Previous
+}
+
+// TrustRelease takes r's previous id as part_id(r.Part − 1) without
+// working the chain out, because this node checked r in full in an
+// earlier process and kept that in its own cache (RED-075). It is a
+// cache: it is read only from the node's own directory, never from a
+// policy file another node wrote, and CheckRelease still checks r's
+// witness. A cache that does not match the release kept is not used, so
+// a damaged one costs time, never a result.
+func TrustRelease(r Release) {
+	if r.Part < 2 {
+		return
+	}
+	c := chainFor(r.Series)
+	c.mu.Lock()
+	if c.next < r.Part-1 {
+		c.trustK, c.trust = r.Part-1, r.Previous
+	}
+	c.mu.Unlock()
+	noteChecked(r)
+}

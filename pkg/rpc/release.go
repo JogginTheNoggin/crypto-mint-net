@@ -34,9 +34,31 @@ func (h *Handler) addRelease(w http.ResponseWriter, r *http.Request) {
 		writeError(w, &Error{Message: "this node cannot reload; set no_reload and restart it", Code: CodeNotFound, Status: http.StatusNotFound})
 		return
 	}
+	refuse := func(err error) {
+		status, code := http.StatusUnprocessableEntity, CodeInvalid
+		if errors.Is(err, nodepolicy.ErrSeriesNotListed) {
+			status, code = http.StatusNotFound, CodeNotFound
+		}
+		writeError(w, &Error{Message: err.Error(), Code: code, Status: status})
+	}
+	// Checking a far part takes its part number in hashes the first time,
+	// so it is done before policyMu is taken: other policy commands go on
+	// meanwhile, and the add below finds the part ids already worked out
+	// (RED-075).
 	h.policyMu.Lock()
 	path := h.policyPath()
 	p, err := nodepolicy.Load(path)
+	h.policyMu.Unlock()
+	if err != nil {
+		writeError(w, classify(err))
+		return
+	}
+	if err := p.CheckRelease(req.Release); err != nil {
+		refuse(err)
+		return
+	}
+	h.policyMu.Lock()
+	p, err = nodepolicy.Load(path)
 	if err != nil {
 		h.policyMu.Unlock()
 		writeError(w, classify(err))
@@ -45,11 +67,7 @@ func (h *Handler) addRelease(w http.ResponseWriter, r *http.Request) {
 	res, err := p.AddRelease(req.Release)
 	if err != nil {
 		h.policyMu.Unlock()
-		status, code := http.StatusUnprocessableEntity, CodeInvalid
-		if errors.Is(err, nodepolicy.ErrSeriesNotListed) {
-			status, code = http.StatusNotFound, CodeNotFound
-		}
-		writeError(w, &Error{Message: err.Error(), Code: code, Status: status})
+		refuse(err)
 		return
 	}
 	out := ReleaseReply{ReleaseAdded: res}

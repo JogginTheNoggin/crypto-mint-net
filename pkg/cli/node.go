@@ -195,7 +195,7 @@ func readSeriesInfo(b []byte) (nodepolicy.SeriesInfo, error) {
 		return nodepolicy.SeriesInfo{}, err
 	}
 	if ss.ID != "" && ss.ID != s.ID().String() {
-		return nodepolicy.SeriesInfo{}, fmt.Errorf("series_id %s is not the id of its params (%s)", ss.ID, s.ID())
+		return nodepolicy.SeriesInfo{}, fmt.Errorf("series_id %q is not the id of its params (%s)", ss.ID, s.ID())
 	}
 	w, err := nodepolicy.DecodeWitness(ss.IssuerWitness)
 	if err == nil {

@@ -547,6 +547,9 @@ func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 	for _, s := range p.Refused {
 		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", termSafe(s))
 	}
+	for _, s := range p.DroppedReleases {
+		fmt.Fprintf(out, "  warning: %s; the release is left out, and the series is followed with the parts proven without it\n", termSafe(s))
+	}
 	if p.Same > 0 {
 		verb := "are"
 		if p.Same == 1 {
