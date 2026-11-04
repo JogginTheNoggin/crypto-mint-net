@@ -258,6 +258,15 @@ func rpcCheck(out io.Writer, dir string) (Check, bool) {
 		return Check{Name: "rpc", Result: checkWarn, Detail: "the node is not running (no " + rpc.AddrFile + ")", Fix: "poo node", FixArgs: []string{"node"}}, false
 	}
 	cl, err := dialNode(out, dir)
+	if errors.Is(err, rpc.ErrNoProof) {
+		return Check{Name: "rpc", Result: checkFail, Detail: "something that is not this node answers at the address in " + rpc.AddrFile + ": it could not prove it knows " + rpc.TokenFile + ", so the token was not sent",
+			Fix: "another program may hold the node's port; stop it, or set rpc.listen to another address, and start the node"}, false
+	}
+	var dial *net.OpError
+	if errors.As(err, &dial) {
+		return Check{Name: "rpc", Result: checkFail, Detail: rpc.AddrFile + " is left over: nothing answers at its address (" + dial.Error() + ")",
+			Fix: "the node stopped without cleaning up; start it with poo node, which rewrites the file"}, false
+	}
 	if err != nil {
 		return Check{Name: "rpc", Result: checkFail, Detail: err.Error(), Fix: "restart the node; it writes a new token if " + rpc.TokenFile + " is missing"}, false
 	}

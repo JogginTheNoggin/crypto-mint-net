@@ -12,7 +12,9 @@ new entry in [decisions.md](../decisions.md) and regenerated vectors. The
 rationale for the forms is in decisions D2 to D9, and every primitive is
 listed in [../cryptography.md](../cryptography.md). As of release 0.1.0, byte
 form v1 is **stable**: it will not change, and a test fails if its vectors
-do ([Stability](#stability)).
+do ([Stability](#stability)). A variable supply series is written in format
+version 2, which [encoding-variable.md](encoding-variable.md) defines
+beside this document (D163). Every fixed series stays in version 1.
 
 ## Stability
 

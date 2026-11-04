@@ -24,6 +24,11 @@ type PeersImportRequest struct {
 	// options and the plan), so what is applied is what was previewed
 	// (RED-062, D158).
 	IfDigest string `json:"if_digest,omitempty"`
+	// FileDigest is the SHA-256 of the file as the caller read it
+	// (peerport.File.Digest, which JSON leaves out). The import digest
+	// covers it, so without it a running node's digest never matched the
+	// preview's and every -if-digest apply was refused.
+	FileDigest string `json:"file_digest,omitempty"`
 }
 
 // PeersImportReply is the plan, and whether it was applied.
@@ -41,6 +46,7 @@ func (h *Handler) importPeers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, e)
 		return
 	}
+	req.File.Digest = req.FileDigest
 	n := peerport.Node{Book: h.host.Book(), Tracker: h.host.Tracker(), AllowLocal: h.host.AllowsLocalPeers(), Listed: h.host.Listed()}
 	var plan peerport.Plan
 	var err error

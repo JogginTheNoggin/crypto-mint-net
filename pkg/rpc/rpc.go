@@ -179,6 +179,7 @@ type Handler struct {
 	grind  *grind.Manager
 	token  []byte
 	view   []byte // the view token, or nil for none
+	addr   string // the address in rpc.addr, which hello binds
 	mux    *http.ServeMux
 	// policyMu serialises the edits of node.json (follow, unfollow, the
 	// grind schedule), each a read, a change and a write (RED-013).
@@ -223,8 +224,42 @@ type PeersReply struct {
 	NodeID string         `json:"node_id"`
 	Listen string         `json:"listen,omitempty"`
 	Peers  []p2p.PeerInfo `json:"peers"`
-	// Book is every node in the peer book, with its state per policy.
+	// Book is every node in the peer book, with its state per policy. It
+	// is left out of a counts-only reply (GET /v1/peers?counts=1).
 	Book []peers.Record `json:"book"`
+	// Counts is the book's size, set in a counts-only reply.
+	Counts *BookCounts `json:"counts,omitempty"`
+}
+
+// BookCounts is a peer book's size without its records, for a view that
+// refreshes often: a full book of 16,384 addresses is about 12.8 MB of
+// JSON (GUI ORANGE-017).
+type BookCounts struct {
+	// Addresses is the number of records in the book.
+	Addresses int `json:"addresses"`
+	// Connected is the number of open connections.
+	Connected int `json:"connected"`
+	// States counts, for each book state, the addresses that hold it for
+	// at least one mint policy; an address may count under several.
+	States map[string]int `json:"states"`
+}
+
+// CountBook returns the counts of a book's records and connections.
+func CountBook(book []peers.Record, conns int) BookCounts {
+	c := BookCounts{Addresses: len(book), Connected: conns, States: map[string]int{}}
+	for _, st := range peers.States {
+		c.States[st.String()] = 0
+	}
+	for _, r := range book {
+		seen := map[peers.State]bool{}
+		for _, p := range r.Policies {
+			if !seen[p.State] {
+				seen[p.State] = true
+				c.States[p.State.String()]++
+			}
+		}
+	}
+	return c
 }
 
 func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
@@ -235,10 +270,20 @@ func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
 	if book == nil {
 		book = []peers.Record{}
 	}
-	writeJSON(w, PeersReply{NodeID: h.host.ID().String(), Listen: h.host.Addr(), Peers: h.host.Peers(), Book: book})
+	conns := h.host.Peers()
+	reply := PeersReply{NodeID: h.host.ID().String(), Listen: h.host.Addr(), Peers: conns, Book: book}
+	if r.URL.Query().Get("counts") == "1" {
+		c := CountBook(book, len(conns))
+		reply.Book, reply.Counts = []peers.Record{}, &c
+	}
+	writeJSON(w, reply)
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet && r.URL.Path == HelloPath {
+		h.hello(w, r)
+		return
+	}
 	got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	full := ok && subtle.ConstantTimeCompare([]byte(got), h.token) == 1
 	view := ok && len(h.view) > 0 && subtle.ConstantTimeCompare([]byte(got), h.view) == 1

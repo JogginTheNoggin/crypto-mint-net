@@ -9,6 +9,15 @@ every series-tier question the other packages ask: which hash, how many
 mints, which pool a serial is in, pool ids, minimum strengths, whether entry
 hashes count as credit, which policies are allowed, and the issuer.
 
+A series is fixed, which is the series of the first documents, or
+variable (PoO section 16.8, D163). A variable series adds a part size M
+and an optional largest number of parts. Its issuer releases parts of M
+more mints, in order. Each part's id names the part before it, and the
+issuer's witness on a release sits outside the id. A fixed series is
+written in format version 1, unchanged. A variable series is written in
+version 2 ([../protocol/encoding-variable.md](../protocol/encoding-variable.md)).
+The phases are in [../variable-supply.md](../variable-supply.md).
+
 ## API
 
 - `Params`, `Encode`, `DecodeParams`; `New(params)` and
@@ -18,6 +27,14 @@ hashes count as credit, which policies are allowed, and the issuer.
   `AllowsPolicyType`, `AllowsKeyAlg`, `MaxWitnessSize`, `CheckWitness`,
   `Address`, `IssuerMessageTID`, `CheckIssuer`.
 - `MintID{Series, Serial}`.
+- Variable supply (parts.go):
+  - `SupplyType` (`Fixed`, `Variable`), `IsVariable`, `PartSize` and
+    `MaxParts`.
+  - `MintsThrough(k)`, `PartRange(k)`, `PartOf(serial)` and `PartID(k)`.
+  - `ReleaseMessage(part_id)` and `Unsigned(k)`.
+  - `Release{Series, Part, Previous, Witness}` with `ID`, `Encode`,
+    `DecodeRelease` and JSON, and `CheckRelease`.
+  - Errors `ErrFixed`, `ErrNoPart` and `ErrRelease`.
 
 ## Guarantees
 
@@ -26,8 +43,17 @@ zero, the hash is known, and every listed type and algorithm is known to the
 registry. A series naming an unknown hash or type is unreadable, not
 invalid: another node may support it.
 
+A fixed series has exactly the byte form, series_id and JSON it had before
+variable supply. `TestFixedSeriesUnchanged` checks this against a frozen
+copy of the version 1 encoder. A variable series names an issuer, and its N
+and M are whole multiples of P, so every pool sits inside one part. The id
+of a part follows from the series and the part number alone, so there is
+one part k. `CheckRelease` checks the issuer's witness first, so only the
+issuer can make a node compute a long chain of part ids.
+
 ## Extending
 
-A new series setting changes the byte form, the series_id of every series
-and the vectors. Add it at the end, bump the format version, and record a
-decision.
+A new series setting must not change the byte form of an existing series.
+Write it in a new format version, which only the series that use it opt
+into (as format version 2 does for variable supply), give it its own
+vectors, and record a decision. Version 1 is frozen (D76).

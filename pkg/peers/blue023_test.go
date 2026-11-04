@@ -35,11 +35,15 @@ func TestRefusedAddChangesNothing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// A full range of records the node reached: none gives way.
+	// A full range of records the node reached, labelled by the owner:
+	// none gives way, even to the owner's own add (D162).
 	for i := 0; i < 3; i++ {
 		a := fmt.Sprintf("66.6.1.%d:1", i)
 		add23(t, b, a, peers.FromPeerList, t23)
 		b.Tried(a, true, t23)
+		if _, err := b.SetLabel(a, "kept"); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for i := 0; i < 3; i++ {
 		add23(t, b, fmt.Sprintf("9.%d.0.1:1", i), peers.FromHand, t23)
@@ -117,8 +121,10 @@ func TestLearnedCandidatesGiveWay(t *testing.T) {
 		t.Fatalf("the book holds %d", n)
 	}
 
-	// Records that never give way: a reached one, a labelled one, a hand
-	// one, a configured one.
+	// Records that never give way to a learned address: a reached one, a
+	// labelled one, a hand one, a configured one, a verified one. To the
+	// owner's address only the labelled, hand and configured ones never
+	// give way, and a peer verified now (RED-067, D162).
 	k, _ := peers.Open("", peers.Limits{MaxRecords: 256, PerRange: 1, CandidateAge: time.Hour})
 	add23(t, k, "30.0.0.1:1", peers.FromPeerList, t23)
 	k.Tried("30.0.0.1:1", true, t23)
@@ -132,10 +138,23 @@ func TestLearnedCandidatesGiveWay(t *testing.T) {
 	if err := k.Verify("30.4.0.1:1", series, peers.Priority, t23); err != nil {
 		t.Fatal(err)
 	}
+	if err := k.Verify("30.5.0.1:1", series, peers.Priority, t23); err != nil {
+		t.Fatal(err)
+	}
 	k.Unverify("30.4.0.1:1")
-	for _, a := range []string{"30.0.0.2:1", "30.1.0.2:1", "30.2.0.2:1", "30.3.0.2:1", "30.4.0.2:1"} {
+	for _, a := range []string{"30.0.0.2:1", "30.1.0.2:1", "30.2.0.2:1", "30.3.0.2:1", "30.4.0.2:1", "30.5.0.2:1"} {
+		if err := k.Add(a, []wire.Section{series}, peers.FromPeerList, t23.Add(1000*time.Hour)); !errors.Is(err, peers.ErrRangeFull) {
+			t.Fatalf("%s: a kept record gave way to a learned address: %v", a, err)
+		}
+	}
+	for _, a := range []string{"30.1.0.2:1", "30.2.0.2:1", "30.3.0.2:1", "30.5.0.2:1"} {
 		if err := k.Add(a, []wire.Section{series}, peers.FromHand, t23.Add(1000*time.Hour)); !errors.Is(err, peers.ErrRangeFull) {
-			t.Fatalf("%s: a kept record gave way: %v", a, err)
+			t.Fatalf("%s: a kept record gave way to the owner: %v", a, err)
+		}
+	}
+	for _, a := range []string{"30.0.0.2:1", "30.4.0.2:1"} {
+		if err := k.Add(a, []wire.Section{series}, peers.FromConfig, t23.Add(1000*time.Hour)); err != nil {
+			t.Fatalf("%s: a reached learned record did not give way to the owner: %v", a, err)
 		}
 	}
 }

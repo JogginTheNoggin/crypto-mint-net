@@ -44,6 +44,7 @@ func peersCmd(args []string, out io.Writer) error {
 	pol := fs.String("mint-policy", "", "only addresses with a mint policy whose text holds this (a series id, or a part of one)")
 	label := fs.String("label", "", "only addresses whose label holds this (any case)")
 	addr := fs.String("addr", "", "only addresses that hold this")
+	counts := fs.Bool("counts", false, "only the book's size and the addresses in each state, not the book itself (for a view that refreshes often)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -51,7 +52,7 @@ func peersCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: poo peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT], or poo peers export|import")
+		return errors.New("usage: poo peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT] | -counts, or poo peers export|import")
 	}
 	var want []peers.State
 	for _, c := range splitList(*cats) {
@@ -65,11 +66,21 @@ func peersCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	f := peerFilter{states: want, policy: *pol, label: strings.ToLower(*label), addr: *addr}
+	if *counts {
+		if !f.empty() {
+			return errors.New("-counts counts the whole book; it does not go with -category, -mint-policy, -label or -addr")
+		}
+		r, err := cl.PeerCounts()
+		if err != nil {
+			return err
+		}
+		return o.write(out, r)
+	}
 	r, err := cl.Peers()
 	if err != nil {
 		return err
 	}
-	f := peerFilter{states: want, policy: *pol, label: strings.ToLower(*label), addr: *addr}
 	if !f.empty() {
 		book := []peers.Record{}
 		kept := map[string]bool{}
@@ -354,7 +365,7 @@ func peersImportCmd(args []string, out io.Writer) error {
 	// must have, so what is applied is what was checked (RED-062, D158).
 	run := func(apply bool, want string) (peerport.Plan, error) {
 		if pb.cl != nil {
-			rep, err := pb.cl.ImportPeers(rpc.PeersImportRequest{File: f, Options: opt, DryRun: !apply, IfDigest: want})
+			rep, err := pb.cl.ImportPeers(rpc.PeersImportRequest{File: f, Options: opt, DryRun: !apply, IfDigest: want, FileDigest: f.Digest})
 			return rep.Plan, err
 		}
 		listed := append([]string(nil), pb.pol.P2P.Peers...)

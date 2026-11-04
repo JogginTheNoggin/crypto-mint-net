@@ -8,6 +8,15 @@
 // reader always knows which hash computes the id. Changing any rule gives a
 // new series_id and so a new series with new mints.
 //
+// A series is fixed, the series of the first protocol documents, or
+// variable (PoO section 16.8, D163): a variable series adds a part size M
+// and an optional largest number of parts, and its issuer releases parts
+// of M more mints, one at a time and in order (parts.go). A fixed series
+// keeps its byte form exactly: format version 1, with no supply fields,
+// so every fixed series keeps its series_id. A variable series is written
+// in format version 2, which a node built before it reads as unreadable,
+// never as invalid.
+//
 // The package also derives the pools of a series: the pool of serial s is
 // s / P, and pool k starts its ledger at pool_id = H("PoO-pool" ∥ series_id
 // ∥ k), with k written as 8 bytes.
@@ -23,9 +32,14 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 )
 
-// FormatVersion is the only series byte-form version this implementation
-// reads. A series carries a format version; consensus itself has none.
+// FormatVersion is the byte-form version of a fixed series. A series
+// carries a format version; consensus itself has none.
 const FormatVersion = 1
+
+// FormatVariable is the byte-form version of a variable series: a fixed
+// series' fields, then the supply type, the part size and the largest
+// number of parts (D163).
+const FormatVariable = 2
 
 // MaxStrength is the largest strength a 32-byte hash can have.
 const MaxStrength = hash.Size * 8
@@ -68,12 +82,70 @@ type Params struct {
 	// Issuer is the optional address of the publisher, whose witness may sit
 	// beside the series. Selection never reads it.
 	Issuer *hash.Hash `json:"issuer,omitempty"`
+	// SupplyType is fixed (left out: the series of today) or variable
+	// (PoO section 16.8). A fixed series has no part size or largest
+	// number of parts.
+	SupplyType SupplyType `json:"supply_type,omitempty"`
+	// PartSize is M, the mints in every part after part 1, which holds
+	// the N mints above. Variable series only; a whole multiple of P.
+	PartSize uint64 `json:"part_size,omitempty"`
+	// MaxParts is the largest number of parts there can ever be, part 1
+	// included, or 0 for no limit. Variable series only.
+	MaxParts uint64 `json:"max_parts,omitempty"`
+}
+
+// SupplyType is a series' supply type. Its zero value is fixed, so a
+// fixed series leaves it out of both its JSON and its byte form.
+type SupplyType uint8
+
+// The supply types.
+const (
+	// Fixed: the number of mints is set for the series' whole life.
+	Fixed SupplyType = 0
+	// Variable: the issuer releases more parts of M mints, in order.
+	Variable SupplyType = 1
+)
+
+// String returns "fixed" or "variable".
+func (t SupplyType) String() string {
+	switch t {
+	case Fixed:
+		return "fixed"
+	case Variable:
+		return "variable"
+	}
+	return fmt.Sprintf("supply type %d", uint8(t))
+}
+
+// MarshalText writes the name, so JSON reads "variable".
+func (t SupplyType) MarshalText() ([]byte, error) {
+	if t > Variable {
+		return nil, fmt.Errorf("%w: %s", ErrInvalid, t)
+	}
+	return []byte(t.String()), nil
+}
+
+// UnmarshalText reads "fixed" or "variable".
+func (t *SupplyType) UnmarshalText(b []byte) error {
+	switch string(b) {
+	case "fixed":
+		*t = Fixed
+	case "variable":
+		*t = Variable
+	default:
+		return fmt.Errorf("%w: supply type %q (fixed or variable)", ErrInvalid, b)
+	}
+	return nil
 }
 
 // Encode returns the canonical byte form of the params.
 func (p Params) Encode() []byte {
 	w := encoding.NewWriter(128)
-	w.U8(FormatVersion).U32(uint32(p.HashID))
+	version := uint8(FormatVersion)
+	if p.SupplyType != Fixed {
+		version = FormatVariable
+	}
+	w.U8(version).U32(uint32(p.HashID))
 	w.U64(p.Mints).U64(p.Supply).U64(p.PoolSize)
 	w.U16(p.MinLayerStrength).U16(p.MinEntryStrength).Bool(p.EntryHashCredit)
 	w.Count(len(p.PolicyTypes))
@@ -89,6 +161,9 @@ func (p Params) Encode() []byte {
 	if p.Issuer != nil {
 		w.Raw(p.Issuer[:])
 	}
+	if version == FormatVariable {
+		w.U8(uint8(p.SupplyType)).U64(p.PartSize).U64(p.MaxParts)
+	}
 	return w.Bytes()
 }
 
@@ -96,7 +171,8 @@ func (p Params) Encode() []byte {
 func DecodeParams(b []byte) (Params, error) {
 	r := encoding.NewReader(b)
 	var p Params
-	if v := r.U8(); r.Err() == nil && v != FormatVersion {
+	v := r.U8()
+	if r.Err() == nil && v != FormatVersion && v != FormatVariable {
 		return p, fmt.Errorf("%w: format version %d", ErrUnreadable, v)
 	}
 	p.HashID = hash.ID(r.U32())
@@ -117,6 +193,15 @@ func DecodeParams(b []byte) (Params, error) {
 		r.Into(iss[:])
 		p.Issuer = &iss
 	}
+	if v == FormatVariable {
+		// One exact byte form: version 2 is only ever a variable series,
+		// so a fixed series has exactly one encoding, version 1's.
+		if t := SupplyType(r.U8()); r.Err() == nil && t != Variable {
+			return p, fmt.Errorf("%w: format version 2 with %s", ErrInvalid, t)
+		}
+		p.SupplyType = Variable
+		p.PartSize, p.MaxParts = r.U64(), r.U64()
+	}
 	if err := r.Finish(); err != nil {
 		return p, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
@@ -134,6 +219,8 @@ type Series struct {
 	// verified remembers witnesses already satisfied, a local cache that
 	// never changes a result (see policy.Verified).
 	verified *policy.Verified
+	// parts caches part ids of a variable series (parts.go).
+	parts partChain
 }
 
 // New validates params against the default policy registry and returns the
@@ -191,6 +278,28 @@ func (p Params) validate() error {
 	}
 	if !sort.SliceIsSorted(p.KeyAlgs, func(i, j int) bool { return p.KeyAlgs[i] < p.KeyAlgs[j] }) || hasRepeat(p.KeyAlgs) {
 		return bad("key algorithms must be sorted with no repeats")
+	}
+	switch p.SupplyType {
+	case Fixed:
+		if p.PartSize != 0 || p.MaxParts != 0 {
+			return bad("a part size and a largest number of parts belong to a variable series only")
+		}
+	case Variable:
+		switch {
+		case p.Issuer == nil:
+			return bad("a variable series must name an issuer, who releases its parts")
+		case p.PartSize == 0:
+			return bad("part size must be at least 1")
+		case p.Mints%p.PoolSize != 0 || p.PartSize%p.PoolSize != 0:
+			return bad("the number of mints and the part size must both be whole multiples of the pool size")
+		}
+		if p.MaxParts != 0 {
+			if _, ok := mintsThrough(p, p.MaxParts); !ok {
+				return bad("the largest number of parts gives more serials than 64 bits hold")
+			}
+		}
+	default:
+		return bad("unknown supply type %d", uint8(p.SupplyType))
 	}
 	return nil
 }

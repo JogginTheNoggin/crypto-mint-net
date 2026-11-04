@@ -611,6 +611,13 @@ func isLoopback(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// ErrVariableNotFollowed refuses a variable supply series (PoO section
+// 16.8): this node can read its definition, its parts and its releases,
+// but not yet its mints' transactions, which name a part (D163, phase 1
+// of docs/variable-supply.md). Like any number a node does not
+// implement, it makes the series unreadable at this node, never invalid.
+var ErrVariableNotFollowed = fmt.Errorf("%w: variable supply series are not followed yet; this node reads their parts and releases only (D163)", series.ErrUnreadable)
+
 // Accepted is a known series the node accepts.
 type Accepted struct {
 	Series *series.Series
@@ -636,6 +643,9 @@ func (p Policy) Accepted() (accepted []Accepted, refused []Refused) {
 	}
 	for i, si := range p.Series {
 		s, err := series.New(si.Params)
+		if err == nil && s.IsVariable() {
+			err = ErrVariableNotFollowed
+		}
 		if err != nil {
 			refused = append(refused, Refused{i, err})
 			continue

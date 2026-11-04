@@ -40,7 +40,8 @@ func NewClient(addr, token string) *Client {
 var ErrNotRunning = errors.New("rpc: is the node running?")
 
 // Dial returns a client for the node running on dir, reading its address
-// and token from the data directory.
+// and token from the data directory. It sends the token only after the
+// server at that address proves it knows it (HelloPath, RED-066).
 func Dial(dir string) (*Client, error) {
 	a, err := os.ReadFile(filepath.Join(dir, AddrFile))
 	if err != nil {
@@ -50,7 +51,7 @@ func Dial(dir string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(strings.TrimSpace(string(a)), strings.TrimSpace(string(t))), nil
+	return dialProved(strings.TrimSpace(string(a)), strings.TrimSpace(string(t)))
 }
 
 // DialView is Dial with the view token, which only reads: every call that
@@ -64,7 +65,7 @@ func DialView(dir string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(strings.TrimSpace(string(a)), strings.TrimSpace(string(t))), nil
+	return dialProved(strings.TrimSpace(string(a)), strings.TrimSpace(string(t)))
 }
 
 func (c *Client) do(method, path string, body, out any) error {
@@ -128,6 +129,13 @@ func (c *Client) Status() (StatusReply, error) {
 func (c *Client) Peers() (PeersReply, error) {
 	var r PeersReply
 	return r, c.do("GET", "/v1/peers", nil, &r)
+}
+
+// PeerCounts returns the node's connections and its peer book's counts,
+// without the book's records.
+func (c *Client) PeerCounts() (PeersReply, error) {
+	var r PeersReply
+	return r, c.do("GET", "/v1/peers?counts=1", nil, &r)
 }
 
 // Series returns the known series that are followed.

@@ -16,7 +16,21 @@ interface, so a wallet uses a running node. It is not the peer protocol
 
 ## Endpoints
 
-All under `/v1`, all requiring `Authorization: Bearer <token>`.
+All under `/v1`, all requiring `Authorization: Bearer <token>`, except
+`GET /hello`.
+
+**The node proves itself first** (RED-066, D162). `rpc.addr` outlives a
+node that stops without cleaning up, and another process may then listen
+on its port. So `Dial` and `DialView` first send `GET /hello?nonce=N`
+(32 random bytes, no token) and check the reply, `{full, view}`, for
+HMAC-SHA256 with their token over `poo-rpc-hello`, the address in
+`rpc.addr` and `N`. Only then do they send the token. A stranger knows
+neither token, and the node at another address signs that address, so
+neither passes. A failed proof is `*NotProvedError`, which wraps
+`ErrNotRunning` (a command falls back as when no node runs) and either
+the dial error or `ErrNoProof`. Nothing the stranger sent is printed.
+`poo doctor` reports either case. An older node has no `/hello`;
+restart it after an upgrade.
 
 Two tokens are accepted, both 32 random bytes in hex in files readable
 only by the node's user and made on first start. `rpc.token` opens every
@@ -52,12 +66,12 @@ D150).
 | `DELETE /grind` | `?source=user` (optional) | stops every job (or only those made over the RPC) |
 | `GET /payment` | `series, serial, tid` | `{pending, selected, entry, from, tx, rivals: [{tip, fork, entry, conflict, after}]}`: `tx` is the transaction's bytes in hex when the node holds it; each rival is an entry on an inactive branch holding a transaction that spends one of its inputs, with the branch's weight after its fork |
 | `GET /holdings` | `series, serial` | `[{tid, index, address, amount}]` |
-| `GET /peers` | | `{node_id, listen, peers: [{id, addr, key, outbound, agent, listen, coverage, categories: {policy: {category, points, partial}}, since, sent, received}], book: [{addr, source, added, last_tried, failures, policies: [{section, state, last_heard}]}]}` |
+| `GET /peers` | | `{node_id, listen, peers: [{id, addr, key, outbound, agent, listen, coverage, categories: {policy: {category, points, partial}}, since, sent, received}], book: [{addr, source, added, last_tried, failures, policies: [{section, state, last_heard}]}]}` With `?counts=1` the book is left out (`book: []`) and `counts: {addresses, connected, states: {state: n}}` is added; an address counts under each state it holds for some mint policy (D164) |
 | `GET /tracking` | `addr` (optional) | without: `{tracked: {key: status}, ranges: {range: until}}`; with: that address's record (`key, status, template, settings, flags, policies: {policy: measures and points}, log`) |
 | `GET /chases` | | `{groups: [{id, pool, hashes, senders, evidence, added, confirmed, asked, denied}]}`, in queue order |
 | `POST /peer` | `{addr, action, seconds, range, what, template, label, keep, imported}` | `{key, closed, held, kept, promoted, status}`; actions `timeout`, `block` (`seconds: -1` until unblocked, `range` for the whole network range), `unblock`, `clear` (`what`: flags, measures, all), `template`, `delete`; and (D157) `add` (a candidate for every followed mint policy, with `label`; `keep` also lists it in node.json's `p2p.peers`), `remove` (delete, and out of `p2p.peers`), `label` (`""` clears it), `connect` (dial `addr` now, or with `imported` and no `addr` make every unlisted address from an imported peer file a candidate) |
 | `POST /peers/forget-imported` | `{dry_run}` | `{imported, forgotten}`: counts, or takes out, the addresses known only from imported peer files (`peers.Book.ForgetImported`, RED-058, D158) |
-| `POST /peers/import` | `{file, options: {blocks, ranges}, dry_run, if_digest}` | `{plan, applied}`: a peer file (`peerport.Import`, D157) into the book and tracker. Every address arrives unlisted; blocks only with `blocks`, range blocks only with `ranges` too, adding or lengthening only. With `if_digest` an apply applies only the plan with that digest, made in the same call (409 `conflict` otherwise, RED-062). The body may be up to `MaxPeerImportBody`. 422 `invalid` for a file that does not check |
+| `POST /peers/import` | `{file, options: {blocks, ranges}, dry_run, if_digest, file_digest}` | `{plan, applied}`: a peer file (`peerport.Import`, D157) into the book and tracker. Every address arrives unlisted; blocks only with `blocks`, range blocks only with `ranges` too, adding or lengthening only. With `if_digest` an apply applies only the plan with that digest, made in the same call (409 `conflict` otherwise, RED-062). `file_digest` is the SHA-256 of the file as the caller read it, which the import digest covers and the file's JSON leaves out (D164). The body may be up to `MaxPeerImportBody`. 422 `invalid` for a file that does not check |
 
 ### Views, watching and following
 

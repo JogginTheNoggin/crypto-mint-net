@@ -38,7 +38,7 @@ func TestGiveWayQueuesStayBounded(t *testing.T) {
 			_, _ = b.SetLabel(a, "")
 		}
 		b.mu.Lock()
-		for name, q := range map[string]*queue{"imported": &b.impQ, "learned": &b.learnedQ, "failed": &b.failedQ} {
+		for name, q := range map[string]*queue{"imported": &b.impQ, "learned": &b.learnedQ, "failed": &b.failedQ, "reached": &b.reachedQ} {
 			if len(q.h) > 2*len(b.recs)+65 {
 				b.mu.Unlock()
 				t.Fatalf("step %d: the %s queue holds %d for a book of %d", i, name, len(q.h), len(b.recs))
@@ -48,7 +48,7 @@ func TestGiveWayQueuesStayBounded(t *testing.T) {
 			for _, c := range []struct {
 				q  *queue
 				in bool
-			}{{&b.impQ, r.imported()}, {&b.learnedQ, r.learned()}, {&b.failedQ, r.learned() && r.Failures > 0}} {
+			}{{&b.impQ, r.imported()}, {&b.learnedQ, r.learned()}, {&b.failedQ, r.learned() && r.Failures > 0}, {&b.reachedQ, r.reachedLearned()}} {
 				if c.in && !contains23(c.q.h, r) {
 					b.mu.Unlock()
 					t.Fatalf("step %d: %s is not on its queue", i, r.Addr)

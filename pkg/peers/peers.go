@@ -135,8 +135,13 @@ type Record struct {
 	// Reached is when this node last reached the node: a connection that
 	// worked, or a verification. A record the node has reached never gives
 	// way to a new address (RED-064, D160).
-	Reached  time.Time `json:"reached,omitempty"`
-	Policies []Policy  `json:"policies"`
+	Reached time.Time `json:"reached,omitempty"`
+	// Via is, for a host name, the network range of the address it led to
+	// when this node last reached it. The name counts in that range as
+	// well as its own, for book_per_range, verified_per_range and Pick's
+	// spread, so many names for one machine are one range (RED-067, D162).
+	Via      string   `json:"via,omitempty"`
+	Policies []Policy `json:"policies"`
 	// Label is the owner's own note on the node (poo peer label, D157).
 	// It is local: it never changes how the node is treated, and is
 	// never sent to a peer.
@@ -249,7 +254,9 @@ type Book struct {
 	// from the network and never reached, failedQ the learned ones whose
 	// last try failed. Entries are checked when read, so a record that
 	// changed or left is skipped then (RED-064, D160).
-	impQ, learnedQ, failedQ queue
+	// reachedQ holds the learned records the node reached, which give way
+	// only to an address the owner gives (RED-067).
+	impQ, learnedQ, failedQ, reachedQ queue
 }
 
 type file struct {
@@ -423,8 +430,35 @@ func (b *Book) putLocked(r *Record) {
 		b.perRange[rng] = map[string]*Record{}
 	}
 	b.perRange[rng][r.Addr] = r
+	if r.Via != "" && r.Via != rng {
+		b.joinLocked(r.Via, r)
+	}
 	b.trackLocked(r)
 	b.queueLocked(r)
+}
+
+// joinLocked counts r in range rng.
+func (b *Book) joinLocked(rng string, r *Record) {
+	if b.perRange[rng] == nil {
+		b.perRange[rng] = map[string]*Record{}
+	}
+	b.perRange[rng][r.Addr] = r
+}
+
+// leaveLocked stops counting addr in range rng.
+func (b *Book) leaveLocked(rng, addr string) {
+	if delete(b.perRange[rng], addr); len(b.perRange[rng]) == 0 {
+		delete(b.perRange, rng)
+	}
+}
+
+// spreadLocked is the range r counts in for verified_per_range and Pick:
+// Via for a host name the node reached, else its own.
+func (b *Book) spreadLocked(r *Record) string {
+	if r.Via != "" {
+		return r.Via
+	}
+	return b.rangeLocked(r.Addr)
 }
 
 // queueLocked puts r on the queues of records that give way it belongs to,
@@ -436,6 +470,9 @@ func (b *Book) queueLocked(r *Record) {
 			b.failedQ.push(r, len(b.recs))
 		}
 	}
+	if r.reachedLearned() {
+		b.reachedQ.push(r, len(b.recs))
+	}
 }
 
 // dropLocked deletes addr's record from the book and its counts.
@@ -443,10 +480,11 @@ func (b *Book) dropLocked(addr string) {
 	if _, ok := b.recs[addr]; !ok {
 		return
 	}
+	r := b.recs[addr]
 	delete(b.recs, addr)
-	rng := b.rangeLocked(addr)
-	if delete(b.perRange[rng], addr); len(b.perRange[rng]) == 0 {
-		delete(b.perRange, rng)
+	b.leaveLocked(b.rangeLocked(addr), addr)
+	if r.Via != "" {
+		b.leaveLocked(r.Via, addr)
 	}
 	delete(b.imp, addr)
 }
@@ -548,7 +586,11 @@ func (b *Book) makeRoomLocked(addr string, src Source, st State, now time.Time) 
 	if rangeFull {
 		within = rng
 	}
-	v := b.victimLocked(within, strongSource(src), now)
+	by := byNetwork
+	if strongSource(src) {
+		by = byOwner
+	}
+	v := b.victimLocked(within, by, now)
 	if v == nil {
 		return fail
 	}
@@ -565,8 +607,8 @@ func (b *Book) makeRoomLocked(addr string, src Source, st State, now time.Time) 
 
 // strongSource reports whether an address from src is one the owner gave:
 // by hand (poo peer add) or in the node policy. It may take the place of
-// any learned record the node has never reached, so the owner is never
-// shut out of their own book (RED-064).
+// any learned record, reached or not, but a priority or backup peer now,
+// so the owner is never shut out of their own book (RED-064, RED-067).
 func strongSource(src Source) bool { return src == FromHand || src == FromConfig }
 
 // learned reports whether r is a record the node learned from the network
@@ -576,13 +618,33 @@ func strongSource(src Source) bool { return src == FromHand || src == FromConfig
 // these, and records known only from an imported file, ever give way to a
 // new address; a record the owner added, labelled or configured, or one
 // the node reached, keeps its place (RED-064, D160).
-func (r *Record) learned() bool {
+func (r *Record) learned() bool { return r.fromNetwork() && r.Reached.IsZero() }
+
+// fromNetwork reports whether r came from the network (a peer list, a
+// reply, a registry or an inbound connection) and has no label.
+func (r *Record) fromNetwork() bool {
 	switch r.Source {
 	case FromPeerList, FromReply, FromRegistry, FromInbound:
 	default:
 		return false
 	}
-	return r.Label == "" && r.Reached.IsZero()
+	return r.Label == ""
+}
+
+// reachedLearned reports whether r came from the network, has no label,
+// was reached, and is not a priority or backup peer now. It gives way only
+// to an address the owner gives, so the network can never shut the owner
+// out of their own book (RED-067, D162).
+func (r *Record) reachedLearned() bool {
+	if !r.fromNetwork() || r.Reached.IsZero() {
+		return false
+	}
+	for _, p := range r.Policies {
+		if p.State.Listed() {
+			return false
+		}
+	}
+	return true
 }
 
 // Classes of record that give way, the first first.
@@ -590,23 +652,32 @@ const (
 	giveImported = iota // known only from an imported file (RED-058)
 	giveFailed          // learned, never reached, and its last try failed
 	giveStale           // learned, never reached, older than CandidateAge
-	giveAny             // learned and never reached: only to the owner's add
+	giveAny             // learned and never reached: to the owner's add and Fit
+	giveReached         // learned and reached, not listed: to the owner's add only
 	giveNone
 )
 
-// giveClass returns which class r gives way in, to an address from the
-// owner (strong) or from anywhere else.
-func (b *Book) giveClass(r *Record, strong bool, now time.Time) int {
+// Who an address comes from, for what gives way to it.
+const (
+	byNetwork = iota // any source but the owner
+	byFit            // Fit, after a limit was lowered
+	byOwner          // poo peer add, p2p.peers
+)
+
+// giveClass returns which class r gives way in, to an address from by.
+func (b *Book) giveClass(r *Record, by int, now time.Time) int {
 	switch {
 	case r.imported():
 		return giveImported
+	case r.reachedLearned() && by == byOwner:
+		return giveReached
 	case !r.learned():
 		return giveNone
 	case r.Failures > 0:
 		return giveFailed
 	case now.Sub(r.Added) >= b.lim.CandidateAge:
 		return giveStale
-	case strong:
+	case by >= byFit:
 		return giveAny
 	}
 	return giveNone
@@ -615,19 +686,21 @@ func (b *Book) giveClass(r *Record, strong bool, now time.Time) int {
 // victimLocked returns the record that gives way to a new address, in
 // range rng ("" for any), or nil. Records known only from an imported
 // file go first; then learned ones whose last try failed; then learned
-// ones older than CandidateAge; and, for an address the owner gave, any
-// learned one: in each class the oldest first. It never picks a record
-// the owner added, labelled or configured, or one the node reached.
+// ones older than CandidateAge; for Fit and an address the owner gives,
+// any learned one; and for the owner's address alone, a learned one the
+// node reached that is not a priority or backup peer now (RED-067): in
+// each class the oldest first. It never picks a record the owner added,
+// labelled or configured.
 //
 // For a range, it reads the range's records, at most book_per_range of
 // them. For the whole book it reads the queues, so an address learned into
 // a full book at the max_book ceiling costs no scan of the book.
-func (b *Book) victimLocked(rng string, strong bool, now time.Time) *Record {
+func (b *Book) victimLocked(rng string, by int, now time.Time) *Record {
 	if rng != "" {
 		var best *Record
 		bestClass := giveNone
 		for _, r := range b.perRange[rng] {
-			c := b.giveClass(r, strong, now)
+			c := b.giveClass(r, by, now)
 			if c == giveNone || c > bestClass {
 				continue
 			}
@@ -644,9 +717,11 @@ func (b *Book) victimLocked(rng string, strong bool, now time.Time) *Record {
 	if r := b.failedQ.first(); r != nil {
 		return r
 	}
-	r := b.learnedQ.first()
-	if r != nil && (strong || now.Sub(r.Added) >= b.lim.CandidateAge) {
+	if r := b.learnedQ.first(); r != nil && (by >= byFit || now.Sub(r.Added) >= b.lim.CandidateAge) {
 		return r
+	}
+	if by == byOwner {
+		return b.reachedQ.first()
 	}
 	return nil
 }
@@ -674,6 +749,7 @@ func (b *Book) initQueues() {
 	b.impQ.keep = func(r *Record) bool { return held(r) && r.imported() }
 	b.learnedQ.keep = func(r *Record) bool { return held(r) && r.learned() }
 	b.failedQ.keep = func(r *Record) bool { return held(r) && r.learned() && r.Failures > 0 }
+	b.reachedQ.keep = func(r *Record) bool { return held(r) && r.reachedLearned() }
 }
 
 func (q *queue) Len() int           { return len(q.h) }
@@ -743,11 +819,11 @@ func (b *Book) Fit(now time.Time) (deleted, over int) {
 		deleted++
 	}
 	for len(b.imp) > b.lim.MaxUnlisted {
-		drop(b.victimLocked("", true, now))
+		drop(b.victimLocked("", byFit, now))
 	}
 	for rng, in := range b.perRange {
 		for len(in) > b.lim.PerRange {
-			v := b.victimLocked(rng, true, now)
+			v := b.victimLocked(rng, byFit, now)
 			if v == nil {
 				break
 			}
@@ -755,7 +831,7 @@ func (b *Book) Fit(now time.Time) (deleted, over int) {
 		}
 	}
 	for len(b.recs) > b.lim.MaxRecords {
-		v := b.victimLocked("", true, now)
+		v := b.victimLocked("", byFit, now)
 		if v == nil {
 			break
 		}
@@ -808,8 +884,8 @@ func (b *Book) Unlisted() int {
 
 func (b *Book) verifiedInRangeLocked(s wire.Section, rng, except string) int {
 	n := 0
-	for a, r := range b.recs {
-		if a == except || b.rangeLocked(a) != rng {
+	for a, r := range b.perRange[rng] {
+		if a == except || b.spreadLocked(r) != rng {
 			continue
 		}
 		if p := r.policy(s); p != nil && p.State.Listed() {
@@ -833,7 +909,7 @@ func (b *Book) Verify(addr string, s wire.Section, st State, now time.Time) erro
 	defer b.mu.Unlock()
 	r := b.recs[addr]
 	p := r.policy(s)
-	if !p.State.Listed() && b.verifiedInRangeLocked(s, b.rangeLocked(addr), addr) >= b.lim.VerifiedPerRange {
+	if !p.State.Listed() && b.verifiedInRangeLocked(s, b.spreadLocked(r), addr) >= b.lim.VerifiedPerRange {
 		return ErrRangeFull
 	}
 	p.State, p.LastHeard = st, now
@@ -902,6 +978,7 @@ func (b *Book) Unverify(addr string, ss ...wire.Section) {
 		p.State = Candidate
 		b.dirty = true
 	}
+	b.queueLocked(r)
 }
 
 func containsSection(ss []wire.Section, s wire.Section) bool {
@@ -989,6 +1066,49 @@ func (b *Book) PromoteImported(s wire.Section, n int) int {
 // Limits returns the book's bounds.
 func (b *Book) Limits() Limits { return b.lim }
 
+// ErrSameMachine is what Resolved returns when a host name led into a
+// range that already holds its book_per_range, and the name gave way.
+var ErrSameMachine = errors.New("peers: the name leads to a network range that is full")
+
+// Resolved notes that host name addr, when this node reached it, led to
+// remote (the connection's address). The name then counts in remote's
+// range as well as its own (Record.Via), so names for one machine share
+// that range's book_per_range, verified_per_range and Pick's spread
+// (RED-067, D162). When that range is now over its limit, a record of it
+// gives way as to an address learned from the network; when none does,
+// the name itself does, unless the owner gave or labelled it, and Resolved
+// returns ErrSameMachine. An address that is not a host name is ignored.
+func (b *Book) Resolved(addr, remote string, now time.Time) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	r := b.recs[addr]
+	if r == nil || !strings.HasPrefix(b.rangeLocked(addr), "host:") {
+		return nil
+	}
+	via := Range(remote)
+	if strings.HasPrefix(via, "host:") || via == r.Via {
+		return nil
+	}
+	if r.Via != "" {
+		b.leaveLocked(r.Via, addr)
+	}
+	r.Via = via
+	b.joinLocked(via, r)
+	b.dirty = true
+	if b.inRangeLocked(via) <= b.lim.PerRange {
+		return nil
+	}
+	if v := b.victimLocked(via, byNetwork, now); v != nil && v != r {
+		b.dropLocked(v.Addr)
+		return nil
+	}
+	if !r.fromNetwork() {
+		return nil // the owner's own name stays
+	}
+	b.dropLocked(addr)
+	return ErrSameMachine
+}
+
 // Tried notes a connection attempt and whether it failed.
 func (b *Book) Tried(addr string, ok bool, now time.Time) {
 	b.mu.Lock()
@@ -999,7 +1119,11 @@ func (b *Book) Tried(addr string, ok bool, now time.Time) {
 	}
 	r.LastTried = now
 	if ok {
+		first := r.Reached.IsZero()
 		r.Failures, r.Reached = 0, now
+		if first {
+			b.queueLocked(r)
+		}
 	} else if r.Failures < 16 {
 		if r.Failures++; r.Failures == 1 && r.learned() {
 			b.failedQ.push(r, len(b.recs))
@@ -1047,7 +1171,7 @@ func (b *Book) Pick(s wire.Section, n int, skip map[string]bool, now time.Time) 
 			if len(out) >= n {
 				break
 			}
-			rng := Range(r.Addr)
+			rng := b.spreadLocked(r)
 			if (pass == 0 && used[rng]) || contains(out, r.Addr) {
 				continue
 			}

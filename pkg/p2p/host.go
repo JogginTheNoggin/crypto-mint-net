@@ -579,7 +579,11 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	}
 	for _, a := range cfg.Peers {
 		h.configured[a] = true
-		h.book.Add(a, h.coverage, peers.FromConfig, time.Now())
+		if err := h.book.Add(a, h.coverage, peers.FromConfig, time.Now()); err != nil {
+			// Said, not dropped: the owner's peer would never be dialled
+			// (RED-067).
+			h.log.Warn("configured peer not in the peer book", "addr", a, "err", err)
+		}
 	}
 	n.Observe(h.onKept)
 	return h, nil

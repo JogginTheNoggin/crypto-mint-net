@@ -378,6 +378,9 @@ func claimCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := refuseEmptyFlag(fs, "parent"); err != nil {
+		return err
+	}
 	if *parent == "" && (*tries != 0 || *work != 0) {
 		return errors.New("-max-tries and -work go with -parent; a claim submitted to the pending pool is built with poo build")
 	}
@@ -401,7 +404,7 @@ func claimCmd(args []string, out io.Writer) error {
 	t.Witnesses = []policy.Witness{policy.SingleKeyWitness(signer, t.TID(s.Hash()))}
 	if *parent != "" {
 		ref := rpc.PoolRef{Series: s.ID(), Pool: s.PoolOf(*serial)}
-		return buildOnParent(out, cl, ref, *serial, *parent, []*tx.Tx{t}, *tries, *work, rpc.GrindOptions{})
+		return buildOnParent(out, cl, ref, poolArgs(c, ref), *serial, *parent, []*tx.Tx{t}, *tries, *work, rpc.GrindOptions{}, false)
 	}
 	r, err := cl.SubmitTx(t)
 	if err != nil {
@@ -426,16 +429,24 @@ func parentSpec(spec string, serial uint64, haveSerial bool) (string, error) {
 // the pending transactions, optionally adds a layer, and prints the result
 // with the next step: an entry on a branch counts only once it outweighs
 // the selected ledger.
-func buildOnParent(out io.Writer, cl *rpc.Client, ref rpc.PoolRef, serial uint64, spec string, txs []*tx.Tx, tries, work uint64, o rpc.GrindOptions) error {
+func buildOnParent(out io.Writer, cl *rpc.Client, ref rpc.PoolRef, sel string, serial uint64, spec string, txs []*tx.Tx, tries, work uint64, o rpc.GrindOptions, keep bool) error {
 	par, err := parentSpec(spec, serial, true)
 	if err != nil {
 		return err
 	}
 	r, err := cl.BuildOn(ref, tries, o, par, txs)
 	if err != nil {
+		if strings.HasPrefix(par, "before-claim:") && strings.Contains(err.Error(), "holds no claim") {
+			// The claim may be pending, or in an entry no layer has
+			// selected yet: say where to look and what else to build on
+			// (GREEN-048).
+			return fmt.Errorf("%w: a claim still pending, or in an entry with no layer yet, is not in it (poo pending %s shows the pending ones); -parent root builds on the pool's first entry", err, sel)
+		}
 		return err
 	}
-	r.Entry = ""
+	if !keep {
+		r.Entry = "" // -bytes keeps it, as for a build on the tip (GREEN-048)
+	}
 	rep := struct {
 		rpc.EntryReply
 		Layer *rpc.LayerReply `json:"layer,omitempty"`
@@ -446,11 +457,16 @@ func buildOnParent(out io.Writer, cl *rpc.Client, ref rpc.PoolRef, serial uint64
 		if err != nil {
 			return err
 		}
-		l.Layer = ""
+		if !keep {
+			l.Layer = ""
+		}
 		rep.Layer = &l
 	}
 	if !r.Switched && (rep.Layer == nil || !rep.Layer.Switched) {
-		rep.Next = fmt.Sprintf("the entry is kept as a branch; add weight with poo grind start %s -serial %d (or poo work -serial %d -entry %s) until it outweighs the selected ledger, and keep node.json's k high enough that it is not pruned meanwhile", r.Hash, serial, serial, r.Hash)
+		// The pool as the person can name it again: -pool K always picks
+		// this pool, where -serial 0 from a -pool build picked pool 0
+		// (GREEN-048).
+		rep.Next = fmt.Sprintf("the entry is kept as a branch; add weight with poo grind start %s %s (or poo work %s -entry %s) until it outweighs the selected ledger, and keep node.json's k high enough that it is not pruned meanwhile", r.Hash, sel, sel, r.Hash)
 	}
 	return writeJSON(out, rep)
 }
@@ -534,6 +550,9 @@ func buildCmd(args []string, out io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := refuseEmptyFlag(fs, "parent"); err != nil {
+		return err
+	}
 	cl, err := c.dial(out)
 	if err != nil {
 		return err
@@ -554,7 +573,7 @@ func buildCmd(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return buildOnParent(out, cl, ref, *pf.serial, spec, nil, *tries, *work, g.options())
+		return buildOnParent(out, cl, ref, poolArgs(c, ref), *pf.serial, spec, nil, *tries, *work, g.options(), *keep)
 	}
 	r, err := cl.BuildWith(ref, *tries, g.options())
 	if err != nil {
@@ -566,6 +585,7 @@ func buildCmd(args []string, out io.Writer) error {
 	rep := struct {
 		rpc.EntryReply
 		Layer *rpc.LayerReply `json:"layer,omitempty"`
+		Next  string          `json:"next,omitempty"`
 	}{EntryReply: r}
 	if *work > 0 {
 		l, err := cl.WorkWith(ref, r.Hash, 0, *work, rpc.GrindOptions{Device: *g.device, Threads: *g.threads})
@@ -576,6 +596,11 @@ func buildCmd(args []string, out io.Writer) error {
 			l.Layer = ""
 		}
 		rep.Layer = &l
+	}
+	if !r.Switched && (rep.Layer == nil || !rep.Layer.Switched) {
+		// A new entry has no weight, and poo work without -entry works on
+		// the selected tip, which this is not (GREEN-048).
+		rep.Next = fmt.Sprintf("the entry is selected once a layer lands on it: poo work %s -entry %s, or add -work N to the build", poolArgs(c, ref), r.Hash)
 	}
 	return writeJSON(out, rep)
 }
@@ -1009,7 +1034,11 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 		if !ok || err != nil {
 			return fmt.Errorf("-set %q: want NAME=VALUE, such as p2p.max_book=8192", kv)
 		}
-		set[strings.TrimSpace(name)] = v
+		name = strings.TrimSpace(name)
+		if hint := limitHint(name); hint != "" {
+			return fmt.Errorf("-set %q: %q is not a settable limit; did you mean %s? (poo policy limits lists them)", kv, name, hint)
+		}
+		set[name] = v
 	}
 	var nodeErr error
 	if cl, err := dialNode(out, dir); err == nil {
@@ -1042,4 +1071,49 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 		}
 	}
 	return o.write(out, rpc.LimitsReply{Limits: p.Limits(), Saved: changed})
+}
+
+// poolArgs names a pool as poo's commands take it, for a next step: the
+// series only when the person named one, since otherwise the only
+// followed series is the default (GREEN-048).
+func poolArgs(c *clientFlags, ref rpc.PoolRef) string {
+	a := fmt.Sprintf("-pool %d", ref.Pool)
+	if *c.series != "" {
+		a = "-series " + ref.Series.String() + " " + a
+	}
+	return a
+}
+
+// limitHint names the settable limits a mistyped -set name most likely
+// meant: the ones it ends (max_book for p2p.max_book), else the nearest
+// by spelling. It is empty for a name that is a limit, or with no near
+// one (GREEN-048).
+func limitHint(name string) string {
+	var names, ends []string
+	for _, b := range nodepolicy.Bounds() {
+		if b.Name == name {
+			return ""
+		}
+		names = append(names, b.Name)
+		if strings.HasSuffix(b.Name, "."+name) {
+			ends = append(ends, b.Name)
+		}
+	}
+	if len(ends) == 0 {
+		ends = suggest(name, names)
+	}
+	return strings.Join(ends, " or ")
+}
+
+// refuseEmptyFlag refuses a flag given with an empty value, which would
+// otherwise read as the flag left out: poo claim -parent "" submitted the
+// claim to the pending pool instead of building it on a parent.
+func refuseEmptyFlag(fs *flag.FlagSet, name string) error {
+	var err error
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name && f.Value.String() == "" {
+			err = fmt.Errorf("-%s was given empty: name an entry hash, root or before-claim, or leave -%s out; nothing was done", name, name)
+		}
+	})
+	return err
 }

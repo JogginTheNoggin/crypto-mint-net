@@ -119,8 +119,15 @@ func seriesNew(args []string, out io.Writer) error {
 	minEntry := fs.Uint("min-entry-strength", 0, "entries below this strength are invalid (0: none)")
 	credit := fs.Bool("entry-hash-credit", false, "an entry's own hash adds its credit")
 	maxWitness := fs.Uint("max-witness", 0, "largest witness in bytes (0: not set)")
+	issuer := fs.String("issuer", "", "the issuer's address (hex), who signs the series (poo series sign) and, for a variable series, releases its parts")
+	variable := fs.Bool("variable", false, "a variable supply series: the issuer releases more parts of -part-size mints later (D163); needs -issuer")
+	partSize := fs.Uint64("part-size", 0, "with -variable: mints in every part after the first, a whole multiple of -pool-size")
+	maxParts := fs.Uint64("max-parts", 0, "with -variable: the largest number of parts ever, the first included (0: no limit)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if !*variable && (*partSize != 0 || *maxParts != 0) {
+		return fmt.Errorf("-part-size and -max-parts go with -variable")
 	}
 	if *minLayer > 256 || *minEntry > 256 || *maxWitness > 1<<32-1 {
 		return fmt.Errorf("a flag is out of range")
@@ -129,6 +136,16 @@ func seriesNew(args []string, out io.Writer) error {
 		Mints: *mints, Supply: *supply, PoolSize: *poolSize,
 		MinLayerStrength: uint16(*minLayer), MinEntryStrength: uint16(*minEntry),
 		EntryHashCredit: *credit, MaxWitness: uint32(*maxWitness),
+	}
+	if *variable {
+		p.SupplyType, p.PartSize, p.MaxParts = series.Variable, *partSize, *maxParts
+	}
+	if *issuer != "" {
+		iss, err := hash.Parse(*issuer)
+		if err != nil {
+			return fmt.Errorf("-issuer: %w", err)
+		}
+		p.Issuer = &iss
 	}
 	var err error
 	if p.HashID, err = parseHash(*h); err != nil {
