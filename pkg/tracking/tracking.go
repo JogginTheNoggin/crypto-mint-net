@@ -467,7 +467,11 @@ func values(ms ...map[string]string) []string {
 }
 
 // Config returns the settings in use, defaults filled in.
-func (t *Tracker) Config() Config { return t.cfg }
+func (t *Tracker) Config() Config {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.cfg
+}
 
 // Templates lists the known template names.
 func (t *Tracker) Templates() []string { return t.tpl.Names() }
@@ -549,6 +553,28 @@ func (t *Tracker) expireLocked(r *record, now time.Time) {
 	}
 }
 
+// SetRetention gives a running tracker new retention bounds, as a node
+// opening the tracker with them does on start: New keeps every record it
+// loads and trims only as addresses arrive, so nothing is dropped here
+// either, and the trim waits for the new bound (ORANGE-035's in-place
+// rule, D168). A lower log size cuts each log at its next event, as after
+// a reload.
+func (t *Tracker) SetRetention(r Retention) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	c := t.cfg
+	c.Retain = r
+	c.fill()
+	t.cfg, t.trimAt = c, 0
+}
+
+// Retention returns the tracker's retention bounds.
+func (t *Tracker) Retention() Retention {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.cfg.Retain
+}
+
 // trimLocked drops the oldest records that hold nothing that must stay.
 func (t *Tracker) trimLocked(now time.Time) {
 	type kv struct {
@@ -561,7 +587,14 @@ func (t *Tracker) trimLocked(now time.Time) {
 			drop = append(drop, kv{k, r.Seen})
 		}
 	}
-	sort.Slice(drop, func(i, j int) bool { return drop[i].seen.Before(drop[j].seen) })
+	// Ties go by address, so the same records and bounds always trim the
+	// same way: in place and after a reload alike (D168).
+	sort.Slice(drop, func(i, j int) bool {
+		if !drop[i].seen.Equal(drop[j].seen) {
+			return drop[i].seen.Before(drop[j].seen)
+		}
+		return drop[i].k < drop[j].k
+	})
 	n := len(t.recs) - t.cfg.Retain.MaxAddresses + 1 + t.cfg.Retain.MaxAddresses/16
 	for i := 0; i < n && i < len(drop); i++ {
 		delete(t.recs, drop[i].k)

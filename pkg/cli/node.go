@@ -682,7 +682,7 @@ func workCmd(args []string, out io.Writer) error {
 	pf := addPool(fs)
 	entryHex := fs.String("entry", "", "entry hash (default: the pool's selected tip)")
 	start := fs.Uint64("start", 0, "first nonce")
-	tries := fs.Uint64("tries", 1<<16, "nonces to try (with -for: 0, as many as fit)")
+	tries := fs.Uint64("tries", 1<<16, "nonces to try (default: 65,536, or 2^(floor+2) for a series whose minimum layer strength needs more; with -for: 0, as many as fit)")
 	g := addGrindOptions(fs)
 	keep := addBytes(fs)
 	if err := fs.Parse(args); err != nil {
@@ -700,6 +700,11 @@ func workCmd(args []string, out io.Writer) error {
 	s, err := c.seriesOf(cl)
 	if err != nil {
 		return err
+	}
+	if !triesSet && *g.dur == "" {
+		// Sized from the series' floor, so the default finds a layer
+		// that counts (D168).
+		*tries = rpc.DefaultWorkTries(s)
 	}
 	pool, err := pf.resolve(fs, s)
 	if err != nil {

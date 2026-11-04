@@ -1064,7 +1064,22 @@ func (b *Book) PromoteImported(s wire.Section, n int) int {
 }
 
 // Limits returns the book's bounds.
-func (b *Book) Limits() Limits { return b.lim }
+func (b *Book) Limits() Limits {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.lim
+}
+
+// SetLimits gives a running book new bounds and fits it to them, as a
+// node opening the book with them does on start (Open, then Fit), so the
+// book ends as a reload would leave it (ORANGE-035's in-place rule,
+// D168). It returns what Fit returns.
+func (b *Book) SetLimits(l Limits, now time.Time) (deleted, over int) {
+	b.mu.Lock()
+	b.lim = l
+	b.mu.Unlock()
+	return b.Fit(now)
+}
 
 // ErrSameMachine is what Resolved returns when a host name led into a
 // range that already holds its book_per_range, and the name gave way.

@@ -77,6 +77,9 @@ type Node struct {
 	mu     sync.Mutex
 	dir    string
 	pol    nodepolicy.Policy
+	// run is pol with the limits applied in place since Open (D168),
+	// guarded by mu.
+	run nodepolicy.Policy
 	eng    *engine.Engine
 	logs   map[engine.PoolKey]*store.Log
 	log    *slog.Logger // the node's logger; Logger gives it to p2p and rpc
@@ -133,7 +136,7 @@ func Open(dir string, opt Options) (*Node, error) {
 		return nil, err
 	}
 	n := &Node{
-		dir: dir, pol: pol, log: lg, unlock: unlock, cmin: opt.CompactMin,
+		dir: dir, pol: pol, run: pol, log: lg, unlock: unlock, cmin: opt.CompactMin,
 		eng: engine.New(engine.Config{
 			Ledger: pol.LedgerConfig(), MaxPending: pol.MaxPending, SeenSize: pol.SeenSize,
 		}),
@@ -762,8 +765,24 @@ func (b *keptBucket) take(now time.Time) bool {
 // node's own Handle calls, or they are not stored.
 func (n *Node) Engine() *engine.Engine { return n.eng }
 
-// Policy returns the node policy in use.
+// Policy returns the node policy the node was opened with.
 func (n *Node) Policy() nodepolicy.Policy { return n.pol }
+
+// Running returns the node policy the node runs with now: the one it was
+// opened with, with the limits applied in place since (D168).
+func (n *Node) Running() nodepolicy.Policy {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.run
+}
+
+// SetRunning records p as the policy the node runs with, after its limits
+// were applied in place (D168).
+func (n *Node) SetRunning(p nodepolicy.Policy) {
+	n.mu.Lock()
+	n.run = p
+	n.mu.Unlock()
+}
 
 // Dir returns the data directory.
 func (n *Node) Dir() string { return n.dir }

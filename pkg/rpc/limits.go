@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 )
@@ -21,6 +22,9 @@ type LimitsReply struct {
 	Limits    []nodepolicy.Limit `json:"limits"`
 	Saved     bool               `json:"saved"`
 	Reloading bool               `json:"reloading,omitempty"`
+	// InPlace says the running node applied the change without a reload
+	// (D168): every changed limit is one nodepolicy.InPlace names.
+	InPlace bool `json:"in_place,omitempty"`
 }
 
 func (h *Handler) setLimits(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +63,9 @@ func (h *Handler) setLimits(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out.Saved, out.Reloading = true, !req.NoReload
+		if out.Reloading && h.applyInPlace(p) {
+			out.Reloading, out.InPlace = false, true
+		}
 	}
 	h.policyMu.Unlock()
 	writeJSON(w, out)
@@ -71,4 +78,40 @@ func (h *Handler) setLimits(w http.ResponseWriter, r *http.Request) {
 func (c *Client) SetLimits(req LimitsRequest) (LimitsReply, error) {
 	var r LimitsReply
 	return r, c.do("POST", "/v1/policy/limits", req, &r)
+}
+
+// applyInPlace applies changed limits to the running node's parts when
+// every one of them can be (nodepolicy.InPlace), and reports whether it
+// did. The changes are taken against the policy the node runs with, not
+// the node.json read before the change, so limits edited by hand since are
+// applied too, and anything else edited by hand leaves it to the reload
+// (nodepolicy.SameButInPlace). Each part ends as a reload onto the same node.json would leave it:
+// the book takes its new limits and fits to them as on start, the tracker
+// its retention, and the engine a new, empty seen list (ORANGE-035's
+// design, accepted by Black in Round 25; D168). Anything else is left to
+// the reload, and so is everything when this handler has no p2p host.
+func (h *Handler) applyInPlace(p nodepolicy.Policy) bool {
+	if h.host == nil {
+		return false
+	}
+	run := h.n.Running()
+	if !nodepolicy.SameButInPlace(run, p) {
+		return false
+	}
+	for _, name := range nodepolicy.ChangedLimits(run, p) {
+		if !nodepolicy.InPlace[name] {
+			return false
+		}
+	}
+	if run.BookLimits() != p.BookLimits() {
+		h.host.Book().SetLimits(p.BookLimits(), time.Now())
+	}
+	if run.Retention() != p.Retention() {
+		h.host.Tracker().SetRetention(p.Retention())
+	}
+	if n := nodepolicy.BoundSeenSize.Or(p.SeenSize); nodepolicy.BoundSeenSize.Or(run.SeenSize) != n {
+		h.n.Engine().SetSeenSize(n)
+	}
+	h.n.SetRunning(p)
+	return true
 }

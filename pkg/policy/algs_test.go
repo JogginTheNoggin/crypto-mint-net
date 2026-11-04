@@ -40,7 +40,7 @@ func TestEveryAlgorithm(t *testing.T) {
 	h := sha(t)
 	tid := h([]byte("tx"))
 	msg := Message(tid)
-	if len(Default().Algs()) != 9 {
+	if len(Default().Algs()) != 10 {
 		t.Fatalf("%d algorithms", len(Default().Algs()))
 	}
 	for _, a := range Default().Algs() {
