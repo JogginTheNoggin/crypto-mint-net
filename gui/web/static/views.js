@@ -445,6 +445,26 @@ export function pickFile(f, { field = 'file', onPick } = {}) {
   };
 }
 
+// appliedNote puts one plain line at the top of a form's result, saying
+// what poo's reply says the change did: saved and applied in place,
+// saved and the node reloading, saved for the next start, or nothing
+// changed (with poo's own note, when it gives one). It reads only the
+// reply's saved, in_place, reloading and note fields, so it holds no
+// rule of its own (D84); the reply stays below as poo printed it. Set
+// limits and Add a release use it (GUI-GREEN-053).
+export function appliedNote(r, area) {
+  if (!r || r.code !== 0) return;
+  let v;
+  try { v = JSON.parse(r.out); } catch (_) { return; }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return;
+  const text = v.in_place ? 'Saved to node.json; the running node applied it at once, with no reload.'
+    : v.reloading ? 'Saved to node.json; the running node is reloading to apply it.'
+    : v.saved ? 'Saved to node.json; no running node took it, so it applies when the node next starts.'
+    : `Nothing changed${v.note ? `: ${v.note}` : '.'}`;
+  const box = area && area.querySelector('.result');
+  if (box) box.prepend(el('p', { class: 'next-step applied' }, text));
+}
+
 // flag adds -name value when value is set.
 export const flag = (name, value) => (value === '' || value === undefined || value === false) ? [] : value === true ? [`-${name}`] : [`-${name}`, value];
 export const flags = (name, list) => list.flatMap(v => [`-${name}`, v]);

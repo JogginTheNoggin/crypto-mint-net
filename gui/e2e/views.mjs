@@ -426,6 +426,9 @@ try {
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
   await setLim.locator('.run-status.ok').waitFor();
+  // Both limits are ones a running node applies in place (D168), and the
+  // line over the result says so, from poo's in_place (GUI-GREEN-053).
+  assert.equal(await setLim.locator('.result .applied').innerText(), 'Saved to node.json; the running node applied it at once, with no reload.');
   await lim.locator('table.data tr', { hasText: 'p2p.max_book' }).filter({ hasText: '8192' }).first().waitFor();
   // Redrawn from the new list: empty again, showing the new value.
   await setLim.locator('input[data-limit="p2p.max_book"][placeholder="8192"]').waitFor();

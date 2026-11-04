@@ -59,6 +59,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-050](GUI-GREEN-050-variable-supply-review.md) | Review of the variable supply plan against the design and D84 (four plan lines to word so the GUI holds no rule; a release cannot be undone); a required field says "(required)" in its label | small | yes | adopted |
 | [GUI-GREEN-051](GUI-GREEN-051-series-pool-size.md) | New series takes units per mint and pool size, so a variable series' "multiples of the pool size" refusal can be fixed in the form; notes for Source on `series info` | small | yes | adopted |
 | [GUI-GREEN-052](GUI-GREEN-052-one-file-picker.md) | One `pickFile` helper for every form that reads a file (imports, Add a release), and a picker on Check a release (`-check -`); for Source, a distinct exit code for a waiting refusal | small | yes | adopted |
+| [GUI-GREEN-053](GUI-GREEN-053-say-what-a-change-did.md) | One line over a change's result saying what poo's reply says it did (in place, reloading, saved for the next start, nothing changed) on Set limits and Add a release; Tries states poo's default; the plan names SLH-DSA-SHA2-128s; for Source, mark which limits apply in place | small | yes | proposed |
 
 ## Orange (performance)
 

@@ -1,7 +1,7 @@
 // The Node view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { cmdLine, el, flag, flags, form, mountAll, panel, pickFile } from '../views.js';
+import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile } from '../views.js';
 import { scrollback } from '../scroll.js';
 
 // node finds the node job this GUI is running, if any.
@@ -146,7 +146,7 @@ export const nodeView = {
       fields: [{ name: 'file', label: 'Release file', placeholder: 'a path on this machine, or pick one below', required: true }],
       args: v => ['series', 'add-release', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Add release', danger: true,
       onStart: j => picker.feed(j),
-      onResult: r => { if (r.code === 0) { variable.reload(); status.reload(); } } });
+      onResult: (r, area) => { appliedNote(r, area); if (r.code === 0) { variable.reload(); status.reload(); } } });
     picker = pickFile(addRelease);
     const t = setInterval(showRunning, 3000);
     // poo doctor checks the policy, files, series, RPC and P2P in one go.
