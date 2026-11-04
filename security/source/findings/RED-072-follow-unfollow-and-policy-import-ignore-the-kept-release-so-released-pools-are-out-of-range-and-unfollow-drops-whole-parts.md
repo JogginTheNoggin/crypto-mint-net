@@ -7,7 +7,7 @@
 | Found | Source Round 25 Part B, on `main` @ `e93eb29` (D166) |
 | Area | `pkg/nodepolicy` (`Policy.series`, `follow.go`, `bundle.go`), `pkg/cli` (`follow`, `unfollow`, `wallet follow`, `policy import`) |
 | For Black | No consensus rule is touched. A node follows less than its owner asked; it is not a different view of which ledger is valid. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-026) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `15e8f34` (BLUE-026) |
 
 ## What is wrong
 

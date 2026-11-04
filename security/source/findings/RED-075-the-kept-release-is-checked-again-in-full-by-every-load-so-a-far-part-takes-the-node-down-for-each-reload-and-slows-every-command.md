@@ -8,7 +8,7 @@
 | Area | `pkg/nodepolicy` (`Accepted`, `AddRelease`), `pkg/series` (`CheckRelease`, `PartID`), `pkg/rpc` (`addRelease`) |
 | Related | RED-070 (memory; fixed), ORANGE-034 |
 | For Black | No consensus rule is touched, and I do not ask for a limit on what is valid: D165 is right that a cap would make nodes with the same release disagree. This is about when the work is done. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-026) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `15e8f34` (BLUE-026) |
 
 ## What is wrong
 

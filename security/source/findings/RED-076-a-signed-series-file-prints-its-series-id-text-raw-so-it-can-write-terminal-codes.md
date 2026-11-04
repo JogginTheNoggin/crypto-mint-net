@@ -8,7 +8,7 @@
 | Area | `pkg/cli` (`readSeriesInfo`, used by `init -series`, `series info`, `series parts`, `series release`) |
 | Related | RED-053 (node text on the terminal) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-026) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `15e8f34` (BLUE-026) |
 
 ## What is wrong
 

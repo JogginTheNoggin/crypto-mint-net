@@ -5,6 +5,7 @@
 | Fixes | RED-072 (medium), RED-073 (low), RED-074 (low), RED-075 (low), RED-076 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `e93eb29` (Source Round 25 Part C), with ORANGE-035 (#167) merged in |
+| Code | `15e8f34` |
 | Decisions | D167 |
 | With | ORANGE-035 (PR #167): its part ids shared within a process are half of RED-075, so the PR carries its commit. Green's GREEN-050 (#168) touches other code and stays separate. |
 | Review | No consensus change. For Black: the `releases-checked.json` cache seeds one id the node itself checked, and is used only when it matches the kept release exactly; a bad kept release now leaves the node knowing fewer parts (missing information) instead of refusing the series. |

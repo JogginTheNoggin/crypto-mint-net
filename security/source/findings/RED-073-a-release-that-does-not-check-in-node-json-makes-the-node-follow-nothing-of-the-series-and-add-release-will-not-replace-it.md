@@ -7,7 +7,7 @@
 | Found | Source Round 25 Part B, on `main` @ `e93eb29` (D166) |
 | Area | `pkg/nodepolicy` (`Accepted`, `AddRelease`, import merge), `pkg/cli` (`series add-release`, `policy import`, `doctor`) |
 | For Black | No consensus rule is touched. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-026) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `15e8f34` (BLUE-026) |
 
 ## What is wrong
 

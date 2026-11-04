@@ -7,7 +7,7 @@
 | Found | Source Round 25 Part B, on `main` @ `e93eb29` (D166) |
 | Area | `pkg/series` (`AddRelease`), `pkg/rpc` (`POST /v1/series/release`), `pkg/cli` (`series add-release`) |
 | For Black | No consensus rule is touched. D165's point is kept: a part already known costs no hashing. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-026) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `15e8f34` (BLUE-026) |
 
 ## What is wrong
 
