@@ -74,14 +74,51 @@ func newTwin(s *series.Series, cfg ledger.Config) *twin {
 	return tw
 }
 
-func (tw *twin) addEntry(t *testing.T, step int, e *entry.Entry, wantErr error) {
+func (tw *twin) addEntry(t *testing.T, step int, e *entry.Entry, wantErr error) *ledger.Switch {
 	t.Helper()
-	_, err := tw.pool.AddEntry(e)
+	res, err := tw.pool.AddEntry(e)
 	if (err == nil) != (wantErr == nil) {
 		t.Fatalf("step %d: twin AddEntry %v, pool %v", step, err, wantErr)
 	}
 	if err == nil {
 		tw.src.write(e) // the node writes the record after the pool takes it
+	}
+	return res.Switch
+}
+
+// sameSwitch checks that the twin, whose bodies are on its source and
+// whose items have no witnesses, sorts a switch's displaced transactions
+// as the pool does, and carries each with its witnesses (ORANGE-038).
+func sameSwitch(t *testing.T, step int, want, got *ledger.Switch) {
+	t.Helper()
+	if (want == nil) != (got == nil) {
+		t.Fatalf("step %d: switch %v, twin %v", step, want != nil, got != nil)
+	}
+	if want == nil {
+		return
+	}
+	for _, c := range []struct {
+		name      string
+		want, got []ledger.Displaced
+	}{{"unchanged", want.Unchanged, got.Unchanged}, {"carried", want.Carried, got.Carried}, {"void", want.Void, got.Void}} {
+		if len(c.want) != len(c.got) {
+			t.Fatalf("step %d: %d %s, twin %d", step, len(c.want), c.name, len(c.got))
+		}
+		for i := range c.want {
+			if c.want[i].TID != c.got[i].TID || c.want[i].Entry != c.got[i].Entry {
+				t.Fatalf("step %d: %s %d differs", step, c.name, i)
+			}
+		}
+	}
+	for _, c := range []struct {
+		name      string
+		want, got []ledger.Displaced
+	}{{"unchanged", want.Unchanged, got.Unchanged}, {"carried", want.Carried, got.Carried}, {"void", want.Void, got.Void}} {
+		for i, d := range c.got {
+			if !bytes.Equal(d.Tx.Encode(), c.want[i].Tx.Encode()) {
+				t.Fatalf("step %d: %s %s comes back without its witnesses", step, c.name, d.TID.Short())
+			}
+		}
 	}
 }
 

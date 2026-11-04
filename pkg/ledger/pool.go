@@ -793,19 +793,50 @@ func (p *Pool) switchTo(n *node) *Switch {
 	// tip state finds both reasons a transaction is void: a portion it
 	// spends is already spent in the new ledger, or was created by a void
 	// transaction.
+	//
+	// An entry whose body was released has items without witnesses
+	// (stripWitnesses). Its transactions are sorted by the same rules
+	// short of the witnesses (tx.Owners): the witnesses satisfied these
+	// owners when the entry was checked, and an input's owner is fixed by
+	// the transaction that made it, so the answer is the one CheckAgainst
+	// gives. The body is read back once, so every displaced transaction
+	// is reported whole, as before (the watch hub finds spenders by their
+	// witnesses). If it cannot be read, the transactions are reported
+	// without witnesses and none is carried, since a carried one goes back
+	// to the pending transactions; that only leaves it for a peer to send
+	// again (ORANGE-038).
 	replay := p.st.Overlay()
 	for i, o := range old {
-		for _, it := range o.items {
+		bare := stripped(o)
+		var whole []*tx.Tx
+		if bare {
+			if e, ok := p.body(o); ok && len(e.Txs) == len(o.items) {
+				whole = e.Txs
+			}
+		}
+		for j, it := range o.items {
 			d := Displaced{TID: it.TID, Tx: it.Tx, Entry: o.hash, Weight: buried[i]}
+			if whole != nil {
+				d.Tx = whole[j]
+			}
 			if _, ok := newTIDs[it.TID]; ok {
 				sw.Unchanged = append(sw.Unchanged, d)
 				continue
 			}
-			if err := tx.CheckAgainst(p.s, replay, it.Tx, it.TID); err != nil {
+			var err error
+			if bare {
+				_, err = tx.Owners(replay, it.Tx)
+			} else {
+				err = tx.CheckAgainst(p.s, replay, it.Tx, it.TID)
+			}
+			if err != nil {
 				sw.Void = append(sw.Void, d)
 				continue
 			}
 			replay.ApplyTx(it, nil)
+			if bare && whole == nil {
+				continue
+			}
 			sw.Carried = append(sw.Carried, d)
 		}
 	}
