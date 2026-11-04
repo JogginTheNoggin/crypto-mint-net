@@ -324,8 +324,9 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   // checks with flagsFor, so a form never offers a flag poo would refuse.
   // only: {field, not} is the other way round: hidden while the field holds
   // one of not (a grind target of tip or pending takes no -until-from).
+  // A check box's value is whether it is ticked: values: [true].
   const shown = fd => !fd.only || (fd.only.not ? !fd.only.not.includes(inputs[fd.only.field].value.trim())
-    : fd.only.values.includes(inputs[fd.only.field].value));
+    : fd.only.values.includes(inputs[fd.only.field].type === 'checkbox' ? inputs[fd.only.field].checked : inputs[fd.only.field].value));
   // A required field is required only while it is shown: one hidden by
   // only is not sent, so it cannot be missing (GUI-026).
   const showOnly = () => {

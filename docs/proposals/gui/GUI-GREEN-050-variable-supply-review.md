@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 24 Part B) |
+| Status | adopted (Round 25 Part A) |
 | Based on | main @ 2aceb1a |
 | Area | docs/gui-variable-supply-plan.md (review), gui/web/static/style.css, gui/e2e/views.mjs |
 | Effort | small |

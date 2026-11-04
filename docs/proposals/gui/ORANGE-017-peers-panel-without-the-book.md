@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 25 Part A) |
 | Based on | main @ 2cacdd5 |
 | Area | gui/web/static/views/peers.js (the Peers panel), and one flag for `poo peers` in pkg/cli/peersport.go (Source) |
 | Effort | small |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 25 Part A) |
 | Based on | main @ 2aceb1a |
 | Area | gui/web/static/render.js (a cut list says so), docs/gui-variable-supply-plan.md (Series info, Release a part, Import a release), and the JSON shape of Source's series info and release commands (not yet built) |
 | Effort | small |

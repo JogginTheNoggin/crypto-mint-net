@@ -56,7 +56,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-047](GUI-GREEN-047-keygen-seed-masked.md) | Make a key asks for its seed in a masked field (`keygen -seed-file -`, D98) instead of putting it on the line; a secret flag set to `-` is not a secret line | small | yes | adopted |
 | [GUI-GREEN-048](GUI-GREEN-048-stated-choices.md) | parity.mjs also checks that a field offering a fixed set of values offers exactly the ones `poo -h` lists; Find and Export peers take book states as boxes, as Watch takes kinds | small | yes | adopted |
 | [GUI-GREEN-049](GUI-GREEN-049-limit-fields.md) | Set limits draws a field for each limit `poo policy limits` lists, with its value in effect, range and default, instead of typed `NAME=VALUE` pairs | small | yes | adopted |
-| [GUI-GREEN-050](GUI-GREEN-050-variable-supply-review.md) | Review of the variable supply plan against the design and D84 (four plan lines to word so the GUI holds no rule; a release cannot be undone); a required field says "(required)" in its label | small | yes | proposed |
+| [GUI-GREEN-050](GUI-GREEN-050-variable-supply-review.md) | Review of the variable supply plan against the design and D84 (four plan lines to word so the GUI holds no rule; a release cannot be undone); a required field says "(required)" in its label | small | yes | adopted |
 
 ## Orange (performance)
 
@@ -83,8 +83,8 @@ ORANGE-005 explains how to measure.
 | [ORANGE-014](ORANGE-014-picked-file-as-read.md) | Send a picked policy file as it is read and stop when `poo` stops (500 MB picked by mistake: 5.3 s and +491 MB of browser memory → 0.9 s and +47 MB) | small | yes | adopted |
 | [ORANGE-015](ORANGE-015-long-import-plan.md) | Draw a long import plan 500 lines at a time (50,000 issuers: no plan and a page error → plan in 2.2 s; 20,000: 4.6 s → 0.9 s) | small | yes | adopted |
 | [ORANGE-016](ORANGE-016-short-read-first-line.md) | Name the first 20 items of a plan's "Read first" line, with Show all (50,000 peers: a 1.5 million-character alert, 183,000 px tall → 685 characters, 151 px) | small | yes | adopted |
-| [ORANGE-017](ORANGE-017-peers-panel-without-the-book.md) | Let the Peers panel's 10 s refresh leave out the peer book, with a `poo peers` flag (16,384 addresses: 12.8 MB every 10 s, poo-gui 240 MB, pauses up to 0.5 s; up to 65,536 now settable) | small | no | waits on Source (a `poo peers` flag) |
-| [ORANGE-018](ORANGE-018-parts-as-ranges.md) | Print a variable series' parts as ranges, not lists of every serial and pool, and say when a list is cut at 500 (100 parts of 1,000 as lists: 2.9 s and 121,000 elements → as ranges: 30 ms and 6,500) | small | the note on a cut list | proposed; the ranges wait on Source's series commands |
+| [ORANGE-017](ORANGE-017-peers-panel-without-the-book.md) | Let the Peers panel's 10 s refresh leave out the peer book, with a `poo peers` flag (16,384 addresses: 12.8 MB every 10 s, poo-gui 240 MB, pauses up to 0.5 s; up to 65,536 now settable) | small | no | adopted (`poo peers -counts`) |
+| [ORANGE-018](ORANGE-018-parts-as-ranges.md) | Print a variable series' parts as ranges, not lists of every serial and pool, and say when a list is cut at 500 (100 parts of 1,000 as lists: 2.9 s and 121,000 elements → as ranges: 30 ms and 6,500) | small | the note on a cut list | adopted |
 
 ### Re-checks each round
 
