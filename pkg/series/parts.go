@@ -394,6 +394,46 @@ func (s *Series) Unsigned(k uint64) (Release, error) {
 // checked first, from the release's own fields, so only the issuer can
 // make a node work out a long chain of part ids.
 func (s *Series) CheckRelease(r Release) error {
+	// The same bytes, checked in full before in this process, check again
+	// (ORANGE-036).
+	if err := s.checkReleaseFields(r); err != nil {
+		return err
+	}
+	enc := r.Encode()
+	if wasVerified(s.reg, s.id, enc) {
+		return nil
+	}
+	if err := s.checkReleaseWitness(r); err != nil {
+		return err
+	}
+	prev, err := s.PartID(r.Part - 1)
+	if err != nil {
+		return err
+	}
+	if r.Previous != prev {
+		return fmt.Errorf("%w: previous part id %s is not part %d's", ErrRelease, r.Previous.Short(), r.Part-1)
+	}
+	noteChecked(r)
+	noteVerified(s.reg, s.id, enc)
+	return nil
+}
+
+// CheckReleaseSigned checks r's fields and the issuer's witness over its
+// own part id, without working out the chain: one signature check, no
+// hashing of part ids. Only the issuer can make a release pass it, so a
+// node may hold such a release a moment before taking it (RED-078); it
+// is not yet known to check in full.
+func (s *Series) CheckReleaseSigned(r Release) error {
+	if err := s.checkReleaseFields(r); err != nil {
+		return err
+	}
+	if wasVerified(s.reg, s.id, r.Encode()) {
+		return nil
+	}
+	return s.checkReleaseWitness(r)
+}
+
+func (s *Series) checkReleaseFields(r Release) error {
 	if !s.IsVariable() {
 		return ErrFixed
 	}
@@ -406,16 +446,12 @@ func (s *Series) CheckRelease(r Release) error {
 	if err := s.checkPart(r.Part); err != nil {
 		return fmt.Errorf("%w: %v", ErrRelease, err)
 	}
+	return nil
+}
+
+func (s *Series) checkReleaseWitness(r Release) error {
 	if err := s.reg.Check(s.h, s, r.Witness, *s.params.Issuer, s.ReleaseMessage(r.ID(s.h))); err != nil {
 		return fmt.Errorf("%w: witness: %v", ErrRelease, err)
 	}
-	prev, err := s.PartID(r.Part - 1)
-	if err != nil {
-		return err
-	}
-	if r.Previous != prev {
-		return fmt.Errorf("%w: previous part id %s is not part %d's", ErrRelease, r.Previous.Short(), r.Part-1)
-	}
-	noteChecked(r)
 	return nil
 }

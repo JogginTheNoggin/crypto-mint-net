@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | Medium (high for a reserve that offers ML-DSA-87 custody) |
-| Status | open |
+| Status | fixed |
 | Found | Review of the Reserve Currency Default Series doc, on `main` @ `e93eb29` |
 | Area | `pkg/policy` (`MaxDataSize`, `MaxParamsSize`, `DecodeWitness`, `Registry.CheckPolicy`), `pkg/wallet` (`CheckPolicy`, shared policies), `pkg/cli` (`wallet policy`) |
 | For Black | The decode limits are consensus (a witness that does not decode is invalid everywhere). I do not ask to change them; that needs jerry. The ask is that nothing offers an address that can never satisfy them. |
-| Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ `a117710` (BLUE-027) |
 
 ## What is wrong
 
@@ -74,3 +74,14 @@ allows. The reserve is also one for which the doc points people at ML-DSA-87.
 A 15-of-n spend through a node (the decode limit fails it at the wire in the
 same way); hybrid mixes of Ed25519 with ML-DSA-87 (they fit when the total is
 under 64 KiB).
+
+## Resolution
+
+Fixed in BLUE-027 (D169), together with RED-079.
+
+- `policy.Registry.CheckSpendable` adds up the least witness data a policy can be satisfied with (K of the smallest signatures among a threshold's keys, the K cheapest parts of a k-of-policies, an empty hashlock preimage). It refuses the policy (`ErrUnspendable`) when that is over `MaxDataSize`, when the params are over `MaxParamsSize`, or when the witness is over the series' `max_witness`. The error says how many signatures fit ("at most 14 of these keys' signatures fit").
+- `Registry.CheckPolicy` runs it, so `poo wallet policy`, `wallet.CheckPolicy`, a payment request and a payer's check before paying an address with its policy all refuse a 15- or 16-of-n ML-DSA-87 policy.
+- `poo crypto` prints `max_signatures_per_witness` for each algorithm (ML-DSA-87: 14).
+- The decode limits are unchanged. The check is never part of checking a witness, and every witness that decodes already passes it.
+- The Reserve Currency Default Series document (project knowledge, not the repository) still says 16-of-16 ML-DSA-87 fits. I've passed that to the coordinator for jerry, since documents are his to change.
+- Test: `TestCheckSpendable` (14 of 16 passes, 15 of 16 is refused, 16 of 16 ML-DSA-65 passes).

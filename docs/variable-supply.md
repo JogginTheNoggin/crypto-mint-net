@@ -176,6 +176,14 @@ run on fixed series only.
   to the series the node runs (`node.AddRelease`). A release that does not
   check is an offence: its validity depends only on the series, so no
   honest node passes one on.
+- **Bursts are coalesced** (RED-078, D169). A release from a peer has its
+  witness checked at once (one signature). The first of a series is taken
+  at once; any that arrive in the next 2 seconds wait, and only the
+  highest of them is taken when the window ends, because it proves every
+  part before it. A peer that replays releases oldest first therefore costs
+  a node one save, relay, reload and credit per window, not one per
+  release. A copy of the part the node holds is neither taken nor counted
+  as a repeat, since honest links cross.
 - **In place, as a reload would.** The p2p host indexes the new part's
   pools as it does on start (`Host.AddPools`). Where that cannot give what
   a start gives, the node reloads onto the saved node.json instead: a

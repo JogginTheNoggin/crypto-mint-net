@@ -1,6 +1,8 @@
 package p2p
 
 import (
+	"time"
+
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
@@ -69,4 +71,12 @@ func (h *Host) SendRelease(r series.Release) {
 	for _, p := range h.peers {
 		p.send(h.releaseMsg(r))
 	}
+}
+
+// SetReleaseWindow sets the release window for a test and returns a
+// function that puts it back.
+func SetReleaseWindow(d time.Duration) func() {
+	old := releaseWindow
+	releaseWindow = d
+	return func() { releaseWindow = old }
 }

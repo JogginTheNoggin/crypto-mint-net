@@ -54,9 +54,13 @@ func (n *Node) AddRelease(r series.Release) (nodepolicy.ReleaseAdded, error) {
 			return nodepolicy.ReleaseAdded{}, err
 		}
 	}
-	if _, err := s.AddRelease(r); err != nil {
+	took, err := s.AddRelease(r)
+	if err != nil {
 		return nodepolicy.ReleaseAdded{}, err
 	}
+	// Of several peers that pass the same release on at once, only the
+	// one whose call took it passes it on again (ORANGE-036).
+	res.Taken = took
 	// The policy the node runs with now holds the release too, whatever
 	// else waits in node.json for a reload.
 	n.mu.Lock()
