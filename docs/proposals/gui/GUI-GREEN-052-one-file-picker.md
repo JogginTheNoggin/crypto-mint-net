@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 26 Part B) |
+| Status | adopted (Round 27 Part A) |
 | Based on | main @ eb74797 |
 | Area | gui/web/static/views.js (pickFile), views/policies.js (importForm), views/node.js (Add a release), views/crypto.js (Check a release), gui/e2e/views.mjs |
 | Effort | small |

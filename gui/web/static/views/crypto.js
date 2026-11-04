@@ -106,7 +106,9 @@ function releaseForm(ctx) {
       if (pt.part < 2) { area.append(el('p', { class: 'hint' }, 'Part 1 is released by the issuer witness on the series (Sign a series above); a release is for part 2 on.')); return; }
       const file = f.inputs.file.value.trim();
       previewed = { file, part: pt.part, series: info.series_id, last: pt.last_serial };
-      const range = `serials ${pt.first_serial} to ${pt.last_serial}, and with every part before it, serials 0 to ${pt.last_serial}: ${pt.last_serial + 1} mints`;
+      // The mints that exist once the part is released are poo's count
+      // (mints_released, D168); the GUI adds nothing up.
+      const range = `serials ${pt.first_serial} to ${pt.last_serial}, and with every part before it, serials 0 to ${pt.last_serial}${pt.mints_released !== undefined ? `: ${pt.mints_released} mints` : ''}`;
       const what = el('p', { class: 'next-step release-range', role: 'alert' },
         `Read first: releasing part ${pt.part} of series ${info.series_id.slice(0, 12)} brings into being ${range}. It can never be taken back.`);
       const sign = el('button', { type: 'button', class: 'danger' }, `Sign part ${pt.part}`);

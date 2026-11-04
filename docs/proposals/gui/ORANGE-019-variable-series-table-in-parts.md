@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 27 Part A) |
 | Based on | main @ eb74797 |
 | Area | gui/web/static/views/node.js (the Variable series panel), gui/e2e/qol.mjs |
 | Effort | small |

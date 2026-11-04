@@ -58,7 +58,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-049](GUI-GREEN-049-limit-fields.md) | Set limits draws a field for each limit `poo policy limits` lists, with its value in effect, range and default, instead of typed `NAME=VALUE` pairs | small | yes | adopted |
 | [GUI-GREEN-050](GUI-GREEN-050-variable-supply-review.md) | Review of the variable supply plan against the design and D84 (four plan lines to word so the GUI holds no rule; a release cannot be undone); a required field says "(required)" in its label | small | yes | adopted |
 | [GUI-GREEN-051](GUI-GREEN-051-series-pool-size.md) | New series takes units per mint and pool size, so a variable series' "multiples of the pool size" refusal can be fixed in the form; notes for Source on `series info` | small | yes | adopted |
-| [GUI-GREEN-052](GUI-GREEN-052-one-file-picker.md) | One `pickFile` helper for every form that reads a file (imports, Add a release), and a picker on Check a release (`-check -`); for Source, a distinct exit code for a waiting refusal | small | yes | proposed |
+| [GUI-GREEN-052](GUI-GREEN-052-one-file-picker.md) | One `pickFile` helper for every form that reads a file (imports, Add a release), and a picker on Check a release (`-check -`); for Source, a distinct exit code for a waiting refusal | small | yes | adopted |
 
 ## Orange (performance)
 
@@ -87,7 +87,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-016](ORANGE-016-short-read-first-line.md) | Name the first 20 items of a plan's "Read first" line, with Show all (50,000 peers: a 1.5 million-character alert, 183,000 px tall → 685 characters, 151 px) | small | yes | adopted |
 | [ORANGE-017](ORANGE-017-peers-panel-without-the-book.md) | Let the Peers panel's 10 s refresh leave out the peer book, with a `poo peers` flag (16,384 addresses: 12.8 MB every 10 s, poo-gui 240 MB, pauses up to 0.5 s; up to 65,536 now settable) | small | no | adopted (`poo peers -counts`) |
 | [ORANGE-018](ORANGE-018-parts-as-ranges.md) | Print a variable series' parts as ranges, not lists of every serial and pool, and say when a list is cut at 500 (100 parts of 1,000 as lists: 2.9 s and 121,000 elements → as ranges: 30 ms and 6,500) | small | the note on a cut list | adopted |
-| [ORANGE-019](ORANGE-019-variable-series-table-in-parts.md) | Draw the Variable series table 500 rows at a time, with Show more (4,096 followed series: 32,800 elements, panel in 1.1–1.25 s → 4,000 elements, 0.6–0.8 s) | small | yes | proposed |
+| [ORANGE-019](ORANGE-019-variable-series-table-in-parts.md) | Draw the Variable series table 500 rows at a time, with Show more (4,096 followed series: 32,800 elements, panel in 1.1–1.25 s → 4,000 elements, 0.6–0.8 s) | small | yes | adopted |
 
 ### Re-checks each round
 
