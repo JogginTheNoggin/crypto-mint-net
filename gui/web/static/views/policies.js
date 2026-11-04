@@ -44,12 +44,31 @@ export const policiesView = {
 // effect, and -set changes them, checked by poo against the range before
 // anything is saved. The list comes from poo, so a limit Source adds shows
 // here without a change to the GUI.
+//
+// Set limits draws a field for each limit poo listed, named for it and
+// showing its value in effect, range and default, so no name has to be
+// remembered or typed (GUI-GREEN-049). A field left empty sends nothing.
+// poo still checks every value; the GUI only shows what poo printed.
 function limitsParts(ctx) {
-  const limits = panel(ctx, { title: 'Settable limits', about: 'Each limit this node policy can set: its range, its default, what node.json sets (0: the default) and the value in effect.', args: () => ['policy', 'limits', ...where.flags()] });
-  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json; a running node takes them at once. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
-    { name: 'set', label: 'Limits (NAME=VALUE)', type: 'list', placeholder: 'p2p.max_book=8192 tracking.log_size=512' }],
-  args: v => ['policy', 'limits', ...where.flags(), ...flags('set', v.set)], submit: 'Save', danger: true,
+  let typed = [];
+  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json; a running node takes them at once. Fill only the ones to change. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
+    { name: 'set', label: 'Other limits (NAME=VALUE)', type: 'list', placeholder: 'any poo policy limits names that are not listed above' }],
+  args: v => ['policy', 'limits', ...where.flags(), ...flags('set', [...typed.filter(i => i.value.trim()).map(i => `${i.name}=${i.value.trim()}`), ...v.set])], submit: 'Save', danger: true,
   onResult: r => { if (r.code === 0) limits.reload(); } });
+  const grid = el('div', { class: 'limit-fields' });
+  set.form.prepend(grid);
+  const limits = panel(ctx, { title: 'Settable limits', about: 'Each limit this node policy can set: its range, its default, what node.json sets (0: the default) and the value in effect.', args: () => ['policy', 'limits', ...where.flags()],
+    onResult: r => {
+      let list;
+      try { list = r.code === 0 ? JSON.parse(r.out) : null; } catch (_) { list = null; }
+      if (!Array.isArray(list)) return;
+      const named = list.filter(l => l && typeof l.name === 'string');
+      typed = named.map(l => el('input', { name: l.name, type: 'text', inputmode: 'numeric', placeholder: String(l.used ?? ''), spellcheck: 'false', 'data-limit': l.name }));
+      grid.replaceChildren(...named.map((l, n) => {
+        return el('label', {}, el('span', {}, l.name), typed[n], el('small', {}, `${l.min} to ${l.max}, default ${l.default}${l.set ? `; node.json sets ${l.set}` : ''}`));
+      }));
+      set.form.dispatchEvent(new Event('input', { bubbles: true }));
+    } });
   return [limits, set];
 }
 
