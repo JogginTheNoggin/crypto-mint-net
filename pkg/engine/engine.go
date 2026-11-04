@@ -943,7 +943,8 @@ func (e *Engine) BuildEntryOn(ctx context.Context, k PoolKey, maxTries uint64, g
 		return nil, nil, err
 	}
 	txs := o.Txs
-	if txs == nil {
+	pending := txs == nil
+	if pending {
 		for _, r := range p.pending.Ready() {
 			txs = append(txs, r.Tx)
 		}
@@ -954,7 +955,12 @@ func (e *Engine) BuildEntryOn(ctx context.Context, k PoolKey, maxTries uint64, g
 		if o.Parent != nil {
 			parent = *o.Parent
 		}
-		if txs, refused, err = p.ledger.CheckOn(parent, txs); err != nil {
+		check := p.ledger.CheckOn
+		if pending {
+			// The pending pool checked their signatures (RED-068).
+			check = p.ledger.CheckPendingOn
+		}
+		if txs, refused, err = check(parent, txs); err != nil {
 			e.mu.Unlock()
 			return nil, nil, err
 		}

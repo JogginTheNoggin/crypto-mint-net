@@ -899,9 +899,16 @@ func (h *Host) dialCandidate(ctx context.Context, addr string) {
 			return
 		}
 		ready := make(chan error, 1)
+		remote := c.RemoteAddr().String()
 		go func() {
 			err := <-ready
 			h.book.Tried(addr, err == nil, time.Now())
+			if err == nil {
+				// A host name counts in the range it led to (RED-067).
+				if errors.Is(h.book.Resolved(addr, remote, time.Now()), peers.ErrSameMachine) {
+					h.log.Info("peer name leads to a full network range; forgotten", "addr", addr, "via", remote)
+				}
+			}
 			if errors.Is(err, errSelf) {
 				h.mu.Lock()
 				h.selfAddrs[addr] = true
