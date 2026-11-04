@@ -23,7 +23,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"io"
 	"os"
 	"path/filepath"
