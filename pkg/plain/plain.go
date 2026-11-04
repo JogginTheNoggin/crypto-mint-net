@@ -17,6 +17,12 @@ import (
 // and joiners, the byte order mark), a line or paragraph separator (Zl,
 // Zp), or the replacement for bytes that were not UTF-8.
 func Unsafe(r rune) bool {
+	// ASCII has only Cc of these: the bytes below space and DEL. Most text
+	// a node checks is ASCII (node.json's hex witnesses), so it skips the
+	// table search (ORANGE-036).
+	if r < utf8.RuneSelf {
+		return r < ' ' || r == 0x7f
+	}
 	return r == utf8.RuneError || unicode.In(r, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp)
 }
 

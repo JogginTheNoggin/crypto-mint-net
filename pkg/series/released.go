@@ -1,12 +1,14 @@
 package series
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 )
 
 // What a node knows of a variable series' releases (PoO section 16.8,
@@ -193,4 +195,48 @@ func TrustRelease(r Release) {
 	}
 	c.mu.Unlock()
 	noteChecked(r)
+}
+
+// verified holds, for each variable series id, the last few releases this
+// process checked in full (CheckRelease), byte for byte, with the registry
+// that checked them (ORANGE-036). Whether a release checks depends only on
+// the series, which its id fixes, the registry, and the release's own
+// bytes, so the same bytes checked again give the same answer: CheckRelease
+// answers them from here with no witness verify. Taking one release in
+// place checks it, and the release node.json kept before it, several times
+// over (the command, node.json, the engine and the running policy each
+// build and check); with this it costs one verify of each. Only releases
+// that checked are held, so a forged one is always checked in full
+// (RED-074). It holds verifiedKeep releases per series.
+var verified = map[hash.Hash][]verifiedRelease{}
+
+const verifiedKeep = 4
+
+type verifiedRelease struct {
+	reg *policy.Registry
+	enc []byte
+}
+
+// wasVerified reports whether reg checked a release encoded as enc in full.
+func wasVerified(reg *policy.Registry, id hash.Hash, enc []byte) bool {
+	checkedMu.Lock()
+	defer checkedMu.Unlock()
+	for _, v := range verified[id] {
+		if v.reg == reg && bytes.Equal(v.enc, enc) {
+			return true
+		}
+	}
+	return false
+}
+
+// noteVerified records that reg checked the release encoded as enc in
+// full, in place of the oldest held when verifiedKeep are held.
+func noteVerified(reg *policy.Registry, id hash.Hash, enc []byte) {
+	checkedMu.Lock()
+	defer checkedMu.Unlock()
+	l := verified[id]
+	if len(l) == verifiedKeep {
+		l = append(l[:0:0], l[1:]...)
+	}
+	verified[id] = append(l, verifiedRelease{reg, enc})
 }

@@ -406,6 +406,12 @@ func (s *Series) CheckRelease(r Release) error {
 	if err := s.checkPart(r.Part); err != nil {
 		return fmt.Errorf("%w: %v", ErrRelease, err)
 	}
+	// The same bytes, checked in full before in this process, check again
+	// (ORANGE-036).
+	enc := r.Encode()
+	if wasVerified(s.reg, s.id, enc) {
+		return nil
+	}
 	if err := s.reg.Check(s.h, s, r.Witness, *s.params.Issuer, s.ReleaseMessage(r.ID(s.h))); err != nil {
 		return fmt.Errorf("%w: witness: %v", ErrRelease, err)
 	}
@@ -417,5 +423,6 @@ func (s *Series) CheckRelease(r Release) error {
 		return fmt.Errorf("%w: previous part id %s is not part %d's", ErrRelease, r.Previous.Short(), r.Part-1)
 	}
 	noteChecked(r)
+	noteVerified(s.reg, s.id, enc)
 	return nil
 }

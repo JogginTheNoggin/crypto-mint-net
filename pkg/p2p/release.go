@@ -72,7 +72,9 @@ func (h *Host) Announce(r series.Release, skip string) {
 // full, witness first, and kept as poo series add-release keeps one; then
 // its pools are indexed and it is passed on. A release that does not
 // check is an offence: it depends only on the series, so no honest node
-// passes one on.
+// passes one on. A copy that arrives while another peer's copy is being
+// taken is dropped like a known part: only the first is credited and
+// passed on.
 func (h *Host) handleRelease(p *peer, m wire.Message) error {
 	r, err := series.DecodeRelease(m.Body)
 	if err != nil {
@@ -101,6 +103,11 @@ func (h *Host) handleRelease(p *peer, m wire.Message) error {
 		return invalidItem{fmt.Errorf("passed on a release that does not check: %w", err)}
 	case err != nil:
 		h.log.Warn("release not kept", "series", r.Series.Short(), "part", r.Part, "err", err)
+		return nil
+	case !res.Added && !res.Taken:
+		// Another peer passed the same release on at the same time and
+		// that one was taken and passed on; this copy adds nothing
+		// (ORANGE-036).
 		return nil
 	}
 	h.tr.FirstDelivery(p.key, text, "release", now)

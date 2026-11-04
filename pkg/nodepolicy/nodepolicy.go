@@ -830,6 +830,10 @@ type ReleaseAdded struct {
 	// Added is true when the release was newer than the one kept and
 	// replaced it; false when the policy already knew that part released.
 	Added bool `json:"added"`
+	// Taken is true when node.AddRelease added the release to the series
+	// the running node's engine runs; false when another call took it
+	// first. It is not printed.
+	Taken bool `json:"-"`
 }
 
 // ErrSeriesNotListed: a release names a series the policy does not list.
