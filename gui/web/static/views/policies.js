@@ -1,7 +1,7 @@
 // The Node policies view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { el, flag, flags, form, mountAll, panel, pickFile, runJob } from '../views.js';
+import { appliedNote, el, flag, flags, form, mountAll, panel, pickFile, runJob } from '../views.js';
 
 export const policiesView = {
   id: 'policies',
@@ -54,10 +54,10 @@ function limitsParts(ctx) {
   // saved is set by a successful save, so the redraw after it starts empty;
   // any other redraw (Refresh) keeps what was typed and not yet saved.
   let saved = false;
-  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json; a running node takes them at once. Fill only the ones to change. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
+  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json. A running node applies them at once where poo can, else it reloads; the line above the result says which. Fill only the ones to change. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
     { name: 'set', label: 'Other limits (NAME=VALUE)', type: 'list', placeholder: 'any poo policy limits names that are not listed above' }],
   args: v => ['policy', 'limits', ...where.flags(), ...flags('set', [...typed.filter(i => i.value.trim()).map(i => `${i.name}=${i.value.trim()}`), ...v.set])], submit: 'Save', danger: true,
-  onResult: r => { if (r.code === 0) { saved = true; limits.reload(); } } });
+  onResult: (r, area) => { appliedNote(r, area); if (r.code === 0) { saved = true; limits.reload(); } } });
   const grid = el('div', { class: 'limit-fields' });
   set.form.prepend(grid);
   const limits = panel(ctx, { title: 'Settable limits', about: 'Each limit this node policy can set: its range, its default, what node.json sets (0: the default) and the value in effect.', args: () => ['policy', 'limits', ...where.flags()],
