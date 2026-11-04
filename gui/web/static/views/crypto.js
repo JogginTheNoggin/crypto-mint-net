@@ -44,12 +44,16 @@ export const cryptoView = {
       // releases more parts later. poo checks the definition; the GUI only
       // passes the fields on and offers what poo printed as a file.
       form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked by poo, with Save as file. More options are in the terminal (poo series new -h).',
-        fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list: ' + 'see the list above' }, { name: 'types', label: 'Policy types', placeholder: 'comma list: see the list above' }, { name: 'mints', label: 'Mints', type: 'number' },
+        fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list: ' + 'see the list above' }, { name: 'types', label: 'Policy types', placeholder: 'comma list: see the list above' }, { name: 'mints', label: 'Mints', type: 'number', placeholder: 'default 8' },
+          // N, S and P together: a variable series needs N and M to be
+          // multiples of P, so P is here beside them (GUI-GREEN-051).
+          { name: 'supply', label: 'Units in every mint', type: 'number', placeholder: 'default 100' },
+          { name: 'poolSize', label: 'Pool size', type: 'number', placeholder: 'mints per pool, default 4' },
           { name: 'issuer', label: 'Issuer address', placeholder: 'hex: who signs the series (needed for a variable series)' },
           { name: 'variable', label: 'Variable supply: the issuer can release more parts later, one at a time and in order; a release can never be taken back', type: 'check' },
           { name: 'partSize', label: 'Part size', type: 'number', placeholder: 'mints in every part after the first', only: { field: 'variable', values: [true] } },
           { name: 'maxParts', label: 'Most parts ever', type: 'number', placeholder: 'the first part included (empty: no cap)', only: { field: 'variable', values: [true] } }],
-        args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints), ...flag('issuer', v.issuer), ...flag('variable', v.variable), ...flag('part-size', v.partSize), ...flag('max-parts', v.maxParts)], submit: 'Make series',
+        args: v => ['series', 'new', ...flag('hash', v.hash), ...flag('algs', v.algs), ...flag('types', v.types), ...flag('mints', v.mints), ...flag('supply', v.supply), ...flag('pool-size', v.poolSize), ...flag('issuer', v.issuer), ...flag('variable', v.variable), ...flag('part-size', v.partSize), ...flag('max-parts', v.maxParts)], submit: 'Make series',
         onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'series.json')); } }),
       form(ctx, { title: 'Series file info', fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json' }],
         args: v => ['series', 'info', ...(v.file ? [v.file] : [])], submit: 'Show' }),
