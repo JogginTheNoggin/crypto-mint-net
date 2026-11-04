@@ -90,9 +90,14 @@ function showPeerPlan(r, area, applied) {
   }
   const text = n => typeof n === 'string' ? n : [n.addr, n.detail].filter(Boolean).join(': ');
   const blocks = (p.blocks || []).map(c => [c.addr, c.detail].filter(Boolean).join(' '));
+  // poo's notes are phrases, as its text plan prints one a line; here
+  // they run on in one line, so each is made a sentence. poo counts the
+  // blocks in them; an older poo that does not gets the GUI's count.
+  const sentence = t => { const x = t.trim(); return x && x[0].toUpperCase() + x.slice(1) + (/[.!?]$/.test(x) ? '' : '.'); };
+  const pooNotes = (p.notes || o.notes || []).map(text);
   const notes = [
-    ...(p.notes || o.notes || []).map(text),
-    blocks.length ? `${count(blocks, 'block')}.` : null,
+    ...pooNotes.map(sentence),
+    blocks.length && !pooNotes.some(t => /^\d+ blocks?\b/.test(t)) ? `${count(blocks, 'block')}.` : null,
     `${p.same || 0} already the same.`,
     o.applied ? 'Applied.' : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',
   ].filter(Boolean).join(' ');

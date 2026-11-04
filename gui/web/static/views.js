@@ -326,7 +326,14 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   // one of not (a grind target of tip or pending takes no -until-from).
   const shown = fd => !fd.only || (fd.only.not ? !fd.only.not.includes(inputs[fd.only.field].value.trim())
     : fd.only.values.includes(inputs[fd.only.field].value));
-  const showOnly = () => { for (const fd of fields) labels[fd.name].hidden = !shown(fd); };
+  // A required field is required only while it is shown: one hidden by
+  // only is not sent, so it cannot be missing (GUI-026).
+  const showOnly = () => {
+    for (const fd of fields) {
+      labels[fd.name].hidden = !shown(fd);
+      if (fd.required && 'required' in inputs[fd.name]) inputs[fd.name].required = shown(fd);
+    }
+  };
   const values = () => {
     const v = {};
     for (const fd of fields) {
@@ -352,6 +359,18 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
   f.addEventListener('submit', ev => {
     ev.preventDefault();
     if (busy || (g && g.held)) return;
+    // A required field left empty runs nothing: dropped from the line, it
+    // can make the command do something else, as "Build a rival claim"
+    // without Parent submits the claim to the node and its peers
+    // (GUI-026). The browser refuses it first; this holds if it does not.
+    const v = values();
+    const missing = fields.filter(fd => fd.required && shown(fd) && (v[fd.name] === '' || v[fd.name] === false || (Array.isArray(v[fd.name]) && !v[fd.name].length)));
+    if (missing.length) {
+      leave(area);
+      area.replaceChildren(el('p', { class: 'run-status bad missing', role: 'alert' }, `Nothing was run: fill in ${missing.map(fd => fd.label).join(', ')}.`));
+      inputs[missing[0].name].focus?.();
+      return;
+    }
     if (danger && !confirm(`Run ${api.quote(args(values()))}?`)) return;
     if (g) g.take();
     busy = submitBtn.disabled = true;

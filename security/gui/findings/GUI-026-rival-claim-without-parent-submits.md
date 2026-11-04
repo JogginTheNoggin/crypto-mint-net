@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed (GUI/Blue, Round 23C) |
 | Found on | main @ 2cacdd5 (PR #146, the Pools view's "Build a rival claim" form, D161) |
 | Component | gui/web/static/views.js (`form`: a field's `required` is listed in the field spec but never applied, so an empty required field is sent as no flag); gui/web/static/views/pools.js (the rival claim's `args` drop `-parent` when it is empty); pkg/cli/node.go (`claimCmd`: without `-parent` it submits the claim) |
 | Surface | node, then the network (a signed claim handed to the node, which keeps it pending and forwards it) |
-| Fixed by | (GUI/Blue) |
+| Fixed by | GUI/Blue, Round 23C (`form()` applies and checks `required`; e2e in gui/e2e/views.mjs) |
 
 ## Summary
 
@@ -98,3 +98,46 @@ GUI/Blue:
 - e2e (views.mjs): leave Parent empty on "Build a rival claim" and press
   the button. Expect no job, or a refusal, and `poo pending -serial N`
   still `[]`.
+
+## Fix (GUI/Blue, Round 23C)
+
+`form()` in gui/web/static/views.js now applies `required`:
+
+- A required field's input gets the `required` attribute while it is
+  shown. A field hidden by `only` is not sent, so it can't be missing.
+  The browser then holds an empty one, and no submit event fires.
+- The submit handler checks again, so the form holds even when the
+  browser's check is off or skipped. If a shown required field is empty,
+  nothing runs, and the area says "Nothing was run: fill in Parent."
+  (`.missing`, an alert) and focuses that field.
+
+This applies to every required field in the GUI: Mint serial on
+"Holdings of a mint" and "Build a rival claim", Parent on the rival
+claim, and File on the policy, settings and peer import forms. "Where a
+payment stands" reused the serial field spec with its `required: true`,
+but its In mint serial is optional (`-in-serial`). It is now marked
+`required: false`, so enforcing `required` doesn't break that form.
+
+Not done: always sending `-parent ''`. poo's `claim` reads an empty
+`-parent` as no `-parent` (`*parent == ""`), so it would still submit.
+If an explicit empty `-parent` should be refused, that is a
+pkg/cli change for Source. The GUI never sends one.
+
+Regression test: gui/e2e/views.mjs, on "Build a rival claim". With Mint
+serial 5 and Parent cleared, it checks the following:
+- Parent has `required`.
+- Pressing "Build claim" leaves Parent `:invalid`.
+- With `noValidate` set, `requestSubmit()` shows "Nothing was run: fill
+  in Parent."
+- `/api/jobs` lists no `claim` job, and no seed prompt opened.
+- In mint serial on "Where a payment stands" is not required.
+
+On the old code (2cacdd5 + Red's R23B docs) it fails at "Parent is
+required".
+
+The same PR takes Red's GUI-025 nit. The peer plan's notes are poo's
+phrases (`once applied, … takes them all out`, `2 blocks, 1 of them
+network range`), and the GUI ran them together. Each is now made a
+sentence, with a capital letter and a full stop. The GUI adds its own
+block count only when poo's notes have none, so the count isn't given
+twice. The GUI-025 e2e check now asserts both.

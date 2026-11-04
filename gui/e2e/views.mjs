@@ -112,6 +112,23 @@ try {
   await rival.locator('input[name=parent]').fill('before-claim');
   await rival.locator('input[name=work]').fill('64');
   assert.equal(await rival.locator('.cmd code').innerText(), `poo claim -root ${home} -seed-file - -serial 5 -parent before-claim -work 64`);
+  // GUI-026: a required field left empty runs nothing. Without Parent,
+  // poo claim would submit the claim to the node and its peers, not build
+  // it. The browser refuses the empty field; with its check off, the form
+  // refuses it itself. Neither starts a job or asks for the seed.
+  await rival.locator('input[name=parent]').fill('');
+  assert.equal(await rival.locator('input[name=parent]').getAttribute('required'), '', 'Parent is required');
+  const claims = () => page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => j.args[0] === 'claim').length);
+  await rival.locator('button[type=submit]').click();
+  assert.ok(await rival.locator('input[name=parent]').evaluate(i => i.matches(':invalid')), 'the browser holds the empty Parent');
+  await rival.locator('form.fields').evaluate(f => { f.noValidate = true; f.requestSubmit(); });
+  assert.match(await rival.locator('.area .missing').innerText(), /^Nothing was run: fill in Parent\.$/);
+  await page.waitForTimeout(300);
+  assert.equal(await claims(), 0, 'no claim job ran');
+  assert.equal(await rival.locator('form.ask').count(), 0, 'no seed was asked for');
+  // A field required only in another form is not required where it is
+  // optional: Where a payment stands takes no serial.
+  assert.equal(await section('Where a payment stands').locator('input[name=serial]').getAttribute('required'), null, 'In mint serial is optional');
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.
@@ -211,7 +228,11 @@ try {
     await plan.waitFor();
     assert.match(await plan.locator('.plan-blocks [role=alert]').innerText(), /^Read first: 1 block refuses addresses on this node: 198\.51\.100\.20:7000/, 'the block is read first');
     assert.equal(await plan.locator('tbody tr').first().getAttribute('class'), 'plan-block', 'the table starts with the block');
-    assert.match(await plan.locator('p.hint').last().innerText(), /1 block\./, 'the notes count the blocks');
+    {
+      const notes = await plan.locator("p.hint").last().innerText();
+      assert.match(notes, /^Once applied, .* takes them all out\. 1 block\. /, "poo's notes are sentences, and count the blocks");
+      assert.equal(notes.split("1 block.").length, 2, "the blocks are counted once");
+    }
   }
   await page.click('nav a[data-id=policies]');
   await section('Policies').locator('.result', { hasText: 'default' }).waitFor();

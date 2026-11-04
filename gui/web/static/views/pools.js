@@ -29,7 +29,7 @@ export const poolsView = {
       form(ctx, { title: 'Holdings of a mint', about: 'Unspent portions of a mint.', fields: [serial, series],
         args: v => ['unspent', ...where.flags(), ...flag('serial', v.serial), ...flag('series', v.series)], submit: 'Look up' }),
       form(ctx, { title: 'Where a payment stands', about: 'A transaction, the weight behind it, and known rivals.',
-        fields: [{ name: 'tid', label: 'Transaction id', placeholder: 'hex' }, { ...serial, label: 'In mint serial', placeholder: 'optional: look only in its pool' }, series],
+        fields: [{ name: 'tid', label: 'Transaction id', placeholder: 'hex' }, { ...serial, required: false, label: 'In mint serial', placeholder: 'optional: look only in its pool' }, series],
         args: v => ['tx', ...where.flags(), ...flag('in-serial', v.serial), ...flag('series', v.series), ...(v.tid ? [v.tid] : [])], submit: 'Look up' }),
       form(ctx, { title: 'Build an entry', about: 'Builds an entry from the pending transactions of a pool.',
         fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, parent, series, ...grindFields(), { name: 'maxTries', label: 'Most entry tries', type: 'number', placeholder: 'when the series sets a minimum entry strength' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
