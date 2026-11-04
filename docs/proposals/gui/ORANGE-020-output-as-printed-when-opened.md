@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (Round 28 Part A) |
 | Based on | main @ b9fed52 |
 | Area | gui/web/static/views.js (runJob, showResult, panel, form, a new rawFold), the five panels that fold their result (node.js twice, peers.js, policies.js, work.js), gui/e2e/qol.mjs |
 | Effort | small |

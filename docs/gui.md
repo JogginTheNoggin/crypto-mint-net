@@ -146,7 +146,7 @@ with a button that runs it in the terminal.
 | Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
 | Peers | `peers -counts` (the timed panel), `peers` (and its filters), `peer ACTION` (with `add`, `remove`, `label`, `connect`), `tracking` (`-blocked`, `-timed-out`), `chases`, `peers export` and `peers import` (a preview, then Apply with `-if-digest`) |
 | Node policies | `settings export`, `settings import` (the same preview and Apply), `policy list`, `use`, `archive`, `unarchive`, `delete`, `policy export` (printed, with Save as file, or `-out`), `policy import` (a preview of the plan, defences first, with `-settings` and `-full`; then Apply with `-if-digest`; a path or a file picked in the browser, sent as `-`), `policy limits` (each settable limit's range, default and value) and Set limits (`-set NAME=VALUE`) |
-| Series and keys | `crypto`, `keygen`, `series new` (fixed, or variable with `-issuer`, `-part-size` and `-max-parts`; Save as file), `series info`, `series sign`, `series parts`, `series release` (a part, permanent; or `-check` a release file) |
+| Series and keys | `crypto`, `keygen`, `series new` (with `-max-witness` and `-any-ceiling`; fixed, or variable with `-issuer`, `-part-size` and `-max-parts`; Save as file), `series info`, `series sign` (`-alg`), `series parts`, `series release` (a part, permanent, `-alg`; or `-check` a release file) |
 | Jobs | Every command run, its output, stop, run again |
 | Settings | `-root` and `-policy`, which views add to their commands |
 | Terminal | Anything, typed |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 27 Part B) |
+| Status | adopted (Round 28 Part A) |
 | Based on | main @ b9fed52 |
 | Area | gui/web/static/views.js (appliedNote), views/policies.js (Set limits), views/node.js (Add a release), views/pools.js (Work), docs/gui-variable-supply-plan.md, gui/e2e/views.mjs, gui/e2e/variable.mjs |
 | Effort | small |

@@ -70,7 +70,7 @@ function limitsParts(ctx) {
       saved = false;
       typed = named.map(l => el('input', { name: l.name, type: 'text', inputmode: 'numeric', placeholder: String(l.used ?? ''), spellcheck: 'false', 'data-limit': l.name, value: before[l.name] || '' }));
       grid.replaceChildren(...named.map((l, n) => {
-        return el('label', {}, el('span', {}, l.name), typed[n], el('small', {}, `${l.min} to ${l.max}, default ${l.default}${l.set ? `; node.json sets ${l.set}` : ''}`));
+        return el('label', {}, el('span', {}, l.name), typed[n], el('small', {}, `${l.min} to ${l.max}, default ${l.default}${l.set ? `; node.json sets ${l.set}` : ''}${l.in_place === true ? '; a running node takes it at once' : l.in_place === false ? '; a running node takes it on reload' : ''}`));
       }));
       set.form.dispatchEvent(new Event('input', { bubbles: true }));
     } });
@@ -257,6 +257,8 @@ function showPlan(r, area, applied) {
       `${p.same || 0} already the same.`,
       (p.skipped || []).length ? `Machine-local settings left alone: ${p.skipped.join(', ')}.` : null,
       (p.refused || []).length ? `Not accepted here: ${p.refused.join('; ')}.` : null,
+      // Series the node policy's series_ceiling left out, with poo's reason (D170).
+      (p.declined || []).length ? `Left out by this node's series ceiling: ${p.declined.slice(0, SOME).join('; ')}${p.declined.length > SOME ? `; and ${p.declined.length - SOME} more` : ''}.` : null,
       (p.follows || []).length ? `Follows: ${p.follows.slice(0, SOME).map(c => `series ${c.series.slice(0, 12)}: ${c.followed} of ${c.pools} pools${c.whole ? ' (the whole series)' : ''}`).join('; ')}${p.follows.length > SOME ? `; and ${p.follows.length - SOME} more series ("Output as printed" has them all)` : ''}.` : null,
       (p.fit || []).length ? `May not fit this machine: ${p.fit.join('; ')}.` : null,
       t.saved ? (t.reloading ? 'Saved; the running node is reloading it.' : 'Saved.') : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',

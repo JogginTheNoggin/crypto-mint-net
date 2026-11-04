@@ -97,10 +97,14 @@ export const nodeView = {
         { name: 'peer', label: 'Peers', type: 'list', placeholder: 'host:port …' },
         { name: 'registry', label: 'Address registries', type: 'list', placeholder: 'URL or file …' },
         { name: 'advertise', label: 'Advertise as', placeholder: 'host:port' },
+        // With no series, poo follows the built-in reserve series (D170).
+        { name: 'reserve', label: 'Also follow the default reserve series (what happens anyway when no series is given)', type: 'check' },
+        { name: 'noSeries', label: 'Follow no series, not even the default reserve series', type: 'check' },
+        { name: 'anyCeiling', label: 'Accept a series file whose witness ceiling is not set or above 4 MiB', type: 'check' },
         { name: 'force', label: 'Replace the settings of an existing policy (its data is kept)', type: 'check' },
       ],
       args: v => ['init', ...where.flags(), ...flag('example', v.example), ...flags('series', v.series), ...flag('listen', v.listen),
-        ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('force', v.force)],
+        ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('reserve', v.reserve), ...flag('no-series', v.noSeries), ...flag('any-ceiling', v.anyCeiling), ...flag('force', v.force)],
       submit: 'Write policy',
     });
     const followFields = [
