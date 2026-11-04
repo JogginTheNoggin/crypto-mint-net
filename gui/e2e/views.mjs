@@ -5,6 +5,7 @@
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { launch, nodeStopped } from './lib.mjs';
 
@@ -112,6 +113,23 @@ try {
   await rival.locator('input[name=parent]').fill('before-claim');
   await rival.locator('input[name=work]').fill('64');
   assert.equal(await rival.locator('.cmd code').innerText(), `poo claim -root ${home} -seed-file - -serial 5 -parent before-claim -work 64`);
+  // GUI-026: a required field left empty runs nothing. Without Parent,
+  // poo claim would submit the claim to the node and its peers, not build
+  // it. The browser refuses the empty field; with its check off, the form
+  // refuses it itself. Neither starts a job or asks for the seed.
+  await rival.locator('input[name=parent]').fill('');
+  assert.equal(await rival.locator('input[name=parent]').getAttribute('required'), '', 'Parent is required');
+  const claims = () => page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => j.args[0] === 'claim').length);
+  await rival.locator('button[type=submit]').click();
+  assert.ok(await rival.locator('input[name=parent]').evaluate(i => i.matches(':invalid')), 'the browser holds the empty Parent');
+  await rival.locator('form.fields').evaluate(f => { f.noValidate = true; f.requestSubmit(); });
+  assert.match(await rival.locator('.area .missing').innerText(), /^Nothing was run: fill in Parent\.$/);
+  await page.waitForTimeout(300);
+  assert.equal(await claims(), 0, 'no claim job ran');
+  assert.equal(await rival.locator('form.ask').count(), 0, 'no seed was asked for');
+  // A field required only in another form is not required where it is
+  // optional: Where a payment stands takes no serial.
+  assert.equal(await section('Where a payment stands').locator('input[name=serial]').getAttribute('required'), null, 'In mint serial is optional');
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.
@@ -211,7 +229,11 @@ try {
     await plan.waitFor();
     assert.match(await plan.locator('.plan-blocks [role=alert]').innerText(), /^Read first: 1 block refuses addresses on this node: 198\.51\.100\.20:7000/, 'the block is read first');
     assert.equal(await plan.locator('tbody tr').first().getAttribute('class'), 'plan-block', 'the table starts with the block');
-    assert.match(await plan.locator('p.hint').last().innerText(), /1 block\./, 'the notes count the blocks');
+    {
+      const notes = await plan.locator("p.hint").last().innerText();
+      assert.match(notes, /^Once applied, .* takes them all out\. 1 block\. /, "poo's notes are sentences, and count the blocks");
+      assert.equal(notes.split("1 block.").length, 2, "the blocks are counted once");
+    }
   }
   await page.click('nav a[data-id=policies]');
   await section('Policies').locator('.result', { hasText: 'default' }).waitFor();
@@ -380,13 +402,35 @@ try {
   const lim = section('Settable limits');
   await lim.locator('table.data', { hasText: 'p2p.max_book' }).waitFor();
   const setLim = section('Set limits');
-  await fill(setLim, 'Limits', 'p2p.max_book=8192 tracking.log_size=512');
+  // A field for each limit poo listed, showing the value in effect, its
+  // range and default, so no name is typed (GUI-GREEN-049).
+  const maxBook = setLim.locator('input[data-limit="p2p.max_book"]');
+  await maxBook.waitFor();
+  assert.equal(await maxBook.getAttribute('placeholder'), '4096', 'the field shows the value in effect');
+  assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /256 to 65536, default 4096/);
+  await maxBook.fill('8192');
+  await setLim.locator('input[data-limit="tracking.log_size"]').fill('512');
   assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home} -set p2p.max_book=8192 -set tracking.log_size=512`);
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
   await setLim.locator('.run-status.ok').waitFor();
   await lim.locator('table.data tr', { hasText: 'p2p.max_book' }).filter({ hasText: '8192' }).first().waitFor();
-  await fill(setLim, 'Limits', 'p2p.max_book=1');
+  // Redrawn from the new list: empty again, showing the new value.
+  await setLim.locator('input[data-limit="p2p.max_book"][placeholder="8192"]').waitFor();
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home}`, 'nothing is sent again after a save');
+  // A save reloads the running node, which restarts its RPC; wait until
+  // poo status answers with the saved node.json loaded before asking it
+  // again, as a person would see on the Node view.
+  for (let i = 0; ; i++) {
+    const r = spawnSync(bin, ['poo', 'status', '-root', home], { env: { ...process.env, POO_HOME: home } });
+    let st = null;
+    try { st = r.status === 0 && JSON.parse(String(r.stdout)); } catch (_) { st = null; }
+    if (st && !st.policy_changed) break;
+    assert.ok(i < 100, 'the node came back from its reload');
+    await page.waitForTimeout(100);
+  }
+  // A name the list lacks can still be typed, and poo checks it.
+  await fill(setLim, 'Other limits', 'p2p.max_book=1');
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
   await setLim.locator('.run-status.bad').waitFor();
