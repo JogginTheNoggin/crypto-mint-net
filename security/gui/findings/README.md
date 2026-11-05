@@ -5,6 +5,56 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 28 Part B reviewed main @ adcf216 (PR #193):
+- GUI-028's mitigation: the far-part ask and the Stop note;
+- Key algorithm (`-alg`) on Sign a series, Release a part and Build a
+  rival claim;
+- `-max-witness` and `-any-ceiling` on New series;
+- `-reserve`, `-no-series` and `-any-ceiling` on Write a node policy;
+- `in_place` on Set limits and Add a release (GUI-GREEN-053);
+- declined series in import plans;
+- lazy "Output as printed" (ORANGE-020).
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass. The findings
+stay in this directory, as AGENTS.md says.
+
+New:
+- GUI-029 (Low): Import node policies adds a series with no witness
+  ceiling (or one above 4 MiB) with nothing asked or shown. New series
+  and Write a node policy refuse that without `-any-ceiling`.
+  `series_ceiling` is off by default, so the import, the one path that
+  takes series from someone else's file, is the one path with no
+  ceiling check. The real fix is in Source (nodepolicy); the GUI should
+  then show it as a Read first line.
+
+Held up:
+- **GUI-028's mitigation.** See its R28B notes. A far part is asked
+  about before Preview or Show parts runs, and other spellings can't
+  skip the ask.
+- **Key algorithm.** It is sent as its own argument, and `-alg
+  -seed-file` stays a value, not a flag. A wrong algorithm is refused
+  by poo before signing: "this key's 1-of-1 address is … (ml-dsa-65),
+  not the series' issuer …; this seed's ed25519 key is the issuer: add
+  -alg ed25519". Release a part keeps the algorithm from the preview,
+  and any edit drops Sign.
+- **Declined series.** A preview with `series_ceiling` set lists them
+  as poo gives them ("Left out by this node's series ceiling: …"),
+  drawn as text.
+- **appliedNote** reads only `saved`, `in_place`, `reloading` and
+  `note`, and draws them as text.
+- **Lazy results.** JSON is drawn with the same `render` when opened,
+  so GUI-009's seed hiding is unchanged. A command that prints a secret
+  as text is not lazy.
+
+Hardening notes (optional):
+- "Run in terminal" on Release a part's or Show parts' line skips the
+  far-part ask (GUI-028's notes).
+- A plan where every new series is declined still says "Nothing changed
+  yet: press Apply to make this change" and offers Apply, which would
+  change nothing. poo also lists a series twice under `declined` when
+  the file lists it twice.
+
 Round 27 Part B reviewed main @ b9fed52 (PR #182):
 - "waiting for a release" now read from poo's exit code 3 (D168);
 - the release preview's mint count taken from poo's `mints_released`;
@@ -593,4 +643,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-025](GUI-025-peer-import-hides-blocks.md) | Low | The Import peers preview lists the file's blocks after every added address, with no "Read first" line, so with over 500 addresses no block is on show before Apply | fixed by GUI/Blue (Round 22C), merged Round 23; verified R23B @ 2cacdd5 |
 | [GUI-026](GUI-026-rival-claim-without-parent-submits.md) | Low | "Build a rival claim" with Parent empty submits the claim to the node and peers instead of building it: `required` is never applied by `form()` | fixed by GUI/Blue (Round 23C), merged Round 24; verified R24B @ 2aceb1a |
 | [GUI-027](GUI-027-release-signs-without-showing-what-it-releases.md) | Low | "Release a part" asks for the issuer's seed and signs before showing which serials the release creates; the confirm shows only the command line, and the result has no range | fixed by GUI/Blue (Round 25C), merged Round 26; verified R26B @ eb74797 |
-| [GUI-028](GUI-028-far-part-job-cannot-be-stopped.md) | Low | A far part number (Preview, Sign, Show parts, or an issuer-signed far release) starts a job that hashes for hours; Stop doesn't end it, and 16 such jobs fill every job slot until poo-gui restarts | mitigated by GUI/Blue (Round 27C: cost confirm, Stop note); core fix routed to Source |
+| [GUI-028](GUI-028-far-part-job-cannot-be-stopped.md) | Low | A far part number (Preview, Sign, Show parts, or an issuer-signed far release) starts a job that hashes for hours; Stop doesn't end it, and 16 such jobs fill every job slot until poo-gui restarts | mitigated by GUI/Blue (Round 27C: cost confirm, Stop note); mitigation verified R28B @ adcf216; core fix routed to Source |
+| [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | open: routed to Source for a plan warning (no refusal, per jerry); the GUI line follows |

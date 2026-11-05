@@ -271,8 +271,12 @@ function showPlan(r, area, applied) {
     // node will follow, mine into and relay them (RED-056, D156).
     const nowUsed = (p.now_used || []).length ? el('div', { class: 'next-step plan-now-used' },
       el('p', { role: 'alert' }, `Now used: ${count(p.now_used, 'series', 'series')} listed but not accepted before. The node will follow, mine into and relay ${p.now_used.length === 1 ? 'it' : 'them'}: `, someOf(p.now_used)), allOf(p.now_used)) : null;
+    // Series with no witness ceiling, or one above 4 MiB, that the import
+    // adds or follows more of: a warning only, as poo gives it (D171).
+    const unbounded = (p.unbounded || []).length ? el('div', { class: 'next-step plan-unbounded' },
+      el('p', { role: 'alert' }, `Read first: the import adds or follows more of ${count(p.unbounded, 'series', 'series')} with no witness ceiling or a large one. This is a warning only; poo gives the reason for each: `, someOf(p.unbounded)), allOf(p.unbounded)) : null;
     return el('div', { class: 'import-plan' },
-      el('h3', {}, `${t.name || t.dir} (${t.mode}${t.running ? ', running' : ''})`), defences, nowUsed,
+      el('h3', {}, `${t.name || t.dir} (${t.mode}${t.running ? ', running' : ''})`), defences, unbounded, nowUsed,
       lines.length ? planTable(lines) : el('p', {}, 'No settings change.'),
       el('p', { class: 'hint' }, notes));
   });
