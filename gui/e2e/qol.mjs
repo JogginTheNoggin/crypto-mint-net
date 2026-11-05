@@ -125,8 +125,14 @@ try {
   await page.selectOption('#nav-menu', 'wallet');
   await page.locator('h1', { hasText: 'Wallet' }).waitFor();
   if (shots) await page.screenshot({ path: join(shots, 'narrow.png') });
+  // The Jump to list is a row across the view, never the view list's
+  // 170 px sidebar with its background and border (GUI-GREEN-060).
+  const jumpBox = () => page.evaluate(() => { const n = document.querySelector('nav.jump'), cs = getComputedStyle(n); return { wide: n.getBoundingClientRect().width > 0.9 * document.querySelector('#main').getBoundingClientRect().width, bg: cs.backgroundColor, border: cs.borderRightWidth + ' ' + cs.borderBottomWidth }; });
+  assert.deepEqual(await jumpBox(), { wide: true, bg: 'rgba(0, 0, 0, 0)', border: '0px 0px' }, 'the jump list when narrow');
   await page.setViewportSize({ width: 1280, height: 800 });
   assert.ok(!(await page.locator('#nav-menu').isVisible()), 'menu hidden when wide');
+  assert.deepEqual(await jumpBox(), { wide: true, bg: 'rgba(0, 0, 0, 0)', border: '0px 0px' }, 'the jump list when wide');
+  assert.equal(await page.locator('nav#nav').evaluate(n => Math.round(n.getBoundingClientRect().width)), 170, 'the view list keeps its width');
 
   // A system that asks for more contrast gets firmer colours, in both themes.
   const muted = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--muted').trim());

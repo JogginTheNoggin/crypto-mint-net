@@ -32,10 +32,10 @@ code, pre, input, select, textarea { font-family: var(--mono); }
 .where { color: var(--muted); font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .version { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; margin-left: auto; }
 .layout { flex: 1; display: flex; min-height: 0; }
-nav { width: 170px; flex: none; border-right: 1px solid var(--line); padding: 8px 0; overflow-y: auto; background: var(--panel); }
-nav a { display: block; padding: 6px 16px; color: var(--ink); text-decoration: none; }
-nav a:hover { background: var(--bg); }
-nav a.active { color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 var(--accent); }
+#nav { width: 170px; flex: none; border-right: 1px solid var(--line); padding: 8px 0; overflow-y: auto; background: var(--panel); }
+#nav a { display: block; padding: 6px 16px; color: var(--ink); text-decoration: none; }
+#nav a:hover { background: var(--bg); }
+#nav a.active { color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 var(--accent); }
 main { flex: 1; min-width: 0; display: flex; }
 .pane { flex: 1; min-width: 0; overflow: auto; padding: 16px; }
 .pane[hidden] { display: none; }
@@ -68,9 +68,9 @@ input, select, textarea { font-size: 13px; padding: 4px 6px; border: 1px solid v
 
 @media (max-width: 640px) {
   .layout { flex-direction: column; }
-  nav { width: auto; display: flex; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 0; }
-  nav a { white-space: nowrap; padding: 8px 12px; }
-  nav a.active { box-shadow: inset 0 -3px var(--accent); }
+  #nav { width: auto; display: flex; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 0; }
+  #nav a { white-space: nowrap; padding: 8px 12px; }
+  #nav a.active { box-shadow: inset 0 -3px var(--accent); }
 }
 .job-out:empty { display: none; }
 
@@ -170,7 +170,7 @@ table.events tr.ev:hover, table.events tr.ev:focus { background: var(--bg); outl
 #nav-menu { display: none; }
 @media (max-width: 640px) {
   #nav-menu { display: block; margin: 8px 16px; font: 14px var(--sans); padding: 6px 8px; }
-  .layout nav { display: none; }
+  .layout #nav { display: none; }
   .term-bar > span:first-child { display: none; }
   .pane { padding: 12px; }
 }
@@ -193,7 +193,7 @@ fieldset.kinds label.check { display: flex; flex-direction: row; align-items: ce
 a.lookup { font-size: 11px; color: var(--accent); margin-left: 2px; }
 
 /* A view with a job running in the background (Watch). */
-nav a.busy::after { content: " \25CF"; color: var(--live); }
+#nav a.busy::after { content: " \25CF"; color: var(--live); }
 .node-banner { border: 1px solid var(--live); border-radius: 6px; padding: 8px 12px; margin: 8px 0 12px; color: var(--live); }
 details.no-node > summary { cursor: pointer; color: var(--muted); }
 
@@ -237,7 +237,9 @@ details.raw { margin-top: 6px; font-size: 12px; }
 table.grind-jobs td { vertical-align: top; }
 table.grind-jobs .hint { margin: 2px 0 0; font-size: 11px; }
 
-/* The jump list at the top of a long view (GREEN-030) */
+/* The jump list at the top of a long view (GREEN-030). The view list's
+   rules name #nav, so this nav is not drawn as a 170 px sidebar
+   (GUI-GREEN-060). */
 nav.jump { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--muted); margin: 0 0 12px; }
 nav.jump button { font-size: 12px; padding: 2px 8px; }
 a.step-view { font-size: 13px; }
