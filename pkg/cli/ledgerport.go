@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -75,7 +76,11 @@ func ledgerExportCmd(args []string, out io.Writer) error {
 	if fs.NArg() != 0 {
 		return errors.New("poo ledger export takes flags only")
 	}
-	if *pool == 0 {
+	// Pools are numbered from 0, so ask whether -pool was given rather
+	// than whether it is 0.
+	gotPool := false
+	fs.Visit(func(f *flag.Flag) { gotPool = gotPool || f.Name == "pool" })
+	if !gotPool {
 		return errors.New("poo ledger export needs -pool")
 	}
 	if *from < 1 || (*to != 0 && *to < *from) {
