@@ -175,6 +175,10 @@ func Open(dir string, opt Options) (*Node, error) {
 		// A newer release wrote them; they are kept on every save (W-1).
 		lg.With(logging.Component, "node").Warn("node.json holds settings this release does not know; they are kept but not used", "file", nodepolicy.FileName, "settings", strings.Join(u, ", "))
 	}
+	if d := pol.UnknownDropped(); len(d) > 0 {
+		// Inside a list entry or a map, Save cannot keep them (GREEN-057).
+		lg.With(logging.Component, "node").Warn("node.json holds settings this release does not know inside list entries; the next save of node.json drops them", "file", nodepolicy.FileName, "settings", strings.Join(d, ", "))
+	}
 	if opt.CompactMin <= 0 {
 		opt.CompactMin = DefaultCompactMin
 	}

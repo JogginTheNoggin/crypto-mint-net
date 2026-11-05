@@ -3,6 +3,7 @@ package nodepolicy
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -94,6 +95,66 @@ func (p Policy) UnknownSettings() []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// UnknownDropped lists the settings this release does not know that sit
+// inside a list entry or a map value, such as series[0].x: Load cannot
+// keep them, so the next Save drops them. Paths name entries by index or
+// key (GREEN-057).
+func (p Policy) UnknownDropped() []string { return slices.Clone(p.dropped) }
+
+// droppedSettings returns the paths of the unknown settings in raw that
+// sit inside a list entry or a map value, at any depth.
+func droppedSettings(raw []byte) []string {
+	var out []string
+	collectDropped(raw, reflect.TypeFor[Policy](), "", false, &out)
+	slices.Sort(out)
+	return out
+}
+
+func collectDropped(raw []byte, t reflect.Type, path string, inEntry bool, out *[]string) {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	join := func(k string) string {
+		if path == "" {
+			return k
+		}
+		return path + "." + k
+	}
+	switch {
+	case t.Kind() == reflect.Struct && !reflect.PointerTo(t).Implements(unmarshalerType):
+		var m map[string]json.RawMessage
+		if json.Unmarshal(raw, &m) != nil {
+			return
+		}
+		fields := jsonFields(t)
+		for k, v := range m {
+			ft, ok := fields[k]
+			switch {
+			case !ok && inEntry:
+				*out = append(*out, join(k))
+			case ok:
+				collectDropped(v, ft, join(k), inEntry, out)
+			}
+		}
+	case t.Kind() == reflect.Slice || t.Kind() == reflect.Array:
+		var l []json.RawMessage
+		if json.Unmarshal(raw, &l) != nil {
+			return
+		}
+		for i, v := range l {
+			collectDropped(v, t.Elem(), fmt.Sprintf("%s[%d]", path, i), true, out)
+		}
+	case t.Kind() == reflect.Map:
+		var m map[string]json.RawMessage
+		if json.Unmarshal(raw, &m) != nil {
+			return
+		}
+		for k, v := range m {
+			collectDropped(v, t.Elem(), join(k), true, out)
+		}
+	}
 }
 
 // withUnknown returns the encoded policy b with the kept settings put

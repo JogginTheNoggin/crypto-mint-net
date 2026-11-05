@@ -67,6 +67,9 @@ type Policy struct {
 	// unknown holds the settings Load found that this release does not
 	// know, for Save to write back (W-1, D184).
 	unknown []extra
+	// dropped names the unknown settings inside list entries and maps,
+	// which Save cannot keep (GREEN-057).
+	dropped []string
 	// Series lists the series this node knows. Series information comes
 	// from outside the network, never from peers.
 	Series []SeriesInfo `json:"series"`
@@ -876,6 +879,7 @@ func Load(path string) (Policy, error) {
 		return Policy{}, fmt.Errorf("%s: %w", path, err)
 	}
 	p.unknown = unknownSettings(b)
+	p.dropped = droppedSettings(b)
 	trustChecked(filepath.Dir(path), p)
 	return p, nil
 }

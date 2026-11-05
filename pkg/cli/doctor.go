@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -152,6 +153,9 @@ func doctor(out io.Writer, dir string) DoctorReport {
 		}
 		add(Check{Name: "policy", Result: checkWarn, Detail: n.String(), Fix: fix, FixArgs: n.FixArgs})
 	}
+	for _, c := range unknownSettingsChecks(p) {
+		add(c)
+	}
 
 	// 2. Who can read the node's files.
 	add(filesCheck(dir))
@@ -243,6 +247,7 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	// 6. Entry bodies read back from the logs (RED-084), and the pool
 	// snapshots (D178).
 	if st, ok := nodeStatus(out, dir); ok {
+		add(releaseCheck(st))
 		add(bodiesCheck(st))
 		add(snapshotsCheck(st))
 		if c, ok := portMapCheck(st); ok {
@@ -253,6 +258,54 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	// 7. Peers.
 	add(p2pCheck(out, dir, p))
 	return rep
+}
+
+// unknownSettingsChecks reports the settings in node.json this release
+// does not know (W-1, D184): kept ones as a note, and those inside list
+// entries, which the next save drops, as a warning (GREEN-057).
+func unknownSettingsChecks(p nodepolicy.Policy) []Check {
+	var out []Check
+	if u := p.UnknownSettings(); len(u) > 0 {
+		out = append(out, Check{Name: "policy", Result: checkOK,
+			Detail: fmt.Sprintf("%d %s this release does not know, kept on every save but not used (a newer release wrote %s, or %s misspelt): %s",
+				len(u), plural(len(u), "setting", "settings"), plural(len(u), "it", "them"), plural(len(u), "it is", "they are"), strings.Join(u, ", "))})
+	}
+	if d := p.UnknownDropped(); len(d) > 0 {
+		out = append(out, Check{Name: "policy", Result: checkWarn,
+			Detail: fmt.Sprintf("%d %s this release does not know %s, where the next save of %s drops %s: %s",
+				len(d), plural(len(d), "setting", "settings"), plural(len(d), "sits inside a list entry", "sit inside list entries"), nodepolicy.FileName, plural(len(d), "it", "them"), strings.Join(d, ", ")),
+			Fix: "if a newer release wrote " + plural(len(d), "it", "them") + ", run that release, or copy " + nodepolicy.FileName + " aside before changing settings with this one; if " + plural(len(d), "it is", "they are") + " misspelt, correct " + nodepolicy.FileName})
+	}
+	return out
+}
+
+// releaseCheck compares the running node's release with this poo's
+// (W-10, D184): after an upgrade the node keeps running the old binary
+// until it restarts (GREEN-057).
+func releaseCheck(st rpc.StatusReply) Check {
+	c := Check{Name: "release"}
+	mine := node.RunningRelease()
+	theirs := st.Release
+	show := func(r node.Release) string {
+		if r.Commit == "" {
+			return r.Version
+		}
+		return r.Version + " (" + r.Commit + ")"
+	}
+	switch {
+	case theirs.Version == "":
+		c.Result = checkWarn
+		c.Detail = "the node does not say its release, so it runs one older than this poo " + show(mine)
+		c.Fix = "restart the node so it runs this release"
+	case theirs.Version != mine.Version || (theirs.Commit != "" && mine.Commit != "" && theirs.Commit != mine.Commit):
+		c.Result = checkWarn
+		c.Detail = "the node runs " + show(theirs) + ", but this poo is " + show(mine)
+		c.Fix = "if this poo is the upgrade, restart the node so it runs it; otherwise use the poo that matches the node"
+	default:
+		c.Result = checkOK
+		c.Detail = "the node runs " + show(theirs) + ", as this poo does"
+	}
+	return c
 }
 
 // bodiesCheck warns when the running node failed to read entry bodies
