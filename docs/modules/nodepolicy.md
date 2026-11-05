@@ -33,11 +33,11 @@ D25). Nothing here changes what is valid.
   "snapshot_every": 50000,
   "no_snapshots": false,
   "no_sync": false,
-  "rpc": {"listen": "127.0.0.1:7336", "allow_remote": false},
+  "rpc": {"listen": "127.0.0.1:7732", "allow_remote": false},
   "p2p": {
-    "listen": ":7337",
-    "advertise": "node.example.org:7337",
-    "peers": ["203.0.113.5:7337"],
+    "listen": ":7733",
+    "advertise": "node.example.org:7733",
+    "peers": ["203.0.113.5:7733"],
     "max_peers": 32,
     "chunk_size": 1048576, "entry_limit": 512, "hash_limit": 4096, "layer_limit": 65536,
     "no_notices": false,
@@ -118,8 +118,8 @@ route on Linux when empty. `port_map` and `port_map_gateway` are
 machine-local, like `listen` and `advertise`. `announce_version`
 (machine-local too) is `release` (the default, also when empty) to name
 the running release in the hello, or `none` to send an empty release
-(D186). The default ports are `127.0.0.1:7336` for `rpc.listen` and
-`:7337` for `p2p.listen`, and `poo init` writes them into a new file
+(D186). The default ports are `127.0.0.1:7732` for `rpc.listen` and
+`:7733` for `p2p.listen`, and `poo init` writes them into a new file
 (D187). The p2p defaults are in
 `p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
 no unlisted connections; `review_seconds: -1` never reviews.

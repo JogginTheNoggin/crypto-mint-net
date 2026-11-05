@@ -22,7 +22,7 @@ local to one node.
   "format": 1,
   "exported": "2026-11-03T05:00:00Z",
   "categories": ["priority", "backup"],
-  "peers": [{"addr": "203.0.113.5:7337", "policies": [{"section": "ISSUER/SERIES/*/*", "state": "priority"}], "label": "fast one"}],
+  "peers": [{"addr": "203.0.113.5:7733", "policies": [{"section": "ISSUER/SERIES/*/*", "state": "priority"}], "label": "fast one"}],
   "blocks": [{"addr": "198.51.100.7", "until": "2126-11-03T05:00:00Z"}, {"range": "v4:192.0", "until": "2026-11-04T05:00:00Z"}]
 }
 ```

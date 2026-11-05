@@ -22,7 +22,7 @@ const grindFlags = v => [...flag('device', v.device), ...flag('threads', v.threa
 export function ledgerSummary(text) {
   let f;
   try { f = JSON.parse(text); } catch (_) { return null; }
-  if (!f || f.kind !== 'poo ledger' || !Array.isArray(f.entries)) return null;
+  if (!f || f.kind !== 'poo-ledger' || !Array.isArray(f.entries)) return null;
   const n = f.entries.length;
   if (n !== (f.to >= f.from ? f.to - f.from + 1 : 0)) return null;
   return n ? `A ledger file of pool ${f.pool}: ${n} ${n === 1 ? 'entry' : 'entries'}, heights ${f.from} to ${f.to} of ${f.height}.`

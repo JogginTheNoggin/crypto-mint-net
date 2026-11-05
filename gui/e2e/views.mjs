@@ -268,7 +268,7 @@ try {
   await lexp.locator('button', { hasText: 'Save as file' }).waitFor();
   assert.equal(await lexp.locator('details.raw .result table, details.raw .result dl').count(), 0, 'the ledger is not drawn before Output as printed is opened');
   await lexp.locator('details.raw summary').click();
-  await lexp.locator('details.raw .result', { hasText: 'poo ledger' }).waitFor();
+  await lexp.locator('details.raw .result', { hasText: 'poo-ledger' }).waitFor();
   await fill(lexp, 'To a file', lfile);
   await lexp.locator('button[type=submit]').click();
   await lexp.locator('.result', { hasText: 'wrote 0 entries' }).waitFor();

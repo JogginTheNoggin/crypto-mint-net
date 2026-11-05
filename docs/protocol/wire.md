@@ -152,24 +152,29 @@ checks its strength as usual.
       ∥ U8 m ∥ m × (U16 tag ∥ Bytes value) -- extensions
 
 (D186.) The release is the sender's version, such as `0.1.0-alpha.1`, at
-most 64 printable bytes, or empty when `p2p.announce_version` is `none`.
+most 64 bytes of `0-9 A-Z a-z . - +`, or empty when `p2p.announce_version` is `none`.
 The features are what the sender supports beyond the protocol 1
-baseline: at most 64, each a name of at most 32 bytes (`a-z`, `0-9`,
+baseline: at most 255, each a name of at most 32 bytes (`a-z`, `0-9`,
 `-`) and a version, sorted by name with no repeats. The extensions are
 optional fields a later release adds: at most 32, tags strictly
-increasing, values at most 1 KiB. Ping, pong and partial pong end with
-the same extension list. Nothing may follow the lists.
+increasing, values at most 64 KiB (room for a post-quantum key or signature, D190). Ping, pong and partial pong end with
+the same extension list. Nothing may follow the lists. These limits and
+the release's characters are frozen with wire version 1 from the first
+public tag (W-17, D190).
 
 Feature names and extension tags are registered in `pkg/wire` (`hello.go`)
 and never reused. Registered features: `layers-from`, `many-layers`,
 `parts`, `release`. No extension tag is registered yet. A node skips a
-feature or tag it does not know.
+feature or tag it does not know, and keeps no extension value of a tag
+it does not know.
 
 Release, features and extensions are for display and optional extras
 only. They never change a verdict, weight, selection, a peer's standing
 or ranking, or chasing, and no peer is refused for them; every node
 speaks the whole protocol 1 baseline whatever it claims. A malformed
-hello, ping or pong closes that connection only.
+release, features or extensions list in a hello, ping or pong closes
+that connection only, with no lasting offence (`wire.ErrBadExtras`,
+D190); any other malformed message is an offence as usual.
 
 Each side sends its hello first and sends nothing else until it has read
 the other's, within 10 seconds. The node id is random per run. A node

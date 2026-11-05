@@ -94,3 +94,30 @@ func TestHelloMalformed(t *testing.T) {
 		t.Fatal("took a hello without the new fields")
 	}
 }
+
+// A failure inside the release, features or extensions list is marked
+// wire.ErrBadExtras, so a node ends the connection without an offence (D186
+// term 4); any other malformation is not.
+func TestBadExtrasMarked(t *testing.T) {
+	ping := wire.Ping{Nonce: 1}.Encode()
+	bad := append(append([]byte(nil), ping[:len(ping)-1]...), 2, 0, 9, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0)
+	if _, err := wire.DecodePing(bad); !errors.Is(err, wire.ErrBadExtras) || !errors.Is(err, wire.ErrMalformed) {
+		t.Fatalf("tags out of order: %v", err)
+	}
+	if _, err := wire.DecodePing(ping[:5]); err == nil || errors.Is(err, wire.ErrBadExtras) {
+		t.Fatalf("a short ping: %v", err)
+	}
+	if _, err := wire.DecodePing(append(ping, 0)); err == nil || errors.Is(err, wire.ErrBadExtras) {
+		t.Fatalf("trailing bytes: %v", err)
+	}
+	h := wire.Hello{Protocol: 1, Release: "1.0"}.Encode()
+	h[2+32+4+3+4] = '!' // the release's first byte
+	if _, err := wire.DecodeHello(h); !errors.Is(err, wire.ErrBadExtras) {
+		t.Fatalf("a bad release: %v", err)
+	}
+	pong := wire.PongReply{}.Encode()
+	pong[len(pong)-1] = wire.MaxExt + 1
+	if _, err := wire.DecodePongReply(pong); !errors.Is(err, wire.ErrBadExtras) {
+		t.Fatalf("too many extensions: %v", err)
+	}
+}

@@ -45,7 +45,7 @@ only some pools or mints, or to change K and the other limits; see
 ```
 
 It prints how many pools it follows and what it replayed, and listens for
-peers on port 7337 and for local commands on `127.0.0.1:7336` (`poo
+peers on port 7733 and for local commands on `127.0.0.1:7732` (`poo
 init` wrote both into `node.json`; change them there). Leave it running
 and use another terminal. Stop it with Ctrl-C; it compacts its stores and
 exits.
@@ -230,13 +230,13 @@ Give the second node its own policy, its own RPC port, and the first node
 as a peer:
 
 ```sh
-./poo init -policy second -example -listen 127.0.0.1:7346 -p2p off -peer 127.0.0.1:7337
+./poo init -policy second -example -listen 127.0.0.1:7742 -p2p off -peer 127.0.0.1:7733
 ./poo node -policy second            # in a third terminal
 ./poo peers -policy second           # the first node, connected
 ```
 
 `init` makes the new policy current, so give the first node's commands
-`-policy default` from now on. A listed peer such as `127.0.0.1:7337` is
+`-policy default` from now on. A listed peer such as `127.0.0.1:7733` is
 always dialled, but a node does not take loopback or private addresses
 it hears of from other nodes (D96): for several nodes on one machine to
 find each other, set `"allow_local_peers": true` in each policy's `p2p`
@@ -279,10 +279,10 @@ for 10 minutes or block it for a day. You can look and act yourself:
 ```sh
 ./poo tracking                          # every tracked address and its status
 ./poo tracking 203.0.113.5              # one address: flags, measures, points
-./poo peer block -seconds -1 203.0.113.5:7337   # until you unblock it
-./poo peer block -range 203.0.113.5:7337        # its whole network range
-./poo peer unblock 203.0.113.5:7337
-./poo peer template -template detailed 203.0.113.5:7337   # record more
+./poo peer block -seconds -1 203.0.113.5:7733   # until you unblock it
+./poo peer block -range 203.0.113.5:7733        # its whole network range
+./poo peer unblock 203.0.113.5:7733
+./poo peer template -template detailed 203.0.113.5:7733   # record more
 ./poo chases                            # heavier ledgers waiting to be checked
 ```
 
@@ -296,7 +296,7 @@ is never offered as a contact and adds no reachable node to the network.
 
 There are two ways to take inbound connections:
 
-- **Forward the port by hand.** In the router, forward TCP port 7337 (or
+- **Forward the port by hand.** In the router, forward TCP port 7733 (or
   your `-p2p` port) to this machine. Then set `p2p.advertise`
   (`poo init -advertise`) to the router's public address and that port.
 - **Let the node ask the router.** Set `p2p.port_map` to `auto`
@@ -466,7 +466,7 @@ so read the file before you share it.
 - The RPC listens on loopback only. Every call needs the token in
   `rpc.token` in the data directory, readable only by your user. Anyone who
   can read that file controls the node.
-- The p2p port (7337) listens on every interface by default, because peers
+- The p2p port (7733) listens on every interface by default, because peers
   are on other machines. It accepts only protocol messages, and every item
   is checked before it is kept; nothing it receives can change the node's
   settings. Set `p2p.listen` to `"off"` to accept no connections (the node

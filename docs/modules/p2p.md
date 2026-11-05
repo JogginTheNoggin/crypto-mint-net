@@ -341,7 +341,10 @@ messages, invalid entries leading to a timeout, and the cost of serving.
 `ownHello` fills the hello's `Release` from `node.RunningRelease()`
 (empty when `Config.HideRelease`, from `p2p.announce_version: none`) and
 `Features` from `wire.OwnFeatures`. `PeerInfo` shows what each peer
-claimed as `release` and `claimed_features`. Nothing reads them for a
+claimed as `release` and `claimed_features`; a peer's extensions are
+not kept, since no tag is registered (D190). A bad release, features or
+extensions list ends the connection with no lasting offence
+(`wire.ErrBadExtras` in `misbehave`, D190). Nothing reads them for a
 decision: no peer is refused, ranked, scored or chased differently for
 them, and every node speaks the whole protocol 1 baseline
 (`TestHeavierWhateverTheHelloClaims`).

@@ -9,9 +9,9 @@ import (
 
 // poo init writes the default ports into node.json (W-7, D187), so a later
 // release that moves a default leaves this node where it is. The defaults
-// are jerry's choice: 7336 for local commands, 7337 for peers.
+// are jerry's choice: 7732 for local commands, 7733 for peers.
 func TestInitWritesPorts(t *testing.T) {
-	if nodepolicy.DefaultListen != "127.0.0.1:7336" || nodepolicy.DefaultP2PListen != ":7337" {
+	if nodepolicy.DefaultListen != "127.0.0.1:7732" || nodepolicy.DefaultP2PListen != ":7733" {
 		t.Fatalf("defaults %s %s", nodepolicy.DefaultListen, nodepolicy.DefaultP2PListen)
 	}
 	dir := t.TempDir()
@@ -20,7 +20,7 @@ func TestInitWritesPorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.RPC.Listen != "127.0.0.1:7336" || p.P2P.Listen != ":7337" {
+	if p.RPC.Listen != "127.0.0.1:7732" || p.P2P.Listen != ":7733" {
 		t.Fatalf("node.json has rpc %q p2p %q", p.RPC.Listen, p.P2P.Listen)
 	}
 	dir2 := t.TempDir()
