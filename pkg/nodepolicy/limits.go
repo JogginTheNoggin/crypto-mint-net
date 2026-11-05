@@ -91,6 +91,19 @@ var BoundRecentWindow = Bound{"recent_window", 16, 1 << 30, DefaultRecentWindow}
 // DefaultRecentWindow is recent_window's default.
 const DefaultRecentWindow = 10000
 
+// BoundSnapshotEvery is snapshot_every (D178): how many records a pool's
+// log takes between the snapshots a running node writes of the pool, so a
+// start after a crash replays at most about this many records. A clean
+// stop, and every compaction, also writes one. A snapshot is the node's
+// own data and decides nothing: a node with none, or set to ignore them
+// (no_snapshots, -reverify), replays its logs and ends with the same
+// pools, only more slowly. The floor bounds how often a busy pool's
+// skeleton is written out; the ceiling is effectively "at stops only".
+var BoundSnapshotEvery = Bound{"snapshot_every", 1000, 1 << 30, DefaultSnapshotEvery}
+
+// DefaultSnapshotEvery is snapshot_every's default.
+const DefaultSnapshotEvery = 50000
+
 // EntryCacheBytes returns the entry body cache bound this policy asks for.
 func (p Policy) EntryCacheBytes() int64 {
 	return int64(BoundEntryCacheMiB.Or(p.EntryCacheMiB)) << 20
@@ -100,7 +113,7 @@ func (p Policy) EntryCacheBytes() int64 {
 func Bounds() []Bound {
 	return []Bound{BoundMaxBook, BoundBookPerRange, BoundVerifiedPerRange, BoundRetrySeconds, BoundRegistrySeconds,
 		BoundCandidateSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
-		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB, BoundRecentWindow}
+		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB, BoundRecentWindow, BoundSnapshotEvery}
 }
 
 // Check refuses v when it is neither zero (the default) nor in range.
@@ -224,6 +237,8 @@ func (p *Policy) limitField(name string) *int {
 		return &p.EntryCacheMiB
 	case BoundRecentWindow.Name:
 		return &p.RecentWindow
+	case BoundSnapshotEvery.Name:
+		return &p.SnapshotEvery
 	}
 	return nil
 }
@@ -275,6 +290,8 @@ var InPlace = map[string]bool{
 	// (D172); a reload would start it empty, which costs reads, not
 	// verdicts.
 	BoundEntryCacheMiB.Name: true,
+	// Read at each record a pool's log takes (D178).
+	BoundSnapshotEvery.Name: true,
 }
 
 // ChangedLimits lists the bounded settings whose used value differs

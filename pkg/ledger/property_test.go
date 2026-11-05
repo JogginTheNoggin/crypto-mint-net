@@ -123,6 +123,7 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 	}
 	var held []hash.Hash
 	reorgs := 0
+	nextRestore := 36
 	checkSwitch := func(step int, sw *ledger.Switch) {
 		if sw == nil || sw.Extension() {
 			return
@@ -210,6 +211,10 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 			t.Fatalf("step %d: %v", step, err)
 		}
 		tw.compare(t, step, f.pool)
+		if step >= nextRestore {
+			tw.restore(t, step, f.pool)
+			nextRestore = step + 37
+		}
 		if step%50 == 49 {
 			tw.compareBodies(t, f.pool, held)
 		}
@@ -241,6 +246,9 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 		}
 	}
 	tw.compareBodies(t, f.pool, held)
+	if steps >= 37 && tw.restores == 0 {
+		t.Fatalf("seed %d: the twin was never restored from a snapshot", seed)
+	}
 	if steps >= 100 && tw.maxCold == 0 {
 		t.Fatalf("seed %d: no entry went cold, so no switch read anything back", seed)
 	}

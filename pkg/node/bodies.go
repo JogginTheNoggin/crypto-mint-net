@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
@@ -33,6 +34,13 @@ type poolBodies struct {
 	s    *series.Series
 	log  *store.Log
 	locs map[hash.Hash]store.Loc
+	// damaged is set once a record the index points at failed to read
+	// back: the log is damaged or was changed under the node. The pool's
+	// snapshot is then removed and no new one written, so the next start
+	// replays the log whole, which cuts it at the first damaged record,
+	// instead of starting again from a snapshot that skips the damage
+	// (D178).
+	damaged atomic.Bool
 }
 
 var errNoBody = errors.New("node: no stored record of this entry")
@@ -64,6 +72,14 @@ func (b *poolBodies) load(h hash.Hash) (*entry.Entry, error) {
 	if !ok || b.log == nil {
 		return nil, errNoBody
 	}
+	e, err := b.read(h, loc)
+	if err != nil {
+		b.damaged.Store(true)
+	}
+	return e, err
+}
+
+func (b *poolBodies) read(h hash.Hash, loc store.Loc) (*entry.Entry, error) {
 	r, err := b.log.ReadAt(loc)
 	if err != nil {
 		return nil, err

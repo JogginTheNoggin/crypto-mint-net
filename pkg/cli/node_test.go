@@ -124,10 +124,14 @@ func TestNodeEndToEnd(t *testing.T) {
 			Pool   uint64
 			Height int
 		}
-		Replay struct{ Records, Kept int }
+		Replay struct {
+			Records, Kept int
+			// The clean stop wrote a snapshot, which the start used (D178).
+			Covered int `json:"snapshot_records"`
+		}
 	}
 	cli(t, &st, append([]string{"status"}, r...)...)
-	if len(st.Pools) != 2 || st.Pools[1].Height != 2 || st.Replay.Records == 0 {
+	if len(st.Pools) != 2 || st.Pools[1].Height != 2 || st.Replay.Records+st.Replay.Covered == 0 {
 		t.Fatalf("status %+v", st)
 	}
 	// Paying more than the key holds fails before anything is sent.

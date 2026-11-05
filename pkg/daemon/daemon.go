@@ -45,6 +45,9 @@ type Options struct {
 	// LogLevel and LogFormat override the node policy's log section
 	// (package logging); "" keeps the policy's.
 	LogLevel, LogFormat string
+	// Reverify makes the first start ignore the pool snapshots and replay
+	// every log whole (node.Options.Reverify, D178); reloads use them.
+	Reverify bool
 }
 
 // Run runs the node in dir until ctx is done, reloading it when asked.
@@ -83,6 +86,7 @@ func Run(ctx context.Context, dir string, o Options) error {
 			return err
 		}
 		reloading, lockedSince = true, time.Time{}
+		o.Reverify = false
 		if beforeReopen != nil {
 			beforeReopen(dir)
 		}
@@ -100,14 +104,15 @@ var reloadLockWait = 10 * time.Second
 // runOnce runs the node until ctx is done or a reload is asked for, and
 // reports which.
 func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload bool, err error) {
-	n, err := node.Open(dir, node.Options{Log: log, LogLevel: o.LogLevel, LogFormat: o.LogFormat})
+	n, err := node.Open(dir, node.Options{Log: log, LogLevel: o.LogLevel, LogFormat: o.LogFormat, Reverify: o.Reverify})
 	if err != nil {
 		return false, err
 	}
 	nlog := n.Logger().With(logging.Component, "node")
 	rs := n.Replayed()
 	nlog.Info("started", "dir", dir, "pools", n.Engine().FollowedCount(),
-		"records", rs.Records, "stores", rs.Pools, "kept", rs.Kept)
+		"records", rs.Records, "stores", rs.Pools, "kept", rs.Kept,
+		"from_snapshots", rs.Snapshots, "snapshot_records", rs.Covered)
 	var once sync.Once
 	asked := make(chan struct{})
 	ask := func() { once.Do(func() { close(asked) }) }

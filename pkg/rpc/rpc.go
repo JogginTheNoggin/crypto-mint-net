@@ -441,6 +441,9 @@ type StatusReply struct {
 	Bodies node.BodyStats `json:"bodies"`
 	// FileLimit is the open file limit checked at start (ORANGE-037).
 	FileLimit nodepolicy.FileLimit `json:"file_limit"`
+	// Snapshots sums up the pool snapshots: how old the oldest is and the
+	// most records a start would replay (D178).
+	Snapshots node.SnapshotSummary `json:"snapshots"`
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -448,7 +451,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	for _, s := range h.n.Stores() {
 		stored[s.Key] = s.Records
 	}
-	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed(), Bodies: h.n.Bodies(), FileLimit: h.n.FileLimit()}
+	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed(), Bodies: h.n.Bodies(), FileLimit: h.n.FileLimit(), Snapshots: h.n.SnapshotSummary()}
 	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
 		rep.PolicyChanged = !p.SameApplied(h.n.Running())
 	}

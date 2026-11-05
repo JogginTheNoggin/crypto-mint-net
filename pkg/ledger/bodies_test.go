@@ -67,6 +67,10 @@ type twin struct {
 	pool  *ledger.Pool
 	// maxCold is the most cold entries seen at once (D175).
 	maxCold int
+	// cfg is the pool's configuration, for restoring it (D178), and
+	// restores counts the restores.
+	cfg      ledger.Config
+	restores int
 }
 
 func newTwin(s *series.Series, cfg ledger.Config) *twin {
@@ -74,6 +78,7 @@ func newTwin(s *series.Series, cfg ledger.Config) *twin {
 	// A window of 2: almost every entry of the selected ledger is cold,
 	// so the random histories' switches read items and undo back (D175).
 	cfg.Source, cfg.Bodies, cfg.RecentWindow = tw.src, tw.cache, 2
+	tw.cfg = cfg
 	tw.pool = ledger.New(s, 1, cfg)
 	return tw
 }

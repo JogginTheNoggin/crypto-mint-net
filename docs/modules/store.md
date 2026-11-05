@@ -51,6 +51,13 @@ Kinds: 1 entry, 2 layer, 3 transaction. Numbers are never reused.
   `ReadAt` the old file, which is replaced only at the end) and returns
   their locations in the new generation. `Rewrite` wraps it.
 
+- `OpenFuncAt(path, opt, From{Ready}, fn)` (D178): `Ready` runs once the
+  file is open, may `ReadAt`, and returns the offset and record count a
+  snapshot covers; only the records after it are read. `Tag(path, off)`
+  digests the offset and the first and last 4 KiB before it, so a
+  snapshot can tell whether the log still holds what it covers.
+  `Size()` is the log's length.
+
 ## Guarantees
 
 - A crash mid-append loses at most the record being written. `Open` keeps

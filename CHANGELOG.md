@@ -234,6 +234,23 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 30 (D178, D179):**
+  - **Fast starts from pool snapshots.** A node saves each pool's
+    skeleton, tip state, pending transactions and the place of every
+    entry record in its log beside the log, at a clean stop, after each
+    compaction and every `snapshot_every` records (default 50,000). A
+    start restores it and replays only what came after, so it no longer
+    re-checks the whole history. A snapshot that is torn, damaged, from
+    another pool or build, or no longer fits its log is not used, and the
+    log is replayed whole as before. `poo node -reverify` replays
+    everything and reports whether the snapshot matched; `no_snapshots`
+    turns them off.
+  - A body that fails to read back, or a node that stopped after an
+    internal error, removes the snapshots, so the next start checks the
+    logs and cuts a damaged one.
+  - `poo status` and `poo doctor` report the snapshots' age and the most
+    records a start would replay; `poo status -counts` rows name the
+    built-in reserve series (`builtin`).
 - **Round 29 fixes (D177):**
   - A failed read of a cold entry while checking a pushed entry, a chase
     page or a build on a chosen parent now stops the node cleanly; it used

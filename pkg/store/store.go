@@ -36,6 +36,7 @@ package store
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -198,6 +199,22 @@ func Open(path string, opt Options) (*Log, Opened, error) {
 // handed over can be read back before Open returns (a node drops bodies
 // from memory while it replays).
 func OpenFunc(path string, opt Options, fn func(*Log, Record, Loc) error) (*Log, Opened, error) {
+	return OpenFuncAt(path, opt, From{}, fn)
+}
+
+// From says where OpenFuncAt starts reading: Ready, when set, is called
+// once the file is open, before any record is read, with the log (which
+// it may ReadAt), and returns the offset to read from and how many
+// records come before it, as a snapshot that covers them says (D178).
+// 0, 0 reads every record. The offset must be the end of a record, or of
+// the header, within the file, or ErrStaleLoc is returned; the caller has
+// checked that the log still holds what it skips (Tag).
+type From struct {
+	Ready func(*Log) (off int64, before int, err error)
+}
+
+// OpenFuncAt is OpenFunc that may skip the records a snapshot covers.
+func OpenFuncAt(path string, opt Options, from From, fn func(*Log, Record, Loc) error) (*Log, Opened, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, Opened{}, err
 	}
@@ -223,12 +240,23 @@ func OpenFunc(path string, opt Options, fn func(*Log, Record, Loc) error) (*Log,
 		}
 	} else {
 		l.size = info.Size() // for ReadAt from fn; set to the end below
-		n, good, err := read(f, info.Size(), func(r Record, loc Loc) error { return fn(l, r, loc) })
+		var off int64
+		var before int
+		if from.Ready != nil {
+			if off, before, err = from.Ready(l); err == nil && off != 0 && (off < int64(len(magic)) || off > info.Size()) {
+				err = ErrStaleLoc
+			}
+			if err != nil {
+				f.Close()
+				return nil, Opened{}, err
+			}
+		}
+		n, good, err := read(f, info.Size(), off, func(r Record, loc Loc) error { return fn(l, r, loc) })
 		if err != nil {
 			f.Close()
 			return nil, Opened{}, err
 		}
-		l.records = n
+		l.records = before + n
 		op.Cut = info.Size() - good
 		if op.Cut > 0 {
 			if err := f.Truncate(good); err != nil {
@@ -251,9 +279,57 @@ func OpenFunc(path string, opt Options, fn func(*Log, Record, Loc) error) (*Log,
 	return l, op, nil
 }
 
+// Size returns the log's length in bytes: where the next record starts.
+func (l *Log) Size() int64 {
+	l.fmu.Lock()
+	defer l.fmu.Unlock()
+	return l.size
+}
+
+// tagSpan is how many bytes at each end of a log's prefix Tag reads.
+const tagSpan = 4096
+
+// Tag returns a digest of the first bytes of the log at path and the
+// bytes just before offset off, with off itself, so a snapshot that ends
+// at off can tell whether the file still holds what it covers: a log
+// rewritten by a compaction, cut short, or replaced by another file gives
+// another tag (D178). A file shorter than off gives ErrStaleLoc.
+func Tag(path string, off int64) ([32]byte, error) {
+	var out [32]byte
+	f, err := os.Open(path)
+	if err != nil {
+		return out, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return out, err
+	}
+	if off < int64(len(magic)) || info.Size() < off {
+		return out, ErrStaleLoc
+	}
+	h := sha256.New()
+	var n [8]byte
+	binary.BigEndian.PutUint64(n[:], uint64(off))
+	h.Write(n[:])
+	head := make([]byte, min(off, tagSpan))
+	if _, err := f.ReadAt(head, 0); err != nil {
+		return out, err
+	}
+	h.Write(head)
+	start := max(0, off-tagSpan)
+	tail := make([]byte, off-start)
+	if _, err := f.ReadAt(tail, start); err != nil {
+		return out, err
+	}
+	h.Write(tail)
+	copy(out[:], h.Sum(nil))
+	return out, nil
+}
+
 // read hands every whole record of a log and its location to fn, and
 // returns how many there were and the offset just after the last one.
-func read(f *os.File, size int64, fn func(Record, Loc) error) (int, int64, error) {
+func read(f *os.File, size, from int64, fn func(Record, Loc) error) (int, int64, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return 0, 0, err
 	}
@@ -264,6 +340,13 @@ func read(f *os.File, size int64, fn func(Record, Loc) error) (int, int64, error
 	}
 	count := 0
 	off := int64(len(magic))
+	if from > off {
+		if _, err := f.Seek(from, io.SeekStart); err != nil {
+			return 0, 0, err
+		}
+		r.Reset(f)
+		off = from
+	}
 	good := off // just after the last whole item
 	var parts []byte
 	var hdr [5]byte

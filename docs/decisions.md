@@ -4378,10 +4378,15 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     an overlay without keeping them. Nothing is refused for depth: a deep
     switch only reads the disk and is slower.
   - **A failed read** while the pool needs it panics with
-    `ledger.ReadFault` before the pool changes; that fails the engine
-    (D174), so the node stops and rebuilds from its stores. It is never
-    read as an invalid entry and never selects on partial data. In a read
-    path (a query), the panic ends that query only.
+    `ledger.ReadFault`; that fails the engine (D174), so the node stops
+    and rebuilds from its stores. The panic can come after the pool
+    already changed part way (Black, R29: `AddLayer` may have counted a
+    layer, `AddEntry` may have inserted the entry), so the pool is not
+    left untouched; what keeps the node safe is that a failed engine
+    takes no more input, skips compaction and is rebuilt from the logs on
+    restart (D174). A fault is never read as an invalid entry and the
+    node never serves a selection made on partial data. In a read path
+    (a query), the panic ends that query only. (Reworded in R30.)
   - **Node policy `recent_window`** (16 to 2^30, default 10,000), applied
     on reload. `bodies.cold` in `/v1/status` counts cold entries.
   - **Peer sync from disk** is D172 plus D174: replies read bodies back
@@ -4467,3 +4472,111 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/cli/blue030_test.go`: `TestStatusBySeries`.
   - `pkg/p2p/serve_test.go`: `TestDeepForkSpendsRevertBudget` counts three
     units a spend.
+
+### D178. Pool snapshots and the sidecar index (disk-backed state, step 3)
+
+- **Decision:**
+  - **What a snapshot is.** Beside each pool log, `<index>.log.snap`
+    holds the pool as the node runs it: every held entry's hash, parent,
+    first-sighting order, counts, claimed mints, layers (hash and nonce)
+    and, for the selected ledger, its tids; the unspent portions at the
+    tip; the pending transactions; and the **sidecar index**, where in the
+    log each held entry's record is. It holds no entry body. It ends with
+    a SHA-256 of everything before it and is written to a temporary file,
+    synced and renamed, so it is whole or absent.
+  - **Start.** A node uses a snapshot only if all of these hold: the
+    checksum (a torn or damaged file), the pool (a file swapped from
+    another pool), the build that wrote it (an upgrade replays once, so
+    it never trusts a pool an older build computed), and the log's tag
+    (`store.Tag`: the offset it covers and the first and last 4 KiB
+    before it, so a log compacted, cut short or replaced gives another
+    tag). It then restores the skeleton (`ledger.Restore`), gives the
+    pending transactions again through the normal checks, and replays
+    only the records after the snapshot. Entries more than
+    `recent_window` below the tip start cold (D175); the rest read their
+    items back and recompute their undo. Every held entry is restored, at
+    any depth. Anything else means a full replay, as before, and the
+    reason is in `replay.snapshots_unused` and the log.
+  - **Writing.** A clean stop writes one when the log grew since the
+    last; each compaction removes the snapshot before it rewrites the log
+    and writes a new one after, so a snapshot never outlives the log it
+    describes; a running node writes one every `snapshot_every` records
+    (node policy, 1,000 to 2^30, default 50,000, in place), gathered under
+    the node's lock and written to disk outside it. `no_snapshots` turns
+    them off. A pool whose newest body is not written yet is skipped
+    until the next one.
+  - **Trust and `-reverify`** (jerry's decision card, recommended option:
+    trust the node's own snapshot, with a flag to check everything).
+    `poo node -reverify` ignores the snapshots on that start, replays
+    every log whole, and where a snapshot covered the whole log compares
+    the pool the replay built with the snapshot's fingerprint
+    (`ledger.Pool.Fingerprint`), reporting `reverified` and
+    `reverify_differed` in `/v1/status` and `poo doctor`. A difference
+    would be a bug; the node runs on the replay.
+  - **Disk errors.** A body that fails to read back marks its pool
+    damaged: its snapshot is removed and none is written. An engine that
+    failed (D174) removes every snapshot at Close. So the next start
+    replays the logs whole and cuts a damaged log at its first bad record,
+    which peers then refill, rather than skipping the damage inside a
+    snapshot's span. A body that fails to read during a restore makes the
+    snapshot unusable, not the node.
+  - **Compaction renumbers first sightings.** After a compaction the
+    running pool takes the first-sighting order a replay of the new log
+    gives it (`Pool.Renumber`: the selected ledger first, then the rest as
+    they were, which is the order the compaction writes). Before this, a
+    restart after a compaction could break a later tie between an
+    off-chain entry and a formerly selected one the other way from the
+    running node. Ties are broken by first sighting, which is local
+    information, so this changes no rule; it makes restart and running
+    agree, and the snapshot differential found it.
+  - **The sidecar index** is the snapshot's index section, so it is built
+    now rather than deferred: a start from a snapshot reads no record the
+    snapshot covers. The plan's separate index file is not needed.
+  - **Status and doctor.** `/v1/status` and `poo status -counts` carry
+    `snapshots` (pools, missing, the oldest's age, the most records a
+    start would replay, bytes, `snapshot_every`); `replay` gains
+    `snapshots`, `snapshot_records`, `snapshots_unused`. `poo doctor` adds
+    a `snapshots` check.
+- **Why:** jerry's priority (2026-11-04): disk-backed state, thinking
+  long term. A start replayed and re-checked every record. Measured on 4
+  cores, 20,000 entries with one transaction each (Ed25519): 0.60 s
+  replaying, 0.10 s from the snapshot (about half of that reads back the
+  10,000 recent bodies). With post-quantum witnesses, which cost more to
+  check, the gap grows, since a snapshot start checks no witness the
+  snapshot covers.
+- **Consensus:** None. A snapshot is the node's own data, never sent or
+  taken from a peer, and restores the pool the node had: the same
+  entries, weights, selected ledger and state. Nothing is refused and no
+  depth is limited. Checked by:
+  - the random-history twin (window 2, bodies on disk), now restored from
+    its snapshot every 37 steps and then run on against the in-memory
+    pool, comparing switches, tips, weights and state after every step,
+    with fingerprints equal at each restore;
+  - node tests where a start from the snapshot, and from an older
+    snapshot plus the records after it, build exactly the pool a full
+    replay builds (fingerprint, status, holdings, pending), before and
+    after a compaction.
+- **Tier:** Ledger, engine, store, node, node policy, RPC, CLI.
+  - `pkg/ledger/snapshot.go`; `snapshot_test.go`: `TestRestoreRefuses`,
+    `TestRestoreAnyWindow`; `property_test.go` restores the twin.
+  - `pkg/node/snapshot.go`; `snapshot_test.go`: `TestSnapshotStart`,
+    `TestSnapshotAfterCompaction`, `TestSnapshotFaults` (torn, damaged,
+    trailing bytes, another node's, not a snapshot),
+    `TestSnapshotEvery`, `TestSnapshotOtherBuild`,
+    `TestSnapshotDroppedOnDamage`.
+  - `pkg/store`: `OpenFuncAt`, `Tag`, `Log.Size`; `snapshot_test.go`:
+    `TestOpenFuncAtAndTag`.
+- **Not built:** repairing a damaged body in place, by fetching it again
+  from peers while the node runs. Today the node stops on a fault during
+  a change, and serves without it on a read path, and the restart repairs
+  it. In-place repair needs a fetch-by-hash path into the log and its own
+  fault tests; it is proposed for a later round.
+
+### D179. `builtin` in `poo status -counts` (GUI-GREEN-056)
+
+- **Decision:** Each row of `poo status -counts` carries `builtin`, as
+  `poo series followed` does (`"reserve"` for the default series), so the
+  GUI can name the series rather than show only its hash.
+- **Why:** GUI Green, R30B (PR #217).
+- **Consensus:** None. Display only.
+- **Tier:** CLI. `pkg/cli/blue030_test.go`: `TestStatusBySeriesBuiltin`.
