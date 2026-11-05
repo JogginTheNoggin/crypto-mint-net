@@ -3,6 +3,7 @@ import * as api from '../api.js';
 import * as where from '../where.js';
 import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile, rawFold } from '../views.js';
 import { scrollback } from '../scroll.js';
+import { parseJSON } from '../render.js';
 
 // node finds the node job this GUI is running, if any.
 async function nodeJob() {
@@ -77,7 +78,11 @@ export const nodeView = {
     // poo status says when node.json changed since the node loaded it and
     // the change waits for a reload (Source GREEN-037). The panel says so
     // above what it shows, with the Reload form's own button (GREEN-038).
-    const status = panel(ctx, { title: 'Followed pools', about: 'What the running node follows, and where each pool stands.', args: () => ['status', ...where.flags()], refresh: 5000,
+    // The 5 s refresh asks for poo's totals per series (-counts, D177), not a
+    // row per pool: on the reserve series that was 352 KB and a 150 ms pause
+    // every 5 s (ORANGE-021). poo adds them up; the GUI totals nothing.
+    // Each pool's row is in Each pool below, which runs only when asked.
+    const status = panel(ctx, { title: 'Followed pools', about: 'What the running node follows: totals for each series (pools, entries, branches, pending, waiting, stored records), with the entry cache and file limit notes. Refreshes every 5 seconds.', args: () => ['status', '-counts', ...where.flags()], refresh: 5000,
       onResult: (r, area) => {
         let st;
         try { st = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
@@ -119,6 +124,7 @@ export const nodeView = {
       { name: 'mint', label: 'Mints', type: 'list', placeholder: 'serial …' },
     ];
     const followArgs = (cmd, v) => [cmd, ...where.flags(), ...flag('issuer', v.issuer), ...flag('series', v.series), ...flags('pool', v.pool), ...flags('mint', v.mint), ...flag('replace', v.replace), ...flag('no-reload', v.noReload)];
+    const eachPool = panel(ctx, { title: 'Each pool', about: 'Where each followed pool stands, one row per pool, as poo status prints it. Press Refresh to update; it does not refresh by itself.', args: () => ['status', ...where.flags()] });
     const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy.', args: () => ['follow', ...where.flags()] });
     // Replace (GREEN-038, Source) is poo follow -replace: with a series, the
     // pools and mints given become all it follows of that series, in one
@@ -135,7 +141,7 @@ export const nodeView = {
     const variable = panel(ctx, { title: 'Variable series', about: 'Each followed series that can grow: the parts released so far, the next part, the mints and units that exist now, and the newest release the node holds.', args: () => ['series', 'followed', ...where.flags()],
       onResult: (r, area) => {
         let o;
-        try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        try { o = r.code === 0 && parseJSON(r.out); } catch (_) { return; }
         const all = o && Array.isArray(o.series) ? o.series : null;
         if (!all) return;
         const raw = area.querySelector('.result');
@@ -154,7 +160,7 @@ export const nodeView = {
     const followed = panel(ctx, { title: 'Followed series', about: 'Each series the running node follows: its name when it is built into poo, its id, whether its supply is fixed or can grow, and its pools, mints, units per mint and floors.', args: () => ['series', 'followed', ...where.flags()],
       onResult: (r, area) => {
         let o;
-        try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        try { o = r.code === 0 && parseJSON(r.out); } catch (_) { return; }
         const all = o && Array.isArray(o.series) ? o.series : null;
         const raw = area.querySelector('.result');
         if (!all || !raw) return;
@@ -182,7 +188,7 @@ export const nodeView = {
         const raw = area.querySelector('.result');
         if (raw) { raw.replaceWith(doctorReport(rep, ctx)); area.append(rawFold(raw)); }
       } });
-    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, followed, status, follows, variable, addRelease, follow, unfollow, reload, init]);
+    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, followed, status, eachPool, follows, variable, addRelease, follow, unfollow, reload, init]);
     return stop;
   },
 };
@@ -222,9 +228,15 @@ export function statusNotes(st) {
   const fl = st.file_limit;
   if (fl && fl.known && fl.low) out.push(el('p', { class: 'next-step file-limit-low', role: 'alert' },
     `The open file limit is ${fl.soft}, below the ${fl.need} the followed pools need. Raise it (ulimit -n, or LimitNOFILE for a service) and restart the node.`));
+  // Each figure is read only if poo gave it as a number: a partial reply
+  // (an older node, a field left out) shows "?" for it rather than
+  // throwing, which would leave the lines after it undrawn (GUI/Red R29B).
   const b = st.bodies;
-  if (b && typeof b.max_bytes === 'number') out.push(el('p', { class: 'hint entry-cache' },
-    `Entry cache: ${(b.used_bytes / MIB).toFixed(1)} of ${(b.max_bytes / MIB).toFixed(0)} MiB (entry_cache_mib), ${b.bodies} bodies; ${b.hits} hits, ${b.loads} read from disk${b.errors ? `, ${b.errors} failed reads` : ''}. ${b.in_memory} of ${b.held} entries are in memory.`));
+  const num = x => typeof x === 'number' && Number.isFinite(x);
+  const n = x => num(x) ? String(x) : '?';
+  const mib = (x, d) => num(x) ? (x / MIB).toFixed(d) : '?';
+  if (b && num(b.max_bytes)) out.push(el('p', { class: 'hint entry-cache' },
+    `Entry cache: ${mib(b.used_bytes, 1)} of ${mib(b.max_bytes, 0)} MiB (entry_cache_mib), ${n(b.bodies)} bodies; ${n(b.hits)} hits, ${n(b.loads)} read from disk${num(b.errors) && b.errors ? `, ${b.errors} failed reads` : ''}. ${n(b.in_memory)} of ${n(b.held)} entries are in memory${num(b.cold) ? `, and ${b.cold} older ones (outside recent_window) are read from the logs when needed` : ''}.`));
   return out;
 }
 

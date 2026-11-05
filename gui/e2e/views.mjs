@@ -3,7 +3,7 @@
 //
 //   node gui/e2e/views.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
 import { join } from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
@@ -50,8 +50,28 @@ try {
     await page.waitForTimeout(250);
   }
   await shot('node');
+  // The 5 s refresh asks poo for totals per series (-counts, D177): one
+  // row for the example's series with its 2 pools, no row per pool.
+  assert.match(await pools.locator('.cmd code').innerText(), /^poo status -counts /);
+  assert.doesNotMatch(await pools.innerText(), /"pools": \[/, 'no pool rows in the timed panel');
+  // Each pool runs the full poo status, only when shown or asked.
+  const each = section('Each pool');
+  assert.match(await each.locator('.cmd code').innerText(), /^poo status -root /);
+  for (let i = 0; !(await each.locator('table.data, dl.kv').count()); i++) {
+    assert.ok(i < 40, 'Each pool never rendered');
+    await each.locator('button:has-text("Refresh")').click();
+    await page.waitForTimeout(250);
+  }
   // The entry cache line comes from poo status's bodies (D172).
-  await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\)/ }).waitFor();
+  await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\).*older ones \(outside recent_window\)/ }).waitFor();
+  // A partial status reply (only max_bytes) is drawn with "?" for what
+  // is missing, not thrown on, so the lines after it still draw (GUI/Red
+  // R29B).
+  const partial = await page.evaluate(async () => {
+    const m = await import(new URL('views/node.js', location.href).href);
+    try { return m.statusNotes({ bodies: { max_bytes: 64 * 1048576 } }).map(p => p.textContent); } catch (e) { return `threw: ${e.message}`; }
+  });
+  assert.deepEqual(partial, ['Entry cache: ? of 64 MiB (entry_cache_mib), ? bodies; ? hits, ? read from disk. ? of ? entries are in memory.'], 'a partial reply is drawn, not thrown on');
   assert.equal(await pools.locator('.file-limit-low').count(), 0, 'no file limit alert when the limit is high enough');
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
@@ -279,12 +299,29 @@ try {
   const imp = section('Import node policies');
   await fill(imp, 'File', bundle);
   assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json ${bundle}`);
+  // A plan that changes nothing has no digest (poo leaves it out, Source
+  // R30), so there is nothing to apply and no Apply. The test blanks the
+  // digest too, so this holds whichever poo prints.
+  const noDigest = async route => {
+    const res = await route.fetch();
+    const body = (await res.text()).replace(/(\\"digest\\": *\\")[0-9a-f]{64}/g, '$1');
+    await route.fulfill({ response: res, body });
+  };
+  await page.route('**/api/jobs/*/events*', noDigest);
   await imp.locator('button[type=submit]').click();
-  await imp.locator('.import-plan', { hasText: 'Nothing changed yet' }).waitFor();
+  await imp.locator('.nothing-to-apply', { hasText: 'Nothing to apply' }).waitFor();
+  await page.unroute('**/api/jobs/*/events*', noDigest);
   assert.match(await imp.locator('.import-plan').innerText(), /already the same/);
-  page.once('dialog', d => d.accept());
-  await imp.locator('button.danger:has-text("Apply")').click();
-  await imp.locator('.area .area .import-plan', { hasText: 'Nothing needed changing.' }).waitFor();
+  assert.equal(await imp.locator('button.danger:has-text("Apply")').count(), 0, 'no Apply when nothing changes');
+  assert.equal(await imp.locator('.no-digest').count(), 0, 'nothing to apply is not the missing digest alert');
+  // Files that each change one thing: A follows one issuer, B another
+  // (and names a peer, a node setting left alone without -settings).
+  mkdirSync(join(home, 'a'), { recursive: true });
+  const fileA = join(home, 'a', 'shared-policy.json');
+  const hA = randomBytes(32).toString('hex'), hB = randomBytes(32).toString('hex');
+  const a0 = JSON.parse(readFileSync(bundle, 'utf8'));
+  a0.policies[0].policy.follow = [...(a0.policies[0].policy.follow || []), { issuer: hA }];
+  writeFileSync(fileA, JSON.stringify(a0, null, 2));
   // A file of every policy, renamed: each goes in under its own name, so
   // only -root is sent, and the plan says a new policy is made.
   const every = join(home, 'every-policy.json');
@@ -304,11 +341,11 @@ try {
   await section('Policies').locator('.result', { hasText: 'copy' }).waitFor();
   // A file picked in the browser is sent on poo's input: FILE is -.
   await imp.locator('label', { hasText: 'holds every saved policy' }).locator('input').uncheck();
-  await imp.locator('input[type=file]').setInputFiles(bundle);
+  await imp.locator('input[type=file]').setInputFiles(fileA);
   await imp.locator('.cmd code', { hasText: / -json -$/ }).waitFor();
   assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json -`);
   await imp.locator('button[type=submit]').click();
-  await imp.locator('.import-plan', { hasText: 'already the same' }).waitFor();
+  await imp.locator('.import-plan', { hasText: 'Nothing changed yet' }).waitFor();
   // GUI-023: Apply runs what was previewed, and only that. Picking
   // another file, or changing an option, after a preview takes Apply
   // away, and Apply sends the text that was previewed.
@@ -316,6 +353,7 @@ try {
   const fileB = join(home, 'with-peer.json');
   const b = JSON.parse(readFileSync(bundle, 'utf8'));
   b.policies[0].policy.p2p = { ...(b.policies[0].policy.p2p || {}), peers: [peer] };
+  b.policies[0].policy.follow = [...(b.policies[0].policy.follow || []), { issuer: hB }];
   writeFileSync(fileB, JSON.stringify(b, null, 2));
   const applyBtn = imp.locator('button.danger:has-text("Apply")');
   assert.equal(await applyBtn.count(), 1, 'Apply offered for the previewed file');
@@ -327,14 +365,18 @@ try {
   await imp.locator('label', { hasText: 'Only write the policy' }).locator('input').check();
   assert.equal(await applyBtn.count(), 0, 'changing an option takes Apply away');
   await imp.locator('label', { hasText: 'Only write the policy' }).locator('input').uncheck();
-  // A's preview again, then Apply: node.json does not get B's peer.
-  await imp.locator('input[type=file]').setInputFiles(bundle);
+  // A's preview again, then Apply: node.json gets A's issuer, not B's
+  // issuer or peer.
+  await imp.locator('input[type=file]').setInputFiles(fileA);
   await imp.locator('button[type=submit]').click();
-  await imp.locator('.import-plan', { hasText: 'already the same' }).waitFor();
+  await imp.locator('.import-plan', { hasText: 'Nothing changed yet' }).waitFor();
   let asked = '';
   page.once('dialog', d => { asked = d.message(); d.accept(); });
   await applyBtn.click();
-  await imp.locator('.area .area .import-plan', { hasText: 'Nothing needed changing.' }).waitFor();
+  await imp.locator('.area .area .import-plan', { hasText: 'Saved' }).waitFor();
+  const afterA = readFileSync(join(home, 'policies', 'default', 'node.json'), 'utf8');
+  assert.match(afterA, new RegExp(hA), "A's issuer was applied");
+  assert.doesNotMatch(afterA, new RegExp(hB), "B's issuer was never applied");
   assert.match(asked, /with the previewed file shared-policy\.json\?$/, 'the dialog names the previewed file');
   assert.doesNotMatch(readFileSync(join(home, 'policies', 'default', 'node.json'), 'utf8'), /203\.0\.113\.7/, "B's peer was never applied");
   assert.match(asked, / -apply -if-digest [0-9a-f]{64} - with/, 'Apply sends the previewed file\'s digest (D151)');
@@ -359,12 +401,7 @@ try {
   // A preview that prints no digest gets no Apply, so Apply is never run
   // unpinned (GUI/Red R20B hardening). poo always prints one; the test
   // blanks it in the preview's output on its way to the page.
-  const noDigest = async route => {
-    const res = await route.fetch();
-    const body = (await res.text()).replace(/(\\"digest\\": *\\")[0-9a-f]{64}/g, '$1');
-    await route.fulfill({ response: res, body });
-  };
-  await fill(imp, 'File', bundle);
+  await fill(imp, 'File', fileB);
   await page.route('**/api/jobs/*/events*', noDigest);
   await imp.locator('button[type=submit]').click();
   await imp.locator('.no-digest').waitFor();
@@ -396,16 +433,22 @@ try {
   assert.equal(await sexp.locator('.cmd code').innerText(), `poo settings export -root ${home} -out ${sfile}`);
   await sexp.locator('button[type=submit]').click();
   await sexp.locator('.result', { hasText: 'exported the settings' }).waitFor();
+  // One setting changed, so the plan has something to apply: a plan that
+  // changes nothing has no Apply.
+  const sj = JSON.parse(readFileSync(sfile, 'utf8'));
+  sj.policies[0].policy.entry_cache_mib = 300;
+  writeFileSync(sfile, JSON.stringify(sj, null, 2));
   const simp = section('Import node settings');
   await fill(simp, 'File', sfile);
   await fill(simp, 'Registry paths', '/old/home=/new/home');
   assert.equal(await simp.locator('.cmd code').innerText(), `poo settings import -root ${home} -map-path /old/home=/new/home -json ${sfile}`);
   await simp.locator('button[type=submit]').click();
-  await simp.locator('.import-plan', { hasText: 'already the same' }).waitFor();
+  await simp.locator('.import-plan', { hasText: 'entry_cache_mib' }).waitFor();
   let sasked = '';
   page.once('dialog', d => { sasked = d.message(); d.accept(); });
   await simp.locator('button.danger:has-text("Apply")').click();
-  await simp.locator('.area .area .import-plan', { hasText: 'Nothing needed changing.' }).waitFor();
+  await simp.locator('.area .area .import-plan', { hasText: 'Saved' }).waitFor();
+  assert.match(readFileSync(join(home, 'policies', 'default', 'node.json'), 'utf8'), /"entry_cache_mib": 300/);
   assert.match(sasked, /^Run poo settings import .* -apply -if-digest [0-9a-f]{64} /);
   // A long "Read first" line (ORANGE-016): 30 new peers are 30 defences.
   // The line names 20 and how many more; Show all lists every one.
@@ -482,6 +525,16 @@ try {
   const penv = { env: { ...process.env, POO_HOME: home } };
   const issuer = JSON.parse(String(spawnSync(bin, ['poo', 'keygen', '-seed', vseed], penv).stdout)).address;
   const sn = section('New series parameters');
+  // A whole number above 2^53 is shown digit for digit, as poo printed
+  // it: JSON.parse alone would show 100000000000000000 (GUI-GREEN-055).
+  await sn.locator('input[name=mints]').fill('32');
+  await sn.locator('input[name=poolSize]').fill('32');
+  await sn.locator('input[name=supply]').fill('100000000000000001');
+  await sn.locator('button[type=submit]').click();
+  await sn.locator('.run-status.ok').waitFor();
+  assert.equal(await sn.locator('.result dl.kv dt:text-is("supply") + dd').innerText(), '100000000000000001');
+  await sn.locator('input[name=poolSize]').fill('');
+  await sn.locator('input[name=supply]').fill('');
   assert.ok(!(await sn.locator('input[name=partSize]').isVisible()), 'Part size is for a variable series only');
   await sn.locator('input[name=mints]').fill('8');
   await sn.locator('input[name=issuer]').fill(issuer);

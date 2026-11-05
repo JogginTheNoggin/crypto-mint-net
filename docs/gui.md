@@ -129,7 +129,9 @@ SIGHUP. Headless `poo node` also reloads on SIGHUP.
 
 Each view is a set of panels and forms. A panel runs one command when it
 opens (some refresh on a timer) and renders its output. JSON becomes
-tables and lists, and any other output is shown exactly as printed. A form
+tables and lists, with every whole number shown digit for digit even
+above 2^53 (GUI-GREEN-055), and any other output is shown exactly as
+printed. A form
 builds one command line from its fields. Its preview updates as you type,
 and Run starts that exact line. Run stays off while that job runs, so a
 prompt it shows is never replaced by a second job. Every panel and form shows its command,
