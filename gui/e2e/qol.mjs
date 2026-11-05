@@ -345,6 +345,23 @@ try {
     return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poo settings')), ledgerSummary('wrote 3 entries to x')];
   });
   assert.deepEqual(ls, ['A ledger file of pool 3: 3 entries, heights 2 to 4 of 9.', 'A ledger file of pool 3: 1 entry, heights 1 to 1 of 9.', 'A ledger file of pool 3 with no entries: the selected ledger\'s height is 9.', null, null, null, null, null]);
+  // A ledger export that is not one whole file is folded under Output as
+  // printed, not drawn, and gets one alert: its own, or ORANGE-026's when
+  // poo-gui dropped part of the output (GUI/Orange R34B notes).
+  const ex = await page.evaluate(async () => {
+    const { exportResult } = await import('/views/pools.js');
+    const { incomplete, el } = await import('/views.js');
+    const cut = '{"kind": "poo-ledger", "format": 1, "entries": [';
+    return [false, true].map(dropped => {
+      const area = el('div', {}, el('div', { class: 'result' }, cut));
+      const r = { code: 0, out: cut, err: '', dropped };
+      exportResult(r, area);
+      if (dropped) incomplete(area);
+      return [area.querySelectorAll('[role=alert]').length, area.querySelectorAll('.ledger-partial').length, area.querySelectorAll('.output-dropped').length,
+        !!area.querySelector('details.raw:not([open]) > .result'), area.querySelectorAll('.result:not(details.raw .result)').length, area.querySelectorAll('.save-as').length];
+    });
+  });
+  assert.deepEqual(ex, [[1, 1, 0, true, 0, 0], [1, 0, 1, true, 0, 0]], 'a cut ledger export is folded and has one alert');
   // The Followed series table names the reserve series by poo's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).
