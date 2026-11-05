@@ -7,7 +7,7 @@
 | Found | Source Round 29 Part B, on `main` @ `d1a9128` (D174, D175) |
 | Area | `pkg/engine` (`engine.go`: `PreverifyEntry` :621, `PreverifyPage` :655, `BuildEntryOn` :984; `Err` :192), `pkg/ledger` (`viewAfter`, `warmed`, `fault`), `pkg/p2p` (`handleSafe`), `pkg/node` (`Close`), `pkg/daemon` |
 | For Black | No consensus rule is touched. D175's own rule holds on the change paths: the node stops and selects nothing. This is about the paths that read the cold entries and do not change the pool. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-030) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `255f269` (BLUE-030) |
 
 ## What is wrong
 

@@ -5,6 +5,7 @@
 | Fixes | RED-085 (medium), RED-086 (medium) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `d1a9128` (Source Round 29 Part C) |
+| Code | `255f269` |
 | Decisions | D177 |
 | With | GUI ORANGE-021: `poo status -counts`. Not carried: Orange #212 (mempool only) and Green #209 (no overlap). |
 | Review | No consensus change. For Black: (1) failing the engine on a read path stops the node, as D174 does on a change path; it decides nothing. (2) The view cost decides only when an entry from a peer is checked (the revert budget paces, and never refuses for good), never whether it is valid. |

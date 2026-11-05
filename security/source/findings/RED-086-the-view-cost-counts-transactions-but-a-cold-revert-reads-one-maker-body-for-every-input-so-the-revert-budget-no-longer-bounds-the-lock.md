@@ -7,7 +7,7 @@
 | Found | Source Round 29 Part B, on `main` @ `d1a9128` (D175) |
 | Area | `pkg/ledger` (`cold.go`: `undoOf`; `pool.go`: `unitsOf`, `viewCost`, `MaxPreviewCost`), `pkg/p2p` (the `revert` budget, D111) |
 | For Black | No consensus rule is touched. A deep-parent entry is still taken, as jerry's rule says; this is about what it costs and who pays. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-030) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `255f269` (BLUE-030) |
 
 ## What is wrong
 
