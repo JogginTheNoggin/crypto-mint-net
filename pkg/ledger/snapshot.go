@@ -81,6 +81,21 @@ func (p *Pool) snapshotOrder() []*node {
 // ErrNotSnapshottable when a held entry's body cannot be read back from
 // the source yet. It changes nothing; the caller holds the engine's lock.
 func (p *Pool) Snapshot(emit func([]byte) error) error {
+	return p.snapshot(emit, nil)
+}
+
+// SnapshotPrint is Snapshot that also returns the pool's Fingerprint,
+// working out the tids of each selected entry once for both (ORANGE-040:
+// that pass was about 42% of gathering a snapshot, done twice).
+func (p *Pool) SnapshotPrint(emit func([]byte) error) (hash.Hash, error) {
+	byNode := p.tidsByNode()
+	if err := p.snapshot(emit, byNode); err != nil {
+		return hash.Hash{}, err
+	}
+	return p.fingerprint(byNode), nil
+}
+
+func (p *Pool) snapshot(emit func([]byte) error, byNode map[*node][]hash.Hash) error {
 	if p.cfg.Source == nil {
 		return ErrNotSnapshottable
 	}
@@ -90,7 +105,9 @@ func (p *Pool) Snapshot(emit func([]byte) error) error {
 			return ErrNotSnapshottable
 		}
 	}
-	byNode := p.tidsByNode()
+	if byNode == nil {
+		byNode = p.tidsByNode()
+	}
 	var unspent []state.Holding
 	p.st.ForEach(func(in tx.Input, po tx.Portion) {
 		unspent = append(unspent, state.Holding{Input: in, Portion: po})
@@ -428,7 +445,9 @@ func (p *Pool) Renumber() {
 // same fingerprint decide the same way on every item. It leaves out what
 // is local and decides nothing: when each entry was seen, which bodies
 // are in memory, and which entries are cold. For tests and -reverify.
-func (p *Pool) Fingerprint() hash.Hash {
+func (p *Pool) Fingerprint() hash.Hash { return p.fingerprint(p.tidsByNode()) }
+
+func (p *Pool) fingerprint(byNode map[*node][]hash.Hash) hash.Hash {
 	all := make([]*node, 0, len(p.nodes))
 	for _, n := range p.nodes {
 		all = append(all, n)
@@ -460,7 +479,6 @@ func (p *Pool) Fingerprint() hash.Hash {
 		}
 		put()
 	}
-	byNode := p.tidsByNode()
 	for _, n := range p.chain {
 		w.Raw(n.hash[:])
 		tids := byNode[n]

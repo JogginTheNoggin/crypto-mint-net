@@ -15,26 +15,28 @@ var ErrPoolInUse = errors.New("engine: the pool already holds entries; a snapsho
 // Snapshot writes pool k's ledger snapshot (ledger.Pool.Snapshot) to
 // ledgerRec, then gives its pending transactions, oldest first, to
 // pending, all under the engine's lock, so both describe the same moment
-// (D178). It changes nothing.
-func (e *Engine) Snapshot(k PoolKey, ledgerRec func([]byte) error, pending func(*tx.Tx) error) error {
+// (D178), and returns the ledger's fingerprint at that moment. It changes
+// nothing.
+func (e *Engine) Snapshot(k PoolKey, ledgerRec func([]byte) error, pending func(*tx.Tx) error) (hash.Hash, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.failed != nil {
-		return e.failed
+		return hash.Hash{}, e.failed
 	}
 	p, ok := e.pools[k]
 	if !ok {
-		return ledger.ErrNotSnapshottable
+		return hash.Hash{}, ledger.ErrNotSnapshottable
 	}
-	if err := p.ledger.Snapshot(ledgerRec); err != nil {
-		return err
+	print, err := p.ledger.SnapshotPrint(ledgerRec)
+	if err != nil {
+		return hash.Hash{}, err
 	}
 	for _, it := range p.pending.Ready() {
 		if err := pending(it.Tx); err != nil {
-			return err
+			return hash.Hash{}, err
 		}
 	}
-	return nil
+	return print, nil
 }
 
 // Restore gives pool k the ledger read from a snapshot (ledger.Restore),

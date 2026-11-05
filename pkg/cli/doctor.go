@@ -304,9 +304,9 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 		// (GREEN-055).
 		c.Detail = fmt.Sprintf("%d %s not used at the last start, so %s replayed whole: %s", len(r.Unused), plural(len(r.Unused), "pool snapshot was", "pool snapshots were"), plural(len(r.Unused), "its log was", "their logs were"), strings.Join(r.Unused, "; "))
 		c.Fix = "nothing is needed if this follows an upgrade or a compaction; otherwise check the disk. A clean stop writes new snapshots"
-	case s.Behind > 2*s.Every:
+	case s.Behind > 2*max(s.Every, s.Due):
 		c.Result = checkWarn
-		c.Detail = fmt.Sprintf("a start would replay up to %d records of one pool log (snapshot_every is %d)", s.Behind, s.Every)
+		c.Detail = fmt.Sprintf("a start would replay up to %d records of one pool log (a snapshot is due every %d)", s.Behind, max(s.Every, s.Due))
 		c.Fix = "nothing is lost; a snapshot is written once the node can write every held body; if this lasts, check the node's log for \"pool snapshot not written\""
 	default:
 		c.Result = checkOK

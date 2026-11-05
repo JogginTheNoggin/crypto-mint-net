@@ -316,17 +316,13 @@ func (n *Node) collect(k engine.PoolKey) (*collected, error) {
 		return nil, errDamaged
 	}
 	c := &collected{key: k, epoch: n.snap(k).epoch}
-	err := n.eng.Snapshot(k, func(rec []byte) error {
+	print, err := n.eng.Snapshot(k, func(rec []byte) error {
 		c.ledger = append(c.ledger, append([]byte(nil), rec...))
 		return nil
 	}, func(t *tx.Tx) error {
 		c.pending = append(c.pending, t.Encode())
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	print, err := n.eng.Fingerprint(k)
 	if err != nil {
 		return nil, err
 	}
@@ -465,11 +461,25 @@ func (n *Node) noteAppend(k engine.PoolKey) bool {
 	}
 	s := n.snap(k)
 	s.since++
-	if s.writing || s.since < nodepolicy.BoundSnapshotEvery.Or(n.run.SnapshotEvery) {
+	if s.writing || s.since < n.snapshotDue(k) {
 		return false
 	}
 	s.writing = true
 	return true
+}
+
+// snapshotDue is how many records pool k's log takes between running
+// snapshots: snapshot_every, or a tenth of the log when that is more, so
+// the time a gather holds the node's lock, which grows with the pool,
+// stays about a tenth of the time spent taking records in (ORANGE-040
+// proposal 2). A start after a crash replays at most that many records.
+// n.mu is held.
+func (n *Node) snapshotDue(k engine.PoolKey) int {
+	every := nodepolicy.BoundSnapshotEvery.Or(n.run.SnapshotEvery)
+	if l := n.logs[k]; l != nil {
+		every = max(every, l.Records()/10)
+	}
+	return every
 }
 
 // snapshotLater writes pool k's snapshot while the node runs: gathered
@@ -756,8 +766,11 @@ type SnapshotSummary struct {
 	// (all of them for a pool with none): the most a start would replay.
 	Behind int   `json:"behind"`
 	Bytes  int64 `json:"bytes"`
-	// Every is snapshot_every as used.
+	// Every is snapshot_every as used, and Due the most records any pool
+	// takes between running snapshots: Every, or a tenth of a large log
+	// (ORANGE-040).
 	Every int `json:"every"`
+	Due   int `json:"due"`
 }
 
 // SnapshotSummary returns the summary of every pool's snapshot.
@@ -765,6 +778,10 @@ func (n *Node) SnapshotSummary() SnapshotSummary {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	out := SnapshotSummary{Off: !n.snapshotsOn(), Every: nodepolicy.BoundSnapshotEvery.Or(n.run.SnapshotEvery)}
+	out.Due = out.Every
+	for k := range n.logs {
+		out.Due = max(out.Due, n.snapshotDue(k))
+	}
 	for k := range n.logs {
 		s := n.snap(k)
 		out.Pools++
