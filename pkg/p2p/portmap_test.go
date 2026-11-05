@@ -167,8 +167,18 @@ func TestPortMapNotPublic(t *testing.T) {
 	f := &fakeMapper{ext: func(int) (string, error) { return "100.64.1.2:8646", nil }, life: time.Hour}
 	h, _ := startMapped(t, freeAddr(t), f, func(c *p2p.Config) { c.AllowLocalPeers = false })
 	waitState(t, h, p2p.PortMapNotPublic)
-	if _, unmaps := f.calls(); len(unmaps) != 1 {
-		t.Fatalf("unmapped %v", unmaps)
+	// The state is set before the mapping is removed, so wait for the
+	// removal rather than reading it at once.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		_, unmaps := f.calls()
+		if len(unmaps) == 1 {
+			break
+		}
+		if len(unmaps) > 1 || time.Now().After(deadline) {
+			t.Fatalf("unmapped %v", unmaps)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
