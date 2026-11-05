@@ -67,6 +67,7 @@ func TestLimitsBounds(t *testing.T) {
 		"entry_cache_mib":               func(p *Policy, v int) { p.EntryCacheMiB = v },
 		"recent_window":                 func(p *Policy, v int) { p.RecentWindow = v },
 		"snapshot_every":                func(p *Policy, v int) { p.SnapshotEvery = v },
+		"p2p.port_map_seconds":          func(p *Policy, v int) { p.P2P.PortMapSeconds = v },
 	}
 	if len(set) != len(Bounds()) {
 		t.Fatalf("%d setters for %d bounds", len(set), len(Bounds()))

@@ -133,8 +133,8 @@ func (h *Host) Listed() []string {
 	for a := range h.selfAddrs {
 		out = append(out, a)
 	}
-	if h.cfg.Advertise != "" {
-		out = append(out, h.cfg.Advertise)
+	if a := h.advertised(); a != "" {
+		out = append(out, a)
 	}
 	return out
 }

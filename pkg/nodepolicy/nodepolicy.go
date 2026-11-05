@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,6 +35,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/portmap"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
@@ -383,6 +385,16 @@ type P2P struct {
 	Listen string `json:"listen,omitempty"`
 	// Advertise is the address peers are told to connect to.
 	Advertise string `json:"advertise,omitempty"`
+	// PortMap asks the router to forward the listen port (D182): "" or
+	// "off" never (the default), "auto" tries PCP, NAT-PMP and UPnP in
+	// turn, or one of "pcp", "natpmp", "upnp". The router's external
+	// address is advertised only once a dial to it reaches this node, and
+	// never when Advertise is set. PortMapGateway is the router's IP
+	// address; empty means the default route's gateway (Linux only).
+	// PortMapSeconds is the lease asked for (p2p.port_map_seconds).
+	PortMap        string `json:"port_map,omitempty"`
+	PortMapGateway string `json:"port_map_gateway,omitempty"`
+	PortMapSeconds int    `json:"port_map_seconds,omitempty"`
 	// Peers are host:port addresses to stay connected to.
 	Peers []string `json:"peers,omitempty"`
 	// MaxPeers caps open connections.
@@ -561,6 +573,14 @@ func (p Policy) Validate() error {
 	if a := p.P2P.Advertise; a != "" {
 		if _, _, err := net.SplitHostPort(a); err != nil {
 			return fmt.Errorf("%w: p2p advertise %q: %v", ErrInvalid, a, err)
+		}
+	}
+	if !portmap.ValidMethod(p.P2P.PortMap) {
+		return fmt.Errorf("%w: p2p port_map %q: it takes off, %s", ErrInvalid, p.P2P.PortMap, strings.Join(portmap.Methods, ", "))
+	}
+	if g := p.P2P.PortMapGateway; g != "" {
+		if _, err := netip.ParseAddr(g); err != nil {
+			return fmt.Errorf("%w: p2p port_map_gateway %q is not an IP address", ErrInvalid, g)
 		}
 	}
 	for _, a := range p.P2P.Peers {

@@ -75,10 +75,20 @@ before it. It is written to `.tmp`, synced and renamed.
 
 - `loadPool` passes `store.From.Ready`, which opens the log, checks the
   snapshot (checksum, pool, build, tag) in a first pass, restores it
-  (`Engine.Restore`), gives the pending transactions again and returns
-  where the replay starts. Any failure resets the locations, forgets the
-  pool and replays the whole log; the reason goes in
-  `ReplayStats.Unused`.
+  (`Engine.Restore`), checks the restored pool's `Fingerprint` against
+  the header's, so every start is a differential of `Restore` against
+  `Snapshot` (RED-088, D181), gives the pending transactions again and
+  returns where the replay starts. Any failure resets the locations,
+  forgets the pool and replays the whole log; the reason goes in
+  `ReplayStats.Unused`. A `.snap.tmp` a crash left is removed when the
+  log is opened, whatever the policy (`ReplayStats.TmpRemoved`, RED-089).
+- The build a snapshot names (`buildID`) starts with the program name, then `snap<N>`, with N the
+  hand-bumped `snapshotSemantics`, then the release version and commit
+  the cli package gives by `SetRelease` (set by `-X` in a release build,
+  which records no VCS information), the module version and VCS revision
+  when the binary has them, and a hash of the executable when its tree
+  was modified (RED-087, D181). Bump `snapshotSemantics` in the same
+  commit as any change to what a pool is or what a snapshot holds.
 - Written by `Close` when the log grew, by `compact` after it rewrites
   (it removes the old one first, then calls `Pool.Renumber`), and every
   `snapshot_every` records by `snapshotLater`, which gathers under `mu`,
@@ -88,7 +98,10 @@ before it. It is written to `.tmp`, synced and renamed.
   the old one is removed. A failed engine removes all of them at `Close`.
 - `Options.Reverify` ignores them and compares a full replay with any
   snapshot that covered the whole log (`ReplayStats.Reverified`,
-  `Differed`). `Snapshots` and `SnapshotSummary` report them.
+  `Differed`); one that does not reach the end of the log is listed in
+  `NotCompared`, which `poo doctor` warns of (RED-088). Since every
+  normal start checks a restore against the same fingerprint, the two
+  together compare a replay with what the snapshot restores. `Snapshots` and `SnapshotSummary` report them.
 
 Each pool's ledger also gets `recent_window` (D175): older entries of the
 selected ledger keep only their skeleton, and `Bodies().Cold` counts

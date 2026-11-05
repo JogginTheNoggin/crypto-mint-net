@@ -205,8 +205,9 @@ Each pool also keeps a snapshot beside its log (`<index>.log.snap`),
 written at a clean stop, after each compaction and every
 `snapshot_every` records (50,000 by default). A start restores it and
 replays only newer records, so it no longer re-checks the whole history.
-A damaged, stale or foreign snapshot is ignored and the log replayed as
-before; `poo status` and `poo doctor` show how old they are. To check
+A damaged, stale or foreign snapshot, one written by another release,
+or one that does not restore the pool it was written from is ignored and
+the log replayed as before; `poo status` and `poo doctor` show how old they are. To check
 everything once, start with `poo node -reverify`; to never use them, set
 `"no_snapshots": true` in node.json.
 
@@ -244,6 +245,10 @@ Two `init` flags help on a real network:
 - `-advertise host:port` is the address other nodes should dial, such as a
   public address or port forward. Without it the node gives no address, so
   it still finds and dials peers but other nodes are not offered it.
+- `-port-map auto` asks your router to forward the peer port, so other
+  nodes can reach a node at home with no port forward set by hand. See
+  [Behind a router](#behind-a-router-nat) first: it is off by default
+  for a reason.
 - `-registry URL` (repeatable) names a bootstrap list: a JSON file over
   `https://`, `file://` or a plain path, read on start-up and every hour.
   See [modules/registry.md](modules/registry.md) for the format.
@@ -267,6 +272,59 @@ for 10 minutes or block it for a day. You can look and act yourself:
 ./poo peer template -template detailed 203.0.113.5:8646   # record more
 ./poo chases                            # heavier ledgers waiting to be checked
 ```
+
+### Behind a router (NAT)
+
+A node behind a home router, a firewall or a VPN works without any of
+this. It dials out to its peers, and outbound connections carry
+everything: it follows, catches up and forwards like any other node.
+What it lacks is inbound connections: other nodes cannot dial it, so it
+is never offered as a contact and adds no reachable node to the network.
+
+There are two ways to take inbound connections:
+
+- **Forward the port by hand.** In the router, forward TCP port 8646 (or
+  your `-p2p` port) to this machine. Then set `p2p.advertise`
+  (`poo init -advertise`) to the router's public address and that port.
+- **Let the node ask the router.** Set `p2p.port_map` to `auto`
+  (`poo init -port-map auto`). The node asks the router by PCP, then
+  NAT-PMP, then UPnP. It talks only to the gateway, at the default
+  route's address on Linux or at `p2p.port_map_gateway` elsewhere. It
+  offers the address the router reports only after dialling it and
+  reaching itself. It renews the lease (`p2p.port_map_seconds`, an hour
+  by default) and removes the mapping when it stops cleanly. A
+  `p2p.advertise` you set always wins.
+
+`poo doctor`'s `port-map` line, and `port_map` in `poo status`, say what
+happened:
+
+- **advertised:** it works.
+- **unconfirmed:** the router mapped the port, but could not loop a
+  connection back to itself. Many routers cannot. If you know the
+  address reaches you from outside, set `p2p.advertise` to it.
+- **not_public:** the router's own address is private. This is
+  carrier-grade NAT or a second router, and no mapping can reach you;
+  the node stays outbound only.
+- **failed:** the router has PCP, NAT-PMP and UPnP turned off, or no
+  gateway was found.
+
+**What it costs in privacy.** An advertised address, by hand or mapped,
+is passed from peer to peer:
+
+- Anyone on the network learns your home's public IP address and that a
+  Proof of Ownership node runs there.
+- The open port can be found by scanners.
+- A UPnP mapping that the router grants only as permanent stays in the
+  router if the node crashes, until the next clean stop or until you
+  remove it in the router.
+
+Leave both off if that matters more to you than taking inbound
+connections.
+
+A node inside a private VPN mesh reaches only the peers you list with
+`-peer`, as addresses on the mesh. Addresses learned from other nodes
+must be public unless `p2p.allow_local_peers` is on. Peer connections
+are not encrypted (D30), so use the VPN if the link needs privacy.
 
 ## Node policies
 

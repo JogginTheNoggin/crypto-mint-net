@@ -45,6 +45,7 @@ import (
 	"net"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/chase"
@@ -70,8 +71,23 @@ type Config struct {
 	// Listen is the TCP address for inbound connections; empty means none.
 	Listen string
 	// Advertise is the address peers are told to connect to; empty means
-	// none is given.
+	// none is given, unless a confirmed port mapping gives one (PortMap).
 	Advertise string
+	// PortMap asks the router for an inbound mapping of the listen port
+	// (D182): "" or "off" never (the default), "auto" tries PCP, NAT-PMP
+	// and UPnP in turn, or one of "pcp", "natpmp", "upnp". The external
+	// address the router reports is advertised only after a dial to it
+	// reaches this node's own hello, and never when Advertise is set.
+	PortMap string
+	// PortMapGateway is the router's IP address; empty means the default
+	// route's gateway (found on Linux only).
+	PortMapGateway string
+	// PortMapLease is the lifetime asked for a mapping; it is renewed at
+	// half of what the router grants.
+	PortMapLease time.Duration
+	// PortMapper makes the mappings; nil means a portmap.Client. Tests
+	// put a fake here.
+	PortMapper PortMapper
 	// Peers are addresses to keep connected to.
 	Peers []string
 	// MaxPeers caps open connections, inbound and outbound together.
@@ -283,6 +299,9 @@ func DefaultConfig() Config {
 
 func (c *Config) fill() {
 	d := DefaultConfig()
+	if c.PortMapLease <= 0 {
+		c.PortMapLease = DefaultPortMapLease
+	}
 	if c.MaxPeers == 0 {
 		c.MaxPeers = d.MaxPeers
 	}
@@ -477,6 +496,11 @@ type Host struct {
 	lastBcast map[wire.Section]time.Time
 	lastReg   time.Time
 	selfAddrs map[string]bool // addresses found to lead back to this node
+	// mapped is the address a confirmed port mapping gives (D182), or nil;
+	// pm is what poo status shows of the mapping.
+	mapped atomic.Pointer[string]
+	pmMu   sync.Mutex
+	pm     PortMapStatus
 	// configured are the addresses in cfg.Peers, dialled whatever their
 	// range; read-only after New.
 	configured map[string]bool
@@ -793,6 +817,10 @@ func (h *Host) Run(ctx context.Context, ready func()) error {
 	h.wg.Add(2)
 	go h.workLoop(ctx)
 	go h.chaseLoop(ctx)
+	if h.portMapOn() {
+		h.wg.Add(1)
+		go h.portMapLoop(ctx)
+	}
 	if ready != nil {
 		ready()
 	}

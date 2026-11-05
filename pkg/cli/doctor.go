@@ -245,6 +245,9 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	if st, ok := nodeStatus(out, dir); ok {
 		add(bodiesCheck(st))
 		add(snapshotsCheck(st))
+		if c, ok := portMapCheck(st); ok {
+			add(c)
+		}
 	}
 
 	// 7. Peers.
@@ -288,16 +291,25 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 		c.Result = checkWarn
 		c.Detail = fmt.Sprintf("-reverify found %d pool snapshots that differ from a full replay of their logs; the node runs on the replay", r.Differed)
 		c.Fix = "please report this as a bug, with poo version -v; the node keeps working, and the next stop writes snapshots from the replayed pools"
+	case len(r.NotCompared) > 0:
+		// -reverify was asked for and compared nothing for these pools;
+		// that is never "ok" (RED-088, D181).
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("-reverify compared nothing for %d %s, whose snapshot does not reach the end of the log: %s", len(r.NotCompared), plural(len(r.NotCompared), "pool", "pools"), strings.Join(r.NotCompared, "; "))
+		c.Fix = "stop the node cleanly, which writes snapshots at the end of each log, then start it with -reverify again"
 	case s.Off:
 		c.Result = checkOK
 		c.Detail = "no_snapshots is on: every start replays the whole pool logs"
 	case len(r.Unused) > 0:
 		c.Result = checkWarn
-		c.Detail = fmt.Sprintf("%d pool snapshots were not used at the last start, so those logs were replayed whole: %s", len(r.Unused), r.Unused[0])
+		// Every reason, not only the first: a damaged file and an
+		// upgrade read differently, and each pool may have its own
+		// (GREEN-055).
+		c.Detail = fmt.Sprintf("%d %s not used at the last start, so %s replayed whole: %s", len(r.Unused), plural(len(r.Unused), "pool snapshot was", "pool snapshots were"), plural(len(r.Unused), "its log was", "their logs were"), strings.Join(r.Unused, "; "))
 		c.Fix = "nothing is needed if this follows an upgrade or a compaction; otherwise check the disk. A clean stop writes new snapshots"
-	case s.Behind > 2*s.Every:
+	case s.Behind > 2*max(s.Every, s.Due):
 		c.Result = checkWarn
-		c.Detail = fmt.Sprintf("a start would replay up to %d records of one pool log (snapshot_every is %d)", s.Behind, s.Every)
+		c.Detail = fmt.Sprintf("a start would replay up to %d records of one pool log (a snapshot is due every %d)", s.Behind, max(s.Every, s.Due))
 		c.Fix = "nothing is lost; a snapshot is written once the node can write every held body; if this lasts, check the node's log for \"pool snapshot not written\""
 	default:
 		c.Result = checkOK
@@ -306,8 +318,54 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 			age = fmt.Sprintf("the oldest is %s old", time.Duration(s.AgeSeconds)*time.Second)
 		}
 		c.Detail = fmt.Sprintf("%d of %d pools have a snapshot, %s; a start replays at most %d records of a log", s.Pools-s.Missing, s.Pools, age, s.Behind)
+		// A -reverify that found every snapshot equal to its full replay
+		// says so, rather than nothing (D178 names it in doctor; GREEN-055).
+		if r.Reverified > 0 {
+			c.Detail += fmt.Sprintf("; -reverify replayed %d %s whole at the last start and %s its snapshot", r.Reverified, plural(r.Reverified, "pool", "pools"), plural(r.Reverified, "it matched", "each matched"))
+		}
+	}
+	if r.TmpRemoved > 0 {
+		c.Detail += fmt.Sprintf("; %d temporary snapshot %s left by a crash %s removed at the last start", r.TmpRemoved, plural(r.TmpRemoved, "file", "files"), plural(r.TmpRemoved, "was", "were"))
 	}
 	return c
+}
+
+// portMapCheck reports the port mapping (p2p.port_map, D182), when the
+// policy asks for one.
+func portMapCheck(st rpc.StatusReply) (Check, bool) {
+	pm := st.PortMap
+	if pm == nil || pm.Mode == p2p.PortMapOff {
+		return Check{}, false
+	}
+	c := Check{Name: "port-map"}
+	switch pm.State {
+	case p2p.PortMapAdvertised:
+		c.Result = checkOK
+		life := "until the node stops"
+		if pm.LeaseSeconds > 0 {
+			life = fmt.Sprintf("leased for %s and renewed", time.Duration(pm.LeaseSeconds)*time.Second)
+		}
+		c.Detail = fmt.Sprintf("the router forwards %s (%s, %s); a dial to it reached this node, so peers are offered it", pm.Advertised, pm.Method, life)
+	case p2p.PortMapSkipped:
+		c.Result = checkOK
+		c.Detail = "p2p.port_map is set but not used: p2p.advertise is set by hand, which always wins, or the node accepts no peers (p2p.listen is off)"
+	case p2p.PortMapTrying:
+		c.Result = checkOK
+		c.Detail = "asking the router for a mapping"
+	case p2p.PortMapUnconfirmed:
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("the router mapped %s, but a dial to it did not reach this node, so it is not offered and the mapping was removed", pm.External)
+		c.Fix = "many routers cannot loop a connection back to their own address; if " + pm.External + " reaches this node from outside, set p2p.advertise to it"
+	case p2p.PortMapNotPublic:
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("the router's external address %s is not public: this network is behind another NAT, such as carrier-grade NAT, so no mapping can reach this node", pm.External)
+		c.Fix = "the node works with outbound connections only; for inbound ones ask the provider for a public address, or run it where it has one"
+	default:
+		c.Result = checkWarn
+		c.Detail = "the router gave no mapping: " + pm.Error
+		c.Fix = "turn on NAT-PMP, PCP or UPnP in the router, or set p2p.port_map_gateway if the gateway is not found; otherwise forward the port by hand and set p2p.advertise. The node keeps trying"
+	}
+	return c, true
 }
 
 // grindCheck reports the devices this machine grinds on, a device the

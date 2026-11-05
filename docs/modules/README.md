@@ -34,6 +34,7 @@ together. When you change a package, update its page.
 | `pkg/chase` | [chase.md](chase.md) | Node policy (network) |
 | `pkg/p2p` | [p2p.md](p2p.md) | Node (network) |
 | `pkg/peerport` | [peerport.md](peerport.md) | Node policy (network) |
+| `pkg/portmap` | [portmap.md](portmap.md) | Node policy (network) |
 | `pkg/filter` | [filter.md](filter.md) | Node (viewing) |
 | `pkg/watch` | [watch.md](watch.md) | Node (viewing) |
 | `pkg/grind` | [grind.md](grind.md) | Node (hash work) |

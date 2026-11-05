@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash"
@@ -75,28 +76,81 @@ var errDamaged = errors.New("node: a record of the pool log failed to read back;
 // errSnapshot wraps every reason a snapshot is not used.
 var errSnapshot = errors.New("snapshot not used")
 
-// buildID names the code that wrote a snapshot: the module version and,
-// when the binary records it, the commit, marked when the tree was
-// modified. A snapshot from another build is not used.
+// snapshotSemantics is bumped by hand in the same commit as any change to
+// what a pool is or what a snapshot of it holds (a selection or tie rule,
+// the state after a new kind of transaction, a field of the skeleton,
+// Snapshot or Restore), even one that leaves the file format alone. It is
+// part of buildID, so such a change retires every snapshot written before
+// it, whatever the build is called (RED-087, D181).
+const snapshotSemantics = 1
+
+// release is the version and commit the command line was built as, set
+// by SetRelease (cli sets them by -X, which a release build uses, since it
+// records no VCS information).
+var release struct{ version, commit string }
+
+// SetRelease names the release this binary is, for buildID. The cli
+// package calls it at init with its Version and Commit (RED-087, D181).
+func SetRelease(version, commit string) { release.version, release.commit = version, commit }
+
+// buildID names the code that wrote a snapshot: the release version and
+// commit (set by -X in a release build), the module version and VCS
+// revision when the binary records them, a hash of the executable when
+// its tree was modified (so two dirty builds of one commit differ), and
+// snapshotSemantics. A snapshot from another build is not used, so an
+// upgrade replays once (D178, RED-087).
 var buildID = sync.OnceValue(func() string {
-	id := "poo"
+	return makeBuildID(release.version, release.commit, executableHash)
+})
+
+func makeBuildID(version, commit string, exe func() string) string {
+	id := fmt.Sprintf("poo snap%d", snapshotSemantics)
+	if version != "" {
+		id += " " + version
+	}
+	if commit != "" {
+		id += " " + commit
+	}
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return id
 	}
-	id += " " + bi.Main.Version
+	if v := bi.Main.Version; v != "" && v != "(devel)" {
+		id += " " + v
+	}
 	for _, s := range bi.Settings {
 		switch s.Key {
 		case "vcs.revision":
-			id += " " + s.Value
+			if s.Value != commit {
+				id += " " + s.Value
+			}
 		case "vcs.modified":
 			if s.Value == "true" {
-				id += "+modified"
+				id += "+modified " + exe()
 			}
 		}
 	}
 	return id
-})
+}
+
+// executableHash is a short SHA-256 of this executable's file, or "" when
+// it cannot be read.
+func executableHash() string {
+	p, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil)[:8])
+}
 
 // snapHeader is what a snapshot says about itself.
 type snapHeader struct {
@@ -262,17 +316,13 @@ func (n *Node) collect(k engine.PoolKey) (*collected, error) {
 		return nil, errDamaged
 	}
 	c := &collected{key: k, epoch: n.snap(k).epoch}
-	err := n.eng.Snapshot(k, func(rec []byte) error {
+	print, err := n.eng.Snapshot(k, func(rec []byte) error {
 		c.ledger = append(c.ledger, append([]byte(nil), rec...))
 		return nil
 	}, func(t *tx.Tx) error {
 		c.pending = append(c.pending, t.Encode())
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	print, err := n.eng.Fingerprint(k)
 	if err != nil {
 		return nil, err
 	}
@@ -411,11 +461,25 @@ func (n *Node) noteAppend(k engine.PoolKey) bool {
 	}
 	s := n.snap(k)
 	s.since++
-	if s.writing || s.since < nodepolicy.BoundSnapshotEvery.Or(n.run.SnapshotEvery) {
+	if s.writing || s.since < n.snapshotDue(k) {
 		return false
 	}
 	s.writing = true
 	return true
+}
+
+// snapshotDue is how many records pool k's log takes between running
+// snapshots: snapshot_every, or a tenth of the log when that is more, so
+// the time a gather holds the node's lock, which grows with the pool,
+// stays about a tenth of the time spent taking records in (ORANGE-040
+// proposal 2). A start after a crash replays at most that many records.
+// n.mu is held.
+func (n *Node) snapshotDue(k engine.PoolKey) int {
+	every := nodepolicy.BoundSnapshotEvery.Or(n.run.SnapshotEvery)
+	if l := n.logs[k]; l != nil {
+		every = max(every, l.Records()/10)
+	}
+	return every
 }
 
 // snapshotLater writes pool k's snapshot while the node runs: gathered
@@ -571,6 +635,14 @@ func (n *Node) loadSnapshot(k engine.PoolKey, b *poolBodies) (*restored, error) 
 		}
 		return fail(err)
 	}
+	// The restored pool must be the pool the snapshot was written from:
+	// every start is a differential of Restore against Snapshot, so a pair
+	// that does not round-trip is caught and the log replayed whole
+	// (RED-088, D181). It costs one pass over what the pool holds.
+	if fp, err := n.eng.Fingerprint(k); err != nil || fp != h.print {
+		n.eng.Forget(k)
+		return fail(fmt.Errorf("%w: the restored pool differs from the one it was written from", errSnapshot))
+	}
 	out := &restored{header: h, bytes: info.Size()}
 	for {
 		rec, err := sr.next()
@@ -694,8 +766,11 @@ type SnapshotSummary struct {
 	// (all of them for a pool with none): the most a start would replay.
 	Behind int   `json:"behind"`
 	Bytes  int64 `json:"bytes"`
-	// Every is snapshot_every as used.
+	// Every is snapshot_every as used, and Due the most records any pool
+	// takes between running snapshots: Every, or a tenth of a large log
+	// (ORANGE-040).
 	Every int `json:"every"`
+	Due   int `json:"due"`
 }
 
 // SnapshotSummary returns the summary of every pool's snapshot.
@@ -703,6 +778,10 @@ func (n *Node) SnapshotSummary() SnapshotSummary {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	out := SnapshotSummary{Off: !n.snapshotsOn(), Every: nodepolicy.BoundSnapshotEvery.Or(n.run.SnapshotEvery)}
+	out.Due = out.Every
+	for k := range n.logs {
+		out.Due = max(out.Due, n.snapshotDue(k))
+	}
 	for k := range n.logs {
 		s := n.snap(k)
 		out.Pools++

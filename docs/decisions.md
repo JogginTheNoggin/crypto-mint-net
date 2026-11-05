@@ -4592,3 +4592,129 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Consensus:** None. Output only.
 - **Tier:** CLI. `pkg/cli/policyport_test.go`:
   `TestPolicyImportNoOpHasNoDigest`.
+
+### D181. Round 30 fixes: RED-087, RED-088 and RED-089 (BLUE-031)
+
+- **Decision:**
+  - **RED-087.** A snapshot's build id now names the release:
+    the program name, `snap<N>`, the version and the commit, then the
+    module version and VCS
+    revision when the binary records them. The cli package hands its
+    `Version` and `Commit` (set by `-X` in `scripts/release.sh`, which
+    builds with `-buildvcs=false`) to the node with `node.SetRelease` at
+    init. A dirty tree adds a hash of the executable, so two dirty builds
+    of one commit differ. `snapshotSemantics` (now 1) is bumped by hand in
+    the same commit as any change to what a pool is or what a snapshot
+    holds, even one that leaves the file format alone, as a second guard.
+  - **RED-088.** After `Engine.Restore` every start compares the restored
+    pool's fingerprint with the header's. On a difference the snapshot is
+    not used (`snapshots_unused` says why), and the log is replayed whole.
+    So every start is a differential of `Restore` against `Snapshot`.
+    With `-reverify` comparing a full replay with the same fingerprint,
+    the two together compare a replay with what the snapshot restores.
+    Under `-reverify`, a pool whose snapshot does not reach the end of the
+    log is listed in `reverify_not_compared`, and `poo doctor` warns,
+    never "ok". Red's other option, replaying up to the snapshot's offset,
+    is not built.
+  - **RED-089.** `<index>.log.snap.tmp` is removed when its log is
+    opened, whatever the policy, and counted in `snapshot_tmp_removed`;
+    `poo doctor`'s `snapshots` check names it.
+  - **GREEN-055 (#224) is carried:** it changes the same `-reverify` code.
+- **Why:** D178's guard against a pool an older build computed relied on
+  a build id that every release build shared, and its full check compared
+  against the writer, never the reader. A pool the new code would not
+  build from the log is nodes with the same information disagreeing, so
+  the guard has to hold for real.
+- **Consensus:** None. A snapshot is a cache of what the log builds; not
+  using one only costs a replay.
+- **Tier:** Node, CLI.
+  - `pkg/node/blue031_test.go`: `TestBuildIDNamesTheRelease`,
+    `TestSnapshotRestoreIsChecked` (fails without the check),
+    `TestReverifyBehindTheLogIsReported`, `TestSnapshotTmpRemoved`.
+  - `pkg/cli/blue031_test.go`: `TestSnapshotsCheckNotComparedAndTmp`.
+
+### D182. Round 31: ORANGE-040 adopted in part, and opt-in port mapping
+
+- **Merged first:** Blue's #226 (D181, carrying Green's #224), Red's #223,
+  Orange's #225 (ORANGE-040, measurements) and Black's #227 (Round 30
+  review: everything clear).
+- **Decision (ORANGE-040):**
+  - **Proposal 1, in part.** Gathering a snapshot now walks the ledger
+    nodes' transactions once (`Ledger.SnapshotPrint`) and computes the
+    header fingerprint from that same pass, rather than two `tidsByNode`
+    passes (Orange measured each at about 42% of the lock hold). The
+    header fingerprint is kept: Blue's per-start check (RED-088, D181)
+    compares a restored pool with it, and Black cleared keeping that
+    check. Dropping the fingerprint, as the proposal asked, would have
+    lost it.
+  - **Proposal 2.** A pool's snapshot is due after
+    `max(snapshot_every, records in its log / 10)` new records
+    (`snapshotDue`), so a large pool is gathered less often while a small
+    one keeps `snapshot_every`. `poo status` shows `snapshots.due`, and
+    `poo doctor` measures "behind" against the larger of the two.
+  - **Proposal 3** (gather outside the node lock) is not built yet.
+- **Decision (port mapping, Source Red's recommendation, approved by
+  jerry for Round 31):**
+  - `p2p.port_map` is **off by default**. `auto` tries PCP (RFC 6887),
+    then NAT-PMP (RFC 6886), then UPnP IGD. `pcp`, `natpmp` or `upnp`
+    names one. `p2p.port_map_gateway` names the router's IP address. When
+    it is empty, the default route's gateway is found on Linux only.
+    `p2p.port_map_seconds` is the lease asked for, from 120 to 86,400
+    seconds, 3,600 by default, applied on reload. `poo init -port-map`
+    sets the mode.
+  - **Only the gateway is spoken to.**
+    - PCP and NAT-PMP use a UDP socket connected to the gateway's
+      port 5351, so nothing else can answer. A PCP reply must carry the
+      request's nonce.
+    - A UPnP search answer must come from the gateway's address. Its
+      description URL, `URLBase` and control URL must be plain `http`
+      on the gateway's own IP; a host name is refused.
+    - HTTP uses no proxy and follows no redirect.
+    - Every reply is capped at 64 KiB. Each method waits at most
+      3 seconds, resending at 250 ms, 500 ms and 1 s.
+  - **Lease and renewal.** A mapping is renewed at half the lifetime the
+    router granted, and removed at a clean stop.
+    - A UPnP router that grants only permanent leases (error 725) gets
+      a lease of 0. That mapping is removed at a clean stop and lasts
+      past a crash.
+  - **The advertised address comes from the router, never from peers.**
+    1. The external address the router reports must be public, unless
+       `allow_local_peers` is on. A carrier-grade NAT address is refused.
+    2. The node then dials it and must get its own hello back (its own
+       node id) before it offers the address to peers.
+    3. If the dial does not come back, the mapping is removed and nothing
+       is advertised. Many routers cannot loop a connection back;
+       `poo doctor` then names the address to set by hand.
+    4. A new external address on renewal is confirmed again before use.
+    5. A `p2p.advertise` set by hand always wins, and then no mapping is
+       asked for.
+  - **Limits stay as they are.** Inbound connections keep every cap they
+    had: `max_inbound`, the per-range book and verified limits, and the
+    tracker.
+  - **Machine-local.** `p2p.port_map` and `p2p.port_map_gateway` are
+    machine-local (`MachineLocal`). A shared policy or settings file
+    therefore never opens a port on another machine. `-full` carries
+    them.
+  - **Reporting.** `GET /v1/status` and `poo status` show `port_map`:
+    its mode, state, method, the router's address, the advertised
+    address, the lease and any error. `poo doctor` adds a `port-map`
+    check when the policy asks for one.
+- **Why:** Before this, a node behind a home router could make only
+  outbound connections unless its owner forwarded a port by hand. Red's
+  review found the risks: a router or LAN host lying about the address,
+  UPnP URLs pointing elsewhere (SSRF), and peers steering what a node
+  advertises. Mapping is opt-in because it has a privacy cost: peers
+  learn the network's public address and that a node runs there, and the
+  open port can be scanned.
+- **Consensus:** None. Port mapping is node policy. It changes only
+  whether other nodes can dial this one, which is information reaching
+  a node, never which ledger is valid.
+- **Tier:** p2p, node policy, CLI.
+  - `pkg/portmap/portmap_test.go`: PCP map, renew and unmap, foreign
+    nonce, refusal, NAT-PMP fallback, silent gateway, cancel, short
+    replies, UPnP map and unmap, permanent-only leases, eleven ways off
+    the gateway, oversized and redirected, the route table.
+  - `pkg/p2p/portmap_test.go`: confirmed, advertised, renewed and removed;
+    another node's address unconfirmed; not public; retry; a manual
+    advertise wins; off by default.
+  - `pkg/nodepolicy/portmap_test.go`; `pkg/cli/portmap_doctor_test.go`.
