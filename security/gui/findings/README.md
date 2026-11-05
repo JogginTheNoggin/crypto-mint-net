@@ -5,6 +5,44 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 29 Part B reviewed main @ 4e1c601 (PR #204):
+- GUI-029's fix: the plan's `unbounded` list as a Read first line, with
+  `series_ceiling` now settable (D171);
+- the Followed series panel and its warning column (GUI-GREEN-054);
+- the entry cache and open file limit lines on Status (D172,
+  ORANGE-037);
+- the far-part ask on Run in terminal (R28B note);
+- the getting-started step that writes the reserve policy.
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass.
+
+New:
+- GUI-030 (Low): Import node policies with Replace ticked never checks
+  `series_ceiling`. Only the merge path calls `DeclinesSeries`, so a
+  node that set a ceiling to keep out series without one gets them
+  anyway. `series_ceiling` still reads as set, and a series the file
+  lists twice is kept twice. GUI-029's Read first warning still shows.
+  The fix is in Source (bundle.go). The GUI needs nothing more once poo
+  declines.
+
+Held up:
+- **GUI-029**, as a warning. See its R29B notes.
+- **Run in terminal** on a form with an `ask` now asks the same
+  question first (cmdLine's `ask`), so the R28B note is closed.
+- **The new panels** draw poo's fields as text: series name, warning,
+  file limit and cache counts. The open file limit line uses poo's
+  `low` flag and judges nothing itself.
+
+Notes (optional):
+- nodepolicy.go's comments say `poo init` writes `series_ceiling` 4 MiB
+  in a new node.json. It writes none, as D171's "Not done here" says
+  (GUI-030's notes).
+- `statusNotes` calls `toFixed` on `used_bytes` whenever `max_bytes` is
+  a number. A reply without `used_bytes` would throw inside onResult,
+  and the policy-changed line after it wouldn't be drawn. That isn't
+  security; checking each field, or `?? 0`, would do.
+
 Round 28 Part B reviewed main @ adcf216 (PR #193):
 - GUI-028's mitigation: the far-part ask and the Stop note;
 - Key algorithm (`-alg`) on Sign a series, Release a part and Build a
@@ -644,4 +682,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-026](GUI-026-rival-claim-without-parent-submits.md) | Low | "Build a rival claim" with Parent empty submits the claim to the node and peers instead of building it: `required` is never applied by `form()` | fixed by GUI/Blue (Round 23C), merged Round 24; verified R24B @ 2aceb1a |
 | [GUI-027](GUI-027-release-signs-without-showing-what-it-releases.md) | Low | "Release a part" asks for the issuer's seed and signs before showing which serials the release creates; the confirm shows only the command line, and the result has no range | fixed by GUI/Blue (Round 25C), merged Round 26; verified R26B @ eb74797 |
 | [GUI-028](GUI-028-far-part-job-cannot-be-stopped.md) | Low | A far part number (Preview, Sign, Show parts, or an issuer-signed far release) starts a job that hashes for hours; Stop doesn't end it, and 16 such jobs fill every job slot until poo-gui restarts | mitigated by GUI/Blue (Round 27C: cost confirm, Stop note); mitigation verified R28B @ adcf216; core fix routed to Source |
-| [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | open: routed to Source for a plan warning (no refusal, per jerry); the GUI line follows |
+| [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | fixed as a warning (Source D171 `unbounded`, GUI/Blue Read first; Apply stays, per jerry); verified R29B @ 4e1c601 |
+| [GUI-030](GUI-030-replace-import-ignores-series-ceiling.md) | Low | Import node policies with Replace never checks series_ceiling, so a series the node set a ceiling to decline is added anyway, and one listed twice is kept twice | open |
