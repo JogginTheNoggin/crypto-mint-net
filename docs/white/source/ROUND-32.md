@@ -31,6 +31,14 @@ consensus question arose. Nothing needs the owner.
 
 ## WHITE-002 step 1, reviewed with the code
 
+> **Superseded (2026-11-05, after this review).** The owner asked to put
+> the version in the protocol itself before the first release, and chose
+> "hello only, both hello and ping extensible". WHITE-002 now has a
+> `Release` field and a features list in the hello, and an extensions list
+> at the end of hello, ping and pong; `Agent` stays `poo`. Conditions 2
+> to 5 below still apply to the new `Release` field. Condition 1 holds as
+> the dial-back hello not carrying the release.
+
 What older nodes do: `DecodeHello` reads `Agent` as up to 256 bytes of
 any text, and nothing in `pkg/p2p` or `gui/` compares it to `"poo"`
 (checked with `grep`). So changing the text changes nothing for an older

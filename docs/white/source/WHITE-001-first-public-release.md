@@ -19,7 +19,7 @@ release note), there is no outside security audit, and nothing of value
 should be used with it. Before the tag, a short list of items must be
 done: a license, the new default ports, a way for a new node to find
 peers, the two R32A gaps (W-1, W-10), the version name in the hello
-(WHITE-002 step 1), and a release checklist run locally because GitHub
+(WHITE-002: the release and features in the hello, and room for new fields in hello and ping), and a release checklist run locally because GitHub
 Actions has no runner. Beta follows once the formats have upgrade tests
 and outside testers have run nodes for a while; 1.0 follows an outside
 audit. Tagging, publishing and making the repository public stay the
@@ -80,7 +80,7 @@ it.
 | R3 | A way for a first node to find peers: at least one registry file the project publishes (for example in the repo or on the release page) and `poo init` naming it, or docs that say how to get one | the owner (where it lives); Grey | Today a new node has no peers unless given `-registry` or `-peer` |
 | R4 | W-1: `node.json` keeps fields an older release does not know | Grey (R32A suggested) | Rolling back an alpha must not drop settings |
 | R5 | W-10: node release version and commit in `GET /v1/status` and `poo status` | Grey (R32A suggested) | GUI and support need to know what a node runs |
-| R6 | WHITE-002 step 1: hello `Agent` is `poo/VERSION` | Grey | Lets nodes and the owner see which versions are on the network from day one, with no wire change |
+| R6 | WHITE-002: hello carries the release and features; hello, ping and pong end with an extensions list (owner's choice, 2026-11-05) | Grey | The hello and ping layouts freeze at the tag, so this is the last chance to add them without breaking released nodes |
 | R7 | Release checklist run locally (no Actions runner): all checks of `docs/releasing.md` and two `scripts/release.sh` builds with equal `SHA256SUMS`. GUI set: `go -C gui vet ./...`, `go -C gui test -race ./...`, windows/amd64 and darwin/arm64 builds, and every gui-e2e script listed in `.github/workflows/ci.yml`, run against the `poo-gui` that `release.sh` built so the `-ldflags` version is covered | White runs the Source part; GUI/White runs the GUI set and records it in its review | `release.yml` cannot run today |
 | R8 | Sign `SHA256SUMS` (for example `ssh-keygen -Y sign` with a key the owner holds; its public key in the README) | the owner holds the key; White writes the steps | Reproducible builds prove what the code builds to; a signature proves the owner published it |
 | R9 | README "Status" says alpha, what that means, and how to report a bug; `SECURITY.md` has a private way to report | Grey | First public readers land there |
