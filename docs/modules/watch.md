@@ -22,6 +22,16 @@ node. Decisions D90 (filter), D91 (stream) and D94 (bounded views).
 | `TxOfSeries(e, series, tid, serial)` | `TxStatus`: pool, pending, selected, entry, height, weight behind it (`from`), rivals, and the transaction with its `raw` bytes | none; `serial` (optional) limits the search to one pool. `ErrNotFound` when the node does not hold it |
 | `AddressOf(e, series, addr, f, limit)`, `AddressPage(ctx, e, series, addr, f, below, limit)` | `Address`: balance, holdings, selected history newest first (what each transaction received and how many portions it spent), pending, and `Next` per unfinished pool; looks at most 50×limit entries in all (D103); a page keeps whole entries, and each pool's `Next` starts at its newest entry not on the page, so following `Next` reaches every item once (GREEN-014) | series, pool, serial |
 
+`Export(e, key, from, to)` (D188) returns `ExportPage`: the pool's
+height, tip and weight, and its selected ledger from height `from` to
+`to` (0: the tip), oldest first, at most `ExportLimit` (256) entries and
+no more once the items reach `ExportBytes` (8 MiB). Each entry has an
+`ExportEntry` summary (height, hash, parent, transaction and layer
+counts) and an item, `wire.EncodeItem` with its layer nonces, exactly as a
+peer sends it. `next` is the height to ask for next (0: done). Bodies are
+read outside the engine's lock; the page stops before an entry whose body
+cannot be read back and counts it in `unreadable`.
+
 A page holds at most `limit` items (default `DefaultLimit` 50, at most
 `MaxLimit` 1000). A view walks only the pools the filter's scope covers
 and, in a ledger, only as far as the page needs (D94).

@@ -57,6 +57,8 @@ for a caller of `cli.Run`, such as the GUI.
 | `poo holdings -serial N` | Unspent portions of a mint. The older form of `poo unspent -serial N`, kept for scripts |
 | `poo pools [filter]` | The followed pools the filter covers |
 | `poo ledger -pool K [-below H] [-limit N] [filter]` | A page of a pool's selected ledger, newest first, with each entry's transactions |
+| `poo ledger export -pool K [-series ID] [-from H] [-to H] [-out FILE]` | A stretch of the selected ledger, oldest first, as a ledger file (`"kind": "poo ledger"`, format 1): the header (series, pool, range, height, tip, weight) and each entry's summary with its raw item (the entry's bytes and layer nonces, base64). Read page by page; stops if the node switches ledgers part way. `-out` writes a file only when the export is whole (D188) |
+| `poo ledger import FILE\|-` | Hands a ledger file's entries to the node in batches; the node checks every entry and layer in full, as from a peer. Prints what was kept, already held and refused, with why (D188) |
 | `poo pending [filter]` | Pending transactions |
 | `poo unspent [filter]` | Unspent portions |
 | `poo tx [-in-serial N] TID` | One transaction: where it stands, the weight behind it, rivals, its contents |

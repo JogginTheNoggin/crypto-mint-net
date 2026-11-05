@@ -37,7 +37,10 @@ var readCommands = map[string]map[string]bool{
 	// that is a flag.
 	"peers":   {"-": true},
 	"payment": nil, "holdings": nil,
-	"pools": nil, "ledger": nil, "pending": nil, "unspent": nil, "tx": nil, "address": nil,
+	// poo ledger with flags only looks; export writes a file and import
+	// hands entries to the node (D188).
+	"ledger": {"-": true},
+	"pools":  nil, "pending": nil, "unspent": nil, "tx": nil, "address": nil,
 	"watch":  nil,
 	"follow": nil, // without flags it only shows; followCmd refuses a change
 	"policy": {"list": true, "limits": true},

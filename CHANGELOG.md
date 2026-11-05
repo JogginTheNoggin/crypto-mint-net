@@ -234,6 +234,28 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 33 (D186 to D188):**
+  - **Moved defaults:** the local command port is now `127.0.0.1:7336`
+    and the peer port `:7337` (were 8645 and 8646). `poo init` writes
+    both into a new node.json, so an existing node keeps its ports.
+  - **Wire change (not compatible with earlier builds, none released):**
+    the hello carries the sender's release and the features it supports,
+    and hello, ping and pong end with a list of extension fields a later
+    release can add. `poo peers` shows each peer's release and features,
+    and `p2p.announce_version: "none"` hides the release. Frozen as wire
+    version 1 from the first tag.
+  - `poo ledger export` writes a stretch of a pool's ledger as raw
+    entries anyone can check, and `poo ledger import` hands them to a
+    node, which checks every one in full.
+  - `poo version` says `0.1.0-alpha.1-dev`; pre-release tags are marked
+    as pre-releases.
+  - Status lists only the first few unused snapshot names in
+    `snapshots_unused`; read `snapshots_unused_count` for the whole
+    number.
+  - A save by this release, after a newer one, loses unknown settings
+    inside list entries (a series, a follow, a grind job) and those over
+    the 256 settings, 64 KiB or 64 levels limits; the start warning and
+    `poo doctor` name them.
 - **Round 32 fixes (D185):**
   - A node.json key that spells a setting in another letter case is now
     that setting, and is saved under its own name. A setting the owner

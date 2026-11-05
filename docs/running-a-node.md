@@ -45,8 +45,10 @@ only some pools or mints, or to change K and the other limits; see
 ```
 
 It prints how many pools it follows and what it replayed, and listens for
-peers on port 7337 and for local commands on `127.0.0.1:7336`. Leave it running and use another terminal. Stop it with
-Ctrl-C; it compacts its stores and exits.
+peers on port 7337 and for local commands on `127.0.0.1:7336` (`poo
+init` wrote both into `node.json`; change them there). Leave it running
+and use another terminal. Stop it with Ctrl-C; it compacts its stores and
+exits.
 
 ## 4. Claim, pay and settle
 
@@ -132,6 +134,17 @@ are comma-separated; fields combine with "and" ([modules/filter.md](modules/filt
 ./poo address ADDR                        # balance, holdings, history, pending
 ./poo unspent -serial 5                   # unspent portions of mint 5
 ```
+
+To carry a ledger, or part of one, to another node:
+
+```sh
+./poo ledger export -pool 1 -from 1 -to 500 -out pool1.json
+./poo ledger import pool1.json            # on the other node: every entry is checked in full
+```
+
+The file holds each entry's raw bytes and layers, so nothing in it is
+trusted; a range imports only from where the other node's ledger already
+reaches.
 
 `poo watch` prints events as they happen, one JSON line each, until you
 stop it. In another terminal:

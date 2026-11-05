@@ -88,6 +88,11 @@ Usage:
   poo pools [FILTER]          followed pools: tip, height, weight, pending
   poo ledger -pool K [-below H] [-limit N] [FILTER]
                               the selected ledger, newest entry first
+  poo ledger export -pool K [-from H] [-to H] [-out FILE]
+                              a stretch of the selected ledger, oldest
+                              first, as raw entries anyone can check
+  poo ledger import FILE|-    hand a ledger file's entries to the node,
+                              which checks every one in full
   poo pending [FILTER]        pending transactions
   poo unspent [FILTER]        unspent portions
   poo tx [-series ID] [-in-serial N] TID
@@ -329,6 +334,9 @@ func run(args []string, out io.Writer) error {
 				return err
 			}
 			fmt.Fprintln(out)
+			if args[0] == "ledger" {
+				return viewCmd(args[0], args[1:], out)
+			}
 			return peersCmd(args[1:], out)
 		}
 		// "poo policy help", "-h" or "--help": a command made of
@@ -361,7 +369,12 @@ func run(args []string, out io.Writer) error {
 		return statusCmd(args[1:], out)
 	case "doctor":
 		return doctorCmd(args[1:], out)
-	case "pools", "ledger", "pending", "unspent", "tx", "address":
+	case "ledger":
+		if len(args) > 1 && (args[1] == "export" || args[1] == "import") {
+			return ledgerPortCmd(args[1:], out)
+		}
+		return viewCmd(args[0], args[1:], out)
+	case "pools", "pending", "unspent", "tx", "address":
 		return viewCmd(args[0], args[1:], out)
 	case "watch":
 		return watchCmd(args[1:], out)
@@ -605,7 +618,7 @@ var ownHelp = map[string]bool{"grind": true, "sim": true, "wallet": true}
 
 // runsBare names the commands made of subcommands that also run with no
 // subcommand, with flags of their own: -h lists those flags, and "help"
-// the usage lines (poo peers, D157).
-var runsBare = map[string]bool{"peers": true}
+// the usage lines (poo peers, D157; poo ledger, D188).
+var runsBare = map[string]bool{"peers": true, "ledger": true}
 
 func isHelpWord(s string) bool { return s == "help" || s == "-h" || s == "--help" }

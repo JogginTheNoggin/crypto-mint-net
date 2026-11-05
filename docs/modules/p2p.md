@@ -336,6 +336,16 @@ flagged and its hash marked bad. `serve_test.go` checks each request's
 replies, limits, refusals of repeated and stale requests, malformed
 messages, invalid entries leading to a timeout, and the cost of serving.
 
+## Release and features in the hello (D186)
+
+`ownHello` fills the hello's `Release` from `node.RunningRelease()`
+(empty when `Config.HideRelease`, from `p2p.announce_version: none`) and
+`Features` from `wire.OwnFeatures`. `PeerInfo` shows what each peer
+claimed as `release` and `claimed_features`. Nothing reads them for a
+decision: no peer is refused, ranked, scored or chased differently for
+them, and every node speaks the whole protocol 1 baseline
+(`TestHeavierWhateverTheHelloClaims`).
+
 ## Port mapping (D182)
 
 With `PortMap` set (off by default) and no `Advertise`, `Run` starts

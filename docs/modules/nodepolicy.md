@@ -115,7 +115,12 @@ unless `port_map` (off by default, D182) asks the router for a mapping:
 only after a dial to it reaches this node, and `advertise` always wins.
 `port_map_gateway` is the router's IP address, found from the default
 route on Linux when empty. `port_map` and `port_map_gateway` are
-machine-local, like `listen` and `advertise`. The p2p defaults are in
+machine-local, like `listen` and `advertise`. `announce_version`
+(machine-local too) is `release` (the default, also when empty) to name
+the running release in the hello, or `none` to send an empty release
+(D186). The default ports are `127.0.0.1:7336` for `rpc.listen` and
+`:7337` for `p2p.listen`, and `poo init` writes them into a new file
+(D187). The p2p defaults are in
 `p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
 no unlisted connections; `review_seconds: -1` never reviews.
 `max_inbound` defaults to `max_peers` less `max_outbound`, so inbound
@@ -319,7 +324,7 @@ none and only notes that a file has them.
 
 - **Export** (`ExportPolicy`, `ExportSeries`, `NewBundle`, `Bundle.Write`)
   leaves out the machine-local settings, `MachineLocal`: the `rpc`
-  section, `no_sync`, `p2p.listen`, `p2p.advertise`, `p2p.port_map`, `p2p.port_map_gateway` and the grind device
+  section, `no_sync`, `p2p.listen`, `p2p.advertise`, `p2p.port_map`, `p2p.port_map_gateway`, `p2p.announce_version` and the grind device
   and threads (the section's and each job's). A shared file then never
   opens someone's control interface or picks their GPU. `full` keeps them,
   for a backup or a clone of the same machine. The settings no longer

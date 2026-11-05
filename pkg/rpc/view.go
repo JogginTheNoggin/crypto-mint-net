@@ -33,6 +33,8 @@ func (h *Handler) SetReload(f func()) { h.reload = f }
 func (h *Handler) viewRoutes() {
 	h.mux.HandleFunc("GET /v1/pools", h.pools)
 	h.mux.HandleFunc("GET /v1/ledger", h.ledgerPage)
+	h.mux.HandleFunc("GET /v1/ledger/export", h.ledgerExport)
+	h.mux.HandleFunc("POST /v1/ledger/import", h.ledgerImport)
 	h.mux.HandleFunc("GET /v1/pending", h.pending)
 	h.mux.HandleFunc("GET /v1/tx", h.txView)
 	h.mux.HandleFunc("GET /v1/address", h.address)
