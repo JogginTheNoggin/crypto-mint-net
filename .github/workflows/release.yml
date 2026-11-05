@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a tag vX.Y.Z builds the release archives and opens a draft
+# Pushing a tag vX.Y.Z (or vX.Y.Z-alpha.N, a pre-release) builds the release archives and opens a draft
 # release with them. The owner reviews and publishes the draft by hand.
 on:
   push:
@@ -29,5 +29,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+          # A tag with a "-" (v0.1.0-alpha.1) is a pre-release (D187, R12).
+          pre=""
+          case "$GITHUB_REF_NAME" in *-*) pre="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag $pre \
             --title "$GITHUB_REF_NAME" --notes-file CHANGELOG.md dist/*

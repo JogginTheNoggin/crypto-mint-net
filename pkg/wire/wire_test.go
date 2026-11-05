@@ -257,6 +257,9 @@ func FuzzDecode(f *testing.F) {
 
 func FuzzBodies(f *testing.F) {
 	f.Add(uint16(wire.TypeHello), wire.Hello{Agent: "x"}.Encode())
+	f.Add(uint16(wire.TypeHello), wire.Hello{Agent: "poo", Release: "0.1.0", Features: wire.OwnFeatures, Ext: []wire.Ext{{Tag: 1, Value: []byte("v")}}}.Encode())
+	f.Add(uint16(wire.TypePing), wire.Ping{Nonce: 1, Ext: []wire.Ext{{Tag: 3}}}.Encode())
+	f.Add(uint16(wire.TypePong), wire.PongReply{Ext: []wire.Ext{{Tag: 3}}}.Encode())
 	f.Add(uint16(wire.TypeFollowReq), wire.FollowReq{Contact: wire.Contact{Addr: "a:1"}}.Encode())
 	f.Add(uint16(wire.TypeFollowYes), wire.FollowReply{Peers: []wire.PeerInfo{{Contact: wire.Contact{Addr: "a:1"}}}}.Encode())
 	f.Add(uint16(wire.TypeExtensionReq), wire.ExtensionReq{Beat: weight.Credit(3)}.Encode())

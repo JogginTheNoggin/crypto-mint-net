@@ -107,7 +107,7 @@ func NewBundle(scope string, full bool, now time.Time) Bundle {
 // port (D182). An export leaves them out unless it is full, and an
 // import takes them only when asked (MergeOptions.Full), so a shared file
 // never opens someone's control interface or picks their GPU.
-var MachineLocal = []string{"rpc", "no_sync", "p2p.listen", "p2p.advertise", "p2p.port_map", "p2p.port_map_gateway", "grind.device", "grind.threads", "grind.jobs.device", "grind.jobs.threads"}
+var MachineLocal = []string{"rpc", "no_sync", "p2p.listen", "p2p.advertise", "p2p.port_map", "p2p.port_map_gateway", "p2p.announce_version", "grind.device", "grind.threads", "grind.jobs.device", "grind.jobs.threads"}
 
 // Strip returns p without its machine-local settings (MachineLocal), and
 // without the settings no longer used (p2p.fast_catch_up and
@@ -117,7 +117,7 @@ func Strip(p Policy) Policy {
 	p.RPC = RPC{}
 	p.NoSync = false
 	p.P2P.Listen, p.P2P.Advertise = "", ""
-	p.P2P.PortMap, p.P2P.PortMapGateway = "", ""
+	p.P2P.PortMap, p.P2P.PortMapGateway, p.P2P.AnnounceVersion = "", "", ""
 	p.P2P.FastCatchUp, p.P2P.DepthLimit = false, 0
 	if p.Grind != nil {
 		p.Grind.Device, p.Grind.Threads = "", 0
@@ -137,7 +137,7 @@ func withMachine(p, m Policy) Policy {
 	p.RPC = m.RPC
 	p.NoSync = m.NoSync
 	p.P2P.Listen, p.P2P.Advertise = m.P2P.Listen, m.P2P.Advertise
-	p.P2P.PortMap, p.P2P.PortMapGateway = m.P2P.PortMap, m.P2P.PortMapGateway
+	p.P2P.PortMap, p.P2P.PortMapGateway, p.P2P.AnnounceVersion = m.P2P.PortMap, m.P2P.PortMapGateway, m.P2P.AnnounceVersion
 	if m.Grind != nil && (m.Grind.Device != "" || m.Grind.Threads != 0) {
 		if p.Grind == nil {
 			p.Grind = &Grind{}
@@ -619,6 +619,10 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 	if err := res.Validate(); err != nil {
 		return Policy{}, Plan{}, err
 	}
+	// The settings this release does not know stay the local node's: an
+	// import never adds any (exports carry none) and never drops them
+	// (RED-096).
+	res.unknown = local.unknown
 	before, after, fromFile := flatAll(local), flatAll(res), flatAll(file)
 	for _, k := range sortedKeys(after) {
 		if v, ok := before[k]; !ok {
@@ -1229,7 +1233,7 @@ func clone(p Policy) Policy {
 		return p
 	}
 	q.Lowered = lowered
-	q.unknown = p.unknown
+	q.unknown, q.dropped, q.folded = p.unknown, p.dropped, p.folded
 	return q
 }
 

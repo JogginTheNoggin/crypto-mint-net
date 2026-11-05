@@ -173,7 +173,15 @@ func Open(dir string, opt Options) (*Node, error) {
 	}
 	if u := pol.UnknownSettings(); len(u) > 0 {
 		// A newer release wrote them; they are kept on every save (W-1).
-		lg.With(logging.Component, "node").Warn("node.json holds settings this release does not know; they are kept but not used", "file", nodepolicy.FileName, "settings", strings.Join(u, ", "))
+		lg.With(logging.Component, "node").Warn("node.json holds settings this release does not know; they are kept but not used", "file", nodepolicy.FileName, "count", len(u), "settings", nodepolicy.NameSome(u, 10))
+	}
+	if d := pol.UnknownDropped(); len(d) > 0 {
+		// Inside a list entry or a map, Save cannot keep them (GREEN-057).
+		lg.With(logging.Component, "node").Warn("node.json holds settings this release does not know inside list entries or over the keeping limits; the next save of node.json drops them", "file", nodepolicy.FileName, "count", len(d), "settings", nodepolicy.NameSome(d, 10))
+	}
+	if f := pol.FoldedSettings(); len(f) > 0 {
+		// Read as the setting they fold to; saved under its name (RED-093).
+		lg.With(logging.Component, "node").Warn("node.json spells settings in another letter case; they are used as those settings and the next save writes their own names", "file", nodepolicy.FileName, "count", len(f), "settings", nodepolicy.NameSome(f, 10))
 	}
 	if opt.CompactMin <= 0 {
 		opt.CompactMin = DefaultCompactMin

@@ -147,6 +147,13 @@ White's rules:
   what the previous release wrote. Fields are added, never repurposed.
 - Upgrade needs no manual step; going back one release loses nothing that
   cannot be fetched again, or the release notes say what to do.
+- A new `node.json` setting goes in an object, never as a new field of
+  a list entry (a series, a follow, a grind job): an older release keeps
+  unknown settings inside objects on a save, but not inside list entries
+  (W-11, D187).
+- A new hello feature or extension tag is registered in `pkg/wire`
+  (`hello.go`) and never reused, and nothing a peer claims in it may
+  change a verdict or a peer's standing (D186).
 - A flag, setting, endpoint or command is deprecated (still works, warns)
   for a release before it is removed. A moved default is a release note.
 - Releases: White signs off the release checklist in its README and hands
@@ -160,7 +167,8 @@ White's rules:
 - White never edits code or another team's files, and never decides
   consensus: a compatibility fix that would need a new rule goes to Black
   like any consensus suggestion. Byte form v1 and wire version 1 stay
-  frozen (D76).
+  frozen (D76); the hello layout of D186 is frozen as wire version 1
+  from the first public tag.
 
 ### The integration line
 

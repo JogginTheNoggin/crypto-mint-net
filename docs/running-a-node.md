@@ -45,8 +45,10 @@ only some pools or mints, or to change K and the other limits; see
 ```
 
 It prints how many pools it follows and what it replayed, and listens for
-peers on port 8646 and for local commands on `127.0.0.1:8645`. Leave it running and use another terminal. Stop it with
-Ctrl-C; it compacts its stores and exits.
+peers on port 7337 and for local commands on `127.0.0.1:7336` (`poo
+init` wrote both into `node.json`; change them there). Leave it running
+and use another terminal. Stop it with Ctrl-C; it compacts its stores and
+exits.
 
 ## 4. Claim, pay and settle
 
@@ -133,6 +135,17 @@ are comma-separated; fields combine with "and" ([modules/filter.md](modules/filt
 ./poo unspent -serial 5                   # unspent portions of mint 5
 ```
 
+To carry a ledger, or part of one, to another node:
+
+```sh
+./poo ledger export -pool 1 -from 1 -to 500 -out pool1.json
+./poo ledger import pool1.json            # on the other node: every entry is checked in full
+```
+
+The file holds each entry's raw bytes and layers, so nothing in it is
+trusted; a range imports only from where the other node's ledger already
+reaches.
+
 `poo watch` prints events as they happen, one JSON line each, until you
 stop it. In another terminal:
 
@@ -217,13 +230,13 @@ Give the second node its own policy, its own RPC port, and the first node
 as a peer:
 
 ```sh
-./poo init -policy second -example -listen 127.0.0.1:8655 -p2p off -peer 127.0.0.1:8646
+./poo init -policy second -example -listen 127.0.0.1:7346 -p2p off -peer 127.0.0.1:7337
 ./poo node -policy second            # in a third terminal
 ./poo peers -policy second           # the first node, connected
 ```
 
 `init` makes the new policy current, so give the first node's commands
-`-policy default` from now on. A listed peer such as `127.0.0.1:8646` is
+`-policy default` from now on. A listed peer such as `127.0.0.1:7337` is
 always dialled, but a node does not take loopback or private addresses
 it hears of from other nodes (D96): for several nodes on one machine to
 find each other, set `"allow_local_peers": true` in each policy's `p2p`
@@ -266,10 +279,10 @@ for 10 minutes or block it for a day. You can look and act yourself:
 ```sh
 ./poo tracking                          # every tracked address and its status
 ./poo tracking 203.0.113.5              # one address: flags, measures, points
-./poo peer block -seconds -1 203.0.113.5:8646   # until you unblock it
-./poo peer block -range 203.0.113.5:8646        # its whole network range
-./poo peer unblock 203.0.113.5:8646
-./poo peer template -template detailed 203.0.113.5:8646   # record more
+./poo peer block -seconds -1 203.0.113.5:7337   # until you unblock it
+./poo peer block -range 203.0.113.5:7337        # its whole network range
+./poo peer unblock 203.0.113.5:7337
+./poo peer template -template detailed 203.0.113.5:7337   # record more
 ./poo chases                            # heavier ledgers waiting to be checked
 ```
 
@@ -283,7 +296,7 @@ is never offered as a contact and adds no reachable node to the network.
 
 There are two ways to take inbound connections:
 
-- **Forward the port by hand.** In the router, forward TCP port 8646 (or
+- **Forward the port by hand.** In the router, forward TCP port 7337 (or
   your `-p2p` port) to this machine. Then set `p2p.advertise`
   (`poo init -advertise`) to the router's public address and that port.
 - **Let the node ask the router.** Set `p2p.port_map` to `auto`
@@ -453,7 +466,7 @@ so read the file before you share it.
 - The RPC listens on loopback only. Every call needs the token in
   `rpc.token` in the data directory, readable only by your user. Anyone who
   can read that file controls the node.
-- The p2p port (8646) listens on every interface by default, because peers
+- The p2p port (7337) listens on every interface by default, because peers
   are on other machines. It accepts only protocol messages, and every item
   is checked before it is kept; nothing it receives can change the node's
   settings. Set `p2p.listen` to `"off"` to accept no connections (the node

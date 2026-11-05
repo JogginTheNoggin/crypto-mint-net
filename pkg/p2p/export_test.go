@@ -88,3 +88,6 @@ func SetPortMapWaits(retry, renew time.Duration) func() {
 	pmRetry, pmMaxRetry, pmMinRenew, pmMinLife = retry, retry, renew, min(pmMinLife, renew)
 	return func() { pmRetry, pmMaxRetry, pmMinRenew, pmMinLife = r, m, n, l }
 }
+
+// SetHelloEdit makes a host built from c change its hello with f.
+func SetHelloEdit(c *Config, f func(*wire.Hello)) { c.editHello = f }

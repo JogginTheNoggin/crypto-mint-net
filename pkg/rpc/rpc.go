@@ -191,6 +191,39 @@ type Handler struct {
 	// the node's own (node.PolicyMu), which the p2p host takes too when it
 	// keeps a release a peer passed on (D168).
 	policyMu *sync.Mutex
+	// seen caches node.json for status, which a front end polls
+	// (RED-094).
+	seen policyCache
+}
+
+// policyCache holds node.json as last loaded, with the file it came from:
+// a status request loads the file again only once it has been replaced
+// or changed.
+type policyCache struct {
+	mu   sync.Mutex
+	fi   os.FileInfo
+	pol  nodepolicy.Policy
+	good bool
+}
+
+// loadPolicy is nodepolicy.Load; a test counts the calls.
+var loadPolicy = nodepolicy.Load
+
+// load returns the policy in path, loading it only when the file is not
+// the one loaded last (another file, size or modification time).
+func (c *policyCache) load(path string) (nodepolicy.Policy, bool) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nodepolicy.Policy{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fi != nil && os.SameFile(c.fi, fi) && c.fi.Size() == fi.Size() && c.fi.ModTime().Equal(fi.ModTime()) {
+		return c.pol, c.good
+	}
+	p, err := loadPolicy(path)
+	c.fi, c.pol, c.good = fi, p, err == nil
+	return p, err == nil
 }
 
 // NewHandler returns the HTTP handler for n, accepting only token.
@@ -253,6 +286,19 @@ type BookCounts struct {
 	// States counts, for each book state, the addresses that hold it for
 	// at least one mint policy; an address may count under several.
 	States map[string]int `json:"states"`
+	// Releases counts the open connections by the release each peer's
+	// hello claims ("" for none shared), so the owner sees what the
+	// network runs (D186).
+	Releases map[string]int `json:"releases,omitempty"`
+}
+
+// countReleases counts connections by claimed release.
+func countReleases(conns []p2p.PeerInfo) map[string]int {
+	out := map[string]int{}
+	for _, p := range conns {
+		out[p.Release]++
+	}
+	return out
 }
 
 // CountBook returns the counts of a book's records and connections.
@@ -283,7 +329,7 @@ func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
 		// Counted in place: a counts-only reply copies no record
 		// (ORANGE-034).
 		n, states := h.host.Book().Counts()
-		c := BookCounts{Addresses: n, Connected: len(conns), States: map[string]int{}}
+		c := BookCounts{Addresses: n, Connected: len(conns), States: map[string]int{}, Releases: countReleases(conns)}
 		for _, st := range peers.States {
 			c.States[st.String()] = states[st]
 		}
@@ -317,6 +363,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// An entry has no size bound: the node takes one of any size from
 		// a peer, in parts (D117), so the full token may hand it one of
 		// any size too, as poo submit and the GUI do (RED-038, D144).
+	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/ledger/import":
+		// Entry items, like /v1/entry, have no size bound; the call holds
+		// at most node.MaxImportItems of them (D188).
 	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/policy/import":
 		r.Body = http.MaxBytesReader(w, r.Body, MaxImportBody)
 	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/peers/import":
@@ -462,7 +511,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		pm := h.host.PortMap()
 		rep.PortMap = &pm
 	}
-	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
+	if p, ok := h.seen.load(h.policyPath()); ok {
 		rep.PolicyChanged = !p.SameApplied(h.n.Running())
 	}
 	for _, k := range h.n.Engine().ListedPools() {

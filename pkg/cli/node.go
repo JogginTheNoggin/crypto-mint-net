@@ -106,8 +106,15 @@ func initCmd(args []string, out io.Writer) error {
 		return err
 	}
 	p := nodepolicy.Default()
-	p.RPC.Listen = *listen
-	p.P2P.Listen = *p2pListen
+	// The ports go into node.json, so a later release that moves a default
+	// never moves a node set up before it (W-7, D187).
+	p.RPC.Listen, p.P2P.Listen = *listen, *p2pListen
+	if p.RPC.Listen == "" {
+		p.RPC.Listen = nodepolicy.DefaultListen
+	}
+	if p.P2P.Listen == "" {
+		p.P2P.Listen = nodepolicy.DefaultP2PListen
+	}
 	p.P2P.Peers = peerList
 	p.P2P.Registries = registries
 	p.P2P.Advertise = *advertise

@@ -92,7 +92,7 @@ the clock skew (2 minutes) ahead.
 | Number | Type | Body |
 | --- | --- | --- |
 | 1 | hello | Hello |
-| 2 | ping | `U64` nonce ∥ `U64` time |
+| 2 | ping | `U64` nonce ∥ `U64` time ∥ extensions |
 | 3 | dropped policy update | empty |
 | 10 | tx | a transaction's byte form |
 | 11 | entry | an entry's byte form |
@@ -124,8 +124,8 @@ the clock skew (2 minutes) ahead.
 | 51 | part | `U64` total ∥ `U64` offset ∥ the bytes to the end of the body |
 | 52 | many layers | `Hash` entry ∥ `U32` count of its layers |
 | 53 | layers from | `U32` total ∥ `U32` from ∥ `List<U64>` nonces |
-| 60 | pong | Contact ∥ `List<Section>` (empty) |
-| 61 | partial pong | Contact ∥ `List<Section>` followed within the one asked about |
+| 60 | pong | Contact ∥ `List<Section>` (empty) ∥ extensions |
+| 61 | partial pong | Contact ∥ `List<Section>` followed within the one asked about ∥ extensions |
 | 62 | yes | Follow reply |
 | 63 | partial yes | Follow reply |
 | 64 | peer list | `List<Peer>` |
@@ -147,7 +147,29 @@ checks its strength as usual.
 
 ## Hello
 
-    U16 protocol ∥ Hash node id ∥ Bytes agent
+    U16 protocol ∥ Hash node id ∥ Bytes agent ∥ Bytes release
+      ∥ U8 n ∥ n × (Bytes name ∥ U16 ver)  -- features
+      ∥ U8 m ∥ m × (U16 tag ∥ Bytes value) -- extensions
+
+(D186.) The release is the sender's version, such as `0.1.0-alpha.1`, at
+most 64 printable bytes, or empty when `p2p.announce_version` is `none`.
+The features are what the sender supports beyond the protocol 1
+baseline: at most 64, each a name of at most 32 bytes (`a-z`, `0-9`,
+`-`) and a version, sorted by name with no repeats. The extensions are
+optional fields a later release adds: at most 32, tags strictly
+increasing, values at most 1 KiB. Ping, pong and partial pong end with
+the same extension list. Nothing may follow the lists.
+
+Feature names and extension tags are registered in `pkg/wire` (`hello.go`)
+and never reused. Registered features: `layers-from`, `many-layers`,
+`parts`, `release`. No extension tag is registered yet. A node skips a
+feature or tag it does not know.
+
+Release, features and extensions are for display and optional extras
+only. They never change a verdict, weight, selection, a peer's standing
+or ranking, or chasing, and no peer is refused for them; every node
+speaks the whole protocol 1 baseline whatever it claims. A malformed
+hello, ping or pong closes that connection only.
 
 Each side sends its hello first and sends nothing else until it has read
 the other's, within 10 seconds. The node id is random per run. A node

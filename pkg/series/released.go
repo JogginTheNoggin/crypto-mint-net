@@ -37,43 +37,30 @@ var (
 // built, so a transaction's bytes can be read: a variable series' mint
 // carries its part (tx package). An id is a hash of the params, so the set
 // holds only facts and only grows. Every transaction decoded reads it, so
-// it is a map replaced whole under variableMu when an id is added, read
-// with one atomic load and no lock, and nil while there is none
-// (ORANGE-035).
+// reads take no lock: variableAny says whether any id is in yet (the fast
+// path for a node that follows only fixed series, ORANGE-035), and the set
+// itself is a sync.Map grown in place. It was once a map copied whole on
+// each add, which cost about N²/2 inserts for N series: a second of CPU at
+// 4,096 (GUI ORANGE-024).
 var (
-	variableMu  sync.Mutex
-	variableIDs atomic.Pointer[map[hash.Hash]struct{}]
+	variableIDs sync.Map // hash.Hash -> struct{}
+	variableAny atomic.Bool
 )
 
 // addVariableID adds id to the set.
 func addVariableID(id hash.Hash) {
-	variableMu.Lock()
-	defer variableMu.Unlock()
-	old := variableIDs.Load()
-	if old != nil {
-		if _, ok := (*old)[id]; ok {
-			return
-		}
-	}
-	m := make(map[hash.Hash]struct{}, 1)
-	if old != nil {
-		for k := range *old {
-			m[k] = struct{}{}
-		}
-	}
-	m[id] = struct{}{}
-	variableIDs.Store(&m)
+	variableIDs.LoadOrStore(id, struct{}{})
+	variableAny.Store(true)
 }
 
 // IsVariableID reports whether id is the id of a variable series this
 // process has built. A series it has not built reads as fixed; a node
 // cannot check such a series' transactions in any case.
 func IsVariableID(id hash.Hash) bool {
-	m := variableIDs.Load()
-	if m == nil {
+	if !variableAny.Load() {
 		return false
 	}
-	_, ok := (*m)[id]
+	_, ok := variableIDs.Load(id)
 	return ok
 }
 

@@ -38,6 +38,12 @@ again picks up its history.
   0 grinds until ctx ends and keeps the strongest layer (M11, D109).
 - `HandleTxFrom`, `HandleEntryFrom`, `HandleLayerFrom`: the same, naming
   the peer that sent the item.
+- `ImportItems(k, items)` (D188): entry items, oldest first, at most
+  `MaxImportItems` (256), each put through `HandleEntryFrom` and
+  `HandleLayerFrom` with `engine.Requested` and `ImportFrom`: the full
+  checks, never forwarded. Returns `ImportResult` (kept, known, layers,
+  refused with reasons, switched). An entry whose parent the node lacks
+  is refused.
 - `Observe(f)`: f receives an `Event{Key, Tx|Entry|Layer, Origin, From,
   Forward, Switch, Dropped, Weight}` for every item kept from then on, after it is
   written to the store, in order. The fsync may still be running; the

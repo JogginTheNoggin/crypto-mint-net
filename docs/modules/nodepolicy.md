@@ -33,11 +33,11 @@ D25). Nothing here changes what is valid.
   "snapshot_every": 50000,
   "no_snapshots": false,
   "no_sync": false,
-  "rpc": {"listen": "127.0.0.1:8645", "allow_remote": false},
+  "rpc": {"listen": "127.0.0.1:7336", "allow_remote": false},
   "p2p": {
-    "listen": ":8646",
-    "advertise": "node.example.org:8646",
-    "peers": ["203.0.113.5:8646"],
+    "listen": ":7337",
+    "advertise": "node.example.org:7337",
+    "peers": ["203.0.113.5:7337"],
     "max_peers": 32,
     "chunk_size": 1048576, "entry_limit": 512, "hash_limit": 4096, "layer_limit": 65536,
     "no_notices": false,
@@ -115,7 +115,12 @@ unless `port_map` (off by default, D182) asks the router for a mapping:
 only after a dial to it reaches this node, and `advertise` always wins.
 `port_map_gateway` is the router's IP address, found from the default
 route on Linux when empty. `port_map` and `port_map_gateway` are
-machine-local, like `listen` and `advertise`. The p2p defaults are in
+machine-local, like `listen` and `advertise`. `announce_version`
+(machine-local too) is `release` (the default, also when empty) to name
+the running release in the hello, or `none` to send an empty release
+(D186). The default ports are `127.0.0.1:7336` for `rpc.listen` and
+`:7337` for `p2p.listen`, and `poo init` writes them into a new file
+(D187). The p2p defaults are in
 `p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
 no unlisted connections; `review_seconds: -1` never reviews.
 `max_inbound` defaults to `max_peers` less `max_outbound`, so inbound
@@ -269,6 +274,31 @@ for, at the top level and inside objects (not inside list entries), and
 therefore keeps what the newer release set. `UnknownSettings` lists them
 by dotted path, and the node warns at start. Exports and bundles carry
 only known settings, and a bundle with an unknown field is still refused.
+An unknown setting inside a list entry or a map value cannot be kept:
+`UnknownDropped` names those (such as `series[0].x`), the node warns at
+start that the next save drops them, and `poo doctor` warns too
+(GREEN-057). Doctor also notes the kept ones, since a misspelt key is
+kept in the same way.
+
+Since D185:
+
+- **A key that is a setting's name in another letter case or Unicode
+  folding is that setting.** Examples are `ALLOW_REMOTE`, or `liſten`
+  with U+017F. `encoding/json` reads such a key as the setting, so
+  "unknown" is decided by the same folding (`fieldFor`). `Load` applies
+  the key, and `Save` writes the setting under its own name instead.
+  `FoldedSettings` names these keys, and the node and `poo doctor` warn.
+  A kept setting is never written beside a key that folds to its own.
+- **What is kept has limits.** At most `MaxKeptSettings` (256) settings
+  are kept, each at most `MaxKeptBytes` (64 KiB) compacted and
+  `MaxKeptDepth` (64) levels deep. A setting over a limit is named in
+  `UnknownDropped` with the limit it passed.
+- **Kept values are written compacted, on one line.** Indenting a deeply
+  nested value would multiply its size by its depth.
+- **Warnings stay short.** Start warnings name the first ten settings and
+  a count (`NameSome`).
+- **An import keeps them.** `Merge` keeps the local node's kept
+  settings.
 
 ## Sharing node policies: bundles
 
@@ -294,7 +324,7 @@ none and only notes that a file has them.
 
 - **Export** (`ExportPolicy`, `ExportSeries`, `NewBundle`, `Bundle.Write`)
   leaves out the machine-local settings, `MachineLocal`: the `rpc`
-  section, `no_sync`, `p2p.listen`, `p2p.advertise`, `p2p.port_map`, `p2p.port_map_gateway` and the grind device
+  section, `no_sync`, `p2p.listen`, `p2p.advertise`, `p2p.port_map`, `p2p.port_map_gateway`, `p2p.announce_version` and the grind device
   and threads (the section's and each job's). A shared file then never
   opens someone's control interface or picks their GPU. `full` keeps them,
   for a backup or a clone of the same machine. The settings no longer

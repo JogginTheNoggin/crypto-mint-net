@@ -7,7 +7,7 @@
 //	{
 //	  "format": 1,
 //	  "nodes": [
-//	    {"addr": "203.0.113.5:8646", "follows": ["<issuer hex>/<series hex>/*/*"]}
+//	    {"addr": "203.0.113.5:7337", "follows": ["<issuer hex>/<series hex>/*/*"]}
 //	  ]
 //	}
 //

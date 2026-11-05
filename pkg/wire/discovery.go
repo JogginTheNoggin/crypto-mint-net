@@ -192,15 +192,22 @@ func DecodePeerListReq(b []byte) (PeerListReq, error) {
 type Ping struct {
 	Nonce uint64
 	Time  uint64
+	// Ext holds extension fields (D186).
+	Ext []Ext
 }
 
 // Encode returns the body.
-func (p Ping) Encode() []byte { return encoding.NewWriter(16).U64(p.Nonce).U64(p.Time).Bytes() }
+func (p Ping) Encode() []byte {
+	w := encoding.NewWriter(17).U64(p.Nonce).U64(p.Time)
+	encodeExt(w, p.Ext)
+	return w.Bytes()
+}
 
 // DecodePing reads a ping body.
 func DecodePing(b []byte) (Ping, error) {
 	r := encoding.NewReader(b)
 	p := Ping{Nonce: r.U64(), Time: r.U64()}
+	p.Ext = decodeExt(r)
 	return p, finish(r, "ping")
 }
 
@@ -311,6 +318,8 @@ func DecodeFollowReply(b []byte) (FollowReply, error) {
 type PongReply struct {
 	Contact  Contact
 	Policies []Section // partial pong only
+	// Ext holds extension fields (D186).
+	Ext []Ext
 }
 
 // Encode returns the body.
@@ -318,6 +327,7 @@ func (p PongReply) Encode() []byte {
 	w := encoding.NewWriter(64)
 	p.Contact.encode(w)
 	encodeSections(w, p.Policies)
+	encodeExt(w, p.Ext)
 	return w.Bytes()
 }
 
@@ -325,6 +335,7 @@ func (p PongReply) Encode() []byte {
 func DecodePongReply(b []byte) (PongReply, error) {
 	r := encoding.NewReader(b)
 	p := PongReply{Contact: decodeContact(r), Policies: decodeSections(r)}
+	p.Ext = decodeExt(r)
 	return p, finish(r, "pong")
 }
 

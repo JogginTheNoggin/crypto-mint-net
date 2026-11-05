@@ -15,6 +15,7 @@ func FromPolicy(p nodepolicy.Policy) Config {
 		Listen:    p.P2PListenAddr(),
 		Advertise: p.P2P.Advertise,
 
+		HideRelease:    p.P2P.AnnounceVersion == "none",
 		PortMap:        p.P2P.PortMap,
 		PortMapGateway: p.P2P.PortMapGateway,
 		PortMapLease:   time.Duration(nodepolicy.BoundPortMapSeconds.Or(p.P2P.PortMapSeconds)) * time.Second,

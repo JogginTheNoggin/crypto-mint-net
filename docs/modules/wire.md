@@ -22,6 +22,13 @@ specification is [../protocol/wire.md](../protocol/wire.md).
 - `Section` with `All`, `IssuerSection`, `SeriesSection`, `PoolSection`,
   `MintSection`; `Covers` (None, Partial, Full) and `Contains`.
 - `RequestID(type, section, body)`.
+- Hello (`hello.go`, D186): `Hello{Version, NodeID, Agent, Release,
+  Features, Ext}` with `Check`; `Feature{Name, Ver}`, `Ext{Tag, Value}`,
+  the registered feature names (`FeatureLayersFrom`, `FeatureManyLayers`,
+  `FeatureParts`, `FeatureRelease`), `OwnFeatures`, `Has`,
+  `ValidRelease`, and the limits `MaxRelease`, `MaxFeatures`,
+  `MaxFeatureName`, `MaxExt`, `MaxExtValue`. `Ping` and `PongReply` carry
+  `Ext` too.
 - Bodies: `Hello`, `Notice`, `DecodeTx` / `DecodeEntry` / `DecodeLayer`;
   requests `ExtensionReq`, `HashChainReq`, `EntriesReq`, `FullLedgerReq`,
   `LayersReq`, `WeightReq`, `PartsReq`, `LayersFromReq` (all with `RequestCommon{Nonce, Time, Limits}`)
@@ -44,7 +51,15 @@ oversized frames), request id stability, section text and order, and two fuzz ta
 `FuzzDecode` (a message that decodes encodes back to the same bytes) and
 `FuzzBodies` (no body decoder panics on any input).
 
+`hello_test.go`: the hello's release, features and extensions round
+trip, and malformed ones (unsorted, repeated, too long, the old layout,
+trailing bytes) are refused (D186).
+
 ## Extending
+
+- A new hello feature or extension tag is registered in `hello.go` and
+  never reused. What a peer claims there never changes a verdict or the
+  peer's standing (D186).
 
 A new message is a new type number (never reuse one) and a body type with
 `Encode` and a `Decode` function; add it to the round-trip and fuzz tests

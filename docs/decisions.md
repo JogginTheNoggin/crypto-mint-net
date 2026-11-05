@@ -4836,3 +4836,179 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/nodepolicy/unknown_test.go`: `TestUnknownSettingsSurviveSave`.
   - `pkg/cli/blue031_test.go`: `TestSnapshotsCheckCountsCutReasons`.
   - `pkg/rpc/rpc_test.go`: the status reply names the release.
+
+### D185. Round 32 fixes: RED-093 to RED-096 (BLUE-033), with ORANGE-042, GREEN-057 and GUI ORANGE-024
+
+- **Decision:**
+  - **RED-093.** A key in node.json is known when `encoding/json` would
+    fill a field from it: the exact name, or else a name equal under
+    Unicode case folding (`strings.EqualFold`, the decoder's own rule;
+    `fieldFor`). Such a key is never kept as unknown. `Load` applies it,
+    as the decoder always did. `Save` writes the setting under its own
+    name and drops the other spelling, so a setting the owner turned off
+    stays off, and a lookalike key cannot override the real one.
+    - `FoldedSettings` names these keys, and the node and `poo doctor`
+      warn.
+    - When kept settings go back in, none is written beside a key that
+      folds to its name (`holdsFolded`).
+    - Red's other option, refusing such a file, is not taken: it would
+      stop a node from starting over a spelling.
+  - **RED-094.** Limits on what `Load` keeps:
+    - at most 256 settings (`MaxKeptSettings`);
+    - each value at most 64 KiB compacted (`MaxKeptBytes`);
+    - each value at most 64 levels deep (`MaxKeptDepth`).
+
+    A setting over a limit is not kept. `UnknownDropped` names it with the
+    limit, and the start warning and doctor say the next save drops it.
+    `Save` writes kept values compacted on one line: it puts in marker
+    strings with a random part, indents, then replaces the markers in one
+    pass. Red's 9,990-deep file now stays its size. `GET /v1/status`
+    caches node.json and loads it again only when the file is replaced or
+    its size or modification time changes. A cap on node.json's size is
+    not taken: variable series releases are kept in node.json, so a
+    legitimate file can be large.
+  - **RED-095.** ORANGE-042 (#249, merged in) already inserts every kept
+    setting in one pass. Start warnings name the first ten settings with
+    a count (`NameSome`); doctor names the first twenty.
+  - **RED-096.** `Merge` keeps the local node's kept settings, so an
+    import that saves loses none. `clone` copies the dropped and folded
+    lists too.
+  - **GUI ORANGE-024.** The set of variable series ids in `pkg/series` is
+    a `sync.Map` grown in place, with an atomic flag for the empty fast
+    path, in place of a map copied whole on each add. It holds the same
+    ids, and reads still take no lock.
+  - **GREEN-057 (#247) is carried:** it changes the same `unknown.go`.
+    The folded keys are added to its doctor checks.
+- **Why:** W-1 (D184) keeps what a newer release wrote, but deciding
+  "unknown" by exact name made a key the decoder applied also count as
+  unknown. A routine save then wrote it back and revived a setting the
+  owner had turned off, `rpc.allow_remote` included. Keeping values
+  without limits let a small crafted file grow without bound on save.
+- **For White:** a newer release's settings over the limits are lost on
+  a save by this release. The limits are far above what one release adds
+  (W-1's case is a handful of settings), and the start warning names
+  what will be dropped. A folded key is saved under the setting's own
+  name, which every release reads the same way.
+- **Consensus:** None. node.json is node policy.
+- **Tier:** Node policy, RPC, series.
+  - `pkg/nodepolicy/blue033_test.go`:
+    - `TestBlue033FoldedKeyIsTheSetting`, Red's `ALLOW_REMOTE`.
+    - `TestBlue033UnicodeFoldedKey`, Red's `liſten`.
+    - `TestBlue033KeptCompacted`.
+    - `TestBlue033KeptLimits`, Red's 9,990-deep value, 64 KiB and 266
+      settings.
+    - `TestBlue033ImportKeepsUnknown`.
+  - `pkg/rpc/blue033_internal_test.go`: `TestBlue033StatusCachesPolicy`.
+  - `pkg/series/blue033_internal_test.go`:
+    `TestBlue033VariableSetGrowsInPlace` and a benchmark.
+  - The nodepolicy tests fail on the code before the fix.
+
+### D186. Round 33: release and features in the hello, extension lists on hello, ping and pong (WHITE-002 as revised)
+
+- **Merged first:** Blue's #251 (D185, carrying Green's #247 and
+  Orange's #249), Red's #246, White's #252 (WHITE-002 revised) and
+  Black's #253 (Round 32 review).
+- **Decision (jerry, 2026-11-05: "hello only, both extensible"):** since
+  nothing is released, the wire layout changes now, and is frozen as wire
+  version 1 from the first public tag.
+  - The hello is now `U16 version ∥ NodeID ∥ VarBytes agent ∥ VarBytes
+    release ∥ U8 n ∥ n features ∥ U8 m ∥ m extensions`. A feature is
+    `VarBytes name ∥ U16 ver`, sorted by name with no repeats; an
+    extension is `U16 tag ∥ VarBytes value`, tags strictly increasing.
+    Ping and pong end with the same extension list. It is sent once per
+    connection, in the hello, never in every ping.
+  - Limits: release at most 64 printable bytes; at most 64 features, of
+    names at most 32 bytes (`a-z`, `0-9`, `-`); at most 32 extensions of
+    at most 1 KiB each. Trailing bytes after the lists are refused.
+  - Feature names and extension tags are registered in `pkg/wire`
+    (`hello.go`) and never reused. Registered now: `layers-from`,
+    `many-layers`, `parts`, `release`. No extension tag is registered.
+  - `p2p.announce_version` (machine-local): `""` or `release` sends the
+    running release; `none` sends an empty release. The features list is
+    always sent.
+  - `poo peers` shows each connected peer's `release` and
+    `claimed_features`; `poo peers -counts` counts peers by release.
+- **Black's terms (#253), all kept:**
+  1. Only the wire half of D76 is amended. Byte form v1,
+     `TestByteFormV1Frozen` and the Round 24 and 25 cross-version vectors
+     are untouched.
+  2. Release, features and extensions are for display and optional
+     extras only. They never affect validity, weight, selection, scoring,
+     refusal, the peer book's or tracker's standing, or chasing.
+  3. The protocol 1 baseline stays forever, and nothing is gated by a
+     feature (`TestHeavierWhateverTheHelloClaims`).
+  4. An unknown feature or tag is skipped. A malformed hello, ping or
+     pong closes only that connection, with no lasting offence.
+  5. Builds before this change cannot talk to builds after it. That is
+     acceptable only because nothing is released.
+  6. Names and tags are registered and never reused, and the decoders
+     are fuzzed (`FuzzBodies` seeds).
+  7. No peer is refused or ranked by its release or features.
+- **Why:** a node should be able to tell which release a peer runs and
+  what it supports, without a consensus change, and a later release must
+  be able to add fields that older ones skip.
+- **Consensus:** None. Wire layout only; byte forms and every verdict
+  are unchanged.
+- **Tier:** Protocol (wire), P2P, node policy, RPC.
+  - `pkg/wire/hello_test.go`: `TestHelloReleaseFeaturesExt`,
+    `TestHelloMalformed` (the old layout and trailing bytes refused).
+  - `pkg/p2p/hello_features_test.go`: `TestHeavierWhateverTheHelloClaims`.
+  - `pkg/nodepolicy/announce_test.go`: `TestAnnounceVersion`.
+
+### D187. Round 33: default ports 7336 and 7337, written by `poo init`, and the alpha version
+
+- **Decision (jerry, 2026-11-05):**
+  - The local command port is `127.0.0.1:7336` and the peer port `:7337`,
+    in place of 8645 and 8646 (which other applications use).
+  - `poo init` writes both into a new `node.json` when `-listen` and
+    `-p2p` are not given (White's W-7), so a later change of default
+    never moves an existing node.
+  - `poo version` says `0.1.0-alpha.1-dev` until the first tag,
+    `v0.1.0-alpha.1`.
+  - `release.yml` marks a tag with a `-` (alpha, beta, rc) as a
+    pre-release.
+  - White's W-12 (a total cap on kept unknown settings) is not taken
+    now. D185's per-setting limits (256 settings of 64 KiB) already bound
+    a saved file; it is listed for a later round.
+  - White's W-11 is a rule in AGENTS.md: a new setting goes in an object,
+    never as a new field in a list entry, because list entries lose
+    unknown fields on a rollback save.
+  - The registry URL default waits for jerry's website.
+- **Consensus:** None.
+- **Tier:** Node policy, CLI, release.
+  - `pkg/cli/initports_test.go`: `TestInitWritesPorts`.
+
+### D188. Round 33: ledger export and import, every import fully checked
+
+- **Decision (jerry, 2026-11-05: "Yes"; "All imports should still be
+  verified"):**
+  - `poo ledger export -pool K [-series ID] [-from H] [-to H] [-out
+    FILE]` writes a stretch of the pool's selected ledger, oldest first,
+    as a JSON ledger file (`"kind": "poo ledger"`, format 1). The header
+    gives the series, pool, range, height, tip and weight. Each entry
+    has its height, hash, parent, transaction and layer counts, and
+    `item`: the entry's byte form with its layer nonces, base64, exactly
+    as a peer sends it. It is read page by page (`GET
+    /v1/ledger/export`, at most 256 entries or 8 MiB a page), and the
+    export stops if the node switches ledgers part way.
+  - `poo ledger import FILE|-` sends the items in batches (`POST
+    /v1/ledger/import`). The node puts every entry and layer through the
+    same checks as an entry a peer sent when asked
+    (`engine.Requested`): nothing in the file is trusted and there is no
+    path that skips a check. An entry whose parent the node lacks is
+    refused, so a range imports only where the node's ledger already
+    reaches. Imported data is not forwarded, as for requested data. The
+    reply counts entries and layers kept and already held, and lists each
+    refused item with why.
+  - Both are refused in view-only mode. The GUI form comes in GUI Round
+    33.
+- **Why:** to carry a ledger, or part of one, to another node, keep a
+  checkable copy, or seed a node without the network. Requested origin
+  is the full check with no forwarding.
+- **Consensus:** None. The import runs the existing checks.
+- **Tier:** Watch, node, RPC, CLI.
+  - `pkg/watch/export_test.go`: `TestExportPagesAndImports` (paging,
+    ranges, refused items, a whole import).
+  - `pkg/cli/ledgerport_test.go`: `TestLedgerExportImport` (two nodes,
+    import twice, a changed item, a range whose parent is missing,
+    view-only).

@@ -38,13 +38,34 @@ type Hello struct {
 	NodeID hash.Hash
 	// Agent names the software, for logs only.
 	Agent string
+	// Release is the sender's release ("" when not shared), and Features
+	// the optional abilities it says it supports, sorted (D186). Both are
+	// claims, for display and optional extras only.
+	Release  string
+	Features []Feature
+	// Ext holds extension fields; a node keeps the tags it knows and
+	// skips the rest.
+	Ext []Ext
 }
 
 // Encode returns the body.
 func (h Hello) Encode() []byte {
-	w := encoding.NewWriter(64)
-	w.U16(h.Protocol).Raw(h.NodeID[:]).VarBytes([]byte(h.Agent))
+	w := encoding.NewWriter(128)
+	w.U16(h.Protocol).Raw(h.NodeID[:]).VarBytes([]byte(h.Agent)).VarBytes([]byte(h.Release))
+	encodeFeatures(w, h.Features)
+	encodeExt(w, h.Ext)
 	return w.Bytes()
+}
+
+// Check refuses a hello its receiver would drop as malformed.
+func (h Hello) Check() error {
+	if len(h.Agent) > maxString {
+		return fmt.Errorf("%w: agent over %d bytes", ErrMalformed, maxString)
+	}
+	if err := checkSend(h.Release, h.Features, h.Ext); err != nil {
+		return fmt.Errorf("%w: hello: %v", ErrMalformed, err)
+	}
+	return nil
 }
 
 // DecodeHello reads a hello body.
@@ -54,6 +75,12 @@ func DecodeHello(b []byte) (Hello, error) {
 	h.Protocol = r.U16()
 	r.Into(h.NodeID[:])
 	h.Agent = string(r.VarBytes(maxString))
+	h.Release = string(r.VarBytes(MaxRelease))
+	if r.Err() == nil && !ValidRelease(h.Release) {
+		r.Fail(fmt.Errorf("release %q", h.Release))
+	}
+	h.Features = decodeFeatures(r)
+	h.Ext = decodeExt(r)
 	return h, finish(r, "hello")
 }
 

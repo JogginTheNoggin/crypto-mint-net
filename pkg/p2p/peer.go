@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
@@ -235,9 +236,24 @@ func (p *peer) info() PeerInfo {
 	}
 	return PeerInfo{
 		ID: p.id, Addr: p.addr, Key: p.key, Outbound: p.outbound, Agent: p.hello.Agent,
+		Release: p.hello.Release, ClaimedFeatures: p.hello.Features,
 		Listen: contact, Coverage: cov, Categories: cats, Since: p.since,
 		Sent: p.sent.Load(), Received: p.received.Load(),
 	}
+}
+
+// ownHello is the hello this node sends: its release (unless hidden or
+// not a valid release string) and its features (D186). The self-check
+// probe of a port mapping sends its own, without either.
+func (h *Host) ownHello() wire.Hello {
+	hl := wire.Hello{Protocol: Protocol, NodeID: h.id, Agent: h.cfg.Agent, Features: wire.OwnFeatures}
+	if r := node.RunningRelease().Version; !h.cfg.HideRelease && wire.ValidRelease(r) {
+		hl.Release = r
+	}
+	if h.cfg.editHello != nil {
+		h.cfg.editHello(&hl)
+	}
+	return hl
 }
 
 func (p *peer) short() string { return p.nodeID.Short() }
@@ -379,7 +395,7 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 // handshake exchanges hellos and registers the peer.
 func (h *Host) handshake(c net.Conn, outbound bool, addr string) (*peer, error) {
 	c.SetDeadline(time.Now().Add(helloTimeout))
-	mine := wire.Hello{Protocol: Protocol, NodeID: h.id, Agent: h.cfg.Agent}
+	mine := h.ownHello()
 	// Write and read at the same time, so neither side waits on the other.
 	werr := make(chan error, 1)
 	go func() {

@@ -16,7 +16,6 @@
 package nodepolicy
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -49,11 +48,11 @@ const Format = 1
 const FileName = "node.json"
 
 // DefaultListen is the default address of the local RPC: loopback only.
-const DefaultListen = "127.0.0.1:8645"
+const DefaultListen = "127.0.0.1:7336"
 
 // DefaultP2PListen is the default address for connections from peers: every
 // interface, since peers are on other machines.
-const DefaultP2PListen = ":8646"
+const DefaultP2PListen = ":7337"
 
 // ErrInvalid marks a node policy that cannot be used as written.
 var ErrInvalid = errors.New("nodepolicy: invalid")
@@ -67,6 +66,13 @@ type Policy struct {
 	// unknown holds the settings Load found that this release does not
 	// know, for Save to write back (W-1, D184).
 	unknown []extra
+	// dropped names the unknown settings inside list entries and maps,
+	// which Save cannot keep (GREEN-057), and those over a keeping limit
+	// (RED-094).
+	dropped []string
+	// folded names the keys that are a setting's name in another case
+	// (RED-093).
+	folded []string
 	// Series lists the series this node knows. Series information comes
 	// from outside the network, never from peers.
 	Series []SeriesInfo `json:"series"`
@@ -396,9 +402,14 @@ type P2P struct {
 	// never when Advertise is set. PortMapGateway is the router's IP
 	// address; empty means the default route's gateway (Linux only).
 	// PortMapSeconds is the lease asked for (p2p.port_map_seconds).
-	PortMap        string `json:"port_map,omitempty"`
-	PortMapGateway string `json:"port_map_gateway,omitempty"`
-	PortMapSeconds int    `json:"port_map_seconds,omitempty"`
+	// AnnounceVersion is what the hello tells peers of this node's
+	// release (D186): "" or "release" (the default) its version, "none"
+	// nothing, for an owner who would rather peers not know which release
+	// runs here. Machine-local.
+	AnnounceVersion string `json:"announce_version,omitempty"`
+	PortMap         string `json:"port_map,omitempty"`
+	PortMapGateway  string `json:"port_map_gateway,omitempty"`
+	PortMapSeconds  int    `json:"port_map_seconds,omitempty"`
 	// Peers are host:port addresses to stay connected to.
 	Peers []string `json:"peers,omitempty"`
 	// MaxPeers caps open connections.
@@ -578,6 +589,11 @@ func (p Policy) Validate() error {
 		if _, _, err := net.SplitHostPort(a); err != nil {
 			return fmt.Errorf("%w: p2p advertise %q: %v", ErrInvalid, a, err)
 		}
+	}
+	switch p.P2P.AnnounceVersion {
+	case "", "release", "none":
+	default:
+		return fmt.Errorf("%w: p2p announce_version %q: it takes release or none", ErrInvalid, p.P2P.AnnounceVersion)
 	}
 	if !portmap.ValidMethod(p.P2P.PortMap) {
 		return fmt.Errorf("%w: p2p port_map %q: it takes off, %s", ErrInvalid, p.P2P.PortMap, strings.Join(portmap.Methods, ", "))
@@ -875,7 +891,9 @@ func Load(path string) (Policy, error) {
 	if err := p.Validate(); err != nil {
 		return Policy{}, fmt.Errorf("%s: %w", path, err)
 	}
-	p.unknown = unknownSettings(b)
+	f := unknownSettings(b)
+	p.unknown, p.folded = f.kept, f.folded
+	p.dropped = append(droppedSettings(b), f.over...)
 	trustChecked(filepath.Dir(path), p)
 	return p, nil
 }
@@ -890,10 +908,7 @@ func Save(path string, p Policy) error {
 		return err
 	}
 	if len(p.unknown) > 0 {
-		var out bytes.Buffer
-		if json.Indent(&out, withUnknown(b, p.unknown), "", "  ") == nil {
-			b = out.Bytes()
-		}
+		b = indentKept(b, p.unknown)
 	}
 	// Each writer has its own temporary file, synced before the rename,
 	// so concurrent writers never tear the file, and a crash leaves the old
