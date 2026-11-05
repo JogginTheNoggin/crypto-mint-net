@@ -30,6 +30,9 @@ func TestUnknownSettingsSurviveSave(t *testing.T) {
 
 	p, err := nodepolicy.Load(path)
 	must(t, err)
+	if u := p.UnknownSettings(); strings.Join(u, " ") != "future_top p2p.future_p2p rpc.future_rpc" {
+		t.Fatalf("unknown %v", u)
+	}
 	p.P2P.MaxPeers = 12 // a change the older release makes
 	must(t, nodepolicy.Save(path, p))
 

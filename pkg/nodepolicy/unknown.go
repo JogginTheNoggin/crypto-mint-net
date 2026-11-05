@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -81,6 +82,17 @@ func jsonFields(t reflect.Type) map[string]reflect.Type {
 		}
 		out[name] = f.Type
 	}
+	return out
+}
+
+// UnknownSettings lists, by dotted path, the settings Load found that this
+// release does not know and Save keeps (W-1, D184), for a warning at start.
+func (p Policy) UnknownSettings() []string {
+	var out []string
+	for _, e := range p.unknown {
+		out = append(out, strings.Join(e.path, "."))
+	}
+	slices.Sort(out)
 	return out
 }
 

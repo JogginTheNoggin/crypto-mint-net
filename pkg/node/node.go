@@ -171,6 +171,10 @@ func Open(dir string, opt Options) (*Node, error) {
 	for _, n := range pol.Lowered {
 		lg.With(logging.Component, "node").Warn("policy value lowered", "file", nodepolicy.FileName, "note", n.String())
 	}
+	if u := pol.UnknownSettings(); len(u) > 0 {
+		// A newer release wrote them; they are kept on every save (W-1).
+		lg.With(logging.Component, "node").Warn("node.json holds settings this release does not know; they are kept but not used", "file", nodepolicy.FileName, "settings", strings.Join(u, ", "))
+	}
 	if opt.CompactMin <= 0 {
 		opt.CompactMin = DefaultCompactMin
 	}
