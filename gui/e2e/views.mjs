@@ -279,13 +279,34 @@ try {
   await limp.locator('button[type=submit]').click();
   await limp.locator('.ledger-imported', { hasText: /^Kept 0 entries and 0 layers; 0 entries and 0 layers were already known\.$/ }).waitFor();
   assert.equal(await limp.locator('.ledger-import-partial').count(), 0, 'a finished import has no "did not finish" alert');
-  // An import that ends in an error says earlier batches may already be
-  // kept, since poo prints only the error (GUI-031).
+  // An import that fails before sending anything prints no totals: poo's
+  // error alone, no partial alert (GUI-031).
   await fill(limp, 'Ledger file', `${lfile}.missing`);
   page.once('dialog', d => d.accept());
   await limp.locator('button[type=submit]').click();
-  await limp.locator('.ledger-import-partial[role=alert]', { hasText: /^The import did not finish\. Parts of the file sent before it ended may already be kept/ }).waitFor();
+  await limp.locator('.run-status.bad').waitFor();
+  assert.equal(await limp.locator('.ledger-import-partial').count(), 0, 'nothing was sent, so no partial alert');
   assert.equal(await limp.locator('.ledger-imported').count(), 0);
+  // A stopped import prints poo's totals so far (sent, stopped), drawn as
+  // an alert; a failure before any batch prints none, so no line.
+  const notes = await page.evaluate(async () => {
+    const m = await import(new URL('views/pools.js', location.href).href);
+    const t = r => { const n = m.importNote(r); return n && [n.className, n.getAttribute('role'), n.textContent]; };
+    return [
+      t({ code: 1, out: JSON.stringify({ kept: 3, known: 1, layers_kept: 2, layers_known: 0, refused: [{ index: 4, hash: 'ab', reason: 'bad' }], switched: true, sent: 5, stopped: 'the command was stopped' }) }),
+      t({ code: 1, out: '' }),
+    ];
+  });
+  assert.deepEqual(notes[0], ['next-step ledger-import-partial', 'alert', 'The import stopped after 5 entries were sent (the command was stopped): kept 3 entries and 2 layers; 1 entries and 0 layers were already known; 1 refused (listed below); the node switched to the imported branch. Importing the same file again is safe, as entries already kept count as known.']);
+  assert.equal(notes[1], null);
+  // -dry-run reads the file without the node (D189).
+  await fill(limp, 'Ledger file', lfile);
+  await limp.locator('input[name=dryRun]').check();
+  assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} -dry-run ${lfile}`);
+  page.once('dialog', d => d.accept());
+  await limp.locator('button[type=submit]').click();
+  await limp.locator('.ledger-checked', { hasText: /^Checked without the node: pool 0, 0 of 0 entries read; no problems found\. Nothing was kept\.$/ }).waitFor();
+  await limp.locator('input[name=dryRun]').uncheck();
   // A file picked in the browser goes to poo as its input (-).
   await limp.locator('input[type=file]').setInputFiles(lfile);
   assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} -`);
