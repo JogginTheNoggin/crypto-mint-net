@@ -7,7 +7,7 @@
 | Found | Source Round 31 Part B, on `main` @ `bf23ddb` (D182) |
 | Area | `pkg/portmap/upnp.go` (`upnpMap`), `pkg/portmap/pmp.go` (`pcpMap`, `pcpReply`), `pkg/portmap/portmap.go` (`Map`), `pkg/p2p/portmap.go` (`portMapLoop`) |
 | For Black | Not a rule. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-032) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 012719f (BLUE-032) |
 
 ## What is wrong
 

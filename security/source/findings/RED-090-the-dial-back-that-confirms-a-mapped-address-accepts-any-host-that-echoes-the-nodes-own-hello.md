@@ -7,7 +7,7 @@
 | Found | Source Round 31 Part B, on `main` @ `bf23ddb` (D182) |
 | Area | `pkg/p2p/portmap.go` (`confirmSelf`, `holdMapping`), `pkg/p2p/discovery.go` (`contact`) |
 | For Black | Node policy only; no rule is touched. It decides what a node tells peers about itself, never what is valid. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-032) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 012719f (BLUE-032) |
 
 ## What is wrong
 

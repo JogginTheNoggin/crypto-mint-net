@@ -5,6 +5,7 @@
 | Fixes | RED-090 (medium), RED-091 (low), RED-092 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `4c0f708` (Source Round 31 Part C), with GREEN-056 (#234) merged in |
+| Code | `012719f` |
 | Decisions | D183 |
 | With | GREEN-056 (PR #234), carried: it changes the same `pkg/p2p/portmap.go` (`holdMapping` returns whether a mapping was held). |
 | Review | No consensus change. For Black: port mapping decides only what a node tells peers about itself and whether other nodes can dial it, never which ledger is valid. |

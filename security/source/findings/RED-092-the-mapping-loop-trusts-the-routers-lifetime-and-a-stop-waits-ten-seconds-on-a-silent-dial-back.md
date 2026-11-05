@@ -7,7 +7,7 @@
 | Found | Source Round 31 Part B, on `main` @ `bf23ddb` (D182) |
 | Area | `pkg/p2p/portmap.go` (`holdMapping`, `confirmSelf`), `pkg/portmap` (`pcpReply`, `pmpMap`) |
 | For Black | Not a rule. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-032) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 012719f (BLUE-032) |
 
 ## What is wrong
 
