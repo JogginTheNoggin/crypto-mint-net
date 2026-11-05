@@ -25,7 +25,9 @@ func TestDocsNameRealCommands(t *testing.T) {
 		if d.IsDir() && d.Name() == "proposals" {
 			return filepath.SkipDir
 		}
-		if strings.HasSuffix(p, ".md") {
+		// White's proposals (docs/white/<layer>/WHITE-NNN-*.md) are
+		// proposals too.
+		if strings.HasSuffix(p, ".md") && !strings.HasPrefix(d.Name(), "WHITE-") {
 			rel, _ := filepath.Rel(root, p)
 			files = append(files, rel)
 		}
