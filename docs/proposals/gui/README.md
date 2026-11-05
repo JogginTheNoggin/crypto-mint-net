@@ -66,6 +66,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-057](GUI-GREEN-057-pools-view-on-demand.md) | The Pools and payments view ran `poo pools` (380 KB, 500 drawn rows on the reserve) on every open; it now runs on Show (12,755 to 234 elements); "1 pool from its snapshot"; idea for a reserve-scale e2e guard | small | yes | adopted (R32A) |
 | [GUI-GREEN-058](GUI-GREEN-058-show-the-version.md) | White's G4: `/api/info` carries `version` (cli.Version) and the header shows it; the plan for G2 once Source reports the node's version (W-10), and a way to prototype G5 | small | yes | adopted (R33A) |
 | [GUI-GREEN-059](GUI-GREEN-059-ledger-export-in-a-line.md) | A ledger export shown in the page is a line and Save as file, not 5 MB of base64 drawn (2.5 s and 6,578 elements down to 0.26 s and 37); Save as file only for one whole ledger file | small | yes | adopted (R34A) |
+| [GUI-GREEN-060](GUI-GREEN-060-jump-list-as-a-row.md) | The Jump to list on every long view was drawn as a second 170 px sidebar (the view list's `nav` rule); now a row (Wallet: 485 px tall down to 78); a note for Source on dev-build commits in the release line | small | yes | proposed |
 
 ## Orange (performance)
 
