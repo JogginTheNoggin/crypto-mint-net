@@ -6,7 +6,7 @@ import "time"
 // shortest renewal apart, and returns the call that puts them back
 // (GREEN-056).
 func SetPortMapBackoff(retry, max, renew time.Duration) func() {
-	r, m, n := pmRetry, pmMaxRetry, pmMinRenew
-	pmRetry, pmMaxRetry, pmMinRenew = retry, max, renew
-	return func() { pmRetry, pmMaxRetry, pmMinRenew = r, m, n }
+	r, m, n, l := pmRetry, pmMaxRetry, pmMinRenew, pmMinLife
+	pmRetry, pmMaxRetry, pmMinRenew, pmMinLife = retry, max, renew, min(pmMinLife, renew)
+	return func() { pmRetry, pmMaxRetry, pmMinRenew, pmMinLife = r, m, n, l }
 }

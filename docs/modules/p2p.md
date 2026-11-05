@@ -50,7 +50,7 @@ sequenceDiagram
 | `discovery.go` | follow requests (asking, answering, relaying with return paths), peer lists and missing chunks, pings, dropped policies, the connection manager, broadcasts and registries |
 | `admin.go` | the owner's controls: `TimeOut`, `Block`, `Unblock`, `DeletePeer`, `SetPeerTemplate`, `ClearPeer`, `TrackerReport`, `Tracked` |
 | `policy.go` | `FromPolicy`: settings from the node policy |
-| `portmap.go` | the port mapping (D182): `portMapLoop` maps the listen port through `pkg/portmap`, `confirmSelf` dials the router's address and expects this node's own hello, `advertised` is the address offered to peers, and `PortMap` is its status |
+| `portmap.go` | the port mapping (D182): `portMapLoop` maps the listen port through `pkg/portmap`, `confirmSelf` dials the router's address and waits for this node's own listener to receive the dial's random token (D183), `advertised` is the address offered to peers, and `PortMap` is its status |
 
 ## Finding and ranking peers
 
@@ -344,14 +344,25 @@ With `PortMap` set (off by default) and no `Advertise`, `Run` starts
 1. Ask the router for a mapping of the listen port.
 2. Refuse an external address that is not public. The exception is
    `AllowLocalPeers`, which test networks use.
-3. Dial the address and read the hello. Only this node's own node id
-   confirms it.
+3. Dial the address and send a hello carrying a fresh random token.
+   Only this node's own listener receiving that token confirms it; what
+   the far end answers can only end the wait early with a failure, so an
+   echo or a copied hello confirms nothing (D183). A stop ends the dial
+   and the wait at once.
 4. Offer the address from then on. `contact`, `isSelf`, `Listed` and the
    connection manager's skip list all read it through `advertised`.
-5. Renew at half the granted lifetime, confirming again if the address
-   changes.
+5. Renew at half the granted lifetime or of `PortMapLease`, whichever is
+   shorter (never sooner than 30 s), confirming again if the address
+   changes. A lifetime of 30 s or less is refused: the mapping would lapse
+   before the renewal (D183).
 6. On a failure or a stop, stop offering the address and remove the
    mapping (with a fresh 3 s context, since the run's own has ended).
+
+`pkg/portmap` leaves nothing behind when a request fails: UPnP asks for
+the external address before it adds the mapping, a PCP mapping with an
+address the node cannot use is removed, and a request whose answer was
+not read (a cancel, or a UPnP connection that failed) gets a short
+removal of its own. A PCP lifetime of 0 means no mapping (D183).
 
 Failures wait one minute, doubling to 30. Peers never decide what is
 advertised: a peer's report of the node's address is not used at all.

@@ -47,8 +47,9 @@ func (c *Client) exchange(ctx context.Context, gw netip.Addr, req []byte, accept
 		copy(req[8:24], ip[:])
 	}
 	deadline := time.Now().Add(c.timeout())
+	cut := false // the caller's deadline comes first
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
-		deadline = d
+		deadline, cut = d, true
 	}
 	stop := context.AfterFunc(ctx, func() { conn.SetReadDeadline(time.Now()) })
 	defer stop()
@@ -85,6 +86,12 @@ func (c *Client) exchange(ctx context.Context, gw netip.Addr, req []byte, accept
 			}
 		}
 		wait *= 2
+	}
+	if cut {
+		// The caller's context ended the wait, though its timer may not
+		// have fired yet: the request went out and its answer was not
+		// waited for (RED-091).
+		return context.DeadlineExceeded
 	}
 	return errors.New("no answer from the gateway")
 }
@@ -154,11 +161,44 @@ func pcpReply(b []byte, nonce [12]byte) (m Mapping, ok bool, err error) {
 		Lifetime: time.Duration(binary.BigEndian.Uint32(b[4:])) * time.Second,
 		nonce:    nonce,
 	}
+	if m.Lifetime == 0 {
+		// In PCP a lifetime of 0 means the mapping was removed, not that
+		// it lasts until removed (RED-092).
+		return Mapping{}, true, errors.New("granted a lifetime of 0: no mapping")
+	}
 	if !ext.Is4() || m.External.Port() == 0 {
-		return Mapping{}, true, fmt.Errorf("granted no usable address (%s)", m.External)
+		// The router made a mapping the node cannot use; the caller
+		// removes it (RED-091).
+		return m, true, &unusableError{m}
 	}
 	return m, true, nil
 }
+
+// unusableError is a mapping the router made that the node cannot use;
+// it must be removed.
+type unusableError struct{ m Mapping }
+
+func (e *unusableError) Error() string {
+	return fmt.Sprintf("granted no usable address (%s)", e.m.External)
+}
+
+// cleanup makes a short best-effort removal of a mapping a failed request
+// may have left at the router: one granted but unusable, or one asked for
+// when the caller's context ended before the answer came (RED-091). It
+// uses its own context, as a clean stop does, and its error is ignored.
+func (c *Client) cleanup(remove func(context.Context) error) {
+	ctx, cancel := context.WithTimeout(context.Background(), min(c.timeout(), cleanupWait))
+	defer cancel()
+	remove(ctx)
+}
+
+// cutShort says a request's wait was ended by the caller's context.
+func cutShort(ctx context.Context, err error) bool {
+	return ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// cleanupWait bounds a cleanup's wait for the router.
+var cleanupWait = time.Second
 
 func (c *Client) pcpMap(ctx context.Context, gw netip.Addr, internal uint16, lifetime time.Duration, prev *Mapping) (Mapping, error) {
 	var nonce [12]byte
@@ -179,6 +219,17 @@ func (c *Client) pcpMap(ctx context.Context, gw netip.Addr, internal uint16, lif
 		}
 		return ok, err
 	})
+	var ue *unusableError
+	if prev == nil && (errors.As(err, &ue) || cutShort(ctx, err)) {
+		// A renewal's mapping is the caller's to remove; a new one the
+		// node will not hold is removed here, with the same nonce.
+		c.cleanup(func(cctx context.Context) error {
+			return c.pcpUnmap(cctx, gw, Mapping{Method: MethodPCP, Internal: internal, nonce: nonce})
+		})
+	}
+	if err == nil && ctx.Err() != nil {
+		return Mapping{}, ctx.Err()
+	}
 	return got, err
 }
 
@@ -260,6 +311,15 @@ func (c *Client) pmpMap(ctx context.Context, gw netip.Addr, internal uint16, lif
 			Lifetime: time.Duration(life) * time.Second}
 		return true, nil
 	})
+	if prev == nil && cutShort(ctx, err) {
+		// The request went out and the answer was not waited for: the
+		// router may hold a mapping nobody knows of (RED-091).
+		c.cleanup(func(cctx context.Context) error { return c.pmpUnmap(cctx, gw, Mapping{Internal: internal}) })
+		if ctx.Err() != nil {
+			return Mapping{}, ctx.Err()
+		}
+		return Mapping{}, err
+	}
 	return m, err
 }
 
