@@ -141,6 +141,21 @@ export const nodeView = {
           el('p', { class: 'hint empty' }, `None of the ${all.length} followed series is variable.`);
         if (raw) { raw.replaceWith(body); area.append(rawFold(raw)); }
       } });
+    // Every series the running node follows, one row each, as poo series
+    // followed gives them: a newcomer on the default sees "the built-in
+    // reserve series" by name (poo's builtin, D170), not only a hash and
+    // 1,024 pool rows. The GUI only lays out poo's answer
+    // (GUI-GREEN-054).
+    const followed = panel(ctx, { title: 'Followed series', about: 'Each series the running node follows: its name when it is built into poo, its id, whether its supply is fixed or can grow, and its pools, mints, units per mint and floors.', args: () => ['series', 'followed', ...where.flags()],
+      onResult: (r, area) => {
+        let o;
+        try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        const all = o && Array.isArray(o.series) ? o.series : null;
+        const raw = area.querySelector('.result');
+        if (!all || !raw) return;
+        const body = all.length ? seriesTable(all) : el('p', { class: 'hint empty' }, 'The node follows no series. Write a node policy below, or Follow more.');
+        raw.replaceWith(body); area.append(rawFold(raw));
+      } });
     // A release made by the issuer reaches a node as a file (D166): poo
     // checks it, keeps it in node.json and the node reloads to follow the
     // new parts' mints. A file picked here goes to poo as its input (-).
@@ -162,7 +177,7 @@ export const nodeView = {
         const raw = area.querySelector('.result');
         if (raw) { raw.replaceWith(doctorReport(rep, ctx)); area.append(rawFold(raw)); }
       } });
-    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, status, follows, variable, addRelease, follow, unfollow, reload, init]);
+    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, followed, status, follows, variable, addRelease, follow, unfollow, reload, init]);
     return stop;
   },
 };
@@ -175,6 +190,25 @@ export const nodeView = {
 const VARIABLE_ROWS = 500;
 
 export function variableTable(vs, cells) {
+  return rowsTable(vs, cells, { headers: ['series', 'parts released', 'next part', 'mints', 'units', 'newest release'], cls: 'variable-series', more: 'variable-more', noun: 'variable series' });
+}
+
+// seriesName is what poo's builtin field names a series by: the default
+// reserve series (D170) or another series built into poo.
+export const seriesName = x => x.builtin === 'reserve' ? 'the built-in reserve series' : x.builtin ? `built in: ${x.builtin}` : '';
+
+// seriesTable is the Followed series panel's table, from poo series
+// followed's JSON.
+export function seriesTable(all) {
+  const p = x => x.params || {};
+  const cells = x => [seriesName(x), el('code', { class: 'hex', title: String(x.id) }, String(x.id).slice(0, 16) + '…'),
+    ...[x.variable ? 'variable' : 'fixed', x.pools, x.variable ? x.variable.mints : p(x).mints, p(x).supply, `${p(x).min_entry_strength ?? 0} / ${p(x).min_layer_strength ?? 0}`].map(v => String(v ?? ''))];
+  return rowsTable(all, cells, { headers: ['name', 'series', 'supply', 'pools', 'mints', 'units per mint', 'entry / layer floor'], cls: 'followed-series', more: 'followed-more', noun: 'series' });
+}
+
+// rowsTable draws a list of rows ROWS at a time with Show more, as the
+// Variable series and Followed series panels do (ORANGE-019).
+function rowsTable(vs, cells, { headers, cls, more: moreCls, noun }) {
   const body = el('tbody');
   let shown = 0;
   const more = () => {
@@ -183,13 +217,13 @@ export function variableTable(vs, cells) {
     body.append(part);
   };
   more();
-  const wrap = el('div', { class: 'table-wrap' }, el('table', { class: 'data variable-series' },
-    el('thead', {}, el('tr', {}, ...['series', 'parts released', 'next part', 'mints', 'units', 'newest release'].map(h => el('th', {}, h)))), body));
+  const wrap = el('div', { class: 'table-wrap' }, el('table', { class: `data ${cls}` },
+    el('thead', {}, el('tr', {}, ...headers.map(h => el('th', {}, h)))), body));
   if (shown < vs.length) {
     const text = document.createTextNode('');
     const btn = el('button', { type: 'button' }, 'Show more');
-    const note = el('p', { class: 'hint variable-more' }, text, btn);
-    const label = () => { text.textContent = `Showing ${shown} of ${vs.length} variable series. `; };
+    const note = el('p', { class: `hint ${moreCls}` }, text, btn);
+    const label = () => { text.textContent = `Showing ${shown} of ${vs.length} ${noun}. `; };
     label();
     btn.onclick = () => { more(); if (shown < vs.length) label(); else note.remove(); };
     wrap.append(note);
