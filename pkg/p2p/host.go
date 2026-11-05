@@ -501,6 +501,7 @@ type Host struct {
 	mapped atomic.Pointer[string]
 	pmMu   sync.Mutex
 	pm     PortMapStatus
+	pmGW   string // PortMapStatus.Gateway, under pmMu
 	// configured are the addresses in cfg.Peers, dialled whatever their
 	// range; read-only after New.
 	configured map[string]bool

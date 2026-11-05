@@ -293,7 +293,9 @@ There are two ways to take inbound connections:
   offers the address the router reports only after dialling it and
   reaching itself. It renews the lease (`p2p.port_map_seconds`, an hour
   by default) and removes the mapping when it stops cleanly. A
-  `p2p.advertise` you set always wins.
+  `p2p.advertise` you set always wins. On a node set up already, add
+  `"port_map": "auto"` to the `p2p` section of `node.json` and run
+  `poo reload`.
 
 `poo doctor`'s `port-map` line, and `port_map` in `poo status`, say what
 happened:
@@ -306,7 +308,11 @@ happened:
   carrier-grade NAT or a second router, and no mapping can reach you;
   the node stays outbound only.
 - **failed:** the router has PCP, NAT-PMP and UPnP turned off, or no
-  gateway was found.
+  gateway was found. `gateway` names the router the node asked, and
+  `next_try` when it asks again: the wait starts at a minute and doubles
+  to 30 minutes. After you change the router, `poo reload` asks at once.
+- **skipped:** `reason` says why: `p2p.advertise` is set, or `p2p.listen`
+  is off.
 
 **What it costs in privacy.** An advertised address, by hand or mapped,
 is passed from peer to peer:
