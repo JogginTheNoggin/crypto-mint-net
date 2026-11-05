@@ -414,6 +414,7 @@ type seriesStatus struct {
 // added up per series, so a node following thousands of pools prints a
 // few lines (GUI ORANGE-021, D177). The notes are the reply's own.
 type statusSummary struct {
+	Release       node.Release         `json:"release"`
 	Series        []seriesStatus       `json:"series"`
 	Replay        node.ReplayStats     `json:"replay"`
 	PolicyChanged bool                 `json:"policy_changed,omitempty"`
@@ -424,7 +425,7 @@ type statusSummary struct {
 }
 
 func statusBySeries(st rpc.StatusReply) statusSummary {
-	out := statusSummary{Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots, PortMap: st.PortMap}
+	out := statusSummary{Release: st.Release, Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots, PortMap: st.PortMap}
 	at := map[hash.Hash]int{}
 	for _, p := range st.Pools {
 		i, ok := at[p.Series]

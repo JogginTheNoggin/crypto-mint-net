@@ -93,6 +93,16 @@ var release struct{ version, commit string }
 // package calls it at init with its Version and Commit (RED-087, D181).
 func SetRelease(version, commit string) { release.version, release.commit = version, commit }
 
+// Release is the release this binary is, as SetRelease named it, for
+// GET /v1/status (W-10, D184).
+type Release struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit,omitempty"`
+}
+
+// RunningRelease returns the release this binary is.
+func RunningRelease() Release { return Release{Version: release.version, Commit: release.commit} }
+
 // buildID names the code that wrote a snapshot: the release version and
 // commit (set by -X in a release build), the module version and VCS
 // revision when the binary records them, a hash of the executable when

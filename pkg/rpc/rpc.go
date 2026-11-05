@@ -429,8 +429,11 @@ type PoolStatus struct {
 
 // StatusReply is the reply to GET /v1/status.
 type StatusReply struct {
-	Pools  []PoolStatus     `json:"pools"`
-	Replay node.ReplayStats `json:"replay"`
+	// Release is the running node's version and commit, so a front end
+	// built from another release can say so (W-10, D184).
+	Release node.Release     `json:"release"`
+	Pools   []PoolStatus     `json:"pools"`
+	Replay  node.ReplayStats `json:"replay"`
 	// PolicyChanged says node.json now differs from the policy the node
 	// runs, outside the grind section it applies at once: a change made
 	// with -no-reload or by hand waits for poo reload (GREEN-037). Limits
@@ -454,7 +457,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	for _, s := range h.n.Stores() {
 		stored[s.Key] = s.Records
 	}
-	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed(), Bodies: h.n.Bodies(), FileLimit: h.n.FileLimit(), Snapshots: h.n.SnapshotSummary()}
+	rep := StatusReply{Release: node.RunningRelease(), Pools: []PoolStatus{}, Replay: h.n.Replayed(), Bodies: h.n.Bodies(), FileLimit: h.n.FileLimit(), Snapshots: h.n.SnapshotSummary()}
 	if h.host != nil {
 		pm := h.host.PortMap()
 		rep.PortMap = &pm

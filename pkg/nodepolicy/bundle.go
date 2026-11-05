@@ -1229,6 +1229,7 @@ func clone(p Policy) Policy {
 		return p
 	}
 	q.Lowered = lowered
+	q.unknown = p.unknown
 	return q
 }
 

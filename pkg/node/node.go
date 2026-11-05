@@ -127,8 +127,11 @@ type ReplayStats struct {
 	Snapshots int `json:"snapshots"`
 	Covered   int `json:"snapshot_records"`
 	// Unused lists, by pool, why a snapshot found was not used, so the
-	// pool was replayed whole.
-	Unused []string `json:"snapshots_unused,omitempty"`
+	// pool was replayed whole. Replayed gives at most MaxReasons of them
+	// and the whole number in UnusedCount: after an upgrade every pool is
+	// listed, and the start log holds each one (GUI ORANGE-023, D184).
+	Unused      []string `json:"snapshots_unused,omitempty"`
+	UnusedCount int      `json:"snapshots_unused_count,omitempty"`
 	// Reverified and Differed count, under -reverify, the pools whose
 	// snapshot covered the whole log, and those of them whose full replay
 	// built a different pool than the snapshot held. Differed should be 0.
@@ -138,6 +141,9 @@ type ReplayStats struct {
 	// not reach the end of the log (records came after it, or a crash cut
 	// it short), so nothing was compared for them (RED-088, D181).
 	NotCompared []string `json:"reverify_not_compared,omitempty"`
+	// NotComparedCount is the whole number NotCompared is cut from, as
+	// with UnusedCount.
+	NotComparedCount int `json:"reverify_not_compared_count,omitempty"`
 	// TmpRemoved counts the snapshot temporary files a crash left, removed
 	// when their logs were opened (RED-089, D181).
 	TmpRemoved int `json:"snapshot_tmp_removed,omitempty"`
@@ -1055,7 +1061,25 @@ func (n *Node) Dir() string { return n.dir }
 func (n *Node) FileLimit() nodepolicy.FileLimit { return n.files }
 
 // Replayed reports what Open read back from the stores.
-func (n *Node) Replayed() ReplayStats { return n.replay }
+//
+// The lists of reasons hold at most MaxReasons entries; the counts say how
+// many there were, and the node's start log names every pool (D184).
+func (n *Node) Replayed() ReplayStats {
+	r := n.replay
+	r.UnusedCount, r.Unused = len(r.Unused), firstReasons(r.Unused)
+	r.NotComparedCount, r.NotCompared = len(r.NotCompared), firstReasons(r.NotCompared)
+	return r
+}
+
+// MaxReasons is how many per-pool reasons a status reply carries.
+const MaxReasons = 8
+
+func firstReasons(l []string) []string {
+	if len(l) > MaxReasons {
+		return slices.Clone(l[:MaxReasons])
+	}
+	return slices.Clone(l)
+}
 
 // StoreInfo describes one pool's store.
 type StoreInfo struct {

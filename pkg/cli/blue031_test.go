@@ -26,3 +26,12 @@ func TestSnapshotsCheckNotComparedAndTmp(t *testing.T) {
 		t.Fatalf("tmp: %+v", c)
 	}
 }
+
+// doctor counts every unused snapshot when status carries only the first
+// reasons, and points at the start log for the rest (D184).
+func TestSnapshotsCheckCountsCutReasons(t *testing.T) {
+	c := snapshotsCheck(rpc.StatusReply{Replay: node.ReplayStats{Unused: []string{"p1: x", "p2: x"}, UnusedCount: 900}})
+	if c.Result != checkWarn || !strings.Contains(c.Detail, "900 pool snapshots were") || !strings.Contains(c.Detail, "and 898 more, each named in the node's start log") {
+		t.Fatalf("%+v", c)
+	}
+}
