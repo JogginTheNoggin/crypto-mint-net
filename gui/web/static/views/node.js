@@ -122,11 +122,14 @@ export const nodeView = {
         // With no series, poo follows the built-in reserve series (D170).
         { name: 'reserve', label: 'Also follow the default reserve series (what happens anyway when no series is given)', type: 'check' },
         { name: 'noSeries', label: 'Follow no series, not even the default reserve series', type: 'check' },
+        // Opt-in port mapping (D182): poo asks the router to forward the
+        // peer port. Off unless chosen; the help says what peers learn.
+        { name: 'portMap', label: 'Ask the router to forward the peer port', type: 'select', options: [{ value: '', label: 'no (default off)' }, 'auto', 'pcp', 'natpmp', 'upnp'], help: 'Lets peers reach a node at home behind a router. The cost: once a dial reaches this node, peers learn this network\'s public IP address. Followed pools shows how the mapping went.' },
         { name: 'anyCeiling', label: 'Accept a series file whose witness ceiling is not set or above 4 MiB', type: 'check' },
         { name: 'force', label: 'Replace the settings of an existing policy (its data is kept)', type: 'check' },
       ],
       args: v => ['init', ...where.flags(), ...flag('example', v.example), ...flags('series', v.series), ...flag('listen', v.listen),
-        ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('reserve', v.reserve), ...flag('no-series', v.noSeries), ...flag('any-ceiling', v.anyCeiling), ...flag('force', v.force)],
+        ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('port-map', v.portMap), ...flag('reserve', v.reserve), ...flag('no-series', v.noSeries), ...flag('any-ceiling', v.anyCeiling), ...flag('force', v.force)],
       submit: 'Write policy',
     });
     const followFields = [
@@ -276,7 +279,15 @@ export function statusNotes(st) {
   const sn = st.snapshots;
   if (sn && sn.off) out.push(el('p', { class: 'hint snapshots' }, 'Pool snapshots are off (no_snapshots): each start replays every pool log whole.'));
   else if (sn && num(sn.pools)) out.push(el('p', { class: 'hint snapshots' },
-    `Snapshots: ${n(sn.pools - (num(sn.missing) ? sn.missing : 0))} of ${n(sn.pools)} pools with a log have one${num(sn.age_seconds) && sn.pools > sn.missing ? `, the oldest ${age(sn.age_seconds)} old` : ''}; a start would replay at most ${n(sn.behind)} records. A snapshot is written every ${n(sn.every)} records (snapshot_every), ${mib(sn.bytes, 1)} MiB in all.`));
+    `Snapshots: ${n(sn.pools - (num(sn.missing) ? sn.missing : 0))} of ${n(sn.pools)} pools with a log have one${num(sn.age_seconds) && sn.pools > sn.missing ? `, the oldest ${age(sn.age_seconds)} old` : ''}; a start would replay at most ${n(sn.behind)} records. A snapshot is written every ${n(sn.every)} records (snapshot_every)${num(sn.due) && num(sn.every) && sn.due > sn.every ? `, or up to ${sn.due} for the largest log` : ''}, ${mib(sn.bytes, 1)} MiB in all.`));
+  // The router port mapping (D182), as poo reports it; absent or off: no
+  // line. A failure is an alert; poo's own state and error words are kept.
+  const pm = st.port_map;
+  if (pm && pm.mode && pm.mode !== 'off') {
+    const bad = pm.state === 'failed' || pm.state === 'not_public';
+    out.push(el('p', bad ? { class: 'next-step port-map', role: 'alert' } : { class: 'hint port-map' },
+      `Port mapping (${pm.mode}): ${String(pm.state || '?').replace(/_/g, ' ')}${pm.method ? ` via ${pm.method}` : ''}${pm.external ? `, the router reports ${pm.external}` : ''}${pm.advertised ? `, offered to peers as ${pm.advertised}` : ''}${pm.lease_seconds ? `, lease ${age(pm.lease_seconds)}` : ''}${pm.error ? `. ${pm.error}` : ''}.`));
+  }
   // How the running node started: from snapshots, and under -reverify
   // whether the full replay matched them.
   const rp = st.replay;
