@@ -253,10 +253,13 @@ export function cmdLine(args, ctx, { ask } = {}) {
 
 // panel runs args() when shown (and every refresh ms) and renders it.
 // onResult, as for form, is called with the finished job and the area.
-export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
+// start: false leaves the panel unrun until its button is pressed, for a
+// command whose output is large (poo status on the reserve's 1,024 pools
+// is 350 KB): the button reads Show until the first run (GUI-GREEN-056).
+export function panel(ctx, { title, about, args, refresh, empty, onResult, start = true }) {
   const area = el('div', { class: 'area' });
   const line = cmdLine(args(), ctx);
-  const btn = el('button', { type: 'button' }, 'Refresh');
+  const btn = el('button', { type: 'button' }, start ? 'Refresh' : 'Show');
   const sec = el('section', { class: 'panel' },
     el('div', { class: 'panel-head' }, el('h2', {}, title), btn), about ? el('p', { class: 'hint' }, about) : null, line, area);
   let busy = false;
@@ -272,6 +275,7 @@ export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
     waiting = [];
     const a = args();
     line.set(a);
+    btn.textContent = 'Refresh';
     const r = await runJob(a, area, { empty, refresh: auto === true, lazy: true });
     noNode(sec, area, r);
     try { if (onResult) onResult(r, area); } finally { drawn(area); }
@@ -284,7 +288,8 @@ export function panel(ctx, { title, about, args, refresh, empty, onResult }) {
   // drawn.
   const reload = () => new Promise(done => { waiting.push(done); go(false); });
   btn.onclick = () => go(false);
-  go(true);
+  if (start) go(true);
+  else area.append(el('p', { class: 'hint empty not-run' }, 'Not run yet: press Show.'));
   // A hidden tab does not refresh: nobody sees the result, and each run
   // is a job and a stream. Showing the tab again refreshes at once
   // (ORANGE-004).
