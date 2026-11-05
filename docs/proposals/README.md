@@ -92,3 +92,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-036](source/ORANGE-036-release-gossip-and-work-sizing.md) | Source | Round 26 measured; release gossip, in-place limits, SLH-DSA and work sizing | proposed |
 | [ORANGE-037](source/ORANGE-037-reserve-default-and-slh-dsa-256s.md) | Source | Round 27 measured; the reserve default, SLH-DSA-256s and witnesses with no network-wide cap | proposed |
 | [ORANGE-038](source/ORANGE-038-bodies-held-through-their-items.md) | Source | Round 28 measured; entry bodies were still held through their items | proposed |
+| [ORANGE-039](source/ORANGE-039-cold-entries-measured.md) | Source | Round 29 measured; cold entries, the recent window and the pending pool after a deep switch | proposed |
