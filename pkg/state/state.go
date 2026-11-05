@@ -227,3 +227,11 @@ func (s *State) Len() int {
 	s.ForEach(func(tx.Input, tx.Portion) { n++ })
 	return n
 }
+
+// Restore adds one unspent portion to a state being rebuilt from a
+// snapshot (ledger.Restore, D178). It is for a fresh state with no base.
+func (s *State) Restore(in tx.Input, p tx.Portion) { s.unspent[in] = p }
+
+// SetClaimed marks a mint claimed in a state being rebuilt from a
+// snapshot (ledger.Restore, D178).
+func (s *State) SetClaimed(serial uint64) { s.claimed[serial] = true }

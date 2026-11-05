@@ -5,6 +5,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 )
 
 // GUI ORANGE-021: poo status -counts adds the pool rows up per series, in
@@ -30,5 +31,19 @@ func TestStatusBySeries(t *testing.T) {
 	}
 	if empty := statusBySeries(rpc.StatusReply{}); empty.Series == nil {
 		t.Fatal("no series prints null, want []")
+	}
+}
+
+// GUI-GREEN-056 (D179): a row of the default series names it, as poo
+// series followed does; another series' row has no builtin.
+func TestStatusBySeriesBuiltin(t *testing.T) {
+	reserve, err := hash.Parse(series.ReserveID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := rpc.StatusReply{Pools: []rpc.PoolStatus{{Series: reserve}, {Series: hash.Hash{2}}}}
+	got := statusBySeries(st).Series
+	if len(got) != 2 || got[0].Builtin != "reserve" || got[1].Builtin != "" {
+		t.Fatalf("rows %+v", got)
 	}
 }

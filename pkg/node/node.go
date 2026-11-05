@@ -70,6 +70,11 @@ type Options struct {
 	// CompactMin is the smallest log that is compacted automatically
 	// (0: DefaultCompactMin).
 	CompactMin int
+	// Reverify ignores the pool snapshots and replays every log whole,
+	// checking every record again (poo node -reverify, D178). Where a
+	// snapshot covered the whole log, the pool the replay builds is
+	// compared with it and the result reported (ReplayStats).
+	Reverify bool
 }
 
 // Node is a running full node.
@@ -98,6 +103,10 @@ type Node struct {
 	closed bool
 	replay ReplayStats
 	files  nodepolicy.FileLimit
+	// snaps is what the node knows of each pool's snapshot (D178),
+	// guarded by mu; reverify is Options.Reverify.
+	snaps    map[engine.PoolKey]*snapState
+	reverify bool
 
 	observers []func(Event)
 }
@@ -112,6 +121,19 @@ type ReplayStats struct {
 	Kept int `json:"kept"`
 	// Cut is the bytes dropped from the ends of logs after a crash.
 	Cut int64 `json:"cut_bytes"`
+	// Snapshots counts the pools started from their snapshots, and
+	// Covered the log records those snapshots covered, which were not read
+	// (D178). Records counts only the records replayed after them.
+	Snapshots int `json:"snapshots"`
+	Covered   int `json:"snapshot_records"`
+	// Unused lists, by pool, why a snapshot found was not used, so the
+	// pool was replayed whole.
+	Unused []string `json:"snapshots_unused,omitempty"`
+	// Reverified and Differed count, under -reverify, the pools whose
+	// snapshot covered the whole log, and those of them whose full replay
+	// built a different pool than the snapshot held. Differed should be 0.
+	Reverified int `json:"reverified,omitempty"`
+	Differed   int `json:"reverify_differed,omitempty"`
 }
 
 // Open opens the node in dir. The directory must hold a node.json.
@@ -148,6 +170,7 @@ func Open(dir string, opt Options) (*Node, error) {
 		logs:   map[engine.PoolKey]*store.Log{},
 		bodies: map[engine.PoolKey]*poolBodies{},
 		cache:  ledger.NewBodyCache(pol.EntryCacheBytes()),
+		snaps:  map[engine.PoolKey]*snapState{}, reverify: opt.Reverify,
 	}
 	lc := pol.LedgerConfig()
 	lc.Bodies = n.cache
@@ -350,10 +373,38 @@ func (n *Node) loadPool(k engine.PoolKey) error {
 		}
 		win = win[:0]
 	}
-	l, op, err := store.OpenFunc(path, store.Options{NoSync: n.pol.NoSync}, func(ol *store.Log, r store.Record, loc store.Loc) error {
-		if b == nil {
-			b = n.openBodies(k, ol)
+	var check *snapHeader // under -reverify, the snapshot to compare
+	from := store.From{Ready: func(ol *store.Log) (int64, int, error) {
+		b = n.openBodies(k, ol)
+		if !n.snapshotsOn() {
+			return 0, 0, nil
 		}
+		if n.reverify {
+			if h, err := n.readSnapHeader(k); err == nil {
+				check = &h
+			}
+			return 0, 0, nil
+		}
+		res, err := n.loadSnapshot(k, b)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				n.replay.Unused = append(n.replay.Unused, k.String()+": "+err.Error())
+				n.logger().Warn("pool snapshot not used; replaying the whole log", "pool", k.String(), "reason", err.Error())
+			}
+			return 0, 0, nil
+		}
+		// The pending transactions come back as they were before the
+		// records after the snapshot, which are then replayed.
+		for _, t := range res.pending {
+			n.eng.HandleTx(t, engine.Stored)
+		}
+		ss := n.snap(k)
+		ss.written, ss.records, ss.bytes = res.header.written, res.header.records, res.bytes
+		n.replay.Snapshots++
+		n.replay.Covered += res.header.records
+		return res.header.off, res.header.records, nil
+	}}
+	l, op, err := store.OpenFuncAt(path, store.Options{NoSync: n.pol.NoSync}, from, func(ol *store.Log, r store.Record, loc store.Loc) error {
 		win = append(win, storedRec{r, loc})
 		if len(win) == replayWindow {
 			flush()
@@ -373,8 +424,27 @@ func (n *Node) loadPool(k engine.PoolKey) error {
 	if op.Cut > 0 {
 		n.logger().Warn("dropped an unfinished write", "pool", k.String(), "bytes", op.Cut)
 	}
+	ss := n.snap(k)
+	ss.since = l.Records() - ss.records
+	if check != nil && check.off == l.Size() && check.records == l.Records() {
+		n.replay.Reverified++
+		if fp, err := n.eng.Fingerprint(k); err != nil || fp != check.print {
+			n.replay.Differed++
+			n.logger().Error("a full replay built a different pool than its snapshot held; the replay is used", "pool", k.String())
+		} else {
+			n.logger().Info("full replay matches the pool snapshot", "pool", k.String())
+		}
+	}
 	n.eng.Ledger(k, func(p *ledger.Pool) { p.ReleaseBodies() })
-	return n.maybeCompact(k)
+	if err := n.maybeCompact(k); err != nil {
+		return err
+	}
+	// A start that replayed many records, or checked them all, writes a
+	// snapshot now, so the next start need not.
+	if ss.since >= nodepolicy.BoundSnapshotEvery.Or(n.pol.SnapshotEvery) || n.reverify && ss.since > 0 {
+		return n.snapshotLocked(k)
+	}
+	return nil
 }
 
 // replayWindow is how many stored records are decoded and warmed at a
@@ -503,6 +573,24 @@ func (n *Node) compact(k engine.PoolKey, items []liveItem) error {
 	l := n.logs[k]
 	b := n.openBodies(k, l)
 	before := l.Records()
+	// The snapshot covers the old file: it goes first, so it never
+	// outlives the log it describes, and a new one follows (D178).
+	if err := n.dropSnapshot(k); err != nil {
+		return err
+	}
+	if err := n.rewrite(k, l, b, items); err != nil {
+		return err
+	}
+	// The pool now runs with the first-sighting order a replay of the
+	// new log gives it, so a restart builds the very pool that runs.
+	n.eng.Ledger(k, func(p *ledger.Pool) { p.Renumber() })
+	n.logger().Info("compacted store", "pool", k.String(), "from", before, "to", len(items))
+	return n.snapshotLocked(k)
+}
+
+// rewrite rewrites pool k's log l with items and gives b the new
+// locations, holding b's lock throughout.
+func (n *Node) rewrite(k engine.PoolKey, l *store.Log, b *poolBodies, items []liveItem) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	locs, err := l.RewriteFunc(len(items), func(i int) (store.Record, error) {
@@ -529,7 +617,6 @@ func (n *Node) compact(k engine.PoolKey, items []liveItem) error {
 		}
 	}
 	b.locs = m
-	n.logger().Info("compacted store", "pool", k.String(), "from", before, "to", len(items))
 	return nil
 }
 
@@ -583,9 +670,13 @@ func (n *Node) record(k engine.PoolKey, kind store.Kind, data []byte, h hash.Has
 			b.add(h, loc)
 		}
 	}
+	due := n.noteAppend(k)
 	return func() error {
 		if err := l.Durable(t); err != nil {
 			return n.storeFailed(k, err)
+		}
+		if due {
+			n.snapshotLater(k)
 		}
 		return nil
 	}, nil
@@ -979,10 +1070,24 @@ func (n *Node) Close() error {
 	n.closed = true
 	var errs []error
 	// A failed engine may hold a half-changed pool: its stores are left
-	// as written, never rewritten from it (D174).
-	if n.eng.Err() == nil {
+	// as written, never rewritten from it (D174). Its snapshots go too,
+	// so the next start replays and checks every log whole: a failure on
+	// reading a log back (a ledger.ReadFault) is then met at start, which
+	// cuts that log at the damage, rather than skipped by a snapshot
+	// (D178).
+	if n.eng.Err() != nil {
+		for k := range n.logs {
+			errs = append(errs, n.dropSnapshot(k))
+		}
+	} else {
 		for k := range n.logs {
 			errs = append(errs, n.maybeCompact(k))
+			// A snapshot as of the end of the log, unless the last one
+			// (perhaps the compaction's) already is (D178).
+			b := n.poolBodies(k)
+			if s := n.snap(k); s.since > 0 || s.written.IsZero() || b != nil && b.damaged.Load() {
+				errs = append(errs, n.snapshotLocked(k))
+			}
 		}
 	}
 	errs = append(errs, n.closeLogs())

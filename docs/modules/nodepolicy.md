@@ -30,6 +30,8 @@ D25). Nothing here changes what is valid.
   "seen_size": 65536,
   "entry_cache_mib": 256,
   "recent_window": 10000,
+  "snapshot_every": 50000,
+  "no_snapshots": false,
   "no_sync": false,
   "rpc": {"listen": "127.0.0.1:8645", "allow_remote": false},
   "p2p": {
@@ -142,6 +144,7 @@ its range, or `Validate` refuses the policy and names the setting
 | `ties` | 64 | 1 to 4096 | off-chain entries kept that tie with the selected ledger's weight, beyond `k` (D160) |
 | `entry_cache_mib` | 256 | 1 to 1048576 | MiB of entry bodies kept in memory across all pools, read back from the pool logs; every entry's skeleton stays in memory whatever this is (D172) |
 | `recent_window` | 10000 | 16 to 1073741824 | entries below each selected tip that keep their items and undo in memory; deeper ones are read back when a switch or view needs them (D175); applied on reload |
+| `snapshot_every` | 50000 | 1000 to 1073741824 | records a pool log takes between the snapshots a running node writes; a start replays at most about this many (D178); in place |
 
 `Policy.Limits` lists them with the value node.json sets and the value used,
 from the one list `Validate` checks; `poo policy limits` prints it

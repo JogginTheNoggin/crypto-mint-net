@@ -61,9 +61,34 @@ by location. A body read back is used only if the record is an entry with
 the hash asked for. The node's one `ledger.BodyCache` is bounded by
 `entry_cache_mib`. Lock order: the engine's lock, then a pool's location
 lock, then the log's; a compaction holds the location lock while it
-rewrites, so reads wait for the new locations. No index file is kept yet;
-start-up reads the whole log anyway (a sidecar index comes with snapshots,
-R30).
+rewrites, so reads wait for the new locations. The locations are also
+saved in each pool's snapshot (its sidecar index, D178), so a start from
+a snapshot reads no record the snapshot covers.
+
+### Snapshots (D178)
+
+`snapshot.go` keeps `pools/<series>/<index>.log.snap` beside each log:
+a header (build, pool, log bytes and records covered, `store.Tag` of the
+log there, time, fingerprint), the entry locations, the ledger's
+`Pool.Snapshot` records, the pending transactions, and a SHA-256 of all
+before it. It is written to `.tmp`, synced and renamed.
+
+- `loadPool` passes `store.From.Ready`, which opens the log, checks the
+  snapshot (checksum, pool, build, tag) in a first pass, restores it
+  (`Engine.Restore`), gives the pending transactions again and returns
+  where the replay starts. Any failure resets the locations, forgets the
+  pool and replays the whole log; the reason goes in
+  `ReplayStats.Unused`.
+- Written by `Close` when the log grew, by `compact` after it rewrites
+  (it removes the old one first, then calls `Pool.Renumber`), and every
+  `snapshot_every` records by `snapshotLater`, which gathers under `mu`,
+  writes without it and renames under it unless a compaction came in
+  between (`snapState.epoch`).
+- A failed body read marks the pool `damaged`: no snapshot is written and
+  the old one is removed. A failed engine removes all of them at `Close`.
+- `Options.Reverify` ignores them and compares a full replay with any
+  snapshot that covered the whole log (`ReplayStats.Reverified`,
+  `Differed`). `Snapshots` and `SnapshotSummary` report them.
 
 Each pool's ledger also gets `recent_window` (D175): older entries of the
 selected ledger keep only their skeleton, and `Bodies().Cold` counts
@@ -74,6 +99,13 @@ them. A failed engine (D174) leaves the stores as written: `Close` and
 followed pools plus 256 (`nodepolicy.CheckFileLimit`).
 
 ## Tests
+
+`snapshot_test.go` (D178): a start from the snapshot, and from an older
+one plus newer records, equals a full replay; after a compaction too; a
+stale one after a compaction, a torn, damaged, trailing, swapped or
+foreign file, and another build's are not used; `snapshot_every` writes
+one while running and `no_snapshots` none; a damaged body read removes
+it.
 
 `node_test.go`: restart restores tip, weight, branches, holdings and
 pending; compaction (explicit and automatic) keeps state; a torn write is

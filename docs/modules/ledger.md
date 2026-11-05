@@ -113,7 +113,27 @@ plus the top K other branches. It reproduces the design's worked example
   dropped before its layers arrive. Unknown-parent entries are refused, not
   held; fetching the missing parent is the network layer's job.
 
+- **Snapshots** (D178, `snapshot.go`): `Snapshot(emit)` writes the
+  skeleton (every node parent first: hash, parent, first-sighting number,
+  counts, claims, layer hashes and nonces, and for selected entries their
+  tids from the index) and the tip's unspent portions; it needs every body
+  in the `BodySource` (`ErrNotSnapshottable`). `Restore(s, index, cfg,
+  next)` rebuilds the pool, recomputing weights from layer hashes,
+  anchors, leaves and claims, reads back the items of the recent window
+  and of off-chain entries, recomputes their undo, and refuses any
+  inconsistency with `ErrBadSnapshot`. `Fingerprint` digests what
+  decides (entries in first-sighting order, layers, selected tids, tip
+  state) and leaves out what does not (times seen, bodies in memory,
+  cold). `Renumber` gives first sightings the `ReplayOrder` numbering a
+  compacted log replays to.
+
 ## Tests
+
+`snapshot_test.go`: a cut, padded, reordered, empty or foreign snapshot,
+or one naming a body the source lacks, is refused; a pool with an
+unwritten body cannot be snapshotted; any `RecentWindow` restores the same
+pool. `property_test.go` restores the random-history twin from its
+snapshot every 37 steps and runs on against the in-memory pool.
 
 - `pool_test.go`: Appendix A.1 to A.4 with exact weights and the exact void
   and carried sets, sibling entries, ties, entry hash credit, transfer

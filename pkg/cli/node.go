@@ -237,13 +237,14 @@ func nodeCmd(args []string, out io.Writer) error {
 	w := addWhere(fs)
 	level := fs.String("log-level", "", "debug, info, warn or error (default: the node policy's log.level, else info)")
 	format := fs.String("log-format", "", "plain, text or json (default: the node policy's log.format, else plain)")
+	reverify := fs.Bool("reverify", false, "ignore the pool snapshots and replay every pool log whole, checking every record again; where a snapshot covered a whole log, say whether the replay matched it (poo status, poo doctor)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if err := logging.Check(*level, *format); err != nil {
 		return err
 	}
-	return runNode(contextOf(out), w.resolve(), out, nil, daemon.Options{LogLevel: *level, LogFormat: *format})
+	return runNode(contextOf(out), w.resolve(), out, nil, daemon.Options{LogLevel: *level, LogFormat: *format, Reverify: *reverify})
 }
 
 // runNode runs the node in dir with pkg/daemon until ctx is done,
@@ -394,13 +395,16 @@ func statusCmd(args []string, out io.Writer) error {
 
 // seriesStatus is the totals of one followed series' pools.
 type seriesStatus struct {
-	Series   hash.Hash `json:"series"`
-	Pools    int       `json:"pools"`
-	Entries  int       `json:"entries"`
-	Branches int       `json:"branches"`
-	Pending  int       `json:"pending"`
-	Waiting  int       `json:"waiting"`
-	Stored   int       `json:"stored_records"`
+	Series hash.Hash `json:"series"`
+	// Builtin names a series the code carries, as poo series followed
+	// does ("reserve"; GUI-GREEN-056).
+	Builtin  string `json:"builtin,omitempty"`
+	Pools    int    `json:"pools"`
+	Entries  int    `json:"entries"`
+	Branches int    `json:"branches"`
+	Pending  int    `json:"pending"`
+	Waiting  int    `json:"waiting"`
+	Stored   int    `json:"stored_records"`
 }
 
 // statusSummary is poo status -counts: the status reply with the pool rows
@@ -412,17 +416,18 @@ type statusSummary struct {
 	PolicyChanged bool                 `json:"policy_changed,omitempty"`
 	Bodies        node.BodyStats       `json:"bodies"`
 	FileLimit     nodepolicy.FileLimit `json:"file_limit"`
+	Snapshots     node.SnapshotSummary `json:"snapshots"`
 }
 
 func statusBySeries(st rpc.StatusReply) statusSummary {
-	out := statusSummary{Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit}
+	out := statusSummary{Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots}
 	at := map[hash.Hash]int{}
 	for _, p := range st.Pools {
 		i, ok := at[p.Series]
 		if !ok {
 			i = len(out.Series)
 			at[p.Series] = i
-			out.Series = append(out.Series, seriesStatus{Series: p.Series})
+			out.Series = append(out.Series, seriesStatus{Series: p.Series, Builtin: rpc.Builtin(p.Series)})
 		}
 		s := &out.Series[i]
 		s.Pools++

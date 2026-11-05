@@ -92,6 +92,12 @@ type Policy struct {
 	// RecentWindow is how many entries below each selected tip keep their
 	// items and undo records in memory (0: default; D175).
 	RecentWindow int `json:"recent_window,omitempty"`
+	// SnapshotEvery is how many records a pool's log takes between the
+	// snapshots a running node writes (0: default; D178).
+	SnapshotEvery int `json:"snapshot_every,omitempty"`
+	// NoSnapshots stops the node writing pool snapshots and using them at
+	// start: every start replays the whole logs (D178).
+	NoSnapshots bool `json:"no_snapshots,omitempty"`
 	// NoSync skips the fsync after each write to the store. Faster; a power
 	// loss can then lose the latest items, which peers can send again.
 	NoSync bool `json:"no_sync,omitempty"`

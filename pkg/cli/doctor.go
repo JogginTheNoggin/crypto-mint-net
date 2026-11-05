@@ -240,9 +240,11 @@ func doctor(out io.Writer, dir string) DoctorReport {
 		return rep
 	}
 
-	// 6. Entry bodies read back from the logs (RED-084).
-	if c, ok := bodiesCheck(out, dir); ok {
-		add(c)
+	// 6. Entry bodies read back from the logs (RED-084), and the pool
+	// snapshots (D178).
+	if st, ok := nodeStatus(out, dir); ok {
+		add(bodiesCheck(st))
+		add(snapshotsCheck(st))
 	}
 
 	// 7. Peers.
@@ -254,21 +256,58 @@ func doctor(out io.Writer, dir string) DoctorReport {
 // back from its pool logs: a log damaged or changed under it. Such an
 // entry is not held for peers and queries until the node starts again
 // (RED-084, D173).
-func bodiesCheck(out io.Writer, dir string) (Check, bool) {
-	cl, err := dialNode(out, dir)
-	if err != nil {
-		return Check{}, false
-	}
-	st, err := cl.Status()
-	if err != nil {
-		return Check{}, false
-	}
+func bodiesCheck(st rpc.StatusReply) Check {
 	if n := st.Bodies.Errors; n > 0 {
 		return Check{Name: "bodies", Result: checkWarn,
 			Detail: fmt.Sprintf("%d reads of entry bodies from the pool logs failed: a log is damaged or was changed under the node, and those entries are not served or shown", n),
-			Fix:    "check the disk, then restart the node: on start it cuts a pool log at its first damaged record and fetches the rest again from peers"}, true
+			Fix:    "check the disk, then restart the node: on start it cuts a pool log at its first damaged record and fetches the rest again from peers"}
 	}
-	return Check{Name: "bodies", Result: checkOK, Detail: fmt.Sprintf("%d entry bodies read back from the logs, none failed", st.Bodies.Loads)}, true
+	return Check{Name: "bodies", Result: checkOK, Detail: fmt.Sprintf("%d entry bodies read back from the logs, none failed", st.Bodies.Loads)}
+}
+
+// nodeStatus asks the running node for its status.
+func nodeStatus(out io.Writer, dir string) (rpc.StatusReply, bool) {
+	cl, err := dialNode(out, dir)
+	if err != nil {
+		return rpc.StatusReply{}, false
+	}
+	st, err := cl.Status()
+	return st, err == nil
+}
+
+// snapshotsCheck reports the pool snapshots a start would begin from
+// (D178): their age and the most records a start would still replay,
+// a snapshot found unusable at the last start, and a -reverify that found
+// a snapshot differing from a full replay, which would be a bug to
+// report.
+func snapshotsCheck(st rpc.StatusReply) Check {
+	s, r := st.Snapshots, st.Replay
+	c := Check{Name: "snapshots"}
+	switch {
+	case r.Differed > 0:
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("-reverify found %d pool snapshots that differ from a full replay of their logs; the node runs on the replay", r.Differed)
+		c.Fix = "please report this as a bug, with poo version -v; the node keeps working, and the next stop writes snapshots from the replayed pools"
+	case s.Off:
+		c.Result = checkOK
+		c.Detail = "no_snapshots is on: every start replays the whole pool logs"
+	case len(r.Unused) > 0:
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("%d pool snapshots were not used at the last start, so those logs were replayed whole: %s", len(r.Unused), r.Unused[0])
+		c.Fix = "nothing is needed if this follows an upgrade or a compaction; otherwise check the disk. A clean stop writes new snapshots"
+	case s.Behind > 2*s.Every:
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("a start would replay up to %d records of one pool log (snapshot_every is %d)", s.Behind, s.Every)
+		c.Fix = "nothing is lost; a snapshot is written once the node can write every held body; if this lasts, check the node's log for \"pool snapshot not written\""
+	default:
+		c.Result = checkOK
+		age := "none written yet"
+		if !s.Oldest.IsZero() {
+			age = fmt.Sprintf("the oldest is %s old", time.Duration(s.AgeSeconds)*time.Second)
+		}
+		c.Detail = fmt.Sprintf("%d of %d pools have a snapshot, %s; a start replays at most %d records of a log", s.Pools-s.Missing, s.Pools, age, s.Behind)
+	}
+	return c
 }
 
 // grindCheck reports the devices this machine grinds on, a device the
