@@ -7,7 +7,7 @@
 | Found | Source Round 28 Part B, on `main` @ `705639a` (D172) |
 | Area | `pkg/p2p` (`serve.go`: `item`, `parts`; `chase.go`), `pkg/ledger` (`Pool.Entry`, `Rivals`), `pkg/watch` (`query.go`), `pkg/engine` (`Payment`) |
 | For Black | No consensus rule is touched. No verdict reads a body, as D172 says; this is about what the callers do when a read fails. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-029) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `875ebd4` (BLUE-029) |
 
 ## What is wrong
 

@@ -5,6 +5,7 @@
 | Fixes | RED-084 (high) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `705639a` (Source Round 28 Part C), with ORANGE-038 (#201) merged in |
+| Code | `875ebd4` |
 | Decisions | D173 |
 | With | ORANGE-038 (PR #201), carried: it changes `pkg/ledger/pool.go` and the chase walk that this fix also touches. Its proposal 2 (count real bytes, 256 MiB default) is built, as jerry approved. Its proposal 1 (serve outside the engine lock) is left for Grey. Not carried: Green #200 (no overlap except the doctor's column width, which this PR does not touch). |
 | Review | No consensus change. For Black: (1) no verdict reads a body (D172); an unreadable body is now missing information for peers and queries, which is what it always was for selection. (2) `Rivals` reads the skeleton's items, which are the same transactions without witnesses; a rival is found by its inputs only. (3) The recover in the work loop closes a peer, and does not count it as an offence. |
