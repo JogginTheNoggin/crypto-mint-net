@@ -159,7 +159,18 @@ type Engine struct {
 	follows map[hash.Hash]*follow
 	pools   map[PoolKey]*poolState
 	seen    *Seen
+	// failed is set, under mu, when a panic unwound out of a method that
+	// changes a pool (D174); stopped is closed then.
+	failed  error
+	stopped chan struct{}
 }
+
+// ErrFailed is returned by every method that changes a pool once one of
+// them panicked part way: the pool may be half changed, so the engine
+// takes nothing more and the node must stop and rebuild from its stores,
+// as it did when such a panic ended the process (Black's Round 28
+// condition, D174).
+var ErrFailed = errors.New("engine: stopped after an internal error while changing a pool; restart the node to rebuild it from its stores")
 
 // New returns an engine that knows no series and follows nothing.
 func New(cfg Config) *Engine {
@@ -169,7 +180,19 @@ func New(cfg Config) *Engine {
 		follows: map[hash.Hash]*follow{},
 		pools:   map[PoolKey]*poolState{},
 		seen:    NewSeen(cfg.SeenSize),
+		stopped: make(chan struct{}),
 	}
+}
+
+// Failed is closed once a method that changes a pool panicked part way
+// (ErrFailed). A node stops then, without compacting its stores.
+func (e *Engine) Failed() <-chan struct{} { return e.stopped }
+
+// Err returns ErrFailed, with the panic, once the engine has failed.
+func (e *Engine) Err() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.failed
 }
 
 // AddSeries makes a series known. Series information comes from outside
@@ -362,13 +385,26 @@ func (e *Engine) unstated(k PoolKey) (hash.Hash, bool, error) {
 // leaves no state behind (RED-049, D154). What is accepted does not
 // change: the item meets the same state either way.
 func (e *Engine) handling(k PoolKey) (p *poolState, done func(), err error) {
+	if e.failed != nil {
+		return nil, func() {}, e.failed
+	}
 	p, created, err := e.poolFor(k)
-	if err != nil || !created {
+	if err != nil {
 		return p, func() {}, err
 	}
-	e.pools[k] = p
+	if created {
+		e.pools[k] = p
+	}
+	// done runs deferred under e.mu, after the change. A panic during the
+	// change fails the engine before it unwinds further (D174): what the
+	// pool holds may be half changed, so nothing may build on it.
 	return p, func() {
-		if p.ledger.Len() == 0 && p.pending.Len() == 0 && p.pending.Waiting() == 0 {
+		if v := recover(); v != nil {
+			e.failed = fmt.Errorf("%w (%v)", ErrFailed, v)
+			close(e.stopped)
+			panic(v)
+		}
+		if created && p.ledger.Len() == 0 && p.pending.Len() == 0 && p.pending.Waiting() == 0 {
 			delete(e.pools, k)
 		}
 	}, nil

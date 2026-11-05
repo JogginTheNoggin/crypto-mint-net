@@ -543,6 +543,9 @@ func (n *Node) Compact(k engine.PoolKey) error {
 	if n.logs[k] == nil {
 		return nil
 	}
+	if err := n.eng.Err(); err != nil {
+		return err
+	}
 	items, err := n.liveRecords(k)
 	if err != nil {
 		return err
@@ -975,8 +978,12 @@ func (n *Node) Close() error {
 	}
 	n.closed = true
 	var errs []error
-	for k := range n.logs {
-		errs = append(errs, n.maybeCompact(k))
+	// A failed engine may hold a half-changed pool: its stores are left
+	// as written, never rewritten from it (D174).
+	if n.eng.Err() == nil {
+		for k := range n.logs {
+			errs = append(errs, n.maybeCompact(k))
+		}
 	}
 	errs = append(errs, n.closeLogs())
 	n.unlock()
