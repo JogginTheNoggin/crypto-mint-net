@@ -286,6 +286,19 @@ type BookCounts struct {
 	// States counts, for each book state, the addresses that hold it for
 	// at least one mint policy; an address may count under several.
 	States map[string]int `json:"states"`
+	// Releases counts the open connections by the release each peer's
+	// hello claims ("" for none shared), so the owner sees what the
+	// network runs (D186).
+	Releases map[string]int `json:"releases,omitempty"`
+}
+
+// countReleases counts connections by claimed release.
+func countReleases(conns []p2p.PeerInfo) map[string]int {
+	out := map[string]int{}
+	for _, p := range conns {
+		out[p.Release]++
+	}
+	return out
 }
 
 // CountBook returns the counts of a book's records and connections.
@@ -316,7 +329,7 @@ func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {
 		// Counted in place: a counts-only reply copies no record
 		// (ORANGE-034).
 		n, states := h.host.Book().Counts()
-		c := BookCounts{Addresses: n, Connected: len(conns), States: map[string]int{}}
+		c := BookCounts{Addresses: n, Connected: len(conns), States: map[string]int{}, Releases: countReleases(conns)}
 		for _, st := range peers.States {
 			c.States[st.String()] = states[st]
 		}

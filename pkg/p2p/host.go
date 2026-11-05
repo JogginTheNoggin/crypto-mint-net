@@ -123,6 +123,11 @@ type Config struct {
 	QueueSize int
 	// Agent names this software in hellos.
 	Agent string
+	// HideRelease sends an empty release in hellos rather than this
+	// build's (p2p.announce_version none, D186).
+	HideRelease bool
+	// editHello, set only by tests, changes the hello sent.
+	editHello func(*wire.Hello)
 
 	// Book is the peer book; nil keeps one in memory.
 	Book *peers.Book
@@ -1020,7 +1025,12 @@ type PeerInfo struct {
 	Key      string `json:"key"`
 	Outbound bool   `json:"outbound"`
 	Agent    string `json:"agent"`
-	Listen   string `json:"listen,omitempty"`
+	// Release and ClaimedFeatures are what the peer's hello says it runs
+	// and supports (D186): its own claim, left out when it sent none, and
+	// never used to choose, rank or refuse a peer.
+	Release         string         `json:"release,omitempty"`
+	ClaimedFeatures []wire.Feature `json:"claimed_features,omitempty"`
+	Listen          string         `json:"listen,omitempty"`
 	// Coverage lists what the peer was verified to follow.
 	Coverage []string `json:"coverage"`
 	// Categories maps each of this node's mint policies the peer was

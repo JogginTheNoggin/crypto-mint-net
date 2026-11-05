@@ -402,9 +402,14 @@ type P2P struct {
 	// never when Advertise is set. PortMapGateway is the router's IP
 	// address; empty means the default route's gateway (Linux only).
 	// PortMapSeconds is the lease asked for (p2p.port_map_seconds).
-	PortMap        string `json:"port_map,omitempty"`
-	PortMapGateway string `json:"port_map_gateway,omitempty"`
-	PortMapSeconds int    `json:"port_map_seconds,omitempty"`
+	// AnnounceVersion is what the hello tells peers of this node's
+	// release (D186): "" or "release" (the default) its version, "none"
+	// nothing, for an owner who would rather peers not know which release
+	// runs here. Machine-local.
+	AnnounceVersion string `json:"announce_version,omitempty"`
+	PortMap         string `json:"port_map,omitempty"`
+	PortMapGateway  string `json:"port_map_gateway,omitempty"`
+	PortMapSeconds  int    `json:"port_map_seconds,omitempty"`
 	// Peers are host:port addresses to stay connected to.
 	Peers []string `json:"peers,omitempty"`
 	// MaxPeers caps open connections.
@@ -584,6 +589,11 @@ func (p Policy) Validate() error {
 		if _, _, err := net.SplitHostPort(a); err != nil {
 			return fmt.Errorf("%w: p2p advertise %q: %v", ErrInvalid, a, err)
 		}
+	}
+	switch p.P2P.AnnounceVersion {
+	case "", "release", "none":
+	default:
+		return fmt.Errorf("%w: p2p announce_version %q: it takes release or none", ErrInvalid, p.P2P.AnnounceVersion)
 	}
 	if !portmap.ValidMethod(p.P2P.PortMap) {
 		return fmt.Errorf("%w: p2p port_map %q: it takes off, %s", ErrInvalid, p.P2P.PortMap, strings.Join(portmap.Methods, ", "))
