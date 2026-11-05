@@ -50,6 +50,12 @@ Hardening notes (optional, not findings):
   source text access, in Chromium since 114), with no sentinel at all.
   Or the swap can be recorded by position rather than by a prefix any
   string could carry.
+  *Done by GUI/Blue in Round 30C:* where the browser gives the source
+  text, the reviver reads the digits from `context.source` and only ever
+  changes numbers. Elsewhere (`parseMarked`), the mark carries a random
+  part made for each call. qol.mjs checks both paths with
+  `"\u0000big:12"` and `"\u0000big:abc"` next to a big number. On the
+  old code it fails.
 - `parseJSON` also takes some invalid JSON that `JSON.parse` refuses,
   such as a number with leading zeros (`00012345678901234567`). poo
   never prints that.

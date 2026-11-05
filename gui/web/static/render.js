@@ -15,7 +15,16 @@ function el(tag, cls, text) {
 // reserve series (10^14 units a mint) that is a balance of 91 mints.
 // Such a number is read as a BigInt instead, which render prints digit
 // for digit; every other value is JSON.parse's own (GUI-GREEN-055).
-const BIG = '\u0000big:';
+//
+// Where the browser gives a reviver the number's source text (JSON.parse
+// source text access, Chromium 114 on), the reviver reads the digits
+// from it, and only numbers are ever changed. Elsewhere the numbers are
+// swapped for marked strings first; the mark holds a random part made
+// for each call, so no string poo printed can carry it (GUI/Red R30B: a
+// fixed mark turned any string that began with it into a BigInt, or
+// dropped the whole result to text).
+const SOURCE = (() => { try { let ok = false; JSON.parse('1', (k, v, c) => { ok = !!c && c.source === '1'; return v; }); return ok; } catch (_) { return false; } })();
+const bigOf = (k, v, c) => typeof v === 'number' && !Number.isSafeInteger(v) && c && /^-?\d+$/.test(c.source) ? BigInt(c.source) : v;
 const NUMBER16 = /(?:^|[:[,])\s*-?\d{16}/;
 export function parseJSON(text) {
   // Fast path: a number above 2^53 has at least 16 digits, and a JSON
@@ -24,6 +33,13 @@ export function parseJSON(text) {
   // runs, so nearly every long answer took the slow path below, at 3 to
   // 4 times JSON.parse (ORANGE-022).
   if (!NUMBER16.test(text)) return JSON.parse(text);
+  return SOURCE ? JSON.parse(text, bigOf) : parseMarked(text);
+}
+
+// parseMarked is parseJSON for a browser without source text access; it
+// is exported for the e2e check, which runs on Chromium (which has it).
+export function parseMarked(text) {
+  const BIG = `\u0000big${Math.random().toString(36).slice(2)}${Date.now().toString(36)}:`;
   let out = '', last = 0, big = false;
   for (let i = 0; i < text.length;) {
     const c = text[i];
