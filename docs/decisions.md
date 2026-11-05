@@ -5012,3 +5012,68 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/cli/ledgerport_test.go`: `TestLedgerExportImport` (two nodes,
     import twice, a changed item, a range whose parent is missing,
     view-only).
+
+### D189. Round 33 fixes: RED-097, RED-098, RED-099 and GUI-031 (BLUE-034), with ORANGE-043 and GREEN-058
+
+- **Decision:**
+  - **RED-097.** `poo ledger export` asks for every page after the first
+    only up to the header's `to`.
+    - Each later page must start at the next height and carry on from
+      the last entry written. An empty page after one that promised more
+      is a switch.
+    - At the end, the last entry must be at the header's `to`, and when
+      the export runs to the tip, its hash must be the header's tip.
+    - Otherwise the export fails with "the node switched ledgers during
+      the export; run it again", and `-out` writes nothing.
+    - A ledger that only grows during the export is not a switch, since
+      the file holds what its header says.
+  - **RED-098.**
+    - ORANGE-043 (#265, merged in) streams the file in the command, which
+      also covers GUI ORANGE-027. Batches are 256 items, or 8 MiB
+      (`rpc.MaxImportBatchBytes`) past the first item.
+    - The node reads `POST /v1/ledger/import` item by item
+      (`decodeImport`). It refuses a call once it passes 256 items, or
+      once the items after the first pass 8 MiB.
+    - The first item keeps no size bound, as an entry has none (D144). So
+      a call holds at most one batch plus one item, and an entry of any
+      size can still be imported alone. Unknown fields and trailing
+      values are refused, as before.
+    - `poo ledger import -dry-run` sends nothing and needs no node. It
+      checks that each item decodes and matches its summary (parent,
+      transaction count, and hash when node.json knows the series), that
+      the items chain at consecutive heights, and that the last one is
+      the header's `to` and tip. It lists at most 20 problems with a
+      count and exits non-zero on any.
+  - **RED-099.** D186's terms stand: builds from before D186 cannot
+    connect, and nothing is released. Red's option of a decoder that
+    takes the old short hello is not taken, because D186 and
+    `TestHelloMalformed` refuse the old layout on purpose. What changes:
+    - `DecodeHello` names the old layout with `wire.ErrOldHello`, which
+      says the other build must be upgraded. A tester's log then explains
+      the closed connection.
+    - The release notes (CHANGELOG) say these builds do not connect.
+  - **GUI-031.**
+    - `importLedger` checks the command's context before each batch, so
+      a stop ends an import at the next batch.
+    - On an error or a stop after a batch was kept, `poo ledger import`
+      prints its reply (`LedgerImportReply`: the totals so far, `sent`
+      and `stopped`) and exits non-zero. The GUI can draw the partial
+      summary from it.
+    - GREEN-058's message no longer claims a total, since the file is
+      read as it streams.
+  - **GREEN-058 (#259) is carried:** it changes the same `ledgerport.go`.
+- **Why:**
+  - A quietly short backup is worse than a failed one.
+  - A call or a file of any size should not be held whole.
+  - An import that changed the selected ledger must say so, even when it
+    fails later.
+- **Consensus:** None. These are tools and RPC limits. No entry is
+  refused by size, and every imported entry is checked as from a peer.
+- **Tier:** CLI, RPC, wire.
+  - `pkg/cli/blue034_test.go`:
+    - `TestBlue034ExportEndsWhereItsHeaderSays`
+    - `TestBlue034ImportReportsWhatWasKept`
+    - `TestBlue034ImportPrintsPartialTotals`
+    - `TestBlue034DryRun`
+  - `pkg/rpc/blue034_internal_test.go`: `TestBlue034ImportCallBounded`.
+  - `pkg/wire/blue034_test.go`: `TestBlue034OldHelloNamed`.

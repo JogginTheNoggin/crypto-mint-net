@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
@@ -81,7 +82,30 @@ func DecodeHello(b []byte) (Hello, error) {
 	}
 	h.Features = decodeFeatures(r)
 	h.Ext = decodeExt(r)
-	return h, finish(r, "hello")
+	if err := finish(r, "hello"); err != nil {
+		if oldHello(b) {
+			return h, fmt.Errorf("%w: hello: %w", ErrMalformed, ErrOldHello)
+		}
+		return h, err
+	}
+	return h, nil
+}
+
+// ErrOldHello says a hello has the layout from before D186: no release,
+// features or extensions. Such a build cannot talk to this one (D186
+// changed the wire layout before any release); the error names it so
+// its owner can be told to upgrade (RED-099).
+var ErrOldHello = errors.New("the sender's build is from before D186 (its hello has no release, features or extensions); it must be upgraded to connect")
+
+// oldHello reports whether b is a whole hello in the layout before D186:
+// version, node id and agent, and nothing after.
+func oldHello(b []byte) bool {
+	r := encoding.NewReader(b)
+	r.U16()
+	var id hash.Hash
+	r.Into(id[:])
+	r.VarBytes(maxString)
+	return r.Finish() == nil
 }
 
 // DecodeTx reads a pushed transaction body.

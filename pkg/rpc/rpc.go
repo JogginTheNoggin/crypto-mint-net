@@ -365,7 +365,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// any size too, as poo submit and the GUI do (RED-038, D144).
 	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/ledger/import":
 		// Entry items, like /v1/entry, have no size bound; the call holds
-		// at most node.MaxImportItems of them (D188).
+		// at most node.MaxImportItems of them (D188), and past its first
+		// at most MaxImportBatchBytes, read item by item (RED-098).
 	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/policy/import":
 		r.Body = http.MaxBytesReader(w, r.Body, MaxImportBody)
 	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/peers/import":

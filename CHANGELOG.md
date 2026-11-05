@@ -236,6 +236,18 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 33 fixes (D189):**
+  - `poo ledger export` fails, rather than ending short, when the node
+    switches to a shorter ledger partway, and the file always ends where
+    its header says.
+  - `poo ledger import` reads the file as it streams (ORANGE-043). When
+    it stops partway, from an error or a stop, it prints what the
+    batches sent before were kept and whether the node switched.
+    `-dry-run` checks a file against itself without a node. One import
+    call to the node holds at most one batch.
+  - A node that meets a build from before the Round 33 wire change logs
+    that the other build must be upgraded. Such builds still cannot
+    connect.
 - **Round 33 (D186 to D188):**
   - **Moved defaults:** the local command port is now `127.0.0.1:7336`
     and the peer port `:7337` (were 8645 and 8646). `poo init` writes

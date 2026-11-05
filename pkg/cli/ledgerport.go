@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -15,9 +16,12 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/watch"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
 // Ledger files (D188): poo ledger export writes a stretch of a pool's
@@ -154,9 +158,20 @@ func ledgerOut(out io.Writer, file string) (*bufio.Writer, func(error) error, er
 	}, nil
 }
 
+// ledgerExporter and ledgerImporter are what export and import need of
+// the node (*rpc.Client); tests give their own.
+type (
+	ledgerExporter interface {
+		LedgerExport(series *hash.Hash, pool uint64, from, to int) (watch.ExportPage, error)
+	}
+	ledgerImporter interface {
+		LedgerImport(rpc.LedgerImportRequest) (node.ImportResult, error)
+	}
+)
+
 // writeLedgerFile streams the export page by page, so a long ledger never
 // sits whole in memory. It returns the number of entries written.
-func writeLedgerFile(dst io.Writer, cl *rpc.Client, sid *hash.Hash, pool uint64, from, to int) (int, error) {
+func writeLedgerFile(dst io.Writer, cl ledgerExporter, sid *hash.Hash, pool uint64, from, to int) (int, error) {
 	page, err := cl.LedgerExport(sid, pool, from, to)
 	if err != nil {
 		return 0, err
@@ -185,6 +200,8 @@ func writeLedgerFile(dst io.Writer, cl *rpc.Client, sid *hash.Hash, pool uint64,
 	}
 	n := 0
 	var lastHash hash.Hash
+	lastHeight := 0
+	switched := errors.New("the node switched ledgers during the export; run it again")
 	for {
 		if page.Unreadable > 0 {
 			return n, fmt.Errorf("the entry at height %d cannot be read back from the node's log; poo doctor says more", from+len(page.Items))
@@ -202,21 +219,29 @@ func writeLedgerFile(dst io.Writer, cl *rpc.Client, sid *hash.Hash, pool uint64,
 				return n, err
 			}
 			n++
-			lastHash = page.Entries[i].Hash
+			lastHash, lastHeight = page.Entries[i].Hash, page.Entries[i].Height
 		}
-		if page.Next == 0 || (to > 0 && page.Next > to) {
+		if page.Next == 0 || page.Next > last {
 			break
 		}
 		from = page.Next
-		if page, err = cl.LedgerExport(&head.Series, pool, from, to); err != nil {
+		// Later pages stop at the header's end, so the file holds what
+		// the header says even if the ledger grows meanwhile (RED-097).
+		if page, err = cl.LedgerExport(&head.Series, pool, from, last); err != nil {
 			return n, err
 		}
 		// Each page must carry on from the last entry written: if the
 		// selected ledger moved under the export, the file would mix two
-		// ledgers.
-		if len(page.Entries) > 0 && page.Entries[0].Parent != lastHash {
-			return n, errors.New("the node switched ledgers during the export; run it again")
+		// ledgers. A page with nothing, after one that said more was to
+		// come, is a switch to a shorter ledger (RED-097).
+		if len(page.Entries) == 0 || page.Entries[0].Parent != lastHash || page.Entries[0].Height != from {
+			return n, switched
 		}
+	}
+	// The file must end where its header says: at height To, and at the
+	// header's tip when it runs to the tip (RED-097).
+	if last > 0 && lastHeight != last || last > 0 && last == head.Height && lastHash != head.Tip {
+		return n, switched
 	}
 	_, err = fmt.Fprint(dst, "\n  ]\n}\n")
 	return n, err
@@ -235,15 +260,56 @@ func importErr(err error, f ledgerFile, done int, so node.ImportResult) error {
 		err = fmt.Errorf("%w: the file is for pool %d of series %s; poo follow -series %s -pool %d, then import again", err, f.Pool, f.Series, f.Series, f.Pool)
 	}
 	if done > 0 {
-		err = fmt.Errorf("%w (the first %d of %d entries were sent: %d kept, %d already held)", err, done, len(f.Entries), so.Kept, so.Known)
+		// The file is read as it streams, so how many entries it holds in
+		// all is not known yet.
+		err = fmt.Errorf("%w (the first %d entries were sent: %d kept, %d already held)", err, done, so.Kept, so.Known)
 	}
 	return err
 }
+
+// LedgerImportReply is what poo ledger import prints: the node's totals
+// over every batch sent, how many entries were sent, and, when the import
+// stopped before the end of the file, why. Batches sent before a stop
+// are kept and may have switched the selected ledger, so the totals are
+// printed then too (GUI-031).
+type LedgerImportReply struct {
+	node.ImportResult
+	Sent int `json:"sent"`
+	// Stopped says why the import ended before the file did: an error, or
+	// the command being stopped. The exit status is not 0 then.
+	Stopped string `json:"stopped,omitempty"`
+}
+
+// LedgerDryRun is what poo ledger import -dry-run prints: the file read
+// and checked against itself, with nothing sent to the node (RED-098).
+type LedgerDryRun struct {
+	Series hash.Hash `json:"series"`
+	Pool   uint64    `json:"pool"`
+	// Entries counts the items; Decoded those whose bytes read as an
+	// entry item.
+	Entries int `json:"entries"`
+	Decoded int `json:"decoded"`
+	// SeriesKnown says node.json knows the series, so the entry hashes
+	// could be worked out and compared.
+	SeriesKnown bool `json:"series_known"`
+	// Problems lists where the items differ from their summaries or the
+	// header, or do not chain (at most MaxDryRunProblems; ProblemCount
+	// counts them all).
+	Problems     []string `json:"problems,omitempty"`
+	ProblemCount int      `json:"problem_count,omitempty"`
+}
+
+// MaxDryRunProblems caps the problems a dry run lists.
+const MaxDryRunProblems = 20
+
+// ErrDryRunProblems is the error of a dry run that found problems.
+var ErrDryRunProblems = errors.New("the ledger file does not match itself; nothing was sent")
 
 func ledgerImportCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("ledger import", out)
 	w := addWhere(fs)
 	o := addOutput(fs)
+	dry := fs.Bool("dry-run", false, "read and check the file against itself, and print what it holds; send nothing (the node need not run)")
 	pos, err := parseMixed(fs, args)
 	if err != nil {
 		return err
@@ -252,7 +318,7 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: poo ledger import FILE|-")
+		return errors.New("usage: poo ledger import [-dry-run] FILE|-")
 	}
 	var r io.Reader
 	if pos[0] == "-" {
@@ -265,20 +331,48 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		defer fh.Close()
 		r = fh
 	}
+	if *dry {
+		return ledgerDryRun(r, w.resolve(), o, out)
+	}
+	total, err := importLedger(contextOf(out), r, func() (ledgerImporter, error) { return dialNode(out, w.resolve()) })
+	if err != nil {
+		if total.Sent == 0 {
+			return err
+		}
+		// Earlier batches are kept: say what they did before the error
+		// (GUI-031).
+		total.Stopped = err.Error()
+		if werr := o.write(out, total); werr != nil {
+			return werr
+		}
+		return err
+	}
+	return o.write(out, total)
+}
+
+// importLedger reads a ledger file from r and sends its items to the
+// node in batches, dialling it once the header is read. It stops at the
+// first error, or when ctx ends, between batches, returning the totals
+// of the batches already sent with the error (GUI-031).
+func importLedger(ctx context.Context, r io.Reader, dial func() (ledgerImporter, error)) (LedgerImportReply, error) {
 	var (
 		f     ledgerFile
-		cl    *rpc.Client
-		total node.ImportResult
+		cl    ledgerImporter
+		total LedgerImportReply
 		batch [][]byte
 	)
-	size, base := 0, 0
+	size := 0
 	send := func() error {
 		if len(batch) == 0 {
 			return nil
 		}
+		// A stop ends the import between batches (GUI-031).
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("stopped: %w", err)
+		}
 		res, err := cl.LedgerImport(rpc.LedgerImportRequest{Series: f.Series, Pool: f.Pool, Items: batch})
 		if err != nil {
-			return importErr(err, f, base, total)
+			return importErr(err, f, total.Sent, total.ImportResult)
 		}
 		total.Kept += res.Kept
 		total.Known += res.Known
@@ -286,10 +380,10 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		total.LayersKnown += res.LayersKnown
 		total.Switched = total.Switched || res.Switched
 		for _, rf := range res.Refused {
-			rf.Index += base
+			rf.Index += total.Sent
 			total.Refused = append(total.Refused, rf)
 		}
-		base += len(batch)
+		total.Sent += len(batch)
 		batch, size = nil, 0
 		return nil
 	}
@@ -299,11 +393,11 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		}
 		f = h
 		var err error
-		cl, err = dialNode(out, w.resolve())
+		cl, err = dial()
 		return err
 	}
 	item := func(it ledgerFileItem) error {
-		if len(batch) == node.MaxImportItems || (len(batch) > 0 && size+len(it.Item) > watch.ExportBytes) {
+		if len(batch) == node.MaxImportItems || (len(batch) > 0 && size+len(it.Item) > rpc.MaxImportBatchBytes) {
 			if err := send(); err != nil {
 				return err
 			}
@@ -312,13 +406,97 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		size += len(it.Item)
 		return nil
 	}
+	err := readLedgerFile(r, head, item)
+	if err == nil {
+		err = send()
+	}
+	return total, err
+}
+
+// ledgerDryRun reads a ledger file and checks it against itself: every
+// item decodes, its summary matches it, the items chain, and the last
+// one is where the header says. With the series in node.json it works
+// out each entry's hash too. Nothing is sent and the node need not run.
+func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error {
+	var (
+		rep      LedgerDryRun
+		f        ledgerFile
+		s        *series.Series
+		prevHash hash.Hash
+		prevH    int
+	)
+	problem := func(format string, a ...any) {
+		rep.ProblemCount++
+		if len(rep.Problems) < MaxDryRunProblems {
+			rep.Problems = append(rep.Problems, fmt.Sprintf(format, a...))
+		}
+	}
+	head := func(h ledgerFile) error {
+		if h.Kind != LedgerFileKind || h.Format != LedgerFileFormat {
+			return fmt.Errorf("not a ledger file of format %d (kind %q, format %d)", LedgerFileFormat, h.Kind, h.Format)
+		}
+		f, rep.Series, rep.Pool = h, h.Series, h.Pool
+		if p, err := nodepolicy.Load(filepath.Join(dir, nodepolicy.FileName)); err == nil {
+			accepted, _ := p.Accepted()
+			for _, a := range accepted {
+				if a.Series.ID() == h.Series {
+					s, rep.SeriesKnown = a.Series, true
+				}
+			}
+		}
+		return nil
+	}
+	item := func(it ledgerFileItem) error {
+		i := rep.Entries
+		rep.Entries++
+		e := it.ExportEntry
+		if i == 0 && e.Height != f.From {
+			problem("entry 0 is at height %d, but the file says it starts at %d", e.Height, f.From)
+		}
+		if i > 0 && e.Height != prevH+1 {
+			problem("entry %d is at height %d, after height %d", i, e.Height, prevH)
+		}
+		if i > 0 && e.Parent != prevHash {
+			problem("entry %d's parent %s is not entry %d's hash %s", i, e.Parent.Short(), i-1, prevHash.Short())
+		}
+		prevH, prevHash = e.Height, e.Hash
+		di, err := wire.DecodeItem(it.Item)
+		if err != nil {
+			problem("entry %d does not decode: %v", i, err)
+			return nil
+		}
+		rep.Decoded++
+		if di.Entry.Parent != e.Parent {
+			problem("entry %d's item has parent %s, its summary %s", i, di.Entry.Parent.Short(), e.Parent.Short())
+		}
+		if len(di.Entry.Txs) != e.TxCount {
+			problem("entry %d's item holds %d transactions, its summary %d", i, len(di.Entry.Txs), e.TxCount)
+		}
+		if s != nil {
+			if h := di.Entry.Hash(s); h != e.Hash {
+				problem("entry %d's item hashes to %s, its summary says %s", i, h.Short(), e.Hash.Short())
+			}
+		}
+		return nil
+	}
 	if err := readLedgerFile(r, head, item); err != nil {
 		return err
 	}
-	if err := send(); err != nil {
+	if rep.Entries > 0 {
+		if prevH != f.To {
+			problem("the last entry is at height %d, but the file says it ends at %d", prevH, f.To)
+		}
+		if f.To == f.Height && prevHash != f.Tip {
+			problem("the last entry is %s, but the file's tip is %s", prevHash.Short(), f.Tip.Short())
+		}
+	}
+	if err := o.write(out, rep); err != nil {
 		return err
 	}
-	return o.write(out, total)
+	if rep.ProblemCount > 0 {
+		return ErrDryRunProblems
+	}
+	return nil
 }
 
 // readLedgerFile reads a ledger file from r, giving its header to head
