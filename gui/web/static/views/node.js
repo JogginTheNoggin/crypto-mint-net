@@ -3,7 +3,7 @@ import * as api from '../api.js';
 import * as where from '../where.js';
 import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile, rawFold } from '../views.js';
 import { scrollback } from '../scroll.js';
-import { parseJSON } from '../render.js';
+import { parseJSON, render } from '../render.js';
 
 // node finds the node job this GUI is running, if any.
 async function nodeJob() {
@@ -124,8 +124,21 @@ export const nodeView = {
       { name: 'mint', label: 'Mints', type: 'list', placeholder: 'serial …' },
     ];
     const followArgs = (cmd, v) => [cmd, ...where.flags(), ...flag('issuer', v.issuer), ...flag('series', v.series), ...flags('pool', v.pool), ...flags('mint', v.mint), ...flag('replace', v.replace), ...flag('no-reload', v.noReload)];
-    const eachPool = panel(ctx, { title: 'Each pool', about: 'Where each followed pool stands, one row per pool, as poo status prints it. Press Refresh to update; it does not refresh by itself.', args: () => ['status', ...where.flags()] });
-    const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy.', args: () => ['follow', ...where.flags()] });
+    // Each pool and the follow list print a row for every pool: on the
+    // reserve series 350 KB and 410 KB, over 1,000 rows and 23,000 page
+    // elements each time the Node view opened. Each pool now runs when
+    // Show is pressed; the follow list shows its rules at once and draws
+    // its pools only when they are opened (GUI-GREEN-056).
+    const eachPool = panel(ctx, { title: 'Each pool', about: 'Where each followed pool stands, one row per pool, as poo status prints it. It runs when you press Show, and does not refresh by itself.', args: () => ['status', ...where.flags()], start: false });
+    const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy, and the pools it covers.', args: () => ['follow', ...where.flags()],
+      onResult: (r, area) => {
+        let o;
+        try { o = r.code === 0 && parseJSON(r.out); } catch (_) { return; }
+        const raw = area.querySelector('.result');
+        if (!o || !raw || !Array.isArray(o.pools)) return;
+        raw.replaceWith(followView(o));
+        area.append(rawFold(raw));
+      } });
     // Replace (GREEN-038, Source) is poo follow -replace: with a series, the
     // pools and mints given become all it follows of that series, in one
     // change. It shows only once a series is named, as poo requires.
@@ -202,6 +215,16 @@ const VARIABLE_ROWS = 500;
 
 export function variableTable(vs, cells) {
   return rowsTable(vs, cells, { headers: ['series', 'parts released', 'next part', 'mints', 'units', 'newest release'], cls: 'variable-series', more: 'variable-more', noun: 'variable series' });
+}
+
+// followView draws poo follow's JSON: the follow rules as printed, and
+// its pools folded under a count, drawn only when opened.
+export function followView(o) {
+  const rest = { ...o };
+  delete rest.pools;
+  const pools = el('details', { class: 'follow-pools' }, el('summary', {}, `${o.pools.length} ${o.pools.length === 1 ? 'pool' : 'pools'} followed`));
+  pools.addEventListener('toggle', () => { if (pools.open && pools.children.length === 1) pools.append(render(o.pools)); });
+  return el('div', { class: 'result follow-view' }, render(rest), pools);
 }
 
 // seriesName is what poo's builtin field names a series by: the default
