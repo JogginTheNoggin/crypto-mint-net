@@ -50,12 +50,17 @@ try {
     await page.waitForTimeout(250);
   }
   await shot('node');
+  // The entry cache line comes from poo status's bodies (D172).
+  await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\)/ }).waitFor();
+  assert.equal(await pools.locator('.file-limit-low').count(), 0, 'no file limit alert when the limit is high enough');
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
   const fs = section('Followed series');
   await fs.locator('button:has-text("Refresh")').click();
   await fs.locator('table.followed-series tbody tr').first().waitFor();
   assert.match(await fs.locator('table.followed-series tbody tr').first().innerText(), /^\t[0-9a-f]{16}…\tfixed\t/);
+  // Its warning column has poo's ceiling warning, as a warning only.
+  await fs.locator('table.followed-series tbody tr .series-warning', { hasText: 'no witness ceiling' }).first().waitFor();
   // Follow more offers Replace (poo follow -replace) only once a series is
   // named, as poo takes it only with -series.
   const more = section('Follow more');
@@ -289,6 +294,9 @@ try {
   assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json ${every}`);
   await imp.locator('button[type=submit]').click();
   await imp.locator('.import-plan', { hasText: 'A new node policy.' }).waitFor();
+  // The worked example's series sets no witness ceiling, so the new
+  // policy's plan warns first, with poo's reason (D171). Apply stays.
+  assert.match(await imp.locator('.import-plan .plan-unbounded').innerText(), /d0b927f7: the series sets no witness ceiling/);
   page.once('dialog', d => d.accept());
   await imp.locator('button.danger:has-text("Apply")').click();
   await imp.locator('.area .area .import-plan', { hasText: 'Saved.' }).waitFor();

@@ -283,14 +283,18 @@ try {
     const { seriesTable } = await import('/views/node.js');
     const t = seriesTable([
       { id: 'fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f139', builtin: 'reserve', pools: 1024, params: { mints: 32768, supply: 100000000000000, min_entry_strength: 20, min_layer_strength: 24 } },
-      { id: 'fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f13a', pools: 2, params: { mints: 64, supply: 100 }, variable: { mints: 12 } },
+      { id: 'fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f13a', pools: 2, params: { mints: 64, supply: 100 }, variable: { mints: 12 }, warning: 'the series sets no witness ceiling: one witness can take seconds and hundreds of MB to check' },
     ]);
     return [...t.querySelectorAll('tbody tr')].map(r => [...r.children].map(c => c.textContent));
   });
-  assert.deepEqual(ft, [
+  assert.deepEqual(ft.map(r => r.slice(0, 7)), [
     ['the built-in reserve series', 'fe52c1ac4178cc69…', 'fixed', '1024', '32768', '100000000000000', '20 / 24'],
     ['', 'fe52c1ac4178cc69…', 'variable', '2', '12', '100', '0 / 0'],
   ], 'the reserve is named by poo\'s builtin, not by its id');
+  // The warning column shows poo's warning as given (D171): none for the
+  // reserve, which sets a 128 KiB ceiling.
+  assert.equal(ft[0][7], '');
+  assert.match(ft[1][7], /no witness ceiling/);
   await key.locator('button', { hasText: 'Make key' }).click();
   const ask = key.locator('form.ask');
   await ask.waitFor();

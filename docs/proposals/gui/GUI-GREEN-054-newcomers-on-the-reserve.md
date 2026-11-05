@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 28 Part B) |
+| Status | adopted (Round 29 Part A, merged as is) |
 | Based on | main @ adcf216 |
 | Area | gui/web/static/start.js (Getting started), views/node.js (Followed series panel, rowsTable), gui/e2e/qol.mjs, gui/e2e/views.mjs, docs/FEATURES.md, docs/gui.md |
 | Effort | small |
-| Decided by | (Grey) |
+| Decided by | GUI Grey, Round 29 Part A |
 
 ## Summary
 

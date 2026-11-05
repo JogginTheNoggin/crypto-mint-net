@@ -81,7 +81,12 @@ export const nodeView = {
       onResult: (r, area) => {
         let st;
         try { st = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
-        if (!st || !st.policy_changed) return;
+        if (!st) return;
+        // Where entry bodies are (D172) and the open file limit
+        // (ORANGE-037), as poo status gives them; the GUI judges nothing.
+        const notes = statusNotes(st);
+        if (notes.length) area.prepend(...notes);
+        if (!st.policy_changed) return;
         area.prepend(el('p', { class: 'next-step policy-changed', role: 'status' },
           'The node policy file has changed since the node loaded it, and the change waits for a reload. ',
           el('button', { type: 'button', class: 'small', onclick: () => reload.run({}) }, 'Reload now')));
@@ -201,9 +206,26 @@ export const seriesName = x => x.builtin === 'reserve' ? 'the built-in reserve s
 // followed's JSON.
 export function seriesTable(all) {
   const p = x => x.params || {};
+  // poo's warning on a series (a witness ceiling not set, or above 4 MiB:
+  // D171) goes in its own column, as printed.
   const cells = x => [seriesName(x), el('code', { class: 'hex', title: String(x.id) }, String(x.id).slice(0, 16) + '…'),
-    ...[x.variable ? 'variable' : 'fixed', x.pools, x.variable ? x.variable.mints : p(x).mints, p(x).supply, `${p(x).min_entry_strength ?? 0} / ${p(x).min_layer_strength ?? 0}`].map(v => String(v ?? ''))];
-  return rowsTable(all, cells, { headers: ['name', 'series', 'supply', 'pools', 'mints', 'units per mint', 'entry / layer floor'], cls: 'followed-series', more: 'followed-more', noun: 'series' });
+    ...[x.variable ? 'variable' : 'fixed', x.pools, x.variable ? x.variable.mints : p(x).mints, p(x).supply, `${p(x).min_entry_strength ?? 0} / ${p(x).min_layer_strength ?? 0}`].map(v => String(v ?? '')),
+    x.warning ? el('span', { class: 'series-warning' }, String(x.warning)) : ''];
+  return rowsTable(all, cells, { headers: ['name', 'series', 'supply', 'pools', 'mints', 'units per mint', 'entry / layer floor', 'warning'], cls: 'followed-series', more: 'followed-more', noun: 'series' });
+}
+
+// statusNotes draws poo status's entry body cache (D172) and open file
+// limit (ORANGE-037) as one line each, from the fields poo gives.
+const MIB = 1 << 20;
+export function statusNotes(st) {
+  const out = [];
+  const fl = st.file_limit;
+  if (fl && fl.known && fl.low) out.push(el('p', { class: 'next-step file-limit-low', role: 'alert' },
+    `The open file limit is ${fl.soft}, below the ${fl.need} the followed pools need. Raise it (ulimit -n, or LimitNOFILE for a service) and restart the node.`));
+  const b = st.bodies;
+  if (b && typeof b.max_bytes === 'number') out.push(el('p', { class: 'hint entry-cache' },
+    `Entry cache: ${(b.used_bytes / MIB).toFixed(1)} of ${(b.max_bytes / MIB).toFixed(0)} MiB (entry_cache_mib), ${b.bodies} bodies; ${b.hits} hits, ${b.loads} read from disk${b.errors ? `, ${b.errors} failed reads` : ''}. ${b.in_memory} of ${b.held} entries are in memory.`));
+  return out;
 }
 
 // rowsTable draws a list of rows ROWS at a time with Show more, as the
