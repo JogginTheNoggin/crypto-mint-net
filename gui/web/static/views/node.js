@@ -18,6 +18,24 @@ async function nodeJob() {
 // (GREEN-036), so the view adds nothing. Any other fix is shown as the
 // text poo printed.
 const RUNNABLE_FIX = /^poo [a-z][\w./:=-]*( [\w./:=-]+)*$/;
+// DETAIL_CHARS is how much of a doctor check's detail shows at first. A
+// detail names what it found, and one can name every followed series: at
+// 4,096 series with no witness ceiling, the ceiling check's detail was
+// 455,000 characters, and the Health check, the Node view's first panel,
+// 52,000 px tall (ORANGE-025). The rest is one press away, as printed.
+const DETAIL_CHARS = 1000;
+
+// shortDetail shows the first DETAIL_CHARS characters of text, and all
+// of it while "Show all" is open.
+export function shortDetail(text) {
+  if (text.length <= DETAIL_CHARS) return el('span', {}, text);
+  const cut = `${text.slice(0, DETAIL_CHARS)}…`;
+  const shown = document.createTextNode(cut);
+  const more = el('details', { class: 'doctor-more' }, el('summary', {}, `Show all ${text.length} characters`));
+  more.addEventListener('toggle', () => { shown.data = more.open ? text : cut; });
+  return el('span', { class: 'doctor-detail-cut' }, shown, more);
+}
+
 export function doctorReport(rep, ctx) {
   const list = el('ul', { class: 'doctor' });
   for (const c of rep.checks || []) {
@@ -30,7 +48,7 @@ export function doctorReport(rep, ctx) {
       : el('div', { class: 'doctor-fix' }, `fix: ${c.fix}`)) : null;
     list.append(el('li', { class: `doctor-${c.result}` },
       el('span', { class: `pill pill-${c.result}` }, c.result),
-      el('strong', {}, c.name), ' ', el('span', {}, c.detail || ''), fix));
+      el('strong', {}, c.name), ' ', shortDetail(String(c.detail || '')), fix));
   }
   return el('div', { class: 'result' }, rep.dir ? el('p', { class: 'hint' }, `Data directory: ${rep.dir}`) : null, list);
 }
@@ -261,8 +279,19 @@ export function seriesTable(all) {
 // statusNotes draws poo status's entry body cache (D172) and open file
 // limit (ORANGE-037) as one line each, from the fields poo gives.
 const MIB = 1 << 20;
-export function statusNotes(st) {
+export function statusNotes(st, guiVersion = api.version) {
   const out = [];
+  // The running node's release (W-10, D184) beside this GUI's (cli.Version,
+  // GUI White S1). The versions are compared as strings only: a
+  // difference is a plain note, never a judgement of what works.
+  const rel = st.release;
+  if (rel && typeof rel.version === 'string' && rel.version) {
+    const same = !guiVersion || rel.version === guiVersion;
+    out.push(el('p', same ? { class: 'hint node-release' } : { class: 'next-step node-release differs' },
+      `The node runs v${rel.version}${rel.commit ? ` (${String(rel.commit).slice(0, 12)})` : ''}${same ? '.' : `; this GUI is v${guiVersion}. They are different releases, so a view may show or send what the other does not know.`}`));
+  } else if (st.release !== undefined || st.series || st.pools) {
+    out.push(el('p', { class: 'hint node-release' }, 'The node did not report its release (an older node).'));
+  }
   const fl = st.file_limit;
   if (fl && fl.known && fl.low) out.push(el('p', { class: 'next-step file-limit-low', role: 'alert' },
     `The open file limit is ${fl.soft}, below the ${fl.need} the followed pools need. Raise it (ulimit -n, or LimitNOFILE for a service) and restart the node.`));
@@ -295,11 +324,23 @@ export function statusNotes(st) {
   // whether the full replay matched them.
   const rp = st.replay;
   if (rp && num(rp.snapshots)) out.push(el('p', { class: 'hint replay' },
-    `This start: ${n(rp.snapshots)} ${rp.snapshots === 1 ? 'pool' : 'pools'} from ${rp.snapshots === 1 ? 'its snapshot' : 'their snapshots'} (${n(rp.snapshot_records)} records not read again), ${n(rp.records)} records replayed after them${(rp.snapshots_unused || []).length ? `; ${rp.snapshots_unused.length} snapshots not used: ${rp.snapshots_unused.slice(0, 5).join('; ')}${rp.snapshots_unused.length > 5 ? '; …' : ''}` : ''}.`));
+    `This start: ${n(rp.snapshots)} ${rp.snapshots === 1 ? 'pool' : 'pools'} from ${rp.snapshots === 1 ? 'its snapshot' : 'their snapshots'} (${n(rp.snapshot_records)} records not read again), ${n(rp.records)} records replayed after them${unused(rp.snapshots_unused, rp.snapshots_unused_count, 'snapshots not used')}.`));
   if (rp && num(rp.reverified) && rp.reverified) out.push(el('p', rp.reverify_differed ? { class: 'next-step reverify-differed', role: 'alert' } : { class: 'hint reverify' },
     rp.reverify_differed ? `Checked every record again: the full replay of ${rp.reverify_differed} of ${rp.reverified} pools built a different pool than its snapshot held. Run poo doctor and keep the logs for a report.`
       : `Checked every record again: the full replay of all ${rp.reverified} pools matched their snapshots.`));
+  if (rp && ((rp.reverify_not_compared || []).length || rp.reverify_not_compared_count)) out.push(el('p', { class: 'hint reverify-not-compared' },
+    `Not compared${unused(rp.reverify_not_compared, rp.reverify_not_compared_count, 'pools').replace(/^; /, ': ')}.`));
   return out;
+}
+
+// unused says how many of a list poo capped at a few reasons there are,
+// from its count field when it gives one (D184, GUI White S2), with the
+// reasons it printed.
+function unused(list, total, noun) {
+  const xs = Array.isArray(list) ? list : [];
+  const k = typeof total === 'number' ? total : xs.length;
+  if (!k) return '';
+  return `; ${k} ${noun}${xs.length ? `: ${xs.slice(0, 5).join('; ')}${k > Math.min(xs.length, 5) ? '; …' : ''}` : ''}`;
 }
 
 // age says a number of seconds as the largest whole unit.

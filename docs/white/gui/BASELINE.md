@@ -28,7 +28,19 @@ v0.1.0 by itself; G1 and G2 are the ones worth fixing first.
 | Imports (policy, settings, peers) | Preview, then Apply with `-if-digest` | docs/gui.md |
 | Changelog | One `CHANGELOG.md`, GUI bullet under "Unreleased (0.1.0)" | `CHANGELOG.md` |
 
-## Gaps
+## Status (updated each round)
+
+| # | Status |
+| --- | --- |
+| G1 | **Done** in GUI R32A (#242): poo-gui comes back on the port it used last (`last-port` in poo-gui's config folder); `-listen` still overrides. Notes in ROUND-32.md |
+| G2 | Source half done (W-10, D184: `release` in `GET /v1/status` and `poo status`). GUI half open: S1 in ROUND-32.md |
+| G3 | Decided with Source White (WHITE-001 R11): document archives or `go -C gui build` for 0.1; require-at-tag later |
+| G4 | In GUI-GREEN-058 (#244), for R33A |
+| G5, G6 | Open, after the first release |
+| G7 | In WHITE-001 R10 |
+| G8 | In WHITE-001 R7; GUI White ran the GUI set locally for R32 (ROUND-32.md) |
+
+## Gaps (as found on 2026-11-05)
 
 | # | Gap | Why it matters | Suggestion | Owner | Release blocker? |
 | --- | --- | --- | --- | --- | --- |
