@@ -13,8 +13,7 @@
 
 `writeCollected` writes `<index>.log.snap.tmp`, syncs it and renames it. A
 crash between the first write and the rename leaves the temporary file, which
-is as large as the snapshot (about 1 to 2 GB for 10^7 held entries, by
-D178's own size per entry). Nothing at start looks for it. The next
+is as large as the snapshot (which grows with the entries held). Nothing at start looks for it. The next
 successful snapshot write truncates and reuses the same path, so it goes away
 then. With `no_snapshots`, or for a pool that stays below `snapshot_every`
 records and is not closed cleanly, it stays for ever, and nothing reports it
