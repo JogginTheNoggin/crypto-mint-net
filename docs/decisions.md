@@ -4505,8 +4505,8 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     the node's lock and written to disk outside it. `no_snapshots` turns
     them off. A pool whose newest body is not written yet is skipped
     until the next one.
-  - **Trust and `-reverify`** (jerry's decision card, recommended option:
-    trust the node's own snapshot, with a flag to check everything).
+  - **Trust and `-reverify`** (jerry, 2026-11-05: trust the node's own
+    snapshot, with a flag to check everything).
     `poo node -reverify` ignores the snapshots on that start, replays
     every log whole, and where a snapshot covered the whole log compares
     the pool the replay built with the snapshot's fingerprint
