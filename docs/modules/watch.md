@@ -16,7 +16,7 @@ node. Decisions D90 (filter), D91 (stream) and D94 (bounded views).
 | Call | Returns | Filter fields used |
 | --- | --- | --- |
 | `Pools(e, f)` | `[]Pool`: series, pool, first and last serial, tip, height, weight, entries, branches, pending | series, pool, serial |
-| `LedgerPage(e, key, f, below, limit)` | `Ledger`: the pool's height and weight, entries newest first from height `below` (0: the tip), and `next`, the height to ask for next (0: done) | all but kind; with item fields set, only entries holding a matching transaction, with only those transactions |
+| `LedgerPage(e, key, f, below, limit)` | `Ledger`: the pool's height and weight, entries newest first from height `below` (0: the tip), and `next`, the height to ask for next (0: done); `unreadable` counts entries whose bodies could not be read back from the log, each listed with `unreadable: true` and no transactions (RED-084, D173); `AddressPage` counts them the same way | all but kind; with item fields set, only entries holding a matching transaction, with only those transactions |
 | `Pending(e, f)` | `[]PendingTx`: pending transactions, oldest first within each pool | all but kind |
 | `Holdings(e, f)` | `[]Holding`: unspent portions (input, serial, address, amount) | all but kind; tid selects by the transaction that made the portion |
 | `TxOfSeries(e, series, tid, serial)` | `TxStatus`: pool, pending, selected, entry, height, weight behind it (`from`), rivals, and the transaction with its `raw` bytes | none; `serial` (optional) limits the search to one pool. `ErrNotFound` when the node does not hold it |

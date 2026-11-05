@@ -249,7 +249,7 @@ func (h *Hub) observe(ev node.Event) {
 		// A layer matters to whoever watches the transactions of its entry.
 		var txs []Tx
 		h.eng.Ledger(ev.Key, func(p *ledger.Pool) {
-			if en, ok := p.Entry(ev.Layer.Entry); ok {
+			if en, err := p.Entry(ev.Layer.Entry); err == nil {
 				txs = txsOf(s, en)
 			}
 		})
@@ -280,8 +280,11 @@ func (h *Hub) switchEvents(s *series.Series, k engine.PoolKey, base Event, sw *l
 	var applied []Tx
 	h.eng.Ledger(k, func(p *ledger.Pool) {
 		for _, eh := range sw.Applied {
-			en, ok := p.Entry(eh)
-			if !ok {
+			// A body that cannot be read back is a damaged log, which
+			// poo doctor reports; the switch's events leave it out
+			// (RED-084, D173).
+			en, err := p.Entry(eh)
+			if err != nil {
 				continue
 			}
 			height, _ := p.HeightOf(eh)

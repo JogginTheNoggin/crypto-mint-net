@@ -72,9 +72,11 @@ func NewBodyCache(maxBytes int64) *BodyCache {
 	return &BodyCache{max: maxBytes, lru: list.New(), items: map[bodyKey]*list.Element{}}
 }
 
-// bodySize estimates the memory one body takes: its byte form and the
-// structures that hold it.
-func bodySize(e *entry.Entry) int64 { return int64(e.Size())*2 + 256 }
+// bodySize is the memory one body takes, as measured (ORANGE-038): its
+// byte form and about 1 KiB of structures, so entry_cache_mib means MiB
+// of memory (D173). It was twice the byte form plus 256 bytes, which
+// counted about twice what bodies take.
+func bodySize(e *entry.Entry) int64 { return int64(e.Size()) + 1024 }
 
 func (c *BodyCache) get(k bodyKey) (*entry.Entry, bool) {
 	c.mu.Lock()

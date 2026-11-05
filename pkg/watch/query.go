@@ -80,6 +80,9 @@ type Entry struct {
 	TxCount   int           `json:"tx_count"`
 	// Txs are the entry's transactions that the filter selects.
 	Txs []Tx `json:"txs"`
+	// Unreadable is set when the entry's body cannot be read back from
+	// the node's log: Txs is empty and tx_count 0 (RED-084, D173).
+	Unreadable bool `json:"unreadable,omitempty"`
 }
 
 // Ledger is one page of a pool's selected ledger, newest first.
@@ -92,6 +95,10 @@ type Ledger struct {
 	// Next is the height to ask for the next, older page; 0 when there is
 	// none.
 	Next int `json:"next"`
+	// Unreadable counts the entries looked at whose bodies could not be
+	// read back from the node's log, so the page may miss transactions
+	// that match (RED-084, D173). poo doctor reports the damage.
+	Unreadable int `json:"unreadable,omitempty"`
 }
 
 // LedgerPage returns entries of pool k's selected ledger from height
@@ -123,11 +130,20 @@ func LedgerPage(e *engine.Engine, k engine.PoolKey, f filter.Filter, below, limi
 		for ; h >= 1 && len(out.Entries) < limit && looked < 50*limit; h-- {
 			looked++
 			eh := p.Chain(h, h)[0]
-			en, _ := p.Entry(eh)
+			en, rerr := p.Entry(eh)
 			info, _ := p.Info(eh)
 			from, _ := p.From(eh)
 			v := Entry{Hash: eh, Parent: info.Parent, Height: h, Own: info.Own, Ledger: info.Ledger, From: from,
-				Layers: info.Layers, FirstSeen: info.FirstSeen, TxCount: len(en.Txs), Txs: []Tx{}}
+				Layers: info.Layers, FirstSeen: info.FirstSeen, Txs: []Tx{}}
+			if rerr != nil {
+				out.Unreadable++
+				v.Unreadable = true
+				if !itemLevel {
+					out.Entries = append(out.Entries, v)
+				}
+				continue
+			}
+			v.TxCount = len(en.Txs)
 			for _, t := range txsOf(s, en) {
 				if f.Match(t.Subject(s, "")) {
 					v.Txs = append(v.Txs, t)
@@ -304,6 +320,10 @@ type Address struct {
 	// the height to pass as below for the rest (narrow the scope to that
 	// pool).
 	Next []PoolNext `json:"next,omitempty"`
+	// Unreadable counts the entries walked whose bodies could not be read
+	// back from the node's log, so the history may be missing items
+	// (RED-084, D173).
+	Unreadable int `json:"unreadable,omitempty"`
 }
 
 // PoolNext is where the history of one pool continues.
@@ -364,7 +384,11 @@ func AddressPage(ctx context.Context, e *engine.Engine, id, a hash.Hash, f filte
 					}
 				}
 				eh := p.Chain(h, h)[0]
-				en, _ := p.Entry(eh)
+				en, rerr := p.Entry(eh)
+				if rerr != nil {
+					out.Unreadable++
+					continue
+				}
 				for _, t := range txsOf(s, en) {
 					if !f.Match(t.Subject(s, "")) {
 						continue

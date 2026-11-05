@@ -1144,6 +1144,11 @@ type Payment struct {
 	// the same portions, heaviest first. Against each, the margin is From
 	// minus the rival's weight after its fork point.
 	Rivals []ledger.Rival
+	// Unreadable is set when the transaction is in the selected ledger
+	// but its entry's body cannot be read back from the log: Tx is then
+	// nil, and Rivals were still found, from the entry's skeleton
+	// (RED-084, D173).
+	Unreadable bool
 }
 
 // Payment reports where a transaction stands in pool k.
@@ -1158,7 +1163,7 @@ func (e *Engine) Payment(k PoolKey, tid hash.Hash) (Payment, error) {
 	if eh, ok := p.ledger.Locate(tid); ok {
 		w, _ := p.ledger.From(eh)
 		out = Payment{Entry: eh, From: w, Selected: true}
-		if en, ok := p.ledger.Entry(eh); ok {
+		if en, err := p.ledger.Entry(eh); err == nil {
 			h := p.ledger.Series().Hash()
 			for _, t := range en.Txs {
 				if t.TID(h) == tid {
@@ -1166,12 +1171,20 @@ func (e *Engine) Payment(k PoolKey, tid hash.Hash) (Payment, error) {
 					break
 				}
 			}
+		} else {
+			out.Unreadable = true
 		}
 	} else if t, ok := p.pending.Get(tid); ok {
 		out = Payment{Pending: true, Tx: t}
 	}
-	if out.Tx != nil {
-		out.Rivals = p.ledger.Rivals(out.Tx, tid)
+	// Rivals need only the inputs, which the skeleton keeps.
+	if spend := out.Tx; spend != nil || out.Unreadable {
+		if spend == nil {
+			spend, _ = p.ledger.Tx(out.Entry, tid)
+		}
+		if spend != nil {
+			out.Rivals = p.ledger.Rivals(spend, tid)
+		}
 	}
 	return out, nil
 }

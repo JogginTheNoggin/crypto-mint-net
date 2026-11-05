@@ -452,8 +452,8 @@ func (n *Node) liveRecords(k engine.PoolKey) ([]liveItem, error) {
 				it.loc, it.at = b.locOf(h)
 			}
 			if !it.at {
-				e, ok := p.Entry(h)
-				if !ok {
+				e, err := p.Entry(h)
+				if err != nil {
 					bad = fmt.Errorf("node: compact %s: no body for entry %s", k, h.Short())
 					return
 				}

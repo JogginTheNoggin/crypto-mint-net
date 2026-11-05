@@ -146,8 +146,9 @@ func (tw *twin) compareBodies(t *testing.T, p *ledger.Pool, held []hash.Hash) {
 		t.Fatalf("twin keeps %d bodies in memory after ReleaseBodies", n)
 	}
 	for _, h := range held {
-		a, ok1 := p.Entry(h)
-		b, ok2 := tw.pool.Entry(h)
+		a, err1 := p.Entry(h)
+		b, err2 := tw.pool.Entry(h)
+		ok1, ok2 := err1 == nil, err2 == nil
 		if ok1 != ok2 {
 			t.Fatalf("entry %s: held by pool %v, twin %v", h.Short(), ok1, ok2)
 		}
@@ -195,8 +196,8 @@ func TestBodyCacheBound(t *testing.T) {
 	tw.compareBodies(t, f.pool, hs)
 	// A failed read hides the body and decides nothing.
 	tw.src.fail = true
-	if _, ok := tw.pool.Entry(hs[0]); ok {
-		t.Fatal("a failed read returned a body")
+	if e, err := tw.pool.Entry(hs[0]); !errors.Is(err, ledger.ErrUnreadable) || e != nil {
+		t.Fatalf("a failed read: %v, %v", e, err)
 	}
 	if tw.cache.Stats().Errors == 0 {
 		t.Fatal("a failed read was not counted")

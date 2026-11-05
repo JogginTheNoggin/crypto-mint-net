@@ -4273,3 +4273,56 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
     `bodies_internal_test.go`: `TestPoolBodiesChecks`.
   - `pkg/nodepolicy/filelimit_test.go`: `TestCheckFileLimit`,
     `TestFollowedPools`.
+
+### D173. Round 28 fixes: RED-084, with ORANGE-038 and its cache sizing (BLUE-029)
+
+jerry approved Orange's cache sizing on 2026-11-04 ("That's fine"):
+count `entry_cache_mib` in real bytes, with a 256 MiB default.
+
+- **Decision:**
+  - **An unreadable body is not held, for the caller.** `Pool.Entry(h)`
+    returns `(*entry.Entry, error)`: `ErrNoEntry` or `ErrUnreadable`, and
+    never a nil entry without an error, so `e, _ :=` no longer hands a
+    caller a nil it can use. Every caller was checked:
+    - p2p serving: `entries` lists such an entry as not held, `parts`
+      replies `not held`, and an extension ends before it (`not held`
+      when it would be first). Nothing is encoded, and the asker fetches
+      the entry from another peer.
+    - `Rivals` searches each entry's skeleton items, which keep every
+      input, so it reads no body, costs no disk read under the engine
+      lock, and cannot miss a rival.
+    - `Engine.Payment` and `GET /payment` say `unreadable` (no `tx`); the
+      rivals are found from the skeleton (`Pool.Tx`).
+    - `watch.LedgerPage` and `AddressPage` count `unreadable` entries, and
+      a ledger page lists each with `unreadable: true`.
+    - The watch hub leaves such an entry's transactions out of its
+      events; compaction already stops with an error (D172).
+  - **Defence in depth.** A panic while handling one peer message closes
+    that peer, is logged with its stack, and is not counted against the
+    peer. The process runs on.
+  - **`poo doctor` warns** (`bodies`) when the running node counted
+    failed body reads, and says to check the disk and restart: on start
+    the node cuts a pool log at its first damaged record and fetches the
+    rest again from peers. Refetching in place, with no restart, is left
+    for later; it needs the log to take a second record of an entry.
+  - **ORANGE-038 (#201) is carried:** bodies are released with their
+    items' witnesses, and the chase walks parents from the skeleton.
+  - **Cache sizing (Orange's proposal 2, jerry):** a body counts as its
+    byte form plus 1 KiB, as measured, and `entry_cache_mib` defaults to
+    256. Orange's proposal 1 (reading bodies outside the engine lock when
+    serving) is left for Grey.
+  - **GUI-029** needs nothing more from the source: D171 already lists a
+    ceiling-less series in the plan's `unbounded`, as a warning only, and
+    `series_ceiling` stays off by default. The GUI shows it.
+- **Why:** A body read can fail since D172, so "held" no longer means
+  "readable". Treating an unreadable body as missing information is what
+  a node does with any entry it lacks: it is fetched again, and nothing is
+  decided from it.
+- **Consensus:** None. No verdict reads a body that is not in memory
+  (D172). The cache's size changes cost only. A node that cannot serve an
+  entry leaves its peers short of information, never in disagreement.
+- **Tier:** Ledger, p2p, engine, watch, RPC, CLI, node policy.
+  - `pkg/p2p/blue029_test.go`: `TestDamagedLogDoesNotCrashServing`.
+  - `pkg/node/blue029_test.go`: `TestDamagedLogQueriesSayIncomplete`.
+  - `pkg/ledger/bodies_test.go`: `TestBodyCacheBound` (a failed read
+    returns `ErrUnreadable`).

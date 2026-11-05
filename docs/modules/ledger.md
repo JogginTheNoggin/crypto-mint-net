@@ -21,8 +21,15 @@ plus the top K other branches. It reproduces the design's worked example
   users read bodies back through `Config.Bodies`, a `BodyCache`
   (`NewBodyCache(maxBytes)`, `SetMax`, `Stats`) shared by every pool of a
   node and bounded in bytes. No check of an entry reads a body that is not
-  in memory, so the cache changes cost, never verdicts. A failed read
-  hides the body from that query and is counted (`BodyStats.Errors`).
+  in memory, so the cache changes cost, never verdicts. A failed read is
+  counted (`BodyStats.Errors`). `Entry(h)` returns `(*entry.Entry,
+  error)`: `ErrNoEntry` for an entry not held, `ErrUnreadable` for one
+  whose body cannot be read back, and never a nil entry without an error,
+  so a caller cannot use one by mistake (RED-084, D173). `Tx(h, tid)`
+  gives a transaction from the skeleton, without witnesses once the body
+  was released. `Rivals` searches the skeleton's items, so it reads no
+  body and misses no rival. The cache counts a body as its byte form plus
+  1 KiB, about what it takes in memory (ORANGE-038, D173).
   `InMemory()` counts bodies still held by the pool.
 - `AddEntry(e) (AddResult, error)` and `AddLayer(l) (AddResult, error)`.
   `AddResult` carries the entry hash, an optional `*Switch` and the pruned
