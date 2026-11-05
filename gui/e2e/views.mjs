@@ -261,8 +261,14 @@ try {
   await fill(lexp, 'From height', '1');
   assert.equal(await lexp.locator('.cmd code').innerText(), `poo ledger export -root ${home} -pool 0 -from 1`);
   await lexp.locator('button[type=submit]').click();
-  await lexp.locator('.result', { hasText: 'poo ledger' }).waitFor();
+  // The file is said in a line, with Save as file; poo's output is
+  // folded under Output as printed and drawn only when opened
+  // (GUI-GREEN-059).
+  await lexp.locator('.ledger-exported', { hasText: /^A ledger file of pool 0 (with no entries|: \d+ entr)/ }).waitFor();
   await lexp.locator('button', { hasText: 'Save as file' }).waitFor();
+  assert.equal(await lexp.locator('details.raw .result table, details.raw .result dl').count(), 0, 'the ledger is not drawn before Output as printed is opened');
+  await lexp.locator('details.raw summary').click();
+  await lexp.locator('details.raw .result', { hasText: 'poo ledger' }).waitFor();
   await fill(lexp, 'To a file', lfile);
   await lexp.locator('button[type=submit]').click();
   await lexp.locator('.result', { hasText: 'wrote 0 entries' }).waitFor();

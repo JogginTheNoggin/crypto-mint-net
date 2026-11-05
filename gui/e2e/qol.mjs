@@ -324,6 +324,17 @@ try {
     return [parseJSON, parseMarked].map(f => { try { const v = f(text); return [typeof v.s, v.s.length, typeof v.t, typeof v.n, String(v.n)]; } catch (e) { return `threw: ${e.message}`; } });
   });
   assert.deepEqual(pj3, [['string', 7, 'string', 'bigint', '9007199254740993'], ['string', 7, 'string', 'bigint', '9007199254740993']], 'a string is never read as a number');
+  // A ledger export is offered to save only as one whole ledger file:
+  // cut at either end, short of its own from..to, or another kind of
+  // file, it is not (GUI-GREEN-059).
+  const ls = await page.evaluate(async () => {
+    const { ledgerSummary } = await import('/views/pools.js');
+    const entry = h => `{"height":${h},"hash":"${'a'.repeat(64)}","item":"AAAA"}`;
+    const file = (from, to, n, kind = 'poo ledger') => `{\n  "kind": "${kind}",\n  "format": 1,\n  "pool": 3,\n  "from": ${from},\n  "to": ${to},\n  "height": 9,\n  "entries":[${Array.from({ length: n }, (_, i) => '\n    ' + entry(from + i)).join(',')}\n  ]\n}\n`;
+    const whole = file(2, 4, 3);
+    return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poo settings')), ledgerSummary('wrote 3 entries to x')];
+  });
+  assert.deepEqual(ls, ['A ledger file of pool 3: 3 entries, heights 2 to 4 of 9.', 'A ledger file of pool 3: 1 entry, heights 1 to 1 of 9.', 'A ledger file of pool 3 with no entries: the selected ledger\'s height is 9.', null, null, null, null, null]);
   // The Followed series table names the reserve series by poo's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).

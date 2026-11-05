@@ -29,7 +29,9 @@ built.
   masks a passphrase or seed exactly when poo reads one (D89). Its Work view
   runs and follows `poo grind` jobs: devices, plan, rate and finds. The
   header shows the release it runs, the same version `poo version` prints
-  (GUI-GREEN-058).
+  (GUI-GREEN-058). A ledger export shown in the page is said in
+  one line with Save as file, offered only for one whole ledger file, and
+  poo's output is folded under Output as printed (GUI-GREEN-059).
 - **Cryptographic choice:** a series can use SHA-256, SHA-512/256,
   SHA3-256, BLAKE2b-256 or BLAKE3; allow Ed25519, ECDSA (P-256, P-384,
   P-521, secp256k1), BIP-340 Schnorr and ML-DSA-44/65/87 keys; and allow
