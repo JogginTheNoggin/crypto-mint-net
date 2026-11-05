@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (GUI Round 34 Part A, merged as is) |
 | Based on | main @ 3c4ae00 |
 | Area | gui/web/static/views/pools.js (Export a pool's ledger, ledgerSummary), gui/e2e/views.mjs, gui/e2e/qol.mjs, CHANGELOG.md, docs/FEATURES.md |
 | Effort | small |

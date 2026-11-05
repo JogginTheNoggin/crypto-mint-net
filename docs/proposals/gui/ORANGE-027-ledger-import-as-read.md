@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (needs Source: pkg/cli/ledgerport.go) |
+| Status | accepted; Source Grey queued it for Source R34A |
 | Based on | main @ 3c4ae00 |
 | Area | `ledgerImportCmd` in pkg/cli/ledgerport.go (Source). The GUI runs it in poo-gui's own process from the Pools view's "Import a ledger" form |
 | Effort | small |

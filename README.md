@@ -86,7 +86,14 @@ terminal; every click runs a `poo` command ([docs/gui.md](docs/gui.md)):
 
 ```sh
 cd gui && go run ./cmd/poo-gui   # opens the GUI in your browser
+go -C gui build -o poo-gui ./cmd/poo-gui   # or build it once: ./gui/poo-gui
 ```
+
+Each release also ships `poo-gui-VERSION-OS-ARCH` archives (`.tar.gz`, or
+`.zip` on Windows) beside the `poo` ones, with `SHA256SUMS`
+(`scripts/release.sh`). `go install github.com/JogginTheNoggin/crypto-mint-net/gui/cmd/poo-gui@TAG` does not work:
+`gui/go.mod` points at the core module in this tree with a `replace`, which
+`go install` refuses. Build from a checkout of the tag instead.
 
 ## Repository layout
 

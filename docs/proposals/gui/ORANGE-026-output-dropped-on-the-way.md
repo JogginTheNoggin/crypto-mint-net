@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (prototype on this branch) |
+| Status | adopted (GUI Round 34 Part A, the prototype as is) |
 | Based on | main @ 3c4ae00 |
 | Area | gui/web/static/views.js (`runJob`, `drawn`, new `incomplete`), gui/e2e/qol.mjs; it touches every form that offers Save as file (ledger, node policies, settings, peers and series exports) |
 | Effort | small |

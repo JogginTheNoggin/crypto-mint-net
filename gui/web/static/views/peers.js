@@ -7,6 +7,29 @@ import { allOf, count, importForm, planTable, saveAs, someOf } from './policies.
 // takes blocked and timed-out. parity.mjs holds both lists to poo -h.
 const CATEGORIES = ['candidate', 'priority', 'backup', 'archived', 'unlisted'];
 
+// releaseNotes says, from poo peers' answer, which releases the connected
+// peers claim (counts.releases, D186), with "" as "not shared", and that a
+// peer's release and claimed features are its own claim, which the node
+// never uses to choose, rank or refuse a peer (GUI White S3).
+export function releaseNotes(o) {
+  const out = [];
+  const rs = o && o.counts && o.counts.releases;
+  if (rs && typeof rs === 'object' && Object.keys(rs).length) {
+    const parts = Object.entries(rs).sort((a, b) => b[1] - a[1]).map(([r, k]) => `${r ? `v${r}` : 'not shared'}: ${k} ${k === 1 ? 'peer' : 'peers'}`);
+    out.push(el('p', { class: 'hint peer-releases' }, `Releases the connected peers claim: ${parts.join('; ')}. Each is the peer's own claim.`));
+  }
+  if (o && Array.isArray(o.peers) && o.peers.some(x => x && (x.release || (x.claimed_features || []).length))) {
+    out.push(el('p', { class: 'hint peer-claims' }, 'Each peer\'s release and claimed features are what its hello says: its own claim, never checked, and never used to choose, rank or refuse it.'));
+  }
+  return out;
+}
+const withReleaseNotes = (r, area) => {
+  let o;
+  try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+  const notes = releaseNotes(o);
+  if (notes.length) area.prepend(...notes);
+};
+
 export const peersView = {
   id: 'peers',
   title: 'Peers',
@@ -14,14 +37,14 @@ export const peersView = {
     return mountAll(root, 'Peers', 'Who the node is connected to, how they behave, and what it is checking.', [
       // The timed panel leaves the book out (-counts, ORANGE-017): a book
       // can hold 65,536 addresses. Find peers prints it when asked.
-      panel(ctx, { title: 'Peers', about: 'Connected peers, their categories and points, and how many addresses the peer book holds in each state. Find peers below shows the book itself.', args: () => ['peers', ...where.flags(), '-counts'], refresh: 10000 }),
+      panel(ctx, { title: 'Peers', about: 'Connected peers, their categories and points, and how many addresses the peer book holds in each state. Find peers below shows the book itself.', args: () => ['peers', ...where.flags(), '-counts'], refresh: 10000, onResult: withReleaseNotes }),
       // The book filtered as poo peers filters it (D157).
       form(ctx, { title: 'Find peers', about: 'The peer book, only the addresses that match every field filled in.', fields: [
         { name: 'category', label: 'Categories (none ticked: all)', type: 'choices', options: CATEGORIES, flag: 'category' },
         { name: 'policy', label: 'Mint policy', placeholder: 'a series id, or a part of one' },
         { name: 'label', label: 'Label holds' },
         { name: 'addr', label: 'Address holds' }],
-      args: v => ['peers', ...where.flags(), ...flag('category', v.category), ...flag('mint-policy', v.policy), ...flag('label', v.label), ...flag('addr', v.addr)], submit: 'Find' }),
+      args: v => ['peers', ...where.flags(), ...flag('category', v.category), ...flag('mint-policy', v.policy), ...flag('label', v.label), ...flag('addr', v.addr)], submit: 'Find', onResult: withReleaseNotes }),
       // Adding a peer by hand, taking one out, labelling it and connecting
       // to it now (D157). Which action takes which flag is poo peer's own
       // rule; Connect with no address and Imported tries every address an

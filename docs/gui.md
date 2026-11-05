@@ -396,7 +396,12 @@ can read the GUI's code in place.
   `poo-gui poo ARGS...` runs a command exactly as `poo ARGS...` would, for
   scripts and for checking that the two agree.
 - Release archives ship `poo` always, and `poo-gui` in a separate archive
-  per platform. The downloader offers the headless tool, with the GUI as
+  per platform: `poo-gui-VERSION-OS-ARCH.tar.gz` (`.zip` on Windows),
+  listed in `SHA256SUMS` (`scripts/release.sh VERSION`). From a checkout,
+  `go -C gui build -o poo-gui ./cmd/poo-gui` builds the same program.
+  `go install github.com/JogginTheNoggin/crypto-mint-net/gui/cmd/poo-gui@TAG` does not work while `gui/go.mod`
+  replaces the core module with this tree, so build from a checkout of the
+  tag. The downloader offers the headless tool, with the GUI as
   an option. Both come from one source tree at one version.
 - If the GUI moves to its own repository, its `go.mod` requires the core
   module at a released version, and the downloader pairs the two at the
