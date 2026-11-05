@@ -7,7 +7,7 @@
 | Found | Source Round 33 Part B, on `main` @ `941049d` (D186) |
 | Area | `pkg/wire/messages.go` (`DecodeHello`), `pkg/wire/discovery.go` (`DecodePing`, `DecodePongReply`), `pkg/p2p/host.go` (`Protocol`) |
 | For Black | Not a rule: no ledger decision depends on it. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-034) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 8606137 (BLUE-034) |
 
 ## What is wrong
 

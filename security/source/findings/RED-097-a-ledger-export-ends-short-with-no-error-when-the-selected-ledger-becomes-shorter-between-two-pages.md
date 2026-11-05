@@ -7,7 +7,7 @@
 | Found | Source Round 33 Part B, on `main` @ `941049d` (D188) |
 | Area | `pkg/cli/ledgerport.go` (`writeLedgerFile`), `pkg/watch/export.go` (`Export`) |
 | For Black | Not a rule. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-034) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 8606137 (BLUE-034) |
 
 ## What is wrong
 

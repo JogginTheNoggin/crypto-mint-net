@@ -5,6 +5,7 @@
 | Fixes | RED-097 (low), RED-098 (low), RED-099 (low), GUI-031 (low, Source part) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `3c4ae00` (Source Round 33 Part C), with ORANGE-043 (#265) and GREEN-058 (#259) merged in |
+| Code | `8606137` |
 | Decisions | D189 |
 | With | ORANGE-043 (PR #265), carried: the streaming import that RED-098 and GUI ORANGE-027 ask for. GREEN-058 (PR #259), carried: it changes the same `ledgerport.go`. GUI-031's GUI part (drawing the partial summary) is GUI Blue's. |
 | Review | No consensus change. For Black: tools and RPC limits only; the first item of an import call has no size bound, as an entry has none (D144). For White: D186 stands; pre-D186 builds still cannot connect, now with a named error and a release note. |
