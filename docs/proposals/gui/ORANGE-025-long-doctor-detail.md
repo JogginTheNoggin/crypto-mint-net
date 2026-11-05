@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (GUI prototype on this branch; the second half needs Source) |
+| Status | adopted (R33A, the GUI prototype as is); the second half routed to Source |
 | Based on | main @ 5f80582 |
 | Area | gui/web/static/views/node.js (`doctorReport`, new `shortDetail`), gui/e2e/qol.mjs; for Source, the `ceiling` check in pkg/cli/doctor.go |
 | Effort | small |

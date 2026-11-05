@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (needs Source: pkg/series) |
+| Status | accepted by GUI Grey (R33A); routed to Source Grey for pkg/series |
 | Based on | main @ 5f80582 |
 | Area | `addVariableID` and `IsVariableID` in pkg/series/released.go (Source). The GUI sees it through `poo doctor` (Health check), `poo node` (Start node) and every in-process command that builds the followed series |
 | Effort | small |

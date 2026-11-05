@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 32 Part B) |
+| Status | adopted (Round 33 Part A, merged as is) |
 | Based on | main @ 5f80582 |
 | Area | gui/server/server.go (Server.Version, /api/info), gui/cmd/poo-gui/main.go, gui/web/static/api.js, app.js, index.html, style.css, gui/server/server_test.go, gui/e2e/qol.mjs, CHANGELOG.md, docs/FEATURES.md |
 | Effort | small |
