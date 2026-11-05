@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 30 Part B) |
+| Status | adopted (Round 31 Part A, merged as is) |
 | Based on | main @ 0ade046 |
 | Area | gui/web/static/views.js (panel `start`), views/node.js (Each pool, What the node follows, followView), gui/e2e/views.mjs, docs/FEATURES.md |
 | Effort | small |

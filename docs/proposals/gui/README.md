@@ -62,7 +62,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-053](GUI-GREEN-053-say-what-a-change-did.md) | One line over a change's result saying what poo's reply says it did (in place, reloading, saved for the next start, nothing changed) on Set limits and Add a release; Tries states poo's default; the plan names SLH-DSA-SHA2-128s; for Source, mark which limits apply in place | small | yes | adopted |
 | [GUI-GREEN-054](GUI-GREEN-054-newcomers-on-the-reserve.md) | Newcomers on the reserve default: Getting started writes `poo init` (the reserve) instead of `-example`; a Followed series panel names the built-in reserve series from poo's `builtin`; notes for Orange (two 1,024-row pool tables) and Grey (a first-mint step) | small | yes | adopted (R29A) |
 | [GUI-GREEN-055](GUI-GREEN-055-exact-amounts.md) | Amounts above 2^53 were shown rounded (JSON.parse); `parseJSON` keeps them exact as BigInt for results, series panels and Watch events; for Source, print amounts, balances and totals as decimal strings as weight and units already are | small | yes | adopted (R30A; the Source part is queued) |
-| [GUI-GREEN-056](GUI-GREEN-056-node-view-on-demand.md) | On the reserve the Node view still drew 1,008 rows and 23,550 elements on every open (Each pool ran `poo status` on mount; the follow list drew 1,024 pools); `panel({ start: false })` and a folded follow pools list bring it to 451 elements; for Source, `builtin` on `status -counts` rows | small | yes | proposed |
+| [GUI-GREEN-056](GUI-GREEN-056-node-view-on-demand.md) | On the reserve the Node view still drew 1,008 rows and 23,550 elements on every open (Each pool ran `poo status` on mount; the follow list drew 1,024 pools); `panel({ start: false })` and a folded follow pools list bring it to 451 elements; for Source, `builtin` on `status -counts` rows | small | yes | adopted (R31A) |
 
 ## Orange (performance)
 
@@ -94,7 +94,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-019](ORANGE-019-variable-series-table-in-parts.md) | Draw the Variable series table 500 rows at a time, with Show more (4,096 followed series: 32,800 elements, panel in 1.1–1.25 s → 4,000 elements, 0.6–0.8 s) | small | yes | adopted |
 | [ORANGE-020](ORANGE-020-output-as-printed-when-opened.md) | Draw "Output as printed" only when it is opened (Node view with 4,096 followed series: 60,970 → 28,887 elements; Variable series panel 0.45–1.0 s → 0.35–0.42 s) | small | yes | adopted |
 | [ORANGE-021](ORANGE-021-followed-pools-refresh-without-every-pool.md) | Let the Followed pools panel's 5 s refresh leave out the per-pool rows, with a `poo status` option (reserve series, 1,024 pools: 352 KB every 5 s, 5% busy, 150 ms pauses; 8,192 pools: 2.8 MB, 280 ms pauses, poo-gui 140 MB) | small | no | adopted (R30A, built on `poo status -counts`, D177) |
-| [ORANGE-022](ORANGE-022-parsejson-fast-path.md) | Let `parseJSON`'s fast path look for 16 digits only where a JSON number can start, so hex strings no longer send every answer through the slow scan (`poo status`, 1,024 pools: 7 → 1 ms; 4,096 followed series: 20 → 9 ms; 20,000 Watch events: 38 → 10 ms) | small | yes | proposed |
+| [ORANGE-022](ORANGE-022-parsejson-fast-path.md) | Let `parseJSON`'s fast path look for 16 digits only where a JSON number can start, so hex strings no longer send every answer through the slow scan (`poo status`, 1,024 pools: 7 → 1 ms; 4,096 followed series: 20 → 9 ms; 20,000 Watch events: 38 → 10 ms) | small | yes | adopted (R31A) |
 
 ### Re-checks each round
 

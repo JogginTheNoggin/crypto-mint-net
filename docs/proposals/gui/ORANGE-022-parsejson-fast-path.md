@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (GUI Round 31 Part A) |
 | Based on | main @ 0ade046 |
 | Area | gui/web/static/render.js (`parseJSON`), gui/e2e/qol.mjs |
 | Effort | small |
