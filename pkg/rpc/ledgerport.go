@@ -1,6 +1,8 @@
 package rpc
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -52,14 +54,16 @@ func (h *Handler) ledgerExport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, out)
 }
 
+// MaxImportBatchBytes bounds the items of one import call, beyond its
+// first: a call holds one item of any size (an entry has no size bound,
+// D144), and then more only while they total at most this. It is the size
+// of an export page, and poo ledger import sends batches of it (RED-098).
+const MaxImportBatchBytes = watch.ExportBytes
+
 func (h *Handler) ledgerImport(w http.ResponseWriter, r *http.Request) {
-	var req LedgerImportRequest
-	if e := decodeBody(r, &req); e != nil {
+	req, e := decodeImport(r.Body)
+	if e != nil {
 		writeError(w, e)
-		return
-	}
-	if len(req.Items) > node.MaxImportItems {
-		writeError(w, badRequest("items: %d, at most %d in one call", len(req.Items), node.MaxImportItems))
 		return
 	}
 	out, err := h.n.ImportItems(engine.PoolKey{Series: req.Series, Index: req.Pool}, req.Items)
@@ -68,6 +72,77 @@ func (h *Handler) ledgerImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, out)
+}
+
+// decodeImport reads an import call's body item by item, and stops at
+// the item that takes the call over node.MaxImportItems or over
+// MaxImportBatchBytes past its first item, so a call holds at most one
+// batch and one item, never the whole body first (RED-098). It refuses
+// unknown fields and anything after the object, as decodeBody does.
+func decodeImport(body io.Reader) (LedgerImportRequest, *Error) {
+	var req LedgerImportRequest
+	bad := func(format string, a ...any) (LedgerImportRequest, *Error) {
+		return LedgerImportRequest{}, badRequest("body: "+format, a...)
+	}
+	dec := json.NewDecoder(body)
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return bad("not a JSON object")
+	}
+	size := 0
+	for dec.More() {
+		t, err := dec.Token()
+		if err != nil {
+			return bad("%v", err)
+		}
+		switch t {
+		case "series":
+			err = dec.Decode(&req.Series)
+		case "pool":
+			err = dec.Decode(&req.Pool)
+		case "items":
+			if t, err = dec.Token(); err != nil {
+				return bad("%v", err)
+			}
+			if t == nil {
+				continue
+			}
+			if t != json.Delim('[') {
+				return bad("items is not a list")
+			}
+			for dec.More() {
+				if len(req.Items) == node.MaxImportItems {
+					return bad("items: more than %d in one call", node.MaxImportItems)
+				}
+				var b []byte
+				if err := dec.Decode(&b); err != nil {
+					return bad("items: %v", err)
+				}
+				if len(req.Items) > 0 {
+					if size+len(b) > MaxImportBatchBytes {
+						return bad("items: over %d MiB past the first item in one call; send fewer, or a large item alone", MaxImportBatchBytes>>20)
+					}
+					size += len(b)
+				}
+				req.Items = append(req.Items, b)
+			}
+			_, err = dec.Token()
+		default:
+			return bad("json: unknown field %q", t)
+		}
+		if err != nil {
+			return bad("%v", err)
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return bad("%v", err)
+	}
+	if dec.More() {
+		return bad("more than one JSON value")
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return bad("more than one JSON value")
+	}
+	return req, nil
 }
 
 // LedgerExport asks for one page of an export.

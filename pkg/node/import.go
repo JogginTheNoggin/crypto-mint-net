@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
@@ -55,8 +56,24 @@ func (n *Node) ImportItems(k engine.PoolKey, items [][]byte) (ImportResult, erro
 		return ImportResult{}, engine.ErrUnknownSeries
 	}
 	var out ImportResult
+	// Decode every item first and check the witnesses of the leading run
+	// that decodes on every core, outside the engine's lock, as a chase
+	// does with a page (PreverifyPage). That only fills the list of
+	// verified witnesses: each entry is still taken, in order, through
+	// every check below (ORANGE-043: one core checked them one at a time,
+	// about three quarters of an import's time).
+	decoded := make([]wire.EntryItem, len(items))
+	errs := make([]error, len(items))
+	var run []*entry.Entry
 	for i, b := range items {
-		it, err := wire.DecodeItem(b)
+		decoded[i], errs[i] = wire.DecodeItem(b)
+		if errs[i] == nil && len(run) == i {
+			run = append(run, decoded[i].Entry)
+		}
+	}
+	n.eng.PreverifyPage(k, run)
+	for i := range items {
+		it, err := decoded[i], errs[i]
 		if err != nil {
 			out.Refused = append(out.Refused, ImportRefusal{Index: i, Reason: err.Error()})
 			continue
