@@ -3,7 +3,7 @@ import * as api from '../api.js';
 import * as where from '../where.js';
 import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile, rawFold } from '../views.js';
 import { scrollback } from '../scroll.js';
-import { parseJSON } from '../render.js';
+import { parseJSON, render } from '../render.js';
 
 // node finds the node job this GUI is running, if any.
 async function nodeJob() {
@@ -41,10 +41,16 @@ export const nodeView = {
   mount(root, ctx) {
     const runArea = el('div', { class: 'area' });
     const startBtn = el('button', { type: 'button', class: 'primary' }, 'Start node');
-    const runLine = cmdLine(['node', ...where.flags()], ctx);
+    // -reverify (D178): this start ignores the pool snapshots and replays
+    // every log whole, then poo status says whether the replay matched.
+    const reverify = el('input', { type: 'checkbox', name: 'reverify' });
+    const nodeArgs = () => ['node', ...where.flags(), ...flag('reverify', reverify.checked)];
+    const runLine = cmdLine(nodeArgs(), ctx);
+    reverify.onchange = () => runLine.set(nodeArgs());
     const runSec = el('section', { class: 'panel' },
       el('div', { class: 'panel-head' }, el('h2', {}, 'Run the node'), startBtn),
       el('p', { class: 'hint' }, 'Runs poo node inside the GUI until you stop it or close the GUI. A node already running elsewhere (for example as a service) is used as it is: the views below talk to whichever node serves this node policy.'),
+      el('label', { class: 'check reverify' }, reverify, ' Check every record again on this start: ignore the pool snapshots and replay each pool log whole (slower; Followed pools then says whether the replay matched the snapshots)'),
       runLine, runArea);
     let following = null, unfollowLog = null, gone = false;
     const showRunning = async () => {
@@ -69,7 +75,7 @@ export const nodeView = {
     };
     startBtn.onclick = async () => {
       startBtn.disabled = true;
-      const a = ['node', ...where.flags()];
+      const a = nodeArgs();
       runLine.set(a);
       try { await api.start(a); } catch (e) { runArea.textContent = e.message; }
       setTimeout(showRunning, 200);
@@ -91,6 +97,12 @@ export const nodeView = {
         // (ORANGE-037), as poo status gives them; the GUI judges nothing.
         const notes = statusNotes(st);
         if (notes.length) area.prepend(...notes);
+        // The totals poo printed, one row per series, naming a series built
+        // into poo by its builtin field (D179). The notes above already say
+        // what bodies, file_limit and snapshots hold, so the rest stays
+        // folded under "Output as printed".
+        const raw = area.querySelector('.result');
+        if (raw && Array.isArray(st.series)) { raw.replaceWith(totalsTable(st.series)); area.append(rawFold(raw)); }
         if (!st.policy_changed) return;
         area.prepend(el('p', { class: 'next-step policy-changed', role: 'status' },
           'The node policy file has changed since the node loaded it, and the change waits for a reload. ',
@@ -124,8 +136,21 @@ export const nodeView = {
       { name: 'mint', label: 'Mints', type: 'list', placeholder: 'serial …' },
     ];
     const followArgs = (cmd, v) => [cmd, ...where.flags(), ...flag('issuer', v.issuer), ...flag('series', v.series), ...flags('pool', v.pool), ...flags('mint', v.mint), ...flag('replace', v.replace), ...flag('no-reload', v.noReload)];
-    const eachPool = panel(ctx, { title: 'Each pool', about: 'Where each followed pool stands, one row per pool, as poo status prints it. Press Refresh to update; it does not refresh by itself.', args: () => ['status', ...where.flags()] });
-    const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy.', args: () => ['follow', ...where.flags()] });
+    // Each pool and the follow list print a row for every pool: on the
+    // reserve series 350 KB and 410 KB, over 1,000 rows and 23,000 page
+    // elements each time the Node view opened. Each pool now runs when
+    // Show is pressed; the follow list shows its rules at once and draws
+    // its pools only when they are opened (GUI-GREEN-056).
+    const eachPool = panel(ctx, { title: 'Each pool', about: 'Where each followed pool stands, one row per pool, as poo status prints it. It runs when you press Show, and does not refresh by itself.', args: () => ['status', ...where.flags()], start: false });
+    const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy, and the pools it covers.', args: () => ['follow', ...where.flags()],
+      onResult: (r, area) => {
+        let o;
+        try { o = r.code === 0 && parseJSON(r.out); } catch (_) { return; }
+        const raw = area.querySelector('.result');
+        if (!o || !raw || !Array.isArray(o.pools)) return;
+        raw.replaceWith(followView(o));
+        area.append(rawFold(raw));
+      } });
     // Replace (GREEN-038, Source) is poo follow -replace: with a series, the
     // pools and mints given become all it follows of that series, in one
     // change. It shows only once a series is named, as poo requires.
@@ -204,6 +229,16 @@ export function variableTable(vs, cells) {
   return rowsTable(vs, cells, { headers: ['series', 'parts released', 'next part', 'mints', 'units', 'newest release'], cls: 'variable-series', more: 'variable-more', noun: 'variable series' });
 }
 
+// followView draws poo follow's JSON: the follow rules as printed, and
+// its pools folded under a count, drawn only when opened.
+export function followView(o) {
+  const rest = { ...o };
+  delete rest.pools;
+  const pools = el('details', { class: 'follow-pools' }, el('summary', {}, `${o.pools.length} ${o.pools.length === 1 ? 'pool' : 'pools'} followed`));
+  pools.addEventListener('toggle', () => { if (pools.open && pools.children.length === 1) pools.append(render(o.pools)); });
+  return el('div', { class: 'result follow-view' }, render(rest), pools);
+}
+
 // seriesName is what poo's builtin field names a series by: the default
 // reserve series (D170) or another series built into poo.
 export const seriesName = x => x.builtin === 'reserve' ? 'the built-in reserve series' : x.builtin ? `built in: ${x.builtin}` : '';
@@ -237,7 +272,34 @@ export function statusNotes(st) {
   const mib = (x, d) => num(x) ? (x / MIB).toFixed(d) : '?';
   if (b && num(b.max_bytes)) out.push(el('p', { class: 'hint entry-cache' },
     `Entry cache: ${mib(b.used_bytes, 1)} of ${mib(b.max_bytes, 0)} MiB (entry_cache_mib), ${n(b.bodies)} bodies; ${n(b.hits)} hits, ${n(b.loads)} read from disk${num(b.errors) && b.errors ? `, ${b.errors} failed reads` : ''}. ${n(b.in_memory)} of ${n(b.held)} entries are in memory${num(b.cold) ? `, and ${b.cold} older ones (outside recent_window) are read from the logs when needed` : ''}.`));
+  // Pool snapshots (D178), as poo sums them up.
+  const sn = st.snapshots;
+  if (sn && sn.off) out.push(el('p', { class: 'hint snapshots' }, 'Pool snapshots are off (no_snapshots): each start replays every pool log whole.'));
+  else if (sn && num(sn.pools)) out.push(el('p', { class: 'hint snapshots' },
+    `Snapshots: ${n(sn.pools - (num(sn.missing) ? sn.missing : 0))} of ${n(sn.pools)} pools with a log have one${num(sn.age_seconds) && sn.pools > sn.missing ? `, the oldest ${age(sn.age_seconds)} old` : ''}; a start would replay at most ${n(sn.behind)} records. A snapshot is written every ${n(sn.every)} records (snapshot_every), ${mib(sn.bytes, 1)} MiB in all.`));
+  // How the running node started: from snapshots, and under -reverify
+  // whether the full replay matched them.
+  const rp = st.replay;
+  if (rp && num(rp.snapshots)) out.push(el('p', { class: 'hint replay' },
+    `This start: ${n(rp.snapshots)} pools from their snapshots (${n(rp.snapshot_records)} records not read again), ${n(rp.records)} records replayed after them${(rp.snapshots_unused || []).length ? `; ${rp.snapshots_unused.length} snapshots not used: ${rp.snapshots_unused.slice(0, 5).join('; ')}${rp.snapshots_unused.length > 5 ? '; …' : ''}` : ''}.`));
+  if (rp && num(rp.reverified) && rp.reverified) out.push(el('p', rp.reverify_differed ? { class: 'next-step reverify-differed', role: 'alert' } : { class: 'hint reverify' },
+    rp.reverify_differed ? `Checked every record again: the full replay of ${rp.reverify_differed} of ${rp.reverified} pools built a different pool than its snapshot held. Run poo doctor and keep the logs for a report.`
+      : `Checked every record again: the full replay of all ${rp.reverified} pools matched their snapshots.`));
   return out;
+}
+
+// age says a number of seconds as the largest whole unit.
+function age(s) {
+  for (const [u, n] of [['day', 86400], ['hour', 3600], ['minute', 60]]) if (s >= n) { const k = Math.floor(s / n); return `${k} ${u}${k === 1 ? '' : 's'}`; }
+  return `${s} second${s === 1 ? '' : 's'}`;
+}
+
+// totalsTable is the Followed pools panel's table, from poo status
+// -counts: one row per series, with its name when it is built into poo.
+export function totalsTable(rows) {
+  const cells = x => [seriesName(x), el('code', { class: 'hex', title: String(x.series) }, String(x.series).slice(0, 16) + '…'),
+    ...['pools', 'entries', 'branches', 'pending', 'waiting', 'stored_records'].map(k => String(x[k] ?? ''))];
+  return rowsTable(rows, cells, { headers: ['name', 'series', 'pools', 'entries', 'branches', 'pending', 'waiting', 'stored records'], cls: 'series-totals', more: 'totals-more', noun: 'series' });
 }
 
 // rowsTable draws a list of rows ROWS at a time with Show more, as the

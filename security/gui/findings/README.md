@@ -5,6 +5,63 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 30 Part B reviewed main @ 0ade046 (PR #216):
+- Followed pools refreshing on `poo status -counts` (D177, ORANGE-021);
+- the Each pool panel, which runs only when asked;
+- cold entries in the entry cache line;
+- `parseJSON`, which keeps whole numbers above 2^53 exact as BigInt
+  (GUI-GREEN-055);
+- GUI-030's Source fix (D176), and the `statusNotes` fix for the R29B
+  nit.
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass. The
+coordinator named security/gui-red/findings/, but AGENTS.md and every
+earlier round use this directory, so the notes stay here.
+
+There are no new findings.
+
+Held up:
+- **GUI-030 is fixed.** See its R30B notes. Replace declines against
+  the node's own ceiling, a file can't lift that ceiling in the same
+  import, and duplicates are kept once. (A nit in the first draft of
+  this PR, that the `-replace` text plan leaves out `declined:`, was
+  wrong. It came from my own output trimming, and it's withdrawn.)
+- **`parseJSON`.** Run over edge cases: strings with escaped quotes and
+  backslashes around long digit runs, negative and fractional numbers,
+  and `1e400`. Digits inside strings stay text, and only bare integers
+  of 16 or more digits that aren't safe become BigInt. Nothing in render
+  or the panels that use it does arithmetic or `JSON.stringify` on such
+  a value. Copy output and Save as use poo's text as printed.
+- **`statusNotes`** shows "?" for a missing figure and no longer throws.
+- **Each pool** and **Followed pools** draw poo's fields as text.
+
+Hardening notes (optional, not findings):
+- **`parseJSON`'s sentinel.** A big number is passed through
+  `JSON.parse` as the string `"\u0000big:<digits>"`, and the reviver
+  turns *every* string starting with that prefix into a BigInt. So when
+  a reply holds a big number, a string value of poo's that starts with
+  NUL then `big:` comes back as a number (`"\u0000big:42"` → `42n`), or
+  makes the parse throw (`"\u0000big:x"`), and the result falls back to
+  text. I found no way to get such a string into poo's output: peer
+  labels, node policy text and peers all go through `plain.Text`, which
+  refuses control characters. For example, a policy file with
+  `p2p.peers: ["\u0000big:7"]` is refused at load. If the risk should
+  go regardless, the reviver can check `typeof v === 'number'` and read
+  the digits from its third argument (`context.source`, JSON.parse
+  source text access, in Chromium since 114), with no sentinel at all.
+  Or the swap can be recorded by position rather than by a prefix any
+  string could carry.
+  *Done by GUI/Blue in Round 30C:* where the browser gives the source
+  text, the reviver reads the digits from `context.source` and only ever
+  changes numbers. Elsewhere (`parseMarked`), the mark carries a random
+  part made for each call. qol.mjs checks both paths with
+  `"\u0000big:12"` and `"\u0000big:abc"` next to a big number. On the
+  old code it fails.
+- `parseJSON` also takes some invalid JSON that `JSON.parse` refuses,
+  such as a number with leading zeros (`00012345678901234567`). poo
+  never prints that.
+
 Round 29 Part B reviewed main @ 4e1c601 (PR #204):
 - GUI-029's fix: the plan's `unbounded` list as a Read first line, with
   `series_ceiling` now settable (D171);
@@ -683,4 +740,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-027](GUI-027-release-signs-without-showing-what-it-releases.md) | Low | "Release a part" asks for the issuer's seed and signs before showing which serials the release creates; the confirm shows only the command line, and the result has no range | fixed by GUI/Blue (Round 25C), merged Round 26; verified R26B @ eb74797 |
 | [GUI-028](GUI-028-far-part-job-cannot-be-stopped.md) | Low | A far part number (Preview, Sign, Show parts, or an issuer-signed far release) starts a job that hashes for hours; Stop doesn't end it, and 16 such jobs fill every job slot until poo-gui restarts | mitigated by GUI/Blue (Round 27C: cost confirm, Stop note); mitigation verified R28B @ adcf216; core fix routed to Source |
 | [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | fixed as a warning (Source D171 `unbounded`, GUI/Blue Read first; Apply stays, per jerry); verified R29B @ 4e1c601 |
-| [GUI-030](GUI-030-replace-import-ignores-series-ceiling.md) | Low | Import node policies with Replace never checks series_ceiling, so a series the node set a ceiling to decline is added anyway, and one listed twice is kept twice | fixed by Source (D176, #207) |
+| [GUI-030](GUI-030-replace-import-ignores-series-ceiling.md) | Low | Import node policies with Replace never checks series_ceiling, so a series the node set a ceiling to decline is added anyway, and one listed twice is kept twice | fixed by Source (D176, #207); verified R30B @ 0ade046 |

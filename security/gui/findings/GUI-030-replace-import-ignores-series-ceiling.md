@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed by Source (D176, #207); no GUI change needed |
+| Status | fixed by Source (D176, #207); no GUI change needed; verified by GUI/Red R30B @ 0ade046 |
 | Found on | main @ 4e1c601 (PR #204; D170 `series_ceiling`, made settable by D171 / RED-083) |
 | Component | pkg/nodepolicy/bundle.go (`Merge`: only the merge path, `mergeInto`, calls `DeclinesSeries`; `opt.Replace` takes `file.Series` whole); gui/web/static/views/policies.js (Import node policies' "Replace this node policy with the file's instead of merging" box) |
 | Surface | node (the series a node follows, from a policy file someone else made) |
@@ -113,3 +113,24 @@ policy-changed line after it was never drawn. Each figure is now read
 only if poo gave it as a number, and "?" is shown otherwise. e2e:
 views.mjs calls `statusNotes` with only `max_bytes`. It expects one
 line with "?" for the rest, and no throw. On the old code it throws.
+
+## Notes — Round 30B verification (held up)
+
+I checked this with poo and Playwright on 0ade046, using the same
+imp.json (one series with `max_witness: 0`, listed twice) and
+`series_ceiling=1024`.
+
+- **`-replace`.** The plan's `declined` names the series once. In the
+  GUI, with Replace ticked, the preview reads "Left out by this node's
+  series ceiling: 61d1cc6c: …" once, with no Read first alert, because
+  nothing unbounded is added. After Apply, node.json lists no series,
+  and `series_ceiling` is still 1024.
+- **`-replace -settings`** checks against the node's own ceiling, even
+  when the file raises it to 1 GiB or drops it. That change to
+  `series_ceiling` is named under "read first", so a file can't lift
+  the ceiling and slip a series past it in the same import.
+- **Duplicates** are kept once, by id.
+- The text plan for `-replace` prints the `declined:` line as well. I
+  said in an earlier draft that it didn't. That was my mistake: a `sed
+  -n 3,7p` cut it off, because a plan that changes nothing has no
+  digest line at the top.

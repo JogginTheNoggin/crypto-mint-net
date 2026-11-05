@@ -40,11 +40,18 @@ try {
   await init.locator('button[type=submit]').click();
   await init.locator('.result', { hasText: '1 series' }).waitFor();
 
-  // Start the node and see its pools rendered as a table.
+  // Start the node and see its pools rendered as a table. The box for
+  // -reverify (D178) adds it to the line, and is left off.
+  const runNode = section('Run the node');
+  const rev = runNode.locator('label.reverify input');
+  await rev.check();
+  assert.match(await runNode.locator('.cmd code').innerText(), / -reverify$/);
+  await rev.uncheck();
+  assert.doesNotMatch(await runNode.locator('.cmd code').innerText(), /-reverify/);
   await page.click('button:has-text("Start node")');
   await page.locator('.live-out', { hasText: 'rpc: listening' }).waitFor();
   const pools = section('Followed pools');
-  for (let i = 0; !(await pools.locator('table.data, dl.kv').count()); i++) {
+  for (let i = 0; !(await pools.locator('table.series-totals').count()); i++) {
     assert.ok(i < 40, 'status never rendered');
     await pools.locator('button:has-text("Refresh")').click();
     await page.waitForTimeout(250);
@@ -54,14 +61,35 @@ try {
   // row for the example's series with its 2 pools, no row per pool.
   assert.match(await pools.locator('.cmd code').innerText(), /^poo status -counts /);
   assert.doesNotMatch(await pools.innerText(), /"pools": \[/, 'no pool rows in the timed panel');
-  // Each pool runs the full poo status, only when shown or asked.
+  // One totals row: the example's series is not built into poo, so it has
+  // no name (D179), and it has 2 pools.
+  assert.match(await pools.locator('table.series-totals tbody tr').first().innerText(), /^\td0b927f79f[0-9a-f]{6}…\t2\t/);
+  // Snapshots (D178), as poo sums them up: a fresh node has no logs yet.
+  await pools.locator('.snapshots', { hasText: /^Snapshots: \d+ of \d+ pools with a log have one.*snapshot_every/ }).waitFor();
+  await pools.locator('.replay', { hasText: /^This start: \d+ pools from their snapshots/ }).waitFor();
+  // Each pool runs the full poo status only when Show is pressed
+  // (GUI-GREEN-056): not on opening the view.
   const each = section('Each pool');
   assert.match(await each.locator('.cmd code').innerText(), /^poo status -root /);
+  await each.locator('.not-run').waitFor();
+  assert.equal(await each.locator('.panel-head button').innerText(), 'Show');
   for (let i = 0; !(await each.locator('table.data, dl.kv').count()); i++) {
     assert.ok(i < 40, 'Each pool never rendered');
-    await each.locator('button:has-text("Refresh")').click();
+    await each.locator('.panel-head button').click();
     await page.waitForTimeout(250);
   }
+  assert.equal(await each.locator('.panel-head button').innerText(), 'Refresh');
+  // The follow list shows its rules, and its pools folded under a count,
+  // drawn when opened (GUI-GREEN-056).
+  const fol = section('What the node follows');
+  const folPools = fol.locator('details.follow-pools');
+  // The panel first ran before the policy was written; run it again.
+  await fol.locator('.panel-head button').click();
+  await folPools.waitFor();
+  assert.match(await folPools.locator('summary').innerText(), /^\d+ pools? followed$/);
+  assert.equal(await folPools.locator('table').count(), 0, 'the pools are not drawn until opened');
+  await folPools.locator('summary').click();
+  await folPools.locator('table.data tbody tr').first().waitFor();
   // The entry cache line comes from poo status's bodies (D172).
   await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\).*older ones \(outside recent_window\)/ }).waitFor();
   // A partial status reply (only max_bytes) is drawn with "?" for what
@@ -73,6 +101,16 @@ try {
   });
   assert.deepEqual(partial, ['Entry cache: ? of 64 MiB (entry_cache_mib), ? bodies; ? hits, ? read from disk. ? of ? entries are in memory.'], 'a partial reply is drawn, not thrown on');
   assert.equal(await pools.locator('.file-limit-low').count(), 0, 'no file limit alert when the limit is high enough');
+  // Under -reverify, a pool whose full replay differs from its snapshot
+  // is an alert; all matching is a plain line (D178).
+  const rv = await page.evaluate(async () => {
+    const m = await import(new URL('views/node.js', location.href).href);
+    const t = rp => m.statusNotes({ replay: rp }).filter(p => /Checked every record/.test(p.textContent)).map(p => [p.getAttribute('role'), p.textContent]);
+    return [t({ snapshots: 0, reverified: 3, reverify_differed: 1 }), t({ snapshots: 0, reverified: 3 })];
+  });
+  assert.equal(rv[0][0][0], 'alert');
+  assert.match(rv[0][0][1], /1 of 3 pools built a different pool/);
+  assert.deepEqual(rv[1], [[null, 'Checked every record again: the full replay of all 3 pools matched their snapshots.']]);
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
   const fs = section('Followed series');
