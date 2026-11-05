@@ -139,6 +139,10 @@ func TestPaymentFlow(t *testing.T) {
 	if len(st.Pools) != 1 || st.Pools[0].Tip != b.Hash || st.Pools[0].Height != 1 || st.Pools[0].Stored != 3 {
 		t.Fatalf("status %+v", st)
 	}
+	// The node names its release (W-10, D184).
+	if st.Release != node.RunningRelease() {
+		t.Fatalf("release %+v, want %+v", st.Release, node.RunningRelease())
+	}
 	ss, err := f.c.Series()
 	if err != nil || len(ss) != 1 || ss[0].ID != f.s.ID() || ss[0].Pools != 2 {
 		t.Fatalf("series %+v %v", ss, err)

@@ -234,6 +234,24 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 32 (D184):**
+  - `poo status` names the node's release (`release.version` and
+    `commit`), so a front end can tell when it talks to another version.
+  - After an upgrade, status lists the first 8 snapshots not used and
+    their count, not one line per pool; the start log names each.
+  - Going back a release no longer loses settings a newer one wrote in
+    node.json: they are kept on every save, and the node warns at start.
+- **Round 31 fixes (D183):**
+  - A router's address is confirmed only when the node's own listener
+    receives the dial-back's random token, so an echo or a copied hello
+    no longer passes.
+  - A mapping request that fails leaves nothing at the router: UPnP asks
+    for the address before mapping, and an unusable or unanswered request
+    is removed. A PCP lifetime of 0 is no mapping.
+  - Renewal comes at half the asked lease when the router states a longer
+    lifetime, a lifetime of 30 s or less is refused, and a stop no longer
+    waits on a silent dial-back. Green's port-map status (#234) is
+    carried.
 - **Round 31 (D182):**
   - **Port mapping, opt in.** `p2p.port_map` (`poo init -port-map`) asks
     the router to forward the peer port, by PCP, NAT-PMP or UPnP. The

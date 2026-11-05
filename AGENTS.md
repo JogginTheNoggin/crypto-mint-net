@@ -4,7 +4,7 @@
 
 This file tells an AI coding agent how to pick up work in this repository
 safely. First find your team in [Teams](#teams-read-first): Source or
-GUI, and Grey, Red, Blue, Green, Orange or Black. Then read
+GUI, and Grey, Red, Blue, Green, Orange, Black or White. Then read
 [CONTRIBUTING.md](CONTRIBUTING.md), then
 [docs/architecture.md](docs/architecture.md), then
 [docs/roadmap.md](docs/roadmap.md) to find the next milestone. Keep the
@@ -13,12 +13,14 @@ record decisions in [docs/decisions.md](docs/decisions.md), and do not change
 a byte form without updating the test vectors on purpose. No change may
 add or alter a consensus rule without the owner's approval, or make a hard
 fork possible through any setting; Black checks this at the end of every
-round.
+round. White checks, in the same step, that a change keeps older data
+folders, files and peers working and that releases are ready.
 
 ## Teams (read first)
 
-The project's owner splits the work into two layers, each with six
-teams. Every agent belongs to exactly one layer and one colour, given
+The project's owner splits the work into two layers. Source has seven
+teams (Grey, Red, Blue, Green, Orange, Black, White); GUI has the same
+without Black. Every agent belongs to exactly one layer and one colour, given
 when its thread is created (for example "Source/Red"). Stay in your lane.
 
 | Layer | Covers |
@@ -38,6 +40,7 @@ the source teams as a finding, not as a patch.
 | Orange | Performance and optimization: measures where time, memory, allocations, disk and network go, finds slow paths and waste, and proposes improvements backed by benchmarks or profiles, with an optional prototype. May challenge a feature's modular form where measurements show it really hurts performance (see Orange proposals). Grey decides whether to adopt each one | `claude/<layer>-orange` (or `claude/<layer>-orange-<topic>`), started from the integration line |
 | Green | Explores: quality-of-life improvements, nice-to-haves and new ideas, as written proposals with an optional prototype. Grey decides whether to adopt each one | `claude/<layer>-green` (or `claude/<layer>-green-<topic>`), started from the integration line |
 | Black | Guards consensus (added 2026-10-31): checks that no consensus rule is broken or changed, filters out any suggestion that adds or changes a consensus rule without the owner's approval, and checks every change extensively for a way to make a hard fork possible, including through node policy. Never implements fixes | Reads the integration line, Blue's branches and the proposals; writes only reviews under `docs/consensus/<layer>/`, on `claude/<layer>-black` |
+| White | Guards compatibility and releases (added 2026-11-05): checks that every change keeps older data folders, `node.json`, exports, wallets and older peers working across releases, owns version numbers, release readiness and approval to the owner, downloads and packaging, upgrade and rollback steps, and deprecations. Sends suggestions to Grey. Never implements them, and never decides consensus (that is Black) | Reads the integration line, Blue's branches and the proposals; writes only reviews under `docs/white/<layer>/` on its own branch |
 
 ### Rounds
 
@@ -50,7 +53,7 @@ previous one is finished:
 | A | Grey | Changes the integration line: its own work (from the owner or itself), the adopted Green and Orange proposals and the Blue fixes from the last round. Updates `BASE.md` | Red, Green and Orange, by naming the new base |
 | B | Red, Green and Orange, side by side | Start from Grey's new base. Red explores security and writes findings; Green explores creative ideas, loose ends, mismatches and inconsistencies and writes proposals; Orange measures performance and writes proposals with the measurements | Red's findings go to Blue; Green's and Orange's proposals go to Black in Part D, then to Grey for a later round's Part A |
 | C | Blue | Fixes Red's findings on its branch | Black |
-| D | Black | Reviews the round's changes: Grey's new base, Blue's fixes and the Green and Orange proposals. Flags any consensus change and any hard-fork risk, and filters out (marks *blocked*) every item that would add or change a consensus rule without the owner's approval | Grey, for the next round's Part A, and the owner for anything that needs approval |
+| D | Black and White, side by side (GUI: White only) | Review the round's changes: Grey's new base, Blue's fixes and the Green and Orange proposals. Black flags any consensus change and any hard-fork risk, and filters out (marks *blocked*) every item that would add or change a consensus rule without the owner's approval. White flags anything that breaks compatibility with older releases, files or peers, and tracks release readiness | Grey, for the next round's Part A, and the owner for anything that needs approval |
 
 The team working a part decides when that part is finished. When it is,
 it stops making edits and reports it (for example "Source Round 2 Part
@@ -119,6 +122,45 @@ decisions recorded there. When a Blue fix itself would be blocked (a fix
 for a Red finding that adds a limit, for example), Black says so and
 suggests a node-policy shape that keeps the rule; Blue reworks it in the
 next round's Part C, or Grey in Part A, as the owner directs.
+
+### White reviews (Part D)
+
+White works in Part D beside Black, from the same commits: Grey's base
+in `BASE.md`, each Blue branch waiting to be merged, and each Green and
+Orange proposal. Each layer has its own White (Source/White and
+GUI/White); in the GUI, which has no Black, White's review is the last
+part of the round. White writes one review per round,
+`docs/white/<layer>/ROUND-<N>.md`, following the checklist in
+`docs/white/<layer>/README.md`, which also holds the baseline of what is
+versioned. It puts each item in one of these verdicts:
+
+| Verdict | Meaning | What Grey does in Part A |
+| --- | --- | --- |
+| compatible | Older files, data folders and peers keep working, both ways across one release | May adopt or merge as usual |
+| compatible with conditions | Compatible only if the stated conditions hold (a release note, a migration step, a test) | Adopts only with the conditions, and records them in the decision |
+| breaking: needs a plan | Something an older release wrote or sends is refused or misread, with no format bump, no reader for the old form and no release note | Must not merge it as is. White names what breaks and the smallest plan that keeps it working |
+| release blocker | Fine to merge, but no release may be tagged until it is resolved | Merges; White tracks it in the release checklist |
+
+White's rules:
+
+- Every file a node writes carries a format number, and a release reads
+  what the previous release wrote. Fields are added, never repurposed.
+- Upgrade needs no manual step; going back one release loses nothing that
+  cannot be fetched again, or the release notes say what to do.
+- A flag, setting, endpoint or command is deprecated (still works, warns)
+  for a release before it is removed. A moved default is a release note.
+- Releases: White signs off the release checklist in its README and hands
+  it to the owner, who alone tags and publishes. `poo` and `poo-gui`
+  carry one version from one tag.
+- Source/White is the primary White (the owner, 2026-11-05). The two
+  Whites talk and cooperate, but GUI/White consults Source/White on
+  anything they share (release version, archives, changelog, release
+  approval, compatibility of the headless code the GUI runs) and follows
+  its lead; Source/White does not wait on GUI/White.
+- White never edits code or another team's files, and never decides
+  consensus: a compatibility fix that would need a new rule goes to Black
+  like any consensus suggestion. Byte form v1 and wire version 1 stay
+  frozen (D76).
 
 ### The integration line
 
@@ -317,5 +359,6 @@ fixes, what changed, the tests added, and how Grey can check it.
 | How a holder chooses coins, derives keys, pays or follows a payment | `pkg/wallet` (a decision for each habit), `poo wallet` in `pkg/cli/wallet.go` |
 | A network experiment, or one of the design's "tests to run" | `pkg/sim` (a scenario returning a report), `poo sim`, and its numbers in `docs/simulation.md` |
 | A new series setting | `pkg/series` (changes the byte form and so the vectors) |
+| Whether a change keeps older files, data folders and peers working, or a release is ready | `docs/white/<layer>/` (White's checklist, baseline and reviews), `docs/releasing.md` |
 | A consensus review, or whether a change is consensus | `docs/consensus/<layer>/` (Black's checklist and reviews), `docs/consensus-audit.md` (the baseline) |
 | The command-line tool | `pkg/cli` (every command; the GUI runs it too), `cmd/poo` (the process around it) |

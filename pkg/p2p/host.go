@@ -501,6 +501,10 @@ type Host struct {
 	mapped atomic.Pointer[string]
 	pmMu   sync.Mutex
 	pm     PortMapStatus
+	pmGW   string // PortMapStatus.Gateway, under pmMu
+	// probes are the dial-back tokens confirmSelf waits on (RED-090).
+	probeMu sync.Mutex
+	probes  map[string]chan struct{}
 	// configured are the addresses in cfg.Peers, dialled whatever their
 	// range; read-only after New.
 	configured map[string]bool
@@ -528,6 +532,7 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 
 		lastBcast: map[wire.Section]time.Time{},
 		selfAddrs: map[string]bool{},
+		probes:    map[string]chan struct{}{},
 
 		configured: map[string]bool{},
 	}

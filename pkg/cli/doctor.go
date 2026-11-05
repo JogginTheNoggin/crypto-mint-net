@@ -295,7 +295,8 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 		// -reverify was asked for and compared nothing for these pools;
 		// that is never "ok" (RED-088, D181).
 		c.Result = checkWarn
-		c.Detail = fmt.Sprintf("-reverify compared nothing for %d %s, whose snapshot does not reach the end of the log: %s", len(r.NotCompared), plural(len(r.NotCompared), "pool", "pools"), strings.Join(r.NotCompared, "; "))
+		n := max(r.NotComparedCount, len(r.NotCompared))
+		c.Detail = fmt.Sprintf("-reverify compared nothing for %d %s, whose snapshot does not reach the end of the log: %s", n, plural(n, "pool", "pools"), reasons(r.NotCompared, n))
 		c.Fix = "stop the node cleanly, which writes snapshots at the end of each log, then start it with -reverify again"
 	case s.Off:
 		c.Result = checkOK
@@ -305,7 +306,8 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 		// Every reason, not only the first: a damaged file and an
 		// upgrade read differently, and each pool may have its own
 		// (GREEN-055).
-		c.Detail = fmt.Sprintf("%d %s not used at the last start, so %s replayed whole: %s", len(r.Unused), plural(len(r.Unused), "pool snapshot was", "pool snapshots were"), plural(len(r.Unused), "its log was", "their logs were"), strings.Join(r.Unused, "; "))
+		n := max(r.UnusedCount, len(r.Unused))
+		c.Detail = fmt.Sprintf("%d %s not used at the last start, so %s replayed whole: %s", n, plural(n, "pool snapshot was", "pool snapshots were"), plural(n, "its log was", "their logs were"), reasons(r.Unused, n))
 		c.Fix = "nothing is needed if this follows an upgrade or a compaction; otherwise check the disk. A clean stop writes new snapshots"
 	case s.Behind > 2*max(s.Every, s.Due):
 		c.Result = checkWarn
@@ -348,24 +350,59 @@ func portMapCheck(st rpc.StatusReply) (Check, bool) {
 		c.Detail = fmt.Sprintf("the router forwards %s (%s, %s); a dial to it reached this node, so peers are offered it", pm.Advertised, pm.Method, life)
 	case p2p.PortMapSkipped:
 		c.Result = checkOK
-		c.Detail = "p2p.port_map is set but not used: p2p.advertise is set by hand, which always wins, or the node accepts no peers (p2p.listen is off)"
+		// The one reason that holds, when the node says which (GREEN-056).
+		why := pm.Reason
+		if why == "" {
+			why = "p2p.advertise is set by hand, which always wins, or the node accepts no peers (p2p.listen is off)"
+		}
+		c.Detail = "p2p.port_map is set but not used: " + why
 	case p2p.PortMapTrying:
 		c.Result = checkOK
 		c.Detail = "asking the router for a mapping"
 	case p2p.PortMapUnconfirmed:
 		c.Result = checkWarn
-		c.Detail = fmt.Sprintf("the router mapped %s, but a dial to it did not reach this node, so it is not offered and the mapping was removed", pm.External)
+		c.Detail = fmt.Sprintf("the router mapped %s, but a dial to it did not reach this node, so it is not offered and the mapping was removed", pm.External) + nextTry(pm)
 		c.Fix = "many routers cannot loop a connection back to their own address; if " + pm.External + " reaches this node from outside, set p2p.advertise to it"
 	case p2p.PortMapNotPublic:
 		c.Result = checkWarn
-		c.Detail = fmt.Sprintf("the router's external address %s is not public: this network is behind another NAT, such as carrier-grade NAT, so no mapping can reach this node", pm.External)
+		c.Detail = fmt.Sprintf("the router's external address %s is not public: this network is behind another NAT, such as carrier-grade NAT, so no mapping can reach this node", pm.External) + nextTry(pm)
 		c.Fix = "the node works with outbound connections only; for inbound ones ask the provider for a public address, or run it where it has one"
 	default:
 		c.Result = checkWarn
-		c.Detail = "the router gave no mapping: " + pm.Error
-		c.Fix = "turn on NAT-PMP, PCP or UPnP in the router, or set p2p.port_map_gateway if the gateway is not found; otherwise forward the port by hand and set p2p.advertise. The node keeps trying"
+		// Name the router asked, and when the node asks again, so a
+		// runner who fixes the router knows whether to wait or reload
+		// (GREEN-056).
+		asked := "no gateway was found"
+		if pm.Gateway != "" {
+			asked = "asked the router at " + pm.Gateway
+		}
+		c.Detail = "the router gave no mapping (" + asked + "): " + pm.Error + nextTry(pm)
+		c.Fix = "turn on NAT-PMP, PCP or UPnP in the router, or set p2p.port_map_gateway if that is not your router; otherwise forward the port by hand and set p2p.advertise. The node keeps trying, and poo reload tries again at once"
 	}
 	return c, true
+}
+
+// nextTry says when the node asks the router again, if it said.
+func nextTry(pm *p2p.PortMapStatus) string {
+	if pm.NextTry.IsZero() {
+		return ""
+	}
+	in := time.Until(pm.NextTry).Round(time.Second)
+	if in < 0 {
+		in = 0
+	}
+	return fmt.Sprintf("; it asks again in %s", in)
+}
+
+// reasons joins the per-pool reasons a status reply carries; when it
+// carries only the first of n, it says the node's start log names every
+// pool (D184).
+func reasons(l []string, n int) string {
+	s := strings.Join(l, "; ")
+	if n > len(l) {
+		s += fmt.Sprintf("; and %d more, each named in the node's start log", n-len(l))
+	}
+	return s
 }
 
 // grindCheck reports the devices this machine grinds on, a device the

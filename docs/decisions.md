@@ -4718,3 +4718,121 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     another node's address unconfirmed; not public; retry; a manual
     advertise wins; off by default.
   - `pkg/nodepolicy/portmap_test.go`; `pkg/cli/portmap_doctor_test.go`.
+
+### D183. Round 31 fixes: RED-090, RED-091 and RED-092 (BLUE-032)
+
+- **Decision:**
+  - **RED-090.** The dial-back now proves it reached this node's own
+    listener. `confirmSelf` puts a fresh random 128-bit token in the
+    hello it sends (`Agent` is `poo-self-check/` and the token in hex, so
+    the wire format is unchanged). The listener's handshake, on an
+    inbound hello with this node's own id, records a token `confirmSelf`
+    is waiting on (`sawSelfProbe`). Only that record confirms the
+    address. The far end's answer is not trusted: it can only end the
+    wait early with a failure (another node's hello, or a closed
+    connection). An echo server or a copy of the node's hello therefore
+    confirms nothing. This replaces D182's "must get its own hello back".
+    One case stays: a host that relays the connection to this node's real
+    listener passes. Connections to that address do reach this node, so
+    the address works for peers, and a relay sees no more than the router
+    already can.
+  - **RED-091.** A failed request leaves nothing at the router:
+    - UPnP asks for the external address before `AddPortMapping`, so that
+      failing makes nothing.
+    - A PCP reply that grants an address the node cannot use (not IPv4,
+      or port 0) is removed with the same nonce.
+    - A request whose answer was not read gets a short best-effort
+      removal with its own context, at most 1 s. That covers the caller's
+      context ending, and a UPnP call whose connection failed.
+    - A renewal's mapping stays the caller's to remove, as before. Since
+      each method cleans up after itself, `auto` moves to the next method
+      with nothing left behind.
+    - `exchange` now reports the caller's deadline as
+      `context.DeadlineExceeded` rather than "no answer", so a cut-short
+      wait is told apart from a silent router.
+  - **RED-092.**
+    - The renewal comes at half of the granted lifetime or of
+      `p2p.port_map_seconds`, whichever is shorter (`renewAfter`), and
+      never sooner than 30 s. A lifetime of 0 (until removed) counts as
+      the lease.
+    - A granted lifetime of 30 s or less is refused (`failed`, removed,
+      not advertised), since it would lapse before the renewal.
+    - A PCP reply with lifetime 0 is refused: in PCP that means no
+      mapping.
+    - The dial-back's dial, write and wait all end with the run's
+      context, so a stop no longer waits up to 10 s.
+  - **GREEN-056 (#234) is carried:** it changes the same `portmap.go`.
+- **Why:** D182 relies on the dial-back to keep a router's claim from
+  becoming the address peers are told. The old check compared the answer
+  with a value the node had just sent, so a lying router or a forged
+  NAT-PMP reply could steer peers to an address it controls. A mapping
+  left after a failure is an open port the owner did not agree to. With
+  a permanent UPnP lease, it stays until someone removes it.
+- **Consensus:** None. Port mapping is node policy. It decides what a
+  node tells peers about itself, never which ledger is valid.
+- **Tier:** p2p, portmap.
+  - `pkg/p2p/blue032_test.go`:
+    - `TestBlue032DialBackNeedsOwnListener`, against an echo server and
+      a copied hello.
+    - `TestBlue032StopDoesNotWaitOnSilentDialBack`.
+    - `TestBlue032ShortLifetimeRefused`.
+    - `TestBlue032RenewalCappedByLease`.
+  - `pkg/portmap/blue032_test.go`:
+    - `TestBlue032UPnPExternalFailsLeavesNoMapping`, Red's router.
+    - `TestBlue032UPnPCancelRemoves`.
+    - `TestBlue032PCPUnusableRemoved`, Red's IPv6 answer.
+    - `TestBlue032PCPLifetimeZeroRefused`.
+    - `TestBlue032CancelSendsRemoval`, for PCP and NAT-PMP.
+  - Each test fails on the code before the fix.
+
+### D184. Round 32: a count of unused snapshots, unknown settings kept, the release in status
+
+- **Merged first:** Blue's #238 (D183, carrying Green's #234), Red's #233,
+  Orange's #235 (ORANGE-041, measurements), Black's #239 (Round 31
+  review: all clear) and White's charter #241, which adds White to Part D
+  beside Black (AGENTS.md "White reviews (Part D)") and lists WHITE-001
+  (first public release plan) and WHITE-002 (version and features
+  between peers) as proposed. Neither proposal is decided here.
+- **Decision:**
+  - **GUI ORANGE-023.** `replay.snapshots_unused` and
+    `replay.reverify_not_compared` in `GET /v1/status` and `poo status`
+    carry at most `node.MaxReasons` (8) reasons. New
+    `snapshots_unused_count` and `reverify_not_compared_count` give the
+    whole number. The node's start log names every pool with its reason,
+    as before, and `poo doctor` counts all of them and says the rest are
+    in the start log. Black's condition (doctor or the start log still
+    lists each pool) holds.
+  - **W-1.** `nodepolicy.Load` keeps the settings in `node.json` that
+    this release has no field for, and `Save` writes them back. That
+    covers the top level and inside objects at any depth, but not inside
+    list entries (a series, a follow, a grind job). So going back a
+    release and changing a setting no longer drops what the newer release
+    set. The node warns once at start, naming them. Exports and bundles
+    carry only what this release knows. A file holding unknown settings
+    is written with its keys in sorted order.
+  - **W-10.** `GET /v1/status` and `poo status` (with `-counts`) carry
+    `release`: the `version` and `commit` that `node.SetRelease`
+    records, the same ones `poo version` prints. GUI/White decides what
+    the GUI does on a mismatch.
+  - **Not taken this round:**
+    - ORANGE-041 proposal 1 (a parallel fingerprint by sections). If it
+      is taken later, it follows Black's terms in ROUND-31.md.
+    - Proposal 2 (PCP and NAT-PMP sent together under `auto`).
+    - WHITE-002 step 1 (`poo/VERSION` in the hello Agent). It tells every
+      peer the exact release, so it waits for White's and Black's review
+      of the whole proposal.
+    - Green's idea of a command to set `p2p.port_map` or `p2p.advertise`
+      on an existing node.
+- **Why:**
+  - After an upgrade, every pool's snapshot is unused once. Listing them
+    all made a 5 s status answer 1.3 MB at 8,192 pools.
+  - A rollback that saves should lose nothing. White's rule is that going
+    back one release loses nothing that cannot be fetched again.
+  - A front end needs to know which release it talks to.
+- **Consensus:** None.
+- **Tier:** Node, node policy, RPC, CLI.
+  - `pkg/node/reasons_internal_test.go`: `TestReplayedCapsReasons`,
+    `TestRunningRelease`.
+  - `pkg/nodepolicy/unknown_test.go`: `TestUnknownSettingsSurviveSave`.
+  - `pkg/cli/blue031_test.go`: `TestSnapshotsCheckCountsCutReasons`.
+  - `pkg/rpc/rpc_test.go`: the status reply names the release.

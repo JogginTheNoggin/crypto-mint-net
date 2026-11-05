@@ -81,6 +81,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-053](source/GREEN-053-bodies-released-on-write.md) | Source | Drop an entry's body into the cache when it is written; doctor's columns in line | proposed |
 | [GREEN-054](source/GREEN-054-flags-after-the-word.md) | Source | Flags may follow the word in poo tx, address, tracking and policy use | proposed |
 | [GREEN-055](source/GREEN-055-reverify-reports-damaged-snapshots.md) | Source | -reverify reports a damaged snapshot, and doctor reports -reverify | proposed |
+| [GREEN-056](source/GREEN-056-port-map-says-why-where-when.md) | Source | Port mapping status says why, where and when | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
@@ -96,3 +97,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-038](source/ORANGE-038-bodies-held-through-their-items.md) | Source | Round 28 measured; entry bodies were still held through their items | proposed |
 | [ORANGE-039](source/ORANGE-039-cold-entries-measured.md) | Source | Round 29 measured; cold entries, the recent window and the pending pool after a deep switch | proposed |
 | [ORANGE-040](source/ORANGE-040-snapshots-measured.md) | Source | Round 30 measured; pool snapshots start 10 to 30 times faster, but gathering one holds the node for seconds | proposed |
+| [ORANGE-041](source/ORANGE-041-snapshot-pause-and-port-mapping.md) | Source | Round 31 measured; the snapshot pause after D182, the per-start check, and port mapping | proposed |

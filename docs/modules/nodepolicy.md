@@ -261,6 +261,15 @@ applies the change at once without a reload (D113).
   holds it: flock on Unix, LockFileEx on Windows (D147), and only a
   directory check on other systems.
 
+## Settings from a newer release (W-1, D184)
+
+`Load` keeps every setting in node.json that this release has no field
+for, at the top level and inside objects (not inside list entries), and
+`Save` writes them back. Going back a release and changing a setting
+therefore keeps what the newer release set. `UnknownSettings` lists them
+by dotted path, and the node warns at start. Exports and bundles carry
+only known settings, and a bundle with an unknown field is still refused.
+
 ## Sharing node policies: bundles
 
 One file, a *bundle*, carries node policies between nodes: a series to
