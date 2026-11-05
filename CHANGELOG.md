@@ -234,6 +234,17 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 31 (D182):**
+  - **Port mapping, opt in.** `p2p.port_map` (`poo init -port-map`) asks
+    the router to forward the peer port, by PCP, NAT-PMP or UPnP. The
+    router's address is offered to peers only after the node dials it and
+    reaches itself. The lease is renewed and removed at a clean stop. It
+    is off by default because peers then learn the network's public
+    address. `poo status` shows `port_map`, and `poo doctor` has a
+    `port-map` check.
+  - Snapshots of large pools are taken every tenth of the log rather than
+    every `snapshot_every` records, and gathering one walks the ledger
+    once rather than twice (ORANGE-040).
 - **Round 30 fixes (D181):**
   - Each release's snapshots are its own: the build a snapshot names now
     includes the release version and commit, so an upgrade replays once.

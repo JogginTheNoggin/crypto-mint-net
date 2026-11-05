@@ -50,6 +50,7 @@ sequenceDiagram
 | `discovery.go` | follow requests (asking, answering, relaying with return paths), peer lists and missing chunks, pings, dropped policies, the connection manager, broadcasts and registries |
 | `admin.go` | the owner's controls: `TimeOut`, `Block`, `Unblock`, `DeletePeer`, `SetPeerTemplate`, `ClearPeer`, `TrackerReport`, `Tracked` |
 | `policy.go` | `FromPolicy`: settings from the node policy |
+| `portmap.go` | the port mapping (D182): `portMapLoop` maps the listen port through `pkg/portmap`, `confirmSelf` dials the router's address and expects this node's own hello, `advertised` is the address offered to peers, and `PortMap` is its status |
 
 ## Finding and ranking peers
 
@@ -334,6 +335,27 @@ asked for and its sender backed off, and a self-contradicting one is
 flagged and its hash marked bad. `serve_test.go` checks each request's
 replies, limits, refusals of repeated and stale requests, malformed
 messages, invalid entries leading to a timeout, and the cost of serving.
+
+## Port mapping (D182)
+
+With `PortMap` set (off by default) and no `Advertise`, `Run` starts
+`portMapLoop`. It runs these steps:
+
+1. Ask the router for a mapping of the listen port.
+2. Refuse an external address that is not public. The exception is
+   `AllowLocalPeers`, which test networks use.
+3. Dial the address and read the hello. Only this node's own node id
+   confirms it.
+4. Offer the address from then on. `contact`, `isSelf`, `Listed` and the
+   connection manager's skip list all read it through `advertised`.
+5. Renew at half the granted lifetime, confirming again if the address
+   changes.
+6. On a failure or a stop, stop offering the address and remove the
+   mapping (with a fresh 3 s context, since the run's own has ended).
+
+Failures wait one minute, doubling to 30. Peers never decide what is
+advertised: a peer's report of the node's address is not used at all.
+Inbound connections through the mapping meet the same caps as any other.
 
 ## Extending
 

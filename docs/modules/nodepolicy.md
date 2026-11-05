@@ -109,7 +109,13 @@ every branch. `rpc.listen: "off"` disables the interface. `p2p.listen:
 `check_seconds: -1`, or a value over 3600 (`MaxCheckSeconds`), is read as
 one hour and noted as lowered, so a node whose peers send no notices still
 finds a heavier ledger they hold (D153).
-Without `advertise` the node is never offered to others as a contact. The p2p defaults are in
+Without `advertise` the node is never offered to others as a contact,
+unless `port_map` (off by default, D182) asks the router for a mapping:
+`auto`, `pcp`, `natpmp` or `upnp`. The router's address is then offered
+only after a dial to it reaches this node, and `advertise` always wins.
+`port_map_gateway` is the router's IP address, found from the default
+route on Linux when empty. `port_map` and `port_map_gateway` are
+machine-local, like `listen` and `advertise`. The p2p defaults are in
 `p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
 no unlisted connections; `review_seconds: -1` never reviews.
 `max_inbound` defaults to `max_peers` less `max_outbound`, so inbound
@@ -135,6 +141,7 @@ its range, or `Validate` refuses the policy and names the setting
 | `p2p.retry_seconds` | 60 | 1 to 86400 | the first wait before trying a failed candidate again, doubled each failure |
 | `p2p.registry_seconds` | 3600 | 60 to 86400 | the least time between two loads of the registries |
 | `p2p.candidate_seconds` | 86400 | 60 to 31536000 | how long an address learned from the network and never reached keeps its place against a newer one when the book or its range is full (D160) |
+| `p2p.port_map_seconds` | 3600 | 120 to 86400 | the lease a port mapping asks the router for, renewed at half what it grants (D182) |
 | `tracking.max_addresses` | 8192 | 1024 to 131072 | addresses the tracker keeps records for |
 | `tracking.flag_history_seconds` | 604800 | 3600 to 31536000 | how long an expired flag is remembered |
 | `tracking.log_seconds` | 3600 | 60 to 86400 | how long each address's detailed log keeps events |
@@ -278,7 +285,7 @@ none and only notes that a file has them.
 
 - **Export** (`ExportPolicy`, `ExportSeries`, `NewBundle`, `Bundle.Write`)
   leaves out the machine-local settings, `MachineLocal`: the `rpc`
-  section, `no_sync`, `p2p.listen`, `p2p.advertise` and the grind device
+  section, `no_sync`, `p2p.listen`, `p2p.advertise`, `p2p.port_map`, `p2p.port_map_gateway` and the grind device
   and threads (the section's and each job's). A shared file then never
   opens someone's control interface or picks their GPU. `full` keeps them,
   for a backup or a clone of the same machine. The settings no longer
