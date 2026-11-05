@@ -11,6 +11,10 @@ or opens a socket. Calls are safe from multiple goroutines.
 
 ## API
 
+- `ErrFailed`, `Failed()`, `Err()` (D174): a panic while `HandleTx`,
+  `HandleEntry` or `HandleLayer` changes a pool fails the engine, which
+  then takes nothing more; the daemon stops the node on `Failed()`.
+  `Config.Source` gives each pool its body source (D172).
 - `New(Config{Ledger, MaxPending, SeenSize})`, `DefaultConfig`.
 - Series and following: `AddSeries`, `Series`, `FollowSeries`,
   `FollowSeriesExcept` (a whole series but some pools; a pool any rule

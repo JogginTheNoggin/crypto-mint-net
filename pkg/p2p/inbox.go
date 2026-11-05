@@ -2,6 +2,8 @@ package p2p
 
 import (
 	"context"
+	"fmt"
+	"runtime/debug"
 	"sync"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
@@ -111,9 +113,28 @@ func (h *Host) workLoop(ctx context.Context) {
 			if j.p.closed() {
 				continue
 			}
-			if err := h.handle(j.p, j.m, j.size); err != nil {
+			if err := h.handleSafe(j.p, j.m, j.size); err != nil {
 				h.misbehave(j.p, err)
 			}
 		}
 	}
+}
+
+// handleSafe is handle, with a panic turned into closing that peer: a
+// fault in this node's own handling of one message (a nil left on a
+// serving path, RED-084) costs one connection, never the process. The
+// peer is not counted against, since the fault is this node's (D173). A
+// panic while the engine was changing a pool fails the engine first
+// (engine.ErrFailed): the daemon then stops the node, which rebuilds from
+// its stores on the next start, so nothing builds on a half-changed pool
+// (D174).
+func (h *Host) handleSafe(p *peer, m wire.Message, size int) (err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			h.log.Error("handling a peer message failed; the peer is disconnected", "peer", p.short(), "type", m.Type.String(), "panic", fmt.Sprint(v), "stack", string(debug.Stack()))
+			p.close(fmt.Errorf("p2p: internal error handling %s", m.Type))
+			err = nil
+		}
+	}()
+	return h.handle(p, m, size)
 }

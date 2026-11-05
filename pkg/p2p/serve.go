@@ -157,20 +157,41 @@ func split(sizes []int, chunk int) [][2]int {
 	return out
 }
 
-// item returns a held entry as a reply item.
-func item(l *ledger.Pool, h hash.Hash, layers bool) wire.EntryItem {
-	e, _ := l.Entry(h)
-	it := wire.EntryItem{Entry: e, HasLayers: layers}
+// pending is a held entry taken for a reply under the engine's lock: its
+// body to read and its layer nonces. The body is read when the reply is
+// sent, outside the lock, so a reply of bodies read back from the log
+// does not hold up the node (ORANGE-038 proposal 1, D174).
+type pending struct {
+	h      hash.Hash
+	ref    ledger.BodyRef
+	layers bool
+	nonces []uint64
+}
+
+func pend(l *ledger.Pool, h hash.Hash, layers bool) pending {
+	ref, _ := l.Ref(h)
+	pe := pending{h: h, ref: ref, layers: layers}
 	if layers {
 		for _, ly := range l.Layers(h) {
-			it.Nonces = append(it.Nonces, ly.Nonce)
+			pe.nonces = append(pe.nonces, ly.Nonce)
 		}
 	}
-	return it
+	return pe
+}
+
+// item returns the entry as a reply item. It returns false when the
+// entry's body cannot be read back from the log: for the asker the entry
+// is then not held, and nothing is encoded (RED-084, D173).
+func (pe pending) item() (wire.EntryItem, bool) {
+	e, err := pe.ref.Get()
+	if err != nil {
+		return wire.EntryItem{}, false
+	}
+	return wire.EntryItem{Entry: e, HasLayers: pe.layers, Nonces: pe.nonces}, true
 }
 
 // build reads what the reply needs under the engine's lock and returns a
-// function that sends it.
+// function that sends it, reading any entry bodies first.
 func (r replier) build(pi *poolInfo, l *ledger.Pool, q wire.Request) func() {
 	switch q := q.(type) {
 	case wire.ExtensionReq:
@@ -208,30 +229,47 @@ func (r replier) build(pi *poolInfo, l *ledger.Pool, q wire.Request) func() {
 func (r replier) entries(l *ledger.Pool, from int, layers bool) func() {
 	hs := l.Chain(from+1, from+r.lim.entries)
 	more := from+len(hs) < l.Height()
-	items := make([]wire.EntryItem, 0, len(hs))
-	var sizes []int
-	total := 0
-	for _, h := range hs {
-		it := item(l, h, layers)
-		if layers && total+len(it.Nonces) > r.lim.layers && len(items) > 0 {
-			more = true
-			break
-		}
-		size := it.Size()
-		if size > r.h.cfg.PartsOver {
-			// Too large for one chunk: the reply ends before it, and the
-			// asker fetches it in parts (D117).
-			if len(items) == 0 {
-				return r.tooLarge(h, size)
-			}
-			more = true
-			break
-		}
-		total += len(it.Nonces)
-		items = append(items, it)
-		sizes = append(sizes, size)
+	ps := make([]pending, len(hs))
+	for i, h := range hs {
+		ps[i] = pend(l, h, layers)
 	}
 	return func() {
+		items := make([]wire.EntryItem, 0, len(ps))
+		var sizes []int
+		total := 0
+		more := more
+		for _, pe := range ps {
+			it, ok := pe.item()
+			if !ok {
+				// The reply ends before an entry this node cannot read
+				// back; with none before it, the asker is told it is not
+				// held and fetches from another peer.
+				if len(items) == 0 {
+					r.empty(wire.TypeNotHeld, r.stated)
+					return
+				}
+				more = true
+				break
+			}
+			if layers && total+len(it.Nonces) > r.lim.layers && len(items) > 0 {
+				more = true
+				break
+			}
+			size := it.Size()
+			if size > r.h.cfg.PartsOver {
+				// Too large for one chunk: the reply ends before it, and
+				// the asker fetches it in parts (D117).
+				if len(items) == 0 {
+					r.tooLarge(pe.h, size)()
+					return
+				}
+				more = true
+				break
+			}
+			total += len(it.Nonces)
+			items = append(items, it)
+			sizes = append(sizes, size)
+		}
 		var bodies [][]byte
 		for _, run := range split(sizes, r.lim.chunk) {
 			bodies = append(bodies, wire.EntriesChunk{Items: items[run[0]:run[1]]}.Encode())
@@ -279,16 +317,22 @@ func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
 	// and the encoding happen outside it (RED-017, RED-020, D123).
 	key := partsKey{entry: q.Entry, variant: q.Variant}
 	b, _, cached := r.h.encoded.peek(key)
-	var it wire.EntryItem
+	var ref ledger.BodyRef
+	var nonces []uint64
 	if !cached {
-		e, _ := l.Entry(q.Entry)
-		it = wire.EntryItem{Entry: e, HasLayers: q.Variant == wire.EntriesWithLayers}
-		if it.HasLayers {
-			it.Nonces = l.LayerNonces(q.Entry)
+		ref, _ = l.Ref(q.Entry)
+		if q.Variant == wire.EntriesWithLayers {
+			nonces = l.LayerNonces(q.Entry)
 		}
 	}
 	return func() {
 		if !cached {
+			e, err := ref.Get()
+			if err != nil {
+				r.empty(wire.TypeNotHeld, r.stated)
+				return
+			}
+			it := wire.EntryItem{Entry: e, HasLayers: q.Variant == wire.EntriesWithLayers, Nonces: nonces}
 			slices.Sort(it.Nonces)
 			b = wire.EncodeItem(it)
 			r.h.encoded.put(key, b, nil)
@@ -462,31 +506,48 @@ func (r replier) hashChain(l *ledger.Pool, q wire.HashChainReq) func() {
 
 func (r replier) byHash(l *ledger.Pool, q wire.EntriesReq) func() {
 	layers := q.Variant == wire.EntriesWithLayers
-	var items []wire.HeldEntry
-	sent, nl := 0, 0
-	more := false
-	for _, h := range q.Hashes {
-		if !l.InSelected(h) {
-			items = append(items, wire.HeldEntry{Hash: h})
-			continue
+	type asked struct {
+		pe   pending
+		held bool
+	}
+	as := make([]asked, len(q.Hashes))
+	for i, h := range q.Hashes {
+		as[i] = asked{pending{h: h}, l.InSelected(h)}
+		if as[i].held {
+			as[i].pe = pend(l, h, layers)
 		}
-		it := item(l, h, layers)
-		if sent == r.lim.entries || (sent > 0 && nl+len(it.Nonces) > r.lim.layers) {
-			more = true
-			break
-		}
-		if size := it.Size(); size > r.h.cfg.PartsOver {
-			if len(items) == 0 {
-				return r.tooLarge(h, size)
-			}
-			more = true
-			break
-		}
-		sent++
-		nl += len(it.Nonces)
-		items = append(items, wire.HeldEntry{Hash: h, Held: true, Item: it})
 	}
 	return func() {
+		var items []wire.HeldEntry
+		sent, nl := 0, 0
+		more := false
+		for _, a := range as {
+			h := a.pe.h
+			if !a.held {
+				items = append(items, wire.HeldEntry{Hash: h})
+				continue
+			}
+			it, ok := a.pe.item()
+			if !ok {
+				items = append(items, wire.HeldEntry{Hash: h})
+				continue
+			}
+			if sent == r.lim.entries || (sent > 0 && nl+len(it.Nonces) > r.lim.layers) {
+				more = true
+				break
+			}
+			if size := it.Size(); size > r.h.cfg.PartsOver {
+				if len(items) == 0 {
+					r.tooLarge(h, size)()
+					return
+				}
+				more = true
+				break
+			}
+			sent++
+			nl += len(it.Nonces)
+			items = append(items, wire.HeldEntry{Hash: h, Held: true, Item: it})
+		}
 		sizes := make([]int, len(items))
 		for i, it := range items {
 			sizes[i] = hash.Size + 1

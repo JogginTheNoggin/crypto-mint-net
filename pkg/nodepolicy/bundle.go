@@ -609,6 +609,9 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 			return Policy{}, Plan{}, err
 		}
 	}
+	if opt.Replace {
+		replaceSeries(local, &res, &plan)
+	}
 	res.Series, plan.DroppedReleases = withoutBadReleases(res.Series)
 	if err := res.Validate(); err != nil {
 		return Policy{}, Plan{}, err
@@ -870,6 +873,65 @@ func withoutBadReleases(list []SeriesInfo) ([]SeriesInfo, []string) {
 		return list, nil
 	}
 	return out, dropped
+}
+
+// replaceSeries applies to a replace import what a merge applies to the
+// series it adds (GUI-030): each series is kept once, by id, and a series
+// the node does not list yet is left out, with its follow rules, when the
+// node's own series_ceiling declines it. The ceiling is the node's
+// (local's), so a file cannot lift it by replacing it.
+func replaceSeries(local Policy, res *Policy, plan *Plan) {
+	had := map[hash.Hash]bool{}
+	for _, si := range local.Series {
+		if s, err := series.New(si.Params); err == nil {
+			had[s.ID()] = true
+		}
+	}
+	seen := map[hash.Hash]bool{}
+	declined := map[hash.Hash]bool{}
+	var keep []SeriesInfo
+	for _, si := range res.Series {
+		s, err := series.New(si.Params)
+		if err != nil {
+			keep = append(keep, si) // Validate names it
+			continue
+		}
+		id := s.ID()
+		if seen[id] || declined[id] {
+			continue
+		}
+		if !had[id] {
+			if err := local.DeclinesSeries(si.Params); err != nil {
+				declined[id] = true
+				dropped := 0
+				for _, f := range res.Follow {
+					if f.Series != nil && *f.Series == id {
+						dropped++
+					}
+				}
+				note := ""
+				if dropped > 0 {
+					note = fmt.Sprintf(" (its %d follow rule(s) are left out too)", dropped)
+				}
+				plan.Declined = append(plan.Declined, id.Short()+": "+err.Error()+note)
+				continue
+			}
+		}
+		seen[id] = true
+		keep = append(keep, si)
+	}
+	res.Series = keep
+	if len(declined) == 0 {
+		return
+	}
+	var follow []Follow
+	for _, f := range res.Follow {
+		if f.Series != nil && declined[*f.Series] {
+			continue
+		}
+		follow = append(follow, f)
+	}
+	res.Follow = follow
 }
 
 // mergeInto is Merge without Replace.

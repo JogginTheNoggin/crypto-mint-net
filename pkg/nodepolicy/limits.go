@@ -75,8 +75,21 @@ var BoundSeriesCeiling = Bound{"series_ceiling", 1024, 1 << 30, 0}
 // 1 TiB, enough to keep every body of a busy node in memory.
 var BoundEntryCacheMiB = Bound{"entry_cache_mib", 1, 1 << 20, DefaultEntryCacheMiB}
 
-// DefaultEntryCacheMiB is entry_cache_mib's default.
-const DefaultEntryCacheMiB = 512
+// DefaultEntryCacheMiB is entry_cache_mib's default: 256 MiB counted as
+// bodies really take, about what 512 took when bodies were counted at
+// twice their size (ORANGE-038, approved by jerry, D173).
+const DefaultEntryCacheMiB = 256
+
+// BoundRecentWindow is recent_window (D175): how many entries below each
+// pool's selected tip keep their items and undo records in memory. Deeper
+// ones are read back from the pool log when a switch or a view reaches
+// them, and their undo is recomputed, so a switch at any depth is still
+// made, only slower: no depth limit, never a verdict. The floor keeps
+// ordinary reorganisations in memory; the ceiling keeps everything.
+var BoundRecentWindow = Bound{"recent_window", 16, 1 << 30, DefaultRecentWindow}
+
+// DefaultRecentWindow is recent_window's default.
+const DefaultRecentWindow = 10000
 
 // EntryCacheBytes returns the entry body cache bound this policy asks for.
 func (p Policy) EntryCacheBytes() int64 {
@@ -87,7 +100,7 @@ func (p Policy) EntryCacheBytes() int64 {
 func Bounds() []Bound {
 	return []Bound{BoundMaxBook, BoundBookPerRange, BoundVerifiedPerRange, BoundRetrySeconds, BoundRegistrySeconds,
 		BoundCandidateSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
-		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB}
+		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB, BoundRecentWindow}
 }
 
 // Check refuses v when it is neither zero (the default) nor in range.
@@ -209,6 +222,8 @@ func (p *Policy) limitField(name string) *int {
 		return &p.SeriesCeiling
 	case BoundEntryCacheMiB.Name:
 		return &p.EntryCacheMiB
+	case BoundRecentWindow.Name:
+		return &p.RecentWindow
 	}
 	return nil
 }

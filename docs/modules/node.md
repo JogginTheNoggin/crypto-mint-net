@@ -65,6 +65,11 @@ rewrites, so reads wait for the new locations. No index file is kept yet;
 start-up reads the whole log anyway (a sidecar index comes with snapshots,
 R30).
 
+Each pool's ledger also gets `recent_window` (D175): older entries of the
+selected ledger keep only their skeleton, and `Bodies().Cold` counts
+them. A failed engine (D174) leaves the stores as written: `Close` and
+`Compact` do not rewrite them.
+
 `Open` logs one warning when the soft open file limit is below the
 followed pools plus 256 (`nodepolicy.CheckFileLimit`).
 

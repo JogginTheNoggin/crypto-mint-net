@@ -21,9 +21,28 @@ plus the top K other branches. It reproduces the design's worked example
   users read bodies back through `Config.Bodies`, a `BodyCache`
   (`NewBodyCache(maxBytes)`, `SetMax`, `Stats`) shared by every pool of a
   node and bounded in bytes. No check of an entry reads a body that is not
-  in memory, so the cache changes cost, never verdicts. A failed read
-  hides the body from that query and is counted (`BodyStats.Errors`).
+  in memory, so the cache changes cost, never verdicts. A failed read is
+  counted (`BodyStats.Errors`). `Entry(h)` returns `(*entry.Entry,
+  error)`: `ErrNoEntry` for an entry not held, `ErrUnreadable` for one
+  whose body cannot be read back, and never a nil entry without an error,
+  so a caller cannot use one by mistake (RED-084, D173). `Tx(h, tid)`
+  gives a transaction from the skeleton, without witnesses once the body
+  was released. `Rivals` searches the skeleton's items, so it reads no
+  body and misses no rival. The cache counts a body as its byte form plus
+  1 KiB, about what it takes in memory (ORANGE-038, D173).
   `InMemory()` counts bodies still held by the pool.
+- Items and undo outside a window (D175): with `Config.RecentWindow` and a
+  source, entries of the selected ledger more than the window below the
+  tip go cold once the source has their bodies (`Cold()` counts them):
+  their items and undo leave memory. Items are read back from the body,
+  and undo is recomputed from the tids index (each spent portion is an
+  output of the transaction that made it). A switch warms every entry it
+  reverts before changing anything; a view on a deep anchor reverts cold
+  entries on an overlay. A failed read panics with `ReadFault` before the
+  pool changes (the engine then fails, D174). `Tx`, `ClaimEntry` and
+  views read cold entries back.
+- `Ref(h)` returns a `BodyRef`, taken under the engine's lock; its `Get`
+  reads the body without the lock (D174).
 - `AddEntry(e) (AddResult, error)` and `AddLayer(l) (AddResult, error)`.
   `AddResult` carries the entry hash, an optional `*Switch` and the pruned
   hashes.

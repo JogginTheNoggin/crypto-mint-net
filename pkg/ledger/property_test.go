@@ -143,12 +143,14 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 			h := held[rng.Intn(len(held))]
 			l := layerOf(t, f.s, h, rng.Intn(6), uint64(rng.Int63()))
 			res, err := f.pool.AddLayer(l)
-			if _, terr := tw.pool.AddLayer(l); (terr == nil) != (err == nil) {
+			tres, terr := tw.pool.AddLayer(l)
+			if (terr == nil) != (err == nil) {
 				t.Fatalf("step %d: twin AddLayer %v, pool %v", step, terr, err)
 			}
 			if err != nil {
 				continue // a repeated nonce is fine to skip
 			}
+			sameSwitch(t, step, res.Switch, tres.Switch)
 			checkSwitch(step, res.Switch)
 			m.own[h] = m.own[h].Add(weight.Credit(l.Strength(f.s.Hash())))
 		} else {
@@ -194,10 +196,11 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 			e := f.build(parent, txs...)
 			h := e.Hash(f.s)
 			res, err := f.pool.AddEntry(e)
-			tw.addEntry(t, step, e, err)
+			tsw := tw.addEntry(t, step, e, err)
 			if err != nil {
 				continue // same entry twice
 			}
+			sameSwitch(t, step, res.Switch, tsw)
 			checkSwitch(step, res.Switch)
 			m.n++
 			m.parent[h], m.entries[h], m.seq[h] = parent, e, m.n
@@ -238,6 +241,9 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 		}
 	}
 	tw.compareBodies(t, f.pool, held)
+	if steps >= 100 && tw.maxCold == 0 {
+		t.Fatalf("seed %d: no entry went cold, so no switch read anything back", seed)
+	}
 	if k == ledger.Unlimited {
 		checkReplayOrder(t, f)
 	}

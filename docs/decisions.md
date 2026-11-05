@@ -4273,3 +4273,149 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
     `bodies_internal_test.go`: `TestPoolBodiesChecks`.
   - `pkg/nodepolicy/filelimit_test.go`: `TestCheckFileLimit`,
     `TestFollowedPools`.
+
+### D173. Round 28 fixes: RED-084, with ORANGE-038 and its cache sizing (BLUE-029)
+
+jerry approved Orange's cache sizing on 2026-11-04 ("That's fine"):
+count `entry_cache_mib` in real bytes, with a 256 MiB default.
+
+- **Decision:**
+  - **An unreadable body is not held, for the caller.** `Pool.Entry(h)`
+    returns `(*entry.Entry, error)`: `ErrNoEntry` or `ErrUnreadable`, and
+    never a nil entry without an error, so `e, _ :=` no longer hands a
+    caller a nil it can use. Every caller was checked:
+    - p2p serving: `entries` lists such an entry as not held, `parts`
+      replies `not held`, and an extension ends before it (`not held`
+      when it would be first). Nothing is encoded, and the asker fetches
+      the entry from another peer.
+    - `Rivals` searches each entry's skeleton items, which keep every
+      input, so it reads no body, costs no disk read under the engine
+      lock, and cannot miss a rival.
+    - `Engine.Payment` and `GET /payment` say `unreadable` (no `tx`); the
+      rivals are found from the skeleton (`Pool.Tx`).
+    - `watch.LedgerPage` and `AddressPage` count `unreadable` entries, and
+      a ledger page lists each with `unreadable: true`.
+    - The watch hub leaves such an entry's transactions out of its
+      events; compaction already stops with an error (D172).
+  - **Defence in depth.** A panic while handling one peer message closes
+    that peer, is logged with its stack, and is not counted against the
+    peer. The process runs on.
+  - **`poo doctor` warns** (`bodies`) when the running node counted
+    failed body reads, and says to check the disk and restart: on start
+    the node cuts a pool log at its first damaged record and fetches the
+    rest again from peers. Refetching in place, with no restart, is left
+    for later; it needs the log to take a second record of an entry.
+  - **ORANGE-038 (#201) is carried:** bodies are released with their
+    items' witnesses, and the chase walks parents from the skeleton.
+  - **Cache sizing (Orange's proposal 2, jerry):** a body counts as its
+    byte form plus 1 KiB, as measured, and `entry_cache_mib` defaults to
+    256. Orange's proposal 1 (reading bodies outside the engine lock when
+    serving) is left for Grey.
+  - **GUI-029** needs nothing more from the source: D171 already lists a
+    ceiling-less series in the plan's `unbounded`, as a warning only, and
+    `series_ceiling` stays off by default. The GUI shows it.
+- **Why:** A body read can fail since D172, so "held" no longer means
+  "readable". Treating an unreadable body as missing information is what
+  a node does with any entry it lacks: it is fetched again, and nothing is
+  decided from it.
+- **Consensus:** None. No verdict reads a body that is not in memory
+  (D172). The cache's size changes cost only. A node that cannot serve an
+  entry leaves its peers short of information, never in disagreement.
+- **Tier:** Ledger, p2p, engine, watch, RPC, CLI, node policy.
+  - `pkg/p2p/blue029_test.go`: `TestDamagedLogDoesNotCrashServing`.
+  - `pkg/node/blue029_test.go`: `TestDamagedLogQueriesSayIncomplete`.
+  - `pkg/ledger/bodies_test.go`: `TestBodyCacheBound` (a failed read
+    returns `ErrUnreadable`).
+
+### D174. A panic mid-change stops the node; bodies served outside the engine lock
+
+- **Decision:**
+  - **Black's Round 28 condition.** D173's per-peer recover stays, but a
+    panic while the engine changes a pool (`HandleTx`, `HandleEntry`,
+    `HandleLayer`, through their one `handling` guard) now fails the
+    engine first: `engine.ErrFailed`, `Failed()` closed, `Err()` set. The
+    engine then takes nothing more; reads still answer. The daemon stops
+    the node on `Failed()`, logging why, and `Node.Close` and `Compact`
+    leave the stores as written, never rewriting them from a possibly
+    half-changed pool. A restart rebuilds from the stores, as before D173.
+  - **Orange's proposal 1 (ORANGE-038).** A ledger reply takes, under
+    the engine's lock, only each entry's `ledger.BodyRef` (the body if
+    still in memory, or what to read it through) and its layer nonces;
+    bodies are read back and encoded after the lock is released
+    (`BodyRef.Get` needs no lock). Extension, whole-ledger, by-hash and
+    parts replies all do this.
+- **Why:** A pool left half changed by a panic and kept running could
+  select on a state no full replay gives; stopping is what a crash did.
+  A cold reply of many bodies read from disk held the engine's lock for
+  tens of milliseconds (ORANGE-038).
+- **Consensus:** None. What a reply holds is unchanged; only when bodies
+  are read changes. Stopping on an internal fault is a lack of
+  information until the restart.
+- **Tier:** Engine, node, daemon, p2p.
+  - `pkg/engine/failed_test.go`: `TestPanicMidChangeFailsTheEngine`.
+  - The p2p serving tests run with bodies released (D172).
+
+### D175. Items and undo outside a recent window (disk-backed state, step 2)
+
+- **Decision:**
+  - An entry of the selected ledger more than `recent_window` entries
+    below the tip, whose body the store holds, is **cold**: its items
+    (its transactions, without witnesses since D173) and its undo record
+    are dropped from memory. It keeps its skeleton: hash, parent, height,
+    weights, layers, its tids in the index, the count of its transactions
+    and the mints it claims.
+  - **No undo file.** Items come back from the body (`BodySource`). The
+    undo record is recomputed: each input an entry spends is an output of
+    the transaction that made it, which is on the selected ledger below
+    it (an entry never spends what its own transactions make) and found
+    through the tids index. So the plan's per-pool undo log is not
+    needed, and a pool still keeps one open file.
+  - **Switches.** A switch whose fork is below the window reads back the
+    items and undo of every entry it reverts **before it changes
+    anything**, and keeps them (those entries are now off the selected
+    ledger, where items stay in memory). A view at an old anchor (an
+    entry on a deep parent, a check of a branch) reverts cold entries on
+    an overlay without keeping them. Nothing is refused for depth: a deep
+    switch only reads the disk and is slower.
+  - **A failed read** while the pool needs it panics with
+    `ledger.ReadFault` before the pool changes; that fails the engine
+    (D174), so the node stops and rebuilds from its stores. It is never
+    read as an invalid entry and never selects on partial data. In a read
+    path (a query), the panic ends that query only.
+  - **Node policy `recent_window`** (16 to 2^30, default 10,000), applied
+    on reload. `bodies.cold` in `/v1/status` counts cold entries.
+  - **Peer sync from disk** is D172 plus D174: replies read bodies back
+    outside the engine's lock.
+- **Why:** After D172 and ORANGE-038 the skeleton, about 0.9 KiB per
+  transaction, was what still grew with history (ORANGE-038 proposal 3).
+  Items and undo are most of it.
+- **Consensus:** None. The same entries give the same selected ledger
+  and state with any window: the recomputed undo is the record Apply
+  made, and items are the body's transactions in its order. No depth
+  limit. Checked by the random-history twin pool, now with a window of 2,
+  where every seed exercises cold entries.
+- **Tier:** Ledger, node policy, node.
+  - `pkg/ledger/cold_test.go`: `TestDeepSwitchReadsBack`,
+    `TestDeepSwitchReadFault`; `property_test.go` `runRandom`'s twin
+    (window 2, required to go cold).
+  - `pkg/node/bodies_test.go`: `TestColdEntries` (restart, compaction,
+    an old payment from a cold entry).
+
+### D176. Replace imports honour series_ceiling (GUI-030)
+
+- **Decision:** A `-replace` import (`nodepolicy.Merge` with `Replace`)
+  now keeps each series once, by id, and leaves out a series the node does
+  not list yet, with its follow rules, when the node's own
+  `series_ceiling` declines it, listing it in `declined` as a merge does.
+  The ceiling is the node's, so a file cannot lift it by replacing it.
+  (GUI Red's nit, leaving out `digest` from `-json` when nothing
+  changes, is left for a round where the GUI changes with it: the GUI
+  views e2e applies a no-op plan today.) A comment that said `poo init` writes
+  `series_ceiling` is corrected: nothing writes it; the default stays off
+  (jerry, 2026-11-04). GUI-029's ask is already met by the plan's
+  `unbounded` list (D171), which the GUI shows; `defences` stays the list
+  of setting lines.
+- **Why:** Only the merge path checked the ceiling (GUI Red, GUI-030).
+- **Consensus:** None. Which series a node adds is information.
+- **Tier:** Node policy, CLI. `pkg/nodepolicy/replaceceiling_test.go`:
+  `TestReplaceHonoursSeriesCeiling`.

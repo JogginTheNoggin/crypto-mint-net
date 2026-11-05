@@ -158,6 +158,10 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 					continue
 				}
 				ask()
+			case <-n.Engine().Failed():
+				// A panic while a pool was being changed: stop, without
+				// compacting, so a restart rebuilds from the stores (D174).
+				nlog.Error("stopping: an internal error left a pool half changed; start the node again to rebuild it from its stores", "err", n.Engine().Err())
 			case <-inner.Done():
 				return
 			}
@@ -196,6 +200,9 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	case <-asked:
 		reload = ctx.Err() == nil
 	default:
+	}
+	if ferr := n.Engine().Err(); ferr != nil {
+		return false, errors.Join(ferr, serr, perr, cerr)
 	}
 	if reload {
 		nlog.Info("reloading its node policy")

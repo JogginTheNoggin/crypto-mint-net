@@ -47,7 +47,7 @@ D150).
 
 | Method and path | Body or query | Reply |
 | --- | --- | --- |
-| `GET /status` | | every followed pool, and replay stats; `bodies` (the entry body cache: `max_bytes`, `used_bytes`, `bodies`, `hits`, `loads`, `errors`, and `held`, `in_memory`, `located`; D172) and `file_limit` (`known`, `soft`, `need`, `low`; ORANGE-037); `policy_changed` when node.json differs, outside the grind section, from the policy the node runs, so a change waits for a reload (GREEN-037) |
+| `GET /status` | | every followed pool, and replay stats; `bodies` (the entry body cache: `max_bytes`, `used_bytes`, `bodies`, `hits`, `loads`, `errors`, and `held`, `in_memory`, `located`, `cold`; D172, D175) and `file_limit` (`known`, `soft`, `need`, `low`; ORANGE-037); `policy_changed` when node.json differs, outside the grind section, from the policy the node runs, so a change waits for a reload (GREEN-037) |
 | `GET /series` | | followed series with their params; a variable series adds `variable{released, next_part, mints, units, release}` (D166); the built-in reserve series adds `"builtin": "reserve"`, on its full id only (D170) |
 | `POST /series/release` | `{release, no_reload}` | `{series, part, released, mints, added, saved, in_place, reloading}`: checks a release of a variable series in full, keeps it in node.json when newer than the one held, and takes it in place (the new part's pools followed and indexed, the release passed on to peers, `in_place`), or reloads the node when it cannot (`reloading`; `no_reload` only saves); 404 for a series not listed (D166, D168) |
 | `POST /tx` | `{tx}` | `{series, pool, tid, forward}` |
@@ -65,7 +65,7 @@ D150).
 | `GET /grind/{id}` | | one job |
 | `DELETE /grind/{id}` | | stops it; the job as it ended |
 | `DELETE /grind` | `?source=user` (optional) | stops every job (or only those made over the RPC) |
-| `GET /payment` | `series, serial, tid` | `{pending, selected, entry, from, tx, rivals: [{tip, fork, entry, conflict, after}]}`: `tx` is the transaction's bytes in hex when the node holds it; each rival is an entry on an inactive branch holding a transaction that spends one of its inputs, with the branch's weight after its fork |
+| `GET /payment` | `series, serial, tid` | `{pending, selected, entry, from, tx, rivals: [{tip, fork, entry, conflict, after}], unreadable}`: `tx` is the transaction's bytes in hex when the node holds it; `unreadable` is set when the payment is selected but its entry's body cannot be read back from the log, so `tx` is missing while `rivals` are still complete (RED-084, D173); each rival is an entry on an inactive branch holding a transaction that spends one of its inputs, with the branch's weight after its fork |
 | `GET /holdings` | `series, serial` | `[{tid, index, address, amount}]` |
 | `GET /peers` | | `{node_id, listen, peers: [{id, addr, key, outbound, agent, listen, coverage, categories: {policy: {category, points, partial}}, since, sent, received}], book: [{addr, source, added, last_tried, failures, policies: [{section, state, last_heard}]}]}` With `?counts=1` the book is left out (`book: []`) and `counts: {addresses, connected, states: {state: n}}` is added; an address counts under each state it holds for some mint policy (D164) |
 | `GET /tracking` | `addr` (optional) | without: `{tracked: {key: status}, ranges: {range: until}}`; with: that address's record (`key, status, template, settings, flags, policies: {policy: measures and points}, log`) |

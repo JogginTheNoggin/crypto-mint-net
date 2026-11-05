@@ -411,7 +411,7 @@ func TestDeepForkSpendsRevertBudget(t *testing.T) {
 	sec := poolSection()
 	r := dialRaw(t, a, []wire.Section{sec})
 	held := func(h hash.Hash) (ok bool) {
-		a.n.Engine().Ledger(exKey, func(l *ledger.Pool) { _, ok = l.Entry(h) })
+		a.n.Engine().Ledger(exKey, func(l *ledger.Pool) { _, err := l.Entry(h); ok = err == nil })
 		return ok
 	}
 	var forks []hash.Hash

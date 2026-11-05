@@ -3,6 +3,7 @@ package ledger
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -25,7 +26,14 @@ var ErrNotHeld = errors.New("ledger: parent entry not held")
 // serial's claim, and the claim's tid.
 func (p *Pool) ClaimEntry(serial uint64) (entryHash, tid hash.Hash, err error) {
 	for _, n := range p.chain {
-		for _, it := range n.items {
+		if !slices.Contains(n.claims, serial) {
+			continue
+		}
+		items, err := p.itemsOf(n)
+		if err != nil {
+			return hash.Zero, hash.Zero, err
+		}
+		for _, it := range items {
 			if it.Tx.IsClaim() && it.Tx.Mint.Serial == serial {
 				return n.hash, it.TID, nil
 			}
