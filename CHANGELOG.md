@@ -244,6 +244,17 @@ built.
     (`bodies`).
   - `entry_cache_mib` counts bodies as they really take, with a 256 MiB
     default (ORANGE-038).
+- **Round 29 (D174 to D176):**
+  - **Items and undo on disk too.** Entries of the selected ledger more
+    than `recent_window` (default 10,000) below the tip keep only their
+    skeleton in memory; a deep switch or view reads their transactions
+    back and recomputes their undo, so it is slower, never refused.
+  - Ledger replies to peers read entry bodies after the engine lock is
+    released.
+  - A panic while a pool is being changed now stops the node, which
+    rebuilds from its stores on the next start.
+  - `poo policy import -replace` honours the node's `series_ceiling` and
+    keeps each series once.
 - **Round 28 (D172):**
   - **Entry bodies on disk.** A node keeps every held entry's skeleton in
     memory and reads entry bodies back from its pool logs when it needs

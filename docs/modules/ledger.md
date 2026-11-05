@@ -31,6 +31,18 @@ plus the top K other branches. It reproduces the design's worked example
   body and misses no rival. The cache counts a body as its byte form plus
   1 KiB, about what it takes in memory (ORANGE-038, D173).
   `InMemory()` counts bodies still held by the pool.
+- Items and undo outside a window (D175): with `Config.RecentWindow` and a
+  source, entries of the selected ledger more than the window below the
+  tip go cold once the source has their bodies (`Cold()` counts them):
+  their items and undo leave memory. Items are read back from the body,
+  and undo is recomputed from the tids index (each spent portion is an
+  output of the transaction that made it). A switch warms every entry it
+  reverts before changing anything; a view on a deep anchor reverts cold
+  entries on an overlay. A failed read panics with `ReadFault` before the
+  pool changes (the engine then fails, D174). `Tx`, `ClaimEntry` and
+  views read cold entries back.
+- `Ref(h)` returns a `BodyRef`, taken under the engine's lock; its `Get`
+  reads the body without the lock (D174).
 - `AddEntry(e) (AddResult, error)` and `AddLayer(l) (AddResult, error)`.
   `AddResult` carries the entry hash, an optional `*Switch` and the pruned
   hashes.

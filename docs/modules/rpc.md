@@ -47,7 +47,7 @@ D150).
 
 | Method and path | Body or query | Reply |
 | --- | --- | --- |
-| `GET /status` | | every followed pool, and replay stats; `bodies` (the entry body cache: `max_bytes`, `used_bytes`, `bodies`, `hits`, `loads`, `errors`, and `held`, `in_memory`, `located`; D172) and `file_limit` (`known`, `soft`, `need`, `low`; ORANGE-037); `policy_changed` when node.json differs, outside the grind section, from the policy the node runs, so a change waits for a reload (GREEN-037) |
+| `GET /status` | | every followed pool, and replay stats; `bodies` (the entry body cache: `max_bytes`, `used_bytes`, `bodies`, `hits`, `loads`, `errors`, and `held`, `in_memory`, `located`, `cold`; D172, D175) and `file_limit` (`known`, `soft`, `need`, `low`; ORANGE-037); `policy_changed` when node.json differs, outside the grind section, from the policy the node runs, so a change waits for a reload (GREEN-037) |
 | `GET /series` | | followed series with their params; a variable series adds `variable{released, next_part, mints, units, release}` (D166); the built-in reserve series adds `"builtin": "reserve"`, on its full id only (D170) |
 | `POST /series/release` | `{release, no_reload}` | `{series, part, released, mints, added, saved, in_place, reloading}`: checks a release of a variable series in full, keeps it in node.json when newer than the one held, and takes it in place (the new part's pools followed and indexed, the release passed on to peers, `in_place`), or reloads the node when it cannot (`reloading`; `no_reload` only saves); 404 for a series not listed (D166, D168) |
 | `POST /tx` | `{tx}` | `{series, pool, tid, forward}` |
