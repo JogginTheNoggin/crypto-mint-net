@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the tool's version, set at build time with -ldflags.
-var Version = "0.1.0-dev"
+var Version = "0.1.0-alpha.1-dev"
 
 // Commit is the source commit, set by scripts/release.sh with -X, where
 // the build info has none (GREEN-013).
