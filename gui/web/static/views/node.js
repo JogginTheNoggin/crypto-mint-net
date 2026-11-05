@@ -281,7 +281,7 @@ export function statusNotes(st) {
   // whether the full replay matched them.
   const rp = st.replay;
   if (rp && num(rp.snapshots)) out.push(el('p', { class: 'hint replay' },
-    `This start: ${n(rp.snapshots)} pools from their snapshots (${n(rp.snapshot_records)} records not read again), ${n(rp.records)} records replayed after them${(rp.snapshots_unused || []).length ? `; ${rp.snapshots_unused.length} snapshots not used: ${rp.snapshots_unused.slice(0, 5).join('; ')}${rp.snapshots_unused.length > 5 ? '; …' : ''}` : ''}.`));
+    `This start: ${n(rp.snapshots)} ${rp.snapshots === 1 ? 'pool' : 'pools'} from ${rp.snapshots === 1 ? 'its snapshot' : 'their snapshots'} (${n(rp.snapshot_records)} records not read again), ${n(rp.records)} records replayed after them${(rp.snapshots_unused || []).length ? `; ${rp.snapshots_unused.length} snapshots not used: ${rp.snapshots_unused.slice(0, 5).join('; ')}${rp.snapshots_unused.length > 5 ? '; …' : ''}` : ''}.`));
   if (rp && num(rp.reverified) && rp.reverified) out.push(el('p', rp.reverify_differed ? { class: 'next-step reverify-differed', role: 'alert' } : { class: 'hint reverify' },
     rp.reverify_differed ? `Checked every record again: the full replay of ${rp.reverify_differed} of ${rp.reverified} pools built a different pool than its snapshot held. Run poo doctor and keep the logs for a report.`
       : `Checked every record again: the full replay of all ${rp.reverified} pools matched their snapshots.`));

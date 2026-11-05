@@ -66,7 +66,7 @@ try {
   assert.match(await pools.locator('table.series-totals tbody tr').first().innerText(), /^\td0b927f79f[0-9a-f]{6}…\t2\t/);
   // Snapshots (D178), as poo sums them up: a fresh node has no logs yet.
   await pools.locator('.snapshots', { hasText: /^Snapshots: \d+ of \d+ pools with a log have one.*snapshot_every/ }).waitFor();
-  await pools.locator('.replay', { hasText: /^This start: \d+ pools from their snapshots/ }).waitFor();
+  await pools.locator('.replay', { hasText: /^This start: \d+ pools? from (its snapshot|their snapshots)/ }).waitFor();
   // Each pool runs the full poo status only when Show is pressed
   // (GUI-GREEN-056): not on opening the view.
   const each = section('Each pool');
@@ -132,6 +132,12 @@ try {
   assert.doesNotMatch(await more.locator('.cmd code').innerText(), /-replace/);
   // poo submit: an entry or layer made elsewhere, by its hex.
   await page.click('nav a[data-id=pools]');
+  // poo pools prints every pool, so the view's pool list runs only when
+  // Show is pressed (GUI-GREEN-057).
+  const plist = page.locator('#main section.panel', { has: page.locator('h2', { hasText: 'Followed pools' }) });
+  await plist.locator('.not-run').waitFor();
+  await plist.locator('.panel-head button', { hasText: 'Show' }).click();
+  await plist.locator('table.data tbody tr').first().waitFor();
   const submit = section('Submit an entry or layer');
   await submit.locator('select[name=kind]').selectOption('layer');
   await fill(submit, 'Pool', '1');
