@@ -300,6 +300,16 @@ try {
     return [...seen, long.length];
   });
   assert.deepEqual(dd, [1001, 'Show all 30000 characters', null, 30000, 1001, 30000], 'a long doctor detail is cut at 1,000 characters with Show all');
+  // A result whose output poo-gui dropped in part says so and loses its
+  // Save as file, which would write a file with a gap (ORANGE-026).
+  const inc = await page.evaluate(async () => {
+    const { incomplete, el } = await import('/views.js');
+    const { saveAs } = await import('/views/policies.js');
+    const area = el('div', {}, el('div', { class: 'result' }, '{}'), saveAs('{}', 'x.json'));
+    incomplete(area);
+    return [area.querySelectorAll('.save-as').length, area.firstChild.className, /dropped/.test(area.firstChild.textContent)];
+  });
+  assert.deepEqual(inc, [0, 'next-step output-dropped', true], 'a result with dropped output has no Save as file and says why');
   // parseJSON keeps a whole number above 2^53 exact, wherever it is, and
   // leaves digits inside strings and every smaller number alone
   // (GUI-GREEN-055).
