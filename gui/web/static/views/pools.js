@@ -66,8 +66,18 @@ export const poolsView = {
       args: v => ['ledger', 'import', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Import', danger: true,
       onStart: j => picker.feed(j),
       onResult: (r, area) => {
+        // poo sends the file in batches, and the node keeps each one (and
+        // may switch to the imported branch) before the next is sent. An
+        // import that ends in an error or a Stop prints only the error, so
+        // say that earlier batches may already be kept (GUI-031; poo's
+        // partial totals are Source's part).
+        if (r.code !== 0) {
+          area.prepend(el('p', { class: 'next-step ledger-import-partial', role: 'alert' },
+            'The import did not finish. Parts of the file sent before it ended may already be kept, and the node may have switched to the imported branch: Selected ledger (Explore) and Followed pools show where the pool stands. Importing the same file again is safe, as entries already kept count as known.'));
+          return;
+        }
         let o;
-        try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        try { o = JSON.parse(r.out); } catch (_) { return; }
         if (!o || typeof o.kept !== 'number') return;
         const refused = Array.isArray(o.refused) ? o.refused : [];
         area.prepend(el('p', { class: refused.length ? 'next-step ledger-imported' : 'hint ledger-imported', role: 'status' },

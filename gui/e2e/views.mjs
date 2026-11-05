@@ -278,6 +278,14 @@ try {
   page.once('dialog', d => d.accept());
   await limp.locator('button[type=submit]').click();
   await limp.locator('.ledger-imported', { hasText: /^Kept 0 entries and 0 layers; 0 entries and 0 layers were already known\.$/ }).waitFor();
+  assert.equal(await limp.locator('.ledger-import-partial').count(), 0, 'a finished import has no "did not finish" alert');
+  // An import that ends in an error says earlier batches may already be
+  // kept, since poo prints only the error (GUI-031).
+  await fill(limp, 'Ledger file', `${lfile}.missing`);
+  page.once('dialog', d => d.accept());
+  await limp.locator('button[type=submit]').click();
+  await limp.locator('.ledger-import-partial[role=alert]', { hasText: /^The import did not finish\. Parts of the file sent before it ended may already be kept/ }).waitFor();
+  assert.equal(await limp.locator('.ledger-imported').count(), 0);
   // A file picked in the browser goes to poo as its input (-).
   await limp.locator('input[type=file]').setInputFiles(lfile);
   assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} -`);

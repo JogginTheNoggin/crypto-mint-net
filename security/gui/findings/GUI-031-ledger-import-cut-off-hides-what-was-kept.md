@@ -3,7 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open; the real fix is Source's (pkg/cli/ledgerport.go), with a small GUI part |
+| Status | GUI part fixed (interim line); the real fix, poo's partial totals and Stop between batches, is routed to Source (pkg/cli/ledgerport.go) |
+| Fixed by | GUI/Blue, Round 33C (pools.js `ledgerImport`: a failed or stopped import shows a `.ledger-import-partial` alert that earlier parts may already be kept; views.mjs checks it). Drawing poo's partial totals waits on Source |
 | Found on | main @ 3c4ae00 (PR #258, Pools and payments → "Import a ledger"; D188) |
 | Component | pkg/cli/ledgerport.go (`ledgerImportCmd`: `send` returns the RPC error and drops `total`); gui/web/static/views/pools.js (`ledgerImport`'s `onResult` draws the summary only when `r.code === 0`) |
 | Surface | node (what the selected ledger is after an import) |

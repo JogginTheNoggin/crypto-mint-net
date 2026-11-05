@@ -48,6 +48,12 @@ Hardening, not filed:
   for a file with a gap in it. I couldn't make a ledger big enough to
   show this. A cheap guard: mark the run when a `dropped` event comes,
   and offer no Save as file then, only "export with To a file".
+  *Done in Round 33 (GUI/Orange ORANGE-026, #262, carried in GUI/Blue
+  R33C):* `runJob` marks a run on `dropped`. After `onResult`, `drawn`
+  removes every Save as file in the result and adds a
+  `.output-dropped` alert that points to the file field or `-out`. That
+  covers the ledger export's Save as file (GUI-GREEN-059, #261), which
+  also offers it only for one whole ledger file.
 - "To a file" on the export replaces any file at that path without a
   question, as the other exports' `-out` does.
 
@@ -871,4 +877,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-028](GUI-028-far-part-job-cannot-be-stopped.md) | Low | A far part number (Preview, Sign, Show parts, or an issuer-signed far release) starts a job that hashes for hours; Stop doesn't end it, and 16 such jobs fill every job slot until poo-gui restarts | mitigated by GUI/Blue (Round 27C: cost confirm, Stop note); mitigation verified R28B @ adcf216; core fix routed to Source |
 | [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | fixed as a warning (Source D171 `unbounded`, GUI/Blue Read first; Apply stays, per jerry); verified R29B @ 4e1c601 |
 | [GUI-030](GUI-030-replace-import-ignores-series-ceiling.md) | Low | Import node policies with Replace never checks series_ceiling, so a series the node set a ceiling to decline is added anyway, and one listed twice is kept twice | fixed by Source (D176, #207); verified R30B @ 0ade046 |
-| [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | open; fix routed to Source (partial totals, Stop between batches), GUI line after |
+| [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | GUI interim line done (Blue R33C); fix routed to Source (partial totals, Stop between batches), GUI summary after |
