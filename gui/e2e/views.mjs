@@ -72,7 +72,7 @@ try {
   assert.match(await pools.locator('table.series-totals tbody tr').first().innerText(), /^\td0b927f79f[0-9a-f]{6}…\t2\t/);
   // Snapshots (D178), as poo sums them up: a fresh node has no logs yet.
   await pools.locator('.snapshots', { hasText: /^Snapshots: \d+ of \d+ pools with a log have one.*snapshot_every/ }).waitFor();
-  await pools.locator('.replay', { hasText: /^This start: \d+ pools from their snapshots/ }).waitFor();
+  await pools.locator('.replay', { hasText: /^This start: \d+ pools? from (its snapshot|their snapshots)/ }).waitFor();
   // Each pool runs the full poo status only when Show is pressed
   // (GUI-GREEN-056): not on opening the view.
   const each = section('Each pool');
@@ -121,11 +121,14 @@ try {
   const pmv = await page.evaluate(async () => {
     const m = await import(new URL('views/node.js', location.href).href);
     const t = pm => m.statusNotes({ port_map: pm }).filter(p => p.classList.contains('port-map')).map(p => [p.getAttribute('role'), p.textContent]);
-    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:8646', advertised: '198.51.100.4:8646', lease_seconds: 3600 })];
+    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:8646', advertised: '198.51.100.4:8646', lease_seconds: 3600 }), t({ mode: 'auto', state: 'unconfirmed', method: 'pcp', external: '198.51.100.4:8646', error: 'dial timed out' })];
   });
   assert.deepEqual(pmv[0], []);
   assert.deepEqual(pmv[1], [['alert', 'Port mapping (auto): failed. no gateway answered.']]);
   assert.deepEqual(pmv[2], [[null, 'Port mapping (upnp): advertised via upnp, the router reports 198.51.100.4:8646, offered to peers as 198.51.100.4:8646, lease 1 hour.']]);
+  // Unconfirmed (mapped, the dial back did not arrive, removed) leaves
+  // peers unable to reach the node too, so it is an alert (GUI/Red R31B).
+  assert.deepEqual(pmv[3], [['alert', 'Port mapping (auto): unconfirmed via pcp, the router reports 198.51.100.4:8646. dial timed out.']]);
   assert.deepEqual(rv[1], [[null, 'Checked every record again: the full replay of all 3 pools matched their snapshots.']]);
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
@@ -148,6 +151,12 @@ try {
   assert.doesNotMatch(await more.locator('.cmd code').innerText(), /-replace/);
   // poo submit: an entry or layer made elsewhere, by its hex.
   await page.click('nav a[data-id=pools]');
+  // poo pools prints every pool, so the view's pool list runs only when
+  // Show is pressed (GUI-GREEN-057).
+  const plist = page.locator('#main section.panel', { has: page.locator('h2', { hasText: 'Followed pools' }) });
+  await plist.locator('.not-run').waitFor();
+  await plist.locator('.panel-head button', { hasText: 'Show' }).click();
+  await plist.locator('table.data tbody tr').first().waitFor();
   const submit = section('Submit an entry or layer');
   await submit.locator('select[name=kind]').selectOption('layer');
   await fill(submit, 'Pool', '1');

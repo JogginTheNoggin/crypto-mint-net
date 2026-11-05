@@ -5,6 +5,69 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 31 Part B reviewed main @ 55c5efa (PR #228):
+- the pool snapshot and replay lines on Followed pools (D178);
+- the `-reverify` box on Run the node, and the reverify-differed alert;
+- the totals table, which names the built-in reserve series (D179);
+- Each pool running only when Show is pressed, and the follow list's
+  pools drawn when opened (GUI-GREEN-056);
+- `parseJSON` reading big numbers from the reviver's source text
+  (R30B's hardening note);
+- "Nothing to apply" on a plan that changes nothing (R28B's note).
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass.
+
+There are no new findings.
+
+Held up:
+- **`parseJSON` no longer has a fixed sentinel.** Where the reviver gets
+  the number's source text (Chromium 114 on, and Node 22), only numbers
+  are changed: `"\u0000big:42"` and `"\u0000big:x"` now stay strings
+  next to a big amount, and nothing throws. The fallback, `parseMarked`,
+  uses a mark made for each call, and the same two strings stay strings
+  there too. `1.5e300` stays a number. The faster check, 16 digits after
+  a colon, bracket or comma, can't miss a JSON number, because JSON
+  allows nothing else before one.
+- **"Nothing to apply"** only changes the message. Apply still depends
+  on poo's digest: no digest, no Apply. So the GUI's own reading of
+  "changes nothing" can't offer an Apply that poo didn't pin.
+- **`-reverify`** is a flag on the node command the GUI starts, and the
+  Run in terminal line follows the box. The replay and reverify lines
+  draw poo's counts and reasons as text, and a pool that differed is an
+  alert that points to `poo doctor`.
+- **Snapshots** are the node's own files (pkg/node/snapshot.go). One is
+  used only if its checksum, pool, build and log tag all match, and
+  `-reverify` or `no_snapshots` replays the logs whole. Nothing from a
+  peer or an import reaches them. `snapshot_every` is a bounded limit
+  (1,000 to 2^30). The Source and Black reviews cover the rest.
+
+R31B addendum: I also reviewed PR #232 (main @ 4c0f708), opt-in router
+port mapping (D182). It adds the `-port-map` choice to Write a node policy,
+and a mapping line on Followed pools. I found nothing new.
+
+- **The form** offers only poo's values (`auto`, `pcp`, `natpmp`,
+  `upnp`). The default is off and sends no flag. Its help names the
+  cost: once a dial reaches the node, peers learn its public IP.
+- **The status line** draws poo's `port_map` fields as text. `failed`
+  and `not_public` are alerts. A router's error words reach the page
+  only as poo's `error` string, through `textContent`.
+- **What is advertised is never a router's word alone.** The node
+  advertises the mapped address only after it dials that address and
+  its own hello comes back (`confirmSelf`), and only if the address is
+  public. `p2p.advertise` set by hand always wins. Router replies are
+  limited to the gateway: PCP and NAT-PMP come over a socket connected
+  to it, and UPnP takes SSDP answers and URLs only on the gateway's
+  address, with bounded reads (`io.LimitReader`). Source's and Black's
+  reviews cover pkg/portmap in depth.
+- Optional: `unconfirmed`, where the mapping was made but the dial
+  didn't reach the node and the mapping was removed, is shown as a
+  muted hint. It could be an alert like `failed`, since peers still
+  can't reach the node. This is not security.
+  *Done by GUI/Blue in Round 31C:* `unconfirmed` is now an alert like
+  `failed` and `not_public`, with poo's state and error words as before.
+  views.mjs checks it.
+
 Round 30 Part B reviewed main @ 0ade046 (PR #216):
 - Followed pools refreshing on `poo status -counts` (D177, ORANGE-021);
 - the Each pool panel, which runs only when asked;
