@@ -7,7 +7,7 @@
 | Found | Source Round 30 Part B, on `main` @ `cf8c859` (D178) |
 | Area | `pkg/node/snapshot.go` (`buildID`, `loadSnapshot`), `scripts/release.sh`, `pkg/cli` (`Version`, `Commit`) |
 | For Black | No consensus rule is touched. This is the guard D178 gives for "an upgrade replays once", and for the day a release changes how a pool is computed it is the only thing standing between a restored pool and a replayed one. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-031) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `957d707` (BLUE-031) |
 
 ## What is wrong
 

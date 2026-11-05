@@ -7,7 +7,7 @@
 | Found | Source Round 30 Part B, on `main` @ `cf8c859` (D178) |
 | Area | `pkg/node/snapshot.go` (`writeCollected`), `pkg/node/node.go` (`loadPool`) |
 | For Black | Not a rule. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-031) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `957d707` (BLUE-031) |
 
 ## What is wrong
 

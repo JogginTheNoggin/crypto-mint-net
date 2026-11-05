@@ -7,7 +7,7 @@
 | Found | Source Round 30 Part B, on `main` @ `cf8c859` (D178) |
 | Area | `pkg/node/node.go` (`loadPool`, the `check` comparison), `pkg/node/snapshot.go` (`loadSnapshot`, `readSnapHeader`), `pkg/cli/doctor.go` (`snapshotsCheck`), `pkg/ledger/snapshot.go` (`Restore`, `Fingerprint`) |
 | For Black | No consensus rule is touched. This is about whether a node can find out that its restored pool is not the pool its log gives, which is the same-information-different-ledger case. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-031) |
+| Fixed by | `claude/project-thread-ggo8dt` @ `957d707` (BLUE-031) |
 
 ## What is wrong
 
