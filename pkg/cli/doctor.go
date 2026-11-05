@@ -293,7 +293,10 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 		c.Detail = "no_snapshots is on: every start replays the whole pool logs"
 	case len(r.Unused) > 0:
 		c.Result = checkWarn
-		c.Detail = fmt.Sprintf("%d pool snapshots were not used at the last start, so those logs were replayed whole: %s", len(r.Unused), r.Unused[0])
+		// Every reason, not only the first: a damaged file and an
+		// upgrade read differently, and each pool may have its own
+		// (GREEN-055).
+		c.Detail = fmt.Sprintf("%d %s not used at the last start, so %s replayed whole: %s", len(r.Unused), plural(len(r.Unused), "pool snapshot was", "pool snapshots were"), plural(len(r.Unused), "its log was", "their logs were"), strings.Join(r.Unused, "; "))
 		c.Fix = "nothing is needed if this follows an upgrade or a compaction; otherwise check the disk. A clean stop writes new snapshots"
 	case s.Behind > 2*s.Every:
 		c.Result = checkWarn
@@ -306,6 +309,11 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 			age = fmt.Sprintf("the oldest is %s old", time.Duration(s.AgeSeconds)*time.Second)
 		}
 		c.Detail = fmt.Sprintf("%d of %d pools have a snapshot, %s; a start replays at most %d records of a log", s.Pools-s.Missing, s.Pools, age, s.Behind)
+		// A -reverify that found every snapshot equal to its full replay
+		// says so, rather than nothing (D178 names it in doctor; GREEN-055).
+		if r.Reverified > 0 {
+			c.Detail += fmt.Sprintf("; -reverify replayed %d %s whole at the last start and %s its snapshot", r.Reverified, plural(r.Reverified, "pool", "pools"), plural(r.Reverified, "it matched", "each matched"))
+		}
 	}
 	return c
 }

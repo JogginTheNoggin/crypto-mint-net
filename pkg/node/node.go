@@ -380,8 +380,16 @@ func (n *Node) loadPool(k engine.PoolKey) error {
 			return 0, 0, nil
 		}
 		if n.reverify {
-			if h, err := n.readSnapHeader(k); err == nil {
+			h, err := n.readSnapHeader(k)
+			switch {
+			case err == nil:
 				check = &h
+			case !errors.Is(err, os.ErrNotExist):
+				// A snapshot -reverify cannot read is reported as on any
+				// start, so the flag that checks everything does not hide
+				// a damaged file behind "ok" (GREEN-055).
+				n.replay.Unused = append(n.replay.Unused, k.String()+": "+err.Error())
+				n.logger().Warn("pool snapshot not compared under -reverify; the whole log is replayed", "pool", k.String(), "reason", err.Error())
 			}
 			return 0, 0, nil
 		}
