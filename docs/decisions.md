@@ -4580,3 +4580,15 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Why:** GUI Green, R30B (PR #217).
 - **Consensus:** None. Display only.
 - **Tier:** CLI. `pkg/cli/blue030_test.go`: `TestStatusBySeriesBuiltin`.
+
+### D180. No digest for an import that changes nothing (GUI Red's R29 nit)
+
+- **Decision:** `poo policy import -json` and `poo settings import -json`
+  leave out `digest` when no plan changes anything, as the text preview
+  already did (GREEN-043). The GUI, since GUI R30 (#220), says "Nothing to
+  apply" for such a preview and offers no Apply.
+- **Why:** A digest pins an apply to what was previewed; with nothing to
+  apply it only invited one. Held from D176 until the GUI changed with it.
+- **Consensus:** None. Output only.
+- **Tier:** CLI. `pkg/cli/policyport_test.go`:
+  `TestPolicyImportNoOpHasNoDigest`.

@@ -256,6 +256,19 @@ func TestPolicyImportIfDigest(t *testing.T) {
 	}
 }
 
+// D180: an import that changes nothing carries no digest in -json either,
+// since there is nothing for -apply -if-digest to pin (GUI Red's nit).
+func TestPolicyImportNoOpHasNoDigest(t *testing.T) {
+	root := t.TempDir()
+	cli(t, nil, "init", "-example", "-root", root, "-p2p", "off")
+	a := filepath.Join(t.TempDir(), "a.json")
+	runOut(t, "policy", "export", "-root", root, "-out", a)
+	out := runOut(t, "policy", "import", a, "-json", "-root", root)
+	if strings.Contains(out, `"digest"`) {
+		t.Fatalf("a no-op import printed a digest:\n%s", out)
+	}
+}
+
 // The plan's notes name fields as its lines do, the digest comes with a
 // preview that has something to apply, and one setting "is" the same
 // (GREEN-043).
