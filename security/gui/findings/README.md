@@ -42,6 +42,29 @@ Held up:
   peer or an import reaches them. `snapshot_every` is a bounded limit
   (1,000 to 2^30). The Source and Black reviews cover the rest.
 
+R31B addendum: I also reviewed PR #232 (main @ 4c0f708), opt-in router
+port mapping (D182). It adds the `-port-map` choice to Write a node policy,
+and a mapping line on Followed pools. I found nothing new.
+
+- **The form** offers only poo's values (`auto`, `pcp`, `natpmp`,
+  `upnp`). The default is off and sends no flag. Its help names the
+  cost: once a dial reaches the node, peers learn its public IP.
+- **The status line** draws poo's `port_map` fields as text. `failed`
+  and `not_public` are alerts. A router's error words reach the page
+  only as poo's `error` string, through `textContent`.
+- **What is advertised is never a router's word alone.** The node
+  advertises the mapped address only after it dials that address and
+  its own hello comes back (`confirmSelf`), and only if the address is
+  public. `p2p.advertise` set by hand always wins. Router replies are
+  limited to the gateway: PCP and NAT-PMP come over a socket connected
+  to it, and UPnP takes SSDP answers and URLs only on the gateway's
+  address, with bounded reads (`io.LimitReader`). Source's and Black's
+  reviews cover pkg/portmap in depth.
+- Optional: `unconfirmed`, where the mapping was made but the dial
+  didn't reach the node and the mapping was removed, is shown as a
+  muted hint. It could be an alert like `failed`, since peers still
+  can't reach the node. This is not security.
+
 Round 30 Part B reviewed main @ 0ade046 (PR #216):
 - Followed pools refreshing on `poo status -counts` (D177, ORANGE-021);
 - the Each pool panel, which runs only when asked;
