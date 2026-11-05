@@ -234,6 +234,13 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 30 fixes (D181):**
+  - Each release's snapshots are its own: the build a snapshot names now
+    includes the release version and commit, so an upgrade replays once.
+  - A start checks that a snapshot restores the pool it was written from,
+    and replays the log if not. `-reverify` says when it compared nothing
+    because a snapshot was behind its log.
+  - A temporary snapshot file left by a crash is removed at start.
 - **Round 30 (D178 to D180):**
   - **Fast starts from pool snapshots.** A node saves each pool's
     skeleton, tip state, pending transactions and the place of every

@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -42,6 +43,10 @@ var Version = "0.1.0-dev"
 // Commit is the source commit, set by scripts/release.sh with -X, where
 // the build info has none (GREEN-013).
 var Commit = ""
+
+// A release build records no VCS information, so the node names the
+// build its snapshots are written by from these (RED-087, D181).
+func init() { node.SetRelease(Version, Commit) }
 
 const usage = `poo: Proof of Ownership full node tool
 
