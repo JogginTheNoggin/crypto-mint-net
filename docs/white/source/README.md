@@ -169,3 +169,13 @@ None of these is a consensus question. Each is node or tool behaviour.
   version from one tag (as [docs/releasing.md](../../releasing.md)
   already says), and the changelog stays one file with a GUI group of
   bullets.
+
+## Proposals
+
+White's own proposals use the Green and Orange format and go to Grey (and
+to the owner where marked):
+
+| Id | Title | Status |
+| --- | --- | --- |
+| [WHITE-001](WHITE-001-first-public-release.md) | Plan for the first public release (alpha `v0.1.0-alpha.1`) | proposed |
+| [WHITE-002](WHITE-002-version-and-features.md) | Nodes tell each other their version and what they support | proposed |
