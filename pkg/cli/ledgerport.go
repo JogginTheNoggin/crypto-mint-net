@@ -234,19 +234,12 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		defer fh.Close()
 		r = fh
 	}
-	var f ledgerFile
-	if err := json.NewDecoder(r).Decode(&f); err != nil {
-		return fmt.Errorf("not a ledger file: %w", err)
-	}
-	if f.Kind != LedgerFileKind || f.Format != LedgerFileFormat {
-		return fmt.Errorf("not a ledger file of format %d (kind %q, format %d)", LedgerFileFormat, f.Kind, f.Format)
-	}
-	cl, err := dialNode(out, w.resolve())
-	if err != nil {
-		return err
-	}
-	total := node.ImportResult{}
-	var batch [][]byte
+	var (
+		f     ledgerFile
+		cl    *rpc.Client
+		total node.ImportResult
+		batch [][]byte
+	)
 	size, base := 0, 0
 	send := func() error {
 		if len(batch) == 0 {
@@ -269,7 +262,16 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		batch, size = nil, 0
 		return nil
 	}
-	for _, it := range f.Entries {
+	head := func(h ledgerFile) error {
+		if h.Kind != LedgerFileKind || h.Format != LedgerFileFormat {
+			return fmt.Errorf("not a ledger file of format %d (kind %q, format %d)", LedgerFileFormat, h.Kind, h.Format)
+		}
+		f = h
+		var err error
+		cl, err = dialNode(out, w.resolve())
+		return err
+	}
+	item := func(it ledgerFileItem) error {
 		if len(batch) == node.MaxImportItems || (len(batch) > 0 && size+len(it.Item) > watch.ExportBytes) {
 			if err := send(); err != nil {
 				return err
@@ -277,9 +279,124 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		}
 		batch = append(batch, it.Item)
 		size += len(it.Item)
+		return nil
+	}
+	if err := readLedgerFile(r, head, item); err != nil {
+		return err
 	}
 	if err := send(); err != nil {
 		return err
 	}
 	return o.write(out, total)
+}
+
+// readLedgerFile reads a ledger file from r, giving its header to head
+// and then each entry to item, one at a time, so an import holds one
+// batch of items rather than the whole file (ORANGE-043: a 292 MB file
+// took 1.8 GB). The entries are read as they stream when the header
+// fields that name the file and its pool come before them, as poo ledger
+// export writes them; otherwise they are held until the header is read.
+// An error from head or item stops the read.
+func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFileItem) error) error {
+	bad := func(err error) error { return fmt.Errorf("not a ledger file: %w", err) }
+	dec := json.NewDecoder(r)
+	if t, err := dec.Token(); err != nil {
+		return bad(err)
+	} else if t != json.Delim('{') {
+		return bad(errors.New("it is not a JSON object"))
+	}
+	fields := map[string]json.RawMessage{}
+	header := func() (ledgerFile, error) {
+		var h ledgerFile
+		b, err := json.Marshal(fields)
+		if err == nil {
+			err = json.Unmarshal(b, &h)
+		}
+		if err != nil {
+			return h, bad(err)
+		}
+		return h, nil
+	}
+	named := func() bool {
+		for _, k := range []string{"kind", "format", "series", "pool"} {
+			if _, ok := fields[k]; !ok {
+				return false
+			}
+		}
+		return true
+	}
+	started := false
+	var held []ledgerFileItem
+	for dec.More() {
+		t, err := dec.Token()
+		if err != nil {
+			return bad(err)
+		}
+		k, _ := t.(string)
+		if k != "entries" {
+			var v json.RawMessage
+			if err := dec.Decode(&v); err != nil {
+				return bad(err)
+			}
+			fields[k] = v
+			continue
+		}
+		if started || !named() {
+			// Out of order, or entries twice: read them whole, as before.
+			var es []ledgerFileItem
+			if err := dec.Decode(&es); err != nil {
+				return bad(err)
+			}
+			held = append(held, es...)
+			continue
+		}
+		h, err := header()
+		if err != nil {
+			return err
+		}
+		if err := head(h); err != nil {
+			return err
+		}
+		started = true
+		t, err = dec.Token()
+		if err != nil {
+			return bad(err)
+		}
+		if t == nil { // "entries": null
+			continue
+		}
+		if t != json.Delim('[') {
+			return bad(errors.New("entries is not a list"))
+		}
+		for dec.More() {
+			var it ledgerFileItem
+			if err := dec.Decode(&it); err != nil {
+				return bad(err)
+			}
+			if err := item(it); err != nil {
+				return err
+			}
+		}
+		if _, err := dec.Token(); err != nil {
+			return bad(err)
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return bad(err)
+	}
+	if !started {
+		h, err := header()
+		if err != nil {
+			return err
+		}
+		if err := head(h); err != nil {
+			return err
+		}
+	}
+	for _, it := range held {
+		if err := item(it); err != nil {
+			return err
+		}
+	}
+	return nil
 }

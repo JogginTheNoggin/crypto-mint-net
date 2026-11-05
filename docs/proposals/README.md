@@ -100,3 +100,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-040](source/ORANGE-040-snapshots-measured.md) | Source | Round 30 measured; pool snapshots start 10 to 30 times faster, but gathering one holds the node for seconds | proposed |
 | [ORANGE-041](source/ORANGE-041-snapshot-pause-and-port-mapping.md) | Source | Round 31 measured; the snapshot pause after D182, the per-start check, and port mapping | proposed |
 | [ORANGE-042](source/ORANGE-042-unknown-settings-and-status-size.md) | Source | Round 32 measured; saving unknown settings was quadratic, and the status reply after an upgrade | proposed |
+| [ORANGE-043](source/ORANGE-043-ledger-export-import-and-hello.md) | Source | Round 33 measured; ledger export and import, and the hello's cost | proposed |
