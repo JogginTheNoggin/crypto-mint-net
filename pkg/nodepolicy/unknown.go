@@ -100,36 +100,77 @@ func (p Policy) UnknownSettings() []string {
 // back where they were. A setting whose key this release now writes, or
 // whose parent is no longer an object, is left out.
 func withUnknown(b []byte, extras []extra) []byte {
+	root := &extraTree{}
 	for _, e := range extras {
-		if nb, ok := insertSetting(b, e.path, e.val); ok {
-			b = nb
-		}
+		root.add(e.path, e.val)
+	}
+	// As before, b comes back as it was when no setting went in.
+	if nb, n := root.insert(b); n > 0 {
+		return nb
 	}
 	return b
 }
 
-func insertSetting(obj []byte, path []string, val json.RawMessage) ([]byte, bool) {
-	var m map[string]json.RawMessage
-	if json.Unmarshal(obj, &m) != nil || m == nil {
-		return nil, false
-	}
+// extraTree groups the kept settings by their path, so withUnknown
+// decodes and encodes each object once however many settings go into it
+// (ORANGE-042: one pass per setting made Save quadratic in their number).
+type extraTree struct {
+	vals map[string]json.RawMessage // settings to put in this object
+	kids map[string]*extraTree      // settings to put in its child objects
+}
+
+func (t *extraTree) add(path []string, val json.RawMessage) {
 	k := path[0]
 	if len(path) == 1 {
-		if _, ok := m[k]; ok {
-			return nil, false
+		if t.vals == nil {
+			t.vals = map[string]json.RawMessage{}
 		}
-		m[k] = val
-	} else {
+		t.vals[k] = val
+		return
+	}
+	if t.kids == nil {
+		t.kids = map[string]*extraTree{}
+	}
+	c := t.kids[k]
+	if c == nil {
+		c = &extraTree{}
+		t.kids[k] = c
+	}
+	c.add(path[1:], val)
+}
+
+// insert returns obj with t's settings put in, and how many went in;
+// with none, obj is to be left as it was. Nothing goes into an obj that
+// is not an object. A setting whose key obj already holds is left out,
+// and a child that is missing or null is made an empty object first.
+func (t *extraTree) insert(obj []byte) ([]byte, int) {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(obj, &m) != nil || m == nil {
+		return nil, 0
+	}
+	n := 0
+	for k, v := range t.vals {
+		if _, ok := m[k]; !ok {
+			m[k] = v
+			n++
+		}
+	}
+	for k, c := range t.kids {
 		child, ok := m[k]
 		if !ok || bytes.Equal(bytes.TrimSpace(child), []byte("null")) {
 			child = json.RawMessage("{}")
 		}
-		nc, ok := insertSetting(child, path[1:], val)
-		if !ok {
-			return nil, false
+		if nc, cn := c.insert(child); cn > 0 {
+			m[k] = nc
+			n += cn
 		}
-		m[k] = nc
+	}
+	if n == 0 {
+		return nil, 0
 	}
 	out, err := json.Marshal(m)
-	return out, err == nil
+	if err != nil {
+		return nil, 0
+	}
+	return out, n
 }

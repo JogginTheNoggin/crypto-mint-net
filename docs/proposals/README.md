@@ -98,3 +98,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-039](source/ORANGE-039-cold-entries-measured.md) | Source | Round 29 measured; cold entries, the recent window and the pending pool after a deep switch | proposed |
 | [ORANGE-040](source/ORANGE-040-snapshots-measured.md) | Source | Round 30 measured; pool snapshots start 10 to 30 times faster, but gathering one holds the node for seconds | proposed |
 | [ORANGE-041](source/ORANGE-041-snapshot-pause-and-port-mapping.md) | Source | Round 31 measured; the snapshot pause after D182, the per-start check, and port mapping | proposed |
+| [ORANGE-042](source/ORANGE-042-unknown-settings-and-status-size.md) | Source | Round 32 measured; saving unknown settings was quadratic, and the status reply after an upgrade | proposed |
