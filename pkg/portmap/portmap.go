@@ -11,7 +11,11 @@
 //
 // A mapping says what the router reports as its external address. It is a
 // claim only: the caller confirms it reaches this node (package p2p dials
-// it and expects its own hello back) before telling anyone.
+// it and waits for its own listener to receive the dial, D183) before
+// telling anyone.
+//
+// A request that fails leaves no mapping behind: what the router made on
+// the way is removed before the error is returned (D183).
 package portmap
 
 import (

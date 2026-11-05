@@ -404,6 +404,9 @@ func (h *Host) handshake(c net.Conn, outbound bool, addr string) (*peer, error) 
 		return nil, fmt.Errorf("protocol %d not spoken", theirs.Protocol)
 	}
 	if theirs.NodeID == h.id {
+		if !outbound {
+			h.sawSelfProbe(theirs.Agent)
+		}
 		return nil, errSelf
 	}
 	c.SetDeadline(time.Time{})

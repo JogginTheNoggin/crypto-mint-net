@@ -4718,3 +4718,69 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     another node's address unconfirmed; not public; retry; a manual
     advertise wins; off by default.
   - `pkg/nodepolicy/portmap_test.go`; `pkg/cli/portmap_doctor_test.go`.
+
+### D183. Round 31 fixes: RED-090, RED-091 and RED-092 (BLUE-032)
+
+- **Decision:**
+  - **RED-090.** The dial-back now proves it reached this node's own
+    listener. `confirmSelf` puts a fresh random 128-bit token in the
+    hello it sends (`Agent` is `poo-self-check/` and the token in hex, so
+    the wire format is unchanged). The listener's handshake, on an
+    inbound hello with this node's own id, records a token `confirmSelf`
+    is waiting on (`sawSelfProbe`). Only that record confirms the
+    address. The far end's answer is not trusted: it can only end the
+    wait early with a failure (another node's hello, or a closed
+    connection). An echo server or a copy of the node's hello therefore
+    confirms nothing. This replaces D182's "must get its own hello back".
+    One case stays: a host that relays the connection to this node's real
+    listener passes. Connections to that address do reach this node, so
+    the address works for peers, and a relay sees no more than the router
+    already can.
+  - **RED-091.** A failed request leaves nothing at the router:
+    - UPnP asks for the external address before `AddPortMapping`, so that
+      failing makes nothing.
+    - A PCP reply that grants an address the node cannot use (not IPv4,
+      or port 0) is removed with the same nonce.
+    - A request whose answer was not read gets a short best-effort
+      removal with its own context, at most 1 s. That covers the caller's
+      context ending, and a UPnP call whose connection failed.
+    - A renewal's mapping stays the caller's to remove, as before. Since
+      each method cleans up after itself, `auto` moves to the next method
+      with nothing left behind.
+    - `exchange` now reports the caller's deadline as
+      `context.DeadlineExceeded` rather than "no answer", so a cut-short
+      wait is told apart from a silent router.
+  - **RED-092.**
+    - The renewal comes at half of the granted lifetime or of
+      `p2p.port_map_seconds`, whichever is shorter (`renewAfter`), and
+      never sooner than 30 s. A lifetime of 0 (until removed) counts as
+      the lease.
+    - A granted lifetime of 30 s or less is refused (`failed`, removed,
+      not advertised), since it would lapse before the renewal.
+    - A PCP reply with lifetime 0 is refused: in PCP that means no
+      mapping.
+    - The dial-back's dial, write and wait all end with the run's
+      context, so a stop no longer waits up to 10 s.
+  - **GREEN-056 (#234) is carried:** it changes the same `portmap.go`.
+- **Why:** D182 relies on the dial-back to keep a router's claim from
+  becoming the address peers are told. The old check compared the answer
+  with a value the node had just sent, so a lying router or a forged
+  NAT-PMP reply could steer peers to an address it controls. A mapping
+  left after a failure is an open port the owner did not agree to. With
+  a permanent UPnP lease, it stays until someone removes it.
+- **Consensus:** None. Port mapping is node policy. It decides what a
+  node tells peers about itself, never which ledger is valid.
+- **Tier:** p2p, portmap.
+  - `pkg/p2p/blue032_test.go`:
+    - `TestBlue032DialBackNeedsOwnListener`, against an echo server and
+      a copied hello.
+    - `TestBlue032StopDoesNotWaitOnSilentDialBack`.
+    - `TestBlue032ShortLifetimeRefused`.
+    - `TestBlue032RenewalCappedByLease`.
+  - `pkg/portmap/blue032_test.go`:
+    - `TestBlue032UPnPExternalFailsLeavesNoMapping`, Red's router.
+    - `TestBlue032UPnPCancelRemoves`.
+    - `TestBlue032PCPUnusableRemoved`, Red's IPv6 answer.
+    - `TestBlue032PCPLifetimeZeroRefused`.
+    - `TestBlue032CancelSendsRemoval`, for PCP and NAT-PMP.
+  - Each test fails on the code before the fix.

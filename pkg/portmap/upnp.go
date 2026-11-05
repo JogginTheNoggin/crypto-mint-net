@@ -228,6 +228,12 @@ type upnpError struct {
 
 func (e *upnpError) Error() string { return fmt.Sprintf("UPnP error %d %s", e.Code, e.Desc) }
 
+// noAnswer is a SOAP call whose answer was not read: the router may
+// have acted on it.
+type noAnswer struct{ error }
+
+func (e noAnswer) Unwrap() error { return e.error }
+
 // soap calls action on the service at ctl and returns the reply's
 // elements by local name.
 func (c *Client) soap(ctx context.Context, ctl, service, action string, args [][2]string) (map[string]string, error) {
@@ -248,12 +254,12 @@ func (c *Client) soap(ctx context.Context, ctl, service, action string, args [][
 	req.Header.Set("SOAPAction", `"`+service+"#"+action+`"`)
 	resp, err := c.httpClient().Do(req)
 	if err != nil {
-		return nil, err
+		return nil, noAnswer{err}
 	}
 	defer resp.Body.Close()
 	body, err := readCapped(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", action, err)
+		return nil, noAnswer{fmt.Errorf("%s: %w", action, err)}
 	}
 	vals := soapValues(body)
 	if resp.StatusCode != http.StatusOK {
@@ -319,6 +325,16 @@ func (c *Client) upnpMap(ctx context.Context, gw netip.Addr, internal uint16, li
 	if err != nil {
 		return Mapping{}, err
 	}
+	// The external address is asked for first: it needs no mapping, so a
+	// failure here leaves nothing at the router (RED-091).
+	vals, err := c.soap(ctx, ctl, service, "GetExternalIPAddress", nil)
+	if err != nil {
+		return Mapping{}, err
+	}
+	ip, err := netip.ParseAddr(vals["NewExternalIPAddress"])
+	if err != nil || !ip.Unmap().Is4() {
+		return Mapping{}, fmt.Errorf("external address %q is not an IPv4 address", vals["NewExternalIPAddress"])
+	}
 	add := func(life uint32) error {
 		_, err := c.soap(ctx, ctl, service, "AddPortMapping", [][2]string{
 			{"NewRemoteHost", ""}, {"NewExternalPort", strconv.Itoa(int(ext))}, {"NewProtocol", "TCP"},
@@ -336,16 +352,22 @@ func (c *Client) upnpMap(ctx context.Context, gw netip.Addr, internal uint16, li
 		life = 0
 		err = add(0)
 	}
-	if err != nil {
+	var na noAnswer
+	if prev == nil && (cutShort(ctx, err) || errors.As(err, &na)) {
+		// The request may have reached the router though its answer was
+		// not read (the context ended, or the connection failed); a
+		// mapping nobody knows of, permanent with some routers, is
+		// removed (RED-091).
+		c.cleanup(func(cctx context.Context) error {
+			return c.upnpUnmap(cctx, gw, Mapping{External: netip.AddrPortFrom(ip.Unmap(), ext), control: ctl, service: service})
+		})
+		if ctx.Err() != nil {
+			return Mapping{}, ctx.Err()
+		}
 		return Mapping{}, err
 	}
-	vals, err := c.soap(ctx, ctl, service, "GetExternalIPAddress", nil)
 	if err != nil {
 		return Mapping{}, err
-	}
-	ip, err := netip.ParseAddr(vals["NewExternalIPAddress"])
-	if err != nil || !ip.Unmap().Is4() {
-		return Mapping{}, fmt.Errorf("external address %q is not an IPv4 address", vals["NewExternalIPAddress"])
 	}
 	return Mapping{Method: MethodUPnP, External: netip.AddrPortFrom(ip.Unmap(), ext), Internal: internal,
 		Lifetime: time.Duration(life) * time.Second, control: ctl, service: service}, nil

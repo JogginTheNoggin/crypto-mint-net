@@ -3,11 +3,15 @@ package p2p
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/portmap"
@@ -51,7 +55,22 @@ type PortMapStatus struct {
 	LeaseSeconds int       `json:"lease_seconds,omitempty"`
 	Since        time.Time `json:"since,omitzero"`
 	Error        string    `json:"error,omitempty"`
+	// Gateway is the router asked: p2p.port_map_gateway, or else the
+	// default route's gateway as last found; empty when none was found
+	// (GREEN-056).
+	Gateway string `json:"gateway,omitempty"`
+	// Reason says why a skipped mapping is not asked for (GREEN-056).
+	Reason string `json:"reason,omitempty"`
+	// NextTry is when the node asks the router again after a mapping
+	// failed or was removed; zero while one is held (GREEN-056).
+	NextTry time.Time `json:"next_try,omitzero"`
 }
+
+// Why a mapping that was asked for is skipped (PortMapStatus.Reason).
+const (
+	PortMapReasonAdvertise = "p2p.advertise is set by hand, which always wins"
+	PortMapReasonNoListen  = "the node accepts no peers (p2p.listen is off)"
+)
 
 // PortMap returns the port mapping's status.
 func (h *Host) PortMap() PortMapStatus {
@@ -62,8 +81,13 @@ func (h *Host) PortMap() PortMapStatus {
 		st.Mode, st.State = PortMapOff, PortMapOff
 		if h.portMapAsked() {
 			st.Mode, st.State = h.cfg.PortMap, PortMapSkipped
+			st.Reason = PortMapReasonNoListen
+			if h.cfg.Advertise != "" {
+				st.Reason = PortMapReasonAdvertise
+			}
 		}
 	}
+	st.Gateway = h.pmGW
 	return st
 }
 
@@ -94,6 +118,23 @@ func (h *Host) advertised() string {
 	return ""
 }
 
+// gatewayShown is the router a try speaks to, as status shows it:
+// p2p.port_map_gateway, or else the default route's gateway (found again
+// on each try, as portmap.Client finds it). Empty when none is found, or
+// when a test supplies its own mapper.
+func (h *Host) gatewayShown() string {
+	if g := h.cfg.PortMapGateway; g != "" {
+		return g
+	}
+	if h.cfg.PortMapper != nil {
+		return ""
+	}
+	if a, err := portmap.DefaultGateway(); err == nil {
+		return a.String()
+	}
+	return ""
+}
+
 func (h *Host) mapper() (PortMapper, error) {
 	if h.cfg.PortMapper != nil {
 		return h.cfg.PortMapper, nil
@@ -111,12 +152,17 @@ func (h *Host) mapper() (PortMapper, error) {
 
 // Port mapping waits: after a failure the next try waits pmRetry, doubled
 // each time up to pmMaxRetry; a renewal comes at half the granted
-// lifetime, never sooner than pmMinRenew.
+// lifetime or the asked lease, whichever is shorter, never sooner than
+// pmMinRenew, and a lifetime no longer than pmMinLife is refused
+// (renewAfter, RED-092).
 var (
 	pmRetry    = time.Minute
 	pmMaxRetry = 30 * time.Minute
 	pmMinRenew = 30 * time.Second
-	pmUnmap    = 3 * time.Second
+	// pmMinLife is the shortest lifetime kept: a shorter one would lapse
+	// before the renewal (RED-092).
+	pmMinLife = 30 * time.Second
+	pmUnmap   = 3 * time.Second
 )
 
 // portMapLoop keeps a mapping of the listen port while ctx lasts, and
@@ -141,12 +187,17 @@ func (h *Host) portMapLoop(ctx context.Context) {
 		}
 	}
 	backoff := func() bool {
+		h.setPortMap(func(s *PortMapStatus) { s.NextTry = time.Now().Add(retry) })
 		ok := sleep(retry)
 		retry = min(retry*2, pmMaxRetry)
 		return ok
 	}
 	for ctx.Err() == nil {
-		h.setPortMap(func(s *PortMapStatus) { s.State = PortMapTrying })
+		gw := h.gatewayShown()
+		h.setPortMap(func(s *PortMapStatus) { s.State, s.NextTry = PortMapTrying, time.Time{} })
+		h.pmMu.Lock()
+		h.pmGW = gw
+		h.pmMu.Unlock()
 		got, err := m.Map(ctx, h.cfg.PortMap, uint16(port), h.cfg.PortMapLease, nil)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -161,8 +212,14 @@ func (h *Host) portMapLoop(ctx context.Context) {
 			}
 			continue
 		}
-		if !h.holdMapping(ctx, m, got) {
+		cont, held := h.holdMapping(ctx, m, got)
+		if !cont {
 			return
+		}
+		if held {
+			// A mapping that worked, then lapsed, is asked for again
+			// soon, not after the longest wait earlier failures built up.
+			retry = pmRetry
 		}
 		if !backoff() {
 			return
@@ -171,9 +228,9 @@ func (h *Host) portMapLoop(ctx context.Context) {
 }
 
 // holdMapping confirms m, advertises it and renews it until it fails or
-// ctx ends; it removes the mapping before returning. It returns false when
-// ctx ended.
-func (h *Host) holdMapping(ctx context.Context, mp PortMapper, m portmap.Mapping) bool {
+// ctx ends; it removes the mapping before returning. cont is false when
+// ctx ended; held says the mapping was confirmed and advertised.
+func (h *Host) holdMapping(ctx context.Context, mp PortMapper, m portmap.Mapping) (cont, held bool) {
 	defer func() {
 		h.mapped.Store(nil)
 		uctx, cancel := context.WithTimeout(context.Background(), pmUnmap)
@@ -196,22 +253,31 @@ func (h *Host) holdMapping(ctx context.Context, mp PortMapper, m portmap.Mapping
 				}
 			})
 		}
+		if m.Lifetime > 0 && m.Lifetime <= pmMinLife {
+			// The mapping would lapse before the node renews it, so it
+			// would be missing most of the time while advertised
+			// (RED-092).
+			h.mapped.Store(nil)
+			show(PortMapFailed, fmt.Sprintf("the router granted a lifetime of %s, too short to keep the mapping", m.Lifetime))
+			h.log.Info("port mapping lifetime too short", "lease", m.Lifetime)
+			return ctx.Err() == nil, held
+		}
 		if m.External != confirmed {
 			h.mapped.Store(nil)
 			if !h.cfg.AllowLocalPeers && !publicIP(m.External.Addr()) {
 				show(PortMapNotPublic, "the router's external address is not public: it is behind another NAT (such as carrier-grade NAT), so no mapping can reach this node")
 				h.log.Info("port mapping gives no public address", "external", ext)
-				return ctx.Err() == nil
+				return ctx.Err() == nil, held
 			}
 			if err := h.confirmSelf(ctx, ext); err != nil {
 				if ctx.Err() != nil {
-					return false
+					return false, held
 				}
 				show(PortMapUnconfirmed, "a dial to the mapped address did not reach this node ("+err.Error()+"); if the router cannot loop back, set p2p.advertise by hand")
 				h.log.Info("port mapping unconfirmed", "external", ext, "err", err)
-				return true
+				return true, held
 			}
-			confirmed = m.External
+			confirmed, held = m.External, true
 			h.mapped.Store(&ext)
 			h.mu.Lock()
 			h.selfAddrs[ext] = true
@@ -219,56 +285,145 @@ func (h *Host) holdMapping(ctx context.Context, mp PortMapper, m portmap.Mapping
 			h.log.Info("port mapped and advertised", "method", m.Method, "external", ext, "lease", m.Lifetime)
 			show(PortMapAdvertised, "")
 		}
-		renew := m.Lifetime / 2
-		if m.Lifetime == 0 {
-			renew = h.cfg.PortMapLease / 2
-		}
 		select {
 		case <-ctx.Done():
-			return false
-		case <-time.After(max(renew, pmMinRenew)):
+			return false, held
+		case <-time.After(h.renewAfter(m.Lifetime)):
 		}
 		next, err := mp.Map(ctx, m.Method, m.Internal, h.cfg.PortMapLease, &m)
 		if err != nil {
 			if ctx.Err() != nil {
-				return false
+				return false, held
 			}
 			show(PortMapFailed, "renewal: "+err.Error())
 			h.log.Info("port mapping renewal failed", "err", err)
-			return true
+			return true, held
 		}
 		m = next
 	}
 }
 
-// confirmSelf dials addr and reports nil when the hello that answers is
-// this node's own: the mapped address leads here. Only the router's report
-// and this dial decide what is advertised, never what peers say.
-func (h *Host) confirmSelf(ctx context.Context, addr string) error {
-	d := net.Dialer{Timeout: 10 * time.Second}
+// renewAfter is the wait before a mapping of the granted lifetime is
+// renewed: half of the lifetime or of p2p.port_map_lease, whichever is
+// shorter, so a router that states a longer lifetime than was asked for
+// does not put off the next look at its external address (RED-092); and
+// never sooner than pmMinRenew. A lifetime of 0 (until removed) counts as
+// the lease.
+func (h *Host) renewAfter(life time.Duration) time.Duration {
+	lease := h.cfg.PortMapLease
+	if lease <= 0 {
+		lease = DefaultPortMapLease
+	}
+	if life <= 0 || life > lease {
+		life = lease
+	}
+	return max(life/2, pmMinRenew)
+}
+
+// pmConfirmWait bounds the wait for this node's listener to see a
+// dial-back.
+var pmConfirmWait = helloTimeout
+
+// selfProbeAgent starts the Agent of a dial-back hello; a random token
+// follows it (RED-090).
+const selfProbeAgent = "poo-self-check/"
+
+// confirmSelf dials addr and reports nil once this node's own listener
+// has received the dial: the mapped address leads here. The hello it
+// sends carries a fresh random token, and only the listener's record of
+// that token counts (RED-090); what the far end answers is not looked
+// at, since a host that echoes the hello back, or copies it, would pass
+// any check of the answer. Only the router's report and this dial decide
+// what is advertised, never what peers say. The dial, the write and the
+// wait all end when ctx does (RED-092).
+func (h *Host) confirmSelf(parent context.Context, addr string) error {
+	var tok [16]byte
+	if _, err := rand.Read(tok[:]); err != nil {
+		return err
+	}
+	key := hex.EncodeToString(tok[:])
+	seen := make(chan struct{})
+	h.probeMu.Lock()
+	h.probes[key] = seen
+	h.probeMu.Unlock()
+	defer func() {
+		h.probeMu.Lock()
+		delete(h.probes, key)
+		h.probeMu.Unlock()
+	}()
+	ctx, cancel := context.WithTimeout(parent, pmConfirmWait)
+	defer cancel()
+	d := net.Dialer{}
 	c, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return err
 	}
 	defer c.Close()
-	c.SetDeadline(time.Now().Add(helloTimeout))
-	mine := wire.Hello{Protocol: Protocol, NodeID: h.id, Agent: h.cfg.Agent}
+	stop := context.AfterFunc(ctx, func() { c.Close() })
+	defer stop()
+	c.SetDeadline(time.Now().Add(pmConfirmWait))
+	mine := wire.Hello{Protocol: Protocol, NodeID: h.id, Agent: selfProbeAgent + key}
 	if err := wire.WriteFrame(c, wire.Message{Header: wire.Header{Type: wire.TypeHello}, Body: mine.Encode()}); err != nil {
+		select {
+		case <-seen:
+			return nil
+		default:
+		}
+		if parent.Err() != nil {
+			return parent.Err()
+		}
 		return err
 	}
-	m, _, err := wire.ReadFrame(bufio.NewReader(c), wire.MaxFrame)
-	if err != nil {
+	// The answer can only end the wait early with a failure: a hello
+	// from another node, or a connection that closed (RED-090).
+	answer := make(chan error, 1)
+	go func() {
+		m, _, err := wire.ReadFrame(bufio.NewReader(c), wire.MaxFrame)
+		if err == nil {
+			if theirs, derr := wire.DecodeHello(m.Body); m.Type == wire.TypeHello && derr == nil && theirs.NodeID != h.id {
+				err = errors.New("another node answered")
+			} else {
+				_, err = io.Copy(io.Discard, io.LimitReader(c, wire.MaxFrame))
+				if err == nil {
+					err = errors.New("the connection closed")
+				}
+			}
+		}
+		answer <- err
+	}()
+	fail := func(err error) error {
+		select {
+		case <-seen:
+			return nil
+		default:
+		}
+		if parent.Err() != nil {
+			return parent.Err()
+		}
 		return err
 	}
-	if m.Type != wire.TypeHello {
-		return errors.New("the answer was not a hello")
+	select {
+	case <-seen:
+		return nil
+	case err := <-answer:
+		return fail(err)
+	case <-ctx.Done():
+		return fail(errors.New("this node's listener never received the dial"))
 	}
-	theirs, err := wire.DecodeHello(m.Body)
-	if err != nil {
-		return err
+}
+
+// sawSelfProbe records a hello this node's listener received with its own
+// node id: when its Agent carries a token confirmSelf is waiting on, the
+// dial-back reached this node (RED-090).
+func (h *Host) sawSelfProbe(agent string) {
+	key, ok := strings.CutPrefix(agent, selfProbeAgent)
+	if !ok {
+		return
 	}
-	if theirs.NodeID != h.id {
-		return errors.New("another node answered")
+	h.probeMu.Lock()
+	defer h.probeMu.Unlock()
+	if ch, ok := h.probes[key]; ok {
+		close(ch)
+		delete(h.probes, key)
 	}
-	return nil
 }

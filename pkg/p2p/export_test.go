@@ -84,7 +84,7 @@ func SetReleaseWindow(d time.Duration) func() {
 // SetPortMapWaits shortens the port mapping's waits and returns the call
 // that puts them back.
 func SetPortMapWaits(retry, renew time.Duration) func() {
-	r, m, n := pmRetry, pmMaxRetry, pmMinRenew
-	pmRetry, pmMaxRetry, pmMinRenew = retry, retry, renew
-	return func() { pmRetry, pmMaxRetry, pmMinRenew = r, m, n }
+	r, m, n, l := pmRetry, pmMaxRetry, pmMinRenew, pmMinLife
+	pmRetry, pmMaxRetry, pmMinRenew, pmMinLife = retry, retry, renew, min(pmMinLife, renew)
+	return func() { pmRetry, pmMaxRetry, pmMinRenew, pmMinLife = r, m, n, l }
 }
