@@ -18,6 +18,24 @@ async function nodeJob() {
 // (GREEN-036), so the view adds nothing. Any other fix is shown as the
 // text poo printed.
 const RUNNABLE_FIX = /^poo [a-z][\w./:=-]*( [\w./:=-]+)*$/;
+// DETAIL_CHARS is how much of a doctor check's detail shows at first. A
+// detail names what it found, and one can name every followed series: at
+// 4,096 series with no witness ceiling, the ceiling check's detail was
+// 455,000 characters, and the Health check, the Node view's first panel,
+// 52,000 px tall (ORANGE-025). The rest is one press away, as printed.
+const DETAIL_CHARS = 1000;
+
+// shortDetail shows the first DETAIL_CHARS characters of text, and all
+// of it while "Show all" is open.
+export function shortDetail(text) {
+  if (text.length <= DETAIL_CHARS) return el('span', {}, text);
+  const cut = `${text.slice(0, DETAIL_CHARS)}…`;
+  const shown = document.createTextNode(cut);
+  const more = el('details', { class: 'doctor-more' }, el('summary', {}, `Show all ${text.length} characters`));
+  more.addEventListener('toggle', () => { shown.data = more.open ? text : cut; });
+  return el('span', { class: 'doctor-detail-cut' }, shown, more);
+}
+
 export function doctorReport(rep, ctx) {
   const list = el('ul', { class: 'doctor' });
   for (const c of rep.checks || []) {
@@ -30,7 +48,7 @@ export function doctorReport(rep, ctx) {
       : el('div', { class: 'doctor-fix' }, `fix: ${c.fix}`)) : null;
     list.append(el('li', { class: `doctor-${c.result}` },
       el('span', { class: `pill pill-${c.result}` }, c.result),
-      el('strong', {}, c.name), ' ', el('span', {}, c.detail || ''), fix));
+      el('strong', {}, c.name), ' ', shortDetail(String(c.detail || '')), fix));
   }
   return el('div', { class: 'result' }, rep.dir ? el('p', { class: 'hint' }, `Data directory: ${rep.dir}`) : null, list);
 }
