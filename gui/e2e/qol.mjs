@@ -292,6 +292,14 @@ try {
     return [parseJSON('[1, 9007199254740993]')[1], parseJSON('{"a":\n  [\n    18446744073709551615\n  ]}').a[0], parseJSON(' 9007199254740993'), parseJSON('{"tip": "0ac5991086712345678901234567890fe0", "h": 12}')].map(x => typeof x === 'object' ? JSON.stringify(x) : `${typeof x}:${x}`);
   });
   assert.deepEqual(pj2, ['bigint:9007199254740993', 'bigint:18446744073709551615', 'bigint:9007199254740993', '{"tip":"0ac5991086712345678901234567890fe0","h":12}']);
+  // A string that looks like the old fixed mark stays a string, in both
+  // ways of reading: only numbers ever become BigInts (GUI/Red R30B).
+  const pj3 = await page.evaluate(async () => {
+    const { parseJSON, parseMarked } = await import('/render.js');
+    const text = '{"s": "\\u0000big:12", "t": "\\u0000big:abc", "n": 9007199254740993}';
+    return [parseJSON, parseMarked].map(f => { try { const v = f(text); return [typeof v.s, v.s.length, typeof v.t, typeof v.n, String(v.n)]; } catch (e) { return `threw: ${e.message}`; } });
+  });
+  assert.deepEqual(pj3, [['string', 7, 'string', 'bigint', '9007199254740993'], ['string', 7, 'string', 'bigint', '9007199254740993']], 'a string is never read as a number');
   // The Followed series table names the reserve series by poo's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).
