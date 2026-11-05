@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted (GUI Round 30 Part A, on Source D177 `poo status -counts`) |
 | Based on | main @ 4e1c601 |
 | Area | gui/web/static/views/node.js (the Followed pools panel), and one `poo status` output choice in pkg/cli (Source) |
 | Effort | small |

@@ -50,6 +50,18 @@ try {
     await page.waitForTimeout(250);
   }
   await shot('node');
+  // The 5 s refresh asks poo for totals per series (-counts, D177): one
+  // row for the example's series with its 2 pools, no row per pool.
+  assert.match(await pools.locator('.cmd code').innerText(), /^poo status -counts /);
+  assert.doesNotMatch(await pools.innerText(), /"pools": \[/, 'no pool rows in the timed panel');
+  // Each pool runs the full poo status, only when shown or asked.
+  const each = section('Each pool');
+  assert.match(await each.locator('.cmd code').innerText(), /^poo status -root /);
+  for (let i = 0; !(await each.locator('table.data, dl.kv').count()); i++) {
+    assert.ok(i < 40, 'Each pool never rendered');
+    await each.locator('button:has-text("Refresh")').click();
+    await page.waitForTimeout(250);
+  }
   // The entry cache line comes from poo status's bodies (D172).
   await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\).*older ones \(outside recent_window\)/ }).waitFor();
   // A partial status reply (only max_bytes) is drawn with "?" for what

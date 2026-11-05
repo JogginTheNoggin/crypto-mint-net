@@ -78,7 +78,11 @@ export const nodeView = {
     // poo status says when node.json changed since the node loaded it and
     // the change waits for a reload (Source GREEN-037). The panel says so
     // above what it shows, with the Reload form's own button (GREEN-038).
-    const status = panel(ctx, { title: 'Followed pools', about: 'What the running node follows, and where each pool stands.', args: () => ['status', ...where.flags()], refresh: 5000,
+    // The 5 s refresh asks for poo's totals per series (-counts, D177), not a
+    // row per pool: on the reserve series that was 352 KB and a 150 ms pause
+    // every 5 s (ORANGE-021). poo adds them up; the GUI totals nothing.
+    // Each pool's row is in Each pool below, which runs only when asked.
+    const status = panel(ctx, { title: 'Followed pools', about: 'What the running node follows: totals for each series (pools, entries, branches, pending, waiting, stored records), with the entry cache and file limit notes. Refreshes every 5 seconds.', args: () => ['status', '-counts', ...where.flags()], refresh: 5000,
       onResult: (r, area) => {
         let st;
         try { st = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
@@ -120,6 +124,7 @@ export const nodeView = {
       { name: 'mint', label: 'Mints', type: 'list', placeholder: 'serial …' },
     ];
     const followArgs = (cmd, v) => [cmd, ...where.flags(), ...flag('issuer', v.issuer), ...flag('series', v.series), ...flags('pool', v.pool), ...flags('mint', v.mint), ...flag('replace', v.replace), ...flag('no-reload', v.noReload)];
+    const eachPool = panel(ctx, { title: 'Each pool', about: 'Where each followed pool stands, one row per pool, as poo status prints it. Press Refresh to update; it does not refresh by itself.', args: () => ['status', ...where.flags()] });
     const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy.', args: () => ['follow', ...where.flags()] });
     // Replace (GREEN-038, Source) is poo follow -replace: with a series, the
     // pools and mints given become all it follows of that series, in one
@@ -183,7 +188,7 @@ export const nodeView = {
         const raw = area.querySelector('.result');
         if (raw) { raw.replaceWith(doctorReport(rep, ctx)); area.append(rawFold(raw)); }
       } });
-    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, followed, status, follows, variable, addRelease, follow, unfollow, reload, init]);
+    const stop = mountAll(root, 'Node', 'Run the full node and see what it follows.', [health, { el: runSec, stop: () => { clearInterval(t); gone = true; if (unfollowLog) unfollowLog(); } }, followed, status, eachPool, follows, variable, addRelease, follow, unfollow, reload, init]);
     return stop;
   },
 };

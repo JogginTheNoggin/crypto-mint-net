@@ -92,7 +92,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-018](ORANGE-018-parts-as-ranges.md) | Print a variable series' parts as ranges, not lists of every serial and pool, and say when a list is cut at 500 (100 parts of 1,000 as lists: 2.9 s and 121,000 elements → as ranges: 30 ms and 6,500) | small | the note on a cut list | adopted |
 | [ORANGE-019](ORANGE-019-variable-series-table-in-parts.md) | Draw the Variable series table 500 rows at a time, with Show more (4,096 followed series: 32,800 elements, panel in 1.1–1.25 s → 4,000 elements, 0.6–0.8 s) | small | yes | adopted |
 | [ORANGE-020](ORANGE-020-output-as-printed-when-opened.md) | Draw "Output as printed" only when it is opened (Node view with 4,096 followed series: 60,970 → 28,887 elements; Variable series panel 0.45–1.0 s → 0.35–0.42 s) | small | yes | adopted |
-| [ORANGE-021](ORANGE-021-followed-pools-refresh-without-every-pool.md) | Let the Followed pools panel's 5 s refresh leave out the per-pool rows, with a `poo status` option (reserve series, 1,024 pools: 352 KB every 5 s, 5% busy, 150 ms pauses; 8,192 pools: 2.8 MB, 280 ms pauses, poo-gui 140 MB) | small | no | waits on Source (a `poo status` option) |
+| [ORANGE-021](ORANGE-021-followed-pools-refresh-without-every-pool.md) | Let the Followed pools panel's 5 s refresh leave out the per-pool rows, with a `poo status` option (reserve series, 1,024 pools: 352 KB every 5 s, 5% busy, 150 ms pauses; 8,192 pools: 2.8 MB, 280 ms pauses, poo-gui 140 MB) | small | no | adopted (R30A, built on `poo status -counts`, D177) |
 
 ### Re-checks each round
 
