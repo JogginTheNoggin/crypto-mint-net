@@ -68,7 +68,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
       // opened; the job runs on and is in Jobs (ORANGE-010).
       if (area.gone) { resolve({ code: -1, out: '', err: '' }); return; }
       if (onStart) onStart(j);
-      let out = '', err = '', tail = '';
+      let out = '', err = '', tail = '', dropped = false;
       // Stop cancels the command, which ends at its next check. One that
       // never checks (a far part's id chain, GUI-028) runs on, and holds
       // one of poo-gui's job slots until it ends: after STOP_WAIT, say so
@@ -100,6 +100,10 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
         api.eof(j.id).catch(e => { err += `poo-gui: ${e.message}\n`; });
       };
       area.unfollow = api.follow(j.id, {
+        // poo-gui keeps the last DefaultMaxOutput (4 MiB) of a job's
+        // output; a page that falls further behind loses the part between,
+        // and the stream says so (ORANGE-026).
+        dropped: () => { dropped = true; },
         chunk: c => {
           if (c.stream === 'err') err += c.data; else out += c.data;
           tail = (tail + c.data).slice(-80);
@@ -130,9 +134,9 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
           area.unfollow = null;
           // The server marks a command that prints a secret (GUI-009).
           area.append(showResult(out, err, { empty, secretOutput: secretOutput || j.secretOutput, lazy }));
-          resolve({ code: e.code, out, err });
+          resolve({ code: e.code, out, err, dropped });
         },
-        error: () => { area.unfollow = null; status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err }); },
+        error: () => { area.unfollow = null; status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err, dropped }); },
       });
     }).catch(e => {
       status.className = 'run-status bad';
@@ -206,8 +210,20 @@ export function rawFold(raw) {
 }
 
 // drawn draws a lazy result left in area that no onResult folded away.
-function drawn(area) {
-  for (const r of area.querySelectorAll('.result')) if (r.draw && !r.closest('details.raw')) r.draw();
+function drawn(area, r) {
+  for (const x of area.querySelectorAll('.result')) if (x.draw && !x.closest('details.raw')) x.draw();
+  if (r && r.dropped) incomplete(area);
+}
+
+// incomplete marks a result whose output poo-gui dropped in part: the
+// page fell more than a job's kept output (4 MiB) behind, so what it holds
+// has a gap that can still read as whole JSON. A Save as file of it would
+// write a file with entries missing, so that button is removed
+// (ORANGE-026).
+export function incomplete(area) {
+  for (const b of area.querySelectorAll('.save-as')) (b.closest('.actions') || b).remove();
+  area.prepend(el('p', { class: 'next-step output-dropped', role: 'alert' },
+    'Part of this output was dropped: poo printed it faster than the page could take it, and poo-gui keeps only the last 4 MiB of a command\'s output. What is shown, and what Copy output copies, has a gap. Write it to a file instead: the form\'s file field where it has one, or -out in the terminal.'));
 }
 
 // cmdLine shows a command line with a button that runs it in the terminal.
@@ -278,7 +294,7 @@ export function panel(ctx, { title, about, args, refresh, empty, onResult, start
     btn.textContent = 'Refresh';
     const r = await runJob(a, area, { empty, refresh: auto === true, lazy: true });
     noNode(sec, area, r);
-    try { if (onResult) onResult(r, area); } finally { drawn(area); }
+    try { if (onResult) onResult(r, area); } finally { drawn(area, r); }
     busy = false;
     answers.forEach(done => done(r));
     if (waiting.length) go(false);
@@ -440,7 +456,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     runJob(args(values()), area, { secretOutput, onStart, lazy: true }).then(async r => {
       busy = false;
       try { if (onResult) await onResult(r, area); } finally {
-        drawn(area);
+        drawn(area, r);
         if (g) g.release(); else submitBtn.disabled = false;
       }
     });
