@@ -5,6 +5,27 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 32 Part B reviewed main @ 5f80582 (PR #242):
+- GUI-GREEN-057: Followed pools in the Pools view runs only when Show
+  is pressed;
+- the port-mapping "unconfirmed" state, now an alert (R31B note);
+- snapshot wording;
+- G1: poo-gui comes back on the port it used last.
+
+Actions is off, so I checked everything locally.
+
+Held up:
+- **GUI-GREEN-057** uses the same `start: false` panel as Each pool.
+- **Port mapping:** `unconfirmed` is now an alert, which closes the
+  R31B note.
+- **G1's file handling.** The saved port is read only as a number from
+  1 to 65535, and poo-gui binds it on 127.0.0.1 only. `-listen` still
+  overrides it and saves nothing. The file is written 0600 in a 0700
+  folder under the user's config directory, and it holds no secret.
+
+The G1 review isn't finished in these notes, and no finding for it is
+filed here.
+
 Round 31 Part B reviewed main @ 55c5efa (PR #228):
 - the pool snapshot and replay lines on Followed pools (D178);
 - the `-reverify` box on Run the node, and the reverify-differed alert;
