@@ -9,8 +9,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -159,6 +161,12 @@ func writeLedgerFile(dst io.Writer, cl *rpc.Client, sid *hash.Hash, pool uint64,
 	if err != nil {
 		return 0, err
 	}
+	// A start past the tip would write an empty file whose header says
+	// from 5 to 1; say so instead (GREEN-058). A pool with no selected
+	// entry still exports as an empty file.
+	if page.Height > 0 && from > page.Height {
+		return 0, fmt.Errorf("-from %d is past the tip: pool %d's selected ledger is %d high", from, pool, page.Height)
+	}
 	last := to
 	if last == 0 || last > page.Height {
 		last = page.Height
@@ -214,6 +222,24 @@ func writeLedgerFile(dst io.Writer, cl *rpc.Client, sid *hash.Hash, pool uint64,
 	return n, err
 }
 
+// importErr says what a failed import batch means: which series and pool
+// the file is for when the node does not follow them, and what earlier
+// batches already kept, so a runner knows where the import stopped
+// (GREEN-058).
+func importErr(err error, f ledgerFile, done int, so node.ImportResult) error {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, engine.ErrUnknownSeries.Error()):
+		err = fmt.Errorf("%w: the file is for series %s, which this node does not know; add the series to the node policy, follow pool %d, then import again", err, f.Series, f.Pool)
+	case strings.Contains(msg, engine.ErrNotFollowed.Error()):
+		err = fmt.Errorf("%w: the file is for pool %d of series %s; poo follow -series %s -pool %d, then import again", err, f.Pool, f.Series, f.Series, f.Pool)
+	}
+	if done > 0 {
+		err = fmt.Errorf("%w (the first %d of %d entries were sent: %d kept, %d already held)", err, done, len(f.Entries), so.Kept, so.Known)
+	}
+	return err
+}
+
 func ledgerImportCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("ledger import", out)
 	w := addWhere(fs)
@@ -252,7 +278,7 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		}
 		res, err := cl.LedgerImport(rpc.LedgerImportRequest{Series: f.Series, Pool: f.Pool, Items: batch})
 		if err != nil {
-			return err
+			return importErr(err, f, base, total)
 		}
 		total.Kept += res.Kept
 		total.Known += res.Known
