@@ -1043,21 +1043,22 @@ func trackingCmd(args []string, out io.Writer) error {
 	o := addOutput(fs)
 	blocked := fs.Bool("blocked", false, "only the blocked addresses and network ranges")
 	timedOut := fs.Bool("timed-out", false, "only the timed-out addresses")
-	if err := fs.Parse(args); err != nil {
+	pos, err := parseMixed(fs, args) // poo tracking ADDR -o table (GREEN-054)
+	if err != nil {
 		return err
 	}
 	if err := o.check(); err != nil {
 		return err
 	}
-	if fs.NArg() > 1 {
+	if len(pos) > 1 {
 		return errors.New("usage: poo tracking [ADDR]")
 	}
 	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
-	if fs.NArg() == 1 {
-		r, err := cl.TrackingOf(fs.Arg(0))
+	if len(pos) == 1 {
+		r, err := cl.TrackingOf(pos[0])
 		if err != nil {
 			return err
 		}
@@ -1110,7 +1111,8 @@ func policyCmd(args []string, out io.Writer) error {
 	case "limits":
 		return policyLimitsCmd(args[1:], out)
 	}
-	if err := fs.Parse(args[1:]); err != nil {
+	pos, err := parseMixed(fs, args[1:]) // poo policy use NAME -root DIR (GREEN-054)
+	if err != nil {
 		return err
 	}
 	if err := flagsFor(fs, sub, map[string][]string{"fresh": {"unarchive"}}); err != nil {
@@ -1135,11 +1137,10 @@ func policyCmd(args []string, out io.Writer) error {
 		}
 		return nil
 	}
-	if fs.NArg() != 1 {
+	if len(pos) != 1 {
 		return fmt.Errorf("poo policy %s needs one NAME", sub)
 	}
-	name := fs.Arg(0)
-	var err error
+	name := pos[0]
 	switch sub {
 	case "use":
 		err = m.Use(name)
