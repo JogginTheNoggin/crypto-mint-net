@@ -285,6 +285,13 @@ try {
     return [typeof v.total, String(v.total), String(v.n), v.s, v.ok, v.f];
   });
   assert.deepEqual(pj, ['bigint', '9007199254740993', '-18446744073709551615', '12345678901234567890 " 99999999999999999', 9007199254740991, 1.5]);
+  // A big number in a list, on its own line or as the whole text is found
+  // too; hex with long digit runs alone stays plain JSON.parse (ORANGE-022).
+  const pj2 = await page.evaluate(async () => {
+    const { parseJSON } = await import('/render.js');
+    return [parseJSON('[1, 9007199254740993]')[1], parseJSON('{"a":\n  [\n    18446744073709551615\n  ]}').a[0], parseJSON(' 9007199254740993'), parseJSON('{"tip": "0ac5991086712345678901234567890fe0", "h": 12}')].map(x => typeof x === 'object' ? JSON.stringify(x) : `${typeof x}:${x}`);
+  });
+  assert.deepEqual(pj2, ['bigint:9007199254740993', 'bigint:18446744073709551615', 'bigint:9007199254740993', '{"tip":"0ac5991086712345678901234567890fe0","h":12}']);
   // The Followed series table names the reserve series by poo's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).

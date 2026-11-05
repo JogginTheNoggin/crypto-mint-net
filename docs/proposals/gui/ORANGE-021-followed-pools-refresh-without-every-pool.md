@@ -116,3 +116,19 @@ Nothing to challenge.
 ## Consensus
 
 None.
+
+## Measured after adoption (Round 30)
+
+Source built `poo status -counts` (D177), and GUI Grey's Part A runs it
+on the 5 s refresh, with the per-pool table in an Each pool panel that
+runs once when the view opens. Measured on main @ 0ade046 with the same
+probe, 60 s each, twice:
+
+| Node follows | Timed answer | Page busy | Long tasks a minute, longest | Longest frame gap | poo-gui RSS |
+| --- | --- | --- | --- | --- | --- |
+| the reserve series, 1,024 pools | 629 B, 21 ms | 1 to 2% | none | 33 ms | 20 MB |
+| 4,096 series, 8,192 pools | 910 KB, 157 ms | 4% | 12, 84 to 103 ms | 100 to 117 ms | 81 to 85 MB |
+
+On the reserve series the timed panel now costs what a 2-pool series
+did. At 4,096 series the counts answer still has one row per series,
+which is the most a node can follow, so nothing more is proposed.
