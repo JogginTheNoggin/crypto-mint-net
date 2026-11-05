@@ -444,6 +444,9 @@ type StatusReply struct {
 	// Snapshots sums up the pool snapshots: how old the oldest is and the
 	// most records a start would replay (D178).
 	Snapshots node.SnapshotSummary `json:"snapshots"`
+	// PortMap is the port mapping asked of the router (p2p.port_map,
+	// D182): absent when the node runs no peer host.
+	PortMap *p2p.PortMapStatus `json:"port_map,omitempty"`
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -452,6 +455,10 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		stored[s.Key] = s.Records
 	}
 	rep := StatusReply{Pools: []PoolStatus{}, Replay: h.n.Replayed(), Bodies: h.n.Bodies(), FileLimit: h.n.FileLimit(), Snapshots: h.n.SnapshotSummary()}
+	if h.host != nil {
+		pm := h.host.PortMap()
+		rep.PortMap = &pm
+	}
 	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
 		rep.PolicyChanged = !p.SameApplied(h.n.Running())
 	}

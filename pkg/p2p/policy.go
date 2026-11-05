@@ -14,9 +14,13 @@ func FromPolicy(p nodepolicy.Policy) Config {
 	c := Config{
 		Listen:    p.P2PListenAddr(),
 		Advertise: p.P2P.Advertise,
-		Peers:     append([]string(nil), p.P2P.Peers...),
-		MaxPeers:  p.P2P.MaxPeers,
-		NoNotices: p.P2P.NoNotices,
+
+		PortMap:        p.P2P.PortMap,
+		PortMapGateway: p.P2P.PortMapGateway,
+		PortMapLease:   time.Duration(nodepolicy.BoundPortMapSeconds.Or(p.P2P.PortMapSeconds)) * time.Second,
+		Peers:          append([]string(nil), p.P2P.Peers...),
+		MaxPeers:       p.P2P.MaxPeers,
+		NoNotices:      p.P2P.NoNotices,
 
 		Registries:  append([]string(nil), p.P2P.Registries...),
 		MaxOutbound: p.P2P.MaxOutbound,

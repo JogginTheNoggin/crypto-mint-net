@@ -245,6 +245,9 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	if st, ok := nodeStatus(out, dir); ok {
 		add(bodiesCheck(st))
 		add(snapshotsCheck(st))
+		if c, ok := portMapCheck(st); ok {
+			add(c)
+		}
 	}
 
 	// 7. Peers.
@@ -325,6 +328,44 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 		c.Detail += fmt.Sprintf("; %d temporary snapshot %s left by a crash %s removed at the last start", r.TmpRemoved, plural(r.TmpRemoved, "file", "files"), plural(r.TmpRemoved, "was", "were"))
 	}
 	return c
+}
+
+// portMapCheck reports the port mapping (p2p.port_map, D182), when the
+// policy asks for one.
+func portMapCheck(st rpc.StatusReply) (Check, bool) {
+	pm := st.PortMap
+	if pm == nil || pm.Mode == p2p.PortMapOff {
+		return Check{}, false
+	}
+	c := Check{Name: "port-map"}
+	switch pm.State {
+	case p2p.PortMapAdvertised:
+		c.Result = checkOK
+		life := "until the node stops"
+		if pm.LeaseSeconds > 0 {
+			life = fmt.Sprintf("leased for %s and renewed", time.Duration(pm.LeaseSeconds)*time.Second)
+		}
+		c.Detail = fmt.Sprintf("the router forwards %s (%s, %s); a dial to it reached this node, so peers are offered it", pm.Advertised, pm.Method, life)
+	case p2p.PortMapSkipped:
+		c.Result = checkOK
+		c.Detail = "p2p.port_map is set but not used: p2p.advertise is set by hand, which always wins, or the node accepts no peers (p2p.listen is off)"
+	case p2p.PortMapTrying:
+		c.Result = checkOK
+		c.Detail = "asking the router for a mapping"
+	case p2p.PortMapUnconfirmed:
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("the router mapped %s, but a dial to it did not reach this node, so it is not offered and the mapping was removed", pm.External)
+		c.Fix = "many routers cannot loop a connection back to their own address; if " + pm.External + " reaches this node from outside, set p2p.advertise to it"
+	case p2p.PortMapNotPublic:
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("the router's external address %s is not public: this network is behind another NAT, such as carrier-grade NAT, so no mapping can reach this node", pm.External)
+		c.Fix = "the node works with outbound connections only; for inbound ones ask the provider for a public address, or run it where it has one"
+	default:
+		c.Result = checkWarn
+		c.Detail = "the router gave no mapping: " + pm.Error
+		c.Fix = "turn on NAT-PMP, PCP or UPnP in the router, or set p2p.port_map_gateway if the gateway is not found; otherwise forward the port by hand and set p2p.advertise. The node keeps trying"
+	}
+	return c, true
 }
 
 // grindCheck reports the devices this machine grinds on, a device the

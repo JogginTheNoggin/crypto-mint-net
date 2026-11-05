@@ -42,6 +42,9 @@ var (
 	// BoundCandidateSeconds is how long an address learned from the
 	// network that this node has never reached keeps its place against a
 	// newer address when the book or its range is full (RED-064, D160).
+	// BoundPortMapSeconds is the port mapping lease asked of the router
+	// (D182); it is renewed at half of what the router grants.
+	BoundPortMapSeconds   = Bound{"p2p.port_map_seconds", 120, 86400, 3600}
 	BoundCandidateSeconds = Bound{"p2p.candidate_seconds", 60, 365 * 86400, int(peers.DefaultLimits().CandidateAge / time.Second)}
 )
 
@@ -112,7 +115,7 @@ func (p Policy) EntryCacheBytes() int64 {
 // Bounds lists every bounded setting, for docs, the CLI and the GUI.
 func Bounds() []Bound {
 	return []Bound{BoundMaxBook, BoundBookPerRange, BoundVerifiedPerRange, BoundRetrySeconds, BoundRegistrySeconds,
-		BoundCandidateSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
+		BoundCandidateSeconds, BoundPortMapSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
 		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB, BoundRecentWindow, BoundSnapshotEvery}
 }
 
@@ -217,6 +220,8 @@ func (p *Policy) limitField(name string) *int {
 		return &p.P2P.RegistrySeconds
 	case BoundCandidateSeconds.Name:
 		return &p.P2P.CandidateSeconds
+	case BoundPortMapSeconds.Name:
+		return &p.P2P.PortMapSeconds
 	case BoundSeenSize.Name:
 		return &p.SeenSize
 	case BoundMaxPending.Name:

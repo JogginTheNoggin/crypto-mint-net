@@ -22,6 +22,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/p2p"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
@@ -99,6 +100,7 @@ func initCmd(args []string, out io.Writer) error {
 	var registries stringList
 	fs.Var(&registries, "registry", "address registry URL or file to find first peers from (repeatable)")
 	advertise := fs.String("advertise", "", "host:port peers should connect to (default: none, so the node is not offered as a contact)")
+	portMap := fs.String("port-map", "", "ask the router to forward the peer port: auto, pcp, natpmp or upnp (default off). The router's address is offered to peers once a dial to it reaches this node; peers then learn this network's public address (docs/running-a-node.md)")
 	force := fs.Bool("force", false, "replace the settings of an existing node policy (its data is kept)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -109,6 +111,7 @@ func initCmd(args []string, out io.Writer) error {
 	p.P2P.Peers = peerList
 	p.P2P.Registries = registries
 	p.P2P.Advertise = *advertise
+	p.P2P.PortMap = *portMap
 	if *noSeries && (*example || *reserve || len(files) > 0) {
 		return errors.New("-no-series goes with no -series, -example or -reserve")
 	}
@@ -417,10 +420,11 @@ type statusSummary struct {
 	Bodies        node.BodyStats       `json:"bodies"`
 	FileLimit     nodepolicy.FileLimit `json:"file_limit"`
 	Snapshots     node.SnapshotSummary `json:"snapshots"`
+	PortMap       *p2p.PortMapStatus   `json:"port_map,omitempty"`
 }
 
 func statusBySeries(st rpc.StatusReply) statusSummary {
-	out := statusSummary{Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots}
+	out := statusSummary{Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots, PortMap: st.PortMap}
 	at := map[hash.Hash]int{}
 	for _, p := range st.Pools {
 		i, ok := at[p.Series]

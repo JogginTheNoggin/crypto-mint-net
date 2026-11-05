@@ -57,14 +57,14 @@ func (h *Host) answer(s wire.Section) (full bool, parts []wire.Section) {
 }
 
 // contact is this node's offered contact details.
-func (h *Host) contact() wire.Contact { return wire.Contact{Addr: h.cfg.Advertise} }
+func (h *Host) contact() wire.Contact { return wire.Contact{Addr: h.advertised()} }
 
 // isSelf reports whether addr is one of this node's own addresses.
 func (h *Host) isSelf(addr string) bool {
 	if addr == "" {
 		return false
 	}
-	if addr == h.cfg.Advertise || addr == h.Addr() {
+	if addr == h.advertised() || addr == h.Addr() {
 		return true
 	}
 	h.mu.Lock()
@@ -861,8 +861,8 @@ func (h *Host) dialState() (map[string]bool, int) {
 	for a := range h.selfAddrs {
 		skip[a] = true
 	}
-	if h.cfg.Advertise != "" {
-		skip[h.cfg.Advertise] = true
+	if a := h.advertised(); a != "" {
+		skip[a] = true
 	}
 	if h.ln != nil {
 		skip[h.ln.Addr().String()] = true

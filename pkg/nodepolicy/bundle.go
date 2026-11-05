@@ -103,10 +103,11 @@ func NewBundle(scope string, full bool, now time.Time) Bundle {
 // MachineLocal lists the settings that describe one machine rather than
 // what a node follows: where its RPC and peer port listen, the address it
 // advertises, whether it syncs its disk writes, and the device and threads
-// it grinds with. An export leaves them out unless it is full, and an
+// it grinds with, and whether and through which router it maps its peer
+// port (D182). An export leaves them out unless it is full, and an
 // import takes them only when asked (MergeOptions.Full), so a shared file
 // never opens someone's control interface or picks their GPU.
-var MachineLocal = []string{"rpc", "no_sync", "p2p.listen", "p2p.advertise", "grind.device", "grind.threads", "grind.jobs.device", "grind.jobs.threads"}
+var MachineLocal = []string{"rpc", "no_sync", "p2p.listen", "p2p.advertise", "p2p.port_map", "p2p.port_map_gateway", "grind.device", "grind.threads", "grind.jobs.device", "grind.jobs.threads"}
 
 // Strip returns p without its machine-local settings (MachineLocal), and
 // without the settings no longer used (p2p.fast_catch_up and
@@ -116,6 +117,7 @@ func Strip(p Policy) Policy {
 	p.RPC = RPC{}
 	p.NoSync = false
 	p.P2P.Listen, p.P2P.Advertise = "", ""
+	p.P2P.PortMap, p.P2P.PortMapGateway = "", ""
 	p.P2P.FastCatchUp, p.P2P.DepthLimit = false, 0
 	if p.Grind != nil {
 		p.Grind.Device, p.Grind.Threads = "", 0
@@ -135,6 +137,7 @@ func withMachine(p, m Policy) Policy {
 	p.RPC = m.RPC
 	p.NoSync = m.NoSync
 	p.P2P.Listen, p.P2P.Advertise = m.P2P.Listen, m.P2P.Advertise
+	p.P2P.PortMap, p.P2P.PortMapGateway = m.P2P.PortMap, m.P2P.PortMapGateway
 	if m.Grind != nil && (m.Grind.Device != "" || m.Grind.Threads != 0) {
 		if p.Grind == nil {
 			p.Grind = &Grind{}
