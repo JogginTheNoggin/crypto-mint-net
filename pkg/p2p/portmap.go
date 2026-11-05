@@ -51,7 +51,22 @@ type PortMapStatus struct {
 	LeaseSeconds int       `json:"lease_seconds,omitempty"`
 	Since        time.Time `json:"since,omitzero"`
 	Error        string    `json:"error,omitempty"`
+	// Gateway is the router asked: p2p.port_map_gateway, or else the
+	// default route's gateway as last found; empty when none was found
+	// (GREEN-056).
+	Gateway string `json:"gateway,omitempty"`
+	// Reason says why a skipped mapping is not asked for (GREEN-056).
+	Reason string `json:"reason,omitempty"`
+	// NextTry is when the node asks the router again after a mapping
+	// failed or was removed; zero while one is held (GREEN-056).
+	NextTry time.Time `json:"next_try,omitzero"`
 }
+
+// Why a mapping that was asked for is skipped (PortMapStatus.Reason).
+const (
+	PortMapReasonAdvertise = "p2p.advertise is set by hand, which always wins"
+	PortMapReasonNoListen  = "the node accepts no peers (p2p.listen is off)"
+)
 
 // PortMap returns the port mapping's status.
 func (h *Host) PortMap() PortMapStatus {
@@ -62,8 +77,13 @@ func (h *Host) PortMap() PortMapStatus {
 		st.Mode, st.State = PortMapOff, PortMapOff
 		if h.portMapAsked() {
 			st.Mode, st.State = h.cfg.PortMap, PortMapSkipped
+			st.Reason = PortMapReasonNoListen
+			if h.cfg.Advertise != "" {
+				st.Reason = PortMapReasonAdvertise
+			}
 		}
 	}
+	st.Gateway = h.pmGW
 	return st
 }
 
@@ -90,6 +110,23 @@ func (h *Host) advertised() string {
 	}
 	if p := h.mapped.Load(); p != nil {
 		return *p
+	}
+	return ""
+}
+
+// gatewayShown is the router a try speaks to, as status shows it:
+// p2p.port_map_gateway, or else the default route's gateway (found again
+// on each try, as portmap.Client finds it). Empty when none is found, or
+// when a test supplies its own mapper.
+func (h *Host) gatewayShown() string {
+	if g := h.cfg.PortMapGateway; g != "" {
+		return g
+	}
+	if h.cfg.PortMapper != nil {
+		return ""
+	}
+	if a, err := portmap.DefaultGateway(); err == nil {
+		return a.String()
 	}
 	return ""
 }
@@ -141,12 +178,17 @@ func (h *Host) portMapLoop(ctx context.Context) {
 		}
 	}
 	backoff := func() bool {
+		h.setPortMap(func(s *PortMapStatus) { s.NextTry = time.Now().Add(retry) })
 		ok := sleep(retry)
 		retry = min(retry*2, pmMaxRetry)
 		return ok
 	}
 	for ctx.Err() == nil {
-		h.setPortMap(func(s *PortMapStatus) { s.State = PortMapTrying })
+		gw := h.gatewayShown()
+		h.setPortMap(func(s *PortMapStatus) { s.State, s.NextTry = PortMapTrying, time.Time{} })
+		h.pmMu.Lock()
+		h.pmGW = gw
+		h.pmMu.Unlock()
 		got, err := m.Map(ctx, h.cfg.PortMap, uint16(port), h.cfg.PortMapLease, nil)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -161,8 +203,14 @@ func (h *Host) portMapLoop(ctx context.Context) {
 			}
 			continue
 		}
-		if !h.holdMapping(ctx, m, got) {
+		cont, held := h.holdMapping(ctx, m, got)
+		if !cont {
 			return
+		}
+		if held {
+			// A mapping that worked, then lapsed, is asked for again
+			// soon, not after the longest wait earlier failures built up.
+			retry = pmRetry
 		}
 		if !backoff() {
 			return
@@ -171,9 +219,9 @@ func (h *Host) portMapLoop(ctx context.Context) {
 }
 
 // holdMapping confirms m, advertises it and renews it until it fails or
-// ctx ends; it removes the mapping before returning. It returns false when
-// ctx ended.
-func (h *Host) holdMapping(ctx context.Context, mp PortMapper, m portmap.Mapping) bool {
+// ctx ends; it removes the mapping before returning. cont is false when
+// ctx ended; held says the mapping was confirmed and advertised.
+func (h *Host) holdMapping(ctx context.Context, mp PortMapper, m portmap.Mapping) (cont, held bool) {
 	defer func() {
 		h.mapped.Store(nil)
 		uctx, cancel := context.WithTimeout(context.Background(), pmUnmap)
@@ -201,17 +249,17 @@ func (h *Host) holdMapping(ctx context.Context, mp PortMapper, m portmap.Mapping
 			if !h.cfg.AllowLocalPeers && !publicIP(m.External.Addr()) {
 				show(PortMapNotPublic, "the router's external address is not public: it is behind another NAT (such as carrier-grade NAT), so no mapping can reach this node")
 				h.log.Info("port mapping gives no public address", "external", ext)
-				return ctx.Err() == nil
+				return ctx.Err() == nil, held
 			}
 			if err := h.confirmSelf(ctx, ext); err != nil {
 				if ctx.Err() != nil {
-					return false
+					return false, held
 				}
 				show(PortMapUnconfirmed, "a dial to the mapped address did not reach this node ("+err.Error()+"); if the router cannot loop back, set p2p.advertise by hand")
 				h.log.Info("port mapping unconfirmed", "external", ext, "err", err)
-				return true
+				return true, held
 			}
-			confirmed = m.External
+			confirmed, held = m.External, true
 			h.mapped.Store(&ext)
 			h.mu.Lock()
 			h.selfAddrs[ext] = true
@@ -225,17 +273,17 @@ func (h *Host) holdMapping(ctx context.Context, mp PortMapper, m portmap.Mapping
 		}
 		select {
 		case <-ctx.Done():
-			return false
+			return false, held
 		case <-time.After(max(renew, pmMinRenew)):
 		}
 		next, err := mp.Map(ctx, m.Method, m.Internal, h.cfg.PortMapLease, &m)
 		if err != nil {
 			if ctx.Err() != nil {
-				return false
+				return false, held
 			}
 			show(PortMapFailed, "renewal: "+err.Error())
 			h.log.Info("port mapping renewal failed", "err", err)
-			return true
+			return true, held
 		}
 		m = next
 	}
