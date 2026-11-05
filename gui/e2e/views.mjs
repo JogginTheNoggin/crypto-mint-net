@@ -139,14 +139,14 @@ try {
   const pmv = await page.evaluate(async () => {
     const m = await import(new URL('views/node.js', location.href).href);
     const t = pm => m.statusNotes({ port_map: pm }).filter(p => p.classList.contains('port-map')).map(p => [p.getAttribute('role'), p.textContent]);
-    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:8646', advertised: '198.51.100.4:8646', lease_seconds: 3600 }), t({ mode: 'auto', state: 'unconfirmed', method: 'pcp', external: '198.51.100.4:8646', error: 'dial timed out' })];
+    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:7337', advertised: '198.51.100.4:7337', lease_seconds: 3600 }), t({ mode: 'auto', state: 'unconfirmed', method: 'pcp', external: '198.51.100.4:7337', error: 'dial timed out' })];
   });
   assert.deepEqual(pmv[0], []);
   assert.deepEqual(pmv[1], [['alert', 'Port mapping (auto): failed. no gateway answered.']]);
-  assert.deepEqual(pmv[2], [[null, 'Port mapping (upnp): advertised via upnp, the router reports 198.51.100.4:8646, offered to peers as 198.51.100.4:8646, lease 1 hour.']]);
+  assert.deepEqual(pmv[2], [[null, 'Port mapping (upnp): advertised via upnp, the router reports 198.51.100.4:7337, offered to peers as 198.51.100.4:7337, lease 1 hour.']]);
   // Unconfirmed (mapped, the dial back did not arrive, removed) leaves
   // peers unable to reach the node too, so it is an alert (GUI/Red R31B).
-  assert.deepEqual(pmv[3], [['alert', 'Port mapping (auto): unconfirmed via pcp, the router reports 198.51.100.4:8646. dial timed out.']]);
+  assert.deepEqual(pmv[3], [['alert', 'Port mapping (auto): unconfirmed via pcp, the router reports 198.51.100.4:7337. dial timed out.']]);
   assert.deepEqual(rv[1], [[null, 'Checked every record again: the full replay of all 3 pools matched their snapshots.']]);
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
@@ -253,6 +253,28 @@ try {
   // A field required only in another form is not required where it is
   // optional: Where a payment stands takes no serial.
   assert.equal(await section('Where a payment stands').locator('input[name=serial]').getAttribute('required'), null, 'In mint serial is optional');
+  // A pool's ledger out to a file and back in (D188): poo's reply says
+  // what was kept and known; the export shown here has Save as file.
+  const lexp = section('Export a pool\'s ledger');
+  const lfile = join(home, 'pool-0-ledger.json');
+  await fill(lexp, 'Pool', '0');
+  await fill(lexp, 'From height', '1');
+  assert.equal(await lexp.locator('.cmd code').innerText(), `poo ledger export -root ${home} -pool 0 -from 1`);
+  await lexp.locator('button[type=submit]').click();
+  await lexp.locator('.result', { hasText: 'poo ledger' }).waitFor();
+  await lexp.locator('button', { hasText: 'Save as file' }).waitFor();
+  await fill(lexp, 'To a file', lfile);
+  await lexp.locator('button[type=submit]').click();
+  await lexp.locator('.result', { hasText: 'wrote 0 entries' }).waitFor();
+  const limp = section('Import a ledger');
+  await fill(limp, 'Ledger file', lfile);
+  assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} ${lfile}`);
+  page.once('dialog', d => d.accept());
+  await limp.locator('button[type=submit]').click();
+  await limp.locator('.ledger-imported', { hasText: /^Kept 0 entries and 0 layers; 0 entries and 0 layers were already known\.$/ }).waitFor();
+  // A file picked in the browser goes to poo as its input (-).
+  await limp.locator('input[type=file]').setInputFiles(lfile);
+  assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} -`);
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.
