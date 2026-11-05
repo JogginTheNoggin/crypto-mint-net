@@ -118,3 +118,10 @@ once pool 1 reached height 2.
 - Source's part (partial totals, Stop between batches) is still open.
   `ledgerImportCmd` at 7099e84 still drops `total` on a batch error.
 
+*Round 34C (GUI/Blue):* Source #266, on main in #272, prints the
+partial totals (`sent`, `stopped`) and checks Stop between batches.
+With nothing sent, it prints only its error. GUI/Grey's R34A follow-up
+draws the partial summary from that reply. It shows no alert when there
+is no reply, which settles the nit without matching poo's error text.
+GUI/Blue left the import form to that change, to avoid a clash.
+
