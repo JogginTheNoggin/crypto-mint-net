@@ -30,6 +30,7 @@ code, pre, input, select, textarea { font-family: var(--mono); }
 .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
 .badge.view-only { color: var(--live); }
 .where { color: var(--muted); font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.version { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; margin-left: auto; }
 .layout { flex: 1; display: flex; min-height: 0; }
 nav { width: 170px; flex: none; border-right: 1px solid var(--line); padding: 8px 0; overflow-y: auto; background: var(--panel); }
 nav a { display: block; padding: 6px 16px; color: var(--ink); text-decoration: none; }

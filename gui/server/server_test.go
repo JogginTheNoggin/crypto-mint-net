@@ -472,6 +472,19 @@ func TestInfo(t *testing.T) {
 	}
 }
 
+// TestInfoVersion: /api/info gives the page the release poo-gui was
+// built as (Server.Version, cli.Version in poo-gui), so it can show it
+// (GUI White G4, GUI-GREEN-058).
+func TestInfoVersion(t *testing.T) {
+	h := newHarness(t, jobs.Options{})
+	h.s.Version = "9.8.7-test"
+	var got struct{ Version string }
+	decode(t, h.do("GET", "/api/info", nil, nil), &got)
+	if got.Version != "9.8.7-test" {
+		t.Fatalf("version %q", got.Version)
+	}
+}
+
 // TestJobsHideSecretFlags is GUI-006: a seed passed on the command line is
 // hidden in the jobs list, while the command still gets it.
 func TestJobsHideSecretFlags(t *testing.T) {

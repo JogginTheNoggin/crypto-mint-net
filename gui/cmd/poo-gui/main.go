@@ -124,6 +124,7 @@ func serve(ctx context.Context, listen string, viewOnly bool, in io.Reader, out 
 	}
 	runner := jobs.New(ctx, jobs.Options{ViewOnly: viewOnly})
 	srv := server.New(runner, web.FS(), ln.Addr().String())
+	srv.Version = cli.Version
 	printURL := func(prefix string) {
 		u, err := srv.SignInURL(printTTL)
 		if err != nil {
