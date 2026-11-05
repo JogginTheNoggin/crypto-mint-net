@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted in part by the owner (2026-11-05: name, ports rule, registry place, series) |
 | Based on | origin/main @ 4c0f708 |
 | Area | release process, versioning, `scripts/release.sh`, docs |
 | Effort | medium (mostly docs and a few small code items) |
@@ -134,6 +134,16 @@ lowers the risk of users trusting it with value.
 4. Should the alpha network use the reserve default series, or a separate
    test series so nothing "real" starts during alpha? Choosing a series is
    not a consensus change, but it decides what early users hold.
+
+## The owner's answers (2026-11-05)
+
+| Question | Answer | What follows |
+| --- | --- | --- |
+| 1. Name | `v0.1.0-alpha.1`, as recommended | `pkg/cli.Version` on main becomes `0.1.0-alpha.1-dev`; R12 marks the tag a GitHub pre-release |
+| 2. Ports | Anything under 10000 that does not clash with existing applications (the owner thinks mobile software uses 8645 and 8646) | White suggests **7455 for the local RPC and 7456 for peers** (W-7). Both are unassigned in the IANA registry (checked 2026-11-05 against its CSV), sit in a free block (7444 to 7470), and are clear of the well-known unofficial ranges White checked: web 8000 to 8099, Bitcoin 8333, Ethereum 8545, Tor 9050, VNC 5900s, IRC 6660s, BitTorrent 6881 and up. No registry can rule out every unofficial use. The pair keeps today's pattern (RPC one below peers). With W-7, `poo init` also writes the ports into `node.json` from now on |
+| 3. First registry | On a website, for now | R3: the registry file lives on the owner's website. `poo init` names its URL by default once the owner gives it, and the docs say how to change it. White checks that the file is served over `https` and that a node still starts when it cannot be reached |
+| 4. Alpha series | The default series (reserve) | No test series. The alpha notes say plainly that the network is live on the reserve default series and that the software is alpha (see Stages) |
+| License | Not yet | R1 stays open. A public alpha without a license can still be read and run, but it is not open source until a license is added. The owner decides when |
 
 ## Prototype
 
