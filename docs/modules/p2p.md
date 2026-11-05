@@ -300,6 +300,12 @@ stated weight.
   whole items, with the server's own stated weight. A repeated request id
   is refused and counted as a repeat; bytes served and whole-ledger
   requests count against the asker's points.
+- An entry whose body cannot be read back from the log is not held for
+  the asker: `entries` lists it as not held, `parts` replies `not held`,
+  and an extension ends before it (`not held` when it would be first), so
+  the asker fetches it from another peer (RED-084, D173). A panic while
+  handling one message closes that peer's connection, is logged with its
+  stack, and is not counted against the peer; the node runs on.
 
 ## Concurrency
 

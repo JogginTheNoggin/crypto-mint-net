@@ -22,8 +22,8 @@ func (f *fixture) bodies(n *node.Node) map[hash.Hash][]byte {
 	missing := 0
 	n.Engine().Ledger(f.key, func(p *ledger.Pool) {
 		for _, h := range p.ReplayOrder() {
-			e, ok := p.Entry(h)
-			if !ok {
+			e, err := p.Entry(h)
+			if err != nil {
 				missing++
 				continue
 			}

@@ -192,7 +192,7 @@ most its last record.
 
 Memory: the node keeps every entry's skeleton in memory and reads entry
 bodies back from the pool logs when it serves them, keeping up to
-`entry_cache_mib` (512 MiB by default) of them cached. `poo status` shows
+`entry_cache_mib` (256 MiB by default) of them cached. `poo status` shows
 the cache under `bodies`; `poo policy limits -set entry_cache_mib=N`
 changes it in a running node. Each pool in use keeps its log open, so
 `poo doctor` and the node's start-up warn when the open file limit is

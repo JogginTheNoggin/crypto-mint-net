@@ -75,8 +75,10 @@ var BoundSeriesCeiling = Bound{"series_ceiling", 1024, 1 << 30, 0}
 // 1 TiB, enough to keep every body of a busy node in memory.
 var BoundEntryCacheMiB = Bound{"entry_cache_mib", 1, 1 << 20, DefaultEntryCacheMiB}
 
-// DefaultEntryCacheMiB is entry_cache_mib's default.
-const DefaultEntryCacheMiB = 512
+// DefaultEntryCacheMiB is entry_cache_mib's default: 256 MiB counted as
+// bodies really take, about what 512 took when bodies were counted at
+// twice their size (ORANGE-038, approved by jerry, D173).
+const DefaultEntryCacheMiB = 256
 
 // EntryCacheBytes returns the entry body cache bound this policy asks for.
 func (p Policy) EntryCacheBytes() int64 {

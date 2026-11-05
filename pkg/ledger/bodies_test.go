@@ -74,14 +74,51 @@ func newTwin(s *series.Series, cfg ledger.Config) *twin {
 	return tw
 }
 
-func (tw *twin) addEntry(t *testing.T, step int, e *entry.Entry, wantErr error) {
+func (tw *twin) addEntry(t *testing.T, step int, e *entry.Entry, wantErr error) *ledger.Switch {
 	t.Helper()
-	_, err := tw.pool.AddEntry(e)
+	res, err := tw.pool.AddEntry(e)
 	if (err == nil) != (wantErr == nil) {
 		t.Fatalf("step %d: twin AddEntry %v, pool %v", step, err, wantErr)
 	}
 	if err == nil {
 		tw.src.write(e) // the node writes the record after the pool takes it
+	}
+	return res.Switch
+}
+
+// sameSwitch checks that the twin, whose bodies are on its source and
+// whose items have no witnesses, sorts a switch's displaced transactions
+// as the pool does, and carries each with its witnesses (ORANGE-038).
+func sameSwitch(t *testing.T, step int, want, got *ledger.Switch) {
+	t.Helper()
+	if (want == nil) != (got == nil) {
+		t.Fatalf("step %d: switch %v, twin %v", step, want != nil, got != nil)
+	}
+	if want == nil {
+		return
+	}
+	for _, c := range []struct {
+		name      string
+		want, got []ledger.Displaced
+	}{{"unchanged", want.Unchanged, got.Unchanged}, {"carried", want.Carried, got.Carried}, {"void", want.Void, got.Void}} {
+		if len(c.want) != len(c.got) {
+			t.Fatalf("step %d: %d %s, twin %d", step, len(c.want), c.name, len(c.got))
+		}
+		for i := range c.want {
+			if c.want[i].TID != c.got[i].TID || c.want[i].Entry != c.got[i].Entry {
+				t.Fatalf("step %d: %s %d differs", step, c.name, i)
+			}
+		}
+	}
+	for _, c := range []struct {
+		name      string
+		want, got []ledger.Displaced
+	}{{"unchanged", want.Unchanged, got.Unchanged}, {"carried", want.Carried, got.Carried}, {"void", want.Void, got.Void}} {
+		for i, d := range c.got {
+			if !bytes.Equal(d.Tx.Encode(), c.want[i].Tx.Encode()) {
+				t.Fatalf("step %d: %s %s comes back without its witnesses", step, c.name, d.TID.Short())
+			}
+		}
 	}
 }
 
@@ -109,8 +146,9 @@ func (tw *twin) compareBodies(t *testing.T, p *ledger.Pool, held []hash.Hash) {
 		t.Fatalf("twin keeps %d bodies in memory after ReleaseBodies", n)
 	}
 	for _, h := range held {
-		a, ok1 := p.Entry(h)
-		b, ok2 := tw.pool.Entry(h)
+		a, err1 := p.Entry(h)
+		b, err2 := tw.pool.Entry(h)
+		ok1, ok2 := err1 == nil, err2 == nil
 		if ok1 != ok2 {
 			t.Fatalf("entry %s: held by pool %v, twin %v", h.Short(), ok1, ok2)
 		}
@@ -158,8 +196,8 @@ func TestBodyCacheBound(t *testing.T) {
 	tw.compareBodies(t, f.pool, hs)
 	// A failed read hides the body and decides nothing.
 	tw.src.fail = true
-	if _, ok := tw.pool.Entry(hs[0]); ok {
-		t.Fatal("a failed read returned a body")
+	if e, err := tw.pool.Entry(hs[0]); !errors.Is(err, ledger.ErrUnreadable) || e != nil {
+		t.Fatalf("a failed read: %v, %v", e, err)
 	}
 	if tw.cache.Stats().Errors == 0 {
 		t.Fatal("a failed read was not counted")

@@ -28,7 +28,7 @@ D25). Nothing here changes what is valid.
   "ties": 64,
   "max_pending": 10000,
   "seen_size": 65536,
-  "entry_cache_mib": 512,
+  "entry_cache_mib": 256,
   "no_sync": false,
   "rpc": {"listen": "127.0.0.1:8645", "allow_remote": false},
   "p2p": {
@@ -139,7 +139,7 @@ its range, or `Validate` refuses the policy and names the setting
 | `seen_size` | 65536 | 1024 to 4194304 | items on the seen list; it grows as items arrive (D160) |
 | `max_pending` | 10000 | 16 to 1048576 | pending transactions per pool (D160) |
 | `ties` | 64 | 1 to 4096 | off-chain entries kept that tie with the selected ledger's weight, beyond `k` (D160) |
-| `entry_cache_mib` | 512 | 1 to 1048576 | MiB of entry bodies kept in memory across all pools, read back from the pool logs; every entry's skeleton stays in memory whatever this is (D172) |
+| `entry_cache_mib` | 256 | 1 to 1048576 | MiB of entry bodies kept in memory across all pools, read back from the pool logs; every entry's skeleton stays in memory whatever this is (D172) |
 
 `Policy.Limits` lists them with the value node.json sets and the value used,
 from the one list `Validate` checks; `poo policy limits` prints it

@@ -234,9 +234,35 @@ func doctor(out io.Writer, dir string) DoctorReport {
 		return rep
 	}
 
-	// 6. Peers.
+	// 6. Entry bodies read back from the logs (RED-084).
+	if c, ok := bodiesCheck(out, dir); ok {
+		add(c)
+	}
+
+	// 7. Peers.
 	add(p2pCheck(out, dir, p))
 	return rep
+}
+
+// bodiesCheck warns when the running node failed to read entry bodies
+// back from its pool logs: a log damaged or changed under it. Such an
+// entry is not held for peers and queries until the node starts again
+// (RED-084, D173).
+func bodiesCheck(out io.Writer, dir string) (Check, bool) {
+	cl, err := dialNode(out, dir)
+	if err != nil {
+		return Check{}, false
+	}
+	st, err := cl.Status()
+	if err != nil {
+		return Check{}, false
+	}
+	if n := st.Bodies.Errors; n > 0 {
+		return Check{Name: "bodies", Result: checkWarn,
+			Detail: fmt.Sprintf("%d reads of entry bodies from the pool logs failed: a log is damaged or was changed under the node, and those entries are not served or shown", n),
+			Fix:    "check the disk, then restart the node: on start it cuts a pool log at its first damaged record and fetches the rest again from peers"}, true
+	}
+	return Check{Name: "bodies", Result: checkOK, Detail: fmt.Sprintf("%d entry bodies read back from the logs, none failed", st.Bodies.Loads)}, true
 }
 
 // grindCheck reports the devices this machine grinds on, a device the

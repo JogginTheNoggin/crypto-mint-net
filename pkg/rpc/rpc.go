@@ -984,6 +984,10 @@ type PaymentReply struct {
 	// Rivals are known inactive branches spending one of the same
 	// portions.
 	Rivals []RivalInfo `json:"rivals,omitempty"`
+	// Unreadable is set when the payment is selected but its entry's body
+	// cannot be read back from the node's log, so tx is missing; rivals
+	// are still complete (RED-084, D173). poo doctor reports the damage.
+	Unreadable bool `json:"unreadable,omitempty"`
 }
 
 // RivalInfo is one known rival of a payment.
@@ -1013,7 +1017,7 @@ func (h *Handler) payment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, classify(err))
 		return
 	}
-	rep := PaymentReply{Pending: p.Pending, Selected: p.Selected, From: p.From.String()}
+	rep := PaymentReply{Pending: p.Pending, Selected: p.Selected, From: p.From.String(), Unreadable: p.Unreadable}
 	if p.Selected {
 		rep.Entry = &p.Entry
 	}

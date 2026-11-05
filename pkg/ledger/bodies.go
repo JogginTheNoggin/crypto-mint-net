@@ -6,6 +6,7 @@ import (
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/entry"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/state"
 )
 
 // Entry bodies on disk (D172). A pool keeps a skeleton of every entry it
@@ -71,9 +72,11 @@ func NewBodyCache(maxBytes int64) *BodyCache {
 	return &BodyCache{max: maxBytes, lru: list.New(), items: map[bodyKey]*list.Element{}}
 }
 
-// bodySize estimates the memory one body takes: its byte form and the
-// structures that hold it.
-func bodySize(e *entry.Entry) int64 { return int64(e.Size())*2 + 256 }
+// bodySize is the memory one body takes, as measured (ORANGE-038): its
+// byte form and about 1 KiB of structures, so entry_cache_mib means MiB
+// of memory (D173). It was twice the byte form plus 256 bytes, which
+// counted about twice what bodies take.
+func bodySize(e *entry.Entry) int64 { return int64(e.Size()) + 1024 }
 
 func (c *BodyCache) get(k bodyKey) (*entry.Entry, bool) {
 	c.mu.Lock()
@@ -165,6 +168,7 @@ func (p *Pool) releaseBodies() {
 			p.cfg.Bodies.put(bodyKey{p.id, n.hash}, n.entry)
 		}
 		n.entry = nil
+		stripWitnesses(n.items)
 	}
 	clear(p.held[len(kept):])
 	p.held = kept
@@ -223,4 +227,29 @@ func (p *Pool) InMemory() int {
 		}
 	}
 	return c
+}
+
+// stripWitnesses replaces each item's transaction with a copy that has no
+// witnesses, so a released body is no longer held through its items
+// (ORANGE-038). The witnesses were most of a body: with them, the skeleton
+// kept every body in memory whatever the cache's size. What the items are
+// read for after an entry is checked needs no witness: applying and
+// reverting it, finding a claim, and sorting a switch's displaced
+// transactions (switchTo, which reads the body back for those it carries
+// to the pending transactions). A transaction with no witnesses is never
+// valid, so a stripped one is never taken for a whole one.
+func stripWitnesses(items []state.Item) {
+	for i := range items {
+		if items[i].Tx.Witnesses == nil {
+			continue
+		}
+		c := *items[i].Tx
+		c.Witnesses = nil
+		items[i].Tx = &c
+	}
+}
+
+// stripped reports whether n's items had their witnesses taken away.
+func stripped(n *node) bool {
+	return len(n.items) > 0 && n.items[0].Tx.Witnesses == nil
 }

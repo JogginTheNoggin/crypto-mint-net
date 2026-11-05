@@ -55,6 +55,13 @@ var (
 	ErrKnownLayer = errors.New("ledger: layer already counted")
 	// ErrNotSelected: the entry is not in the selected ledger.
 	ErrNotSelected = errors.New("ledger: entry not in the selected ledger")
+	// ErrNoEntry: Entry was asked for an entry the pool does not hold.
+	ErrNoEntry = errors.New("ledger: entry not held")
+	// ErrUnreadable: the pool holds the entry, but its body is not in
+	// memory and could not be read back (a damaged or changed log, a disk
+	// error). For the caller it is not held right now; it decides nothing,
+	// since no check reads a body that is not in memory (RED-084, D173).
+	ErrUnreadable = errors.New("ledger: entry body cannot be read back")
 )
 
 // Unlimited, as K, keeps every inactive branch.
@@ -214,13 +221,34 @@ func (p *Pool) State() *state.State { return p.st }
 // Has reports whether the entry is held, on any branch.
 func (p *Pool) Has(h hash.Hash) bool { _, ok := p.nodes[h]; return ok }
 
-// Entry returns a held entry.
-func (p *Pool) Entry(h hash.Hash) (*entry.Entry, bool) {
+// Entry returns a held entry. It returns ErrNoEntry for an entry the
+// pool does not hold and ErrUnreadable for one whose body cannot be read
+// back, and a nil entry only with an error (RED-084, D173).
+func (p *Pool) Entry(h hash.Hash) (*entry.Entry, error) {
+	n, ok := p.nodes[h]
+	if !ok {
+		return nil, ErrNoEntry
+	}
+	if e, ok := p.body(n); ok {
+		return e, nil
+	}
+	return nil, ErrUnreadable
+}
+
+// Tx returns transaction tid of held entry h from the entry's skeleton,
+// which is always in memory. Its witnesses are gone once the entry's body
+// was released, so it serves what reads inputs and outputs only (D173).
+func (p *Pool) Tx(h, tid hash.Hash) (*tx.Tx, bool) {
 	n, ok := p.nodes[h]
 	if !ok {
 		return nil, false
 	}
-	return p.body(n)
+	for _, it := range n.items {
+		if it.TID == tid {
+			return it.Tx, true
+		}
+	}
+	return nil, false
 }
 
 // Info describes a held entry.
@@ -793,19 +821,50 @@ func (p *Pool) switchTo(n *node) *Switch {
 	// tip state finds both reasons a transaction is void: a portion it
 	// spends is already spent in the new ledger, or was created by a void
 	// transaction.
+	//
+	// An entry whose body was released has items without witnesses
+	// (stripWitnesses). Its transactions are sorted by the same rules
+	// short of the witnesses (tx.Owners): the witnesses satisfied these
+	// owners when the entry was checked, and an input's owner is fixed by
+	// the transaction that made it, so the answer is the one CheckAgainst
+	// gives. The body is read back once, so every displaced transaction
+	// is reported whole, as before (the watch hub finds spenders by their
+	// witnesses). If it cannot be read, the transactions are reported
+	// without witnesses and none is carried, since a carried one goes back
+	// to the pending transactions; that only leaves it for a peer to send
+	// again (ORANGE-038).
 	replay := p.st.Overlay()
 	for i, o := range old {
-		for _, it := range o.items {
+		bare := stripped(o)
+		var whole []*tx.Tx
+		if bare {
+			if e, ok := p.body(o); ok && len(e.Txs) == len(o.items) {
+				whole = e.Txs
+			}
+		}
+		for j, it := range o.items {
 			d := Displaced{TID: it.TID, Tx: it.Tx, Entry: o.hash, Weight: buried[i]}
+			if whole != nil {
+				d.Tx = whole[j]
+			}
 			if _, ok := newTIDs[it.TID]; ok {
 				sw.Unchanged = append(sw.Unchanged, d)
 				continue
 			}
-			if err := tx.CheckAgainst(p.s, replay, it.Tx, it.TID); err != nil {
+			var err error
+			if bare {
+				_, err = tx.Owners(replay, it.Tx)
+			} else {
+				err = tx.CheckAgainst(p.s, replay, it.Tx, it.TID)
+			}
+			if err != nil {
 				sw.Void = append(sw.Void, d)
 				continue
 			}
 			replay.ApplyTx(it, nil)
+			if bare && whole == nil {
+				continue
+			}
 			sw.Carried = append(sw.Carried, d)
 		}
 	}
@@ -864,20 +923,18 @@ func (p *Pool) Rivals(t *tx.Tx, tid hash.Hash) []Rival {
 	for _, in := range t.Inputs {
 		spends[in] = true
 	}
-	h := p.s.Hash()
 	var out []Rival
 	for _, b := range p.Branches() {
 		for x := p.nodes[b.Tip]; x != nil && !x.onChain; x = x.parent {
 			found := false
-			body, ok := p.body(x)
-			if !ok {
-				continue
-			}
-			for _, o := range body.Txs {
+			// The skeleton's items carry every input, so the search reads
+			// no body and cannot miss a rival whose body is unreadable
+			// (RED-084, D173).
+			for _, it := range x.items {
+				o, otid := it.Tx, it.TID
 				if o.IsClaim() {
 					continue
 				}
-				otid := o.TID(h)
 				if otid == tid {
 					continue
 				}

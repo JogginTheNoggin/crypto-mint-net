@@ -507,12 +507,15 @@ func (h *Host) findCommon(pi *poolInfo, p *peer) (common hash.Hash, after []hash
 				if _, ok := l.HeightOf(at); ok {
 					return
 				}
-				e, ok := l.Entry(at)
+				// The parent is in the entry's skeleton, so the walk
+				// reads no body back from disk under the engine's lock
+				// (ORANGE-038).
+				parent, ok := l.ParentOf(at)
 				if !ok {
 					return
 				}
 				back = append(back, at)
-				at = e.Parent
+				at = parent
 			}
 		})
 		slices.Reverse(back)

@@ -157,16 +157,21 @@ func split(sizes []int, chunk int) [][2]int {
 	return out
 }
 
-// item returns a held entry as a reply item.
-func item(l *ledger.Pool, h hash.Hash, layers bool) wire.EntryItem {
-	e, _ := l.Entry(h)
+// item returns a held entry as a reply item. It returns false when the
+// entry's body cannot be read back from the log: for the asker the entry
+// is then not held, and nothing is encoded (RED-084, D173).
+func item(l *ledger.Pool, h hash.Hash, layers bool) (wire.EntryItem, bool) {
+	e, err := l.Entry(h)
+	if err != nil {
+		return wire.EntryItem{}, false
+	}
 	it := wire.EntryItem{Entry: e, HasLayers: layers}
 	if layers {
 		for _, ly := range l.Layers(h) {
 			it.Nonces = append(it.Nonces, ly.Nonce)
 		}
 	}
-	return it
+	return it, true
 }
 
 // build reads what the reply needs under the engine's lock and returns a
@@ -212,7 +217,17 @@ func (r replier) entries(l *ledger.Pool, from int, layers bool) func() {
 	var sizes []int
 	total := 0
 	for _, h := range hs {
-		it := item(l, h, layers)
+		it, ok := item(l, h, layers)
+		if !ok {
+			// The reply ends before an entry this node cannot read back;
+			// with none before it, the asker is told it is not held and
+			// fetches from another peer.
+			if len(items) == 0 {
+				return func() { r.empty(wire.TypeNotHeld, r.stated) }
+			}
+			more = true
+			break
+		}
 		if layers && total+len(it.Nonces) > r.lim.layers && len(items) > 0 {
 			more = true
 			break
@@ -281,7 +296,10 @@ func (r replier) parts(l *ledger.Pool, q wire.PartsReq) func() {
 	b, _, cached := r.h.encoded.peek(key)
 	var it wire.EntryItem
 	if !cached {
-		e, _ := l.Entry(q.Entry)
+		e, err := l.Entry(q.Entry)
+		if err != nil {
+			return func() { r.empty(wire.TypeNotHeld, r.stated) }
+		}
 		it = wire.EntryItem{Entry: e, HasLayers: q.Variant == wire.EntriesWithLayers}
 		if it.HasLayers {
 			it.Nonces = l.LayerNonces(q.Entry)
@@ -470,7 +488,11 @@ func (r replier) byHash(l *ledger.Pool, q wire.EntriesReq) func() {
 			items = append(items, wire.HeldEntry{Hash: h})
 			continue
 		}
-		it := item(l, h, layers)
+		it, ok := item(l, h, layers)
+		if !ok {
+			items = append(items, wire.HeldEntry{Hash: h})
+			continue
+		}
 		if sent == r.lim.entries || (sent > 0 && nl+len(it.Nonces) > r.lim.layers) {
 			more = true
 			break
