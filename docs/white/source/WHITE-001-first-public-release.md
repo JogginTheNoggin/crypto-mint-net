@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed |
+| Status | adopted in part by the owner (2026-11-05: name, ports rule, registry place, series) |
 | Based on | origin/main @ 4c0f708 |
 | Area | release process, versioning, `scripts/release.sh`, docs |
 | Effort | medium (mostly docs and a few small code items) |
@@ -19,7 +19,7 @@ release note), there is no outside security audit, and nothing of value
 should be used with it. Before the tag, a short list of items must be
 done: a license, the new default ports, a way for a new node to find
 peers, the two R32A gaps (W-1, W-10), the version name in the hello
-(WHITE-002 step 1), and a release checklist run locally because GitHub
+(WHITE-002: the release and features in the hello, and room for new fields in hello and ping), and a release checklist run locally because GitHub
 Actions has no runner. Beta follows once the formats have upgrade tests
 and outside testers have run nodes for a while; 1.0 follows an outside
 audit. Tagging, publishing and making the repository public stay the
@@ -80,7 +80,7 @@ it.
 | R3 | A way for a first node to find peers: at least one registry file the project publishes (for example in the repo or on the release page) and `poo init` naming it, or docs that say how to get one | the owner (where it lives); Grey | Today a new node has no peers unless given `-registry` or `-peer` |
 | R4 | W-1: `node.json` keeps fields an older release does not know | Grey (R32A suggested) | Rolling back an alpha must not drop settings |
 | R5 | W-10: node release version and commit in `GET /v1/status` and `poo status` | Grey (R32A suggested) | GUI and support need to know what a node runs |
-| R6 | WHITE-002 step 1: hello `Agent` is `poo/VERSION` | Grey | Lets nodes and the owner see which versions are on the network from day one, with no wire change |
+| R6 | WHITE-002: hello carries the release and features; hello, ping and pong end with an extensions list (owner's choice, 2026-11-05) | Grey | The hello and ping layouts freeze at the tag, so this is the last chance to add them without breaking released nodes |
 | R7 | Release checklist run locally (no Actions runner): all checks of `docs/releasing.md` and two `scripts/release.sh` builds with equal `SHA256SUMS`. GUI set: `go -C gui vet ./...`, `go -C gui test -race ./...`, windows/amd64 and darwin/arm64 builds, and every gui-e2e script listed in `.github/workflows/ci.yml`, run against the `poo-gui` that `release.sh` built so the `-ldflags` version is covered | White runs the Source part; GUI/White runs the GUI set and records it in its review | `release.yml` cannot run today |
 | R8 | Sign `SHA256SUMS` (for example `ssh-keygen -Y sign` with a key the owner holds; its public key in the README) | the owner holds the key; White writes the steps | Reproducible builds prove what the code builds to; a signature proves the owner published it |
 | R9 | README "Status" says alpha, what that means, and how to report a bug; `SECURITY.md` has a private way to report | Grey | First public readers land there |
@@ -134,6 +134,16 @@ lowers the risk of users trusting it with value.
 4. Should the alpha network use the reserve default series, or a separate
    test series so nothing "real" starts during alpha? Choosing a series is
    not a consensus change, but it decides what early users hold.
+
+## The owner's answers (2026-11-05)
+
+| Question | Answer | What follows |
+| --- | --- | --- |
+| 1. Name | `v0.1.0-alpha.1`, as recommended | `pkg/cli.Version` on main becomes `0.1.0-alpha.1-dev`; R12 marks the tag a GitHub pre-release |
+| 2. Ports | Anything under 10000 that does not clash with existing applications (the owner thinks mobile software uses 8645 and 8646); the owner then picked **7336 and 7337** | **7336 for the local RPC and 7337 for peers** (W-7), keeping today's pattern (RPC one below peers). Both are unassigned in the IANA registry (checked 2026-11-05 against its CSV); no registry can rule out every unofficial use. With W-7, `poo init` also writes the ports into `node.json` from now on |
+| 3. First registry | On a website, for now | R3: the registry file lives on the owner's website. `poo init` names its URL by default once the owner gives it, and the docs say how to change it. White checks that the file is served over `https` and that a node still starts when it cannot be reached |
+| 4. Alpha series | The default series (reserve) | No test series. The alpha notes say plainly that the network is live on the reserve default series and that the software is alpha (see Stages) |
+| License | Not yet | R1 stays open. A public alpha without a license can still be read and run, but it is not open source until a license is added. The owner decides when |
 
 ## Prototype
 

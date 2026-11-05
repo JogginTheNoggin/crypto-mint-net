@@ -80,8 +80,10 @@ Orange proposals), White answers:
 - [ ] Does it add a field to a file read with `DisallowUnknownFields`? An
       older release will then refuse files the new one writes: is that
       acceptable, and is the error clear?
-- [ ] Does it add a field to `node.json`? An older release ignores it and
-      may save the file without it (W-1).
+- [ ] Does it add a field to `node.json`? An older release keeps it on
+      save only inside objects, within the keeping limits (D184, D185).
+      A new field inside a list entry is lost on a rollback-save (W-11):
+      put new settings in objects instead.
 - [ ] Does it add a record kind to the pool log, or change a snapshot?
       Can the previous release still start on the data folder?
 - [ ] Does it add, rename or remove a command, flag, setting, metric or
