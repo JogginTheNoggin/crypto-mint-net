@@ -231,7 +231,7 @@ export function statusNotes(st) {
   const n = x => num(x) ? String(x) : '?';
   const mib = (x, d) => num(x) ? (x / MIB).toFixed(d) : '?';
   if (b && num(b.max_bytes)) out.push(el('p', { class: 'hint entry-cache' },
-    `Entry cache: ${mib(b.used_bytes, 1)} of ${mib(b.max_bytes, 0)} MiB (entry_cache_mib), ${n(b.bodies)} bodies; ${n(b.hits)} hits, ${n(b.loads)} read from disk${num(b.errors) && b.errors ? `, ${b.errors} failed reads` : ''}. ${n(b.in_memory)} of ${n(b.held)} entries are in memory.`));
+    `Entry cache: ${mib(b.used_bytes, 1)} of ${mib(b.max_bytes, 0)} MiB (entry_cache_mib), ${n(b.bodies)} bodies; ${n(b.hits)} hits, ${n(b.loads)} read from disk${num(b.errors) && b.errors ? `, ${b.errors} failed reads` : ''}. ${n(b.in_memory)} of ${n(b.held)} entries are in memory${num(b.cold) ? `, and ${b.cold} older ones (outside recent_window) are read from the logs when needed` : ''}.`));
   return out;
 }
 

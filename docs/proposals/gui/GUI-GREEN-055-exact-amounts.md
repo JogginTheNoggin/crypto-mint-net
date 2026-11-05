@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 29 Part B) |
+| Status | adopted (Round 30 Part A, merged as is; the Source ask is queued at Source) |
 | Based on | main @ 4e1c601 |
 | Area | gui/web/static/render.js (parseJSON, scalar), views.js (showResult), views/node.js (series panels), views/watch.js (events), gui/e2e/qol.mjs, gui/e2e/views.mjs, docs/FEATURES.md, docs/gui.md |
 | Effort | small |

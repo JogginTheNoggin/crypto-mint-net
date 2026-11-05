@@ -51,7 +51,7 @@ try {
   }
   await shot('node');
   // The entry cache line comes from poo status's bodies (D172).
-  await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\)/ }).waitFor();
+  await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\).*older ones \(outside recent_window\)/ }).waitFor();
   // A partial status reply (only max_bytes) is drawn with "?" for what
   // is missing, not thrown on, so the lines after it still draw (GUI/Red
   // R29B).
