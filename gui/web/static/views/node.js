@@ -223,9 +223,15 @@ export function statusNotes(st) {
   const fl = st.file_limit;
   if (fl && fl.known && fl.low) out.push(el('p', { class: 'next-step file-limit-low', role: 'alert' },
     `The open file limit is ${fl.soft}, below the ${fl.need} the followed pools need. Raise it (ulimit -n, or LimitNOFILE for a service) and restart the node.`));
+  // Each figure is read only if poo gave it as a number: a partial reply
+  // (an older node, a field left out) shows "?" for it rather than
+  // throwing, which would leave the lines after it undrawn (GUI/Red R29B).
   const b = st.bodies;
-  if (b && typeof b.max_bytes === 'number') out.push(el('p', { class: 'hint entry-cache' },
-    `Entry cache: ${(b.used_bytes / MIB).toFixed(1)} of ${(b.max_bytes / MIB).toFixed(0)} MiB (entry_cache_mib), ${b.bodies} bodies; ${b.hits} hits, ${b.loads} read from disk${b.errors ? `, ${b.errors} failed reads` : ''}. ${b.in_memory} of ${b.held} entries are in memory.`));
+  const num = x => typeof x === 'number' && Number.isFinite(x);
+  const n = x => num(x) ? String(x) : '?';
+  const mib = (x, d) => num(x) ? (x / MIB).toFixed(d) : '?';
+  if (b && num(b.max_bytes)) out.push(el('p', { class: 'hint entry-cache' },
+    `Entry cache: ${mib(b.used_bytes, 1)} of ${mib(b.max_bytes, 0)} MiB (entry_cache_mib), ${n(b.bodies)} bodies; ${n(b.hits)} hits, ${n(b.loads)} read from disk${num(b.errors) && b.errors ? `, ${b.errors} failed reads` : ''}. ${n(b.in_memory)} of ${n(b.held)} entries are in memory.`));
   return out;
 }
 
