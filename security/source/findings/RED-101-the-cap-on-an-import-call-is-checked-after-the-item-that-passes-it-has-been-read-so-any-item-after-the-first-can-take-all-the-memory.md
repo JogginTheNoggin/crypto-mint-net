@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 34 Part B, on `main` @ `f1ac406` (D189, RED-098's fix) |
 | Area | `pkg/rpc/ledgerport.go` (`decodeImport`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-035) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 1af56e9 (BLUE-035) |
 | For Black | Not a rule. |
 
 ## What is wrong

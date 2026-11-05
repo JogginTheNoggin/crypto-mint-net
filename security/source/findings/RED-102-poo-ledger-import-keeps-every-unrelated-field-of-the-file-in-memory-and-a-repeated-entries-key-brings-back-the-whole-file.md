@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 34 Part B, on `main` @ `f1ac406` (D189, ORANGE-043) |
 | Area | `pkg/cli/ledgerport.go` (`readLedgerFile`), used by `importLedger` and `ledgerDryRun` (and so by the GUI, which runs the same code) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-035) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 1af56e9 (BLUE-035) |
 | For Black | Not a rule. |
 
 ## What is wrong

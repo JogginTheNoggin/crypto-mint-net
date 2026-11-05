@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 34 Part B, on `main` @ `f1ac406` (D190, W-14) |
 | Area | `pkg/wire/hello.go` (`MaxExtValue`, `MaxExt`), `pkg/p2p/inbox.go`, `pkg/p2p/peer.go` (`dispatch`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-035) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 1af56e9 (BLUE-035) |
 | For Black | Not a rule: no decision depends on it. |
 
 ## What is wrong

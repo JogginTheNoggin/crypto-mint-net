@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 34 Part B, on `main` @ `f1ac406` (D190; the code is older, the wider hello limits make the right bound easy to name) |
 | Area | `pkg/wire/wire.go` (`ReadFrame`), `pkg/p2p/peer.go` (`handshake`), `pkg/p2p/host.go` (`acceptLoop`, `fullLocked`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-035) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 1af56e9 (BLUE-035) |
 | For Black | Not a rule. |
 
 ## What is wrong

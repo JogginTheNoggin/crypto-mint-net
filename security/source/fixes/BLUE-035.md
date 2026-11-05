@@ -5,6 +5,7 @@
 | Fixes | RED-100 (medium), RED-101 (low), RED-102 (low), RED-103 (low, in part) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `f1ac406` (Source Round 34 Part C), with GREEN-059 (#277) merged in |
+| Code | `1af56e9` |
 | Decisions | D191 |
 | With | GREEN-059 (PR #277), carried. ORANGE-044 (PR #276): P1's handshake count and P2's byte cap are built here; P3, P4 and a per-address handshake cap are left for Grey. |
 | Review | No consensus change. For Black: frame and queue limits and tool input checks only; no entry is refused by size, and a ledger of any weight is still accepted. For Black and White: a discovery frame limit (RED-103's second fix) is not taken because D190 tests a 2 MiB ping at the limits; it would change wire behaviour frozen at the tag. |
