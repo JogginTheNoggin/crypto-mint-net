@@ -80,10 +80,13 @@ export function follow(id, h, from = 0) {
 let grammar = 'posix';
 export let viewOnly = false;
 let secretFlags = ['restore', 'seed'];
+// version is the release poo-gui and poo share (cli.Version), empty when
+// the server did not say (GUI White G4, GUI-GREEN-058).
+export let version = '';
 export async function loadInfo() {
   try {
     const r = await fetch('/api/info');
-    if (r.ok) ({ grammar, viewOnly, secretFlags = secretFlags } = await r.json());
+    if (r.ok) ({ grammar, viewOnly, secretFlags = secretFlags, version = '' } = await r.json());
   } catch (_) { /* keep posix, not view-only */ }
 }
 

@@ -25,6 +25,11 @@ const until = async (cond, what, ms = 20000) => {
 const termText = () => page.locator('.terminal .term-out').innerText();
 
 try {
+  // The header shows the release, the one poo version prints: poo and
+  // poo-gui share one version (GUI White G4, GUI-GREEN-058).
+  const pooVersion = String(execFileSync(bin, ['poo', 'version'], { env })).trim();
+  await page.locator('#version:not([hidden])').waitFor();
+  assert.equal(await page.locator('#version').innerText(), `v${pooVersion}`);
   // Getting started is the first view, and marks itself current.
   await page.locator('h1', { hasText: 'Getting started' }).waitFor();
   assert.equal(await page.locator('nav a[aria-current=page]').getAttribute('data-id'), 'start');

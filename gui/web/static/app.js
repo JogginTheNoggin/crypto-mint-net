@@ -86,5 +86,9 @@ document.querySelector('.skip').addEventListener('click', ev => {
 window.addEventListener('hashchange', show);
 api.loadInfo().then(() => {
   document.getElementById('view-only').hidden = !api.viewOnly;
+  // The release this GUI runs, as poo version prints it (GUI White G4,
+  // GUI-GREEN-058): for a bug report, and to compare with a node's.
+  const ver = document.getElementById('version');
+  if (typeof api.version === 'string' && api.version) { ver.textContent = `v${api.version}`; ver.hidden = false; }
   show();
 });
