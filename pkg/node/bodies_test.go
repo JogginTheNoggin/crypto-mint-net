@@ -2,6 +2,7 @@ package node_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
@@ -141,5 +142,68 @@ func TestEntryCacheLimit(t *testing.T) {
 	defer n.Close()
 	if got := n.Bodies().MaxBytes; got != 3<<20 {
 		t.Fatalf("cache bound %d, want 3 MiB", got)
+	}
+}
+
+// TestColdEntries: with a small recent_window, the old entries of the
+// selected ledger drop their items and undo once written, through a
+// restart and a compaction, and the node selects and holds the same
+// (D175).
+func TestColdEntries(t *testing.T) {
+	f := newFixture(t, func(p *nodepolicy.Policy) { p.RecentWindow = 16 })
+	n := f.open()
+	prev := f.k.Claim(4, P("a0", 100))
+	if _, err := n.HandleTx(prev, engine.Local); err != nil {
+		t.Fatal(err)
+	}
+	owner := "a0"
+	for i := 0; i < 40; i++ {
+		e, _, err := n.Build(f.key, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := n.Work(f.key, e.Hash(f.s), 0, 50); err != nil {
+			t.Fatal(err)
+		}
+		to := fmt.Sprintf("a%d", i+1)
+		sp := f.k.Spend(4, []testutil.In{f.k.Out(prev, 0, owner)}, P(to, 100))
+		if _, err := n.HandleTx(sp, engine.Local); err != nil {
+			t.Fatal(err)
+		}
+		prev, owner = sp, to
+	}
+	want := f.snap(n)
+	if want.height < 40 {
+		t.Fatalf("height %d", want.height)
+	}
+	cold := func(n *node.Node) int {
+		c := 0
+		n.Engine().Ledger(f.key, func(p *ledger.Pool) { c = p.Cold() })
+		return c
+	}
+	if c := cold(n); c < want.height-17 {
+		t.Fatalf("%d cold entries of %d", c, want.height)
+	}
+	if err := n.Compact(f.key); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.snap(n); got != want {
+		t.Fatalf("after compaction\n got %+v\nwant %+v", got, want)
+	}
+	if err := n.Close(); err != nil {
+		t.Fatal(err)
+	}
+	n = f.open()
+	defer n.Close()
+	if got := f.snap(n); got != want {
+		t.Fatalf("after restart\n got %+v\nwant %+v", got, want)
+	}
+	if c := cold(n); c < want.height-17 {
+		t.Fatalf("after restart: %d cold entries of %d", c, want.height)
+	}
+	// An old payment still reads back, from a cold entry.
+	first := f.k.Claim(4, P("a0", 100)).TID(f.s.Hash())
+	if pay, err := n.Engine().Payment(f.key, first); err != nil || pay.Entry == (hash.Hash{}) {
+		t.Fatalf("an old payment: %+v, %v", pay, err)
 	}
 }

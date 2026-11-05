@@ -84,11 +84,16 @@ type node struct {
 	own      weight.Weight
 	layers   map[hash.Hash]layer.Layer
 	undo     state.Undo
-	seq      uint64
-	seen     time.Time
-	onChain  bool
-	rel      weight.Weight // off chain: own weight from the anchor (exclusive) to here
-	anchor   int           // off chain: the anchor's height, 0 for the pool_id
+	// nitems counts the entry's transactions and claims the mints it
+	// claims, kept when a cold entry drops its items (D175).
+	nitems  int
+	claims  []uint64
+	cold    bool
+	seq     uint64
+	seen    time.Time
+	onChain bool
+	rel     weight.Weight // off chain: own weight from the anchor (exclusive) to here
+	anchor  int           // off chain: the anchor's height, 0 for the pool_id
 }
 
 // Config holds a pool's node policy settings.
@@ -110,6 +115,11 @@ type Config struct {
 	// Bodies caches the bodies read back from Source; one cache may serve
 	// many pools. Nil caches none.
 	Bodies *BodyCache
+	// RecentWindow is how many entries below the selected tip keep their
+	// items and undo records in memory once their bodies are in Source
+	// (D175); deeper ones are read back when a switch or a view needs
+	// them. 0 keeps every one in memory.
+	RecentWindow int
 	// Clock gives the local time recorded when an entry is first seen. It
 	// is never read by selection. Defaults to time.Now.
 	Clock func() time.Time
@@ -152,6 +162,9 @@ type Pool struct {
 	// held are the entries added since their bodies were last released
 	// to the source (releaseBodies, D172).
 	held []*node
+	// cooled is how many entries of the selected ledger, from the bottom,
+	// cool has passed: chain[:cooled] may be cold (D175).
+	cooled int
 }
 
 // New returns an empty pool: no entries, weight 0, nothing claimed.
@@ -243,7 +256,11 @@ func (p *Pool) Tx(h, tid hash.Hash) (*tx.Tx, bool) {
 	if !ok {
 		return nil, false
 	}
-	for _, it := range n.items {
+	items, err := p.itemsOf(n)
+	if err != nil {
+		return nil, false
+	}
+	for _, it := range items {
 		if it.TID == tid {
 			return it.Tx, true
 		}
@@ -429,8 +446,13 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 
 	p.seq++
 	n := &node{
-		hash: h, entry: e, items: stItems, parent: parent, undo: undo,
+		hash: h, entry: e, items: stItems, parent: parent, undo: undo, nitems: len(stItems),
 		layers: map[hash.Hash]layer.Layer{}, seq: p.seq, seen: p.cfg.Clock(),
+	}
+	for _, it := range stItems {
+		if it.Tx.IsClaim() {
+			n.claims = append(n.claims, it.Tx.Mint.Serial)
+		}
 	}
 	if p.s.EntryHashCredit() {
 		n.own = weight.Credit(h.Strength())
@@ -464,6 +486,7 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 		p.view, p.viewOf = view, n
 	}
 	res.Pruned = p.prune()
+	p.cool()
 	return res, nil
 }
 
@@ -590,7 +613,7 @@ func (p *Pool) viewCost(n *node, limit int) int {
 }
 
 // unitsOf is the view cost of reverting or applying one entry.
-func unitsOf(n *node) int { return 1 + len(n.items) }
+func unitsOf(n *node) int { return 1 + n.nitems }
 
 func toStateItems(items []entry.Item) []state.Item {
 	out := make([]state.Item, len(items))
@@ -622,9 +645,11 @@ func (p *Pool) viewAfter(n *node) *state.State {
 	if x != nil {
 		anchor = x.height
 	}
+	memo := map[*node][]state.Item{}
 	for h := len(p.chain); h > anchor; h-- {
 		c := p.chain[h-1]
-		v.Revert(c.items, c.undo)
+		items, undo := p.warmed(c, memo)
+		v.Revert(items, undo)
 	}
 	for i := len(path) - 1; i >= 0; i-- {
 		v.Apply(path[i].items)
@@ -678,6 +703,7 @@ func (p *Pool) AddLayerHashed(l layer.Layer, lh hash.Hash) (AddResult, error) {
 		res.Switch = p.switchTo(best)
 	}
 	res.Pruned = p.prune()
+	p.cool()
 	return res, nil
 }
 
@@ -749,6 +775,12 @@ func (p *Pool) switchTo(n *node) *Switch {
 	// Record how buried each displaced entry was before anything changes.
 	oldWeight := p.Weight()
 	old := append([]*node(nil), p.chain[forkHeight:]...)
+	// Read back the items and undo of every cold entry to revert, before
+	// anything changes (D175).
+	if forkHeight < p.cooled {
+		p.warm(old)
+		p.cooled = forkHeight
+	}
 	buried := make([]weight.Weight, len(old))
 	for i, o := range old {
 		buried[i] = oldWeight.Sub(p.bit.prefix(o.height - 1))

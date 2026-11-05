@@ -241,6 +241,9 @@ func runRandom(t *testing.T, seed int64, steps int, k int) int {
 		}
 	}
 	tw.compareBodies(t, f.pool, held)
+	if steps >= 100 && tw.maxCold == 0 {
+		t.Fatalf("seed %d: no entry went cold, so no switch read anything back", seed)
+	}
 	if k == ledger.Unlimited {
 		checkReplayOrder(t, f)
 	}

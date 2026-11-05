@@ -168,7 +168,7 @@ type importResult struct {
 	// Digest is the SHA-256 of the file read, the options and every
 	// plan, the same on every row: pass it back with -if-digest to apply
 	// only that file with those options and that plan (GUI-023, RED-051).
-	Digest string `json:"digest"`
+	Digest string `json:"digest,omitempty"`
 }
 
 // policyImportCmd reads a bundle (or a node.json) and merges it into the
@@ -360,13 +360,17 @@ func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
 			}
 		}
 	}
-	for i := range results {
-		results[i].Digest = dg
+	changes := slices.ContainsFunc(results, func(r importResult) bool { return !r.Plan.Empty() })
+	// A plan that changes nothing has nothing to apply, so it carries no
+	// digest, as the text output prints none (GUI Red's nit, R28).
+	if changes {
+		for i := range results {
+			results[i].Digest = dg
+		}
 	}
 	if *asJSON {
 		return writeJSON(out, results)
 	}
-	changes := slices.ContainsFunc(results, func(r importResult) bool { return !r.Plan.Empty() })
 	if !*apply && changes {
 		// Only a preview with something to apply needs the digest: it is
 		// what -apply -if-digest checks (GREEN-043).

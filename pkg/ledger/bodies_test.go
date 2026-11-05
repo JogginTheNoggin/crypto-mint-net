@@ -65,11 +65,15 @@ type twin struct {
 	src   *mapSource
 	cache *ledger.BodyCache
 	pool  *ledger.Pool
+	// maxCold is the most cold entries seen at once (D175).
+	maxCold int
 }
 
 func newTwin(s *series.Series, cfg ledger.Config) *twin {
 	tw := &twin{src: newMapSource(s), cache: ledger.NewBodyCache(1024)}
-	cfg.Source, cfg.Bodies = tw.src, tw.cache
+	// A window of 2: almost every entry of the selected ledger is cold,
+	// so the random histories' switches read items and undo back (D175).
+	cfg.Source, cfg.Bodies, cfg.RecentWindow = tw.src, tw.cache, 2
 	tw.pool = ledger.New(s, 1, cfg)
 	return tw
 }
@@ -135,6 +139,7 @@ func (tw *twin) compare(t *testing.T, step int, p *ledger.Pool) {
 	if err := ledger.CheckOff(tw.pool); err != nil {
 		t.Fatalf("step %d: twin: %v", step, err)
 	}
+	tw.maxCold = max(tw.maxCold, tw.pool.Cold())
 }
 
 // compareBodies checks that every held entry's body reads back the same

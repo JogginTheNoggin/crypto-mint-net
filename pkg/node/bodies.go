@@ -139,6 +139,9 @@ type BodyStats struct {
 	InMemory int `json:"in_memory"`
 	// Located counts the entry records whose places in the logs are known.
 	Located int `json:"located"`
+	// Cold counts the entries whose items and undo records are read back
+	// from the logs when needed, outside recent_window (D175).
+	Cold int `json:"cold"`
 }
 
 // Bodies reports the entry body cache and how many bodies are in memory,
@@ -157,6 +160,7 @@ func (n *Node) Bodies() BodyStats {
 		n.eng.Ledger(k, func(p *ledger.Pool) {
 			st.Held += p.Len()
 			st.InMemory += p.InMemory()
+			st.Cold += p.Cold()
 		})
 	}
 	for _, b := range bs {

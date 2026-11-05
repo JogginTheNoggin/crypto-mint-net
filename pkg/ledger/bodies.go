@@ -183,29 +183,60 @@ func (p *Pool) ReleaseBodies() { p.releaseBodies() }
 // read returns false; it is counted, and decides nothing, since no check
 // of an entry reads a body that is not in memory.
 func (p *Pool) body(n *node) (*entry.Entry, bool) {
-	if n.entry != nil {
-		return n.entry, true
+	e, err := p.ref(n).Get()
+	return e, err == nil
+}
+
+// BodyRef is a held entry's body, taken under the engine's lock and read
+// outside it (D174): the body in memory if the pool still has it, or what
+// to read it back through. Get may then run without the lock, so a reply
+// that reads many bodies from disk does not hold up the node.
+type BodyRef struct {
+	e     *entry.Entry
+	src   BodySource
+	cache *BodyCache
+	key   bodyKey
+}
+
+func (p *Pool) ref(n *node) BodyRef {
+	return BodyRef{e: n.entry, src: p.cfg.Source, cache: p.cfg.Bodies, key: bodyKey{p.id, n.hash}}
+}
+
+// Ref returns a held entry's BodyRef, or false when h is not held.
+func (p *Pool) Ref(h hash.Hash) (BodyRef, bool) {
+	n, ok := p.nodes[h]
+	if !ok {
+		return BodyRef{}, false
 	}
-	k := bodyKey{p.id, n.hash}
-	if c := p.cfg.Bodies; c != nil {
-		if e, ok := c.get(k); ok {
-			return e, true
+	return p.ref(n), true
+}
+
+// Get returns the body: from memory, the cache, or the source. It needs
+// no lock. A failed read gives ErrUnreadable; it is counted, and decides
+// nothing, since no check of an entry reads a body that is not in memory.
+func (r BodyRef) Get() (*entry.Entry, error) {
+	if r.e != nil {
+		return r.e, nil
+	}
+	if r.cache != nil {
+		if e, ok := r.cache.get(r.key); ok {
+			return e, nil
 		}
 	}
-	if p.cfg.Source == nil {
-		return nil, false
+	if r.src == nil {
+		return nil, ErrUnreadable
 	}
-	e, err := p.cfg.Source.Load(n.hash)
-	if c := p.cfg.Bodies; c != nil {
-		c.count(true, err != nil)
+	e, err := r.src.Load(r.key.h)
+	if r.cache != nil {
+		r.cache.count(true, err != nil)
 		if err == nil {
-			c.put(k, e)
+			r.cache.put(r.key, e)
 		}
 	}
 	if err != nil {
-		return nil, false
+		return nil, ErrUnreadable
 	}
-	return e, true
+	return e, nil
 }
 
 // parentHash returns the hash of n's parent: an entry hash, or the

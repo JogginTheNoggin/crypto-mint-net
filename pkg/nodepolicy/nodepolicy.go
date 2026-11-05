@@ -89,6 +89,9 @@ type Policy struct {
 	// EntryCacheMiB bounds the entry bodies kept in memory, read back
 	// from the pool logs, in MiB (0: default; D172).
 	EntryCacheMiB int `json:"entry_cache_mib,omitempty"`
+	// RecentWindow is how many entries below each selected tip keep their
+	// items and undo records in memory (0: default; D175).
+	RecentWindow int `json:"recent_window,omitempty"`
 	// NoSync skips the fsync after each write to the store. Faster; a power
 	// loss can then lose the latest items, which peers can send again.
 	NoSync bool `json:"no_sync,omitempty"`
@@ -476,7 +479,7 @@ func Default() Policy {
 
 // LedgerConfig returns the ledger settings this policy asks for.
 func (p Policy) LedgerConfig() ledger.Config {
-	c := ledger.Config{K: ledger.DefaultK, Ties: p.Ties}
+	c := ledger.Config{K: ledger.DefaultK, Ties: p.Ties, RecentWindow: BoundRecentWindow.Or(p.RecentWindow)}
 	if p.K != nil {
 		c.K = *p.K
 	}
@@ -729,9 +732,10 @@ func EncodeWitness(w policy.Witness) string {
 }
 
 // CeilingLimit is the largest witness ceiling poo series new and poo init
-// take without being forced, and the series_ceiling poo init writes in a
-// new node.json (D170, ORANGE-037, D171): one witness up to 4 MiB checks
-// in about 3 s of one core.
+// take without being forced, and the line above which an import, poo
+// series info and poo doctor warn (D170, D171): one witness up to 4 MiB
+// checks in about 3 s of one core. series_ceiling is off (0) unless the
+// node sets it; nothing writes it by default (jerry, 2026-11-04).
 const CeilingLimit = 4 << 20
 
 // CeilingWarning says why a series' witness ceiling is worth a warning,
