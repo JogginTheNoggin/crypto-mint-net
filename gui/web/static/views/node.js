@@ -281,10 +281,13 @@ export function statusNotes(st) {
   else if (sn && num(sn.pools)) out.push(el('p', { class: 'hint snapshots' },
     `Snapshots: ${n(sn.pools - (num(sn.missing) ? sn.missing : 0))} of ${n(sn.pools)} pools with a log have one${num(sn.age_seconds) && sn.pools > sn.missing ? `, the oldest ${age(sn.age_seconds)} old` : ''}; a start would replay at most ${n(sn.behind)} records. A snapshot is written every ${n(sn.every)} records (snapshot_every)${num(sn.due) && num(sn.every) && sn.due > sn.every ? `, or up to ${sn.due} for the largest log` : ''}, ${mib(sn.bytes, 1)} MiB in all.`));
   // The router port mapping (D182), as poo reports it; absent or off: no
-  // line. A failure is an alert; poo's own state and error words are kept.
+  // line. A state that leaves peers unable to reach the node (failed,
+  // not_public, and unconfirmed: mapped but the dial back did not arrive,
+  // so poo removed it; GUI/Red R31B) is an alert; poo's own state and
+  // error words are kept.
   const pm = st.port_map;
   if (pm && pm.mode && pm.mode !== 'off') {
-    const bad = pm.state === 'failed' || pm.state === 'not_public';
+    const bad = pm.state === 'failed' || pm.state === 'not_public' || pm.state === 'unconfirmed';
     out.push(el('p', bad ? { class: 'next-step port-map', role: 'alert' } : { class: 'hint port-map' },
       `Port mapping (${pm.mode}): ${String(pm.state || '?').replace(/_/g, ' ')}${pm.method ? ` via ${pm.method}` : ''}${pm.external ? `, the router reports ${pm.external}` : ''}${pm.advertised ? `, offered to peers as ${pm.advertised}` : ''}${pm.lease_seconds ? `, lease ${age(pm.lease_seconds)}` : ''}${pm.error ? `. ${pm.error}` : ''}.`));
   }
@@ -292,7 +295,7 @@ export function statusNotes(st) {
   // whether the full replay matched them.
   const rp = st.replay;
   if (rp && num(rp.snapshots)) out.push(el('p', { class: 'hint replay' },
-    `This start: ${n(rp.snapshots)} pools from their snapshots (${n(rp.snapshot_records)} records not read again), ${n(rp.records)} records replayed after them${(rp.snapshots_unused || []).length ? `; ${rp.snapshots_unused.length} snapshots not used: ${rp.snapshots_unused.slice(0, 5).join('; ')}${rp.snapshots_unused.length > 5 ? '; …' : ''}` : ''}.`));
+    `This start: ${n(rp.snapshots)} ${rp.snapshots === 1 ? 'pool' : 'pools'} from ${rp.snapshots === 1 ? 'its snapshot' : 'their snapshots'} (${n(rp.snapshot_records)} records not read again), ${n(rp.records)} records replayed after them${(rp.snapshots_unused || []).length ? `; ${rp.snapshots_unused.length} snapshots not used: ${rp.snapshots_unused.slice(0, 5).join('; ')}${rp.snapshots_unused.length > 5 ? '; …' : ''}` : ''}.`));
   if (rp && num(rp.reverified) && rp.reverified) out.push(el('p', rp.reverify_differed ? { class: 'next-step reverify-differed', role: 'alert' } : { class: 'hint reverify' },
     rp.reverify_differed ? `Checked every record again: the full replay of ${rp.reverify_differed} of ${rp.reverified} pools built a different pool than its snapshot held. Run poo doctor and keep the logs for a report.`
       : `Checked every record again: the full replay of all ${rp.reverified} pools matched their snapshots.`));

@@ -262,8 +262,14 @@ ORANGE-003). `gui/perf` has the kit Orange measured with.
 A process that can run `poo` commands can spend from a wallet, so the GUI
 server is locked down:
 
-- **Loopback only.** The server listens on `127.0.0.1` on a random port.
-  It refuses to listen on any other address.
+- **Loopback only.** The server listens on `127.0.0.1`. It refuses to
+  listen on any other address. With no `-listen` it comes back on the port
+  it used last, kept as a bare number in `poo-gui/last-port` under the
+  user's config directory, and takes any free port when that one is busy.
+  The browser keeps the GUI's saved settings (node policy, wallet file,
+  theme, terminal history) per origin, port included, so a stable port
+  keeps them across restarts (GUI White G1). The token still changes on
+  every start.
 - **One-time sign-in addresses.** A browser signs in by opening
   `http://127.0.0.1:PORT/?t=TOKEN`, where the token is 32 random bytes. The
   first visit spends the token. It sets a session cookie that is a
