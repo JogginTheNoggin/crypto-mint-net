@@ -1,0 +1,95 @@
+# GUI-031: A ledger import that fails partway shows only an error, though the node already kept entries and switched to them
+
+| Field | Value |
+| --- | --- |
+| Severity | low |
+| Status | open; the real fix is Source's (pkg/cli/ledgerport.go), with a small GUI part |
+| Found on | main @ 3c4ae00 (PR #258, Pools and payments → "Import a ledger"; D188) |
+| Component | pkg/cli/ledgerport.go (`ledgerImportCmd`: `send` returns the RPC error and drops `total`); gui/web/static/views/pools.js (`ledgerImport`'s `onResult` draws the summary only when `r.code === 0`) |
+| Surface | node (what the selected ledger is after an import) |
+
+## Summary
+
+`poo ledger import` sends a ledger file to the node in batches: at most
+256 items (`node.MaxImportItems`), or 8 MiB (`watch.ExportBytes`). Each
+batch is checked in full, kept, and can switch the node to a heavier
+branch, before the next batch is sent. The totals are added up in
+`total`, and printed only once every batch has been sent.
+
+If one batch fails, `send` returns its error at once, and `total` is
+dropped. That covers a node stopped or restarted mid-import, the
+5-minute RPC timeout, or a series unfollowed in between. poo prints only
+the error and exits 1. Nothing says that earlier batches were kept, or
+that the node switched to the imported branch.
+
+The GUI draws the "Kept N entries … the node switched to the imported
+branch" line only when poo exits 0, so it says nothing either. The form
+shows `exit 1` and the dial error. A user who reads that as "nothing was
+imported" is wrong: the node's selected ledger has changed.
+
+A related point: Stop doesn't end an import between batches. The loop
+doesn't check the job's context, and the RPC client has none. A large
+file runs to its end, or to its first error, and the GUI's
+`stop-pending` note shows meanwhile (GUI-028's mitigation). That is
+bounded by the file, so it isn't filed separately. The same fix covers
+it.
+
+## Reproduction
+
+poo and poo-gui at 3c4ae00, two `poo init -example` nodes (`-p2p off`).
+
+1. On src: claim serials 5 and 6, build, and work each into pool 1, as
+   `TestLedgerExportImport` does. `poo ledger export -pool 1 -out
+   l.json` writes 2 entries.
+2. imp.json is l.json with 12 more items of 8 MiB each (zeros) added
+   after the 2 real ones. Each of those goes in its own batch, and the
+   node would refuse each one as undecodable. The extra items only
+   make the import last long enough to stop the node in the middle.
+3. On a fresh dst node: `poo ledger import imp.json`. Once dst's pool 1
+   is at height 2, stop the dst node.
+   - poo prints only `poo: Post "http://127.0.0.1:…/v1/ledger/import":
+     dial tcp …: connection refused`, and exits 1. There is no count.
+   - After a restart, dst's pool 1 is at height 2: both entries are
+     kept, and the selected ledger is the imported one.
+4. Same in the GUI (Playwright, Pools and payments → Import a ledger,
+   Ledger file imp.json, confirm). The run ends `exit 1` with the dial
+   error. No `.ledger-imported` line is drawn. The node is at height 2.
+
+## Impact
+
+Nothing is trusted that shouldn't be. Every kept entry passed the
+node's full checks, and a switch happens only as it would for a peer
+(D188). So this isn't a consensus issue, and it isn't a hard fork. The
+harm is a wrong belief: the user thinks the import didn't happen when
+it partly did, and the node's selected branch has moved. They may
+import again (harmless, the kept items count as known), or they may
+act on the old branch, for example by building on a tip that is no
+longer selected. Rated **low**.
+
+## Recommendation
+
+- **Source (pkg/cli/ledgerport.go), the real fix.** When a batch fails,
+  print what the earlier batches did before the error. The `total` so
+  far, plus how far it got (items sent, out of how many), would do, and
+  the exit stays non-zero. In the JSON reply (the default), one way is an `ImportResult`
+  with a `stopped` field (the error, and the index it stopped at)
+  printed to stdout, with the error still on stderr. Also check the
+  command's context between batches, so Stop ends an import at the next
+  batch, with the same partial totals. This is a tool change only. The
+  node's checks and what it keeps don't change.
+- **GUI/Blue (pools.js), once poo prints it.** Draw the summary line
+  from poo's reply whatever the exit code, as long as it parses with a
+  numeric `kept`. On a partial import, make it a `next-step` alert:
+  "The import stopped partway (poo's reason below). Before it stopped,
+  the node kept N entries and M layers[, and switched to the imported
+  branch]." Until then, a failed import could add one plain line under
+  the error: "An import sends the file in parts; parts sent before the
+  error may already be kept. Ledger (Pools and payments) shows where the
+  pool stands now." That needs no poo reply. It only says what D188's
+  batching already means.
+- e2e (views.mjs): the GUI part can be tested without a node stop, by
+  calling the form's `onResult` (or a pure helper it uses) with code 1
+  and a reply that has `kept: 2, switched: true` and a `stopped` field.
+  Expect the alert. The Source part fits next to
+  `TestLedgerExportImport`: a stub client that fails on the second
+  batch, with `kept` printed from the first.
