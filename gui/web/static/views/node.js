@@ -281,10 +281,13 @@ export function statusNotes(st) {
   else if (sn && num(sn.pools)) out.push(el('p', { class: 'hint snapshots' },
     `Snapshots: ${n(sn.pools - (num(sn.missing) ? sn.missing : 0))} of ${n(sn.pools)} pools with a log have one${num(sn.age_seconds) && sn.pools > sn.missing ? `, the oldest ${age(sn.age_seconds)} old` : ''}; a start would replay at most ${n(sn.behind)} records. A snapshot is written every ${n(sn.every)} records (snapshot_every)${num(sn.due) && num(sn.every) && sn.due > sn.every ? `, or up to ${sn.due} for the largest log` : ''}, ${mib(sn.bytes, 1)} MiB in all.`));
   // The router port mapping (D182), as poo reports it; absent or off: no
-  // line. A failure is an alert; poo's own state and error words are kept.
+  // line. A state that leaves peers unable to reach the node (failed,
+  // not_public, and unconfirmed: mapped but the dial back did not arrive,
+  // so poo removed it; GUI/Red R31B) is an alert; poo's own state and
+  // error words are kept.
   const pm = st.port_map;
   if (pm && pm.mode && pm.mode !== 'off') {
-    const bad = pm.state === 'failed' || pm.state === 'not_public';
+    const bad = pm.state === 'failed' || pm.state === 'not_public' || pm.state === 'unconfirmed';
     out.push(el('p', bad ? { class: 'next-step port-map', role: 'alert' } : { class: 'hint port-map' },
       `Port mapping (${pm.mode}): ${String(pm.state || '?').replace(/_/g, ' ')}${pm.method ? ` via ${pm.method}` : ''}${pm.external ? `, the router reports ${pm.external}` : ''}${pm.advertised ? `, offered to peers as ${pm.advertised}` : ''}${pm.lease_seconds ? `, lease ${age(pm.lease_seconds)}` : ''}${pm.error ? `. ${pm.error}` : ''}.`));
   }
