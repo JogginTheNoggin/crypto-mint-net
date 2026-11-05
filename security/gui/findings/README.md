@@ -24,7 +24,9 @@ There are no new findings.
 Held up:
 - **GUI-030 is fixed.** See its R30B notes. Replace declines against
   the node's own ceiling, a file can't lift that ceiling in the same
-  import, and duplicates are kept once.
+  import, and duplicates are kept once. (A nit in the first draft of
+  this PR, that the `-replace` text plan leaves out `declined:`, was
+  wrong. It came from my own output trimming, and it's withdrawn.)
 - **`parseJSON`.** Run over edge cases: strings with escaped quotes and
   backslashes around long digit runs, negative and fractional numbers,
   and `1e400`. Digits inside strings stay text, and only bare integers

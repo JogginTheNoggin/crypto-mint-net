@@ -130,6 +130,7 @@ imp.json (one series with `max_witness: 0`, listed twice) and
   `series_ceiling` is named under "read first", so a file can't lift
   the ceiling and slip a series past it in the same import.
 - **Duplicates** are kept once, by id.
-- Nit, for Source: the text plan for `-replace` without `-settings`
-  prints "nothing else to change" but no `declined:` line, though its
-  `-json` has `declined`. The GUI reads the JSON, so it is unaffected.
+- The text plan for `-replace` prints the `declined:` line as well. I
+  said in an earlier draft that it didn't. That was my mistake: a `sed
+  -n 3,7p` cut it off, because a plan that changes nothing has no
+  digest line at the top.
