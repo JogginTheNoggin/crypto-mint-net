@@ -79,8 +79,10 @@ plus the top K other branches. It reproduces the design's worked example
   offence; `AddEntry` still takes the entry) when building the state after
   e's parent would cost more than `MaxPreviewCost` (256 units), so that
   revert is paid once, in `AddEntry` (RED-011, D111). `ViewCost(e, limit)`
-  is that cost: one unit per entry reverted or applied plus one per
-  transaction in it, 0 on the tip or on the entry `AddEntry` kept the state
+  is that cost: one unit per entry reverted or applied, plus one per
+  transaction in it, plus one per distinct transaction its inputs spend
+  from, since a cold entry's revert reads each such maker's body (RED-086,
+  D177); 0 on the tip or on the entry `AddEntry` kept the state
   after (RED-012, D114).
 - Errors: `ErrKnownEntry`, `ErrUnknownParent`, `ErrInvalidEntry`,
   `ErrUnknownEntry`, `ErrWeakLayer`, `ErrKnownLayer`, `ErrNotSelected`,

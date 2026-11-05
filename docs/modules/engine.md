@@ -14,6 +14,11 @@ or opens a socket. Calls are safe from multiple goroutines.
 - `ErrFailed`, `Failed()`, `Err()` (D174): a panic while `HandleTx`,
   `HandleEntry` or `HandleLayer` changes a pool fails the engine, which
   then takes nothing more; the daemon stops the node on `Failed()`.
+  `PreverifyTx`, `PreverifyEntry`, `PreverifyPage` and `BuildEntryOn`
+  take the lock through `under`, which always releases it, and fail the
+  engine the same way on a panic, such as a `ledger.ReadFault` on a cold
+  entry; they do nothing, or return `ErrFailed`, once it has failed
+  (RED-085, D177).
   `Config.Source` gives each pool its body source (D172).
 - `New(Config{Ledger, MaxPending, SeenSize})`, `DefaultConfig`.
 - Series and following: `AddSeries`, `Series`, `FollowSeries`,

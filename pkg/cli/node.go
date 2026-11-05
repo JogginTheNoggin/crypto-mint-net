@@ -20,6 +20,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/daemon"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
@@ -370,6 +371,7 @@ func statusCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("status", out)
 	c := addClient(fs)
 	o := addOutput(fs)
+	bySeries := fs.Bool("counts", false, "one row of totals per followed series instead of a row per pool, with the same notes (for a view that refreshes often)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -384,7 +386,53 @@ func statusCmd(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if *bySeries {
+		return o.write(out, statusBySeries(st))
+	}
 	return o.write(out, st)
+}
+
+// seriesStatus is the totals of one followed series' pools.
+type seriesStatus struct {
+	Series   hash.Hash `json:"series"`
+	Pools    int       `json:"pools"`
+	Entries  int       `json:"entries"`
+	Branches int       `json:"branches"`
+	Pending  int       `json:"pending"`
+	Waiting  int       `json:"waiting"`
+	Stored   int       `json:"stored_records"`
+}
+
+// statusSummary is poo status -counts: the status reply with the pool rows
+// added up per series, so a node following thousands of pools prints a
+// few lines (GUI ORANGE-021, D177). The notes are the reply's own.
+type statusSummary struct {
+	Series        []seriesStatus       `json:"series"`
+	Replay        node.ReplayStats     `json:"replay"`
+	PolicyChanged bool                 `json:"policy_changed,omitempty"`
+	Bodies        node.BodyStats       `json:"bodies"`
+	FileLimit     nodepolicy.FileLimit `json:"file_limit"`
+}
+
+func statusBySeries(st rpc.StatusReply) statusSummary {
+	out := statusSummary{Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit}
+	at := map[hash.Hash]int{}
+	for _, p := range st.Pools {
+		i, ok := at[p.Series]
+		if !ok {
+			i = len(out.Series)
+			at[p.Series] = i
+			out.Series = append(out.Series, seriesStatus{Series: p.Series})
+		}
+		s := &out.Series[i]
+		s.Pools++
+		s.Entries += p.Entries
+		s.Branches += p.Branches
+		s.Pending += p.Pending
+		s.Waiting += p.Waiting
+		s.Stored += p.Stored
+	}
+	return out
 }
 
 // errSeedFlag refuses a seed on the command line, where other users of
@@ -995,21 +1043,22 @@ func trackingCmd(args []string, out io.Writer) error {
 	o := addOutput(fs)
 	blocked := fs.Bool("blocked", false, "only the blocked addresses and network ranges")
 	timedOut := fs.Bool("timed-out", false, "only the timed-out addresses")
-	if err := fs.Parse(args); err != nil {
+	pos, err := parseMixed(fs, args) // poo tracking ADDR -o table (GREEN-054)
+	if err != nil {
 		return err
 	}
 	if err := o.check(); err != nil {
 		return err
 	}
-	if fs.NArg() > 1 {
+	if len(pos) > 1 {
 		return errors.New("usage: poo tracking [ADDR]")
 	}
 	cl, err := dialNode(out, w.resolve())
 	if err != nil {
 		return err
 	}
-	if fs.NArg() == 1 {
-		r, err := cl.TrackingOf(fs.Arg(0))
+	if len(pos) == 1 {
+		r, err := cl.TrackingOf(pos[0])
 		if err != nil {
 			return err
 		}
@@ -1062,7 +1111,8 @@ func policyCmd(args []string, out io.Writer) error {
 	case "limits":
 		return policyLimitsCmd(args[1:], out)
 	}
-	if err := fs.Parse(args[1:]); err != nil {
+	pos, err := parseMixed(fs, args[1:]) // poo policy use NAME -root DIR (GREEN-054)
+	if err != nil {
 		return err
 	}
 	if err := flagsFor(fs, sub, map[string][]string{"fresh": {"unarchive"}}); err != nil {
@@ -1087,11 +1137,10 @@ func policyCmd(args []string, out io.Writer) error {
 		}
 		return nil
 	}
-	if fs.NArg() != 1 {
+	if len(pos) != 1 {
 		return fmt.Errorf("poo policy %s needs one NAME", sub)
 	}
-	name := fs.Arg(0)
-	var err error
+	name := pos[0]
 	switch sub {
 	case "use":
 		err = m.Use(name)
