@@ -1,6 +1,7 @@
 // The Pools and payments view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as where from '../where.js';
-import { flag, form, mountAll, panel } from '../views.js';
+import { el, flag, form, mountAll, panel, pickFile } from '../views.js';
+import { saveAs } from './policies.js';
 
 // grindFields are the flags build and work share with poo grind: which
 // device grinds, with how many threads, and for how long instead of a
@@ -21,6 +22,28 @@ export const poolsView = {
     const series = { name: 'series', label: 'Series id', placeholder: 'only if the node follows more than one' };
     // -parent (D161): build on a chosen entry instead of the selected tip.
     const parent = { name: 'parent', label: 'Parent', placeholder: 'an entry hash, root, or before-claim with a mint serial (default: the selected tip)' };
+    // poo ledger export and import (D188): a pool's entries and layers as
+    // one file, to carry history to another node. Import checks every
+    // entry as if it came from a peer; what it keeps and refuses is poo's
+    // reply, drawn as it printed it.
+    const ledgerExport = form(ctx, { title: 'Export a pool\'s ledger', about: 'Writes a pool\'s entries and layers, from one height to another, as a ledger file another node can import.',
+      fields: [{ name: 'pool', label: 'Pool', type: 'number', required: true }, series, { name: 'from', label: 'From height', type: 'number', placeholder: 'default 1' }, { name: 'to', label: 'To height', type: 'number', placeholder: 'default: the tip' }, { name: 'out', label: 'To a file', placeholder: 'a path on this machine (default: show it here, with Save as file)' }],
+      args: v => ['ledger', 'export', ...where.flags(), ...flag('pool', v.pool), ...flag('series', v.series), ...flag('from', v.from), ...flag('to', v.to), ...flag('out', v.out)], submit: 'Export',
+      onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'ledger.json')); } });
+    let picker = null;
+    const ledgerImport = form(ctx, { title: 'Import a ledger', about: 'Gives the node the entries and layers of a ledger file. Each is checked as if a peer had sent it: valid ones are kept, the rest are listed with poo\'s reason, and the node switches to a heavier branch only as it would for a peer.',
+      fields: [{ name: 'file', label: 'Ledger file', placeholder: 'a path on this machine, or pick one below', required: true }],
+      args: v => ['ledger', 'import', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Import', danger: true,
+      onStart: j => picker.feed(j),
+      onResult: (r, area) => {
+        let o;
+        try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        if (!o || typeof o.kept !== 'number') return;
+        const refused = Array.isArray(o.refused) ? o.refused : [];
+        area.prepend(el('p', { class: refused.length ? 'next-step ledger-imported' : 'hint ledger-imported', role: 'status' },
+          `Kept ${o.kept} entries and ${o.layers_kept ?? 0} layers; ${o.known ?? 0} entries and ${o.layers_known ?? 0} layers were already known${refused.length ? `; ${refused.length} refused (listed below)` : ''}${o.switched ? '; the node switched to the imported branch' : ''}.`));
+      } });
+    picker = pickFile(ledgerImport);
     return mountAll(root, 'Pools and payments', 'Look up mints and transactions, and build entries and layers.', [
       // poo pools prints a row for every pool: on the reserve series 380 KB
       // and 500 drawn rows each time this view opened, before any form
@@ -55,6 +78,7 @@ export const poolsView = {
         fields: [{ name: 'kind', label: 'Kind', type: 'select', options: ['entry', 'layer'] }, { name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, series, { name: 'file', label: 'From a file', placeholder: 'a path on this machine, or - to paste it when asked, then Send and end input' },
           { name: 'hex', label: 'Hex', placeholder: 'the entry or layer, hex', only: { field: 'file', values: [''] } }],
         args: v => ['submit', v.kind || 'entry', ...where.flags(), ...flag('series', v.series), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('f', v.file), ...(!v.file && v.hex ? [v.hex] : [])], submit: 'Submit', danger: true }),
+      ledgerExport, ledgerImport,
     ]);
   },
 };
