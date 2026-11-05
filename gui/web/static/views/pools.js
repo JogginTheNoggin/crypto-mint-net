@@ -29,6 +29,38 @@ export function ledgerSummary(text) {
     : `A ledger file of pool ${f.pool} with no entries: the selected ledger's height is ${f.height}.`;
 }
 
+// importNote is the line over poo ledger import's reply: what a -dry-run
+// read (D189), what a finished import kept, or, when it stopped early, the
+// totals so far as an alert (GUI-031). null when there is nothing to say.
+export function importNote(r) {
+  let o = null;
+  try { o = JSON.parse(r.out); } catch (_) { /* only an error was printed */ }
+  // -dry-run: what the file holds and any problems poo found, read
+  // without the node (D189).
+  if (o && typeof o.decoded === 'number') {
+    const k = o.problem_count ?? (o.problems || []).length;
+    return (el('p', { class: k ? 'next-step ledger-checked' : 'hint ledger-checked', role: 'status' },
+      `Checked without the node: pool ${o.pool}, ${o.decoded} of ${o.entries} entries read${o.series_known ? '' : '; this node does not know the series, so entry hashes were not worked out'}${k ? `; ${k} ${k === 1 ? 'problem' : 'problems'}: ${(o.problems || []).slice(0, 5).join('; ')}${k > Math.min((o.problems || []).length, 5) ? '; …' : ''}` : '; no problems found'}. Nothing was kept.`));
+  }
+  const totals = o && typeof o.kept === 'number' ? `kept ${o.kept} entries and ${o.layers_kept ?? 0} layers; ${o.known ?? 0} entries and ${o.layers_known ?? 0} layers were already known` : '';
+  const refused = o && Array.isArray(o.refused) ? o.refused : [];
+  const more = `${refused.length ? `; ${refused.length} refused (listed below)` : ''}${o && o.switched ? '; the node switched to the imported branch' : ''}`;
+  // poo sends the file in batches, and the node keeps each one (and
+  // may switch to the imported branch) before the next is sent. An
+  // import that ends early says why and the totals so far (GUI-031):
+  // what was sent is kept or known, and the rest was not sent.
+  // With no totals, nothing was sent (poo prints them once a batch
+  // is), so poo's error says it all.
+  if (r.code !== 0 || (o && o.stopped)) {
+    if (totals) return (el('p', { class: 'next-step ledger-import-partial', role: 'alert' },
+      `The import stopped after ${o.sent ?? '?'} entries were sent${o.stopped ? ` (${o.stopped})` : ''}: ${totals}${more}. Importing the same file again is safe, as entries already kept count as known.`));
+    return null;
+  }
+  if (!totals) return null;
+  return (el('p', { class: refused.length ? 'next-step ledger-imported' : 'hint ledger-imported', role: 'status' },
+    `${totals.charAt(0).toUpperCase()}${totals.slice(1)}${more}.`));
+}
+
 export const poolsView = {
   id: 'pools',
   title: 'Pools and payments',
@@ -62,27 +94,12 @@ export const poolsView = {
       } });
     let picker = null;
     const ledgerImport = form(ctx, { title: 'Import a ledger', about: 'Gives the node the entries and layers of a ledger file. Each is checked as if a peer had sent it: valid ones are kept, the rest are listed with poo\'s reason, and the node switches to a heavier branch only as it would for a peer.',
-      fields: [{ name: 'file', label: 'Ledger file', placeholder: 'a path on this machine, or pick one below', required: true }],
-      args: v => ['ledger', 'import', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Import', danger: true,
+      fields: [{ name: 'file', label: 'Ledger file', placeholder: 'a path on this machine, or pick one below', required: true },
+        // -dry-run (D189): poo reads and checks the file without the node.
+        { name: 'dryRun', label: 'Only check the file: read it and say what it holds, without the node (nothing is kept)', type: 'check' }],
+      args: v => ['ledger', 'import', ...where.flags(), ...flag('dry-run', v.dryRun), ...(v.file ? [v.file] : [])], submit: 'Import', danger: true,
       onStart: j => picker.feed(j),
-      onResult: (r, area) => {
-        // poo sends the file in batches, and the node keeps each one (and
-        // may switch to the imported branch) before the next is sent. An
-        // import that ends in an error or a Stop prints only the error, so
-        // say that earlier batches may already be kept (GUI-031; poo's
-        // partial totals are Source's part).
-        if (r.code !== 0) {
-          area.prepend(el('p', { class: 'next-step ledger-import-partial', role: 'alert' },
-            'The import did not finish. Parts of the file sent before it ended may already be kept, and the node may have switched to the imported branch: Selected ledger (Explore) and Followed pools show where the pool stands. Importing the same file again is safe, as entries already kept count as known.'));
-          return;
-        }
-        let o;
-        try { o = JSON.parse(r.out); } catch (_) { return; }
-        if (!o || typeof o.kept !== 'number') return;
-        const refused = Array.isArray(o.refused) ? o.refused : [];
-        area.prepend(el('p', { class: refused.length ? 'next-step ledger-imported' : 'hint ledger-imported', role: 'status' },
-          `Kept ${o.kept} entries and ${o.layers_kept ?? 0} layers; ${o.known ?? 0} entries and ${o.layers_known ?? 0} layers were already known${refused.length ? `; ${refused.length} refused (listed below)` : ''}${o.switched ? '; the node switched to the imported branch' : ''}.`));
-      } });
+      onResult: (r, area) => { const n = importNote(r); if (n) area.prepend(n); } });
     picker = pickFile(ledgerImport);
     return mountAll(root, 'Pools and payments', 'Look up mints and transactions, and build entries and layers.', [
       // poo pools prints a row for every pool: on the reserve series 380 KB
