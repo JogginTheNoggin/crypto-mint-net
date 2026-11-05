@@ -276,6 +276,15 @@ try {
     return seen;
   });
   assert.deepEqual(vt, [[500, 'Showing 500 of 1200 variable series. '], [1000, 'Showing 1000 of 1200 variable series. '], [1200, null], [3, null]], 'the Variable series table draws 500 rows a press');
+  // parseJSON keeps a whole number above 2^53 exact, wherever it is, and
+  // leaves digits inside strings and every smaller number alone
+  // (GUI-GREEN-055).
+  const pj = await page.evaluate(async () => {
+    const { parseJSON } = await import('/render.js');
+    const v = parseJSON('{"total": 9007199254740993, "n": -18446744073709551615, "s": "12345678901234567890 \\" 99999999999999999", "ok": 9007199254740991, "f": 1.5}');
+    return [typeof v.total, String(v.total), String(v.n), v.s, v.ok, v.f];
+  });
+  assert.deepEqual(pj, ['bigint', '9007199254740993', '-18446744073709551615', '12345678901234567890 " 99999999999999999', 9007199254740991, 1.5]);
   // The Followed series table names the reserve series by poo's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).

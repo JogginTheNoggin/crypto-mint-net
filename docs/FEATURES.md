@@ -126,6 +126,7 @@ GUI/Grey keeps this part. Every row runs `poo` commands through `cli.Main`
 | View-only mode | `poo-gui -view-only` runs every command in the core's view-only mode | `gui/server` | D101 |
 | Masked secrets | A passphrase or seed is masked exactly when `poo` reads one, and asked for again on a second prompt. No form puts a seed on its command line: Make a key and Restore ask for it (D98) | `gui/jobs`, `gui/web/static/views/crypto.js` | D101, GUI-020, GUI-GREEN-047 |
 | Jobs | Every command run, with live output, Stop, Run again and bounded scrollback. A command still running 3 s after Stop says it is still working and holds a job slot (GUI-028). Node, Watch and grind jobs keep running across views | `gui/jobs`, `gui/server` | ORANGE-001 to ORANGE-003 |
+| Exact amounts | A whole number `poo` prints above 2^53 (a balance of 91 reserve mints, say) is shown digit for digit, where a plain JSON parse would round it; results, the Followed and Variable series panels and Watch events read it this way | `gui/web/static/render.js` (parseJSON) | GUI-GREEN-055 |
 | Long input | A pasted entry of any size reaches `poo`: it is sent in parts, and end of input waits for all of it | `gui/jobs`, `gui/web/static/api.js` | ORANGE-013 |
 | Settings | `-root` and `-policy`, set once and added by every view | `gui/web/static/where.js` | |
 

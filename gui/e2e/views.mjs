@@ -482,6 +482,16 @@ try {
   const penv = { env: { ...process.env, POO_HOME: home } };
   const issuer = JSON.parse(String(spawnSync(bin, ['poo', 'keygen', '-seed', vseed], penv).stdout)).address;
   const sn = section('New series parameters');
+  // A whole number above 2^53 is shown digit for digit, as poo printed
+  // it: JSON.parse alone would show 100000000000000000 (GUI-GREEN-055).
+  await sn.locator('input[name=mints]').fill('32');
+  await sn.locator('input[name=poolSize]').fill('32');
+  await sn.locator('input[name=supply]').fill('100000000000000001');
+  await sn.locator('button[type=submit]').click();
+  await sn.locator('.run-status.ok').waitFor();
+  assert.equal(await sn.locator('.result dl.kv dt:text-is("supply") + dd').innerText(), '100000000000000001');
+  await sn.locator('input[name=poolSize]').fill('');
+  await sn.locator('input[name=supply]').fill('');
   assert.ok(!(await sn.locator('input[name=partSize]').isVisible()), 'Part size is for a variable series only');
   await sn.locator('input[name=mints]').fill('8');
   await sn.locator('input[name=issuer]').fill(issuer);
