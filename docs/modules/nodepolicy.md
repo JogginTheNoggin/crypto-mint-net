@@ -269,6 +269,11 @@ for, at the top level and inside objects (not inside list entries), and
 therefore keeps what the newer release set. `UnknownSettings` lists them
 by dotted path, and the node warns at start. Exports and bundles carry
 only known settings, and a bundle with an unknown field is still refused.
+An unknown setting inside a list entry or a map value cannot be kept:
+`UnknownDropped` names those (such as `series[0].x`), the node warns at
+start that the next save drops them, and `poo doctor` warns too
+(GREEN-057). Doctor also notes the kept ones, since a misspelt key is
+kept in the same way.
 
 ## Sharing node policies: bundles
 
