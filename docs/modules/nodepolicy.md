@@ -269,6 +269,31 @@ for, at the top level and inside objects (not inside list entries), and
 therefore keeps what the newer release set. `UnknownSettings` lists them
 by dotted path, and the node warns at start. Exports and bundles carry
 only known settings, and a bundle with an unknown field is still refused.
+An unknown setting inside a list entry or a map value cannot be kept:
+`UnknownDropped` names those (such as `series[0].x`), the node warns at
+start that the next save drops them, and `poo doctor` warns too
+(GREEN-057). Doctor also notes the kept ones, since a misspelt key is
+kept in the same way.
+
+Since D185:
+
+- **A key that is a setting's name in another letter case or Unicode
+  folding is that setting.** Examples are `ALLOW_REMOTE`, or `liſten`
+  with U+017F. `encoding/json` reads such a key as the setting, so
+  "unknown" is decided by the same folding (`fieldFor`). `Load` applies
+  the key, and `Save` writes the setting under its own name instead.
+  `FoldedSettings` names these keys, and the node and `poo doctor` warn.
+  A kept setting is never written beside a key that folds to its own.
+- **What is kept has limits.** At most `MaxKeptSettings` (256) settings
+  are kept, each at most `MaxKeptBytes` (64 KiB) compacted and
+  `MaxKeptDepth` (64) levels deep. A setting over a limit is named in
+  `UnknownDropped` with the limit it passed.
+- **Kept values are written compacted, on one line.** Indenting a deeply
+  nested value would multiply its size by its depth.
+- **Warnings stay short.** Start warnings name the first ten settings and
+  a count (`NameSome`).
+- **An import keeps them.** `Merge` keeps the local node's kept
+  settings.
 
 ## Sharing node policies: bundles
 

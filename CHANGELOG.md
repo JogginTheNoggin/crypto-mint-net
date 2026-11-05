@@ -234,6 +234,20 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 32 fixes (D185):**
+  - A node.json key that spells a setting in another letter case is now
+    that setting, and is saved under its own name. A setting the owner
+    turned off no longer comes back.
+  - Settings kept for a newer release are written on one line and
+    limited to 256, each 64 KiB and 64 levels deep. A crafted file can no
+    longer grow node.json to hundreds of MiB.
+  - Status reads node.json again only when it changes.
+  - An import keeps the kept settings, and the start warning names the
+    first ten.
+  - Building thousands of variable series no longer copies the whole set
+    each time (GUI ORANGE-024). Orange's one-pass save (ORANGE-042) and
+    Green's doctor checks for unknown settings and the release
+    (GREEN-057) are carried.
 - **Round 32 (D184):**
   - `poo status` names the node's release (`release.version` and
     `commit`), so a front end can tell when it talks to another version.

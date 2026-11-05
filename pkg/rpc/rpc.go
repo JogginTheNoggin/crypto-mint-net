@@ -191,6 +191,39 @@ type Handler struct {
 	// the node's own (node.PolicyMu), which the p2p host takes too when it
 	// keeps a release a peer passed on (D168).
 	policyMu *sync.Mutex
+	// seen caches node.json for status, which a front end polls
+	// (RED-094).
+	seen policyCache
+}
+
+// policyCache holds node.json as last loaded, with the file it came from:
+// a status request loads the file again only once it has been replaced
+// or changed.
+type policyCache struct {
+	mu   sync.Mutex
+	fi   os.FileInfo
+	pol  nodepolicy.Policy
+	good bool
+}
+
+// loadPolicy is nodepolicy.Load; a test counts the calls.
+var loadPolicy = nodepolicy.Load
+
+// load returns the policy in path, loading it only when the file is not
+// the one loaded last (another file, size or modification time).
+func (c *policyCache) load(path string) (nodepolicy.Policy, bool) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nodepolicy.Policy{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fi != nil && os.SameFile(c.fi, fi) && c.fi.Size() == fi.Size() && c.fi.ModTime().Equal(fi.ModTime()) {
+		return c.pol, c.good
+	}
+	p, err := loadPolicy(path)
+	c.fi, c.pol, c.good = fi, p, err == nil
+	return p, err == nil
 }
 
 // NewHandler returns the HTTP handler for n, accepting only token.
@@ -462,7 +495,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		pm := h.host.PortMap()
 		rep.PortMap = &pm
 	}
-	if p, err := nodepolicy.Load(h.policyPath()); err == nil {
+	if p, ok := h.seen.load(h.policyPath()); ok {
 		rep.PolicyChanged = !p.SameApplied(h.n.Running())
 	}
 	for _, k := range h.n.Engine().ListedPools() {

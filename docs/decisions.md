@@ -4836,3 +4836,69 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/nodepolicy/unknown_test.go`: `TestUnknownSettingsSurviveSave`.
   - `pkg/cli/blue031_test.go`: `TestSnapshotsCheckCountsCutReasons`.
   - `pkg/rpc/rpc_test.go`: the status reply names the release.
+
+### D185. Round 32 fixes: RED-093 to RED-096 (BLUE-033), with ORANGE-042, GREEN-057 and GUI ORANGE-024
+
+- **Decision:**
+  - **RED-093.** A key in node.json is known when `encoding/json` would
+    fill a field from it: the exact name, or else a name equal under
+    Unicode case folding (`strings.EqualFold`, the decoder's own rule;
+    `fieldFor`). Such a key is never kept as unknown. `Load` applies it,
+    as the decoder always did. `Save` writes the setting under its own
+    name and drops the other spelling, so a setting the owner turned off
+    stays off, and a lookalike key cannot override the real one.
+    - `FoldedSettings` names these keys, and the node and `poo doctor`
+      warn.
+    - When kept settings go back in, none is written beside a key that
+      folds to its name (`holdsFolded`).
+    - Red's other option, refusing such a file, is not taken: it would
+      stop a node from starting over a spelling.
+  - **RED-094.** Limits on what `Load` keeps:
+    - at most 256 settings (`MaxKeptSettings`);
+    - each value at most 64 KiB compacted (`MaxKeptBytes`);
+    - each value at most 64 levels deep (`MaxKeptDepth`).
+
+    A setting over a limit is not kept. `UnknownDropped` names it with the
+    limit, and the start warning and doctor say the next save drops it.
+    `Save` writes kept values compacted on one line: it puts in marker
+    strings with a random part, indents, then replaces the markers in one
+    pass. Red's 9,990-deep file now stays its size. `GET /v1/status`
+    caches node.json and loads it again only when the file is replaced or
+    its size or modification time changes. A cap on node.json's size is
+    not taken: variable series releases are kept in node.json, so a
+    legitimate file can be large.
+  - **RED-095.** ORANGE-042 (#249, merged in) already inserts every kept
+    setting in one pass. Start warnings name the first ten settings with
+    a count (`NameSome`); doctor names the first twenty.
+  - **RED-096.** `Merge` keeps the local node's kept settings, so an
+    import that saves loses none. `clone` copies the dropped and folded
+    lists too.
+  - **GUI ORANGE-024.** The set of variable series ids in `pkg/series` is
+    a `sync.Map` grown in place, with an atomic flag for the empty fast
+    path, in place of a map copied whole on each add. It holds the same
+    ids, and reads still take no lock.
+  - **GREEN-057 (#247) is carried:** it changes the same `unknown.go`.
+    The folded keys are added to its doctor checks.
+- **Why:** W-1 (D184) keeps what a newer release wrote, but deciding
+  "unknown" by exact name made a key the decoder applied also count as
+  unknown. A routine save then wrote it back and revived a setting the
+  owner had turned off, `rpc.allow_remote` included. Keeping values
+  without limits let a small crafted file grow without bound on save.
+- **For White:** a newer release's settings over the limits are lost on
+  a save by this release. The limits are far above what one release adds
+  (W-1's case is a handful of settings), and the start warning names
+  what will be dropped. A folded key is saved under the setting's own
+  name, which every release reads the same way.
+- **Consensus:** None. node.json is node policy.
+- **Tier:** Node policy, RPC, series.
+  - `pkg/nodepolicy/blue033_test.go`:
+    - `TestBlue033FoldedKeyIsTheSetting`, Red's `ALLOW_REMOTE`.
+    - `TestBlue033UnicodeFoldedKey`, Red's `liſten`.
+    - `TestBlue033KeptCompacted`.
+    - `TestBlue033KeptLimits`, Red's 9,990-deep value, 64 KiB and 266
+      settings.
+    - `TestBlue033ImportKeepsUnknown`.
+  - `pkg/rpc/blue033_internal_test.go`: `TestBlue033StatusCachesPolicy`.
+  - `pkg/series/blue033_internal_test.go`:
+    `TestBlue033VariableSetGrowsInPlace` and a benchmark.
+  - The nodepolicy tests fail on the code before the fix.

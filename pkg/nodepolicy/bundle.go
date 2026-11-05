@@ -619,6 +619,10 @@ func Merge(local, file Policy, opt MergeOptions) (Policy, Plan, error) {
 	if err := res.Validate(); err != nil {
 		return Policy{}, Plan{}, err
 	}
+	// The settings this release does not know stay the local node's: an
+	// import never adds any (exports carry none) and never drops them
+	// (RED-096).
+	res.unknown = local.unknown
 	before, after, fromFile := flatAll(local), flatAll(res), flatAll(file)
 	for _, k := range sortedKeys(after) {
 		if v, ok := before[k]; !ok {
@@ -1229,7 +1233,7 @@ func clone(p Policy) Policy {
 		return p
 	}
 	q.Lowered = lowered
-	q.unknown = p.unknown
+	q.unknown, q.dropped, q.folded = p.unknown, p.dropped, p.folded
 	return q
 }
 

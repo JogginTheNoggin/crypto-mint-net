@@ -16,7 +16,6 @@
 package nodepolicy
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -67,6 +66,13 @@ type Policy struct {
 	// unknown holds the settings Load found that this release does not
 	// know, for Save to write back (W-1, D184).
 	unknown []extra
+	// dropped names the unknown settings inside list entries and maps,
+	// which Save cannot keep (GREEN-057), and those over a keeping limit
+	// (RED-094).
+	dropped []string
+	// folded names the keys that are a setting's name in another case
+	// (RED-093).
+	folded []string
 	// Series lists the series this node knows. Series information comes
 	// from outside the network, never from peers.
 	Series []SeriesInfo `json:"series"`
@@ -875,7 +881,9 @@ func Load(path string) (Policy, error) {
 	if err := p.Validate(); err != nil {
 		return Policy{}, fmt.Errorf("%s: %w", path, err)
 	}
-	p.unknown = unknownSettings(b)
+	f := unknownSettings(b)
+	p.unknown, p.folded = f.kept, f.folded
+	p.dropped = append(droppedSettings(b), f.over...)
 	trustChecked(filepath.Dir(path), p)
 	return p, nil
 }
@@ -890,10 +898,7 @@ func Save(path string, p Policy) error {
 		return err
 	}
 	if len(p.unknown) > 0 {
-		var out bytes.Buffer
-		if json.Indent(&out, withUnknown(b, p.unknown), "", "  ") == nil {
-			b = out.Bytes()
-		}
+		b = indentKept(b, p.unknown)
 	}
 	// Each writer has its own temporary file, synced before the rename,
 	// so concurrent writers never tear the file, and a crash leaves the old
