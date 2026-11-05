@@ -292,6 +292,11 @@ type LedgerDryRun struct {
 	// SeriesKnown says node.json knows the series, so the entry hashes
 	// could be worked out and compared.
 	SeriesKnown bool `json:"series_known"`
+	// PoolFollowed says node.json's follow rules follow the file's pool,
+	// so a real import would be taken rather than refused (GREEN-059).
+	PoolFollowed bool `json:"pool_followed"`
+	// Note says what a real import needs when it would be refused.
+	Note string `json:"note,omitempty"`
 	// Problems lists where the items differ from their summaries or the
 	// header, or do not chain (at most MaxDryRunProblems; ProblemCount
 	// counts them all).
@@ -443,6 +448,13 @@ func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error 
 					s, rep.SeriesKnown = a.Series, true
 				}
 			}
+			rep.PoolFollowed = p.FollowsPool(accepted, h.Series, h.Pool)
+		}
+		switch {
+		case !rep.SeriesKnown:
+			rep.Note = fmt.Sprintf("this node does not know series %s, so a real import is refused; add the series to the node policy and follow pool %d first", h.Series, h.Pool)
+		case !rep.PoolFollowed:
+			rep.Note = fmt.Sprintf("this node does not follow pool %d, so a real import is refused; poo follow -series %s -pool %d first", h.Pool, h.Series, h.Pool)
 		}
 		return nil
 	}

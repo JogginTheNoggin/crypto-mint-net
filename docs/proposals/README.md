@@ -84,6 +84,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-056](source/GREEN-056-port-map-says-why-where-when.md) | Source | Port mapping status says why, where and when | proposed |
 | [GREEN-057](source/GREEN-057-unknown-settings-and-release-in-doctor.md) | Source | Doctor names unknown settings (warning for those a save drops) and a release mismatch | proposed |
 | [GREEN-058](source/GREEN-058-ledger-export-pool-zero.md) | Source | Ledger export refuses a start past the tip; import errors name what the node needs | proposed |
+| [GREEN-059](source/GREEN-059-dev-commit-and-dry-run-follow.md) | Source | A dev build names its commit in release; the import dry run says whether the pool is followed | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
