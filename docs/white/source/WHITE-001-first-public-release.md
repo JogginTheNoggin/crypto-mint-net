@@ -81,10 +81,10 @@ it.
 | R4 | W-1: `node.json` keeps fields an older release does not know | Grey (R32A suggested) | Rolling back an alpha must not drop settings |
 | R5 | W-10: node release version and commit in `GET /v1/status` and `poo status` | Grey (R32A suggested) | GUI and support need to know what a node runs |
 | R6 | WHITE-002 step 1: hello `Agent` is `poo/VERSION` | Grey | Lets nodes and the owner see which versions are on the network from day one, with no wire change |
-| R7 | Release checklist run locally (no Actions runner): all checks of `docs/releasing.md`, two `scripts/release.sh` builds with equal `SHA256SUMS`, the GUI e2e and cross-builds | White runs, GUI/White for the GUI part | `release.yml` cannot run today |
+| R7 | Release checklist run locally (no Actions runner): all checks of `docs/releasing.md` and two `scripts/release.sh` builds with equal `SHA256SUMS`. GUI set: `go -C gui vet ./...`, `go -C gui test -race ./...`, windows/amd64 and darwin/arm64 builds, and every gui-e2e script listed in `.github/workflows/ci.yml`, run against the `poo-gui` that `release.sh` built so the `-ldflags` version is covered | White runs the Source part; GUI/White runs the GUI set and records it in its review | `release.yml` cannot run today |
 | R8 | Sign `SHA256SUMS` (for example `ssh-keygen -Y sign` with a key the owner holds; its public key in the README) | the owner holds the key; White writes the steps | Reproducible builds prove what the code builds to; a signature proves the owner published it |
 | R9 | README "Status" says alpha, what that means, and how to report a bug; `SECURITY.md` has a private way to report | Grey | First public readers land there |
-| R10 | `CHANGELOG.md`: "Unreleased (0.1.0)" becomes `0.1.0-alpha.1` with the date, a GUI group of bullets, a "Known issues" list | Grey and GUI/Grey at Part A; White checks | Users need to know what is missing |
+| R10 | `CHANGELOG.md`: "Unreleased (0.1.0)" becomes `0.1.0-alpha.1` with the date, a GUI group of bullets, a "Known issues" list (naming GUI/White G1, settings reset on restart, if not fixed by then) | Grey and GUI/Grey at Part A; White checks | Users need to know what is missing |
 | R11 | `poo-gui` install path: documented as from the archives or `go -C gui build`, not `go install` (the `gui/go.mod` replace) | GUI/Grey docs | `go install .../poo-gui@tag` fails today (GUI/White G3) |
 | R12 | Release workflow marks a pre-release tag as a GitHub pre-release (`--prerelease` when the tag has a `-`) | Grey | So the page does not show an alpha as "Latest" |
 

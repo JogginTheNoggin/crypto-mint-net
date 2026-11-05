@@ -57,6 +57,12 @@ Constraints found in the code:
 - `PeerInfo` already has `agent`; `poo peers` (table and JSON) shows it.
   Add a parsed `version` field next to it in the JSON, so the GUI reads
   it from `poo peers -o json` without parsing anything itself (GUI/White).
+  When the peer hides its release or its agent does not parse as
+  `poo/VERSION`, `version` is left out: never a guess (the GUI shows "not
+  shared").
+- The agent is up to 256 bytes of text the peer chose. `poo peers` table
+  output strips control and invisible characters from it, as
+  `nodepolicy` does for its own text (a note for Source Red to check).
 - `poo status -counts` (or a `poo peers -versions` view) gives a count of
   connected peers per agent, so the owner can see what the network runs.
 - A setting `p2p.announce_version`, `release` (default) or `name`
@@ -83,7 +89,9 @@ Constraints found in the code:
   already exist, so later releases can tell them apart from new ones
   (for example `parts`, `layers-from`, `many-layers`, `release`).
 - `poo peers -o json` shows each peer's features list; `poo peer` shows
-  it for one peer.
+  it for one peer. Both label it as the peer's own claim (for example
+  `claimed_features`, "says it supports"), never as checked; the GUI uses
+  the same wording.
 
 ### What features may and may not do
 
