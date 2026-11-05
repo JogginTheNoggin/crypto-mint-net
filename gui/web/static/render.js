@@ -9,6 +9,40 @@ function el(tag, cls, text) {
   return e;
 }
 
+// parseJSON is JSON.parse that keeps every whole number exact. poo prints
+// amounts, balances and totals as JSON numbers up to 2^64 - 1, and a
+// plain JSON.parse rounds any above 2^53 (9,007,199,254,740,991): on the
+// reserve series (10^14 units a mint) that is a balance of 91 mints.
+// Such a number is read as a BigInt instead, which render prints digit
+// for digit; every other value is JSON.parse's own (GUI-GREEN-055).
+const BIG = '\u0000big:';
+export function parseJSON(text) {
+  // Fast path: a number above 2^53 has at least 16 digits.
+  if (!/\d{16}/.test(text)) return JSON.parse(text);
+  let out = '', last = 0, big = false;
+  for (let i = 0; i < text.length;) {
+    const c = text[i];
+    if (c === '"') {
+      // Skip a string, escapes included: digits in it are text.
+      for (i++; i < text.length; i++) { if (text[i] === '\\') i++; else if (text[i] === '"') { i++; break; } }
+      continue;
+    }
+    if (c === '-' || (c >= '0' && c <= '9')) {
+      const start = i;
+      for (i++; i < text.length && /[0-9.eE+-]/.test(text[i]); i++);
+      const tok = text.slice(start, i);
+      if (/^-?\d{16,}$/.test(tok) && !Number.isSafeInteger(Number(tok))) {
+        out += text.slice(last, start) + JSON.stringify(BIG + tok);
+        last = i; big = true;
+      }
+      continue;
+    }
+    i++;
+  }
+  if (!big) return JSON.parse(text);
+  return JSON.parse(out + text.slice(last), (k, v) => typeof v === 'string' && v.startsWith(BIG) ? BigInt(v.slice(BIG.length)) : v);
+}
+
 const isHex = s => typeof s === 'string' && s.length >= 24 && /^[0-9a-f]+$/i.test(s);
 const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -83,7 +117,7 @@ function scalar(v, key) {
     span.append(s, ' ', link);
     return span;
   }
-  return el('span', typeof v === 'number' ? 'num' : '', String(v));
+  return el('span', typeof v === 'number' || typeof v === 'bigint' ? 'num' : '', String(v));
 }
 
 function table(rows) {

@@ -3,6 +3,7 @@ import * as api from '../api.js';
 import * as where from '../where.js';
 import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile, rawFold } from '../views.js';
 import { scrollback } from '../scroll.js';
+import { parseJSON } from '../render.js';
 
 // node finds the node job this GUI is running, if any.
 async function nodeJob() {
@@ -135,7 +136,7 @@ export const nodeView = {
     const variable = panel(ctx, { title: 'Variable series', about: 'Each followed series that can grow: the parts released so far, the next part, the mints and units that exist now, and the newest release the node holds.', args: () => ['series', 'followed', ...where.flags()],
       onResult: (r, area) => {
         let o;
-        try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        try { o = r.code === 0 && parseJSON(r.out); } catch (_) { return; }
         const all = o && Array.isArray(o.series) ? o.series : null;
         if (!all) return;
         const raw = area.querySelector('.result');
@@ -154,7 +155,7 @@ export const nodeView = {
     const followed = panel(ctx, { title: 'Followed series', about: 'Each series the running node follows: its name when it is built into poo, its id, whether its supply is fixed or can grow, and its pools, mints, units per mint and floors.', args: () => ['series', 'followed', ...where.flags()],
       onResult: (r, area) => {
         let o;
-        try { o = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
+        try { o = r.code === 0 && parseJSON(r.out); } catch (_) { return; }
         const all = o && Array.isArray(o.series) ? o.series : null;
         const raw = area.querySelector('.result');
         if (!all || !raw) return;

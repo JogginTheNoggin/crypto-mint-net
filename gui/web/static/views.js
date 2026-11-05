@@ -5,7 +5,7 @@
 // print, and every panel shows its command line, which runs the same in
 // the terminal (docs/gui.md).
 import * as api from './api.js';
-import { render, secretValue } from './render.js';
+import { parseJSON, render, secretValue } from './render.js';
 import * as where from './where.js';
 import { hintFor } from './hints.js';
 import { scrollback, MAX_CHARS } from './scroll.js';
@@ -164,7 +164,8 @@ export function showResult(out, err, { empty, secretOutput, lazy } = {}) {
   const box = el('div', { class: 'result' });
   if (out.trim()) {
     let v, ok = false;
-    try { v = JSON.parse(out); ok = true; } catch (_) { /* text output */ }
+    // parseJSON keeps an amount above 2^53 exact (GUI-GREEN-055).
+    try { v = parseJSON(out); ok = true; } catch (_) { /* text output */ }
     // A command that prints a secret shows plain text hidden; render
     // hides a seed field in JSON (GUI-009).
     if (ok && lazy) {
