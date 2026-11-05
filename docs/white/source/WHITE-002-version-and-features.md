@@ -136,7 +136,11 @@ no hard-fork path. Black is asked to confirm.
 
 1. `pkg/wire`: the new hello, ping and pong fields and `Ext`, with fuzz
    targets and limits; `docs/protocol/wire.md` updated; a decision that
-   amends D76's frozen layout before the first tag.
+   amends D76's frozen layout before the first tag and says plainly that
+   builds from before the change cannot talk to builds after it (Black).
+   An unknown extension tag is skipped; a malformed one closes only that
+   connection and is never an offence that outlives it (Black's Part D
+   check).
 2. `pkg/p2p`: fill `Release` and `Features` from `node.SetRelease` and a
    registered list; keep them on the peer; a helper
    `peer.has(name, ver)`.
