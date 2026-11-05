@@ -126,6 +126,15 @@ func TestLedgerExportImport(t *testing.T) {
 	if out, err := runErr("ledger", "import", notLedger, "-root", dst); err == nil || !strings.Contains(err.Error(), "not a ledger file") {
 		t.Fatalf("a peers file imported: %v %s", err, out)
 	}
+	// Pool 0 is a pool like any other: -pool 0 exports it (empty here).
+	zero := filepath.Join(t.TempDir(), "zero.json")
+	if out := runOut(t, "ledger", "export", "-pool", "0", "-root", src, "-out", zero); !strings.Contains(out, "wrote 0 entries") {
+		t.Fatalf("-pool 0: %s", out)
+	}
+	var f0 ledgerFile
+	if b, _ := os.ReadFile(zero); json.Unmarshal(b, &f0) != nil || f0.Pool != 0 || len(f0.Entries) != 0 {
+		t.Fatalf("-pool 0 file: %+v", f0)
+	}
 	// Export needs -pool, and view-only mode refuses both.
 	if _, err := runErr("ledger", "export", "-root", src); err == nil {
 		t.Fatal("export without -pool")
