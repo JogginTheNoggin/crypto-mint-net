@@ -236,6 +236,15 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 34 (D190):**
+  - **Moved defaults again:** the local command port is now
+    `127.0.0.1:7732` and the peer port `:7733` (were 7336 and 7337).
+  - A ledger file's kind is now `poo-ledger`.
+  - Hello extensions may hold up to 64 KiB each and a hello may list up
+    to 255 features, so post-quantum keys fit in a later release; these
+    limits are frozen with wire version 1 from the first tag.
+  - A bad release, features or extensions list ends the connection
+    without counting against the peer.
 - **Round 33 fixes (D189):**
   - `poo ledger export` fails, rather than ending short, when the node
     switches to a shorter ledger partway, and the file always ends where

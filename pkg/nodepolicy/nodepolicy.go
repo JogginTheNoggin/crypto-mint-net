@@ -48,11 +48,11 @@ const Format = 1
 const FileName = "node.json"
 
 // DefaultListen is the default address of the local RPC: loopback only.
-const DefaultListen = "127.0.0.1:7336"
+const DefaultListen = "127.0.0.1:7732"
 
 // DefaultP2PListen is the default address for connections from peers: every
 // interface, since peers are on other machines.
-const DefaultP2PListen = ":7337"
+const DefaultP2PListen = ":7733"
 
 // ErrInvalid marks a node policy that cannot be used as written.
 var ErrInvalid = errors.New("nodepolicy: invalid")

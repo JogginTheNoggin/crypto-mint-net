@@ -12,7 +12,7 @@ import (
 // refuses what is not a ledger file (ORANGE-043).
 func TestReadLedgerFileStreams(t *testing.T) {
 	const items = `[{"height":1,"item":"AQI="},{"height":2,"item":"AwQ="},{"height":3,"item":"BQY="}]`
-	const fields = `"kind":"poo ledger","format":1,"series":"` + "0000000000000000000000000000000000000000000000000000000000000001" + `","pool":7`
+	const fields = `"kind":"poo-ledger","format":1,"series":"` + "0000000000000000000000000000000000000000000000000000000000000001" + `","pool":7`
 	read := func(src string) (h ledgerFile, got []string, beforeHead int, err error) {
 		headed := false
 		err = readLedgerFile(strings.NewReader(src), func(f ledgerFile) error {
@@ -30,7 +30,7 @@ func TestReadLedgerFileStreams(t *testing.T) {
 	for _, src := range []string{
 		`{` + fields + `,"entries":` + items + `}`,
 		`{"entries":` + items + `,` + fields + `}`,
-		`{"kind":"poo ledger","entries":` + items + `,"format":1,"series":"0000000000000000000000000000000000000000000000000000000000000001","pool":7}`,
+		`{"kind":"poo-ledger","entries":` + items + `,"format":1,"series":"0000000000000000000000000000000000000000000000000000000000000001","pool":7}`,
 	} {
 		h, got, before, err := read(src)
 		if err != nil || h.Kind != LedgerFileKind || h.Format != 1 || h.Pool != 7 || before != 0 {

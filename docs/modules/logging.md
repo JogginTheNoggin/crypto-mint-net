@@ -13,7 +13,7 @@ and `pkg/daemon` log through `node.Logger()`, each under its own
 
 | Format | Looks like | For |
 | --- | --- | --- |
-| `plain` (default) | `p2p: connected peer=4f1c… addr=203.0.113.5:7337 outbound=true` | a terminal, the GUI's node output |
+| `plain` (default) | `p2p: connected peer=4f1c… addr=203.0.113.5:7733 outbound=true` | a terminal, the GUI's node output |
 | `text` | `time=… level=INFO msg=connected component=p2p peer=…` | log files |
 | `json` | `{"time":…,"level":"INFO","msg":"connected","component":"p2p",…}` | log collectors |
 

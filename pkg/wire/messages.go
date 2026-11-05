@@ -76,13 +76,15 @@ func DecodeHello(b []byte) (Hello, error) {
 	h.Protocol = r.U16()
 	r.Into(h.NodeID[:])
 	h.Agent = string(r.VarBytes(maxString))
-	h.Release = string(r.VarBytes(MaxRelease))
-	if r.Err() == nil && !ValidRelease(h.Release) {
-		r.Fail(fmt.Errorf("release %q", h.Release))
-	}
-	h.Features = decodeFeatures(r)
-	h.Ext = decodeExt(r)
-	if err := finish(r, "hello"); err != nil {
+	bad := extras(r, func() {
+		h.Release = string(r.VarBytes(MaxRelease))
+		if r.Err() == nil && !ValidRelease(h.Release) {
+			r.Fail(fmt.Errorf("release %q", h.Release))
+		}
+		h.Features = decodeFeatures(r)
+		h.Ext = decodeExt(r)
+	})
+	if err := finishExtras(r, "hello", bad); err != nil {
 		if oldHello(b) {
 			return h, fmt.Errorf("%w: hello: %w", ErrMalformed, ErrOldHello)
 		}

@@ -26,7 +26,7 @@ specification is [../protocol/wire.md](../protocol/wire.md).
   Features, Ext}` with `Check`; `Feature{Name, Ver}`, `Ext{Tag, Value}`,
   the registered feature names (`FeatureLayersFrom`, `FeatureManyLayers`,
   `FeatureParts`, `FeatureRelease`), `OwnFeatures`, `Has`,
-  `ValidRelease`, and the limits `MaxRelease`, `MaxFeatures`,
+  `ValidRelease`, `ErrBadExtras` (a failure inside those lists, which a node closes for without an offence, D190), and the limits `MaxRelease`, `MaxFeatures`,
   `MaxFeatureName`, `MaxExt`, `MaxExtValue`. `Ping` and `PongReply` carry
   `Ext` too.
 - Bodies: `Hello`, `Notice`, `DecodeTx` / `DecodeEntry` / `DecodeLayer`;

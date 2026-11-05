@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -15,14 +16,42 @@ import (
 // both peers list, and never decides validity, weight, selection, or
 // whether a peer is kept, ranked, asked or chased.
 
-// Limits on the new fields.
+// Limits on the new fields. They are frozen with wire version 1 at the
+// first public tag (D186). MaxExtValue fits a post-quantum key or
+// signature (W-14, D190); MaxFeatures is what the U8 count can say.
 const (
 	MaxRelease     = 64
-	MaxFeatures    = 64
+	MaxFeatures    = 255
 	MaxFeatureName = 32
 	MaxExt         = 32
-	MaxExtValue    = 1024
+	MaxExtValue    = 64 << 10
 )
+
+// ErrBadExtras marks a message refused for its release, features or
+// extensions list. It also wraps ErrMalformed, but a node closes the
+// connection for it without a lasting offence (D186 term 4, Black's
+// Round 33 condition): a later release may read these lists in a way an
+// older one does not expect.
+var ErrBadExtras = errors.New("bad release, features or extensions")
+
+// extras runs read, the reading of a message's release, features or
+// extensions, and reports whether it was what failed the reader.
+func extras(r *encoding.Reader, read func()) bool {
+	if r.Err() != nil {
+		return false
+	}
+	read()
+	return r.Err() != nil
+}
+
+// finishExtras is finish for a message with extras: a failure inside them
+// is marked with ErrBadExtras.
+func finishExtras(r *encoding.Reader, what string, bad bool) error {
+	if bad {
+		return fmt.Errorf("%w: %w: %s: %v", ErrMalformed, ErrBadExtras, what, r.Err())
+	}
+	return finish(r, what)
+}
 
 // Feature is one optional ability a node says it supports, with the
 // version of it.

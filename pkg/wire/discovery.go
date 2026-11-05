@@ -207,8 +207,8 @@ func (p Ping) Encode() []byte {
 func DecodePing(b []byte) (Ping, error) {
 	r := encoding.NewReader(b)
 	p := Ping{Nonce: r.U64(), Time: r.U64()}
-	p.Ext = decodeExt(r)
-	return p, finish(r, "ping")
+	bad := extras(r, func() { p.Ext = decodeExt(r) })
+	return p, finishExtras(r, "ping", bad)
 }
 
 // MissingChunksReq asks again for chunks of a reply lost when a connection
@@ -335,8 +335,8 @@ func (p PongReply) Encode() []byte {
 func DecodePongReply(b []byte) (PongReply, error) {
 	r := encoding.NewReader(b)
 	p := PongReply{Contact: decodeContact(r), Policies: decodeSections(r)}
-	p.Ext = decodeExt(r)
-	return p, finish(r, "pong")
+	bad := extras(r, func() { p.Ext = decodeExt(r) })
+	return p, finishExtras(r, "pong", bad)
 }
 
 // PeerListChunk is one chunk of a peer list reply.

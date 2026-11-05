@@ -416,6 +416,9 @@ func (h *Host) handshake(c net.Conn, outbound bool, addr string) (*peer, error) 
 	if err != nil {
 		return nil, err
 	}
+	// No extension tag is registered, so nothing a peer put there is kept
+	// for the life of the connection (ORANGE-043's proposal, D190).
+	theirs.Ext = nil
 	if theirs.Protocol < 1 {
 		return nil, fmt.Errorf("protocol %d not spoken", theirs.Protocol)
 	}
@@ -601,6 +604,10 @@ func (h *Host) misbehave(p *peer, err error) {
 			p.close(e)
 		}
 		return
+	case errors.Is(err, wire.ErrBadExtras):
+		// A bad release, features or extensions list ends the connection
+		// only, with no lasting offence (D186 term 4).
+		h.log.Debug("bad extras", "peer", p.short(), "err", err)
 	case errors.Is(err, wire.ErrMalformed):
 		if e := h.act(p, h.tr.Offend(p.key, tracking.InvalidMessage, err.Error(), now)); e != nil {
 			err = e

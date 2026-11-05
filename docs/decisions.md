@@ -5077,3 +5077,50 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     - `TestBlue034DryRun`
   - `pkg/rpc/blue034_internal_test.go`: `TestBlue034ImportCallBounded`.
   - `pkg/wire/blue034_test.go`: `TestBlue034OldHelloNamed`.
+
+### D190. Round 34: ports 7732 and 7733, wider hello limits, `poo-ledger`, no offence for bad extras
+
+- **Merged first:** Blue's #266 (BLUE-034, D189, carrying Green's #259
+  and Orange's #265, ORANGE-043), Red's #257 (RED-097 to RED-099),
+  White's #267 (Round 33 review: all compatible) and Black's #268 (Round
+  33 review: nine clear, one clear with a condition).
+- **Decision:**
+  - **Ports (jerry, 2026-11-05 21:36; W-16).** The default local command
+    port is `127.0.0.1:7732` and the peer port `:7733`, in place of 7336
+    and 7337 (D187). `poo init` still writes them into a new node.json.
+    Nothing is released, so no node moves.
+  - **W-14.** `wire.MaxExtValue` is 64 KiB (was 1 KiB) and
+    `wire.MaxFeatures` 255 (was 64, the most a `U8` count says), so a
+    post-quantum key or signature (ML-DSA-65 signature 3,309 B,
+    SLH-DSA signatures tens of KiB) can ride in a later extension.
+    The hello is already read under `MaxFrame`, so this adds no new
+    exposure. These limits and the release's characters are frozen with
+    wire version 1 at the first tag (W-17).
+  - **Orange's proposal (ORANGE-043).** No extension tag is registered,
+    so the node keeps none of a peer's hello extensions for the life of
+    the connection (`theirs.Ext = nil`). With W-14, keeping them could
+    have held 2 MiB a connection.
+  - **W-15.** A ledger file's kind is `poo-ledger` (was `poo ledger`),
+    like `poo-peers` and `poo-node-policies`. Nothing is released, so no
+    old name is read.
+  - **Black's condition on D186 term 4.** A failure inside the release,
+    features or extensions list of a hello, ping or pong is
+    `wire.ErrBadExtras` (which also wraps `ErrMalformed`). It ends that
+    connection only, with no lasting offence. Any other malformation of
+    a ping or pong (a short body, trailing bytes, a bad contact) is still
+    an `InvalidMessage` offence, as for every message. D186 term 4 reads
+    that way from now on.
+  - `gui/e2e/parity.mjs` lists `poo ledger import -dry-run` as left out
+    until GUI Round 34 adds it.
+  - W-12 (a total cap on kept settings) stays deferred.
+- **Why:** jerry's ports; limits frozen at the tag must leave room for
+  post-quantum fields; a later release may fill the lists in a way an
+  older one refuses, which must not count against the peer.
+- **Consensus:** None. Wire limits, node policy defaults and file names.
+- **Tier:** Wire, P2P, node policy, CLI.
+  - `pkg/wire/hello_test.go`: `TestBadExtrasMarked`.
+  - `pkg/p2p/extras_test.go`: `TestExtrasAtTheLimitsNoOffence` (a hello
+    with the longest release, 255 unknown features and 32 unknown 64 KiB
+    extensions, and a ping at the same limit, are answered with no
+    offence; a ping with its tags out of order ends the connection with
+    no offence).

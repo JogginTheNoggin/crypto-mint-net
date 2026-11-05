@@ -66,7 +66,7 @@ are RFC 3339 UTC.
   "pool": 1,
   "weight": "123456",
   "origin": "pushed",
-  "from": "203.0.113.5:7337",
+  "from": "203.0.113.5:7733",
   "tx": { "tid": "<hex>", "serial": 5, "inputs": [], "outputs": [], "...": "as Tx above" },
   "tid": "<hex>",
   "entry": { "hash": "<hex>", "parent": "<hex>", "height": 7, "tids": ["<hex>"], "selected": true },

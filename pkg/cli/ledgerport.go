@@ -32,7 +32,7 @@ import (
 
 // LedgerFileKind and LedgerFileFormat name a ledger file.
 const (
-	LedgerFileKind   = "poo ledger"
+	LedgerFileKind   = "poo-ledger"
 	LedgerFileFormat = 1
 )
 
