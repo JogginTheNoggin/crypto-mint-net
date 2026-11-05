@@ -3,10 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed by Source (D176, #207); no GUI change needed |
 | Found on | main @ 4e1c601 (PR #204; D170 `series_ceiling`, made settable by D171 / RED-083) |
 | Component | pkg/nodepolicy/bundle.go (`Merge`: only the merge path, `mergeInto`, calls `DeclinesSeries`; `opt.Replace` takes `file.Series` whole); gui/web/static/views/policies.js (Import node policies' "Replace this node policy with the file's instead of merging" box) |
 | Surface | node (the series a node follows, from a policy file someone else made) |
+| Fixed by | Source, D176 (#207, main d1a9128): the replace path applies series_ceiling and keeps a series once |
 
 ## Summary
 
@@ -97,3 +98,18 @@ first warning, and the series can be unfollowed again. Rated **low**.
   `series_ceiling`, and `policy limits` shows `set 0`. D171's "Not done
   here" says that default was left to Grey and jerry, so the comments
   are the stale part.
+
+## Notes — GUI/Blue, Round 29C
+
+Source fixed this in D176 (#207) before Part C opened, so the GUI
+needs no change. The stopgap on the Replace label that this finding
+suggested was not added. poo declines the series now, and the plan
+shows it under "Left out by this node's series ceiling", as for a merge.
+
+Red's R29B nit is fixed in the same Blue PR. `statusNotes`
+(gui/web/static/views/node.js) read `used_bytes` and the other cache
+figures without checking them, so a partial reply threw, and the
+policy-changed line after it was never drawn. Each figure is now read
+only if poo gave it as a number, and "?" is shown otherwise. e2e:
+views.mjs calls `statusNotes` with only `max_bytes`. It expects one
+line with "?" for the rest, and no throw. On the old code it throws.

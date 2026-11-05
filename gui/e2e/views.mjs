@@ -52,6 +52,14 @@ try {
   await shot('node');
   // The entry cache line comes from poo status's bodies (D172).
   await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\)/ }).waitFor();
+  // A partial status reply (only max_bytes) is drawn with "?" for what
+  // is missing, not thrown on, so the lines after it still draw (GUI/Red
+  // R29B).
+  const partial = await page.evaluate(async () => {
+    const m = await import(new URL('views/node.js', location.href).href);
+    try { return m.statusNotes({ bodies: { max_bytes: 64 * 1048576 } }).map(p => p.textContent); } catch (e) { return `threw: ${e.message}`; }
+  });
+  assert.deepEqual(partial, ['Entry cache: ? of 64 MiB (entry_cache_mib), ? bodies; ? hits, ? read from disk. ? of ? entries are in memory.'], 'a partial reply is drawn, not thrown on');
   assert.equal(await pools.locator('.file-limit-low').count(), 0, 'no file limit alert when the limit is high enough');
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
