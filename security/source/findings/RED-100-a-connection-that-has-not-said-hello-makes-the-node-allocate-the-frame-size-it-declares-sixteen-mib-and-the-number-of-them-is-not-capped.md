@@ -34,8 +34,8 @@ themselves fail.
 ## How I checked it
 
 `pkg/p2p` tests (throwaway, removed; copies kept with Red's notes), a node
-started with the defaults, raw connections that write `00 00 00 00 01 00 00 00`
-style length prefixes of 16 MiB and nothing else:
+started with the defaults, raw connections that write only the four-byte length of a
+16 MiB frame (`01 00 00 00`) and nothing else:
 
 ```
 300 connections, each declaring 16 MiB and sending nothing (4 bytes each)
