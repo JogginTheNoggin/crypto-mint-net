@@ -30,6 +30,7 @@ const EVERYWHERE = {
 // Grey can move any of them into a form; the check accepts either.
 const LEFT_OUT = {
   node: { 'log-level': 'the live log is for reading; the terminal sets a level', 'log-format': 'the live log is for reading; the terminal sets a format' },
+  init: { 'port-map': 'new in Source R31 (D182); the GUI init form takes it in GUI R31' },
   sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poo sim load -h has them'])),
   'series new': { ...Object.fromEntries(['entry-hash-credit', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])) },
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
