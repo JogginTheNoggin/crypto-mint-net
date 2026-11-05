@@ -273,8 +273,14 @@ func unknownSettingsChecks(p nodepolicy.Policy) []Check {
 	if d := p.UnknownDropped(); len(d) > 0 {
 		out = append(out, Check{Name: "policy", Result: checkWarn,
 			Detail: fmt.Sprintf("%d %s this release does not know %s, where the next save of %s drops %s: %s",
-				len(d), plural(len(d), "setting", "settings"), plural(len(d), "sits inside a list entry", "sit inside list entries"), nodepolicy.FileName, plural(len(d), "it", "them"), strings.Join(d, ", ")),
+				len(d), plural(len(d), "setting", "settings"), plural(len(d), "sits inside a list entry", "sit inside list entries"), nodepolicy.FileName, plural(len(d), "it", "them"), nodepolicy.NameSome(d, 20)),
 			Fix: "if a newer release wrote " + plural(len(d), "it", "them") + ", run that release, or copy " + nodepolicy.FileName + " aside before changing settings with this one; if " + plural(len(d), "it is", "they are") + " misspelt, correct " + nodepolicy.FileName})
+	}
+	if f := p.FoldedSettings(); len(f) > 0 {
+		out = append(out, Check{Name: "policy", Result: checkWarn,
+			Detail: fmt.Sprintf("%d %s in %s %s a setting's name in another letter case, read as that setting; the next save writes its own name: %s",
+				len(f), plural(len(f), "key", "keys"), nodepolicy.FileName, plural(len(f), "spells", "spell"), nodepolicy.NameSome(f, 20)),
+			Fix: "write each setting once, under its own name, in " + nodepolicy.FileName})
 	}
 	return out
 }
