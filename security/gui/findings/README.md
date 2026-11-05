@@ -64,6 +64,9 @@ and a mapping line on Followed pools. I found nothing new.
   didn't reach the node and the mapping was removed, is shown as a
   muted hint. It could be an alert like `failed`, since peers still
   can't reach the node. This is not security.
+  *Done by GUI/Blue in Round 31C:* `unconfirmed` is now an alert like
+  `failed` and `not_public`, with poo's state and error words as before.
+  views.mjs checks it.
 
 Round 30 Part B reviewed main @ 0ade046 (PR #216):
 - Followed pools refreshing on `poo status -counts` (D177, ORANGE-021);

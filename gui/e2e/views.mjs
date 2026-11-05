@@ -121,11 +121,14 @@ try {
   const pmv = await page.evaluate(async () => {
     const m = await import(new URL('views/node.js', location.href).href);
     const t = pm => m.statusNotes({ port_map: pm }).filter(p => p.classList.contains('port-map')).map(p => [p.getAttribute('role'), p.textContent]);
-    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:8646', advertised: '198.51.100.4:8646', lease_seconds: 3600 })];
+    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:8646', advertised: '198.51.100.4:8646', lease_seconds: 3600 }), t({ mode: 'auto', state: 'unconfirmed', method: 'pcp', external: '198.51.100.4:8646', error: 'dial timed out' })];
   });
   assert.deepEqual(pmv[0], []);
   assert.deepEqual(pmv[1], [['alert', 'Port mapping (auto): failed. no gateway answered.']]);
   assert.deepEqual(pmv[2], [[null, 'Port mapping (upnp): advertised via upnp, the router reports 198.51.100.4:8646, offered to peers as 198.51.100.4:8646, lease 1 hour.']]);
+  // Unconfirmed (mapped, the dial back did not arrive, removed) leaves
+  // peers unable to reach the node too, so it is an alert (GUI/Red R31B).
+  assert.deepEqual(pmv[3], [['alert', 'Port mapping (auto): unconfirmed via pcp, the router reports 198.51.100.4:8646. dial timed out.']]);
   assert.deepEqual(rv[1], [[null, 'Checked every record again: the full replay of all 3 pools matched their snapshots.']]);
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
