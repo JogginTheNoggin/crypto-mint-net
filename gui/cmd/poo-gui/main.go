@@ -19,10 +19,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -75,7 +79,7 @@ func run(ctx context.Context, args []string, s cli.Stdio, open func(url string, 
 	}
 	fs := flag.NewFlagSet("poo-gui", flag.ContinueOnError)
 	fs.SetOutput(s.Err)
-	listen := fs.String("listen", "127.0.0.1:0", "loopback address to serve the GUI on")
+	listen := fs.String("listen", "", "loopback address to serve the GUI on (default: 127.0.0.1 on the port poo-gui used last, else any free port)")
 	noOpen := fs.Bool("no-open", false, "print the address instead of opening a browser")
 	app := fs.Bool("app", false, "open a browser app window (Chrome, Chromium or Edge) instead of a tab")
 	viewOnly := fs.Bool("view-only", false, "run every command in poo's view-only mode: read with the node's view token, refuse changes")
@@ -114,7 +118,7 @@ const (
 // from in prints a new sign-in address. viewOnly runs every job in poo's
 // view-only mode (decision D101).
 func serve(ctx context.Context, listen string, viewOnly bool, in io.Reader, out io.Writer, open func(url string) error) error {
-	ln, err := server.Listen(listen)
+	ln, err := listenGUI(listen)
 	if err != nil {
 		return err
 	}
@@ -191,4 +195,47 @@ func appBrowsers() []string {
 	default:
 		return []string{"google-chrome", "chromium", "chromium-browser", "microsoft-edge"}
 	}
+}
+
+// listenGUI listens on addr, or, when none is given, on 127.0.0.1 at the
+// port poo-gui used last, falling back to any free port (GUI White G1).
+// The browser keeps the GUI's saved settings (node policy, wallet file,
+// theme, terminal history) per origin, port included, so a new port each
+// start lost them all. Only the port number is kept, in poo-gui's folder
+// under the user's config directory; nothing else is written there.
+func listenGUI(addr string) (net.Listener, error) {
+	if addr != "" {
+		return server.Listen(addr)
+	}
+	file := lastPortFile()
+	if file != "" {
+		if b, err := os.ReadFile(file); err == nil {
+			if p, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && p > 0 && p < 65536 {
+				if ln, err := server.Listen(net.JoinHostPort("127.0.0.1", strconv.Itoa(p))); err == nil {
+					return ln, nil
+				}
+			}
+		}
+	}
+	ln, err := server.Listen("127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+	if file != "" {
+		_, port, _ := net.SplitHostPort(ln.Addr().String())
+		if os.MkdirAll(filepath.Dir(file), 0o700) == nil {
+			_ = os.WriteFile(file, []byte(port+"\n"), 0o600)
+		}
+	}
+	return ln, nil
+}
+
+// lastPortFile is where poo-gui keeps the port it used last, or "" when
+// the system names no config directory.
+func lastPortFile() string {
+	dir, err := os.UserConfigDir()
+	if err != nil || dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "poo-gui", "last-port")
 }

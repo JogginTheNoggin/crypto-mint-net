@@ -49,7 +49,7 @@ For every item the round produced, answer each line, or write "n/a".
    `CHANGELOG.md` (GUI group) and, for a feature, in `docs/FEATURES.md`
    (GUI section).
 3. Nothing in `gui/` sets its own version: the GUI prints and reports
-   `cli.Version`, so poo and poo-gui can never drift apart.
+   `cli.Version`, so poo-gui and `poo` can never drift apart.
 
 **Compatibility with the headless node**
 
@@ -102,7 +102,7 @@ For every item the round produced, answer each line, or write "n/a".
     what they must set again.
 17. Files the GUI writes through poo (node.json, policies, exports) are
     written by poo, so their compatibility is Source White's; White notes
-    any GUI form that writes a field older poo would reject.
+    any GUI form that writes a field an older `poo` would reject.
 
 ## Verdicts
 

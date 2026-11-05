@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (Round 31 Part B) |
+| Status | adopted (Round 32 Part A, merged as is) |
 | Based on | main @ 55c5efa |
 | Area | gui/web/static/views/pools.js (Followed pools), views/node.js (statusNotes wording), gui/e2e/views.mjs, gui/e2e/qol.mjs, docs/FEATURES.md |
 | Effort | small |

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed (needs Source) |
+| Status | accepted by Grey (R32A); waits on Source for a count in poo status |
 | Based on | main @ 55c5efa |
 | Area | the `replay.snapshots_unused` field of `poo status` (pkg/node, pkg/cli: Source); gui/web/static/views/node.js reads it |
 | Effort | small |

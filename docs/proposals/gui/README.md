@@ -63,7 +63,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-054](GUI-GREEN-054-newcomers-on-the-reserve.md) | Newcomers on the reserve default: Getting started writes `poo init` (the reserve) instead of `-example`; a Followed series panel names the built-in reserve series from poo's `builtin`; notes for Orange (two 1,024-row pool tables) and Grey (a first-mint step) | small | yes | adopted (R29A) |
 | [GUI-GREEN-055](GUI-GREEN-055-exact-amounts.md) | Amounts above 2^53 were shown rounded (JSON.parse); `parseJSON` keeps them exact as BigInt for results, series panels and Watch events; for Source, print amounts, balances and totals as decimal strings as weight and units already are | small | yes | adopted (R30A; the Source part is queued) |
 | [GUI-GREEN-056](GUI-GREEN-056-node-view-on-demand.md) | On the reserve the Node view still drew 1,008 rows and 23,550 elements on every open (Each pool ran `poo status` on mount; the follow list drew 1,024 pools); `panel({ start: false })` and a folded follow pools list bring it to 451 elements; for Source, `builtin` on `status -counts` rows | small | yes | adopted (R31A) |
-| [GUI-GREEN-057](GUI-GREEN-057-pools-view-on-demand.md) | The Pools and payments view ran `poo pools` (380 KB, 500 drawn rows on the reserve) on every open; it now runs on Show (12,755 to 234 elements); "1 pool from its snapshot"; idea for a reserve-scale e2e guard | small | yes | proposed |
+| [GUI-GREEN-057](GUI-GREEN-057-pools-view-on-demand.md) | The Pools and payments view ran `poo pools` (380 KB, 500 drawn rows on the reserve) on every open; it now runs on Show (12,755 to 234 elements); "1 pool from its snapshot"; idea for a reserve-scale e2e guard | small | yes | adopted (R32A) |
 
 ## Orange (performance)
 
@@ -96,7 +96,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-020](ORANGE-020-output-as-printed-when-opened.md) | Draw "Output as printed" only when it is opened (Node view with 4,096 followed series: 60,970 → 28,887 elements; Variable series panel 0.45–1.0 s → 0.35–0.42 s) | small | yes | adopted |
 | [ORANGE-021](ORANGE-021-followed-pools-refresh-without-every-pool.md) | Let the Followed pools panel's 5 s refresh leave out the per-pool rows, with a `poo status` option (reserve series, 1,024 pools: 352 KB every 5 s, 5% busy, 150 ms pauses; 8,192 pools: 2.8 MB, 280 ms pauses, poo-gui 140 MB) | small | no | adopted (R30A, built on `poo status -counts`, D177) |
 | [ORANGE-022](ORANGE-022-parsejson-fast-path.md) | Let `parseJSON`'s fast path look for 16 digits only where a JSON number can start, so hex strings no longer send every answer through the slow scan (`poo status`, 1,024 pools: 7 → 1 ms; 4,096 followed series: 20 → 9 ms; 20,000 Watch events: 38 → 10 ms) | small | yes | adopted (R31A) |
-| [ORANGE-023](ORANGE-023-status-counts-after-an-upgrade.md) | Keep `poo status -counts` short after an upgrade: it lists every snapshot the start did not use, and a new build uses none (8,192 pools: 878 B → 1.3 MB every 5 s, poo-gui 31 → 69 MB until the next start); print a count and a few reasons, as `poo doctor` does | small | no | proposed (needs Source) |
+| [ORANGE-023](ORANGE-023-status-counts-after-an-upgrade.md) | Keep `poo status -counts` short after an upgrade: it lists every snapshot the start did not use, and a new build uses none (8,192 pools: 878 B → 1.3 MB every 5 s, poo-gui 31 → 69 MB until the next start); print a count and a few reasons, as `poo doctor` does | small | no | accepted, waits on Source (asked R31) |
 
 ### Re-checks each round
 
