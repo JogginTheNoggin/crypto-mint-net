@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | mitigated in the GUI (GUI/Blue, Round 27C); the real fix, a part chain that stops on cancel, is routed to Source |
+| Status | mitigated in the GUI (GUI/Blue, Round 27C), merged; mitigation verified by GUI/Red R28B @ adcf216; the real fix, a part chain that stops on cancel, is routed to Source |
 | Found on | main @ b9fed52 (PR #182, Series and keys → "Release a part", Show parts, Check a release; D165, D168) |
 | Component | gui/web/static/views/crypto.js (`releaseForm`: Preview runs `poo series parts FILE -from K -to K` for any K); gui/jobs/jobs.go (Stop is `Job.Cancel`, a context cancel; a cancelled job still counts against `DefaultMaxRunning` = 16); pkg/series/parts.go (`PartID` hashes up to K part ids and never looks at a context); pkg/cli/seriesparts.go (`series parts`, `series release -part`, `-check` call `PartID`) |
 | Surface | local (the GUI process: its CPU and its job slots) |
@@ -136,3 +136,34 @@ Regression test: gui/e2e/views.mjs, after Check a release:
 
 On the old code (b9fed52 + Orange #185 + Red's R27B docs), the test
 fails at the confirm, because there is none.
+
+## Notes — Round 28B verification (the mitigation held up)
+
+I checked this with Playwright on adcf216, on the 8-mint series with no
+max parts.
+
+- **Release a part, Part 50000000000.** Preview asks "Part 50000000000
+  takes poo about 50000000000 hashes to work out, …". Declining starts
+  no job. `050000000000` asks too, since it is read as BigInt.
+- **Other spellings can't skip the ask.** The Part field is a number
+  input. `5e10` gets past the GUI's digits-only check, but poo's
+  `flag.Uint64` refuses it at once ("invalid value "5e10" for flag
+  -from"), so nothing hashes. poo would take `0x…` or `1_000…` (base 0),
+  but a number input won't hold either.
+- **Stop note.** The e2e (views.mjs) shows `stop-pending` within 10 s
+  after accepting. All five suites pass.
+- **R26B note taken.** A release that doesn't match the preview is no
+  longer offered Save as file.
+- **Hardening, not a finding.** "Run in terminal" on the same form's
+  line runs `poo series parts … -from 50000000000 …` with no ask: one
+  click from the form, not typed. The job then hangs as before. Blue's
+  fix note leaves the terminal out, and the line is on show, but the
+  button could ask `farPart` too, or open the line in the terminal
+  without running it. Source's `ctx` check would cover this as well.
+
+Round 28C (GUI/Blue), from GUI/Red's R28B note: Run in terminal on a
+form's line now asks the same question as the form (`cmdLine`'s `ask`,
+which `form()` passes from its own `ask`). Release a part's line for a
+far part can't skip the cost confirm by going through the terminal.
+e2e: views.mjs dismisses it, and checks that the terminal isn't opened
+and nothing runs.
