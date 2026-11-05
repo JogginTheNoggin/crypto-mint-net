@@ -269,7 +269,9 @@ server is locked down:
   The browser keeps the GUI's saved settings (node policy, wallet file,
   theme, terminal history) per origin, port included, so a stable port
   keeps them across restarts (GUI White G1). The token still changes on
-  every start.
+  every start. A second poo-gui started while one runs finds the port busy, takes
+  another and keeps that one, so the next start comes back there. To run
+  two at once and keep each one's settings, give each its own `-listen`.
 - **One-time sign-in addresses.** A browser signs in by opening
   `http://127.0.0.1:PORT/?t=TOKEN`, where the token is 32 random bytes. The
   first visit spends the token. It sets a session cookie that is a

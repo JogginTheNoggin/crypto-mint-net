@@ -17,9 +17,10 @@
 //	POST /api/run               {args} or {line}  run to the end: {code, out, err, command}
 //	GET  /api/split?line=                         the args a typed line is: {args, command}
 //	GET  /api/grammar                             the terminal's grammar: {grammar}, posix or windows
-//	GET  /api/info                                {grammar, viewOnly, secretFlags}: viewOnly when jobs
+//	GET  /api/info                                {grammar, viewOnly, secretFlags, version}: viewOnly when jobs
 //	                                              run in the core's view-only mode (poo-gui -view-only);
-//	                                              secretFlags are shell.SecretFlags
+//	                                              secretFlags are shell.SecretFlags; version is
+//	                                              Server.Version, the release poo and poo-gui share
 //
 // A job's args and command are shown with secret flag values hidden
 // (shell.Redact), and redacted is set.
@@ -70,6 +71,10 @@ type Server struct {
 	Heartbeat time.Duration
 	// MaxStreams bounds the event streams open at once.
 	MaxStreams int
+	// Version is the release poo-gui and poo share (cli.Version), given
+	// to the page through /api/info so it can show it (GUI White G4,
+	// GUI-GREEN-058). The server takes no version of its own.
+	Version string
 
 	mu       sync.Mutex
 	tokens   map[string]time.Time // hashes of unused sign-in tokens, and when each expires
@@ -429,7 +434,7 @@ func (s *Server) grammar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) info(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"grammar": shell.Native.String(), "viewOnly": s.runner.ViewOnly(), "secretFlags": shell.SecretFlags})
+	writeJSON(w, http.StatusOK, map[string]any{"grammar": shell.Native.String(), "viewOnly": s.runner.ViewOnly(), "secretFlags": shell.SecretFlags, "version": s.Version})
 }
 
 // events streams a job's output as server-sent events until the job ends

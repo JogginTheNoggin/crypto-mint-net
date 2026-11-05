@@ -116,6 +116,24 @@ try {
   });
   assert.equal(rv[0][0][0], 'alert');
   assert.match(rv[0][0][1], /1 of 3 pools built a different pool/);
+  // The node's release beside the GUI's (D184, GUI White S1): the same
+  // binary here, so a plain line; another release is a note; an older
+  // node that reports none is said so. Capped lists are counted from
+  // poo's count fields (GUI White S2).
+  await pools.locator('.node-release:not(.differs)', { hasText: /^The node runs v\S+/ }).waitFor();
+  const relv = await page.evaluate(async () => {
+    const m = await import(new URL('views/node.js', location.href).href);
+    const t = (st, v) => m.statusNotes(st, v).filter(p => p.classList.contains('node-release') || p.classList.contains('replay') || p.classList.contains('reverify-not-compared')).map(p => [p.className, p.textContent]);
+    return [
+      t({ series: [], release: { version: '0.1.0-alpha.2', commit: 'abcdef0123456789' } }, '0.1.0-alpha.1'),
+      t({ series: [] }, '0.1.0-alpha.1'),
+      t({ replay: { snapshots: 0, snapshot_records: 0, records: 9, snapshots_unused: ['p0: other build', 'p1: other build'], snapshots_unused_count: 1024, reverify_not_compared: ['p2: no snapshot'], reverify_not_compared_count: 3 } }, ''),
+    ];
+  });
+  assert.deepEqual(relv[0], [['next-step node-release differs', 'The node runs v0.1.0-alpha.2 (abcdef012345); this GUI is v0.1.0-alpha.1. They are different releases, so a view may show or send what the other does not know.']]);
+  assert.deepEqual(relv[1], [['hint node-release', 'The node did not report its release (an older node).']]);
+  assert.match(relv[2][0][1], /; 1024 snapshots not used: p0: other build; p1: other build; …\.$/);
+  assert.deepEqual(relv[2][1], ['hint reverify-not-compared', 'Not compared: 3 pools: p2: no snapshot; ….']);
   // The port mapping line (D182): a failure is an alert with poo's error;
   // off draws nothing.
   const pmv = await page.evaluate(async () => {
