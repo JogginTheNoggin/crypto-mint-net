@@ -234,6 +234,13 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 32 (D184):**
+  - `poo status` names the node's release (`release.version` and
+    `commit`), so a front end can tell when it talks to another version.
+  - After an upgrade, status lists the first 8 snapshots not used and
+    their count, not one line per pool; the start log names each.
+  - Going back a release no longer loses settings a newer one wrote in
+    node.json: they are kept on every save, and the node warns at start.
 - **Round 31 fixes (D183):**
   - A router's address is confirmed only when the node's own listener
     receives the dial-back's random token, so an echo or a copied hello

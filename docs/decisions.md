@@ -4784,3 +4784,55 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     - `TestBlue032PCPLifetimeZeroRefused`.
     - `TestBlue032CancelSendsRemoval`, for PCP and NAT-PMP.
   - Each test fails on the code before the fix.
+
+### D184. Round 32: a count of unused snapshots, unknown settings kept, the release in status
+
+- **Merged first:** Blue's #238 (D183, carrying Green's #234), Red's #233,
+  Orange's #235 (ORANGE-041, measurements), Black's #239 (Round 31
+  review: all clear) and White's charter #241, which adds White to Part D
+  beside Black (AGENTS.md "White reviews (Part D)") and lists WHITE-001
+  (first public release plan) and WHITE-002 (version and features
+  between peers) as proposed. Neither proposal is decided here.
+- **Decision:**
+  - **GUI ORANGE-023.** `replay.snapshots_unused` and
+    `replay.reverify_not_compared` in `GET /v1/status` and `poo status`
+    carry at most `node.MaxReasons` (8) reasons. New
+    `snapshots_unused_count` and `reverify_not_compared_count` give the
+    whole number. The node's start log names every pool with its reason,
+    as before, and `poo doctor` counts all of them and says the rest are
+    in the start log. Black's condition (doctor or the start log still
+    lists each pool) holds.
+  - **W-1.** `nodepolicy.Load` keeps the settings in `node.json` that
+    this release has no field for, and `Save` writes them back. That
+    covers the top level and inside objects at any depth, but not inside
+    list entries (a series, a follow, a grind job). So going back a
+    release and changing a setting no longer drops what the newer release
+    set. The node warns once at start, naming them. Exports and bundles
+    carry only what this release knows. A file holding unknown settings
+    is written with its keys in sorted order.
+  - **W-10.** `GET /v1/status` and `poo status` (with `-counts`) carry
+    `release`: the `version` and `commit` that `node.SetRelease`
+    records, the same ones `poo version` prints. GUI/White decides what
+    the GUI does on a mismatch.
+  - **Not taken this round:**
+    - ORANGE-041 proposal 1 (a parallel fingerprint by sections). If it
+      is taken later, it follows Black's terms in ROUND-31.md.
+    - Proposal 2 (PCP and NAT-PMP sent together under `auto`).
+    - WHITE-002 step 1 (`poo/VERSION` in the hello Agent). It tells every
+      peer the exact release, so it waits for White's and Black's review
+      of the whole proposal.
+    - Green's idea of a command to set `p2p.port_map` or `p2p.advertise`
+      on an existing node.
+- **Why:**
+  - After an upgrade, every pool's snapshot is unused once. Listing them
+    all made a 5 s status answer 1.3 MB at 8,192 pools.
+  - A rollback that saves should lose nothing. White's rule is that going
+    back one release loses nothing that cannot be fetched again.
+  - A front end needs to know which release it talks to.
+- **Consensus:** None.
+- **Tier:** Node, node policy, RPC, CLI.
+  - `pkg/node/reasons_internal_test.go`: `TestReplayedCapsReasons`,
+    `TestRunningRelease`.
+  - `pkg/nodepolicy/unknown_test.go`: `TestUnknownSettingsSurviveSave`.
+  - `pkg/cli/blue031_test.go`: `TestSnapshotsCheckCountsCutReasons`.
+  - `pkg/rpc/rpc_test.go`: the status reply names the release.
