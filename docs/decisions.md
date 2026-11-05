@@ -4419,3 +4419,51 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Consensus:** None. Which series a node adds is information.
 - **Tier:** Node policy, CLI. `pkg/nodepolicy/replaceceiling_test.go`:
   `TestReplaceHonoursSeriesCeiling`.
+
+### D177. Round 29 fixes: RED-085 and RED-086, and `poo status -counts` (BLUE-030)
+
+- **Decision:**
+  - **RED-085.** `PreverifyTx`, `PreverifyEntry`, `PreverifyPage` and
+    `BuildEntryOn` took the engine lock with a bare `Lock`/`Unlock`. They
+    now take it through `Engine.under`, which always releases it and, on a
+    panic (a `ledger.ReadFault` on a cold entry), fails the engine as
+    `handling` does (D174): `e.failed` is set, `Failed()` is closed, and
+    the panic goes on to whoever recovers it (the p2p work loop closes
+    that peer, D173; the HTTP server answers 500). The node then stops on
+    `Failed()` without compacting, and `Node.Close` no longer hangs on
+    `Err()`. Once the engine has failed they do nothing, and
+    `BuildEntryOn` returns `ErrFailed`. A read fault on a path that changes
+    nothing still means the log cannot be trusted, so stopping is right.
+    These were every `e.mu.Lock()` in `engine.go` without a deferred
+    unlock that reaches the ledger; the others read only the skeleton.
+  - **RED-086.** An entry's view cost (`unitsOf`) now counts one unit for
+    each distinct transaction its inputs spend from, besides one for the
+    entry and one per transaction. A cold revert reads at most one body
+    for each, so a merge of many inputs from many older entries costs what
+    it reads. Nothing is refused: the revert budget only paces a sender
+    and the entry still comes (D111, D116). An ordinary chain of one-input
+    spends costs 3 units an entry where it cost 2, so the 200,000 a minute
+    default paces such reverts about a third sooner; it is a setting, and
+    a new default is for Grey and Orange to measure.
+  - **`poo status -counts`** (GUI ORANGE-021): one row of totals per
+    followed series (pools, entries, branches, pending, waiting, stored
+    records) with the same notes (replay, bodies, file limit, policy
+    changed), so a view that refreshes often does not print a row for
+    every pool. The CLI adds the rows up, so the GUI does not (D84).
+  - **Not carried:** Orange #212 (mempool only, no overlap) and Green
+    #209 (no overlap).
+- **Why:** D174 made a panic mid-change fail the engine, but only on the
+  paths through `handling`; a panic on a read path left the lock held,
+  which is worse than a crash. The view cost exists to charge what a
+  revert costs, and D175 made a cold revert read maker bodies the cost
+  did not count.
+- **Consensus:** None. Failing the engine stops the node; it decides
+  nothing. The view cost decides only when a peer's entry is checked,
+  never whether it is valid.
+- **Tier:** Engine, ledger, CLI.
+  - `pkg/engine/blue030_test.go`: `TestColdReadFaultReleasesTheLock`
+    (BuildEntryOn, PreverifyEntry, PreverifyPage; it hangs without the fix).
+  - `pkg/ledger/blue030_test.go`: `TestColdRevertCostCountsMakers`.
+  - `pkg/cli/blue030_test.go`: `TestStatusBySeries`.
+  - `pkg/p2p/serve_test.go`: `TestDeepForkSpendsRevertBudget` counts three
+    units a spend.

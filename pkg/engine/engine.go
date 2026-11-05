@@ -185,8 +185,40 @@ func New(cfg Config) *Engine {
 }
 
 // Failed is closed once a method that changes a pool panicked part way
-// (ErrFailed). A node stops then, without compacting its stores.
+// (ErrFailed), or a read of a pool under the lock panicked, such as a
+// ledger.ReadFault on a cold entry (RED-085, D177). A node stops then,
+// without compacting its stores.
 func (e *Engine) Failed() <-chan struct{} { return e.stopped }
+
+// failLocked fails the engine with panic value v, once. e.mu is held.
+func (e *Engine) failLocked(v any) {
+	if e.failed == nil {
+		e.failed = fmt.Errorf("%w (%v)", ErrFailed, v)
+		close(e.stopped)
+	}
+}
+
+// under runs fn holding e.mu, and always releases it. A panic in fn (a
+// ledger.ReadFault on a cold entry) fails the engine as handling does,
+// releases the lock, and goes on up, so no caller that recovers it, such
+// as the p2p work loop or the HTTP server, leaves the engine locked with
+// Failed still open (RED-085, D177). With the engine failed, fn does not
+// run and under returns false.
+func (e *Engine) under(fn func()) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.failed != nil {
+		return false
+	}
+	defer func() {
+		if v := recover(); v != nil {
+			e.failLocked(v)
+			panic(v)
+		}
+	}()
+	fn()
+	return true
+}
 
 // Err returns ErrFailed, with the panic, once the engine has failed.
 func (e *Engine) Err() error {
@@ -400,8 +432,7 @@ func (e *Engine) handling(k PoolKey) (p *poolState, done func(), err error) {
 	// pool holds may be half changed, so nothing may build on it.
 	return p, func() {
 		if v := recover(); v != nil {
-			e.failed = fmt.Errorf("%w (%v)", ErrFailed, v)
-			close(e.stopped)
+			e.failLocked(v)
 			panic(v)
 		}
 		if created && p.ledger.Len() == 0 && p.pending.Len() == 0 && p.pending.Waiting() == 0 {
@@ -576,18 +607,18 @@ func (e *Engine) PreverifyTx(t *tx.Tx) {
 	if err != nil {
 		return
 	}
-	e.mu.Lock()
-	p, err := e.peek(k)
-	if err != nil {
-		e.mu.Unlock()
-		return
-	}
-	tid := t.TID(p.s.Hash())
+	var p *poolState
+	var tid hash.Hash
 	var owners []hash.Hash
-	if !e.seen.Has(tid) {
-		owners, err = p.pending.Owners(view{p.ledger}, t, tid)
-	}
-	e.mu.Unlock()
+	e.under(func() {
+		if p, err = e.peek(k); err != nil {
+			return
+		}
+		tid = t.TID(p.s.Hash())
+		if !e.seen.Has(tid) {
+			owners, err = p.pending.Owners(view{p.ledger}, t, tid)
+		}
+	})
 	if owners != nil && err == nil {
 		tx.Preverify(p.s, t, tid, owners)
 	}
@@ -619,18 +650,18 @@ func (e *Engine) EntryCost(k PoolKey, en *entry.Entry) int {
 // nothing for a parent far from the selected tip (ledger.ErrDeepParent):
 // that state costs a revert, which HandleEntry pays once (RED-011, D111).
 func (e *Engine) PreverifyEntry(k PoolKey, en *entry.Entry, origin Origin) {
-	e.mu.Lock()
-	p, err := e.peek(k)
-	if err != nil {
-		e.mu.Unlock()
-		return
-	}
+	var p *poolState
 	var items []entry.Item
 	var owners [][]hash.Hash
-	if !(origin.checksSeen() && e.seen.Has(en.Hash(p.s))) {
-		items, owners, err = p.ledger.EntryOwners(en)
-	}
-	e.mu.Unlock()
+	err := ErrFailed
+	e.under(func() {
+		if p, err = e.peek(k); err != nil {
+			return
+		}
+		if !(origin.checksSeen() && e.seen.Has(en.Hash(p.s))) {
+			items, owners, err = p.ledger.EntryOwners(en)
+		}
+	})
 	if err != nil {
 		return
 	}
@@ -656,14 +687,18 @@ func (e *Engine) PreverifyPage(k PoolKey, es []*entry.Entry) {
 	if len(es) < 2 {
 		return
 	}
-	e.mu.Lock()
-	p, err := e.peek(k)
+	var p *poolState
+	var items [][]entry.Item
+	var owners [][][]hash.Hash
+	err := ErrFailed
+	e.under(func() {
+		if p, err = e.peek(k); err == nil {
+			items, owners = p.ledger.PageOwners(es)
+		}
+	})
 	if err != nil {
-		e.mu.Unlock()
 		return
 	}
-	items, owners := p.ledger.PageOwners(es)
-	e.mu.Unlock()
 	type job struct {
 		it     entry.Item
 		owners []hash.Hash
@@ -984,48 +1019,49 @@ type BuildOn struct {
 // ErrNothingPending. The checks are AddEntry's, which takes the entry in
 // after.
 func (e *Engine) BuildEntryOn(ctx context.Context, k PoolKey, maxTries uint64, g Grind, o BuildOn) (*entry.Entry, []ledger.Refused, error) {
-	e.mu.Lock()
-	p, err := e.pool(k)
+	var p *poolState
+	var parent hash.Hash
+	var refused []ledger.Refused
+	txs := o.Txs
+	err := ErrFailed
+	if !e.under(func() {
+		if p, err = e.pool(k); err != nil {
+			return
+		}
+		pending := txs == nil
+		if pending {
+			for _, r := range p.pending.Ready() {
+				txs = append(txs, r.Tx)
+			}
+		}
+		parent, _, _ = p.ledger.Tip()
+		if o.Parent != nil || o.Txs != nil {
+			if o.Parent != nil {
+				parent = *o.Parent
+			}
+			check := p.ledger.CheckOn
+			if pending {
+				// The pending pool checked their signatures (RED-068).
+				check = p.ledger.CheckPendingOn
+			}
+			txs, refused, err = check(parent, txs)
+		}
+	}) {
+		return nil, nil, e.Err()
+	}
 	if err != nil {
-		e.mu.Unlock()
 		return nil, nil, err
 	}
-	txs := o.Txs
-	pending := txs == nil
-	if pending {
-		for _, r := range p.pending.Ready() {
-			txs = append(txs, r.Tx)
-		}
-	}
-	parent, _, _ := p.ledger.Tip()
-	var refused []ledger.Refused
-	if o.Parent != nil || o.Txs != nil {
-		if o.Parent != nil {
-			parent = *o.Parent
-		}
-		check := p.ledger.CheckOn
-		if pending {
-			// The pending pool checked their signatures (RED-068).
-			check = p.ledger.CheckPendingOn
-		}
-		if txs, refused, err = check(parent, txs); err != nil {
-			e.mu.Unlock()
-			return nil, nil, err
-		}
-	}
 	if len(txs) == 0 {
-		e.mu.Unlock()
 		return nil, refused, ErrNothingPending
 	}
 	s := p.s
-	e.mu.Unlock()
 	en, h, err := entry.BuildWith(ctx, g.hasher(s), s, parent, txs, maxTries, g.Workers, g.Tried)
 	if err != nil {
 		return nil, refused, err
 	}
-	e.mu.Lock()
-	held := p.ledger.Has(h)
-	e.mu.Unlock()
+	var held bool
+	e.under(func() { held = p.ledger.Has(h) })
 	if held {
 		return en, refused, ErrAlreadyBuilt
 	}

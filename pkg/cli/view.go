@@ -25,6 +25,9 @@ type viewFlags struct {
 	w      *where
 	filter func() (filter.Filter, error)
 	f      filter.Filter
+	// pos are the words that are not flags, wherever they stand: poo tx
+	// TID -o table works as poo tx -o table TID does (GREEN-054).
+	pos []string
 }
 
 // addView adds the where and filter flags; -kind only for a command that
@@ -38,9 +41,11 @@ func addView(fs *flag.FlagSet, events bool) *viewFlags {
 
 // parse parses the flags and reads the filter.
 func (v *viewFlags) parse(fs *flag.FlagSet, args []string) error {
-	if err := fs.Parse(args); err != nil {
+	pos, err := parseMixed(fs, args)
+	if err != nil {
 		return err
 	}
+	v.pos = pos
 	f, err := v.filter()
 	v.f = f
 	return err
@@ -82,10 +87,10 @@ func viewCmd(name string, args []string, out io.Writer) error {
 		return err
 	}
 	if name == "tx" || name == "address" {
-		if fs.NArg() != 1 {
+		if len(v.pos) != 1 {
 			return fmt.Errorf("usage: poo %s [flags] %s", name, map[string]string{"tx": "TID", "address": "ADDRESS"}[name])
 		}
-	} else if fs.NArg() != 0 {
+	} else if len(v.pos) != 0 {
 		return fmt.Errorf("poo %s takes flags only", name)
 	}
 	cl, err := v.dial(out)
@@ -129,7 +134,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 		}
 		return o.write(out, r)
 	case "tx":
-		tid, err := hash.Parse(fs.Arg(0))
+		tid, err := hash.Parse(v.pos[0])
 		if err != nil {
 			return fmt.Errorf("tid: %w", err)
 		}
@@ -147,7 +152,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 		}
 		return o.write(out, r)
 	default: // address
-		a, err := hash.Parse(fs.Arg(0))
+		a, err := hash.Parse(v.pos[0])
 		if err != nil {
 			return fmt.Errorf("address: %w", err)
 		}

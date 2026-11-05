@@ -19,7 +19,6 @@ package mempool
 import (
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
@@ -60,6 +59,9 @@ type pending struct {
 	wait bool // a carried transaction waiting for its parent to be selected
 	// checked marks a transaction found valid during one Revalidate.
 	checked bool
+	// gone marks a transaction removed from the pool; order drops it at
+	// the next compaction.
+	gone bool
 }
 
 // Pool is the pending transactions of one ledger pool.
@@ -70,6 +72,10 @@ type Pool struct {
 	spentBy map[tx.Input]hash.Hash
 	claims  map[uint64]hash.Hash
 	seq     uint64
+	// order holds the transactions oldest first, as inserted, plus those
+	// removed since the last compaction (gone). seq only grows, so
+	// appending keeps it sorted and no call needs to sort the pool.
+	order []*pending
 }
 
 // New returns an empty mempool. limit 0 means DefaultLimit.
@@ -119,7 +125,9 @@ func (p *Pool) dependsOnPending(t *tx.Tx) bool {
 
 func (p *Pool) insert(tid hash.Hash, t *tx.Tx, wait bool) {
 	p.seq++
-	p.byTID[tid] = &pending{tid: tid, tx: t, seq: p.seq, wait: wait}
+	e := &pending{tid: tid, tx: t, seq: p.seq, wait: wait}
+	p.byTID[tid] = e
+	p.order = append(p.order, e)
 	if t.IsClaim() {
 		p.claims[t.Mint.Serial] = tid
 	}
@@ -135,6 +143,7 @@ func (p *Pool) Remove(tid hash.Hash) {
 		return
 	}
 	delete(p.byTID, tid)
+	e.gone = true
 	if e.tx.IsClaim() && p.claims[e.tx.Mint.Serial] == tid {
 		delete(p.claims, e.tx.Mint.Serial)
 	}
@@ -261,11 +270,7 @@ func (p *Pool) removeWithDependents(tid hash.Hash) {
 // become pending. It returns the tids dropped as invalid.
 func (p *Pool) Revalidate(l Ledger) (dropped []hash.Hash) {
 	// Oldest first, so first come, first served survives revalidation.
-	order := make([]*pending, 0, len(p.byTID))
-	for _, e := range p.byTID {
-		order = append(order, e)
-	}
-	sortBySeq(order)
+	order := p.oldestFirst()
 	// Drop what the ledger now holds first: a waiting transaction may be
 	// older in the pool than the parent it waits on (a parent carried
 	// back after a switch), and must see that parent gone.
@@ -314,16 +319,11 @@ func (p *Pool) Revalidate(l Ledger) (dropped []hash.Hash) {
 // selected tip, oldest first: valid at the tip, not waiting, and, by the
 // pool's own rules, conflict-free and independent of one another.
 func (p *Pool) Ready() []Item {
-	order := make([]*pending, 0, len(p.byTID))
-	for _, e := range p.byTID {
+	out := make([]Item, 0, len(p.byTID))
+	for _, e := range p.oldestFirst() {
 		if !e.wait {
-			order = append(order, e)
+			out = append(out, Item{TID: e.tid, Tx: e.tx})
 		}
-	}
-	sortBySeq(order)
-	out := make([]Item, len(order))
-	for i, e := range order {
-		out[i] = Item{TID: e.tid, Tx: e.tx}
 	}
 	return out
 }
@@ -339,6 +339,17 @@ func (p *Pool) Waiting() int {
 	return n
 }
 
-func sortBySeq(xs []*pending) {
-	sort.Slice(xs, func(i, j int) bool { return xs[i].seq < xs[j].seq })
+// oldestFirst drops removed transactions from p.order and returns a copy
+// of it: the held transactions, oldest first. The copy stays as it is
+// while the caller removes or inserts transactions.
+func (p *Pool) oldestFirst() []*pending {
+	live := p.order[:0]
+	for _, e := range p.order {
+		if !e.gone {
+			live = append(live, e)
+		}
+	}
+	clear(p.order[len(live):])
+	p.order = live
+	return append([]*pending(nil), live...)
 }
