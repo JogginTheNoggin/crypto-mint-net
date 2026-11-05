@@ -22,7 +22,11 @@ export const poolsView = {
     // -parent (D161): build on a chosen entry instead of the selected tip.
     const parent = { name: 'parent', label: 'Parent', placeholder: 'an entry hash, root, or before-claim with a mint serial (default: the selected tip)' };
     return mountAll(root, 'Pools and payments', 'Look up mints and transactions, and build entries and layers.', [
-      panel(ctx, { title: 'Followed pools', about: 'Each followed pool: tip, height, weight, waiting and stored records (poo pools).', args: () => ['pools', ...where.flags()] }),
+      // poo pools prints a row for every pool: on the reserve series 380 KB
+      // and 500 drawn rows each time this view opened, before any form
+      // could be used. It runs when Show is pressed (GUI-GREEN-057), as
+      // the Node view's Each pool does (GUI-GREEN-056).
+      panel(ctx, { title: 'Followed pools', about: 'Each followed pool: tip, height, weight, waiting and stored records (poo pools). It runs when you press Show.', args: () => ['pools', ...where.flags()], start: false }),
       // poo unspent and poo tx replace the older holdings and payment
       // (Source GREEN-008): the same answers, with the pool, the height and
       // the decoded transaction, and no serial needed for a transaction.

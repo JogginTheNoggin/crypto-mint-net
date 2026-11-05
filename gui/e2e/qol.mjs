@@ -73,6 +73,8 @@ try {
   // With no node, the view shows one banner and each panel that needs a
   // node folds its error away, unchanged, behind "Show the error" (GREEN-011).
   const banner = page.locator('.node-banner:not([hidden])');
+  // The pool list runs when Show is pressed (GUI-GREEN-057).
+  await status.locator('.panel-head button', { hasText: 'Show' }).click();
   await banner.waitFor();
   await status.locator('details.no-node > summary').click();
   await status.locator('.next-step').waitFor();
