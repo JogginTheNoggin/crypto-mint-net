@@ -5124,3 +5124,46 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     extensions, and a ping at the same limit, are answered with no
     offence; a ping with its tags out of order ends the connection with
     no offence).
+
+### D191. Round 34 fixes: hello frames bounded and capped, queues bounded in bytes, import reads bounded (BLUE-035)
+
+- **Merged first:** Green's #277 (GREEN-059: the release line names a dev
+  build's commit, `-dry-run` notes an unfollowed pool, help text).
+  Orange's #276 (ORANGE-044, measurements and proposals) is docs only and
+  is not merged here.
+- **Decision:**
+  - **RED-100.** `wire.ReadFrame` grows its buffer as the bytes arrive
+    (64 KiB, doubling), so a declared size costs nothing until it is
+    sent. The hello is read under `wire.MaxHelloFrame` (3 MiB; D190's
+    longest hello is about 2.1 MiB), in `handshake` and in the self
+    check. Accepted connections still saying hello are counted
+    (`Host.helloing`), and while `MaxInbound` of them are, a new one is
+    closed at once. That is ORANGE-044 P1's count; the per-address
+    handshake cap is left for Grey, Black and White.
+  - **RED-103, in part.** Each inbox queue is bounded in bytes too
+    (`Config.QueueBytes`, default 32 MiB, so 128 MiB across the four),
+    besides 1024 messages; over either a new message is dropped, but an
+    empty queue always takes one, so no message is too large to handle
+    (ORANGE-044 P2's byte cap). A separate discovery frame limit is not
+    taken: D190 tests that a 2 MiB ping at the limits is answered with no
+    offence (`TestExtrasAtTheLimitsNoOffence`), so that is for Black and
+    White. ORANGE-044 P3 and P4 are left for Grey.
+  - **RED-101.** `decodeImport` reads through a counting reader that,
+    once the first item is read, stops at the batch bound's base64 length
+    plus 64 KiB, so a later item over 8 MiB is refused as it is read.
+  - **RED-102.** `readLedgerFile` takes only format 1's header keys, each
+    read under 4 KiB (`MaxLedgerHeaderValue`) and each once; `entries`
+    also once. Entries before the naming fields are spooled to a
+    temporary file one at a time and given after the header, so a file
+    whose keys a tool sorted still imports and is never held whole.
+- **Why:** memory a peer or a file can make the node hold must follow
+  what it sends and be bounded before it is read.
+- **Consensus:** None. Frame and queue limits and tool input checks. No
+  entry is refused by size; a message dropped from a full queue is asked
+  for again as before; every ledger is still accepted.
+- **Tier:** Wire, P2P, RPC, CLI.
+  - `pkg/wire/blue035_test.go`: `TestBlue035FrameMemoryFollowsBytes`.
+  - `pkg/p2p/blue035_test.go`: `TestBlue035HelloBoundAndCap`.
+  - `pkg/p2p/blue035_internal_test.go`: `TestBlue035InboxBoundInBytes`.
+  - `pkg/rpc/blue035_internal_test.go`: `TestBlue035ImportReadStops`.
+  - `pkg/cli/blue035_test.go`: `TestBlue035LedgerHeaderBounded`.

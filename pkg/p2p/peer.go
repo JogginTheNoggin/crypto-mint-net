@@ -325,9 +325,21 @@ func (h *Host) runConn(c net.Conn, outbound bool, addr string) error {
 	return h.runConnNotify(c, outbound, addr, nil)
 }
 
+// runInbound runs an accepted connection, counted among those still
+// saying hello until its handshake ends (RED-100).
+func (h *Host) runInbound(c net.Conn) {
+	h.runConnHello(c, false, c.RemoteAddr().String(), nil, func() { h.helloing.Add(-1) })
+}
+
 // runConnNotify runs a connection until it closes, reporting the hello's
 // outcome on ready if it is set.
 func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan error) error {
+	return h.runConnHello(c, outbound, addr, ready, nil)
+}
+
+// runConnHello is runConnNotify, calling helloDone, when set, as soon as
+// the handshake ends either way.
+func (h *Host) runConnHello(c net.Conn, outbound bool, addr string, ready chan error, helloDone func()) error {
 	var once sync.Once
 	notify := func(err error) {
 		once.Do(func() {
@@ -337,6 +349,9 @@ func (h *Host) runConnNotify(c net.Conn, outbound bool, addr string, ready chan 
 		})
 	}
 	p, err := h.handshake(c, outbound, addr)
+	if helloDone != nil {
+		helloDone()
+	}
 	if err != nil {
 		c.Close()
 		notify(err)
@@ -402,7 +417,7 @@ func (h *Host) handshake(c net.Conn, outbound bool, addr string) (*peer, error) 
 		werr <- wire.WriteFrame(c, wire.Message{Header: wire.Header{Type: wire.TypeHello}, Body: mine.Encode()})
 	}()
 	r := bufio.NewReader(c)
-	m, _, err := wire.ReadFrame(r, wire.MaxFrame)
+	m, _, err := wire.ReadFrame(r, wire.MaxHelloFrame)
 	if err != nil {
 		return nil, fmt.Errorf("hello: %w", err)
 	}

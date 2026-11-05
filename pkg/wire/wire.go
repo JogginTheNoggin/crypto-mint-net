@@ -43,6 +43,12 @@ const Version = 1
 // may be smaller.
 const MaxFrame = 16 << 20
 
+// MaxHelloFrame bounds the first frame of a connection, its hello: a
+// little over the largest hello the limits allow (about 2.2 MiB), so a
+// connection that has not said hello cannot declare a 16 MiB frame
+// (RED-100).
+const MaxHelloFrame = 3 << 20
+
 // ErrMalformed marks a message that does not decode, or whose header and
 // body do not agree. A peer that sends one is misbehaving.
 var ErrMalformed = errors.New("wire: malformed message")
@@ -223,12 +229,36 @@ func ReadFrame(r *bufio.Reader, max int) (Message, int, error) {
 	if size > max {
 		return Message{}, 0, fmt.Errorf("%w: frame of %d bytes exceeds %d", ErrMalformed, size, max)
 	}
-	b := make([]byte, size)
-	if _, err := io.ReadFull(r, b); err != nil {
+	b, err := readGrowing(r, size)
+	if err != nil {
 		return Message{}, 0, err
 	}
 	m, err := Decode(b)
 	return m, 4 + size, err
+}
+
+// firstRead is the most ReadFrame sets aside before bytes arrive.
+const firstRead = 64 << 10
+
+// readGrowing reads size bytes into a buffer that grows, doubling, as
+// they arrive, so what a frame costs follows what its sender sent rather
+// than the length it declared (RED-100). Growing by doubling copies at
+// most the frame's size once more.
+func readGrowing(r io.Reader, size int) ([]byte, error) {
+	b := make([]byte, 0, min(size, firstRead))
+	for len(b) < size {
+		if len(b) == cap(b) {
+			nb := make([]byte, len(b), min(size, 2*cap(b)))
+			copy(nb, b)
+			b = nb
+		}
+		n, err := io.ReadFull(r, b[len(b):cap(b)])
+		b = b[:len(b)+n]
+		if err != nil {
+			return nil, err
+		}
+	}
+	return b, nil
 }
 
 // Section is the mint policy section: issuer, series id, pool id and mint

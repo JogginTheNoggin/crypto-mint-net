@@ -378,7 +378,7 @@ func (h *Host) confirmSelf(parent context.Context, addr string) error {
 	// from another node, or a connection that closed (RED-090).
 	answer := make(chan error, 1)
 	go func() {
-		m, _, err := wire.ReadFrame(bufio.NewReader(c), wire.MaxFrame)
+		m, _, err := wire.ReadFrame(bufio.NewReader(c), wire.MaxHelloFrame)
 		if err == nil {
 			if theirs, derr := wire.DecodeHello(m.Body); m.Type == wire.TypeHello && derr == nil && theirs.NodeID != h.id {
 				err = errors.New("another node answered")
