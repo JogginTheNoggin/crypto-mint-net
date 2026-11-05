@@ -127,7 +127,9 @@ lowers the risk of users trusting it with value.
 ## Open questions for the owner
 
 1. Is `v0.1.0-alpha.1` the name you want, or plain `v0.1.0` labelled alpha?
-2. Which license (R1), and which new ports (R2)?
+2. Which new default ports (R2)? (The license, R1, is the owner's call
+   whenever the owner is ready; it is listed only because a public
+   release needs one.)
 3. Where should the first public registry live (R3)?
 4. Should the alpha network use the reserve default series, or a separate
    test series so nothing "real" starts during alpha? Choosing a series is
