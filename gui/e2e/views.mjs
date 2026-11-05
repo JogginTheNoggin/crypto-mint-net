@@ -261,8 +261,14 @@ try {
   await fill(lexp, 'From height', '1');
   assert.equal(await lexp.locator('.cmd code').innerText(), `poo ledger export -root ${home} -pool 0 -from 1`);
   await lexp.locator('button[type=submit]').click();
-  await lexp.locator('.result', { hasText: 'poo ledger' }).waitFor();
+  // The file is said in a line, with Save as file; poo's output is
+  // folded under Output as printed and drawn only when opened
+  // (GUI-GREEN-059).
+  await lexp.locator('.ledger-exported', { hasText: /^A ledger file of pool 0 (with no entries|: \d+ entr)/ }).waitFor();
   await lexp.locator('button', { hasText: 'Save as file' }).waitFor();
+  assert.equal(await lexp.locator('details.raw .result table, details.raw .result dl').count(), 0, 'the ledger is not drawn before Output as printed is opened');
+  await lexp.locator('details.raw summary').click();
+  await lexp.locator('details.raw .result', { hasText: 'poo ledger' }).waitFor();
   await fill(lexp, 'To a file', lfile);
   await lexp.locator('button[type=submit]').click();
   await lexp.locator('.result', { hasText: 'wrote 0 entries' }).waitFor();
@@ -272,6 +278,14 @@ try {
   page.once('dialog', d => d.accept());
   await limp.locator('button[type=submit]').click();
   await limp.locator('.ledger-imported', { hasText: /^Kept 0 entries and 0 layers; 0 entries and 0 layers were already known\.$/ }).waitFor();
+  assert.equal(await limp.locator('.ledger-import-partial').count(), 0, 'a finished import has no "did not finish" alert');
+  // An import that ends in an error says earlier batches may already be
+  // kept, since poo prints only the error (GUI-031).
+  await fill(limp, 'Ledger file', `${lfile}.missing`);
+  page.once('dialog', d => d.accept());
+  await limp.locator('button[type=submit]').click();
+  await limp.locator('.ledger-import-partial[role=alert]', { hasText: /^The import did not finish\. Parts of the file sent before it ended may already be kept/ }).waitFor();
+  assert.equal(await limp.locator('.ledger-imported').count(), 0);
   // A file picked in the browser goes to poo as its input (-).
   await limp.locator('input[type=file]').setInputFiles(lfile);
   assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} -`);
