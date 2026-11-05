@@ -5,6 +5,43 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 31 Part B reviewed main @ 55c5efa (PR #228):
+- the pool snapshot and replay lines on Followed pools (D178);
+- the `-reverify` box on Run the node, and the reverify-differed alert;
+- the totals table, which names the built-in reserve series (D179);
+- Each pool running only when Show is pressed, and the follow list's
+  pools drawn when opened (GUI-GREEN-056);
+- `parseJSON` reading big numbers from the reviver's source text
+  (R30B's hardening note);
+- "Nothing to apply" on a plan that changes nothing (R28B's note).
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass.
+
+There are no new findings.
+
+Held up:
+- **`parseJSON` no longer has a fixed sentinel.** Where the reviver gets
+  the number's source text (Chromium 114 on, and Node 22), only numbers
+  are changed: `"\u0000big:42"` and `"\u0000big:x"` now stay strings
+  next to a big amount, and nothing throws. The fallback, `parseMarked`,
+  uses a mark made for each call, and the same two strings stay strings
+  there too. `1.5e300` stays a number. The faster check, 16 digits after
+  a colon, bracket or comma, can't miss a JSON number, because JSON
+  allows nothing else before one.
+- **"Nothing to apply"** only changes the message. Apply still depends
+  on poo's digest: no digest, no Apply. So the GUI's own reading of
+  "changes nothing" can't offer an Apply that poo didn't pin.
+- **`-reverify`** is a flag on the node command the GUI starts, and the
+  Run in terminal line follows the box. The replay and reverify lines
+  draw poo's counts and reasons as text, and a pool that differed is an
+  alert that points to `poo doctor`.
+- **Snapshots** are the node's own files (pkg/node/snapshot.go). One is
+  used only if its checksum, pool, build and log tag all match, and
+  `-reverify` or `no_snapshots` replays the logs whole. Nothing from a
+  peer or an import reaches them. `snapshot_every` is a bounded limit
+  (1,000 to 2^30). The Source and Black reviews cover the rest.
+
 Round 30 Part B reviewed main @ 0ade046 (PR #216):
 - Followed pools refreshing on `poo status -counts` (D177, ORANGE-021);
 - the Each pool panel, which runs only when asked;
