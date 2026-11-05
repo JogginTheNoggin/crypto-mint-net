@@ -278,6 +278,23 @@ try {
     return seen;
   });
   assert.deepEqual(vt, [[500, 'Showing 500 of 1200 variable series. '], [1000, 'Showing 1000 of 1200 variable series. '], [1200, null], [3, null]], 'the Variable series table draws 500 rows a press');
+  // A long doctor detail shows its first 1,000 characters, and all of it
+  // while Show all is open (ORANGE-025); a short one is drawn as before.
+  const dd = await page.evaluate(async () => {
+    const { doctorReport } = await import('/views/node.js');
+    const long = 'series x: no witness ceiling; '.repeat(1000);
+    const rep = doctorReport({ checks: [{ name: 'ceiling', result: 'warn', detail: long }, { name: 'rpc', result: 'ok', detail: 'the node answers' }] }, {});
+    document.body.append(rep);
+    const li = rep.querySelectorAll('li');
+    const text = () => li[0].querySelector('.doctor-detail-cut').firstChild.data.length;
+    const more = li[0].querySelector('details.doctor-more');
+    const seen = [text(), more.querySelector('summary').textContent, li[1].querySelector('.doctor-more')];
+    more.open = true; await new Promise(r => setTimeout(r, 50)); seen.push(text());
+    more.open = false; await new Promise(r => setTimeout(r, 50)); seen.push(text());
+    rep.remove();
+    return [...seen, long.length];
+  });
+  assert.deepEqual(dd, [1001, 'Show all 30000 characters', null, 30000, 1001, 30000], 'a long doctor detail is cut at 1,000 characters with Show all');
   // parseJSON keeps a whole number above 2^53 exact, wherever it is, and
   // leaves digits inside strings and every smaller number alone
   // (GUI-GREEN-055).
