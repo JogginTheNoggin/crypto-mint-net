@@ -95,6 +95,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-020](ORANGE-020-output-as-printed-when-opened.md) | Draw "Output as printed" only when it is opened (Node view with 4,096 followed series: 60,970 → 28,887 elements; Variable series panel 0.45–1.0 s → 0.35–0.42 s) | small | yes | adopted |
 | [ORANGE-021](ORANGE-021-followed-pools-refresh-without-every-pool.md) | Let the Followed pools panel's 5 s refresh leave out the per-pool rows, with a `poo status` option (reserve series, 1,024 pools: 352 KB every 5 s, 5% busy, 150 ms pauses; 8,192 pools: 2.8 MB, 280 ms pauses, poo-gui 140 MB) | small | no | adopted (R30A, built on `poo status -counts`, D177) |
 | [ORANGE-022](ORANGE-022-parsejson-fast-path.md) | Let `parseJSON`'s fast path look for 16 digits only where a JSON number can start, so hex strings no longer send every answer through the slow scan (`poo status`, 1,024 pools: 7 → 1 ms; 4,096 followed series: 20 → 9 ms; 20,000 Watch events: 38 → 10 ms) | small | yes | adopted (R31A) |
+| [ORANGE-023](ORANGE-023-status-counts-after-an-upgrade.md) | Keep `poo status -counts` short after an upgrade: it lists every snapshot the start did not use, and a new build uses none (8,192 pools: 878 B → 1.3 MB every 5 s, poo-gui 31 → 69 MB until the next start); print a count and a few reasons, as `poo doctor` does | small | no | proposed (needs Source) |
 
 ### Re-checks each round
 
@@ -102,18 +103,18 @@ Each Part B runs every scenario again on Grey's new base, so a change that
 undoes an earlier gain shows up. Numbers are from a cloud container with
 Playwright Chromium, so compare them with each other, not with a laptop.
 
-| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) | Round 11 (4be2230) | Round 12 (c9c9e1f) | Round 13 (376e964) | Round 14 (3a7a39c) | Round 15 (55cf745) | Round 16 (6a1cdce) | Round 17 (052d032) | Round 18 (3804c55) | Round 19 (e71e317) | Round 20 (9628426) | Round 21 (4dc7d3d) | Round 22 (f4f7945) | Round 23 (2cacdd5) | Round 24 (2aceb1a) | Round 25 (88bd534) | Round 26 (eb74797) | Round 27 (b9fed52) | Round 28 (adcf216) | Round 29 (4e1c601) | Round 30 (0ade046) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms | 3.2 MB, 27.7k, 1, 40 MB, 50 ms | 3.1 MB, 27.7k, 1, 40 MB, 33 ms | 3.2 MB, 27.6k, 1, 42 MB, 50 ms | 3.2 MB, 27.6k, 1, 42 MB, 56 ms | 3.2 MB, 27.7k, 1, 42 MB, 57 ms | 3.2 MB, 27.7k, 1, 41 MB, 54 ms | 3.2 MB, 27.7k, 1, 40 MB, 37 ms | 3.2 MB, 27.7k, 1, 40 MB, 61 ms | 3.2 MB, 27.7k, 1, 39 MB, 51 ms | 3.3 MB, 27.7k, 1, 40 MB, 61 ms | 3.3 MB, 27.7k, 1, 41 MB, 71 ms | 3.5 MB, 27.7k, 1, 42 MB, 68 ms | 3.3 MB, 27.7k, 1, 40 MB, 66 ms | 3.3 MB, 27.6k, 1, 41 MB, 70 ms | 3.3 MB, 27.7k, 1, 40 MB, 51 ms | 3.5 MB, 27.7k, 1, 42 MB, 62 ms | 3.4 MB, 27.7k, 1, 43 MB, 67 ms | 3.4 MB, 27.6k, 1, 39 MB, 52 ms | 3.4 MB, 27.7k, 1, 40 MB, 69 ms | 3.4 MB, 27.7k, 1, 40 MB, 53 ms |
-| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests | 33 ms, 64 ms, 142 KB in 15 requests | 30 ms, 60 ms, 144 KB in 15 requests | 32 ms, 62 ms, 145 KB in 15 requests | 33 ms, 62 ms, 149 KB in 15 requests | 31 ms, 59 ms, 150 KB in 15 requests | 39 ms, 76 ms, 155 KB in 15 requests | 38 ms, 74 ms, 155 KB in 15 requests | 30 ms, 62 ms, 164 KB in 15 requests | 36 ms, 68 ms, 171 KB in 24 requests | 39 ms, 72 ms, 171 KB in 24 requests | 43 ms, 79 ms, 177 KB in 24 requests | 50 ms, 88 ms, 186 KB in 24 requests | 35 ms, 60 ms, 191 KB in 24 requests | 44 ms, 83 ms, 194 KB in 24 requests | 47 ms, 80 ms, 199 KB in 24 requests | 47 ms, 97 ms, 208 KB in 24 requests | 49 ms, 85 ms, 209 KB in 24 requests | 43 ms, 88 ms, 215 KB in 24 requests | 43 ms, 70 ms, 220 KB in 24 requests | 39 ms, 66 ms, 223 KB in 24 requests |
-| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 19% busy | 60 fps, 18% busy | 60 fps, 20% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 22% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 19% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 18% busy | 60 fps, 18% busy | 60 fps, 22% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 20% busy | 60 fps, 20% busy | 60 fps, 18% busy |
-| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s | 29 fps, 0.72 s | 32 fps, 0.67 s | 35 fps, 0.51 s | 30 fps, 0.67 s | 30 fps, 0.57 s | 32 fps, 0.68 s | 17 to 24 fps, 0.70 to 1.07 s | 31 fps, 0.71 s | 30 fps, 0.66 s | 31 fps, 0.57 s | 31 fps, 0.64 s | 27 fps, 0.69 s | 32 fps, 0.65 s | 29 fps, 0.58 s | 32 fps, 0.53 s | 32 fps, 0.67 s | 33 fps, 0.55 s | 33 fps, 0.67 s | 30 fps, 0.68 s | 34 fps, 0.53 s |
-| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s | 0.63 s | 0.65 s | 0.62 s | 0.70 s | 0.64 s | 0.63 s | 0.74 to 1.33 s | 0.85 s | 0.62 s | 0.80 s | 0.79 s | 0.81 s | 0.82 s | 0.74 s | 0.56 s | 0.57 s | 0.48 s | 0.55 s | 0.65 s | 0.54 s |
-| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat |
-| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 14% busy | 60 fps, 14% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 14% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 14% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 11% busy |
-| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms | 192 to 306 ms | 261 ms | 237 ms | 235 ms | 219 ms | 300 ms | 278 ms | 255 ms | 252 ms | 209 ms | 219 ms | 243 ms | 182 ms | 199 ms | 249 ms | 206 ms | 219 ms | 189 ms | 207 ms | 195 ms |
-| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms | 217 ms | 279 ms | 226 ms | 219 to 384 ms | 237 ms | 241 ms | 259 ms | 232 ms | 231 ms | 228 ms | 205 ms | 296 ms | 253 ms | 219 ms | 237 to 417 ms | 233 ms | 229 to 427 ms | 237 ms | 251 to 366 ms | 225 ms |
-| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 31% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 29% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 28% busy, 500 rows | 59 fps, 32% busy, 500 rows | 60 fps, 28% busy, 500 rows | 60 fps, 28% busy, 500 rows | 60 fps, 29% busy, 500 rows |
+| Scenario | Round 7 (b20bf8f) | Round 8 (a93ccb6) | Round 9 (6fae281) | Round 10 (4108866) | Round 11 (4be2230) | Round 12 (c9c9e1f) | Round 13 (376e964) | Round 14 (3a7a39c) | Round 15 (55cf745) | Round 16 (6a1cdce) | Round 17 (052d032) | Round 18 (3804c55) | Round 19 (e71e317) | Round 20 (9628426) | Round 21 (4dc7d3d) | Round 22 (f4f7945) | Round 23 (2cacdd5) | Round 24 (2aceb1a) | Round 25 (88bd534) | Round 26 (eb74797) | Round 27 (b9fed52) | Round 28 (adcf216) | Round 29 (4e1c601) | Round 30 (0ade046) | Round 31 (55c5efa) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 5-minute soak: heap, nodes, open streams, server RSS, slowest click | 3.1 MB, 27.6k, 1, 40 MB, 72 ms | 3.2 MB, 27.6k, 1, 40 MB, 36 ms | 3.1 MB, 27.7k, 1, 42 MB, 51 ms | 3.2 MB, 27.7k, 1, 41 MB, 134 ms | 3.2 MB, 27.7k, 1, 40 MB, 50 ms | 3.1 MB, 27.7k, 1, 40 MB, 33 ms | 3.2 MB, 27.6k, 1, 42 MB, 50 ms | 3.2 MB, 27.6k, 1, 42 MB, 56 ms | 3.2 MB, 27.7k, 1, 42 MB, 57 ms | 3.2 MB, 27.7k, 1, 41 MB, 54 ms | 3.2 MB, 27.7k, 1, 40 MB, 37 ms | 3.2 MB, 27.7k, 1, 40 MB, 61 ms | 3.2 MB, 27.7k, 1, 39 MB, 51 ms | 3.3 MB, 27.7k, 1, 40 MB, 61 ms | 3.3 MB, 27.7k, 1, 41 MB, 71 ms | 3.5 MB, 27.7k, 1, 42 MB, 68 ms | 3.3 MB, 27.7k, 1, 40 MB, 66 ms | 3.3 MB, 27.6k, 1, 41 MB, 70 ms | 3.3 MB, 27.7k, 1, 40 MB, 51 ms | 3.5 MB, 27.7k, 1, 42 MB, 62 ms | 3.4 MB, 27.7k, 1, 43 MB, 67 ms | 3.4 MB, 27.6k, 1, 39 MB, 52 ms | 3.4 MB, 27.7k, 1, 40 MB, 69 ms | 3.4 MB, 27.7k, 1, 40 MB, 53 ms | 3.4 MB, 27.7k, 1, 42 MB, 58 ms |
+| Page load: DOMContentLoaded, first view, bytes | not run | 30 ms, 58 ms, 136 KB in 15 requests | 29 ms, 56 ms, 140 KB in 15 requests | 39 ms, 75 ms, 141 KB in 15 requests | 33 ms, 64 ms, 142 KB in 15 requests | 30 ms, 60 ms, 144 KB in 15 requests | 32 ms, 62 ms, 145 KB in 15 requests | 33 ms, 62 ms, 149 KB in 15 requests | 31 ms, 59 ms, 150 KB in 15 requests | 39 ms, 76 ms, 155 KB in 15 requests | 38 ms, 74 ms, 155 KB in 15 requests | 30 ms, 62 ms, 164 KB in 15 requests | 36 ms, 68 ms, 171 KB in 24 requests | 39 ms, 72 ms, 171 KB in 24 requests | 43 ms, 79 ms, 177 KB in 24 requests | 50 ms, 88 ms, 186 KB in 24 requests | 35 ms, 60 ms, 191 KB in 24 requests | 44 ms, 83 ms, 194 KB in 24 requests | 47 ms, 80 ms, 199 KB in 24 requests | 47 ms, 97 ms, 208 KB in 24 requests | 49 ms, 85 ms, 209 KB in 24 requests | 43 ms, 88 ms, 215 KB in 24 requests | 43 ms, 70 ms, 220 KB in 24 requests | 39 ms, 66 ms, 223 KB in 24 requests | 47 ms, 83 ms, 230 KB in 24 requests |
+| Watch at 200 events/s | 60 fps, 19% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 19% busy | 60 fps, 18% busy | 60 fps, 20% busy | 60 fps, 20% busy | 60 fps, 21% busy | 60 fps, 22% busy | 60 fps, 19% busy | 60 fps, 20% busy | 60 fps, 19% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 18% busy | 60 fps, 18% busy | 60 fps, 22% busy | 60 fps, 21% busy | 60 fps, 21% busy | 60 fps, 20% busy | 60 fps, 20% busy | 60 fps, 18% busy | 60 fps, 20% busy |
+| Watch at full rate (20k events) | 32 fps, 0.55 s | 31 fps, 0.55 s | 32 fps, 0.65 s | 22 to 30 fps, 0.66 to 0.90 s | 29 fps, 0.72 s | 32 fps, 0.67 s | 35 fps, 0.51 s | 30 fps, 0.67 s | 30 fps, 0.57 s | 32 fps, 0.68 s | 17 to 24 fps, 0.70 to 1.07 s | 31 fps, 0.71 s | 30 fps, 0.66 s | 31 fps, 0.57 s | 31 fps, 0.64 s | 27 fps, 0.69 s | 32 fps, 0.65 s | 29 fps, 0.58 s | 32 fps, 0.53 s | 32 fps, 0.67 s | 33 fps, 0.55 s | 33 fps, 0.67 s | 30 fps, 0.68 s | 34 fps, 0.53 s | 29 fps, 0.65 s |
+| Terminal, `poo watch` (20k events) | 0.60 s | 0.59 s | 0.63 s | 0.55 to 0.78 s | 0.63 s | 0.65 s | 0.62 s | 0.70 s | 0.64 s | 0.63 s | 0.74 to 1.33 s | 0.85 s | 0.62 s | 0.80 s | 0.79 s | 0.81 s | 0.82 s | 0.74 s | 0.56 s | 0.57 s | 0.48 s | 0.55 s | 0.65 s | 0.54 s | 0.77 s |
+| Node log at 50 lines/s for 60 s | 2 to 6 ms answers, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 4% busy, flat | 4% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 5% busy, flat | 6% busy, flat |
+| Work at 200 lines/s | 60 fps, 12% busy | 60 fps, 11% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 14% busy | 60 fps, 14% busy | 60 fps, 13% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 14% busy | 60 fps, 12% busy | 60 fps, 12% busy | 60 fps, 14% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 12% busy | 60 fps, 13% busy | 60 fps, 11% busy | 60 fps, 14% busy |
+| A 1.5 MB JSON result shown | not recorded | 199 ms | 199 ms | 257 ms | 192 to 306 ms | 261 ms | 237 ms | 235 ms | 219 ms | 300 ms | 278 ms | 255 ms | 252 ms | 209 ms | 219 ms | 243 ms | 182 ms | 199 ms | 249 ms | 206 ms | 219 ms | 189 ms | 207 ms | 195 ms | 239 ms |
+| Reload a running watch (40k events) | 238 ms | 257 ms | 245 ms | 237 ms | 217 ms | 279 ms | 226 ms | 219 to 384 ms | 237 ms | 241 ms | 259 ms | 232 ms | 231 ms | 228 ms | 205 ms | 296 ms | 253 ms | 219 ms | 237 to 417 ms | 233 ms | 229 to 427 ms | 237 ms | 251 to 366 ms | 225 ms | 220 ms |
+| Work with a found layer on every line (a low layer floor), 2000 lines/s | not run | not run | 60 fps, 30% busy, found table held at 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 35% busy, 500 rows | 60 fps, 31% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 32% busy, 500 rows | 60 fps, 29% busy, 500 rows | 60 fps, 27% busy, 500 rows | 60 fps, 30% busy, 500 rows | 60 fps, 28% busy, 500 rows | 59 fps, 32% busy, 500 rows | 60 fps, 28% busy, 500 rows | 60 fps, 28% busy, 500 rows | 60 fps, 29% busy, 500 rows | 60 fps, 32% busy, 500 rows |
 
 Round 8 found nothing new to fix. The jump list, one job per form and
 the Schedule Remove guard did not show up in any measurement.
@@ -370,6 +371,45 @@ have such a run, so every long answer was scanned. Looking for the 16
 digits only where a JSON number can start brings `poo status` with 1,024
 pools from 7 ms back to 1 ms, as `JSON.parse`, and 20,000 Watch events
 from 38 ms to 10 ms. This is built here, and qol.mjs checks it.
+
+Round 31 measured GUI Grey's Part A: pool snapshots and `-reverify` on
+the Node view (D178), the named totals table (D179), GUI-GREEN-056 (Each
+pool runs on Show, the follow list folds its pools) and ORANGE-022 as
+adopted with source text access. Every row above held. Watch at full
+rate read 0.65 s and the terminal 0.77 s, inside the spread of earlier
+rounds. GitHub Actions was not running, so all ten e2e checks were run
+here on 55c5efa.
+
+- **The Node view on demand (GUI-GREEN-056):** on the reserve series,
+  the view now has 435 elements instead of 23,593 and settles in 0.37
+  to 0.40 s instead of 0.54 to 0.57 s, with no long tasks. Over 60 s it
+  is 1% busy and poo-gui holds 19 MB.
+- **At 4,096 series:** the view has 16,435 elements instead of 42,087,
+  and every table holds 500 rows. It settles in 1.80 to 1.87 s (1.64 to
+  1.75 s in Round 30), most of it the three answers of about 1 MB each.
+  Over 60 s it is 3% busy, with 8 or 9 long tasks a minute of 80 to
+  101 ms and 75 MB in poo-gui (Round 30: 4%, 12 of 84 to 103 ms, 81 to
+  85 MB).
+- **`parseJSON` with a number above 2^53:** source text access now
+  keeps such numbers exact through a reviver. The reviver runs on every
+  value, so an answer with one big number costs about 10 times
+  `JSON.parse`: 50,000 rows with big amounts take 84 to 94 ms against 8
+  to 15 ms, and the 12.8 MB peer book with one big number 131 to 152 ms
+  against 14 ms. The old marked-string scan cost about the same (102 to
+  153 ms), so nothing changed for the worse, and answers without such a
+  number take `JSON.parse`'s own time (ORANGE-022). Printing amounts as
+  decimal strings, the Source part of GUI-GREEN-055 that is queued,
+  would remove this cost too.
+- **Snapshots and `-reverify`:** the new notes are a few lines however
+  many pools there are, and the box adds one flag to `poo node`.
+
+The finding is ORANGE-023. `poo status` lists every snapshot a start did
+not use, and a snapshot from another build is never used, so after every
+upgrade the 5 s `-counts` answer carries one line per pool for the
+whole run: 167 KB at 1,024 pools and 1.3 MB at 8,192, where it is under
+1 KB after a normal start. The page stays at 1 to 2% busy because the
+rest is folded, but poo-gui holds 69 MB instead of 31 MB. The fix is for
+Source: a count and a few reasons, as `poo doctor` already prints.
 
 ## How to try the prototypes
 
