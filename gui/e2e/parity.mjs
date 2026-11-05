@@ -34,7 +34,6 @@ const LEFT_OUT = {
   'series new': { ...Object.fromEntries(['entry-hash-credit', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])) },
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
   keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)' },
-  'ledger import': { 'dry-run': 'new in Source R34 (D189); GUI form in GUI R34' },
   watch: { once: 'the Watch view reconnects by itself, as poo watch without -once does' },
   // poo lists the shared filter flags on every view command, but refuses
   // -kind outside poo watch ("-kind selects events and applies to poo
