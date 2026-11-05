@@ -4592,3 +4592,43 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Consensus:** None. Output only.
 - **Tier:** CLI. `pkg/cli/policyport_test.go`:
   `TestPolicyImportNoOpHasNoDigest`.
+
+### D181. Round 30 fixes: RED-087, RED-088 and RED-089 (BLUE-031)
+
+- **Decision:**
+  - **RED-087.** A snapshot's build id now names the release:
+    the program name, `snap<N>`, the version and the commit, then the
+    module version and VCS
+    revision when the binary records them. The cli package hands its
+    `Version` and `Commit` (set by `-X` in `scripts/release.sh`, which
+    builds with `-buildvcs=false`) to the node with `node.SetRelease` at
+    init. A dirty tree adds a hash of the executable, so two dirty builds
+    of one commit differ. `snapshotSemantics` (now 1) is bumped by hand in
+    the same commit as any change to what a pool is or what a snapshot
+    holds, even one that leaves the file format alone, as a second guard.
+  - **RED-088.** After `Engine.Restore` every start compares the restored
+    pool's fingerprint with the header's. On a difference the snapshot is
+    not used (`snapshots_unused` says why), and the log is replayed whole.
+    So every start is a differential of `Restore` against `Snapshot`.
+    With `-reverify` comparing a full replay with the same fingerprint,
+    the two together compare a replay with what the snapshot restores.
+    Under `-reverify`, a pool whose snapshot does not reach the end of the
+    log is listed in `reverify_not_compared`, and `poo doctor` warns,
+    never "ok". Red's other option, replaying up to the snapshot's offset,
+    is not built.
+  - **RED-089.** `<index>.log.snap.tmp` is removed when its log is
+    opened, whatever the policy, and counted in `snapshot_tmp_removed`;
+    `poo doctor`'s `snapshots` check names it.
+  - **GREEN-055 (#224) is carried:** it changes the same `-reverify` code.
+- **Why:** D178's guard against a pool an older build computed relied on
+  a build id that every release build shared, and its full check compared
+  against the writer, never the reader. A pool the new code would not
+  build from the log is nodes with the same information disagreeing, so
+  the guard has to hold for real.
+- **Consensus:** None. A snapshot is a cache of what the log builds; not
+  using one only costs a replay.
+- **Tier:** Node, CLI.
+  - `pkg/node/blue031_test.go`: `TestBuildIDNamesTheRelease`,
+    `TestSnapshotRestoreIsChecked` (fails without the check),
+    `TestReverifyBehindTheLogIsReported`, `TestSnapshotTmpRemoved`.
+  - `pkg/cli/blue031_test.go`: `TestSnapshotsCheckNotComparedAndTmp`.

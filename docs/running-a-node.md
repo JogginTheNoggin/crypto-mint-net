@@ -205,8 +205,9 @@ Each pool also keeps a snapshot beside its log (`<index>.log.snap`),
 written at a clean stop, after each compaction and every
 `snapshot_every` records (50,000 by default). A start restores it and
 replays only newer records, so it no longer re-checks the whole history.
-A damaged, stale or foreign snapshot is ignored and the log replayed as
-before; `poo status` and `poo doctor` show how old they are. To check
+A damaged, stale or foreign snapshot, one written by another release,
+or one that does not restore the pool it was written from is ignored and
+the log replayed as before; `poo status` and `poo doctor` show how old they are. To check
 everything once, start with `poo node -reverify`; to never use them, set
 `"no_snapshots": true` in node.json.
 

@@ -288,6 +288,12 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 		c.Result = checkWarn
 		c.Detail = fmt.Sprintf("-reverify found %d pool snapshots that differ from a full replay of their logs; the node runs on the replay", r.Differed)
 		c.Fix = "please report this as a bug, with poo version -v; the node keeps working, and the next stop writes snapshots from the replayed pools"
+	case len(r.NotCompared) > 0:
+		// -reverify was asked for and compared nothing for these pools;
+		// that is never "ok" (RED-088, D181).
+		c.Result = checkWarn
+		c.Detail = fmt.Sprintf("-reverify compared nothing for %d %s, whose snapshot does not reach the end of the log: %s", len(r.NotCompared), plural(len(r.NotCompared), "pool", "pools"), strings.Join(r.NotCompared, "; "))
+		c.Fix = "stop the node cleanly, which writes snapshots at the end of each log, then start it with -reverify again"
 	case s.Off:
 		c.Result = checkOK
 		c.Detail = "no_snapshots is on: every start replays the whole pool logs"
@@ -314,6 +320,9 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 		if r.Reverified > 0 {
 			c.Detail += fmt.Sprintf("; -reverify replayed %d %s whole at the last start and %s its snapshot", r.Reverified, plural(r.Reverified, "pool", "pools"), plural(r.Reverified, "it matched", "each matched"))
 		}
+	}
+	if r.TmpRemoved > 0 {
+		c.Detail += fmt.Sprintf("; %d temporary snapshot %s left by a crash %s removed at the last start", r.TmpRemoved, plural(r.TmpRemoved, "file", "files"), plural(r.TmpRemoved, "was", "were"))
 	}
 	return c
 }

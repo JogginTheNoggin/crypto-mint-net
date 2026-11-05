@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash"
@@ -75,28 +76,81 @@ var errDamaged = errors.New("node: a record of the pool log failed to read back;
 // errSnapshot wraps every reason a snapshot is not used.
 var errSnapshot = errors.New("snapshot not used")
 
-// buildID names the code that wrote a snapshot: the module version and,
-// when the binary records it, the commit, marked when the tree was
-// modified. A snapshot from another build is not used.
+// snapshotSemantics is bumped by hand in the same commit as any change to
+// what a pool is or what a snapshot of it holds (a selection or tie rule,
+// the state after a new kind of transaction, a field of the skeleton,
+// Snapshot or Restore), even one that leaves the file format alone. It is
+// part of buildID, so such a change retires every snapshot written before
+// it, whatever the build is called (RED-087, D181).
+const snapshotSemantics = 1
+
+// release is the version and commit the command line was built as, set
+// by SetRelease (cli sets them by -X, which a release build uses, since it
+// records no VCS information).
+var release struct{ version, commit string }
+
+// SetRelease names the release this binary is, for buildID. The cli
+// package calls it at init with its Version and Commit (RED-087, D181).
+func SetRelease(version, commit string) { release.version, release.commit = version, commit }
+
+// buildID names the code that wrote a snapshot: the release version and
+// commit (set by -X in a release build), the module version and VCS
+// revision when the binary records them, a hash of the executable when
+// its tree was modified (so two dirty builds of one commit differ), and
+// snapshotSemantics. A snapshot from another build is not used, so an
+// upgrade replays once (D178, RED-087).
 var buildID = sync.OnceValue(func() string {
-	id := "poo"
+	return makeBuildID(release.version, release.commit, executableHash)
+})
+
+func makeBuildID(version, commit string, exe func() string) string {
+	id := fmt.Sprintf("poo snap%d", snapshotSemantics)
+	if version != "" {
+		id += " " + version
+	}
+	if commit != "" {
+		id += " " + commit
+	}
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return id
 	}
-	id += " " + bi.Main.Version
+	if v := bi.Main.Version; v != "" && v != "(devel)" {
+		id += " " + v
+	}
 	for _, s := range bi.Settings {
 		switch s.Key {
 		case "vcs.revision":
-			id += " " + s.Value
+			if s.Value != commit {
+				id += " " + s.Value
+			}
 		case "vcs.modified":
 			if s.Value == "true" {
-				id += "+modified"
+				id += "+modified " + exe()
 			}
 		}
 	}
 	return id
-})
+}
+
+// executableHash is a short SHA-256 of this executable's file, or "" when
+// it cannot be read.
+func executableHash() string {
+	p, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil)[:8])
+}
 
 // snapHeader is what a snapshot says about itself.
 type snapHeader struct {
@@ -570,6 +624,14 @@ func (n *Node) loadSnapshot(k engine.PoolKey, b *poolBodies) (*restored, error) 
 			err = readErr
 		}
 		return fail(err)
+	}
+	// The restored pool must be the pool the snapshot was written from:
+	// every start is a differential of Restore against Snapshot, so a pair
+	// that does not round-trip is caught and the log replayed whole
+	// (RED-088, D181). It costs one pass over what the pool holds.
+	if fp, err := n.eng.Fingerprint(k); err != nil || fp != h.print {
+		n.eng.Forget(k)
+		return fail(fmt.Errorf("%w: the restored pool differs from the one it was written from", errSnapshot))
 	}
 	out := &restored{header: h, bytes: info.Size()}
 	for {

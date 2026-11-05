@@ -134,6 +134,13 @@ type ReplayStats struct {
 	// built a different pool than the snapshot held. Differed should be 0.
 	Reverified int `json:"reverified,omitempty"`
 	Differed   int `json:"reverify_differed,omitempty"`
+	// NotCompared lists, under -reverify, the pools whose snapshot does
+	// not reach the end of the log (records came after it, or a crash cut
+	// it short), so nothing was compared for them (RED-088, D181).
+	NotCompared []string `json:"reverify_not_compared,omitempty"`
+	// TmpRemoved counts the snapshot temporary files a crash left, removed
+	// when their logs were opened (RED-089, D181).
+	TmpRemoved int `json:"snapshot_tmp_removed,omitempty"`
 }
 
 // Open opens the node in dir. The directory must hold a node.json.
@@ -376,6 +383,12 @@ func (n *Node) loadPool(k engine.PoolKey) error {
 	var check *snapHeader // under -reverify, the snapshot to compare
 	from := store.From{Ready: func(ol *store.Log) (int64, int, error) {
 		b = n.openBodies(k, ol)
+		// A temporary snapshot becomes one only by its rename, so one
+		// left by a crash is never wanted, whatever the policy (RED-089).
+		if err := os.Remove(n.snapPath(k) + ".tmp"); err == nil {
+			n.replay.TmpRemoved++
+			n.logger().Info("removed a pool snapshot's temporary file left by a crash", "pool", k.String())
+		}
 		if !n.snapshotsOn() {
 			return 0, 0, nil
 		}
@@ -434,6 +447,10 @@ func (n *Node) loadPool(k engine.PoolKey) error {
 	}
 	ss := n.snap(k)
 	ss.since = l.Records() - ss.records
+	if check != nil && (check.off != l.Size() || check.records != l.Records()) {
+		n.replay.NotCompared = append(n.replay.NotCompared, fmt.Sprintf("%s: the snapshot covers %d of the log's %d records", k, check.records, l.Records()))
+		n.logger().Warn("-reverify compared nothing for this pool: its snapshot does not reach the end of the log", "pool", k.String(), "snapshot_records", check.records, "log_records", l.Records())
+	}
 	if check != nil && check.off == l.Size() && check.records == l.Records() {
 		n.replay.Reverified++
 		if fp, err := n.eng.Fingerprint(k); err != nil || fp != check.print {
