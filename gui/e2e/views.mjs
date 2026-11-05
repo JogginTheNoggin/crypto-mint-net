@@ -139,14 +139,14 @@ try {
   const pmv = await page.evaluate(async () => {
     const m = await import(new URL('views/node.js', location.href).href);
     const t = pm => m.statusNotes({ port_map: pm }).filter(p => p.classList.contains('port-map')).map(p => [p.getAttribute('role'), p.textContent]);
-    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:7337', advertised: '198.51.100.4:7337', lease_seconds: 3600 }), t({ mode: 'auto', state: 'unconfirmed', method: 'pcp', external: '198.51.100.4:7337', error: 'dial timed out' })];
+    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:7733', advertised: '198.51.100.4:7733', lease_seconds: 3600 }), t({ mode: 'auto', state: 'unconfirmed', method: 'pcp', external: '198.51.100.4:7733', error: 'dial timed out' })];
   });
   assert.deepEqual(pmv[0], []);
   assert.deepEqual(pmv[1], [['alert', 'Port mapping (auto): failed. no gateway answered.']]);
-  assert.deepEqual(pmv[2], [[null, 'Port mapping (upnp): advertised via upnp, the router reports 198.51.100.4:7337, offered to peers as 198.51.100.4:7337, lease 1 hour.']]);
+  assert.deepEqual(pmv[2], [[null, 'Port mapping (upnp): advertised via upnp, the router reports 198.51.100.4:7733, offered to peers as 198.51.100.4:7733, lease 1 hour.']]);
   // Unconfirmed (mapped, the dial back did not arrive, removed) leaves
   // peers unable to reach the node too, so it is an alert (GUI/Red R31B).
-  assert.deepEqual(pmv[3], [['alert', 'Port mapping (auto): unconfirmed via pcp, the router reports 198.51.100.4:7337. dial timed out.']]);
+  assert.deepEqual(pmv[3], [['alert', 'Port mapping (auto): unconfirmed via pcp, the router reports 198.51.100.4:7733. dial timed out.']]);
   assert.deepEqual(rv[1], [[null, 'Checked every record again: the full replay of all 3 pools matched their snapshots.']]);
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
@@ -261,8 +261,14 @@ try {
   await fill(lexp, 'From height', '1');
   assert.equal(await lexp.locator('.cmd code').innerText(), `poo ledger export -root ${home} -pool 0 -from 1`);
   await lexp.locator('button[type=submit]').click();
-  await lexp.locator('.result', { hasText: 'poo ledger' }).waitFor();
+  // The file is said in a line, with Save as file; poo's output is
+  // folded under Output as printed and drawn only when opened
+  // (GUI-GREEN-059).
+  await lexp.locator('.ledger-exported', { hasText: /^A ledger file of pool 0 (with no entries|: \d+ entr)/ }).waitFor();
   await lexp.locator('button', { hasText: 'Save as file' }).waitFor();
+  assert.equal(await lexp.locator('details.raw .result table, details.raw .result dl').count(), 0, 'the ledger is not drawn before Output as printed is opened');
+  await lexp.locator('details.raw summary').click();
+  await lexp.locator('details.raw .result', { hasText: 'poo ledger' }).waitFor();
   await fill(lexp, 'To a file', lfile);
   await lexp.locator('button[type=submit]').click();
   await lexp.locator('.result', { hasText: 'wrote 0 entries' }).waitFor();
@@ -272,6 +278,14 @@ try {
   page.once('dialog', d => d.accept());
   await limp.locator('button[type=submit]').click();
   await limp.locator('.ledger-imported', { hasText: /^Kept 0 entries and 0 layers; 0 entries and 0 layers were already known\.$/ }).waitFor();
+  assert.equal(await limp.locator('.ledger-import-partial').count(), 0, 'a finished import has no "did not finish" alert');
+  // An import that ends in an error says earlier batches may already be
+  // kept, since poo prints only the error (GUI-031).
+  await fill(limp, 'Ledger file', `${lfile}.missing`);
+  page.once('dialog', d => d.accept());
+  await limp.locator('button[type=submit]').click();
+  await limp.locator('.ledger-import-partial[role=alert]', { hasText: /^The import did not finish\. Parts of the file sent before it ended may already be kept/ }).waitFor();
+  assert.equal(await limp.locator('.ledger-imported').count(), 0);
   // A file picked in the browser goes to poo as its input (-).
   await limp.locator('input[type=file]').setInputFiles(lfile);
   assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} -`);
@@ -321,6 +335,15 @@ try {
   await section('Peers').locator('.run-status').first().waitFor();
   // The timed panel leaves the book out (ORANGE-017); Find peers prints it.
   assert.equal(await section('Peers').locator('.cmd code').first().innerText(), `poo peers -root ${home} -counts`);
+  // Claimed releases (D186, GUI White S3): "" is "not shared", and a
+  // peer's release is said to be its own claim.
+  const rn = await page.evaluate(async () => {
+    const m = await import(new URL('views/peers.js', location.href).href);
+    return [m.releaseNotes({ counts: { releases: { '': 2, '0.1.0-alpha.1': 3 } } }), m.releaseNotes({ peers: [{ addr: 'a', release: '0.1.0-alpha.1' }], counts: {} }), m.releaseNotes({ peers: [], counts: {} })].map(xs => xs.map(p => p.textContent));
+  });
+  assert.deepEqual(rn[0], ['Releases the connected peers claim: v0.1.0-alpha.1: 3 peers; not shared: 2 peers. Each is the peer\'s own claim.']);
+  assert.match(rn[1][0], /its own claim, never checked/);
+  assert.deepEqual(rn[2], []);
   // The peer book by hand, its filters, and peer export and import (D157).
   const addPeer = section('Add, remove, label or connect a peer');
   await fill(addPeer, 'Peer address', '1.0.0.9:7000');

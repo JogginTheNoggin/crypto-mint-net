@@ -167,13 +167,13 @@ try {
   await act.locator('select[name=action]').selectOption('block');
   assert.deepEqual(await visible(), ['Action', 'Peer address', 'Seconds', 'Whole range']);
   await act.locator('input[name=range]').check();
-  await act.locator('input[name=addr]').fill('203.0.113.5:7337');
-  assert.equal(await act.locator('.cmd code').innerText(), 'poo peer block -range 203.0.113.5:7337');
+  await act.locator('input[name=addr]').fill('203.0.113.5:7733');
+  assert.equal(await act.locator('.cmd code').innerText(), 'poo peer block -range 203.0.113.5:7733');
   await act.locator('select[name=action]').selectOption('unblock');
   assert.deepEqual(await visible(), ['Action', 'Peer address']);
   // Hidden means not drawn, not only marked (GREEN-032).
   assert.ok(!(await act.locator('input[name=seconds]').isVisible()), 'a hidden flag is not drawn');
-  assert.equal(await act.locator('.cmd code').innerText(), 'poo peer unblock 203.0.113.5:7337');
+  assert.equal(await act.locator('.cmd code').innerText(), 'poo peer unblock 203.0.113.5:7733');
   await act.locator('select[name=action]').selectOption('clear');
   assert.deepEqual(await visible(), ['Action', 'Peer address', 'Clear']);
 
@@ -300,6 +300,16 @@ try {
     return [...seen, long.length];
   });
   assert.deepEqual(dd, [1001, 'Show all 30000 characters', null, 30000, 1001, 30000], 'a long doctor detail is cut at 1,000 characters with Show all');
+  // A result whose output poo-gui dropped in part says so and loses its
+  // Save as file, which would write a file with a gap (ORANGE-026).
+  const inc = await page.evaluate(async () => {
+    const { incomplete, el } = await import('/views.js');
+    const { saveAs } = await import('/views/policies.js');
+    const area = el('div', {}, el('div', { class: 'result' }, '{}'), saveAs('{}', 'x.json'));
+    incomplete(area);
+    return [area.querySelectorAll('.save-as').length, area.firstChild.className, /dropped/.test(area.firstChild.textContent)];
+  });
+  assert.deepEqual(inc, [0, 'next-step output-dropped', true], 'a result with dropped output has no Save as file and says why');
   // parseJSON keeps a whole number above 2^53 exact, wherever it is, and
   // leaves digits inside strings and every smaller number alone
   // (GUI-GREEN-055).
@@ -324,6 +334,17 @@ try {
     return [parseJSON, parseMarked].map(f => { try { const v = f(text); return [typeof v.s, v.s.length, typeof v.t, typeof v.n, String(v.n)]; } catch (e) { return `threw: ${e.message}`; } });
   });
   assert.deepEqual(pj3, [['string', 7, 'string', 'bigint', '9007199254740993'], ['string', 7, 'string', 'bigint', '9007199254740993']], 'a string is never read as a number');
+  // A ledger export is offered to save only as one whole ledger file:
+  // cut at either end, short of its own from..to, or another kind of
+  // file, it is not (GUI-GREEN-059).
+  const ls = await page.evaluate(async () => {
+    const { ledgerSummary } = await import('/views/pools.js');
+    const entry = h => `{"height":${h},"hash":"${'a'.repeat(64)}","item":"AAAA"}`;
+    const file = (from, to, n, kind = 'poo ledger') => `{\n  "kind": "${kind}",\n  "format": 1,\n  "pool": 3,\n  "from": ${from},\n  "to": ${to},\n  "height": 9,\n  "entries":[${Array.from({ length: n }, (_, i) => '\n    ' + entry(from + i)).join(',')}\n  ]\n}\n`;
+    const whole = file(2, 4, 3);
+    return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poo settings')), ledgerSummary('wrote 3 entries to x')];
+  });
+  assert.deepEqual(ls, ['A ledger file of pool 3: 3 entries, heights 2 to 4 of 9.', 'A ledger file of pool 3: 1 entry, heights 1 to 1 of 9.', 'A ledger file of pool 3 with no entries: the selected ledger\'s height is 9.', null, null, null, null, null]);
   // The Followed series table names the reserve series by poo's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).
