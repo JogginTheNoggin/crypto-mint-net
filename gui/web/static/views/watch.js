@@ -3,7 +3,7 @@
 // filter is only turned into flags here; poo applies it (pkg/filter).
 import * as api from '../api.js';
 import { el, choices, cmdLine, panel, form, flag, mountAll } from '../views.js';
-import { render } from '../render.js';
+import { parseJSON, render } from '../render.js';
 import * as where from '../where.js';
 
 const KINDS = ['tx', 'entry', 'layer', 'selected', 'reverted', 'switch', 'dropped', 'grind'];
@@ -191,7 +191,8 @@ function buildWatch(ctx) {
   const lineIn = text => {
     if (!text.trim()) return;
     let ev;
-    try { ev = JSON.parse(text); } catch (_) { errAppend(text + '\n'); return; }
+    // An amount above 2^53 stays exact (GUI-GREEN-055).
+    try { ev = parseJSON(text); } catch (_) { errAppend(text + '\n'); return; }
     if (!paused) { add(ev); return; }
     held.push(ev);
     if (held.length > MAX_EVENTS) { held.shift(); heldDropped++; pauseBtn.textContent = `Resume (${heldDropped} dropped)`; }

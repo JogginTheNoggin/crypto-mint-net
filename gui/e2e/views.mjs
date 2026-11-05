@@ -50,8 +50,28 @@ try {
     await page.waitForTimeout(250);
   }
   await shot('node');
+  // The 5 s refresh asks poo for totals per series (-counts, D177): one
+  // row for the example's series with its 2 pools, no row per pool.
+  assert.match(await pools.locator('.cmd code').innerText(), /^poo status -counts /);
+  assert.doesNotMatch(await pools.innerText(), /"pools": \[/, 'no pool rows in the timed panel');
+  // Each pool runs the full poo status, only when shown or asked.
+  const each = section('Each pool');
+  assert.match(await each.locator('.cmd code').innerText(), /^poo status -root /);
+  for (let i = 0; !(await each.locator('table.data, dl.kv').count()); i++) {
+    assert.ok(i < 40, 'Each pool never rendered');
+    await each.locator('button:has-text("Refresh")').click();
+    await page.waitForTimeout(250);
+  }
   // The entry cache line comes from poo status's bodies (D172).
-  await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\)/ }).waitFor();
+  await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\).*older ones \(outside recent_window\)/ }).waitFor();
+  // A partial status reply (only max_bytes) is drawn with "?" for what
+  // is missing, not thrown on, so the lines after it still draw (GUI/Red
+  // R29B).
+  const partial = await page.evaluate(async () => {
+    const m = await import(new URL('views/node.js', location.href).href);
+    try { return m.statusNotes({ bodies: { max_bytes: 64 * 1048576 } }).map(p => p.textContent); } catch (e) { return `threw: ${e.message}`; }
+  });
+  assert.deepEqual(partial, ['Entry cache: ? of 64 MiB (entry_cache_mib), ? bodies; ? hits, ? read from disk. ? of ? entries are in memory.'], 'a partial reply is drawn, not thrown on');
   assert.equal(await pools.locator('.file-limit-low').count(), 0, 'no file limit alert when the limit is high enough');
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
@@ -482,6 +502,16 @@ try {
   const penv = { env: { ...process.env, POO_HOME: home } };
   const issuer = JSON.parse(String(spawnSync(bin, ['poo', 'keygen', '-seed', vseed], penv).stdout)).address;
   const sn = section('New series parameters');
+  // A whole number above 2^53 is shown digit for digit, as poo printed
+  // it: JSON.parse alone would show 100000000000000000 (GUI-GREEN-055).
+  await sn.locator('input[name=mints]').fill('32');
+  await sn.locator('input[name=poolSize]').fill('32');
+  await sn.locator('input[name=supply]').fill('100000000000000001');
+  await sn.locator('button[type=submit]').click();
+  await sn.locator('.run-status.ok').waitFor();
+  assert.equal(await sn.locator('.result dl.kv dt:text-is("supply") + dd').innerText(), '100000000000000001');
+  await sn.locator('input[name=poolSize]').fill('');
+  await sn.locator('input[name=supply]').fill('');
   assert.ok(!(await sn.locator('input[name=partSize]').isVisible()), 'Part size is for a variable series only');
   await sn.locator('input[name=mints]').fill('8');
   await sn.locator('input[name=issuer]').fill(issuer);

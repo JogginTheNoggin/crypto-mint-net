@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open: waiting on Source (a plan warning in pkg/nodepolicy), then the GUI line |
+| Status | fixed as a warning (Source RED-083 / D171 `unbounded`; GUI/Blue Round 28C/29A `plan-unbounded`; Apply stays, per jerry), merged; verified by GUI/Red R29B @ 4e1c601 |
 | Found on | main @ adcf216 (PR #193, D170: `-any-ceiling`, `series_ceiling`, declined series in import plans) |
 | Component | pkg/nodepolicy/bundle.go (`mergeInto`: a file's series is checked only by `DeclinesSeries`, and `series_ceiling` is 0, off, by default); pkg/cli/crypto.go (`checkCeiling`, used by `series new` and `init -series` only); gui/web/static/views/policies.js (`showPlan`: an added series is one `+ series` row) |
 | Surface | node (the series a node follows, from a policy file someone else made) |
-| Fixed by | (Source: the plan names the series; then GUI/Blue: a Read first line) |
+| Fixed by | Source: `Plan.Unbounded` / `CeilingWarning` (D171); GUI/Blue: the `plan-unbounded` Read first line in policies.js `showPlan` |
 
 ## Summary
 
@@ -125,3 +125,27 @@ changes the GUI-023 tests in views.mjs, which pin Apply's digest on an
 unchanged file ("already the same"). Grey can decide, and poo's JSON
 could carry what its text already does (no digest when nothing
 changes).
+
+## Notes — Round 29B verification (held up, as a warning)
+
+I checked this with poo and Playwright on 4e1c601, using the same imp.json
+(r25's series, `max_witness: 0`).
+
+- **Merge into a default policy** (`series_ceiling` 0). poo prints
+  "warning: series 61d1cc6c: the series sets no witness ceiling: one
+  witness can take seconds and hundreds of MB to check". The GUI puts it
+  in a "Read first: the import adds or follows more of N series with no
+  witness ceiling …" alert above the table. I saw that alert on the
+  Replace preview, and views.mjs checks it on a merge. Apply stays, which is
+  jerry's call.
+- **With `series_ceiling` set** (now settable: `policy limits -set
+  series_ceiling=1024`), the merge declines the series and says how to
+  change that. Nothing is added.
+- **Replace** ignores `series_ceiling`. It adds the series and keeps a
+  repeated one twice, though the unbounded warning still shows. Filed
+  as GUI-030.
+- A series already listed that the import starts to use only through
+  `issuers.accept` (the `now_used` alert) is not in `unbounded`, because
+  `Merge` checks series that are new or whose follow changed. That's a
+  narrow case, since the series was already in the node's own list.
+  Noted for Source, not filed.
