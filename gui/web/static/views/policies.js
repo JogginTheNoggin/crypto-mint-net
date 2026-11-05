@@ -130,6 +130,9 @@ export function importForm(ctx, spec) {
   // prints one object, not a list of node policies).
   const show = spec.show || showPlan;
   const digestOf = spec.digest || (o => (o[0] || {}).digest);
+  // Whether poo's plan changes nothing: poo then prints no digest, as
+  // there is nothing to apply (Source R30, GUI/Red R28B).
+  const changesNothing = spec.changesNothing || planChangesNothing;
   // A file picked in the browser goes to poo on its standard input:
   // FILE is -, and the job is sent the file's text, then end of input,
   // as typing it and Ctrl-D would. poo reads and checks it (D149).
@@ -155,11 +158,13 @@ export function importForm(ctx, spec) {
     const { args, file } = previewing || { args: last, file: picker.get() };
     show(r, area);
     if (r.code !== 0) return;
-    let digest = '';
-    try { digest = digestOf(JSON.parse(r.out)) || ''; } catch (_) { /* no plan */ }
+    let digest = '', nothing = false;
+    try { const o = JSON.parse(r.out); digest = digestOf(o) || ''; nothing = changesNothing(o); } catch (_) { /* no plan */ }
     // Apply is pinned to the previewed file, or not offered: without a
-    // digest from the preview it would run unpinned (GUI/Red R20B).
+    // digest from the preview it would run unpinned (GUI/Red R20B). A
+    // plan that changes nothing has no digest and nothing to apply.
     if (!/^[0-9a-f]{64}$/.test(digest)) {
+      if (nothing) { area.append(el('p', { class: 'hint nothing-to-apply' }, 'Nothing to apply: the file changes nothing here.')); return; }
       area.append(el('p', { class: 'run-status bad no-digest', role: 'alert' }, 'Apply is not offered: the preview printed no digest to pin it to the file previewed.'));
       return;
     }
@@ -235,6 +240,16 @@ export function allOf(xs) {
   // Drawn when opened, so a closed list costs nothing.
   d.addEventListener('toggle', () => { if (d.open && d.childNodes.length === 1) d.append(el('p', {}, xs.join(', '))); });
   return d;
+}
+
+// planChangesNothing says whether every node policy's plan in poo policy
+// import -json (or settings import) adds, removes and changes nothing and
+// makes no new policy, as poo printed it.
+function planChangesNothing(list) {
+  return Array.isArray(list) && list.length > 0 && list.every(t => {
+    const p = (t && t.plan) || {};
+    return !p.new && ['added', 'removed', 'changed', 'conflicts'].every(k => !(p[k] || []).length);
+  });
 }
 
 // showPlan draws poo policy import -json: one table per node policy, a row
