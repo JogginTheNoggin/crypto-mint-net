@@ -16,9 +16,14 @@ function el(tag, cls, text) {
 // Such a number is read as a BigInt instead, which render prints digit
 // for digit; every other value is JSON.parse's own (GUI-GREEN-055).
 const BIG = '\u0000big:';
+const NUMBER16 = /(?:^|[:[,])\s*-?\d{16}/;
 export function parseJSON(text) {
-  // Fast path: a number above 2^53 has at least 16 digits.
-  if (!/\d{16}/.test(text)) return JSON.parse(text);
+  // Fast path: a number above 2^53 has at least 16 digits, and a JSON
+  // number starts the text or follows a colon, bracket or comma. Any 16
+  // digits would not do: poo's hashes and keys are hex strings with such
+  // runs, so nearly every long answer took the slow path below, at 3 to
+  // 4 times JSON.parse (ORANGE-022).
+  if (!NUMBER16.test(text)) return JSON.parse(text);
   let out = '', last = 0, big = false;
   for (let i = 0; i < text.length;) {
     const c = text[i];
