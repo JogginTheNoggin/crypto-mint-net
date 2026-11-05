@@ -7,7 +7,7 @@
 | Found | Source Round 32 Part B, on `main` @ `6260590` (D184, W-1) |
 | Area | `pkg/nodepolicy/bundle.go` (`Merge`, `mergeInto`), `pkg/rpc/policyimport.go`, `pkg/cli/policyport.go` |
 | For Black | Not a rule. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-033) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 290702d (BLUE-033) |
 
 ## What is wrong
 

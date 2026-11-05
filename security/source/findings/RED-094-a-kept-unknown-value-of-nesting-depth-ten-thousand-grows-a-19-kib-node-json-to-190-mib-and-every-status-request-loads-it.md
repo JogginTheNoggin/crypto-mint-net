@@ -7,7 +7,7 @@
 | Found | Source Round 32 Part B, on `main` @ `6260590` (D184, W-1) |
 | Area | `pkg/nodepolicy/nodepolicy.go` (`Save`), `pkg/nodepolicy/unknown.go`, `pkg/rpc/rpc.go` (`status`) |
 | For Black | Not a rule. |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-033) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 290702d (BLUE-033) |
 
 ## What is wrong
 

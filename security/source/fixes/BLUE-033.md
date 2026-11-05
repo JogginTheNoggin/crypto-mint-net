@@ -5,6 +5,7 @@
 | Fixes | RED-093 (medium), RED-094 (medium), RED-095 (low), RED-096 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `6260590` (Source Round 32 Part C), with ORANGE-042 (#249) and GREEN-057 (#247) merged in |
+| Code | `290702d` |
 | Decisions | D185 |
 | With | ORANGE-042 (PR #249), carried: the one-pass insert that RED-095 asks for. GREEN-057 (PR #247), carried: doctor's unknown-settings checks, now with the folded keys. GUI ORANGE-024 (#248), taken: the variable series set grown in place. |
 | Review | No consensus change. For Black: node.json is node policy. For White: settings over the keeping limits are lost on a save by this release, and the start warning names them (D185). |
