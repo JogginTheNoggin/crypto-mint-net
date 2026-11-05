@@ -41,14 +41,14 @@ Verdict: **clear with notes**
 - Line 4/6: the ledger export and import forms run `poo ledger export` and
   `poo ledger import`. The file is poo's, with its own `kind` and
   `format` fields (`pkg/cli/ledgerport.go`), so its compatibility belongs
-  to Source White. The GUI only saves what poo printed and reads `kept`,
+  to Source White. The GUI only saves what the command printed and reads `kept`,
   `known`, `refused` and `switched` from the reply, defaulting each
   missing count to 0.
 - Line 5: the e2e samples are on the new default ports (7336 local, 7337
   peers, D187). Nothing in `gui/web/static` hard-codes a port, and the
   GUI follows `rpc.addr` through `pkg/cli`.
 - Note: the ledger form keeps its "Save as file" check to "output starts
-  with `{`". That's fine while poo prints JSON. If `format` ever rises,
+  with `{`". That's fine while the command prints JSON. If `format` ever rises,
   the GUI still saves the bytes unchanged, which is what we want.
 
 ### #260 GUI Red R33B (GUI-031)
