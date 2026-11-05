@@ -36,6 +36,12 @@ try {
   assert.equal(await init.locator('.cmd code').innerText(), `poo init -root ${home} -example -listen 127.0.0.1:0 -p2p off -no-series -any-ceiling`);
   await init.locator('input[name=noSeries]').uncheck();
   await init.locator('input[name=anyCeiling]').uncheck();
+  // Port mapping is opt-in (D182): off by default, -port-map once chosen,
+  // with the privacy cost said beside it.
+  await init.locator('select[name=portMap]').selectOption('auto');
+  assert.match(await init.locator('.cmd code').innerText(), / -p2p off -port-map auto$/);
+  assert.match(await init.innerText(), /peers learn this network's public IP address/);
+  await init.locator('select[name=portMap]').selectOption('');
   assert.equal(await init.locator('.cmd code').innerText(), `poo init -root ${home} -example -listen 127.0.0.1:0 -p2p off`);
   await init.locator('button[type=submit]').click();
   await init.locator('.result', { hasText: '1 series' }).waitFor();
@@ -110,6 +116,16 @@ try {
   });
   assert.equal(rv[0][0][0], 'alert');
   assert.match(rv[0][0][1], /1 of 3 pools built a different pool/);
+  // The port mapping line (D182): a failure is an alert with poo's error;
+  // off draws nothing.
+  const pmv = await page.evaluate(async () => {
+    const m = await import(new URL('views/node.js', location.href).href);
+    const t = pm => m.statusNotes({ port_map: pm }).filter(p => p.classList.contains('port-map')).map(p => [p.getAttribute('role'), p.textContent]);
+    return [t({ mode: 'off', state: 'off' }), t({ mode: 'auto', state: 'failed', error: 'no gateway answered' }), t({ mode: 'upnp', state: 'advertised', method: 'upnp', external: '198.51.100.4:8646', advertised: '198.51.100.4:8646', lease_seconds: 3600 })];
+  });
+  assert.deepEqual(pmv[0], []);
+  assert.deepEqual(pmv[1], [['alert', 'Port mapping (auto): failed. no gateway answered.']]);
+  assert.deepEqual(pmv[2], [[null, 'Port mapping (upnp): advertised via upnp, the router reports 198.51.100.4:8646, offered to peers as 198.51.100.4:8646, lease 1 hour.']]);
   assert.deepEqual(rv[1], [[null, 'Checked every record again: the full replay of all 3 pools matched their snapshots.']]);
   // Followed series: one row for the worked example's series, which is
   // not built into poo, so it has no name (GUI-GREEN-054).
