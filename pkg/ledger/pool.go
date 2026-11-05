@@ -86,7 +86,10 @@ type node struct {
 	undo     state.Undo
 	// nitems counts the entry's transactions and claims the mints it
 	// claims, kept when a cold entry drops its items (D175).
-	nitems  int
+	nitems int
+	// nspent counts the distinct transactions the entry's inputs spend
+	// from: a cold revert reads at most one body for each (RED-086, D177).
+	nspent  int
 	claims  []uint64
 	cold    bool
 	seq     uint64
@@ -446,7 +449,7 @@ func (p *Pool) AddEntry(e *entry.Entry) (AddResult, error) {
 
 	p.seq++
 	n := &node{
-		hash: h, entry: e, items: stItems, parent: parent, undo: undo, nitems: len(stItems),
+		hash: h, entry: e, items: stItems, parent: parent, undo: undo, nitems: len(stItems), nspent: spentFrom(stItems),
 		layers: map[hash.Hash]layer.Layer{}, seq: p.seq, seen: p.cfg.Clock(),
 	}
 	for _, it := range stItems {
@@ -612,8 +615,23 @@ func (p *Pool) viewCost(n *node, limit int) int {
 	return cost + p.units[len(p.chain)] - p.units[anchor]
 }
 
-// unitsOf is the view cost of reverting or applying one entry.
-func unitsOf(n *node) int { return 1 + n.nitems }
+// unitsOf is the view cost of reverting or applying one entry: one for
+// the entry, one for each transaction, and one for each distinct
+// transaction its inputs spend from. A cold entry's revert recomputes its
+// undo by reading each such maker's body, so a transaction with many
+// inputs from many older entries costs what it reads (RED-086, D177).
+func unitsOf(n *node) int { return 1 + n.nitems + n.nspent }
+
+// spentFrom counts the distinct transactions that items' inputs spend.
+func spentFrom(items []state.Item) int {
+	seen := map[hash.Hash]struct{}{}
+	for _, it := range items {
+		for _, in := range it.Tx.Inputs {
+			seen[in.TID] = struct{}{}
+		}
+	}
+	return len(seen)
+}
 
 func toStateItems(items []entry.Item) []state.Item {
 	out := make([]state.Item, len(items))
