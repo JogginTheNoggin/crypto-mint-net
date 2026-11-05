@@ -78,11 +78,11 @@ func ledgerExportCmd(args []string, out io.Writer) error {
 	if fs.NArg() != 0 {
 		return errors.New("poo ledger export takes flags only")
 	}
-	// Pool 0 is a pool like any other: -pool is needed, not non-zero
-	// (GREEN-058).
-	poolGiven := false
-	fs.Visit(func(f *flag.Flag) { poolGiven = poolGiven || f.Name == "pool" })
-	if !poolGiven {
+	// Pools are numbered from 0, so ask whether -pool was given rather
+	// than whether it is 0.
+	gotPool := false
+	fs.Visit(func(f *flag.Flag) { gotPool = gotPool || f.Name == "pool" })
+	if !gotPool {
 		return errors.New("poo ledger export needs -pool")
 	}
 	if *from < 1 || (*to != 0 && *to < *from) {
@@ -109,7 +109,7 @@ func ledgerExportCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if *file != "" {
-		fmt.Fprintf(out, "wrote %d %s to %s\n", n, plural(n, "entry", "entries"), *file)
+		fmt.Fprintf(out, "wrote %d entries to %s\n", n, *file)
 	}
 	return nil
 }
@@ -162,11 +162,9 @@ func writeLedgerFile(dst io.Writer, cl *rpc.Client, sid *hash.Hash, pool uint64,
 		return 0, err
 	}
 	// A start past the tip would write an empty file whose header says
-	// from 5 to 1; say so instead (GREEN-058).
-	if from > page.Height {
-		if page.Height == 0 {
-			return 0, fmt.Errorf("pool %d has no selected entries yet, so there is nothing to export", pool)
-		}
+	// from 5 to 1; say so instead (GREEN-058). A pool with no selected
+	// entry still exports as an empty file.
+	if page.Height > 0 && from > page.Height {
 		return 0, fmt.Errorf("-from %d is past the tip: pool %d's selected ledger is %d high", from, pool, page.Height)
 	}
 	last := to
