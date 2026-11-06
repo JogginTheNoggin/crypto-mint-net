@@ -592,3 +592,35 @@ export function mountAll(root, title, intro, parts) {
   for (const p of parts) root.append(p.el);
   return () => parts.forEach(p => p.stop());
 }
+
+// TABLE_ROWS is how many rows a long table draws at first, and then on
+// each press of Show more. A node can follow up to 4,096 series
+// (pkg/p2p): drawn whole, 4,096 rows were 32,800 elements and doubled the
+// time the Node view took to open (ORANGE-019). Like render.js's tables,
+// 500 show at first.
+const TABLE_ROWS = 500;
+
+// rowsTable draws a list of rows ROWS at a time with Show more, as the
+// Variable series, Followed series and Bounty panels do (ORANGE-019).
+export function rowsTable(vs, cells, { headers, cls, more: moreCls, noun }) {
+  const body = el('tbody');
+  let shown = 0;
+  const more = () => {
+    const part = document.createDocumentFragment();
+    for (const end = Math.min(vs.length, shown + TABLE_ROWS); shown < end; shown++) part.append(el('tr', {}, ...cells(vs[shown]).map(c => el('td', {}, c))));
+    body.append(part);
+  };
+  more();
+  const wrap = el('div', { class: 'table-wrap' }, el('table', { class: `data ${cls}` },
+    el('thead', {}, el('tr', {}, ...headers.map(h => el('th', {}, h)))), body));
+  if (shown < vs.length) {
+    const text = document.createTextNode('');
+    const btn = el('button', { type: 'button' }, 'Show more');
+    const note = el('p', { class: `hint ${moreCls}` }, text, btn);
+    const label = () => { text.textContent = `Showing ${shown} of ${vs.length} ${noun}. `; };
+    label();
+    btn.onclick = () => { more(); if (shown < vs.length) label(); else note.remove(); };
+    wrap.append(note);
+  }
+  return wrap;
+}
