@@ -4,7 +4,7 @@
 // market is off until node.json's bounty section turns it on, which the
 // GUI does not edit.
 import * as where from '../where.js';
-import { el, flag, form, mountAll, panel, rawFold } from '../views.js';
+import { el, flag, form, mountAll, panel, rawFold, needsNode } from '../views.js';
 import { render } from '../render.js';
 import { walletFile } from './wallet.js';
 
@@ -18,12 +18,13 @@ export function marketNote(o) {
   return el('p', { class: 'hint bounty-on', role: 'status' }, `This node ${o.post ? 'posts offers' : 'does not post offers'} and ${o.take ? 'takes offers from peers' : 'does not take offers from peers'}.`);
 }
 
-// offNote is the step under poo's refusal when the market is off ("the
-// bounty market is off: set bounty.post or bounty.take in node.json"):
-// the GUI does not edit node.json, so it says where and how.
+// offNote is a fixed line under any refusal of bounty list (other than
+// no node answering): poo's own error stays above it, and the line says
+// how the market is turned on if that is what poo said. It never reads
+// poo's error text (GUI White S5); the GUI does not edit node.json.
 export function offNote(r) {
-  if (r.code === 0 || !/the bounty market is off/.test(r.err)) return null;
-  return el('p', { class: 'next-step bounty-off', role: 'status' }, 'The market is off until the node policy file (node.json, in the policy\'s folder) has a bounty section: "post": true to pay peers for layers, which also needs "max_amount" and "budget"; "take": true to grind for peers. Restart the node after the change. docs/running-a-node.md has an example.');
+  if (r.code === 0 || needsNode(r)) return null;
+  return el('p', { class: 'next-step bounty-off', role: 'status' }, 'If poo says the market is off: it stays off until the node policy file (node.json, in the policy\'s folder) has a bounty section: "post": true to pay peers for layers, which also needs "max_amount" and "budget"; "take": true to grind for peers. Restart the node after the change. docs/running-a-node.md has an example.');
 }
 
 // unpaid counts a posted offer's accepted claims with no payment yet.

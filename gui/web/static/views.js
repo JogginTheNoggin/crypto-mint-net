@@ -354,8 +354,11 @@ const NO_NODE = /is the node running\?/;
 // answering, and shows the view's one banner while any panel is in that
 // state (GREEN-011). It decides nothing: the panel's own result, error
 // text and next step stay, one click away, exactly as poo printed them.
+// needsNode says a command failed only because no node answered.
+export const needsNode = r => r.code !== 0 && NO_NODE.test(r.err) && !r.out.trim();
+
 function noNode(sec, area, r) {
-  const down = r.code !== 0 && NO_NODE.test(r.err) && !r.out.trim();
+  const down = needsNode(r);
   if (down) sec.dataset.noNode = '1'; else delete sec.dataset.noNode;
   const res = area.querySelector(':scope > .result');
   if (down && res) {

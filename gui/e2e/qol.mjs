@@ -518,14 +518,14 @@ try {
     held: [{ id: id3, from: '9'.repeat(64), offer, received: '2026-11-06T13:39:37Z' }] }, (k, v) => acts.push(`${k}:${v.id[0]}`)));
     for (const b of box.querySelectorAll('button')) b.click();
     return { text: [...box.querySelectorAll('h3, .bounty-on, .bounty-owed')].map(e => e.textContent), unpaid: [...box.querySelectorAll('.bounty-mine tbody tr')].map(r => r.children[7].textContent), acts,
-      off: [offNote({ code: 1, out: '', err: 'poo: the bounty market is off: set bounty.post or bounty.take in node.json\n' }) !== null, offNote({ code: 1, out: '', err: 'poo: rpc: is the node running?' }), offNote({ code: 0, out: '{}', err: '' })],
+      off: [offNote({ code: 1, out: '', err: 'poo: the bounty market is off: set bounty.post or bounty.take in node.json\n' }) !== null, offNote({ code: 1, out: '', err: 'poo: some other refusal' }) !== null, offNote({ code: 1, out: '', err: 'poo: rpc: is the node running?' }), offNote({ code: 0, out: '{}', err: '' })],
       pay: payNote({ offer: id1, nonce: 8, pay_to: 'f'.repeat(64), amount: 10, told: true }).textContent,
       work: [workNote({ found: true, strength: 19, tried: 1048576, outcome: 'accepted' }).textContent, workNote({ found: false, tried: 5 }).textContent] };
   });
   assert.deepEqual(bm.text, ['This node posts offers and takes offers from peers.', 'Your offers (2)', '1 accepted claim waits to be paid: the node kept the layer, and pays only when you press Pay (no auto-pay in phase 1).', 'Offers from peers (1)']);
   assert.deepEqual(bm.unpaid, ['1', '0']);
   assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'cancel:b', 'work:c']);
-  assert.deepEqual(bm.off, [true, null, null], 'only poo\'s market-off refusal gets the steps to turn it on');
+  assert.deepEqual(bm.off, [true, true, null, null], 'any refusal but no node gets the fixed line; poo\'s error text is never read (S5)');
   assert.equal(bm.pay, 'Paid 10 to ffffffffff…ffffff for the layer with nonce 8; the grinder was told.');
   assert.deepEqual(bm.work, ['Found a layer of strength 19 in 1048576 tries; the payer answered: accepted. The payer pays when it presses Pay; the payment goes to the address you gave.', 'No layer found in 5 tries before the lease or the time ran out; work the offer again for a new lease.']);
   // The Followed series table names the reserve series by poo's builtin
