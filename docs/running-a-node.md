@@ -350,6 +350,7 @@ the pool that holds it), and the grinder finds, works and claims it:
 # on the grinder: ask peers for offers, then work one
 ./poo wallet create                     # once, if it has no wallet yet
 ./poo wallet address                    # a fresh address to be paid to
+./poo grind bench                       # minute_strength: what this machine finds in about a minute
 ./poo policy limits -set bounty.max_strength=30   # optional: the strongest offer this machine works
 ./poo bounty list -ask
 ./poo bounty work OFFER_ID -to ADDRESS
@@ -363,6 +364,12 @@ the pool that holds it), and the grinder finds, works and claims it:
 ./poo wallet watch -tid TID
 ./poo wallet balance
 ```
+
+To choose `bounty.max_strength`, start from `minute_strength` in `poo
+grind bench` for the series' hash: each bit more doubles the time, so
+two above it is about four minutes on average. Offers above the setting
+are not kept, and `-max-strength` cannot go above it (the error says how
+to raise it).
 
 A grinder works an offer alone for the length of its lease (about three
 times the expected time at its rate). The payout address is fixed when

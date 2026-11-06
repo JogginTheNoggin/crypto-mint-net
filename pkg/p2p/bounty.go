@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,6 +49,26 @@ var ErrNoBounty = errors.New("the bounty market is off: poo policy limits -set b
 // posts: it keeps no peer's offer, so the answers would be dropped
 // (GREEN-062).
 var ErrNoTake = fmt.Errorf("%w: this node does not take peers' offers; poo policy limits -set bounty.take=on turns it on", bounty.ErrOff)
+
+// NotReceived is the error for an offer id this node does not hold. It
+// names what this node's settings leave out, since an offer the payer
+// sent but this node dropped (over bounty.max_strength, or under
+// bounty.min_price) is otherwise indistinguishable from a mistyped id
+// (GREEN-064).
+func NotReceived(c bounty.Config) error {
+	msg := "no offer with that id was received; poo bounty list -ask asks peers for theirs"
+	var left []string
+	if c.MaxStrength > 0 {
+		left = append(left, fmt.Sprintf("offers over bounty.max_strength %d", c.MaxStrength))
+	}
+	if c.MinPrice > 0 {
+		left = append(left, fmt.Sprintf("offers paying under bounty.min_price %d a layer", c.MinPrice))
+	}
+	if len(left) > 0 {
+		msg += " (this node does not keep " + strings.Join(left, " or ") + ")"
+	}
+	return errors.New(msg)
+}
 
 // ErrPayerGone is a take or claim whose payer is not connected.
 var ErrPayerGone = errors.New("the peer that sent the offer is not connected")
@@ -199,8 +220,12 @@ func (h *Host) AskBounties(series hash.Hash, maxStrength uint8) (int, error) {
 	if !h.cfg.Bounty.Config().Take {
 		return 0, ErrNoTake
 	}
-	if maxStrength == 0 {
-		maxStrength = h.cfg.Bounty.Config().MaxStrength
+	if own := h.cfg.Bounty.Config().MaxStrength; maxStrength == 0 {
+		maxStrength = own
+	} else if own > 0 && maxStrength > own {
+		// The answers above own would be dropped as they arrive (Receive),
+		// so asking for them only wastes the payers' lists (GREEN-064).
+		return 0, fmt.Errorf("-max-strength %d is over this node's bounty.max_strength %d, and offers above that are not kept; poo policy limits -set bounty.max_strength=%d raises it", maxStrength, own, maxStrength)
 	}
 	n := 0
 	for _, p := range h.bountyPeers() {
@@ -226,7 +251,7 @@ func (h *Host) TakeBounty(ctx context.Context, id hash.Hash, rate uint64, payTo 
 	}
 	held, ok := b.HeldOffer(id)
 	if !ok {
-		return bounty.Grant{}, errors.New("no offer with that id was received; poo bounty list -ask asks peers for theirs")
+		return bounty.Grant{}, NotReceived(b.Config())
 	}
 	if maxStrength == 0 {
 		maxStrength = b.Config().MaxStrength

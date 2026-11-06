@@ -44,7 +44,12 @@ The package has two parts:
    version 1), and a payer lists and leases only offers at or under it,
    so a payer with offers of many strengths gives each to a grinder that
    says it can work it; a fast machine states a higher one. A grinder
-   also drops peers' offers above its own setting (D202).
+   also drops peers' offers above its own setting (D202), so
+   `-max-strength` above the setting is refused with the command that
+   raises it, `poo bounty list -max-strength S` lists only offers at or
+   under S, and working an id the node never kept says which setting
+   left it out. `poo grind bench` gives `minute_strength`, the strength
+   found in about a minute, to start the setting from (GREEN-064).
    `poo bounty work ID -to ADDR` measures this node's rate,
    asks the payer for a lease, grinds from a random nonce (so two
    grinders, or two calls, find different layers; RED-109) until it finds a layer, the lease

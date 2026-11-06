@@ -89,6 +89,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-061](source/GREEN-061-bounty-offer-finds-its-pool.md) | Source | A bounty offer goes to the pool that holds its entry; a pool that does not hold it is refused | proposed |
 | [GREEN-062](source/GREEN-062-bounty-on-with-limits.md) | Source | Turning the bounty market on with poo policy limits -set: on/off values, notes when posting cannot work, errors that name the command | proposed |
 | [GREEN-063](source/GREEN-063-bounty-done-and-watch-tid.md) | Source | A bounty from post to paid and through a restart: poo bounty list -done N, poo wallet watch -tid | proposed |
+| [GREEN-064](source/GREEN-064-max-strength-flow.md) | Source | A fast and a slow grinder against offers of several strengths: -max-strength over the setting refused, dropped offers explained, list filtered, minute_strength in grind bench | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |

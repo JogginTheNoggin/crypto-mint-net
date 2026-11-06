@@ -290,7 +290,7 @@ func (h *Handler) bountyWork(w http.ResponseWriter, r *http.Request) {
 	}
 	held, ok := b.HeldOffer(req.ID)
 	if !ok {
-		writeError(w, badRequest("no offer with that id was received; poo bounty list -ask asks peers for theirs"))
+		writeError(w, badRequest("%s", p2p.NotReceived(b.Config())))
 		return
 	}
 	s, ok := h.n.Engine().Series(held.Offer.Series)
