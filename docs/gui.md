@@ -145,7 +145,7 @@ with a button that runs it in the terminal.
 | Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poo` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job (one schedule change at a time: Remove, Add and Set are off while one runs and until the table is read again), `grind schedule add` and `grind schedule set` (device, threads, layer floor and rate). It keeps running when you switch views, and a reload takes a running job up again with its Stop |
 | Explore | `pools`, `ledger` (page by page), `pending`, `unspent`, `tx`, `address`, with the same filter flags |
 | Pools and payments | `status`, `holdings`, `payment`, `build` (with `-parent`), `claim -parent` (a rival claim to grind; the seed in the masked field), `work` (with `-bytes`), `submit` (hex or `-f`) |
-| Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create` |
+| Wallet | `wallet balance`, `addresses`, `address`, `pay`, `request`, `receive`, `status`, `watch`, `claim`, `create`, and `sign` for cold keys (D193) |
 | Peers | `peers -counts` (the timed panel), `peers` (and its filters), `peer ACTION` (with `add`, `remove`, `label`, `connect`), `tracking` (`-blocked`, `-timed-out`), `chases`, `peers export` and `peers import` (a preview, then Apply with `-if-digest`) |
 | Node policies | `settings export`, `settings import` (the same preview and Apply), `policy list`, `use`, `archive`, `unarchive`, `delete`, `policy export` (printed, with Save as file, or `-out`), `policy import` (a preview of the plan, defences first, with `-settings` and `-full`; then Apply with `-if-digest`; a path or a file picked in the browser, sent as `-`), `policy limits` (each settable limit's range, default and value) and Set limits (`-set NAME=VALUE`) |
 | Series and keys | `crypto`, `keygen`, `series new` (with `-max-witness` and `-any-ceiling`; fixed, or variable with `-issuer`, `-part-size` and `-max-parts`; Save as file), `series info`, `series sign` (`-alg`), `series parts`, `series release` (a part, permanent, `-alg`; or `-check` a release file) |
@@ -199,7 +199,9 @@ changed the matching strings in `gui/` (`views/pools.js` and two e2e checks) in 
 same commit, so that no commit had the GUI and the node disagree. GUI Grey
 accepted it after the fact (GUI White R34D, note N1). A later rename of a
 string the GUI reads should go to GUI Grey as a finding, landing in the
-same round, rather than as a Source patch to `gui/`.
+same round, rather than as a Source patch to `gui/`. Source R35A (#284,
+D192) did the same for the `-reserve` to `-default-series` rename and the
+`sign` entries in the e2e checks; GUI Grey accepted that too.
 
 ### The terminal's grammar
 
