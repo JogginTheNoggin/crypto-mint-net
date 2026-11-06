@@ -5928,3 +5928,43 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     `TestOpenCLPlanGrinds`, `TestMatchOpenCL`.
   - `pkg/grind/main_test.go`: tests list GPUs without the driver, so they
     pass the same with or without a GPU.
+
+### D209. Round 41 fixes: the GPU grinder's driver failure moves to every CPU core and stops quickly, OpenCL loaded safely on Windows, a reload keeps the node id (BLUE-042)
+
+- **Merged first:** Green's #372 (GREEN-066: `OpenCLStatus`, `POON_OPENCL`
+  off for `off`, `0`, `false`, `no` in any case, the `opencl` field in
+  `poon grind devices` and `doctor`). Orange's #373 (ORANGE-051) is docs
+  only; its P2 (entry building over more workers) is for Grey.
+- **Decision:**
+  - **RED-124.** `layer.SearchContext` is a search that sees the grind's
+    context, with `GrindSearchContext`, `engine.Grind.SearchContext` and
+    `Grinder.SearchContext`; plans carry it. The GPU grinder uses it.
+    After a driver error, the range is searched by `parallelSearch` on
+    `runtime.NumCPU` goroutines with the CPU's fast search where one is
+    registered (SIMD lanes), each looking at the context every 2^16
+    nonces, with the same result. Later ranges stay on the CPU for
+    `retryGPU` (a minute), then the GPU is tried again. The error is
+    logged once (`slog` warning) and `OpenCLStatus` names the device and
+    error while it lasts, which `poon grind devices` shows.
+  - **RED-125.** `POON_OPENCL_ALL` is on for `1`, `true`, `yes` or `on`, in
+    any case (Green #372 did the off values of `POON_OPENCL`). A driver
+    that crashes or hangs inside a call is not handled: probing it in a
+    child process is a design change, left for Grey.
+  - **RED-126.** `p2p.Config.ID` sets the node id; `daemon.Run` draws one
+    for the process and passes it to every reload, so held offers,
+    leases and records by id survive a reload. Moving a held offer to a
+    new sender and matching leases by address (Red's other ideas) are not
+    needed for a reload, and a restart still draws a new id (an id is not
+    an identity, RED-114).
+  - **RED-127.** On Windows, `OpenCL.dll` is loaded with
+    `LoadLibraryEx(LOAD_LIBRARY_SEARCH_SYSTEM32)`.
+- **Why:** a failed driver must cost speed, not the node's stop or its
+  cores; a switch must read as written; a reload must not cost a grinder
+  its lease; a DLL beside the program must not run.
+- **Consensus:** None.
+- **Tier:** Grind, layer, engine, p2p, daemon.
+  - `pkg/grind/blue042_test.go`: `TestBlue042DriverFailureFallsBack`,
+    `TestBlue042ParallelSearch`, `TestBlue042OpenCLAllValues`.
+  - `pkg/daemon/blue042_test.go`: `TestBlue042ReloadKeepsNodeID`.
+  - The OpenCL tests pass on PoCL (`POON_OPENCL_ALL=1`) through the new
+    search; no GPU was used.

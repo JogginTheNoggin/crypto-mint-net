@@ -68,16 +68,26 @@ and Windows, amd64 and arm64.
 - **Entries** are ground on the CPU with every core but one
   (`engine.Grind.EntryWorkers`), so `poon build` is no slower on a machine
   with a GPU.
-- **Failures.** If the driver fails mid-search, that range and every later
-  one are searched on the CPU instead, with the same result.
+- **Failures.** If the driver fails mid-search, that range is searched on
+  the CPU instead, with the same result: on every core, with the CPU's
+  own fast search where there is one, looking at the context every 2^16
+  nonces, so a stop does not wait for the GPU's chunk
+  (`layer.SearchContext`, `engine.Grind.SearchContext`). Later ranges stay
+  on the CPU for a minute, then the GPU is tried again. The error is
+  logged once and `OpenCLStatus` names the device and the error while it
+  lasts (RED-124, D209).
 - **Status.** `OpenCLStatus` says in one line how many OpenCL devices
   were found, or why none (turned off, no library, no driver, no GPU
   listed). `poon grind devices` prints it as `opencl` (the node's when it
   answers), and `poon doctor`'s grind line adds it when no GPU grinds, so
   a machine whose GPU is not listed at all still says why (GREEN-066).
-- `$POON_OPENCL=off` (or `0`, `false`, `no`, in any case) turns it off. `$POON_OPENCL_ALL=1` also takes OpenCL
+- `$POON_OPENCL=off` (or `0`, `false`, `no`, in any case) turns it off. `$POON_OPENCL_ALL=1` (or `true`, `yes`, `on`; RED-125) also takes OpenCL
   devices that are not GPUs, such as PoCL on a CPU, which is how the tests
   run on a machine with no GPU.
+- On Windows `OpenCL.dll` is loaded from System32 only, never from the
+  program's folder (RED-127, D209).
+- A driver that crashes or hangs inside a call is not caught: Go cannot
+  recover a fault in foreign code. `POON_OPENCL=off` keeps it away.
 
 Registering a grinder for kind `gpu` (or any other) makes devices used,
 with no other change. When two probes find the same id (the system's list and a grinder's

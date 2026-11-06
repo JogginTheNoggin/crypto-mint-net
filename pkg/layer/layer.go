@@ -163,6 +163,13 @@ func GrindWithKeep(ctx context.Context, newHasher hash.NewHasher, entry hash.Has
 // SIMD lanes (ORANGE-012), searches a range rather than hashing one try.
 type Search func(entry hash.Hash, from, n uint64) (nonce uint64, strength int)
 
+// SearchContext is a Search that also sees the grind's context, for a
+// search whose range takes long enough that a stop should not wait for
+// it (a GPU's chunk searched on the CPU after a driver error, RED-124).
+// When ctx ends it may return early, with the strongest layer found so
+// far in the part it searched.
+type SearchContext func(ctx context.Context, entry hash.Hash, from, n uint64) (nonce uint64, strength int)
+
 // GrindSearch is GrindWith with a Search, which each worker calls on
 // ranges of checkEvery nonces.
 func GrindSearch(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64) (Layer, int, error) {
@@ -180,10 +187,15 @@ func GrindSearchKeep(ctx context.Context, search Search, entry hash.Hash, start,
 // to tried once a chunk, and keep sees the strongest layer of each chunk.
 // The result is the same whatever the chunk.
 func GrindSearchChunk(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, chunk uint64) (Layer, int, error) {
+	return GrindSearchContext(ctx, func(_ context.Context, e hash.Hash, from, n uint64) (uint64, int) { return search(e, from, n) }, entry, start, tries, workers, tried, keep, chunk)
+}
+
+// GrindSearchContext is GrindSearchChunk with a SearchContext.
+func GrindSearchContext(ctx context.Context, search SearchContext, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, chunk uint64) (Layer, int, error) {
 	if chunk == 0 {
 		chunk = checkEvery
 	}
-	return grindChunk(ctx, entry, start, tries, workers, tried, keep, chunk, func() (Search, error) { return search, nil })
+	return grindChunkCtx(ctx, entry, start, tries, workers, tried, keep, chunk, func() (SearchContext, error) { return search, nil })
 }
 
 // grind splits the nonces between workers, each searching its own range
@@ -194,6 +206,17 @@ func grind(ctx context.Context, entry hash.Hash, start, tries uint64, workers in
 
 // grindChunk is grind with ranges of chunk nonces.
 func grindChunk(ctx context.Context, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, chunkSize uint64, newSearch func() (Search, error)) (Layer, int, error) {
+	return grindChunkCtx(ctx, entry, start, tries, workers, tried, keep, chunkSize, func() (SearchContext, error) {
+		s, err := newSearch()
+		if err != nil {
+			return nil, err
+		}
+		return func(_ context.Context, e hash.Hash, from, n uint64) (uint64, int) { return s(e, from, n) }, nil
+	})
+}
+
+// grindChunkCtx is grindChunk with a SearchContext.
+func grindChunkCtx(ctx context.Context, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, chunkSize uint64, newSearch func() (SearchContext, error)) (Layer, int, error) {
 	if workers < 1 {
 		workers = 1
 	}
@@ -229,7 +252,7 @@ func grindChunk(ctx context.Context, entry hash.Hash, start, tries uint64, worke
 			best, bestStrength := Layer{Entry: entry, Nonce: from}, -1
 			for done := uint64(0); done < n; {
 				chunk := min(n-done, chunkSize)
-				nonce, s := search(entry, from+done, chunk)
+				nonce, s := search(ctx, entry, from+done, chunk)
 				if s > bestStrength {
 					best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s
 				}

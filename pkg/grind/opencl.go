@@ -3,10 +3,12 @@
 package grind
 
 import (
+	"context"
 	_ "embed"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime"
 	"slices"
@@ -151,7 +153,7 @@ func openCLDevices() ([]clDevice, error) {
 			return
 		}
 		typ := uint64(clDeviceTypeGPU)
-		if os.Getenv("POON_OPENCL_ALL") == "1" {
+		if openCLOn(os.Getenv("POON_OPENCL_ALL")) {
 			typ = clDeviceTypeAll
 		}
 		var np uint32
@@ -229,9 +231,25 @@ type clKernel struct {
 	chunk   uint64
 	keys    []uint64
 	devName string
-	// failed is the first error the driver gave; the CPU searches since.
-	failed error
+	// failed is the error the driver gave, and failedAt when; the CPU
+	// searches since, until the GPU is tried again after retryGPU
+	// (RED-124).
+	failed   error
+	failedAt time.Time
 }
+
+// retryGPU is how long a kernel whose driver failed searches on the CPU
+// before the GPU is tried again: a driver reset or a resume may bring it
+// back (RED-124).
+var retryGPU = time.Minute
+
+// cpuStep is how many nonces the CPU fallback searches between looks at
+// the context, so a stop waits a fraction of a second, not a GPU chunk
+// (RED-124).
+const cpuStep = 1 << 16
+
+// failLog logs a driver error once, when the kernel moves to the CPU.
+var failLog = func(msg string, args ...any) { slog.Warn(msg, args...) }
 
 var (
 	clKernelsMu sync.Mutex
@@ -361,7 +379,10 @@ func (k *clKernel) search(entry hash.Hash, from, n uint64) (uint64, int, error) 
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	if k.failed != nil {
-		return 0, -1, k.failed
+		if time.Since(k.failedAt) < retryGPU {
+			return 0, -1, k.failed
+		}
+		k.failed = nil // try the GPU again
 	}
 	items := (n + uint64(k.per) - 1) / uint64(k.per)
 	groups := (items + uint64(k.local) - 1) / uint64(k.local)
@@ -429,20 +450,23 @@ func (k *clKernel) search(entry hash.Hash, from, n uint64) (uint64, int, error) 
 	return from + uint64(0xffffffff-uint32(best)), int(best>>32) - 1, nil
 }
 
-// layerSearch is k's layer.Search. Ranges over maxChunk are searched a
-// maxChunk at a time. If the driver fails, the range and every later one
-// are searched on the CPU instead, with the same result, and Failed says
-// why (a search cannot return an error).
-func (k *clKernel) layerSearch() layer.Search {
-	cpu := hash.GrinderFor(k.id)
-	return func(entry hash.Hash, from, n uint64) (uint64, int) {
+// layerSearch is k's layer search. Ranges over maxChunk are searched a
+// maxChunk at a time. If the driver fails, the range is searched on the
+// CPU instead, with the same result: on every core, with the CPU's own
+// fast search where there is one, looking at ctx every cpuStep nonces so
+// a stop does not wait for the GPU's chunk. Later ranges stay on the CPU
+// until retryGPU has passed; the error is logged once and shown in
+// OpenCLStatus (RED-124).
+func (k *clKernel) layerSearch() layer.SearchContext {
+	cpu := cpuLayerSearch(k.id)
+	return func(ctx context.Context, entry hash.Hash, from, n uint64) (uint64, int) {
 		bestNonce, best := from, -1
-		for done := uint64(0); done < n; {
+		for done := uint64(0); done < n && ctx.Err() == nil; {
 			m := min(n-done, maxChunk)
 			nonce, s, err := k.search(entry, from+done, m)
 			if err != nil {
 				k.fail(err)
-				nonce, s = cpuSearch(cpu, entry, from+done, m)
+				nonce, s = parallelSearch(ctx, cpu, entry, from+done, m, threadsOf())
 			}
 			if s > best {
 				bestNonce, best = nonce, s
@@ -453,13 +477,81 @@ func (k *clKernel) layerSearch() layer.Search {
 	}
 }
 
-// fail records the first driver error and moves k to the CPU.
+// fail records a driver error, logs the first of a run, and moves k to
+// the CPU.
 func (k *clKernel) fail(err error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	if k.failed == nil {
-		k.failed = err
+		failLog("GPU grinder failed; searching layers on the CPU", "device", k.devName, "hash", k.id.Name(), "err", err, "retry", retryGPU)
+		k.failed, k.failedAt = err, time.Now()
 	}
+}
+
+// failure says why k searches on the CPU, or "".
+func (k *clKernel) failure() string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.failed == nil || time.Since(k.failedAt) >= retryGPU {
+		return ""
+	}
+	return fmt.Sprintf("%s (%s): grinding on the CPU since %s: %v", k.devName, k.id.Name(), k.failedAt.Format(time.TimeOnly), k.failed)
+}
+
+// cpuLayerSearch is the CPU's layer search for id: its fast search (SIMD
+// lanes) where one is registered, else one nonce at a time.
+func cpuLayerSearch(id hash.ID) layer.Search {
+	Default.mu.RLock()
+	g, ok := Default.grinders[CPU][id]
+	Default.mu.RUnlock()
+	if ok && g.Search != nil {
+		if s, err := g.Search(Device{Kind: CPU}, id); err == nil {
+			return s
+		}
+	}
+	nh := hash.GrinderFor(id)
+	return func(entry hash.Hash, from, n uint64) (uint64, int) { return cpuSearch(nh, entry, from, n) }
+}
+
+// parallelSearch searches [from, from+n) with search on workers
+// goroutines, each looking at ctx every cpuStep nonces. With every nonce
+// searched the result is search's over the whole range: the strongest,
+// the lowest nonce among equals.
+func parallelSearch(ctx context.Context, search layer.Search, entry hash.Hash, from, n uint64, workers int) (uint64, int) {
+	workers = int(min(uint64(max(workers, 1)), max(n/cpuStep, 1)))
+	type res struct {
+		nonce uint64
+		s     int
+	}
+	out := make([]res, workers)
+	per := n / uint64(workers)
+	var wg sync.WaitGroup
+	for w := range workers {
+		lo, m := from+uint64(w)*per, per
+		if w == workers-1 {
+			m = n - uint64(w)*per
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r := res{lo, -1}
+			for done := uint64(0); done < m && ctx.Err() == nil; done += cpuStep {
+				nonce, s := search(entry, lo+done, min(cpuStep, m-done))
+				if s > r.s {
+					r = res{nonce, s}
+				}
+			}
+			out[w] = r
+		}()
+	}
+	wg.Wait()
+	best := res{from, -1}
+	for _, r := range out { // in nonce order: the first of equals is the lowest
+		if r.s > best.s {
+			best = r
+		}
+	}
+	return best.nonce, best.s
 }
 
 // cpuSearch is layer.Grind's search on one goroutine.
@@ -537,7 +629,20 @@ func init() {
 	gpuProbe = probeOpenCLGPUs
 	openCLStatus = func() string {
 		devs, err := openCLDevices()
-		return openCLStatusOf(len(devs), err)
+		st := openCLStatusOf(len(devs), err)
+		clKernelsMu.Lock()
+		var failed []string
+		for _, k := range clKernels {
+			if f := k.failure(); f != "" {
+				failed = append(failed, f)
+			}
+		}
+		clKernelsMu.Unlock()
+		slices.Sort(failed)
+		for _, f := range failed {
+			st += "; " + f
+		}
+		return st
 	}
 	for id := range kernelNames {
 		Default.Register(Grinder{
@@ -545,7 +650,7 @@ func init() {
 			Has: func(d Device) bool { return d.cl > 0 },
 			// Entries are ground on the CPU (D208).
 			New: func(_ Device, id hash.ID) (hash.NewHasher, error) { return hash.GrinderFor(id), nil },
-			Search: func(d Device, id hash.ID) (layer.Search, error) {
+			SearchContext: func(d Device, id hash.ID) (layer.SearchContext, error) {
 				k, err := deviceKernel(d, id)
 				if err != nil {
 					return nil, err

@@ -971,6 +971,9 @@ type Grind struct {
 	// Search, when set, searches layers a range of nonces at a time
 	// instead of hashing each with New (ORANGE-012).
 	Search layer.Search
+	// SearchContext, when set, is used instead of Search: a search that
+	// sees the context, so a stop need not wait for its chunk (RED-124).
+	SearchContext layer.SearchContext
 	// Chunk, when above 0, is how many nonces Search takes at a time
 	// (a GPU's batch, D208); 0 is the CPU's.
 	Chunk uint64
@@ -1156,9 +1159,12 @@ func (e *Engine) GrindLayerWith(ctx context.Context, k PoolKey, entryHash hash.H
 	}
 	var l layer.Layer
 	var strength int
-	if g.Search != nil {
+	switch {
+	case g.SearchContext != nil:
+		l, strength, err = layer.GrindSearchContext(ctx, g.SearchContext, entryHash, start, tries, g.Workers, g.Tried, keep, g.Chunk)
+	case g.Search != nil:
 		l, strength, err = layer.GrindSearchChunk(ctx, g.Search, entryHash, start, tries, g.Workers, g.Tried, keep, g.Chunk)
-	} else {
+	default:
 		l, strength, err = layer.GrindWithKeep(ctx, g.hasher(s), entryHash, start, tries, g.Workers, g.Tried, keep)
 	}
 	if err != nil && ctx.Err() == nil {
