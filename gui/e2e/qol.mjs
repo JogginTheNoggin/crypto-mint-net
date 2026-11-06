@@ -289,6 +289,17 @@ try {
   await wcr.locator('label', { hasText: 'Watch-only' }).locator('input').check();
   assert.equal(await wcr.locator('.cmd code').innerText(), 'poo wallet create -wallet w2.json -watch-only');
   await wcr.locator('label', { hasText: 'Watch-only' }).locator('input').uncheck();
+  // A watch-only wallet claims to a policy, into a file the key signs
+  // (GREEN-060); Claim file shows only with To a wallet policy.
+  const wcl = wsec('Claim a mint');
+  await wcl.locator('input[name=serial]').fill('7');
+  assert.ok(!(await wcl.locator('input[name=out]').isVisible()), 'no claim file until a policy is named');
+  await wcl.locator('input[name=toPolicy]').fill('cold');
+  await wcl.locator('input[name=out]').fill('claim.json');
+  assert.equal(await wcl.locator('.cmd code').innerText(), 'poo wallet claim -wallet w2.json -serial 7 -to-policy cold -out claim.json');
+  await wcl.locator('input[name=toPolicy]').fill('');
+  assert.equal(await wcl.locator('.cmd code').innerText(), 'poo wallet claim -wallet w2.json -serial 7');
+  await wcl.locator('input[name=serial]').fill('');
   for (const [t, c] of [['Send dropped legs again', 'resend'], ['Follow only the watched mints', 'follow'], ['Change the passphrase', 'passwd'], ['Show the seed', 'seed']]) {
     assert.equal(await wsec(t).locator('.cmd code').innerText(), `poo wallet ${c} -wallet w2.json`);
   }
@@ -342,6 +353,11 @@ try {
   await key.locator('input[name=raw]').check();
   assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -seed-file - -raw');
   await key.locator('input[name=raw]').uncheck();
+  // A new key saved to a file shows only its public half (GREEN-060).
+  await key.locator('input[name=own]').uncheck();
+  await key.locator('input[name=out]').fill('cold.key');
+  assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -out cold.key');
+  await key.locator('input[name=out]').fill('');
   await key.locator('input[name=own]').check();
   const secret = await page.evaluate(async () => {
     const { secretLine } = await import('/api.js');
