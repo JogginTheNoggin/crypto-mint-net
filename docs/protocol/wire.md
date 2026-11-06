@@ -36,7 +36,10 @@ A connection is a stream of frames:
     U32 length ∥ message (length bytes)
 
 No frame may exceed 16 MiB (`wire.MaxFrame`). A node closes a connection
-whose next frame is larger.
+whose next frame is larger. The first frame, the hello, may not exceed
+3 MiB (`wire.MaxHelloFrame`: the longest hello D190's limits allow is
+about 2.1 MiB). A reader allocates as the bytes arrive, not the size a
+frame declares (D191).
 
 ## Header
 

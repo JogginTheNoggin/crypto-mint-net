@@ -46,7 +46,7 @@ var Commit = ""
 
 // A release build records no VCS information, so the node names the
 // build its snapshots are written by from these (RED-087, D181).
-func init() { node.SetRelease(Version, Commit) }
+func init() { node.SetRelease(Version, releaseCommit()) }
 
 const usage = `poo: Proof of Ownership full node tool
 
@@ -91,7 +91,8 @@ Usage:
   poo ledger export -pool K [-from H] [-to H] [-out FILE]
                               a stretch of the selected ledger, oldest
                               first, as raw entries anyone can check
-  poo ledger import FILE|-    hand a ledger file's entries to the node,
+  poo ledger import [-dry-run] FILE|-
+                              hand a ledger file's entries to the node,
                               which checks every one in full
   poo pending [FILTER]        pending transactions
   poo unspent [FILTER]        unspent portions

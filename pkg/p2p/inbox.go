@@ -22,34 +22,47 @@ type job struct {
 // unlisted. The queues are handled top to bottom, each lower one getting
 // its share of every round, so nothing waits forever.
 type inbox struct {
-	mu     sync.Mutex
-	qs     [4][]job
-	shares [4]int
-	limit  int
-	ready  chan struct{}
-	done   bool
+	mu       sync.Mutex
+	qs       [4][]job
+	bytes    [4]int // the frame bytes waiting in each queue
+	shares   [4]int
+	limit    int
+	maxBytes int
+	ready    chan struct{}
+	done     bool
 }
 
-func newInbox(shares [4]int, limit int) *inbox {
+// DefaultQueueBytes is how many bytes of messages may wait in each inbox
+// queue (RED-103): with four queues, at most 128 MiB in all, where a
+// count alone allowed 1,024 messages of up to 16 MiB in each.
+const DefaultQueueBytes = 32 << 20
+
+func newInbox(shares [4]int, limit, maxBytes int) *inbox {
 	for i := range shares {
 		if shares[i] <= 0 {
 			shares[i] = 1
 		}
 	}
-	return &inbox{shares: shares, limit: limit, ready: make(chan struct{}, 1)}
+	if maxBytes <= 0 {
+		maxBytes = DefaultQueueBytes
+	}
+	return &inbox{shares: shares, limit: limit, maxBytes: maxBytes, ready: make(chan struct{}, 1)}
 }
 
-// put queues j; a full queue drops it.
+// put queues j; a queue at its count, or that j would take over its bytes,
+// drops it. An empty queue takes any one message, so one larger than the
+// byte bound still gets through.
 func (b *inbox) put(c peers.Category, j job) bool {
 	if c < peers.CatPriority || c > peers.CatUnlisted {
 		c = peers.CatUnlisted
 	}
 	b.mu.Lock()
-	if b.done || len(b.qs[c]) >= b.limit {
+	if b.done || len(b.qs[c]) >= b.limit || len(b.qs[c]) > 0 && b.bytes[c]+j.size > b.maxBytes {
 		b.mu.Unlock()
 		return false
 	}
 	b.qs[c] = append(b.qs[c], j)
+	b.bytes[c] += j.size
 	b.mu.Unlock()
 	select {
 	case b.ready <- struct{}{}:
@@ -73,6 +86,9 @@ func (b *inbox) round(ctx context.Context) []job {
 			if n > len(b.qs[i]) {
 				n = len(b.qs[i])
 			}
+			for _, j := range b.qs[i][:n] {
+				b.bytes[i] -= j.size
+			}
 			out = append(out, b.qs[i][:n]...)
 			b.qs[i] = append([]job(nil), b.qs[i][n:]...)
 		}
@@ -93,6 +109,7 @@ func (b *inbox) close() {
 	b.mu.Lock()
 	b.done = true
 	b.qs = [4][]job{}
+	b.bytes = [4]int{}
 	b.mu.Unlock()
 	select {
 	case b.ready <- struct{}{}:

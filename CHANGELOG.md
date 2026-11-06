@@ -238,6 +238,18 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 34 fixes (D191):**
+  - A connection that has not said hello can no longer make the node set
+    aside 16 MiB: the hello is read under 3 MiB, frames are read as their
+    bytes arrive, and connections still saying hello count against
+    `max_inbound`.
+  - The message queues are bounded in bytes (32 MiB each) as well as in
+    messages.
+  - An import call that passes its 8 MiB bound is refused while it is
+    read, not after.
+  - `poo ledger import` refuses a file with unknown, repeated or
+    over-long header keys, and no longer holds entries that come before
+    the header.
 - **Round 34 (D190):**
   - **Moved defaults again:** the local command port is now
     `127.0.0.1:7732` and the peer port `:7733` (were 7336 and 7337).

@@ -196,9 +196,12 @@ type Config struct {
 	UnlistedConns int
 	// QueueShares are how many messages each queue (priority, backup,
 	// candidate, unlisted) may take in one round, so lower queues are not
-	// starved; QueueLimit is how many may wait in each.
+	// starved; QueueLimit is how many may wait in each, and QueueBytes
+	// how many bytes of messages (RED-103): a queue over either drops a
+	// new message, except that an empty queue always takes one.
 	QueueShares [4]int
 	QueueLimit  int
+	QueueBytes  int
 
 	// Tracker records what peers do; nil keeps records in memory with the
 	// default template.
@@ -295,6 +298,7 @@ func DefaultConfig() Config {
 		UnlistedConns:     8,
 		QueueShares:       [4]int{8, 4, 2, 1},
 		QueueLimit:        1024,
+		QueueBytes:        DefaultQueueBytes,
 		ChaseSlice:        2 * time.Minute,
 		WeightlessPages:   64,
 		RequestPace:       480,
@@ -403,6 +407,9 @@ func (c *Config) fill() {
 	if c.QueueLimit == 0 {
 		c.QueueLimit = d.QueueLimit
 	}
+	if c.QueueBytes == 0 {
+		c.QueueBytes = d.QueueBytes
+	}
 	if c.ChaseSlice == 0 {
 		c.ChaseSlice = d.ChaseSlice
 	}
@@ -507,6 +514,9 @@ type Host struct {
 	pmMu   sync.Mutex
 	pm     PortMapStatus
 	pmGW   string // PortMapStatus.Gateway, under pmMu
+	// helloing counts accepted connections whose hello is not done
+	// (RED-100).
+	helloing atomic.Int32
 	// probes are the dial-back tokens confirmSelf waits on (RED-090).
 	probeMu sync.Mutex
 	probes  map[string]chan struct{}
@@ -552,7 +562,7 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	if h.tr == nil {
 		h.tr, _ = tracking.New(tracking.Config{}, "")
 	}
-	h.inbox = newInbox(cfg.QueueShares, cfg.QueueLimit)
+	h.inbox = newInbox(cfg.QueueShares, cfg.QueueLimit, cfg.QueueBytes)
 	// Blocked addresses never come back as candidates.
 	h.book.SetRefuse(func(addr string) bool { return h.tr.Status(addr, time.Now()).Blocked })
 	if _, err := rand.Read(h.id[:]); err != nil {
@@ -892,12 +902,18 @@ func (h *Host) acceptLoop(ln net.Listener) {
 		full := h.fullLocked(false)
 		h.mu.Unlock()
 		remote := c.RemoteAddr().String()
-		if full || !h.tr.Status(remote, time.Now()).Allowed() {
+		// Connections still saying hello are capped too: each may hold a
+		// hello frame's worth of memory until its hello or helloTimeout
+		// (RED-100).
+		busy := int(h.helloing.Load()) >= h.cfg.MaxInbound
+		if full || busy || !h.tr.Status(remote, time.Now()).Allowed() {
 			h.tr.Connection(remote, "refused", time.Now())
 			c.Close()
 			continue
 		}
-		if !h.spawn(func() { h.runConn(c, false, c.RemoteAddr().String()) }) {
+		h.helloing.Add(1)
+		if !h.spawn(func() { h.runInbound(c) }) {
+			h.helloing.Add(-1)
 			c.Close()
 			return
 		}

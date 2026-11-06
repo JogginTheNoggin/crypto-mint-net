@@ -48,6 +48,39 @@ func buildInfo() BuildInfo {
 	return b
 }
 
+// releaseCommit is the commit the node reports as its release: Commit
+// when a release build sets it with -X, or else the VCS revision a dev
+// build records ("+modified" when its tree had changes), so poo status
+// and poo doctor name the code a dev build runs too (GREEN-059).
+func releaseCommit() string {
+	if Commit != "" {
+		return Commit
+	}
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	return vcsCommit(bi.Settings)
+}
+
+// vcsCommit reads the revision, and whether the tree was modified, from
+// build settings.
+func vcsCommit(settings []debug.BuildSetting) string {
+	rev, modified := "", false
+	for _, s := range settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			modified = s.Value == "true"
+		}
+	}
+	if rev != "" && modified {
+		rev += "+modified"
+	}
+	return rev
+}
+
 // versionCmd prints the version, or with -v the build's details.
 func versionCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("version", out)
