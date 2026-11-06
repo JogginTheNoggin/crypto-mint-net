@@ -179,3 +179,14 @@ then the final review round and freeze. Still with the owner: license,
 at least one registry node and its URL, optional signing keys in
 `docs/allowed_signers`, and making the repo public. The two matching
 local release builds happen at tag time (W-9).
+
+## Addendum: W-30, the market's state as a field (from GUI/White)
+
+GUI/White (#308) says the proposed Bounty view (#305) can tell the
+market is off only by matching the text of `p2p.ErrNoBounty`. Error text
+is not an interface: a reworded message or the "poo" rename would break
+the view without anyone noticing. **Ask (Round 37A, small):** add
+`bounty: {"post": bool, "take": bool}` to `GET /v1/status`
+(`StatusReply`) and `poo status`, read from node policy and always
+present. It is an added field, so older clients ignore it. The GUI reads
+the field and keeps the text match only as a fallback for older nodes.
