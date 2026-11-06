@@ -271,6 +271,12 @@ func bountyPay(args []string, out io.Writer) error {
 			return serr
 		}
 	}
+	if errors.Is(err, wallet.ErrNoFunds) && len(w.Sent()) > 0 {
+		// A payer with several claims meets this at once: the change of
+		// the last payment is spendable only once an entry holds it
+		// (GUI-GREEN-062).
+		return fmt.Errorf("%w; the change of an earlier payment is spendable once an entry holds that payment: wait for one (or build one with poo build), then pay again", err)
+	}
 	if err != nil {
 		return err
 	}

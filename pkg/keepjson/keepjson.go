@@ -20,9 +20,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // The limits node.json uses for the settings it keeps (D184).
@@ -38,35 +40,48 @@ type Kept map[string]json.RawMessage
 
 // Split returns the keys of the JSON object raw that the struct v (or the
 // struct v points to) has no field for, as encoding/json matches them:
-// a key that is a field's name in another letter case is that field. A
-// value that is not an object keeps nothing. Over a limit, it fails.
+// a key that is a field's name in another letter case is that field, and
+// of a key given twice the last one counts. A value that is not an object
+// keeps nothing. Over a limit, it fails.
+//
+// raw is scanned once, at its top level only: the values of known fields
+// are skipped, never copied or decoded (ORANGE-046 P4), so a large wallet
+// costs one pass over its bytes.
 func Split(raw []byte, v any) (Kept, error) {
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, nil // not an object: the caller's own decode says so
-	}
 	names := fieldNames(reflect.TypeOf(v))
 	var out Kept
-	for k, val := range m {
+	var err error
+	ok := eachTop(raw, func(k string, val []byte) bool {
 		if slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(n, k) }) {
-			continue
+			return true
 		}
 		var c bytes.Buffer
-		if err := json.Compact(&c, val); err != nil {
-			return nil, err
+		if err = json.Compact(&c, val); err != nil {
+			return false
 		}
+		_, again := out[k]
 		switch {
-		case len(out) >= MaxKeys:
-			return nil, fmt.Errorf("more than %d fields this release does not know", MaxKeys)
+		case !again && len(out) >= MaxKeys:
+			err = fmt.Errorf("more than %d fields this release does not know", MaxKeys)
 		case c.Len() > MaxBytes:
-			return nil, fmt.Errorf("the field %q, which this release does not know, is over %d bytes", k, MaxBytes)
+			err = fmt.Errorf("the field %q, which this release does not know, is over %d bytes", k, MaxBytes)
 		case depth(c.Bytes()) > MaxDepth:
-			return nil, fmt.Errorf("the field %q, which this release does not know, is nested over %d levels", k, MaxDepth)
+			err = fmt.Errorf("the field %q, which this release does not know, is nested over %d levels", k, MaxDepth)
+		}
+		if err != nil {
+			return false
 		}
 		if out == nil {
 			out = Kept{}
 		}
 		out[k] = c.Bytes()
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil // not an object: the caller's own decode says so
 	}
 	return out, nil
 }
@@ -77,24 +92,15 @@ func Join(b []byte, k Kept) ([]byte, error) {
 	if len(k) == 0 {
 		return b, nil
 	}
-	var have map[string]json.RawMessage
-	if err := json.Unmarshal(b, &have); err != nil {
-		return nil, err
-	}
-	end := bytes.LastIndexByte(b, '}')
-	if end < 0 {
+	have := map[string]bool{}
+	if !eachTop(b, func(key string, _ []byte) bool { have[key] = true; return true }) {
 		return nil, fmt.Errorf("keepjson: not an object")
 	}
+	end := bytes.LastIndexByte(b, '}')
 	out := append([]byte(nil), b[:end]...)
 	more := len(have) > 0
-	for _, name := range slices.Sorted(func(yield func(string) bool) {
-		for n := range k {
-			if !yield(n) {
-				return
-			}
-		}
-	}) {
-		if _, ok := have[name]; ok {
+	for _, name := range slices.Sorted(maps.Keys(k)) {
+		if have[name] {
 			continue
 		}
 		if more {
@@ -107,6 +113,110 @@ func Join(b []byte, k Kept) ([]byte, error) {
 		out = append(out, k[name]...)
 	}
 	return append(out, b[end:]...), nil
+}
+
+// eachTop calls f with each key of the JSON object b, decoded as
+// encoding/json decodes it, and the bytes of its value, in order, until f
+// returns false. It reports false when b is not a valid JSON object.
+func eachTop(b []byte, f func(key string, val []byte) bool) bool {
+	if !json.Valid(b) {
+		return false
+	}
+	i := skipSpace(b, 0)
+	if i >= len(b) || b[i] != '{' {
+		return false
+	}
+	i = skipSpace(b, i+1)
+	if i < len(b) && b[i] == '}' {
+		return true
+	}
+	for i < len(b) {
+		ks := i
+		i = endString(b, i)
+		key, ok := decodeKey(b[ks:i])
+		if !ok {
+			return false
+		}
+		i = skipSpace(b, i)
+		i = skipSpace(b, i+1) // the colon
+		vs := i
+		i = endValue(b, i)
+		if !f(key, b[vs:i]) {
+			return true
+		}
+		i = skipSpace(b, i)
+		if i >= len(b) || b[i] == '}' {
+			return true
+		}
+		i = skipSpace(b, i+1) // the comma
+	}
+	return true
+}
+
+func skipSpace(b []byte, i int) int {
+	for i < len(b) && (b[i] == ' ' || b[i] == '\t' || b[i] == '\n' || b[i] == '\r') {
+		i++
+	}
+	return i
+}
+
+// endString returns the index just past the string starting at b[i].
+func endString(b []byte, i int) int {
+	for i++; i < len(b); i++ {
+		switch b[i] {
+		case '\\':
+			i++
+		case '"':
+			return i + 1
+		}
+	}
+	return i
+}
+
+// endValue returns the index just past the value starting at b[i]; b is
+// valid JSON.
+func endValue(b []byte, i int) int {
+	d := 0
+	for i < len(b) {
+		switch c := b[i]; {
+		case c == '"':
+			i = endString(b, i)
+			if d == 0 {
+				return i
+			}
+			continue
+		case c == '{' || c == '[':
+			d++
+		case c == '}' || c == ']':
+			if d == 0 {
+				return i
+			}
+			d--
+			if d == 0 {
+				return i + 1
+			}
+		case d == 0 && (c == ',' || c == ' ' || c == '\t' || c == '\n' || c == '\r'):
+			return i
+		}
+		i++
+	}
+	return i
+}
+
+// decodeKey decodes a key as encoding/json does (escapes, and invalid
+// UTF-8 replaced).
+func decodeKey(q []byte) (string, bool) {
+	if len(q) < 2 {
+		return "", false
+	}
+	if inner := q[1 : len(q)-1]; bytes.IndexByte(inner, '\\') < 0 && utf8.Valid(inner) {
+		return string(inner), true
+	}
+	var s string
+	if err := json.Unmarshal(q, &s); err != nil {
+		return "", false
+	}
+	return s, true
 }
 
 // fieldNames lists the JSON names of struct t's fields, as encoding/json

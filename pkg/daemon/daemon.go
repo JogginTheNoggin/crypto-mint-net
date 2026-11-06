@@ -213,6 +213,10 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	gm.Close()
 	hub.Close()
 	perr := <-herr
+	if cfg.Bounty != nil {
+		// A lease's save may still wait on its timer (ORANGE-046 P2).
+		perr = errors.Join(perr, cfg.Bounty.Close())
+	}
 	cerr := n.Close()
 	select {
 	case <-asked:

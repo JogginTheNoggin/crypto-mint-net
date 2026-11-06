@@ -2,7 +2,9 @@ package cli
 
 import (
 	"net"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -193,5 +195,29 @@ func TestBountyMarket(t *testing.T) {
 	if _, err := runErr(append([]string{"bounty", "cancel", posted.Offer.ID.String()}, gr...)...); err == nil {
 		t.Fatal("a grinder cancelled the payer's offer")
 	}
-	cli(t, nil, append([]string{"bounty", "cancel", posted.Offer.ID.String()}, pr...)...)
+	// The first offer, filled and paid, needs nothing more: it moved to
+	// the done file and is no longer listed (ORANGE-046 P1). The second is
+	// filled and unpaid, so it stays, says so, and cancelling it keeps
+	// its claims owed (GUI-GREEN-062).
+	var listed rpc.BountyReply
+	cli(t, &listed, append([]string{"bounty", "list"}, pr...)...)
+	if len(listed.Mine) != 1 || listed.Mine[0].ID != two.Offer.ID || listed.Mine[0].State != bounty.StateFilled || listed.Mine[0].Closes == nil {
+		t.Fatalf("listed %+v", listed.Mine)
+	}
+	if _, err := runErr(append([]string{"bounty", "cancel", posted.Offer.ID.String()}, pr...)...); err == nil {
+		t.Fatal("a done offer was cancelled")
+	}
+	var closed bounty.Mine
+	cli(t, &closed, append([]string{"bounty", "cancel", two.Offer.ID.String()}, pr...)...)
+	if closed.State != bounty.StateClosed || closed.Owed() != 20 {
+		t.Fatalf("cancelled %+v, owes %d", closed, closed.Owed())
+	}
+	var st rpc.StatusReply
+	cli(t, &st, append([]string{"status"}, pr...)...)
+	if done, err := os.ReadFile(filepath.Join(pdir, bounty.DoneFileName)); err != nil || !strings.Contains(string(done), posted.Offer.ID.String()) {
+		t.Fatalf("the done file: %v", err)
+	}
+	if !st.Bounty.Post || st.Bounty.Take {
+		t.Fatalf("status bounty %+v", st.Bounty)
+	}
 }

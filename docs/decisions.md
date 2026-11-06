@@ -5427,7 +5427,8 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   must not owe for a layer it holds, and the limits must hold against
   free node ids.
 - **Consensus:** None. The market is outside the ledger (D196). A known
-  layer still goes to the engine like any layer.
+  layer is not passed to the engine again, since the pool holds it
+  (wording corrected in D198, after Black's Round 36 review).
 - **Tier:** Bounty, P2P, RPC, ledger (a read), daemon.
   - `pkg/bounty/blue037_test.go`:
     - `TestBlue037ClaimNeedsLeaseAndNewLayer`
@@ -5438,3 +5439,89 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     `TestBlue037AnswersOnlyFromThePayer`.
   - `pkg/cli/bounty_test.go`: `TestBountyMarket` now fills a two-layer
     offer with two work calls.
+
+### D198. Round 37: bounty offers named by their bytes, files that keep later fields, a done file, settable bounty limits, offer states, claims that meet the floor kept
+
+- **Merged first:** Blue's #304 (BLUE-037, D197, with Green's #299),
+  Red's #300, Orange's #301 (ORANGE-046), White's #306 (ROUND-36), Black's
+  #309 (Round 36, all clear).
+- **Decision:**
+  - **W-27.** An offer keeps its bytes as received (`Offer.Raw`, hex in
+    JSON). Its id is the SHA-256 of those bytes, and they are what a list
+    passes on, so a field a later release adds after `salt` changes
+    nothing for an older node. A posted offer keeps its bytes too, and
+    `bounties.json` keeps them beside the fields; on load the bytes are
+    the offer.
+  - **W-28.** `bounties.json` keeps fields a later release wrote, at the
+    top, in each offer and in each claim (`pkg/keepjson`). A format above
+    1 is refused with a message to run that release or move the file
+    aside.
+  - **W-29.** The rule for later bounty changes is in
+    docs/protocol/wire.md: a trailing field older nodes may ignore stays
+    at bounty version 1; a change they must not ignore is bounty version
+    2, sent only to peers listing 2 or more; a new outcome must read
+    safely as not paid; relaying passes on the bytes received.
+  - **W-30.** `poo status` (`GET /v1/status`) always has `bounty:
+    {"post", "take"}` from the running policy.
+  - **ORANGE-046 P1.** An offer that needs nothing more (cancelled,
+    expired or filled, every claim paid, no lease) moves to
+    `bounties-done.jsonl` beside `bounties.json`: a first line naming it
+    (`poo-bounties-done`, format 1), then one offer a line, appended and
+    synced before the offer leaves `bounties.json`. An offer found in
+    both after a crash is left out of the book. Done offers are no longer
+    listed.
+  - **ORANGE-046 P2.** A lease (a take or its extension) is saved on a
+    200 ms timer, so a burst is one write and none waits in the inbox
+    worker. Post, cancel, an accepted claim and a payment are still
+    written before they answer: an accepted ack is sent only once the
+    claim is on disk. The daemon writes a waiting save at stop.
+  - **ORANGE-046 P3.** Held offers are counted per peer, and checked for
+    their time at most once a second.
+  - **ORANGE-046 P4.** `keepjson.Split` and `Join` scan the top level of
+    the object once and copy only unknown values; keys match without
+    regard to case as before, the last of a repeated key counts, the
+    limits are the same, and a test checks the output is byte for byte
+    the old one's.
+  - **Black's Round 36 recommendations.** Every claimed layer at or above
+    the series' floor goes to the engine whatever the market's answer
+    (too weak, filled, closed, no lease), unless the pool holds it. Only a
+    claim under the series' floor is an invalid item; one under the
+    offer's target but at the floor is answered "too weak" with no
+    offence.
+  - **GUI-GREEN-062's asks.**
+    1. The bounty settings are settable limits (`bounty.post`,
+       `bounty.take`, `bounty.max_open`, `bounty.max_amount`,
+       `bounty.budget`, `bounty.max_leases_per_grinder`,
+       `bounty.lease_floor_seconds`, `bounty.lease_ceiling_seconds`,
+       `bounty.held_offers`, `bounty.min_price`), listed and set by
+       `poo policy limits`, applied on reload. The on-off settings take
+       1 or 0; amounts are at most 2^53 - 1, so a node.json with a larger
+       amount is now refused.
+    2. Every ack prints `outcome_name` beside `outcome`.
+    3. Offers print `state` (open, filled, closed, expired; a peer's
+       offer: open, leased, taken, filled, closed) and `closes`.
+    4. `poo bounty pay` short of units, with earlier payments, says the
+       change of an earlier payment is spendable once an entry holds it.
+- **Why:** older and newer nodes must name an offer alike; files must
+  survive a later release; the market's file and inbox costs must not
+  grow with its history; valid weight is never thrown away; and a front
+  end must read the market without poo's tables.
+- **Consensus:** None. A layer handed to the engine from a claim is an
+  ordinary pushed layer, checked like any other; the rest is files, node
+  policy and output.
+- **Tier:** Bounty, P2P, RPC, node policy, files.
+  - `pkg/bounty/white037_test.go`: `TestW27OfferIDIsTheBytesReceived`,
+    `TestW28FileKeepsLaterFields`, `TestOrange046DoneFileAndLaterSaves`,
+    `TestGUIGreen062StateAndNames`.
+  - `pkg/keepjson/orange046_test.go`: `TestOrange046ScanMatchesTheMap`.
+  - `pkg/nodepolicy/limits_test.go`: the bounty limits in
+    `TestLimitsBounds` and `TestLimitsDefaults`.
+  - `pkg/cli/bounty_test.go`: `TestBountyMarket` checks the done file,
+    states, cancel and the status field.
+- **For Black (Part D):** please confirm that handing claimed layers to
+  the engine whatever the outcome adds no rule, and that the claim path
+  can carry no more layers than the ordinary push path's budget allows.
+- **For White (Part D):** please check `Offer.Raw` in `bounties.json`,
+  the done file's kind and format, the W-29 text in wire.md, and that a
+  node.json amount over 2^53 - 1 being refused is acceptable before the
+  tag.

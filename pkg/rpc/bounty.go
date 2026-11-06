@@ -181,11 +181,11 @@ func (h *Handler) bountyCancel(w http.ResponseWriter, r *http.Request) {
 	if b == nil {
 		return
 	}
-	if err := b.Cancel(req.ID); err != nil {
+	m, err := b.Cancel(req.ID)
+	if err != nil {
 		writeError(w, bountyErr(err))
 		return
 	}
-	m, _ := b.Get(req.ID)
 	writeJSON(w, m)
 }
 

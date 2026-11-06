@@ -291,9 +291,9 @@ func (h *Host) PaidBounty(id hash.Hash, nonce uint64, tids []hash.Hash) (bool, e
 }
 
 // handleBounty takes in one bounty message. A message that does not
-// decode is malformed; a claim whose layer is not on the offer's entry at
-// the strength asked is answered "too weak" and counted as an invalid
-// item, since the grinder could check it before sending.
+// decode is malformed; a claim whose layer is under the series' floor is
+// counted as an invalid item, since the grinder could check it before
+// sending.
 func (h *Host) handleBounty(p *peer, m wire.Message) error {
 	b := h.cfg.Bounty
 	if b == nil {
@@ -377,27 +377,38 @@ func (h *Host) handleBountyClaim(p *peer, m wire.Message) error {
 		return fmt.Errorf("%w: %v", wire.ErrMalformed, err)
 	}
 	mine, ok := b.Get(c.Offer)
-	strength := -1
+	strength, floor := -1, 0
 	known := false
 	var l layer.Layer
 	if ok {
 		if s, sok := h.n.Engine().Series(mine.Offer.Series); sok {
 			l = layer.Layer{Entry: mine.Offer.Entry, Nonce: c.Nonce}
 			strength = l.Strength(s.Hash())
+			floor = int(s.Params().MinLayerStrength)
 			// A layer the pool holds already is not owed (RED-110).
 			known = h.holdsLayer(engine.PoolKey{Series: mine.Offer.Series, Index: mine.Offer.Pool}, mine.Offer.Entry, c.Nonce)
 		}
 	}
 	a := b.Claim(p.id, c, strength, known)
 	p.send(bountyMsg(wire.TypeBountyAck, a.Encode()))
-	switch a.Outcome {
-	case bounty.Accepted:
+	if strength < 0 {
+		return nil
+	}
+	// A layer at or above the series' floor is valid weight whatever the
+	// market made of it, so it goes to the engine like any layer a peer
+	// sends; one the pool holds already need not (Black, Round 36).
+	if strength >= floor && !known {
 		k := engine.PoolKey{Series: mine.Offer.Series, Index: mine.Offer.Pool}
 		if _, err := h.n.HandleLayerFrom(k, l, engine.Pushed, p.id); err != nil {
 			h.log.Debug("bounty layer not kept", "peer", p.short(), "err", err)
 		}
-	case bounty.TooWeak:
-		return invalidItem{fmt.Errorf("bounty claim: a layer of strength %d for an offer of %d", strength, mine.Offer.Strength)}
+	}
+	// Only a layer under the series' floor, which no node keeps and the
+	// grinder could check before sending, is an offence. One that meets
+	// the floor but not the offer is ordinary weight, answered "too weak"
+	// (Black, Round 36).
+	if strength < floor {
+		return invalidItem{fmt.Errorf("bounty claim: a layer of strength %d, under the series' floor %d", strength, floor)}
 	}
 	return nil
 }

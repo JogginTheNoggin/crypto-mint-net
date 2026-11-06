@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/mempool"
@@ -107,6 +108,32 @@ var BoundSnapshotEvery = Bound{"snapshot_every", 1000, 1 << 30, DefaultSnapshotE
 // DefaultSnapshotEvery is snapshot_every's default.
 const DefaultSnapshotEvery = 50000
 
+// The bounty market's settings (D196), settable since Round 37 so the
+// market can be turned on and tuned like any limit (GUI-GREEN-062).
+// bounty.post and bounty.take are 1 for on and 0 (the default) for off;
+// the amounts are in units of the offer's series, at most 2^53 - 1 so a
+// front end reads them exactly. The market only changes what this node
+// offers, takes and pays, never what any node accepts into a ledger.
+var (
+	BoundBountyPost         = Bound{"bounty.post", 1, 1, 0}
+	BoundBountyTake         = Bound{"bounty.take", 1, 1, 0}
+	BoundBountyMaxOpen      = Bound{"bounty.max_open", 1, MaxBountyOpen, bounty.DefaultMaxOpen}
+	BoundBountyMaxAmount    = Bound{"bounty.max_amount", 1, maxSafeAmount, 0}
+	BoundBountyBudget       = Bound{"bounty.budget", 1, maxSafeAmount, 0}
+	BoundBountyMaxLeases    = Bound{"bounty.max_leases_per_grinder", 1, MaxBountyLeases, bounty.DefaultMaxLeasesPerGrinder}
+	BoundBountyLeaseFloor   = Bound{"bounty.lease_floor_seconds", MinBountyLeaseSec, MaxBountyLeaseSec, int(bounty.DefaultLeaseFloor / time.Second)}
+	BoundBountyLeaseCeiling = Bound{"bounty.lease_ceiling_seconds", MinBountyLeaseSec, MaxBountyLeaseSec, int(bounty.DefaultLeaseCeiling / time.Second)}
+	BoundBountyHeld         = Bound{"bounty.held_offers", 1, MaxBountyHeld, bounty.DefaultHeld}
+	BoundBountyMinPrice     = Bound{"bounty.min_price", 1, maxSafeAmount, 0}
+)
+
+// maxSafeAmount is the largest amount a bounty limit takes: the largest
+// whole number a JSON reader with doubles keeps exactly.
+const maxSafeAmount = 1<<53 - 1
+
+// bountyBools are the bounty limits kept as true or false.
+var bountyBools = map[string]bool{BoundBountyPost.Name: true, BoundBountyTake.Name: true}
+
 // EntryCacheBytes returns the entry body cache bound this policy asks for.
 func (p Policy) EntryCacheBytes() int64 {
 	return int64(BoundEntryCacheMiB.Or(p.EntryCacheMiB)) << 20
@@ -116,7 +143,9 @@ func (p Policy) EntryCacheBytes() int64 {
 func Bounds() []Bound {
 	return []Bound{BoundMaxBook, BoundBookPerRange, BoundVerifiedPerRange, BoundRetrySeconds, BoundRegistrySeconds,
 		BoundCandidateSeconds, BoundPortMapSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
-		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB, BoundRecentWindow, BoundSnapshotEvery}
+		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB, BoundRecentWindow, BoundSnapshotEvery,
+		BoundBountyPost, BoundBountyTake, BoundBountyMaxOpen, BoundBountyMaxAmount, BoundBountyBudget, BoundBountyMaxLeases,
+		BoundBountyLeaseFloor, BoundBountyLeaseCeiling, BoundBountyHeld, BoundBountyMinPrice}
 }
 
 // Check refuses v when it is neither zero (the default) nor in range.
@@ -156,7 +185,7 @@ type Limit struct {
 func (p Policy) Limits() []Limit {
 	var out []Limit
 	for _, b := range Bounds() {
-		v := *p.limitField(b.Name)
+		v, _ := p.limitGet(b.Name)
 		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v), InPlace: InPlace[b.Name]})
 	}
 	return out
@@ -248,6 +277,24 @@ func (p *Policy) limitField(name string) *int {
 	return nil
 }
 
+// limitGet returns a bounded setting's value as node.json gives it.
+func (p *Policy) limitGet(name string) (int, bool) {
+	if f := p.limitField(name); f != nil {
+		return *f, true
+	}
+	return p.bountyLimit(name)
+}
+
+// limitSet sets a bounded setting; a value the setting cannot hold (a
+// negative amount, an on-off setting other than 0 or 1) is refused.
+func (p *Policy) limitSet(name string, v int) error {
+	if f := p.limitField(name); f != nil {
+		*f = v
+		return nil
+	}
+	return p.setBountyLimit(name, v)
+}
+
 // SetLimits sets bounded settings by name (D161; poo policy limits -set):
 // 0 puts one back to its default. The result is checked whole, so a
 // setting that goes with another (p2p.book_per_range and p2p.max_book)
@@ -256,13 +303,20 @@ func (p *Policy) limitField(name string) *int {
 func (p *Policy) SetLimits(set map[string]int) (bool, error) {
 	q := *p
 	changed := false
+	if q.Bounty != nil {
+		b := *q.Bounty
+		q.Bounty = &b // p's own section is left alone until the end
+	}
 	for name, v := range set {
-		f := q.limitField(name)
-		if f == nil {
+		old, ok := q.limitGet(name)
+		if !ok {
 			return false, fmt.Errorf("%w: %q is not a settable limit (poo policy limits lists them)", ErrInvalid, name)
 		}
-		if *f != v {
-			*f, changed = v, true
+		if old != v {
+			if err := q.limitSet(name, v); err != nil {
+				return false, err
+			}
+			changed = true
 		}
 	}
 	if err := q.checkBounds(); err != nil {

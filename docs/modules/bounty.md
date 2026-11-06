@@ -62,9 +62,11 @@ claim naming another address is refused (mismatch).
 ## Claims
 
 The payer checks a claim with the series' hash. A layer at or above the
-offer's strength is accepted, ends the lease, and goes to the payer's
-engine as a layer from that peer. A claim below it is refused (too weak)
-and counts as an invalid item against the peer. A claim needs the
+offer's strength is accepted and ends the lease. Any claimed layer at or
+above the series' floor goes to the payer's engine as a layer from that
+peer, whatever the answer, unless the pool holds it already (D198). A
+claim below the offer's strength is refused (too weak); only one under
+the series' floor counts as an invalid item against the peer. A claim needs the
 grinder's lease (else "no lease"), and a layer the payer's pool already
 holds is answered "known" and is not owed, so a public layer cannot be
 sold (RED-110, D197). Other outcomes: filled, closed, reserved (leased
@@ -83,6 +85,10 @@ wraps (RED-114).
 
 ## Settings
 
+Each is a settable limit: `poo policy limits` lists it and `poo policy
+limits -set bounty.post=1` sets it (D198); a running node takes a change
+on reload.
+
 | node.json `bounty` | Default | Range |
 | --- | --- | --- |
 | `post`, `take` | off | |
@@ -92,6 +98,24 @@ wraps (RED-114).
 | `lease_floor_seconds`, `lease_ceiling_seconds` | 60, 3600 | 10 to 86400 |
 | `held_offers` | 256 | 0 to 4096 |
 | `min_price` | 0 | |
+
+## Files
+
+`bounties.json` holds the offers that may still be owed, each with its
+bytes (`offer.raw`, W-27), and keeps fields a later release wrote (W-28).
+An offer that needs nothing more (cancelled, expired or filled, every
+claim paid, no lease) moves to `bounties-done.jsonl`, one offer a line,
+appended and synced first (ORANGE-046 P1, D198). A lease is saved on a
+short timer; an accepted claim is on disk before its ack is sent.
+
+## What the lists say
+
+Each offer has `state` and, when it has open seconds, `closes`. This
+node's offers are open, filled, closed or expired. A peer's offer is
+open, leased (this node holds a lease), taken (the payer said it is
+leased to another grinder or filled), filled or closed. Each ack has
+`outcome_name` beside `outcome`. `poo status` has `bounty.post` and
+`bounty.take` (W-30).
 
 ## Phase 1 limits
 

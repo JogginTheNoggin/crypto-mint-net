@@ -16,10 +16,10 @@ func testOffer(strength uint8, count uint16) Offer {
 func TestCodecRoundTrip(t *testing.T) {
 	o := testOffer(24, 2)
 	o.Salt = 9
-	if got, err := DecodeOffer(append(o.Encode(), 1, 2, 3)); err != nil || got != o {
+	if got, err := DecodeOffer(o.Encode()); err != nil || !got.Same(o) || got.ID() != o.ID() || got.Salt != 9 {
 		t.Fatalf("offer %+v %v", got, err)
 	}
-	if got, err := DecodeList(EncodeList([]Offer{o, o})); err != nil || len(got) != 2 || got[1] != o {
+	if got, err := DecodeList(EncodeList([]Offer{o, o})); err != nil || len(got) != 2 || !got[1].Same(o) {
 		t.Fatalf("list %+v %v", got, err)
 	}
 	tk := Take{Offer: o.ID(), Rate: 5, PayTo: hash.Hash{7}}

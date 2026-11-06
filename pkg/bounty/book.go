@@ -1,13 +1,17 @@
 package bounty
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -15,6 +19,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/fsutil"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/keepjson"
 )
 
 // Config is the node policy of the market (nodepolicy's "bounty"
@@ -102,6 +107,34 @@ type ClaimRecord struct {
 	Strength int         `json:"strength"`
 	At       time.Time   `json:"at"`
 	Paid     []hash.Hash `json:"paid,omitempty"`
+	// kept holds fields a later release wrote (W-28).
+	kept keepjson.Kept
+}
+
+// UnmarshalJSON reads a claim, keeping fields a later release added.
+func (c *ClaimRecord) UnmarshalJSON(b []byte) error {
+	type plain ClaimRecord
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	kept, err := keepjson.Split(b, p)
+	if err != nil {
+		return err
+	}
+	*c = ClaimRecord(p)
+	c.kept = kept
+	return nil
+}
+
+// MarshalJSON writes a claim with the fields it kept.
+func (c ClaimRecord) MarshalJSON() ([]byte, error) {
+	type plain ClaimRecord
+	b, err := json.Marshal(plain(c))
+	if err != nil {
+		return nil, err
+	}
+	return keepjson.Join(b, c.kept)
 }
 
 // Mine is an offer this node posted.
@@ -112,6 +145,87 @@ type Mine struct {
 	Closed bool          `json:"closed,omitempty"`
 	Leases []Lease       `json:"leases,omitempty"`
 	Claims []ClaimRecord `json:"claims,omitempty"`
+	// State is open, filled (every layer handed in), closed (cancelled)
+	// or expired (past its open seconds); Closes is when it closes, if it
+	// has open seconds. Both are worked out when the offer is read
+	// (GUI-GREEN-062).
+	State  string     `json:"state,omitempty"`
+	Closes *time.Time `json:"closes,omitempty"`
+	kept   keepjson.Kept
+}
+
+// The states of an offer (GUI-GREEN-062).
+const (
+	StateOpen    = "open"
+	StateFilled  = "filled"
+	StateClosed  = "closed"
+	StateExpired = "expired"
+	// Of a peer's offer only: this node holds a lease on it; or the payer
+	// said it is leased to another grinder or filled.
+	StateLeased = "leased"
+	StateTaken  = "taken"
+)
+
+// UnmarshalJSON reads an offer, keeping fields a later release added.
+func (m *Mine) UnmarshalJSON(b []byte) error {
+	type plain Mine
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	kept, err := keepjson.Split(b, p)
+	if err != nil {
+		return err
+	}
+	*m = Mine(p)
+	m.kept = kept
+	return nil
+}
+
+// MarshalJSON writes an offer with the fields it kept.
+func (m Mine) MarshalJSON() ([]byte, error) {
+	type plain Mine
+	b, err := json.Marshal(plain(m))
+	if err != nil {
+		return nil, err
+	}
+	return keepjson.Join(b, m.kept)
+}
+
+// state works out the offer's state at now.
+func (m *Mine) state(now time.Time) string {
+	switch {
+	case m.Closed && m.expired(now):
+		return StateExpired
+	case m.Closed:
+		return StateClosed
+	case len(m.Claims) >= int(m.Offer.Count):
+		return StateFilled
+	}
+	return StateOpen
+}
+
+// done says the offer needs nothing more: no more layers can come, none
+// is unpaid and no lease is open. Such an offer moves to the done file
+// (ORANGE-046 P1).
+func (m *Mine) done() bool {
+	if !m.Closed && len(m.Claims) < int(m.Offer.Count) || len(m.Leases) > 0 {
+		return false
+	}
+	for _, c := range m.Claims {
+		if len(c.Paid) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func closes(from time.Time, open uint32) *time.Time {
+	if open == 0 {
+		return nil
+	}
+	t := from.Add(time.Duration(open) * time.Second)
+	return &t
 }
 
 // Owed is what the offer may still have to pay: the unpaid accepted
@@ -155,6 +269,14 @@ type Held struct {
 	Lease *HeldLease `json:"lease,omitempty"`
 	// Acks are the payer's answers to this node's claims.
 	Acks []Ack `json:"acks,omitempty"`
+	// State is open, leased (this node holds a lease), taken (the payer
+	// said it is leased to another or filled), filled or closed; Closes
+	// is when it closes, counted from when it was received
+	// (GUI-GREEN-062).
+	State  string     `json:"state,omitempty"`
+	Closes *time.Time `json:"closes,omitempty"`
+	// ended is what the payer last said ended the offer for this node.
+	ended string
 }
 
 // MaxAcks bounds the acks kept for one held offer, the newest kept
@@ -197,6 +319,14 @@ type Book struct {
 	heldOrd  []hash.Hash
 	grinders map[string]*grinder
 	payers   map[string]*PayerRecord
+	// heldPer counts the held offers from each peer (ORANGE-046 P3).
+	heldPer map[string]int
+	// heldSwept is when held offers were last checked for their time.
+	heldSwept time.Time
+	// pending says a save is waiting on its timer (ORANGE-046 P2).
+	pending bool
+	// kept holds the file's fields a later release wrote (W-28).
+	kept keepjson.Kept
 	// dropped says what Open left out of the file, and why (RED-114).
 	dropped []string
 }
@@ -215,14 +345,56 @@ type file struct {
 	Kind   string  `json:"kind"`
 	Format int     `json:"format"`
 	Offers []*Mine `json:"offers"`
+	kept   keepjson.Kept
 }
+
+func (f *file) UnmarshalJSON(b []byte) error {
+	type plain file
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	kept, err := keepjson.Split(b, p)
+	if err != nil {
+		return err
+	}
+	*f = file(p)
+	f.kept = kept
+	return nil
+}
+
+func (f file) MarshalJSON() ([]byte, error) {
+	type plain file
+	b, err := json.Marshal(plain(f))
+	if err != nil {
+		return nil, err
+	}
+	return keepjson.Join(b, f.kept)
+}
+
+// DoneFileName is the file, beside FileName, that offers which need
+// nothing more move to, one JSON object a line after a first line naming
+// the file, so bounties.json holds only what may still be owed
+// (ORANGE-046 P1). It is appended to and synced before an offer leaves
+// bounties.json; an offer found in both is left out of bounties.json.
+const DoneFileName = "bounties-done.jsonl"
+
+// DoneFileKind and DoneFileFormat name the done file.
+const (
+	DoneFileKind   = brand.KindPrefix + "bounties-done"
+	DoneFileFormat = 1
+)
+
+// saveDelay is how long a lease's save waits, so a burst of takes is
+// written once (ORANGE-046 P2).
+var saveDelay = 200 * time.Millisecond
 
 // Open returns the book whose posted offers are kept in path ("" keeps
 // them in memory only).
 func Open(cfg Config, path string) (*Book, error) {
 	cfg.fill()
 	b := &Book{cfg: cfg, now: time.Now, path: path, mine: map[hash.Hash]*Mine{}, held: map[hash.Hash]*Held{},
-		grinders: map[string]*grinder{}, payers: map[string]*PayerRecord{}}
+		grinders: map[string]*grinder{}, payers: map[string]*PayerRecord{}, heldPer: map[string]int{}}
 	if path == "" {
 		return b, nil
 	}
@@ -237,12 +409,35 @@ func Open(cfg Config, path string) (*Book, error) {
 	if err := json.Unmarshal(raw, &f); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	if f.Kind != FileKind || f.Format != FileFormat {
-		return nil, fmt.Errorf("%s: not a %s file of format %d", path, FileKind, FileFormat)
+	switch {
+	case f.Kind != FileKind:
+		return nil, fmt.Errorf("%s: not a %s file", path, FileKind)
+	case f.Format > FileFormat:
+		return nil, fmt.Errorf("%s is format %d, from a later release than this one (format %d): run that release, or move the file aside to start with no offers", path, f.Format, FileFormat)
+	case f.Format < 1:
+		return nil, fmt.Errorf("%s: format %d is not a format", path, f.Format)
+	}
+	b.kept = f.kept
+	done, err := doneIDs(b.donePath())
+	if err != nil {
+		return nil, err
 	}
 	// The file is checked as an offer and a claim are when they are made:
 	// what fails is left out and reported, never paid (RED-114).
 	for i, m := range f.Offers {
+		if m != nil && len(m.Offer.Raw) > 0 {
+			// The bytes are the offer; the fields beside them are for
+			// people (W-27).
+			o, err := DecodeOffer(m.Offer.Raw)
+			if err != nil {
+				b.dropped = append(b.dropped, fmt.Sprintf("offer %d: %v", i, err))
+				continue
+			}
+			m.Offer = o
+		}
+		if m != nil && done[m.ID] {
+			continue // moved to the done file before a crash
+		}
 		if why := checkMine(m); why != "" {
 			b.dropped = append(b.dropped, fmt.Sprintf("offer %d: %s", i, why))
 			continue
@@ -300,12 +495,152 @@ func (b *Book) SetClock(now func() time.Time) { b.mu.Lock(); b.now = now; b.mu.U
 // Config returns the book's settings.
 func (b *Book) Config() Config { return b.cfg }
 
-// save writes the posted offers. Called with mu held.
+func (b *Book) donePath() string {
+	if b.path == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(b.path), DoneFileName)
+}
+
+// doneIDs reads the ids of the offers in the done file.
+func doneIDs(path string) (map[hash.Hash]bool, error) {
+	ids := map[hash.Hash]bool{}
+	if path == "" {
+		return ids, nil
+	}
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return ids, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(bufio.NewReader(f))
+	var head struct {
+		Kind   string `json:"kind"`
+		Format int    `json:"format"`
+	}
+	if err := dec.Decode(&head); err != nil {
+		if errors.Is(err, io.EOF) {
+			return ids, nil
+		}
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if head.Kind != DoneFileKind {
+		return nil, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
+	}
+	for {
+		var m struct {
+			ID hash.Hash `json:"id"`
+		}
+		if err := dec.Decode(&m); err != nil {
+			if errors.Is(err, io.EOF) {
+				return ids, nil
+			}
+			// A line cut short by a crash ends the file; what it held
+			// is still in bounties.json.
+			return ids, nil
+		}
+		ids[m.ID] = true
+	}
+}
+
+// archive moves the offers that need nothing more to the done file:
+// appended and synced first, then left out of bounties.json by the save
+// that follows (ORANGE-046 P1). Called with mu held.
+func (b *Book) archive() error {
+	if b.path == "" {
+		return nil
+	}
+	var done []*Mine
+	for _, id := range b.order {
+		if m := b.mine[id]; m.done() {
+			done = append(done, m)
+		}
+	}
+	if len(done) == 0 {
+		return nil
+	}
+	var buf bytes.Buffer
+	f, err := os.OpenFile(b.donePath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	st, err := f.Stat()
+	if err == nil && st.Size() == 0 {
+		head, _ := json.Marshal(map[string]any{"kind": DoneFileKind, "format": DoneFileFormat})
+		buf.Write(append(head, '\n'))
+	}
+	for _, m := range done {
+		c := *m
+		c.State = m.state(b.now())
+		line, merr := json.Marshal(c)
+		if merr != nil {
+			err = merr
+			break
+		}
+		buf.Write(append(line, '\n'))
+	}
+	if err == nil {
+		_, err = f.Write(buf.Bytes())
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return err
+	}
+	for _, m := range done {
+		delete(b.mine, m.ID)
+	}
+	b.order = slices.DeleteFunc(b.order, func(id hash.Hash) bool { return b.mine[id] == nil })
+	return nil
+}
+
+// saveLater saves on a timer, so a burst of changes is written once; a
+// lease is only worth keeping across a restart, never a promise to pay
+// (ORANGE-046 P2). Called with mu held.
+func (b *Book) saveLater() {
+	if b.path == "" || b.pending {
+		return
+	}
+	b.pending = true
+	time.AfterFunc(saveDelay, b.flush)
+}
+
+func (b *Book) flush() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.pending {
+		_ = b.save()
+	}
+}
+
+// Close writes a save still waiting on its timer.
+func (b *Book) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if !b.pending {
+		return nil
+	}
+	return b.save()
+}
+
+// save writes the posted offers now, first moving those that need nothing
+// more to the done file. Called with mu held.
 func (b *Book) save() error {
 	if b.path == "" {
 		return nil
 	}
-	f := file{Kind: FileKind, Format: FileFormat}
+	b.pending = false
+	if err := b.archive(); err != nil {
+		return err
+	}
+	f := file{Kind: FileKind, Format: FileFormat, kept: b.kept}
 	for _, id := range b.order {
 		f.Offers = append(f.Offers, b.mine[id])
 	}
@@ -332,10 +667,20 @@ func (b *Book) expire() {
 			m.Closed, m.Leases = true, nil
 		}
 	}
+	// Peers' offers are checked at most once a second, so a list of 64
+	// offers walks them once, not once an offer (ORANGE-046 P3).
+	if now.Sub(b.heldSwept) < time.Second && !now.Before(b.heldSwept) {
+		return
+	}
+	b.heldSwept = now
 	b.heldOrd = slices.DeleteFunc(b.heldOrd, func(id hash.Hash) bool {
 		h := b.held[id]
 		if h.Offer.OpenSeconds > 0 && now.After(h.Received.Add(time.Duration(h.Offer.OpenSeconds)*time.Second)) {
 			delete(b.held, id)
+			b.heldPer[h.From]--
+			if b.heldPer[h.From] <= 0 {
+				delete(b.heldPer, h.From)
+			}
 			return true
 		}
 		return false
@@ -416,6 +761,8 @@ func (b *Book) Post(o Offer) (Mine, error) {
 	if owed+total > b.cfg.Budget || owed+total < owed {
 		return Mine{}, fmt.Errorf("bounty: open offers and unpaid layers owe %d; this one would take it over bounty.budget %d", owed, b.cfg.Budget)
 	}
+	o.Raw = nil
+	o.Raw = o.Encode()
 	m := &Mine{ID: o.ID(), Offer: o, Posted: b.now()}
 	if _, dup := b.mine[m.ID]; dup {
 		return Mine{}, errors.New("bounty: that offer is posted already")
@@ -425,7 +772,7 @@ func (b *Book) Post(o Offer) (Mine, error) {
 	if err := b.save(); err != nil {
 		return Mine{}, err
 	}
-	return clone(m), nil
+	return b.clone(m), nil
 }
 
 func mulCheck(a, b uint64) (uint64, bool) {
@@ -436,16 +783,18 @@ func mulCheck(a, b uint64) (uint64, bool) {
 }
 
 // Cancel closes an offer: no new lease or claim. Layers it accepted are
-// still owed.
-func (b *Book) Cancel(id hash.Hash) error {
+// still owed. It returns the offer as closed; one that owes nothing moves
+// to the done file at once.
+func (b *Book) Cancel(id hash.Hash) (Mine, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	m := b.mine[id]
 	if m == nil {
-		return errors.New("bounty: no such offer of this node")
+		return Mine{}, errors.New("bounty: no such offer of this node")
 	}
 	m.Closed, m.Leases = true, nil
-	return b.save()
+	out := b.clone(m)
+	return out, b.save()
 }
 
 // Mine returns this node's offers, oldest first.
@@ -455,7 +804,7 @@ func (b *Book) Mine() []Mine {
 	b.expire()
 	out := make([]Mine, 0, len(b.order))
 	for _, id := range b.order {
-		out = append(out, clone(b.mine[id]))
+		out = append(out, b.clone(b.mine[id]))
 	}
 	return out
 }
@@ -469,11 +818,13 @@ func (b *Book) Get(id hash.Hash) (Mine, bool) {
 	if m == nil {
 		return Mine{}, false
 	}
-	return clone(m), true
+	return b.clone(m), true
 }
 
-func clone(m *Mine) Mine {
+// clone copies m with its state worked out. Called with mu held.
+func (b *Book) clone(m *Mine) Mine {
 	c := *m
+	c.State, c.Closes = m.state(b.now()), closes(m.Posted, m.Offer.OpenSeconds)
 	c.Leases = slices.Clone(m.Leases)
 	c.Claims = slices.Clone(m.Claims)
 	for i := range c.Claims {
@@ -542,7 +893,7 @@ func (b *Book) TakeFrom(peer, addr string, t Take) Grant {
 		}
 		l.Until, l.Extended = l.Until.Add(dur), true
 		g.Seconds = uint32(max(0, l.Until.Sub(b.now())).Seconds())
-		_ = b.save()
+		b.saveLater()
 		return g
 	}
 	if m.free() <= 0 {
@@ -573,7 +924,7 @@ func (b *Book) TakeFrom(peer, addr string, t Take) Grant {
 		return refuse("the stated rate does not cover another lease")
 	}
 	m.Leases = append(m.Leases, Lease{Peer: peer, Addr: addr, PayTo: t.PayTo, Rate: t.Rate, Until: b.now().Add(dur)})
-	_ = b.save()
+	b.saveLater()
 	g.Seconds = uint32(dur.Seconds())
 	return g
 }
@@ -600,10 +951,10 @@ func (b *Book) Claim(peer string, c Claim, strength int, known bool) Ack {
 	}
 	i := m.lease(peer)
 	switch {
-	case m.Closed:
-		a.Outcome = Closed
 	case len(m.Claims) >= int(m.Offer.Count):
 		a.Outcome = Filled
+	case m.Closed:
+		a.Outcome = Closed
 	case i >= 0 && m.Leases[i].PayTo != c.PayTo:
 		a.Outcome = Mismatch
 	case i < 0 && m.free() <= 0:
@@ -621,6 +972,8 @@ func (b *Book) Claim(peer string, c Claim, strength int, known bool) Ack {
 		}
 		m.Claims = append(m.Claims, ClaimRecord{Peer: peer, Nonce: c.Nonce, PayTo: c.PayTo, Strength: strength, At: b.now()})
 		b.grinderOf(peer).filled++
+		// On disk before the ack says accepted: a promise to pay
+		// (White's condition on ORANGE-046 P2).
 		_ = b.save()
 	}
 	return a
@@ -673,30 +1026,29 @@ func (b *Book) Receive(peer string, o Offer) bool {
 	if _, mine := b.mine[id]; mine {
 		return false
 	}
-	from := 0
-	oldest := -1
-	for i, hid := range b.heldOrd {
-		if b.held[hid].From == peer {
-			from++
-			if oldest < 0 {
-				oldest = i
-			}
+	// The count per peer is kept, so only a peer at its bound walks the
+	// list (ORANGE-046 P3).
+	if b.heldPer[peer] >= b.cfg.PerPeer {
+		if i := slices.IndexFunc(b.heldOrd, func(hid hash.Hash) bool { return b.held[hid].From == peer }); i >= 0 {
+			b.dropHeld(i)
 		}
-	}
-	if from >= b.cfg.PerPeer {
-		b.dropHeld(oldest)
 	}
 	if len(b.heldOrd) >= b.cfg.Held {
 		b.dropHeld(0)
 	}
 	b.held[id] = &Held{ID: id, Offer: o, From: peer, Received: b.now()}
 	b.heldOrd = append(b.heldOrd, id)
+	b.heldPer[peer]++
 	return true
 }
 
 func (b *Book) dropHeld(i int) {
+	from := b.held[b.heldOrd[i]].From
 	delete(b.held, b.heldOrd[i])
 	b.heldOrd = slices.Delete(b.heldOrd, i, i+1)
+	if b.heldPer[from]--; b.heldPer[from] <= 0 {
+		delete(b.heldPer, from)
+	}
 }
 
 // Granted records the payer's answer to this node's take.
@@ -709,8 +1061,15 @@ func (b *Book) Granted(peer string, g Grant, payTo hash.Hash) {
 	}
 	if g.Seconds == 0 {
 		h.Lease = &HeldLease{Reason: g.Reason}
+		switch g.Reason {
+		case "no such open offer":
+			h.ended = StateClosed
+		case "leased or filled":
+			h.ended = StateTaken
+		}
 		return
 	}
+	h.ended = ""
 	h.Lease = &HeldLease{PayTo: payTo, Until: b.now().Add(time.Duration(g.Seconds) * time.Second)}
 }
 
@@ -743,8 +1102,15 @@ func (b *Book) Acked(peer string, a Ack) {
 	if len(h.Acks) > MaxAcks { // the newest kept (RED-113)
 		h.Acks = slices.Delete(h.Acks, 0, len(h.Acks)-MaxAcks)
 	}
-	if a.Outcome == Accepted {
+	switch a.Outcome {
+	case Accepted:
 		h.Lease = nil
+	case Filled:
+		h.ended = StateFilled
+	case Closed:
+		h.ended = StateClosed
+	case Reserved:
+		h.ended = StateTaken
 	}
 }
 
@@ -761,9 +1127,21 @@ func (b *Book) HeldOffers() []Held {
 			h.Lease = &l
 		}
 		h.Acks = slices.Clone(h.Acks)
+		h.State, h.Closes = b.heldState(&h), closes(h.Received, h.Offer.OpenSeconds)
 		out = append(out, h)
 	}
 	return out
+}
+
+// heldState works out a held offer's state. Called with mu held.
+func (b *Book) heldState(h *Held) string {
+	switch {
+	case h.ended != "":
+		return h.ended
+	case h.Lease != nil && h.Lease.Until.After(b.now()):
+		return StateLeased
+	}
+	return StateOpen
 }
 
 // HeldFrom returns the peer an offer this node holds came from: the only

@@ -501,6 +501,16 @@ type StatusReply struct {
 	// PortMap is the port mapping asked of the router (p2p.port_map,
 	// D182): absent when the node runs no peer host.
 	PortMap *p2p.PortMapStatus `json:"port_map,omitempty"`
+	// Bounty says whether the running policy posts or takes bounty
+	// offers (D196), always given, so a front end need not read an
+	// error's text to know the market is off (W-30).
+	Bounty BountyStatus `json:"bounty"`
+}
+
+// BountyStatus is the market's part of the status.
+type BountyStatus struct {
+	Post bool `json:"post"`
+	Take bool `json:"take"`
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -512,6 +522,9 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	if h.host != nil {
 		pm := h.host.PortMap()
 		rep.PortMap = &pm
+	}
+	if b := h.n.Running().Bounty; b != nil {
+		rep.Bounty = BountyStatus{Post: b.Post, Take: b.Take}
 	}
 	if p, ok := h.seen.load(h.policyPath()); ok {
 		rep.PolicyChanged = !p.SameApplied(h.n.Running())

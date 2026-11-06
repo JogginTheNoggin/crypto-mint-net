@@ -242,6 +242,20 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 37 (D198):**
+  - The bounty market is turned on and tuned with `poo policy limits
+    -set bounty.post=1` and the other `bounty.*` limits; `poo status`
+    says whether it is on.
+  - Offers show their state and closing time, and acks name their
+    outcome. Offers that are done move from `bounties.json` to
+    `bounties-done.jsonl`.
+  - An offer's id is the hash of its bytes as received, so nodes of
+    later releases agree on it; `bounties.json` keeps fields a later
+    release adds and says when it is from one.
+  - A claimed layer that meets the series' floor is kept whatever the
+    market answers; only a layer under the floor counts against a peer.
+  - Lease saves are batched, and reading wallet and payment files keeps
+    unknown fields at about the old cost.
 - **Round 36 fixes (D197):**
   - `poo bounty work` grinds from a random nonce, so two grinders find
     different layers and an offer for several layers can be filled.
