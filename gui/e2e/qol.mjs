@@ -514,18 +514,23 @@ try {
     const box = document.createElement('div');
     box.append(...marketView({ post: true, take: true, mine: [
       { id: id1, offer, claims: [{ nonce: 7, pay_to: 'f'.repeat(64), paid: ['d'.repeat(64)] }, { nonce: 8, pay_to: 'f'.repeat(64) }] },
-      { id: id2, offer, claims: [] }],
-    held: [{ id: id3, from: '9'.repeat(64), offer, received: '2026-11-06T13:39:37Z' }] }, (k, v) => acts.push(`${k}:${v.id[0]}`)));
+      { id: id2, offer, claims: [], state: 'expired', closes: '2026-11-06T15:00:00Z' }],
+    held: [{ id: id3, from: '9'.repeat(64), offer, received: '2026-11-06T13:39:37Z', state: 'open' }, { id: 'd'.repeat(64), from: '9'.repeat(64), offer, received: '2026-11-06T13:39:37Z', state: 'filled' }] }, (k, v) => acts.push(`${k}:${v.id[0]}`)));
     for (const b of box.querySelectorAll('button')) b.click();
     return { text: [...box.querySelectorAll('h3, .bounty-on, .bounty-owed')].map(e => e.textContent), unpaid: [...box.querySelectorAll('.bounty-mine tbody tr')].map(r => r.children[7].textContent), acts,
-      off: [offNote({ code: 1, out: '', err: 'poo: the bounty market is off: set bounty.post or bounty.take in node.json\n' }) !== null, offNote({ code: 1, out: '', err: 'poo: some other refusal' }) !== null, offNote({ code: 1, out: '', err: 'poo: rpc: is the node running?' }), offNote({ code: 0, out: '{}', err: '' })],
+      states: [...box.querySelectorAll('.bounty-mine tbody tr, .bounty-held tbody tr')].map(r => [...r.children].filter((_, i, a) => i === a.length - 3).map(c => c.textContent)[0]),
+      off: (() => { const bad = { code: 1, out: '', err: 'poo: refused' }; const t = n => n && n.textContent.split('.')[0];
+        return [t(offNote(bad, { bounty: { post: false, take: false } })), offNote(bad, { bounty: { post: true, take: false } }), t(offNote(bad, null)), t(offNote(bad, {})),
+          offNote({ code: 1, out: '', err: 'poo: rpc: is the node running?' }, null), offNote({ code: 0, out: '{}', err: '' }, null)]; })(),
       pay: payNote({ offer: id1, nonce: 8, pay_to: 'f'.repeat(64), amount: 10, told: true }).textContent,
       work: [workNote({ found: true, strength: 19, tried: 1048576, outcome: 'accepted' }).textContent, workNote({ found: false, tried: 5 }).textContent] };
   });
-  assert.deepEqual(bm.text, ['This node posts offers and takes offers from peers.', 'Your offers (2)', '1 accepted claim waits to be paid: the node kept the layer, and pays only when you press Pay (no auto-pay in phase 1).', 'Offers from peers (1)']);
+  assert.deepEqual(bm.text, ['This node posts offers and takes offers from peers.', 'Your offers (2)', '1 accepted claim waits to be paid: the node kept the layer, and pays only when you press Pay (no auto-pay in phase 1).', 'Offers from peers (2)']);
   assert.deepEqual(bm.unpaid, ['1', '0']);
+  // Each offer's state from poo (D197); Work only on an open peer offer.
+  assert.deepEqual(bm.states, ['', 'expired', 'open', 'filled']);
   assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'cancel:b', 'work:c']);
-  assert.deepEqual(bm.off, [true, true, null, null], 'any refusal but no node gets the fixed line; poo\'s error text is never read (S5)');
+  assert.deepEqual(bm.off, ['The market is off on this node', null, 'If poo says the market is off: In Node policies, Set limits: bounty', 'If poo says the market is off: In Node policies, Set limits: bounty', null, null], 'off comes from status bounty (W-30); without it, a fixed line; error text is never read (S5)');
   assert.equal(bm.pay, 'Paid 10 to ffffffffff…ffffff for the layer with nonce 8; the grinder was told.');
   assert.deepEqual(bm.work, ['Found a layer of strength 19 in 1048576 tries; the payer answered: accepted. The payer pays when it presses Pay; the payment goes to the address you gave.', 'No layer found in 5 tries before the lease or the time ran out; work the offer again for a new lease.']);
   // The Followed series table names the reserve series by poo's builtin

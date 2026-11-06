@@ -61,6 +61,7 @@ type Runner struct {
 	maxJobs   int
 	maxRun    int
 	maxTotal  int
+	keepNew   time.Duration
 	viewOnly  bool
 
 	mu    sync.Mutex
@@ -76,6 +77,11 @@ type Options struct {
 	MaxJobs        int
 	MaxRunning     int
 	MaxTotalOutput int
+	// KeepNew keeps a finished job started less than this long ago from
+	// being dropped, so a page that has just started it can still follow
+	// it: a quick refresh could otherwise end and be dropped before its
+	// events were asked for. Zero keeps no job that way.
+	KeepNew time.Duration
 	// ViewOnly runs every job in the core's view-only mode
 	// (cli.Stdio.ViewOnly, decision D101): commands dial the node with
 	// its view token and anything that changes something is refused.
@@ -103,6 +109,7 @@ func New(ctx context.Context, o Options) *Runner {
 	if o.MaxTotalOutput > 0 {
 		r.maxTotal = o.MaxTotalOutput
 	}
+	r.keepNew = o.KeepNew
 	r.viewOnly = o.ViewOnly
 	r.ctx, r.cancel = context.WithCancel(ctx)
 	return r
@@ -187,10 +194,12 @@ func (r *Runner) trim() {
 		}
 	}
 	// Finished refreshes go first, then other finished jobs, oldest first.
+	// A job started within keepNew stays until a later trim.
+	now := time.Now()
 	for _, refreshOnly := range []bool{true, false} {
 		for i := 0; (len(r.order) > r.maxJobs || total > r.maxTotal) && i < len(r.order); {
 			id := r.order[i]
-			if j := r.jobs[id]; j.Done() && (j.Refresh || !refreshOnly) {
+			if j := r.jobs[id]; j.Done() && (j.Refresh || !refreshOnly) && now.Sub(j.Started) >= r.keepNew {
 				total -= j.outputSize()
 				delete(r.jobs, id)
 				r.order = slices.Delete(r.order, i, i+1)

@@ -122,7 +122,7 @@ func serve(ctx context.Context, listen string, viewOnly bool, in io.Reader, out 
 	if err != nil {
 		return err
 	}
-	runner := jobs.New(ctx, jobs.Options{ViewOnly: viewOnly})
+	runner := jobs.New(ctx, jobs.Options{ViewOnly: viewOnly, KeepNew: 10 * time.Second})
 	srv := server.New(runner, web.FS(), ln.Addr().String())
 	srv.Version = cli.Version
 	printURL := func(prefix string) {

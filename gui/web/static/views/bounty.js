@@ -4,6 +4,7 @@
 // market is off until node.json's bounty section turns it on, which the
 // GUI does not edit.
 import * as where from '../where.js';
+import * as api from '../api.js';
 import { el, flag, form, mountAll, panel, rawFold, needsNode } from '../views.js';
 import { render } from '../render.js';
 import { walletFile } from './wallet.js';
@@ -18,14 +19,28 @@ export function marketNote(o) {
   return el('p', { class: 'hint bounty-on', role: 'status' }, `This node ${o.post ? 'posts offers' : 'does not post offers'} and ${o.take ? 'takes offers from peers' : 'does not take offers from peers'}.`);
 }
 
-// offNote is a fixed line under any refusal of bounty list (other than
-// no node answering): poo's own error stays above it, and the line says
-// how the market is turned on if that is what poo said. It never reads
-// poo's error text (GUI White S5); the GUI does not edit node.json.
-export function offNote(r) {
+// offNote is the line under a refusal of bounty list (other than no node
+// answering). It never reads poo's error text (GUI White S5): st is what
+// poo status printed, whose bounty {post, take} says whether the market
+// is on (W-30). Both off gives the steps to turn it on, as settable
+// limits (D159); a status without the field gives a fixed line that
+// says the same if that is what poo said; a market that is on gives
+// nothing, as poo's error says why.
+export function offNote(r, st) {
   if (r.code === 0 || needsNode(r)) return null;
-  return el('p', { class: 'next-step bounty-off', role: 'status' }, 'If poo says the market is off: it stays off until the node policy file (node.json, in the policy\'s folder) has a bounty section: "post": true to pay peers for layers, which also needs "max_amount" and "budget"; "take": true to grind for peers. Restart the node after the change. docs/running-a-node.md has an example.');
+  const how = 'In Node policies, Set limits: bounty.post 1 to pay peers for layers (it also needs bounty.max_amount and bounty.budget), bounty.take 1 to grind for peers. A running node takes the change at once.';
+  const b = st && st.bounty;
+  if (b && typeof b.post === 'boolean' && typeof b.take === 'boolean') {
+    if (b.post || b.take) return null;
+    return el('p', { class: 'next-step bounty-off', role: 'status' }, `The market is off on this node. ${how}`);
+  }
+  return el('p', { class: 'next-step bounty-off', role: 'status' }, `If poo says the market is off: ${how}`);
 }
+
+// STATES says what each offer state poo prints means (D197): this node's
+// offers, then a peer's.
+const STATES = { open: 'open', filled: 'filled', closed: 'closed', expired: 'expired', leased: 'leased to a grinder', taken: 'taken' };
+const stateText = s => (typeof s === 'string' ? STATES[s] || s : '');
 
 // unpaid counts a posted offer's accepted claims with no payment yet.
 const unpaid = m => (Array.isArray(m.claims) ? m.claims.filter(c => !(Array.isArray(c.paid) && c.paid.length)).length : 0);
@@ -51,11 +66,11 @@ export function marketView(o, act = () => {}) {
   const held = Array.isArray(o && o.held) ? o.held : [];
   if (mine.length) {
     out.push(el('h3', {}, `Your offers (${mine.length})`));
-    out.push(table(['offer', 'pool', 'entry', 'strength', 'per layer', 'layers', 'claims', 'unpaid', ''], mine.map(m => {
+    out.push(table(['offer', 'pool', 'entry', 'strength', 'per layer', 'layers', 'claims', 'unpaid', 'state', 'closes', ''], mine.map(m => {
       const f = m.offer || {};
       const owed = unpaid(m);
       return [render(m.id), String(f.pool ?? ''), render(f.entry), String(f.strength ?? ''), render(f.amount), render(f.count),
-        String(Array.isArray(m.claims) ? m.claims.length : 0), String(owed),
+        String(Array.isArray(m.claims) ? m.claims.length : 0), String(owed), stateText(m.state), String(m.closes ?? ''),
         el('span', { class: 'row-acts' },
           owed ? el('button', { type: 'button', class: 'small', onclick: () => act('pay', { id: m.id }) }, 'Pay') : '',
           el('button', { type: 'button', class: 'small', onclick: () => act('cancel', { id: m.id }) }, 'Cancel'))];
@@ -65,10 +80,13 @@ export function marketView(o, act = () => {}) {
   }
   if (held.length) {
     out.push(el('h3', {}, `Offers from peers (${held.length})`));
-    out.push(table(['offer', 'from', 'pool', 'strength', 'per layer', 'layers', 'received', ''], held.map(h => {
+    out.push(table(['offer', 'from', 'pool', 'strength', 'per layer', 'layers', 'received', 'state', 'closes', ''], held.map(h => {
       const f = h.offer || {};
-      return [render(h.id), render(h.from), String(f.pool ?? ''), String(f.strength ?? ''), render(f.amount), render(f.count), String(h.received ?? ''),
-        el('button', { type: 'button', class: 'small', onclick: () => act('work', { id: h.id }) }, 'Work')];
+      // Work is offered on an open offer (or one poo gives no state for);
+      // poo still decides if a lease is granted.
+      const workable = h.state === undefined || h.state === 'open';
+      return [render(h.id), render(h.from), String(f.pool ?? ''), String(f.strength ?? ''), render(f.amount), render(f.count), String(h.received ?? ''), stateText(h.state), String(h.closes ?? ''),
+        workable ? el('button', { type: 'button', class: 'small', onclick: () => act('work', { id: h.id }) }, 'Work') : ''];
     }), 'bounty-held'));
   }
   if (!mine.length && !held.length && note) {
@@ -108,9 +126,17 @@ export const bountyView = {
       (f.inputs.to && !f.inputs.to.value ? f.inputs.to : f.form.querySelector('button[type=submit]')).focus();
     };
     let market = null;
-    const draw = (r, area) => {
-      const off = offNote(r);
-      if (off) { area.append(off); return; }
+    const draw = async (r, area) => {
+      if (r.code !== 0) {
+        if (needsNode(r)) return;
+        // Whether the market is on comes from poo status (W-30), never
+        // from the error's words (GUI White S5).
+        let st = null;
+        try { const s = await api.run(['status', ...where.flags()]); st = s.code === 0 ? JSON.parse(s.out) : null; } catch (_) { /* no status */ }
+        const off = offNote(r, st);
+        if (off) area.append(off);
+        return;
+      }
       const o = parse(r);
       if (!o || !('mine' in o || 'held' in o)) return;
       const raw = area.querySelector('.result');
