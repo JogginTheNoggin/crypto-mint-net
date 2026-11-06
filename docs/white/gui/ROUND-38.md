@@ -29,7 +29,7 @@ Verdict: **clear**
 - Line 4/7, older nodes: a limit shows as on/off only when `policy
   limits` marks it `switch: true` (D198). A node without the field gets
   the usual number box. The select sends `NAME=on` or `NAME=off`, which
-  poo parses (`on/true/yes`, `off/false/no`), and "unchanged" sends
+  the core parses (`on/true/yes`, `off/false/no`), and "unchanged" sends
   nothing.
 - `notes` from `policy limits -set` is drawn only when it is an array of
   strings, each shown as printed it. Without it nothing is drawn.
