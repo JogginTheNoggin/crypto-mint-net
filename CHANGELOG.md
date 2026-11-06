@@ -240,6 +240,16 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 36 (D195, D196):**
+  - **Bounty market (phase 1):** a node can pay peers to grind layers
+    on its entries, with no consensus change: `poo bounty post`, `list
+    -ask`, `work`, `pay` and `cancel`. One grinder per lease, more
+    leases as a grinder hands layers in, the payout address fixed at the
+    lease, payment by an ordinary wallet payment. Off unless node.json's
+    `bounty` section turns it on.
+  - Payment files say `"kind": "poo-payment"` and `"format": 1`, and a
+    file from a later release is refused with a clear message; payment
+    and wallet files keep fields a later release adds.
 - **Round 35 fixes (D194):**
   - `poo sign` shows the series, the hash and each input it spends,
     refuses a file whose series is not its transactions', checks each

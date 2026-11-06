@@ -5306,3 +5306,90 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     `TestBlue036LedgerFileOrder`.
   - `pkg/wallet/blue036_test.go`: `TestBlue036VariableLegRead`.
   - `pkg/policy/blue036_test.go`: `TestBlue036RawKeySelfTested`.
+
+### D195. Files keep what a later release adds: the payment file's kind and format, the wallet's unknown keys (W-23, W-24)
+
+- **Decision:**
+  - **W-23.** A payment file (`wallet.Unsigned`, written by `poo wallet
+    pay -out` and read by `poo sign`, `poo wallet sign` and `poo
+    submit`) carries `"kind": "poo-payment"` (`brand.KindPrefix` +
+    `payment`) and `"format": 1`. A file of another kind is refused as
+    not a payment, a format above 1 is refused with a message to use a
+    later release, and a file with neither (written before this round)
+    is still read. Unknown top-level and leg keys are kept and written
+    back, so `poo sign` passes on what a later release added.
+  - **W-24.** A wallet file keeps unknown top-level keys and writes them
+    back on every save.
+  - New `pkg/keepjson`: `Split` reads the fields a struct does not know
+    (at most 256 keys, 64 KiB and depth 64, or the file is refused) and
+    `Join` writes them back after the known ones, in sorted order.
+  - W-25 and W-26 are White's rules for later file changes; they need
+    no code this round.
+- **Why:** a file written by a later release must not lose what it
+  holds when an older tool signs or saves it, and a tool must say so
+  when a file is newer than it understands.
+- **Consensus:** None. Files only.
+- **Tier:** wallet, files.
+  - `pkg/keepjson/keepjson_test.go`.
+  - `pkg/wallet/white_w23_test.go`: `TestWalletKeepsUnknownFields`,
+    `TestPaymentFileKindFormatAndUnknownFields`.
+
+### D196. The bounty market, phase 1: offers, leases, claims and payment between peers (jerry)
+
+- **Decision:** a node may pay peers to grind layers on its entries,
+  following jerry's plan (https://claude.ai/artifact/7LPNtYLPh4Gez7cAcqAxdQ)
+  and his answers: fixed price, no auto-pay, direct peers only, one
+  grinder per lease, more leases when the stated rate covers them, and
+  the payout address fixed when the lease is taken.
+  - **Off by default.** node.json's `bounty` section turns it on:
+    `post`, `take`, `max_open` (16, at most 256), `max_amount`,
+    `budget` (posting needs both), `max_leases_per_grinder` (4, at most
+    64), `lease_floor_seconds` and `lease_ceiling_seconds` (60 and
+    3600; 10 to 86400), `held_offers` (256, at most 4096) and
+    `min_price`. Only then does the hello list the feature `bounty`, and
+    only to a peer that lists it does the node send bounty messages.
+  - **Wire messages 70 to 76** (offer, list request, list, take, grant,
+    claim, ack), counted with discovery in the per-peer budget. A node
+    with the market off ignores them; a node that does not know them
+    ignores them as before.
+  - **An offer** names a series, pool, entry, least strength (at least
+    the series' layer floor), amount per layer, count and how long it is
+    open; its id is the SHA-256 of its bytes (with a random salt).
+  - **A lease** goes to one grinder at a time: about three times the
+    expected time at the grinder's stated rate, inside the floor and
+    ceiling, with one extension. A grinder starts with one lease and
+    earns one more for each layer it hands in, up to
+    `max_leases_per_grinder`, while its stated rates cover all its
+    leases inside the ceiling.
+  - **A claim** names the nonce and the payout address, which must be
+    the one the lease named. The payer checks the layer's strength with
+    the series' hash; an accepted layer goes to the payer's own engine
+    as a layer from that peer, and a claim below the target counts as an
+    invalid item against the peer. Outcomes: accepted, paid, too weak,
+    filled, closed, reserved, mismatch, repeat.
+  - **Payment is an ordinary wallet payment** made by `poo bounty pay`;
+    the node then tells the grinder the payment's tids (outcome paid).
+  - `poo bounty post | list [-ask] | work ID -to ADDR | pay ID [-claim
+    NONCE] | cancel ID`; RPC `/v1/bounty` and `/v1/bounty/{post,
+    cancel, ask, work, paid}`. Posted offers are kept in
+    `bounties.json`; offers from peers are kept in memory.
+- **Phase 1 limits:** a watch-only wallet cannot pay a bounty yet; no
+  auto-pay; offers are not passed on (phase 3); offers are not signed
+  (phase 2); the GUI runs it from the terminal for now.
+- **Why:** jerry's major change before the first release: grinders are
+  paid for layers with no consensus change.
+- **Consensus:** None. A bounty layer is an ordinary layer, checked by
+  the same rules as any other; the payment is an ordinary transaction.
+  The market only changes what a node offers, takes and pays.
+- **Tier:** bounty, wire, p2p, node policy, RPC, CLI.
+  - `pkg/bounty/book_test.go`: codec round trips, leases and claims,
+    leases that follow the rate, held offers.
+  - `pkg/p2p/bounty_internal_test.go`: `TestBountyFeatureOnlyWhenOn`.
+  - `pkg/cli/bounty_test.go`: `TestBountyMarket` (two nodes: post,
+    ask, work, pay, told, settle, cancel).
+- **For Black (Part D):** please confirm no rule changed: a claimed layer
+  is accepted only through the ordinary layer path, and nothing in the
+  market changes which ledger any node accepts.
+- **For White (Part D):** please check the new feature name, message
+  numbers 70 to 76 and the `bounties.json` kind and format against
+  WHITE-001.

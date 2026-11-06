@@ -322,6 +322,39 @@ for 10 minutes or block it for a day. You can look and act yourself:
 ./poo chases                            # heavier ledgers waiting to be checked
 ```
 
+### Paying peers to grind layers (bounty market)
+
+Two nodes that are connected can trade grinding work (D196). It is off
+until each turns it on in node.json, then restarts:
+
+```json
+"bounty": {"post": true, "take": true, "max_amount": 5000, "budget": 20000}
+```
+
+The payer posts an offer on an entry it holds, and the grinder finds,
+works and claims it:
+
+```sh
+# on the payer: pay 1000 units for each of 2 layers of strength 28
+./poo bounty post -entry ENTRY -strength 28 -amount 1000 -count 2
+# on the grinder: ask peers for offers, then work one
+./poo wallet address                    # a fresh address to be paid to
+./poo bounty list -ask
+./poo bounty work OFFER_ID -to ADDRESS
+# on the payer: see the accepted claim and pay it from the wallet
+./poo bounty list
+./poo bounty pay OFFER_ID
+./poo bounty cancel OFFER_ID            # close the offer early
+```
+
+A grinder works an offer alone for the length of its lease (about three
+times the expected time at its rate). The payout address is fixed when
+the lease is taken. Payment is an ordinary payment, so the grinder sees
+it with `poo wallet balance` once it settles. In this first phase the
+payer pays by hand, a watch-only wallet cannot pay, and offers reach
+direct peers only. See [docs/modules/bounty.md](modules/bounty.md) for
+every setting.
+
 ### Behind a router (NAT)
 
 A node behind a home router, a firewall or a VPN works without any of
