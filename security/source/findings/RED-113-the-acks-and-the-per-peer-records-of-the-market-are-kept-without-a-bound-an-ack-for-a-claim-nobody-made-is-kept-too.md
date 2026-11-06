@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 36 Part B, on `main` @ `6b56136` (D196) |
 | Area | `pkg/bounty/book.go` (`Acked`, `Held.Acks`, `payers`, `grinders`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-037) |
+| Fixed by | `claude/project-thread-ggo8dt` @ afd0dc1 (BLUE-037) |
 | For Black | Not a rule. |
 
 ## What is wrong

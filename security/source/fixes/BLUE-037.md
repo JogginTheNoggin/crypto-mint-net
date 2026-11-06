@@ -5,6 +5,7 @@
 | Fixes | RED-109, RED-110, RED-112 (medium), RED-111, RED-113, RED-114 (low); RED-111, RED-112 and RED-114 in part |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `d25f777` (Source Round 36 Part C), with GREEN-061 (#299) merged in |
+| Code | `afd0dc1` |
 | Decisions | D197 |
 | With | GREEN-061 (#299), carried: it changes the same `pkg/p2p/bounty.go`. ORANGE-046 (#301) is docs only; its proposals are for Grey. |
 | Review | No consensus change: the market is outside the ledger (D196). For White: two new ack outcomes (9 `known`, 10 `no lease`) that an older build names "outcome N"; leases in `bounties.json` gain `addr`. |
