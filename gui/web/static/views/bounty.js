@@ -28,7 +28,7 @@ export function marketNote(o) {
 // nothing, as poo's error says why.
 export function offNote(r, st) {
   if (r.code === 0 || needsNode(r)) return null;
-  const how = 'In Node policies, Set limits: bounty.post 1 to pay peers for layers (it also needs bounty.max_amount and bounty.budget), bounty.take 1 to grind for peers. A running node takes the change at once.';
+  const how = 'In Node policies, Set limits: bounty.post 1 to pay peers for layers (it also needs bounty.max_amount and bounty.budget), bounty.take 1 to grind for peers. Saving reloads a running node to apply it.';
   const b = st && st.bounty;
   if (b && typeof b.post === 'boolean' && typeof b.take === 'boolean') {
     if (b.post || b.take) return null;
@@ -41,6 +41,21 @@ export function offNote(r, st) {
 // offers, then a peer's.
 const STATES = { open: 'open', filled: 'filled', closed: 'closed', expired: 'expired', leased: 'leased to a grinder', taken: 'taken' };
 const stateText = s => (typeof s === 'string' ? STATES[s] || s : '');
+
+// when shows a time poo printed (RFC 3339, to the nanosecond) in the
+// reader's own time zone and words, with poo's text in the tooltip and
+// the datetime attribute (GUI-GREEN-063). Text that is not a time is
+// shown as printed.
+export function when(s) {
+  if (typeof s !== 'string' || !s) return '';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return el('time', { datetime: s, title: s }, d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }));
+}
+// open says an offer can still take layers: poo says open, or (an older
+// node) says nothing. Cancel and Work are offered only then; poo still
+// decides (GUI-GREEN-063).
+const isOpen = st => st === undefined || st === 'open';
 
 // unpaid counts a posted offer's accepted claims with no payment yet.
 const unpaid = m => (Array.isArray(m.claims) ? m.claims.filter(c => !(Array.isArray(c.paid) && c.paid.length)).length : 0);
@@ -70,10 +85,10 @@ export function marketView(o, act = () => {}) {
       const f = m.offer || {};
       const owed = unpaid(m);
       return [render(m.id), String(f.pool ?? ''), render(f.entry), String(f.strength ?? ''), render(f.amount), render(f.count),
-        String(Array.isArray(m.claims) ? m.claims.length : 0), String(owed), stateText(m.state), String(m.closes ?? ''),
+        String(Array.isArray(m.claims) ? m.claims.length : 0), String(owed), stateText(m.state), when(m.closes),
         el('span', { class: 'row-acts' },
           owed ? el('button', { type: 'button', class: 'small', onclick: () => act('pay', { id: m.id }) }, 'Pay') : '',
-          el('button', { type: 'button', class: 'small', onclick: () => act('cancel', { id: m.id }) }, 'Cancel'))];
+          isOpen(m.state) ? el('button', { type: 'button', class: 'small', onclick: () => act('cancel', { id: m.id }) }, 'Cancel') : '')];
     }), 'bounty-mine'));
     const owed = mine.reduce((a, m) => a + unpaid(m), 0);
     if (owed) out.push(el('p', { class: 'next-step bounty-owed' }, `${plural(owed, 'accepted claim waits', 'accepted claims wait')} to be paid: the node kept the layer, and pays only when you press Pay (no auto-pay in phase 1).`));
@@ -84,8 +99,8 @@ export function marketView(o, act = () => {}) {
       const f = h.offer || {};
       // Work is offered on an open offer (or one poo gives no state for);
       // poo still decides if a lease is granted.
-      const workable = h.state === undefined || h.state === 'open';
-      return [render(h.id), render(h.from), String(f.pool ?? ''), String(f.strength ?? ''), render(f.amount), render(f.count), String(h.received ?? ''), stateText(h.state), String(h.closes ?? ''),
+      const workable = isOpen(h.state);
+      return [render(h.id), render(h.from), String(f.pool ?? ''), String(f.strength ?? ''), render(f.amount), render(f.count), when(h.received), stateText(h.state), when(h.closes),
         workable ? el('button', { type: 'button', class: 'small', onclick: () => act('work', { id: h.id }) }, 'Work') : ''];
     }), 'bounty-held'));
   }
