@@ -60,6 +60,8 @@ var writeCommands = []string{
 	// settings export writes a file, as policy export does, and import
 	// changes node.json (D155).
 	"settings",
+	// poo sign writes the signed payment file (D193).
+	"sign",
 }
 
 // viewOnlyOf reports whether the invocation writing to out is view-only.

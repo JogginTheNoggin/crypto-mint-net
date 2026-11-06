@@ -168,6 +168,14 @@ It is plain JSON, passed between co-signers as a file.
 - `Cosign(series, unsigned)` adds this wallet's signatures (by matching its
   public keys against each input's policy) and reports how many.
 - `Missing()` says how many signatures each input still needs.
+- `SignWith(unsigned, hash, alg, signer)` adds one key's signatures with
+  no wallet at all (`poo sign`); `Unsigned.Hash` names the series' hash so
+  it needs no node (D193).
+- A watch-only wallet (`Options.WatchOnly`, `File.WatchOnly`) has no
+  seed: it follows addresses from public keys and prepares payments, and
+  every call that needs a private key returns `ErrWatchOnly` (D193).
+  `PayOptions.Change` names the change address; a watch-only wallet sends
+  change back to the first input's address.
 - `Submit(series, node, unsigned)` sends it once complete. It must be a
   payment this wallet made: the legs are matched by tid to a recorded
   payment, so its inputs stay reserved and its states are followed.

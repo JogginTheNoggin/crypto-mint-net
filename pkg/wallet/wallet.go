@@ -39,9 +39,13 @@ const DefaultGap = 20
 
 // Errors.
 var (
-	ErrLocked  = errors.New("wallet: locked; unlock it with its passphrase")
-	ErrExists  = errors.New("wallet: file exists")
-	ErrNoFunds = errors.New("wallet: not enough spendable units")
+	ErrLocked = errors.New("wallet: locked; unlock it with its passphrase")
+	// ErrWatchOnly: the wallet holds no seed, so it cannot sign, derive a
+	// key or show a seed; it watches addresses whose keys are kept
+	// elsewhere (D193).
+	ErrWatchOnly = errors.New("wallet: watch-only (it holds no private key); sign elsewhere, with poo sign, and submit the signed file")
+	ErrExists    = errors.New("wallet: file exists")
+	ErrNoFunds   = errors.New("wallet: not enough spendable units")
 	// ErrChanged: the wallet file changed since it was read, so Save
 	// wrote nothing rather than undo the other change (GUI-019, D145).
 	ErrChanged = errors.New("wallet: the file changed since it was read (another command saved it), so nothing was saved; run the command again")
@@ -99,6 +103,10 @@ type Watch struct {
 // File is the wallet file.
 type File struct {
 	Format int `json:"format"`
+	// WatchOnly: the wallet has no seed (Sealed and KDF are empty). It
+	// watches the addresses of keys kept elsewhere, added with AddPolicy,
+	// and makes unsigned payments for them (D193).
+	WatchOnly bool `json:"watch_only,omitempty"`
 	// Alg is the key algorithm of every derived key; 0 means Ed25519, so
 	// wallets made before there was a choice read unchanged.
 	Alg      uint32       `json:"alg,omitempty"`
@@ -145,6 +153,9 @@ type Options struct {
 	// cannot change later: a series must allow it for the wallet to
 	// receive there.
 	Alg policy.AlgID
+	// WatchOnly makes a wallet with no seed and no passphrase: it holds
+	// no private key at all (D193). Seed must be nil.
+	WatchOnly bool
 }
 
 // Create makes a new wallet at path, sealed with passphrase, and returns it
@@ -152,6 +163,13 @@ type Options struct {
 func Create(path, passphrase string, o Options) (*Wallet, error) {
 	if _, err := os.Stat(path); err == nil {
 		return nil, ErrExists
+	}
+	if o.WatchOnly {
+		if o.Seed != nil {
+			return nil, errors.New("wallet: a watch-only wallet has no seed")
+		}
+		w := &Wallet{path: path, f: File{Format: 1, WatchOnly: true, Gap: DefaultGap}}
+		return w, w.Save()
 	}
 	seed := o.Seed
 	if seed == nil {
@@ -227,6 +245,9 @@ func (w *Wallet) Path() string { return w.path }
 // a command that never saves (wallet seed, cosign), and Unlock returns
 // ErrPassphraseChanged (GUI-022, D151).
 func (w *Wallet) Unlock(passphrase string) error {
+	if w.f.WatchOnly {
+		return nil // nothing is sealed
+	}
 	if w.read != nil && !w.held {
 		if cur, err := os.ReadFile(w.path); err == nil && !bytes.Equal(cur, w.read) {
 			var f File
@@ -252,13 +273,24 @@ func (w *Wallet) Lock() {
 	w.seed = nil
 }
 
+// WatchOnly reports whether the wallet holds no seed (D193).
+func (w *Wallet) WatchOnly() bool { return w.f.WatchOnly }
+
+// locked is the error for a call that needs the seed.
+func (w *Wallet) locked() error {
+	if w.f.WatchOnly {
+		return ErrWatchOnly
+	}
+	return ErrLocked
+}
+
 // Unlocked reports whether the seed is open.
 func (w *Wallet) Unlocked() bool { return w.seed != nil }
 
 // Seed returns a copy of the seed, for a backup.
 func (w *Wallet) Seed() ([]byte, error) {
 	if w.seed == nil {
-		return nil, ErrLocked
+		return nil, w.locked()
 	}
 	return append([]byte(nil), w.seed...), nil
 }
@@ -268,7 +300,7 @@ func (w *Wallet) Seed() ([]byte, error) {
 // with the default settings (decision D95).
 func (w *Wallet) Rekey(passphrase string) error {
 	if w.seed == nil {
-		return ErrLocked
+		return w.locked()
 	}
 	k := w.f.KDF
 	if k.Name != KDFArgon2id {
@@ -433,7 +465,7 @@ func (w *Wallet) topUp() {
 // signer returns the signer for key index; the wallet must be unlocked.
 func (w *Wallet) signer(index uint32) (policy.Signer, error) {
 	if w.seed == nil {
-		return nil, ErrLocked
+		return nil, w.locked()
 	}
 	return derive(w.seed, w.KeyAlg(), index)
 }
@@ -449,7 +481,7 @@ func (w *Wallet) takeKey(label string) (KeyInfo, error) {
 		}
 	}
 	if w.seed == nil {
-		return KeyInfo{}, ErrLocked
+		return KeyInfo{}, w.locked()
 	}
 	w.topUp()
 	return w.takeKey(label)

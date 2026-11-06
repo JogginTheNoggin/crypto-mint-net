@@ -59,11 +59,18 @@ func (r Request) Check(s *series.Series) (*policy.Policy, error) {
 
 // PayRequest checks r and pays it.
 func (w *Wallet) PayRequest(s *series.Series, n Node, r Request) (*Sent, *Unsigned, error) {
+	return w.PayRequestWith(s, n, r, PayOptions{})
+}
+
+// PayRequestWith is PayRequest with o's Mints and Change; the request
+// gives the address, amount, policy and memo.
+func (w *Wallet) PayRequestWith(s *series.Series, n Node, r Request, o PayOptions) (*Sent, *Unsigned, error) {
 	p, err := r.Check(s)
 	if err != nil {
 		return nil, nil, err
 	}
-	return w.Pay(s, n, r.Address, r.Amount, PayOptions{Policy: p, Memo: r.Memo})
+	o.Policy, o.Memo = p, r.Memo
+	return w.Pay(s, n, r.Address, r.Amount, o)
 }
 
 // TxRef names a transaction by its mint and tid.

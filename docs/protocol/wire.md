@@ -39,7 +39,8 @@ No frame may exceed 16 MiB (`wire.MaxFrame`). A node closes a connection
 whose next frame is larger. The first frame, the hello, may not exceed
 3 MiB (`wire.MaxHelloFrame`: the longest hello D190's limits allow is
 about 2.1 MiB). A reader allocates as the bytes arrive, not the size a
-frame declares (D191).
+frame declares (D191). Both limits are frozen with wire version 1 from the first
+public tag (W-19, D192).
 
 ## Header
 
@@ -161,7 +162,8 @@ baseline: at most 255, each a name of at most 32 bytes (`a-z`, `0-9`,
 `-`) and a version, sorted by name with no repeats. The extensions are
 optional fields a later release adds: at most 32, tags strictly
 increasing, values at most 64 KiB (room for a post-quantum key or signature, D190). Ping, pong and partial pong end with
-the same extension list. Nothing may follow the lists. These limits and
+the same extension list, whose values together may not exceed 64 KiB
+(`wire.MaxSmallExt`, W-18, D192), so a discovery message stays small. Nothing may follow the lists. These limits and
 the release's characters are frozen with wire version 1 from the first
 public tag (W-17, D190).
 
