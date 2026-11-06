@@ -152,6 +152,14 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
 // The job itself runs on, as a detached command does, and is in Jobs.
 function leave(area) {
   area.gone = true;
+  unfollow(area);
+}
+
+// unfollow stops following area's job without marking area gone: a form
+// that refuses to run (a missing field, GUI-026; refuse, GUI-032) is still
+// on the page, and its next run must be followed, or it gets no prompt
+// and no Stop, and its job waits on input no one can give (GUI-033).
+function unfollow(area) {
   if (area.unfollow) { area.unfollow(); area.unfollow = null; }
 }
 
@@ -441,7 +449,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     const v = values();
     const missing = fields.filter(fd => fd.required && shown(fd) && (v[fd.name] === '' || v[fd.name] === false || (Array.isArray(v[fd.name]) && !v[fd.name].length)));
     if (missing.length) {
-      leave(area);
+      unfollow(area);
       area.replaceChildren(el('p', { class: 'run-status bad missing', role: 'alert' }, `Nothing was run: fill in ${missing.map(fd => fd.label).join(', ')}.`));
       inputs[missing[0].name].focus?.();
       return;
@@ -451,7 +459,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     // a key pasted where a path goes (GUI-032).
     const no = refuse && refuse(v);
     if (no) {
-      leave(area);
+      unfollow(area);
       area.replaceChildren(el('p', { class: 'run-status bad refused', role: 'alert' }, `Nothing was run: ${no.text}`));
       if (no.field && inputs[no.field]) { inputs[no.field].value = ''; showOnly(); line.set(args(values())); inputs[no.field].focus?.(); }
       return;
@@ -465,6 +473,8 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     if (danger && !confirm(dangerText ? dangerText(v) : `Run ${api.quote(args(values()))}?`)) return;
     if (g) g.take();
     busy = submitBtn.disabled = true;
+    // A form that is submitted is on the page (GUI-033).
+    area.gone = false;
     runJob(args(values()), area, { secretOutput, onStart, lazy: true }).then(async r => {
       busy = false;
       try { if (onResult) await onResult(r, area); } finally {

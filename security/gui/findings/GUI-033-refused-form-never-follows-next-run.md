@@ -3,7 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
+| Fixed by | GUI/Blue, Round 36C (views.js: both refusal paths only stop following a job (`unfollow`), and a submitted form clears `area.gone` before `runJob`; qol.mjs checks that after each refusal the next Sign shows poo's masked prompt and Stop ends the job) |
 | Found on | main @ d25f777 (#296, #298: GUI-032's `refuse` on Sign with a key kept elsewhere) |
 | Component | gui/web/static/views.js (`form`'s submit handler: the `refuse` path, and the GUI-026 required-field path, call `leave(area)`, which sets `area.gone = true`; nothing sets it back, and `runJob` returns at once when `area.gone`) |
 | Surface | local (the GUI page and poo-gui's job slots) |

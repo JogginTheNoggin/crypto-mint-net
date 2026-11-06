@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed for a plain hex key; verified by GUI/Red R36B @ d25f777, with a residual for keys written with separators (see R36B notes) |
+| Status | fixed; the R36B residual (keys written with separators) fixed by GUI/Blue in Round 36C: `looksLikeKey` counts hex digits with colons, spaces and dashes taken out and a trailing dot dropped, and poo-gui's `shell.Redact` hides a `-key-file` or `-seed-file` value that `LooksLikeKey` in a job's command line (TestRedactKeyFile) |
 | Fixed by | GUI/Blue, Round 35C (wallet.js: the key is asked for masked unless "The key is in a file" is ticked; a Key file of 32 or more hex digits with no / \\ or . shows as `…` on the command line, and Sign refuses it, runs nothing and empties the field; qol.mjs checks it). Source #291 (D194): key and seed file errors no longer carry the path or OS error text, and the masked prompt says `key:` for `poo sign` and `keygen -raw` |
 | Found on | main @ 58273f7 (#283, #285: Wallet → "Sign with a key kept elsewhere", D193) |
 | Component | gui/web/static/views/wallet.js (the `keyFile` field: plain text, passed as `-key-file VALUE`); pkg/cli/node.go (`seedFlags.read`: `os.ReadFile(*f.file)`, whose error names the path); gui/jobs, gui/server (`/api/jobs` shows args redacted only for `shell.SecretFlags`, seed and restore) |
