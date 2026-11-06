@@ -285,6 +285,10 @@ type Held struct {
 	Closes *time.Time `json:"closes,omitempty"`
 	// ended is what the payer last said ended the offer for this node.
 	ended string
+	// accepted counts the layers the payer accepted from this node, each
+	// nonce once while its ack is kept, so an offer of more than MaxAcks
+	// layers can read filled too (RED-123).
+	accepted int
 }
 
 // MaxAcks bounds the acks kept for one held offer, the newest kept
@@ -1455,6 +1459,9 @@ func (b *Book) Acked(peer string, a Ack) {
 	case Paid:
 		p.Paid++
 	}
+	if a.Outcome == Accepted && !slices.ContainsFunc(h.Acks, func(x Ack) bool { return x.Outcome == Accepted && x.Nonce == a.Nonce }) {
+		h.accepted++
+	}
 	h.Acks = append(h.Acks, a)
 	if len(h.Acks) > MaxAcks { // the newest kept (RED-113)
 		h.Acks = slices.Delete(h.Acks, 0, len(h.Acks)-MaxAcks)
@@ -1464,14 +1471,8 @@ func (b *Book) Acked(peer string, a Ack) {
 		h.Lease = nil
 		// Every layer the offer asks for accepted from this node: it is
 		// filled for this grinder too, without asking again
-		// (GUI-GREEN-065, D204).
-		seen := map[uint64]bool{}
-		for _, x := range h.Acks {
-			if x.Outcome == Accepted {
-				seen[x.Nonce] = true
-			}
-		}
-		if len(seen) >= int(h.Offer.Count) {
+		// (GUI-GREEN-065, D204), counted past the acks kept (RED-123).
+		if h.accepted >= int(h.Offer.Count) {
 			h.ended = StateFilled
 		}
 	case Filled:

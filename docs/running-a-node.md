@@ -232,6 +232,20 @@ lighter it may be pruned if more than `k` lighter branches are held
 (`k: -1` in node.json keeps every branch). Everything after the old
 claim that depends on it is not on the new branch.
 
+### Data from earlier builds: start fresh
+
+Builds from before the rename to `poon` (D204 to D206) used other file
+kinds, labels and a different default series id, and nothing of theirs is
+read: no old folder, environment variable or file kind. Nothing was
+released under the old name, so there is no migration. A node pointed at
+files an earlier build wrote refuses to start. Start fresh instead: run
+`poon init` in a new data folder (the
+default `~/.poon`, or `POON_HOME`), make a new wallet, and take what you
+need by hand. Set `POON_VIEW_ONLY` again where a profile or service used
+the old switch. Any value of it other than empty, `0`, `false`, `no` or
+`off` turns view-only mode on, so a value this release does not read
+leaves it on, never off (RED-122, D207).
+
 ## 5. Restart
 
 Stop the node and start it again. `poon status` shows the same tips and

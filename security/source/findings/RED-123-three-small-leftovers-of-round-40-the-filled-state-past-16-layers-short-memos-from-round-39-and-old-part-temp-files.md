@@ -3,10 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | Info (each is cosmetic or needs an old file; none costs anything by itself) |
-| Status | open |
+| Status | fixed (in part) |
 | Found | Source Round 40 Part B, on `main` @ `46b638d` (D203, D204) |
 | Area | `pkg/bounty/book.go` (`Acked`, `MaxAcks`), `pkg/cli/bounty.go` (`sentFor`, `BountyMemoID`), `pkg/daemon/daemon.go` and `pkg/p2p/chase.go` (`TempPrefix`) |
 | Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-041) |
 | For Black | Not a rule. |
 
 ## 1. A held offer of more than 16 layers never reads filled (GUI-GREEN-065)
@@ -31,3 +32,11 @@ D203 puts 16 bytes (32 characters) of the id in the memo, and `sentFor` matches 
 ## 3. `poo-parts-*` temp files are never swept
 
 `daemon.go` removes leftover `TempPrefix+"parts-*"` files at start, and `TempPrefix` is now `poon-`. A part temp file left by a crash under the old name (the chase writes them in `PartsDir`) is not matched and stays. They are up to a part's size each. Only a crash before the rename leaves one. Not run; from the code.
+
+## Resolution
+
+Fixed in part in BLUE-041 (D207).
+
+1. Fixed. A held offer counts the payer's accepts (each nonce once while its ack is kept), so an offer of more than 16 layers reads filled once every layer is accepted. Test: `TestBlue041HeldFilledPastMaxAcks`.
+2. Won't fix. Round 39 memos come only from builds before the rename, whose wallets are not read (new labels, a fresh start; D206, D207).
+3. Won't fix, for the same reason: temp files under the old prefix come only from a build before the rename.

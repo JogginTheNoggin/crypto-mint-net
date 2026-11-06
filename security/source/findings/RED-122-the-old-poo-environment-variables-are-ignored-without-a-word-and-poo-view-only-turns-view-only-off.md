@@ -3,10 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Severity | Low (it needs a person or script that set the old variable; it fails open for the one that is a safety switch) |
-| Status | open |
+| Status | fixed |
 | Found | Source Round 40 Part B, on `main` @ `46b638d` (D204, the rename to `poon`) |
 | Area | `pkg/brand/brand.go` (`EnvPrefix`), `pkg/cli/scope.go` (`viewOnlyEnv`), `pkg/cli/node.go` (`defaultRoot`, seed), `pkg/cli/wallet.go` (passphrase) |
 | Fixed by | |
+| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-041) |
 | For Black | Not a rule. No consensus byte is involved. |
 
 ## What is wrong
@@ -44,3 +45,9 @@ Cheap and until the first public tag only:
 ## Not tested
 
 The `POO_HOME`, passphrase and seed cases; the GUI path (`poon-gui` passes `POON_*` the same way).
+
+## Resolution
+
+Fixed in BLUE-041 (D207), in the way jerry set: nothing is released, so there is no fallback and no old name is read or named in a warning. What failed open was the switch's spelling. `POON_VIEW_ONLY` is now on for any value but empty, `0`, `false`, `no` or `off`, so a value the tool does not read leaves view-only mode on. `docs/running-a-node.md` ("Data from earlier builds: start fresh") says nothing of the earlier builds is read, a node pointed at their files refuses to start, and a profile must set `POON_VIEW_ONLY` again. The `~/.poo` notice is not added (it would name an old name).
+
+Test: `TestBlue041ViewOnlyFailsClosed`.

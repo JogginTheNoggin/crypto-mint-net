@@ -5843,3 +5843,34 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   series id or address with one after it, which is a separate network,
   not a fork.
 - **Tier:** Hash, series, policy, wallet, store, vectors, docs.
+
+### D207. Round 40 fixes: view-only fails closed, data from earlier builds is a fresh start, held offers past 16 layers read filled (BLUE-041)
+
+- **Merged first:** Green's #356 (GREEN-065: the usage text's spacing and
+  the zsh completion's `_poon` name) and Orange's #360 (ORANGE-050: no
+  regression from the rename, and a test-only fix so
+  `BenchmarkHandleTxParallel` runs again).
+- **Decision:**
+  - **RED-122.** No old name is read (jerry: nothing is released, no
+    fallback, no old names), so the old variables stay unread and no
+    warning names them. What could fail open is `POON_VIEW_ONLY` itself:
+    it now turns view-only mode on for any value but empty, `0`, `false`,
+    `no` or `off`, where before only `1`, `true`, `yes` and `on` did.
+    `docs/running-a-node.md` gains "Data from earlier builds: start
+    fresh": nothing of the earlier builds is read, a node pointed at
+    their files refuses to start (GUI Green #359), and the way on is a
+    new data folder, wallet and `POON_VIEW_ONLY`.
+  - **RED-123.**
+    - (1) A held offer counts the payer's accepts (`accepted`, each nonce
+      once while its ack is kept), so an offer of more than `MaxAcks`
+      (16) layers reads filled once every layer is accepted. Display
+      only; the payer's answer is unchanged.
+    - (2) Payments with Round 39's 8-character memo, and (3) temp files
+      under the old prefix, are not handled: both exist only from builds
+      before the rename, whose data is a fresh start.
+- **Why:** a safety switch must never turn off because of a spelling,
+  and a grinder must see an offer it filled as filled.
+- **Consensus:** None.
+- **Tier:** CLI, bounty, docs.
+  - `pkg/cli/blue041_test.go`: `TestBlue041ViewOnlyFailsClosed`.
+  - `pkg/bounty/blue041_test.go`: `TestBlue041HeldFilledPastMaxAcks`.
