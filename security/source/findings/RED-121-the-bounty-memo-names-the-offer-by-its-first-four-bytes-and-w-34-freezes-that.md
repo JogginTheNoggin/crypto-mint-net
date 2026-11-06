@@ -7,7 +7,7 @@
 | Found | Source Round 39 Part B, on `main` @ `fa8dad7` (D202, W-34: `BountyMemo`, `sentFor`) |
 | Area | `pkg/cli/bounty.go` (`BountyMemo`, `sentFor`), `pkg/hash/hash.go` (`Short`) |
 | Fixed by | |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-040) |
+| Fixed by | `claude/project-thread-ggo8dt` @ a29af78 (BLUE-040) |
 | For Black | Not a rule. For White: this is the memo W-34 freezes before the first tag. |
 
 ## What is wrong

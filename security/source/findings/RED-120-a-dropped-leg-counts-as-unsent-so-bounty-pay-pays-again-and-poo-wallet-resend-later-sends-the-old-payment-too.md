@@ -7,7 +7,7 @@
 | Found | Source Round 39 Part B, on `main` @ `fa8dad7` (D202, W-34: `legSent`, `sentFor`; `Wallet.Resend`) |
 | Area | `pkg/cli/bounty.go` (`legSent`, `sentFor`, `bountyPay`), `pkg/wallet/pay.go` (`Leg.open`, `Spendable`), `pkg/wallet/watch.go` (`Resend`), `pkg/cli/wallet.go` (`walletResend`) |
 | Fixed by | |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-040) |
+| Fixed by | `claude/project-thread-ggo8dt` @ a29af78 (BLUE-040) |
 | For Black | Not a rule: both payments are ordinary transactions. |
 
 ## What is wrong
