@@ -201,7 +201,7 @@ type Grant struct {
 
 // Encode returns the grant's bytes.
 func (g Grant) Encode() []byte {
-	return encoding.NewWriter(48+len(g.Reason)).Raw(g.Offer[:]).U32(g.Seconds).VarBytes([]byte(g.Reason)).Bytes()
+	return encoding.NewWriter(48 + len(g.Reason)).Raw(g.Offer[:]).U32(g.Seconds).VarBytes([]byte(g.Reason)).Bytes()
 }
 
 // DecodeGrant reads a grant.

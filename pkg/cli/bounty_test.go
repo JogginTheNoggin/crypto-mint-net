@@ -73,7 +73,11 @@ func TestBountyMarket(t *testing.T) {
 	// Wait until the two are connected and both list the feature.
 	deadline := time.Now().Add(20 * time.Second)
 	for {
-		var ps struct{ Peers []struct{ ClaimedFeatures []struct{ Name string } `json:"claimed_features"` } }
+		var ps struct {
+			Peers []struct {
+				ClaimedFeatures []struct{ Name string } `json:"claimed_features"`
+			}
+		}
 		cli(t, &ps, append([]string{"peers"}, pr...)...)
 		ok := false
 		for _, p := range ps.Peers {
