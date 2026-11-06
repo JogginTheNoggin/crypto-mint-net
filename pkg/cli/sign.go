@@ -43,9 +43,12 @@ type SignReport struct {
 
 // SignLeg is one transaction of the payment.
 type SignLeg struct {
-	Serial  uint64      `json:"serial"`
-	TID     hash.Hash   `json:"tid"`
-	Inputs  int         `json:"inputs"`
+	Serial uint64    `json:"serial"`
+	TID    hash.Hash `json:"tid"`
+	Inputs int       `json:"inputs"`
+	// Claim marks a leg that claims a whole mint, which spends no input
+	// (poo wallet claim -to-policy, GREEN-060).
+	Claim   bool        `json:"claim,omitempty"`
 	Outputs []tx.Output `json:"outputs"`
 }
 
@@ -138,7 +141,7 @@ func signCmd(args []string, out io.Writer) error {
 		if t.Mint.Serial != l.Serial {
 			return fmt.Errorf("a leg says mint %d but its transaction spends mint %d", l.Serial, t.Mint.Serial)
 		}
-		rep.Legs = append(rep.Legs, SignLeg{Serial: l.Serial, TID: t.TID(h), Inputs: len(t.Inputs), Outputs: t.Outputs})
+		rep.Legs = append(rep.Legs, SignLeg{Serial: l.Serial, TID: t.TID(h), Inputs: len(t.Inputs), Claim: t.IsClaim(), Outputs: t.Outputs})
 	}
 	if !*show {
 		if rep.Added, err = wallet.SignWith(&u, h, alg, signer); err != nil {

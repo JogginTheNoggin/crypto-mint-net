@@ -124,11 +124,17 @@ them where the key is (D193):
 
 ```sh
 # on the key's machine (no node needed)
-./poo keygen -seed-file key.hex          # or: -raw for a key made by another tool
+./poo keygen -out key.hex                # a new key, written to key.hex only (0600)
+#   or, for a key made by another tool: ./poo keygen -raw -seed-file key.hex
 # note public_key; on the node's machine
 ./poo wallet create -wallet cold.wallet -watch-only
 ./poo wallet policy -wallet cold.wallet -name cold -k 1 -key ed25519:PUBLIC_KEY
-./poo wallet watch -wallet cold.wallet -serial 5
+./poo wallet claim -wallet cold.wallet -serial 5 -to-policy cold -out claim.json
+# carry claim.json to the key's machine, sign it, carry it back
+./poo sign claim.json -key-file key.hex -show
+./poo sign claim.json -key-file key.hex
+./poo wallet submit -wallet cold.wallet claim.json
+./poo build -pool 1 -work 100000
 ./poo wallet pay -wallet cold.wallet -to BOB_ADDRESS -amount 30 -out pay.json
 # carry pay.json to the key's machine
 ./poo sign pay.json -key-file key.hex -show   # read what it pays first
@@ -137,7 +143,13 @@ them where the key is (D193):
 ./poo wallet submit -wallet cold.wallet pay.json
 ```
 
-A claim is made where the key is, with `poo claim -seed-file`.
+`poo keygen -out` writes the seed to a new file only you can read and
+prints only the public key, so the key is never on screen; it refuses to
+replace an existing file. Back the file up: it is the only copy.
+`wallet claim -to-policy` prepares the claim unsigned, as `wallet pay
+-out` does a payment, and `wallet claim` also watches the mint
+(GREEN-060). `poo claim -seed-file` still claims directly on a machine
+that has both the key and a running node.
 
 For a lighter node, `poo wallet follow` rewrites the node policy to follow
 only the pools of the mints the wallet watches, and a running node applies

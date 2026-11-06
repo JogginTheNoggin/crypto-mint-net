@@ -337,6 +337,54 @@ func (w *Wallet) Claim(s *series.Series, n Node, serial uint64) (*Sent, error) {
 	return pay, nil
 }
 
+// ClaimUnsigned prepares a claim of mint serial of s to the address of the
+// wallet's policy named name, with no signature: a watch-only wallet's
+// claim, for poo sign to sign where the key is (GREEN-060). The claim's
+// one witness is for its one output, so the unsigned leg lists one
+// policy, as a payment lists one per input. It records the claim, so
+// Submit takes the signed file, and watches the mint.
+func (w *Wallet) ClaimUnsigned(s *series.Series, serial uint64, name string) (*Sent, *Unsigned, error) {
+	if err := tx.CheckMint(s, s.Mint(serial)); err != nil {
+		return nil, nil, fmt.Errorf("wallet: serial %d: %w", serial, err)
+	}
+	var pi *PolicyInfo
+	for i := range w.f.Policies {
+		if w.f.Policies[i].Name == name {
+			pi = &w.f.Policies[i]
+		}
+	}
+	if pi == nil {
+		return nil, nil, fmt.Errorf("wallet: no policy %q (poo wallet policy -name %s -k 1 -key ALG:PUBLIC)", name, name)
+	}
+	p := pi.Params().Policy()
+	if err := CheckPolicy(s, p); err != nil {
+		return nil, nil, err
+	}
+	addr := s.Address(p)
+	t := &tx.Tx{Mint: s.Mint(serial), Outputs: []tx.Output{{Address: addr, Amount: s.Params().Supply}}}
+	t.Witnesses = []policy.Witness{{Policy: p}}
+	tid := t.TID(s.Hash())
+	if err := w.WatchMints(s, serial); err != nil {
+		return nil, nil, err
+	}
+	pay := &Sent{Series: s.ID(), To: addr, Amount: s.Params().Supply, Claim: true, Created: now(),
+		Legs: []Leg{{Serial: serial, TID: tid, Tx: t.Encode(), Amount: s.Params().Supply, State: StateUnsigned}}}
+	w.f.Sent = append(w.f.Sent, pay)
+	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name(),
+		Legs: []UnsignedLeg{{Serial: serial, Tx: t.Encode(), Inputs: []PartialWitness{{Policy: p.Encode()}}}}}
+	return pay, u, nil
+}
+
+// witnessCount is how many witnesses t needs: one per input, or for a
+// claim one per output (tx.CheckForm). An unsigned leg lists a partial
+// witness for each.
+func witnessCount(t *tx.Tx) int {
+	if t.IsClaim() {
+		return len(t.Outputs)
+	}
+	return len(t.Inputs)
+}
+
 // Unsigned is a payment waiting for signatures: what a payer passes to
 // co-signers and back. Each leg holds its transaction (witnesses without
 // data) and, per input, the signatures gathered so far.
@@ -427,8 +475,11 @@ func (l UnsignedLeg) Finish() (*tx.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(l.Inputs) != len(t.Inputs) {
+	if len(l.Inputs) != witnessCount(t) {
 		return nil, errors.New("wallet: unsigned leg has the wrong number of inputs")
+	}
+	if len(t.Witnesses) != len(l.Inputs) {
+		t.Witnesses = make([]policy.Witness, len(l.Inputs))
 	}
 	for i, in := range l.Inputs {
 		pol, err := in.policy()
@@ -520,7 +571,7 @@ func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) 
 		if err != nil {
 			return added, err
 		}
-		if len(l.Inputs) != len(t.Inputs) {
+		if len(l.Inputs) != witnessCount(t) {
 			return added, errors.New("wallet: unsigned leg has the wrong number of inputs")
 		}
 		msg := policy.Message(t.TID(h))
