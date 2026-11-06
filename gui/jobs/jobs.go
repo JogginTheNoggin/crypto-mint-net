@@ -194,12 +194,20 @@ func (r *Runner) trim() {
 		}
 	}
 	// Finished refreshes go first, then other finished jobs, oldest first.
-	// A job started within keepNew stays until a later trim.
+	// A job started within keepNew stays until a later trim, unless the
+	// jobs kept reach twice either limit: then the oldest finished go
+	// whatever their age, so a burst of quick jobs cannot hold more than
+	// that (GUI ORANGE-028).
 	now := time.Now()
-	for _, refreshOnly := range []bool{true, false} {
-		for i := 0; (len(r.order) > r.maxJobs || total > r.maxTotal) && i < len(r.order); {
+	over := func(n int) bool { return len(r.order) > n*r.maxJobs || total > n*r.maxTotal }
+	for _, p := range []struct{ refreshOnly, keepNew bool }{{true, true}, {false, true}, {false, false}} {
+		limit := 1
+		if !p.keepNew {
+			limit = 2
+		}
+		for i := 0; over(limit) && i < len(r.order); {
 			id := r.order[i]
-			if j := r.jobs[id]; j.Done() && (j.Refresh || !refreshOnly) && now.Sub(j.Started) >= r.keepNew {
+			if j := r.jobs[id]; j.Done() && (j.Refresh || !p.refreshOnly) && (!p.keepNew || now.Sub(j.Started) >= r.keepNew) {
 				total -= j.outputSize()
 				delete(r.jobs, id)
 				r.order = slices.Delete(r.order, i, i+1)
