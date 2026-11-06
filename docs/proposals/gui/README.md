@@ -70,6 +70,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-061](GUI-GREEN-061-cold-key-steps.md) | Review of the cold-key forms on a real node: the seven steps in one place, and Pay warns before a watch-only payment with no co-signing file (which holds its units with no file to sign); four Source asks | small | yes | proposed |
 | [GUI-GREEN-062](GUI-GREEN-062-bounty-market-view.md) | A Bounty market view over `poo bounty` (offers and claims as tables, Pay/Cancel/Work on each row, the five forms), walked end to end between two real nodes; four Source asks (settable bounty limits, outcome names, offer state and closing time, filled offers left in peers' lists) | medium | yes | proposed |
 | [GUI-GREEN-063](GUI-GREEN-063-bounty-view-user-pass.md) | User pass on the Bounty view after R37A, on real nodes: turning the market on through Set limits works; Cancel only on an open offer, readable times, the off line says the save reloads the node; Source notes on a filled offer read as expired and done offers still listed | small | yes | proposed |
+| [GUI-GREEN-064](GUI-GREEN-064-switches-and-notes-user-pass.md) | User pass after R38A, on real nodes: the on/off switches and poo's notes work, a filled offer stays filled and done offers move to the done file; the empty line offers only steps the node takes, the off line says on, a switch node.json sets reads on; Source notes on a post switch that cannot post, 0 defaults outside the range, and the off error's =1 | small | yes | proposed |
 
 ## Orange (performance)
 

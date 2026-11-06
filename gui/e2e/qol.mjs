@@ -555,6 +555,14 @@ try {
   });
   assert.deepEqual(bigHeld, [500, 'Showing 500 of 600 offers. Show more', 600, 0]);
   assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'work:c'], 'no Cancel on an expired offer');
+  // With no offers, only the steps this node takes are offered, and the
+  // off line names the switch as Set limits shows it (GUI-GREEN-064).
+  const empty = await page.evaluate(async () => {
+    const { marketView, offNote } = await import('/views/bounty.js');
+    const t = (post, take) => marketView({ post, take, mine: [], held: [] }).map(e => e.textContent).filter(s => s.startsWith('No offers'))[0];
+    return [t(true, true), t(false, true), t(true, false), /bounty\.post on to pay[\s\S]*bounty\.take on to grind/.test(offNote({ code: 1, out: '', err: 'poo: off' }, { bounty: { post: false, take: false } }).textContent)];
+  });
+  assert.deepEqual(empty, ['No offers yet. Ask peers for offers below, or post one.', 'No offers yet. Ask peers for offers below.', 'No offers yet. Post one below.', true]);
   // A time poo printed is shown in the reader's own words, poo's text in
   // the tooltip (GUI-GREEN-063).
   assert.deepEqual(bm.closes, ['2026-11-06T15:00:00Z', '2026-11-06T15:00:00Z', true]);

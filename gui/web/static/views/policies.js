@@ -89,7 +89,7 @@ function limitsParts(ctx) {
       typed = named.map(field);
       grid.replaceChildren(...named.map((l, n) => {
         const range = l.switch === true ? `on or off, default ${l.default ? 'on' : 'off'}` : `${l.min} to ${l.max}, default ${l.default}`;
-        return el('label', {}, el('span', {}, l.name), typed[n], el('small', {}, `${range}${l.set ? `; node.json sets ${l.set}` : ''}${l.in_place === true ? '; a running node takes it at once' : l.in_place === false ? '; a running node takes it on reload' : ''}`));
+        return el('label', {}, el('span', {}, l.name), typed[n], el('small', {}, `${range}${l.set ? `; node.json sets ${l.switch === true ? 'on' : l.set}` : ''}${l.in_place === true ? '; a running node takes it at once' : l.in_place === false ? '; a running node takes it on reload' : ''}`));
       }));
       set.form.dispatchEvent(new Event('input', { bubbles: true }));
     } });
