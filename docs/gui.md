@@ -9,7 +9,8 @@ source, and the GUI is built on top of it:
 - Everything the GUI does, it does by running a `poon` command line through
   `cli.Main`, the function the `poon` binary runs. A button builds a command
   line, and a view runs a command and renders what it prints. Each view and
-  form shows the command it runs, so the user can copy it to a shell.
+  form can show the command it runs (Settings turns this on; it is off by
+  default, R41), so the user can copy it to a shell.
 - The GUI has a terminal that is the headless tool. A line typed there goes
   to `cli.Main` exactly as the same line typed after `poon` in a shell would.
   Anything the views do not cover yet is one line away.
@@ -134,13 +135,18 @@ above 2^53 (GUI-GREEN-055), and any other output is shown exactly as
 printed. A form
 builds one command line from its fields. Its preview updates as you type,
 and Run starts that exact line. Run stays off while that job runs, so a
-prompt it shows is never replaced by a second job. Every panel and form shows its command,
-with a button that runs it in the terminal.
+prompt it shows is never replaced by a second job. Every panel and form has its command,
+with a button that runs it in the terminal; the lines show when Settings'
+"Show the `poon` command behind each action" is ticked. It is off by
+default: the views are the way to act, and the terminal is for what they
+cannot reasonably do (jerry, R41). Hiding the lines changes nothing that
+runs.
 
 | View | Commands |
 | --- | --- |
 | Getting started | First steps, each a command line run in the terminal |
 | Node | `node` (start and stop it in the GUI), `status`, `follow` (with `-replace`), `unfollow`, `reload`, `init`, `series followed` (the Followed series and Variable series panels), `series add-release` (a path or a picked file) |
+| Ledger | `pools`, `ledger` (one page, or `-below H -limit 1` for the entry at height H), `pending`, `tx`, `address`, each run once and laid out to click through: pools, a pool's ledger page by page, an entry, a transaction, an address, and Find for a transaction id or an address. Where you are is in the address bar (`#/ledger?pool=1&height=3`, `?tid=`, `?address=`, `?find=`), so Back works (R41) |
 | Watch | `watch` with the filter flags: live events, newest first, with pause, counts and each event in full. It keeps running when you switch views, and its tab shows a dot; Stop ends it |
 | Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poon` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job (one schedule change at a time: Remove, Add and Set are off while one runs and until the table is read again), `grind schedule add` and `grind schedule set` (device, threads, layer floor and rate). It keeps running when you switch views, and a reload takes a running job up again with its Stop |
 | Bounty market | `bounty list` (this node's offers with their claims, unpaid counted, Pay and Cancel on each; the offers peers sent, Work on each; how to turn the market on when it is off), `bounty list -ask`, `bounty post`, `bounty work` (with a line on what the payer answered), `bounty pay` (from the Wallet view's wallet file), `bounty cancel` (D196, GUI-GREEN-062) |
@@ -151,15 +157,16 @@ with a button that runs it in the terminal.
 | Node policies | `settings export`, `settings import` (the same preview and Apply), `policy list`, `use`, `archive`, `unarchive`, `delete`, `policy export` (printed, with Save as file, or `-out`), `policy import` (a preview of the plan, defences first, with `-settings` and `-full`; then Apply with `-if-digest`; a path or a file picked in the browser, sent as `-`), `policy limits` (each settable limit's range, default and value) and Set limits (`-set NAME=VALUE`) |
 | Series and keys | `crypto`, `keygen`, `series new` (with `-max-witness` and `-any-ceiling`; fixed, or variable with `-issuer`, `-part-size` and `-max-parts`; Save as file), `series info`, `series sign` (`-alg`), `series parts`, `series release` (a part, permanent, `-alg`; or `-check` a release file) |
 | Jobs | Every command run, its output, stop, run again |
-| Settings | `-root` and `-policy`, which views add to their commands |
+| Settings | `-root` and `-policy`, which views add to their commands; the theme; whether command lines show |
 | Terminal | Anything, typed |
 
 When a view's panels need a running node and none answers, the view shows
 one note saying so, with a link to the Node view, and each such panel
 folds its error behind "Show the error". The error and its next step are
 unchanged, and the note comes only from those commands' own results.
-Transaction ids and addresses in results link to Explore, which runs
-`poon tx` or `poon address` on them.
+Transaction ids and addresses in results link to the Ledger view, which
+runs `poon tx` or `poon address` on them (Explore still takes `?tid=` and
+`?address=`).
 
 Each view is one file in `gui/web/static/views/`, an object `{ id, title,
 mount }` built from the panel and form helpers in
@@ -329,7 +336,10 @@ server is locked down:
   the seed from the masked field (D98, GUI-GREEN-047). Up-arrow still
   recalls such a line for the rest of the session, and Forget history clears what is saved. Jobs
   and `GET /api/jobs` show the flag's value as `<hidden>` and do not offer
-  the line to run again. The terminal still echoes the line as typed, as a
+  the line to run again. A seed typed as several words (in groups) is
+  hidden whole: every word up to the next flag (GUI-036). The names the
+  page keeps in the browser's storage are all in `static/store.js`
+  (GUI-037). The terminal still echoes the line as typed, as a
   shell does, and a form's preview shows it.
 - **Secrets in output.** `wallet seed` and `keygen` print a seed
   (`shell.SecretOutput`, until the core declares it as

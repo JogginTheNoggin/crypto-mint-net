@@ -7,6 +7,7 @@ import { startView } from './start.js';
 import * as where from './where.js';
 
 where.applyTheme();
+where.applyCommands();
 const whereEl = document.getElementById('where');
 const showWhere = () => {
   const f = where.flags();

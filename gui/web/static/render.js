@@ -67,17 +67,17 @@ export function parseMarked(text) {
 const isHex = s => typeof s === 'string' && s.length >= 24 && /^[0-9a-f]+$/i.test(s);
 const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-// LOOKUPS are the fields whose value Explore can look up. A value under
-// one of these keys gets a link that opens Explore with it filled in, and
-// Explore runs the same poon command its form shows.
+// LOOKUPS are the fields whose value the Ledger view can open. A value
+// under one of these keys gets a link that opens it there (R41: it was
+// Explore's form, filled in; Explore still takes ?tid= and ?address=).
 const LOOKUPS = { tid: 'tid', address: 'address', to: 'address' };
 
 export function lookupLink(key, v) {
   const param = LOOKUPS[key];
   if (!param || !isHex(v)) return null;
   const a = el('a', 'lookup', 'look up');
-  a.href = `#/explore?${param}=${v}`;
-  a.title = `Open Explore with this ${param === 'tid' ? 'transaction' : 'address'}`;
+  a.href = `#/ledger?${param}=${v}`;
+  a.title = `Open this ${param === 'tid' ? 'transaction' : 'address'} in the Ledger view`;
   return a;
 }
 

@@ -11,13 +11,18 @@ export const settingsView = {
     const p = el('input', { value: cur.policy, placeholder: 'the current policy', spellcheck: 'false' });
     const theme = el('select', {}, ...['system', 'light', 'dark'].map(t => el('option', { value: t }, t)));
     theme.value = where.theme();
+    // Takes effect at once, without Save: it only shows or hides lines.
+    const cmds = el('input', { type: 'checkbox', name: 'showCommands' });
+    cmds.checked = where.showCommands();
+    cmds.addEventListener('input', () => where.setShowCommands(cmds.checked));
     const f = el('form', { class: 'fields' },
-      el('label', {}, el('span', {}, 'Root (-root)'), r),
-      el('label', {}, el('span', {}, 'Node policy (-policy)'), p),
+      el('label', {}, el('span', {}, 'Root folder (holds the node policies)'), r),
+      el('label', {}, el('span', {}, 'Node policy'), p),
       el('label', {}, el('span', {}, 'Theme'), theme),
+      el('label', { class: 'check show-commands' }, el('span', {}, 'Show the command behind each action (to learn it, copy it or run it in the terminal)'), cmds),
       el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'primary' }, 'Save')));
     f.onsubmit = ev => { ev.preventDefault(); where.set({ root: r.value.trim(), policy: p.value.trim() }); where.setTheme(theme.value); };
     root.append(el('h1', {}, 'Settings'),
-      el('p', { class: 'hint' }, 'Views add these flags to the commands they run, so they pick a node policy the way -root and -policy do in a shell. The terminal adds nothing: what you type is what runs.'), f);
+      el('p', { class: 'hint' }, 'Which node the views talk to. Leave both empty for the usual one. (In a shell these are -root and -policy; the terminal adds nothing: what you type is what runs.)'), f);
   },
 };

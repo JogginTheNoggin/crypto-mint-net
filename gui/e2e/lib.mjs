@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
 // flags are extra poon-gui flags, such as -view-only.
-export async function launch(bin, flags = []) {
+export async function launch(bin, flags = [], { showCommands = true } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'poon-gui-e2e-'));
   const env = { ...process.env, POON_HOME: home };
   delete env.POON_PASSPHRASE;
@@ -30,6 +30,10 @@ export async function launch(bin, flags = []) {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  // The checks read and run the command lines the views show, which are
+  // hidden until Settings turns them on (R41): a fresh browser here starts
+  // with them on. A check that turns them off keeps that.
+  if (showCommands) await page.addInitScript(() => { if (localStorage.getItem('poon-gui-show-commands') === null) localStorage.setItem('poon-gui-show-commands', '1'); });
   await page.goto(url);
   const close = async () => { await browser.close(); gui.kill('SIGINT'); };
   return { home, env, url, pid: gui.pid, browser, page, errors, close };

@@ -2,10 +2,11 @@
 // shell would and runs it through cli.Main, the same as typing it after
 // "poon" in a shell. Nothing here changes the command line.
 import * as api from './api.js';
+import * as store from './store.js';
 import { complete } from './complete.js';
 import { scrollback } from './scroll.js';
 
-const HISTORY_KEY = 'poon-gui-history';
+const HISTORY_KEY = store.HISTORY;
 
 // A line is saved to the browser's storage unless it may hold a secret,
 // such as a seed after -restore, or starts with a space, as a shell with
