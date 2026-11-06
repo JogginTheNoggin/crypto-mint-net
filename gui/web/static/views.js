@@ -370,7 +370,7 @@ function noNode(sec, area, r) {
 // onResult, if given, is called with the finished job's {code, out, err}
 // and the result area, so a view can act on the data rather than on the
 // rendered page.
-export function form(ctx, { title, about, fields, args, submit = 'Run', danger, dangerText, ask: askFirst, onResult, onStart, secretOutput, gate: g }) {
+export function form(ctx, { title, about, fields, args, submit = 'Run', danger, dangerText, ask: askFirst, refuse, onResult, onStart, secretOutput, gate: g }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
   const labels = {};
@@ -444,6 +444,16 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
       leave(area);
       area.replaceChildren(el('p', { class: 'run-status bad missing', role: 'alert' }, `Nothing was run: fill in ${missing.map(fd => fd.label).join(', ')}.`));
       inputs[missing[0].name].focus?.();
+      return;
+    }
+    // refuse(values), if given, returns why the values cannot run, as
+    // {text, field}, or nothing. Nothing runs, and that field is emptied:
+    // a key pasted where a path goes (GUI-032).
+    const no = refuse && refuse(v);
+    if (no) {
+      leave(area);
+      area.replaceChildren(el('p', { class: 'run-status bad refused', role: 'alert' }, `Nothing was run: ${no.text}`));
+      if (no.field && inputs[no.field]) { inputs[no.field].value = ''; showOnly(); line.set(args(values())); inputs[no.field].focus?.(); }
       return;
     }
     // ask(values), if given, returns a question to confirm first, or

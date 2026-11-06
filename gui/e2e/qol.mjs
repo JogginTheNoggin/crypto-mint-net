@@ -218,6 +218,23 @@ try {
   const sg = wsec('Sign with a key kept elsewhere');
   await sg.locator('input[name=file]').fill('pay.json');
   assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file -');
+  // Key file shows only once "The key is in a file" is ticked (GUI-032).
+  assert.equal(await sg.locator('input[name=keyFile]').isVisible(), false, 'no Key file field until the key is said to be in a file');
+  await sg.locator('label', { hasText: 'The key is in a file' }).locator('input').check();
+  assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file -');
+  // A key pasted where the path goes never reaches the command line, and
+  // Sign refuses it, runs nothing and empties the field (GUI-032).
+  const pasted = 'ab'.repeat(32);
+  await sg.locator('input[name=keyFile]').fill(pasted);
+  assert.equal(await sg.locator('.cmd code').innerText(), "poo sign pay.json -key-file '…'");
+  const jobsBefore = (await page.evaluate(async () => (await import('/api.js')).jobs())).length;
+  await sg.locator('button[type=submit]').click();
+  await sg.locator('.refused[role=alert]', { hasText: /^Nothing was run: Key file holds what looks like a key, not a path/ }).waitFor();
+  assert.equal(await sg.locator('input[name=keyFile]').inputValue(), '');
+  assert.equal((await page.evaluate(async () => (await import('/api.js')).jobs())).length, jobsBefore, 'a key-shaped Key file starts no job');
+  assert.ok(!(await page.content()).includes(pasted), 'the pasted key is nowhere on the page');
+  const lk = await page.evaluate(async () => { const { looksLikeKey } = await import('/views/wallet.js'); return ['ab'.repeat(16), 'AB'.repeat(32), 'ab'.repeat(15), '/keys/' + 'ab'.repeat(32), 'cold.key', 'C:\\k\\' + 'ab'.repeat(32), ''].map(looksLikeKey); });
+  assert.deepEqual(lk, [true, true, false, false, false, false, false]);
   await sg.locator('input[name=keyFile]').fill('cold.key');
   await sg.locator('input[name=alg]').fill('ml-dsa-65');
   await sg.locator('label', { hasText: '(-raw)' }).locator('input').check();

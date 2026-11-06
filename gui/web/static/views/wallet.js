@@ -27,12 +27,13 @@ export function signNote(r) {
 const setWalletSeries = v => { try { localStorage.setItem(WALLET_KEY + '-series', v); } catch (_) { /* storage off */ } };
 
 // payQuestion is Pay's one confirm. With no co-signing file it says what
-// happens when the payment needs a signature this wallet cannot give (a
-// watch-only wallet, a shared policy): poo records the payment and holds
-// its units, but writes nothing to sign, and nothing writes it later
-// (GUI-GREEN-061). The GUI cannot tell which wallet it is; poo can.
+// a payment that needs a signature this wallet cannot give (a watch-only
+// wallet, a shared policy) needs: the file is what the key signs, and poo
+// refuses such a payment without one, before recording anything (Source
+// #291, D194; GUI-GREEN-061). The GUI cannot tell which wallet it is; poo
+// can.
 export function payQuestion(line, out) {
-  return out ? `Run ${line}?` : `Run ${line}?\n\nNo co-signing file is filled in. If this wallet is watch-only, or pays from a shared policy, fill one in first: without it poo records the payment and holds its units, but writes no file for the key to sign.`;
+  return out ? `Run ${line}?` : `Run ${line}?\n\nNo co-signing file is filled in. If this wallet is watch-only, or pays from a shared policy, fill one in first: it is the file the key signs, and poo refuses such a payment without one.`;
 }
 
 // unsignedNote is the line over a payment poo recorded with signatures
@@ -69,6 +70,14 @@ function coldSteps(root) {
     el('p', { class: 'hint' }, 'A watch-only wallet sees balances and prepares payments; the key that signs them stays on another machine, offline if you like (D193).'), det);
   return { el: sec, stop: () => {} };
 }
+
+// looksLikeKey says a Key file value is a key rather than a path: 32 or
+// more hex digits with no / \ or . in it (GUI-032). Such a value would
+// show on the command line, in poo's error and in the Jobs list, so the
+// form never sends it: the line shows … in its place, and Sign refuses
+// it and empties the field.
+export const looksLikeKey = s => typeof s === 'string' && /[0-9a-fA-F]{32,}/.test(s) && !/[/\\.]/.test(s);
+export const keyPathArg = s => !s ? '-' : looksLikeKey(s) ? '…' : s;
 
 export const walletView = {
   id: 'wallet',
@@ -127,13 +136,18 @@ export const walletView = {
       // -key-file -, so poo asks for the key in a masked field.
       form(ctx, { title: 'Sign with a key kept elsewhere', about: 'Signs a co-signing file (from Pay with a co-signing file) with a key that is not in this wallet, such as a cold key, without the node. Show only first to read what it pays. The same command runs on an offline machine: copy its line.', fields: [
         { name: 'file', label: 'Co-signing file', required: true },
-        { name: 'keyFile', label: 'Key file', placeholder: 'empty: poo asks for the key in a masked field' },
+        // The key is asked for in a masked field unless it is in a file;
+        // the path field shows only then, so a key on the clipboard has
+        // no plain field named Key to be pasted into (GUI-032).
+        { name: 'inFile', label: 'The key is in a file (otherwise poo asks for it in a masked field)', type: 'check' },
+        { name: 'keyFile', label: 'Key file', placeholder: 'a path on this machine', required: true, only: { field: 'inFile', values: [true] } },
         { name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519', list: 'crypto-algs' },
         { name: 'raw', label: 'The key is a private key in its algorithm\'s usual form, as another tool keeps it, not a poo seed (-raw)', type: 'check' },
         { name: 'hash', label: 'Hash', placeholder: 'only if the file does not name the series\' hash', list: 'crypto-hashes' },
         { name: 'out', label: 'Write the signed payment to', placeholder: 'default: back into the co-signing file' },
         { name: 'show', label: 'Show only: say what it pays and what this key would sign, and sign nothing', type: 'check' }],
-        args: v => ['sign', ...(v.file ? [v.file] : []), '-key-file', v.keyFile || '-', ...flag('alg', v.alg), ...flag('raw', v.raw), ...flag('hash', v.hash), ...flag('out', v.out), ...flag('show', v.show)],
+        args: v => ['sign', ...(v.file ? [v.file] : []), '-key-file', keyPathArg(v.keyFile), ...flag('alg', v.alg), ...flag('raw', v.raw), ...flag('hash', v.hash), ...flag('out', v.out), ...flag('show', v.show)],
+        refuse: v => looksLikeKey(v.keyFile) && { field: 'keyFile', text: 'Key file holds what looks like a key, not a path, so it was emptied. Untick "The key is in a file" and poo asks for the key in a masked field, where it is never shown or kept.' },
         submit: 'Sign', onResult: (r, area) => { const n = signNote(r); if (n) area.prepend(n); } }),
       form(ctx, { title: 'Submit a co-signed payment', about: 'Sends a payment whose co-signing file has every signature it needs.', fields: [{ name: 'file', label: 'Co-signing file' }],
         args: v => ['wallet', 'submit', ...wf(v), ...(v.file ? [v.file] : [])], submit: 'Submit', danger: true }),
