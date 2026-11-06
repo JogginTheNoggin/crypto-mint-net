@@ -505,14 +505,21 @@ func grindCheck(p nodepolicy.Policy, accepted []nodepolicy.Accepted) Check {
 	// Devices found but without a grinder are named apart, so a GPU
 	// that cannot grind is not read as one that can (jerry's finding 11).
 	var grinds, idle []string
+	gpu := false
 	for _, d := range devs {
 		if len(d.Hashes) > 0 || d.Generic {
 			grinds = append(grinds, d.ID)
+			gpu = gpu || d.Kind == grind.GPU
 		} else {
 			idle = append(idle, d.ID)
 		}
 	}
 	detail := fmt.Sprintf("grinds on: %s; jobs in the policy: %d", strings.Join(grinds, ", "), jobs)
+	if !gpu {
+		// Say why no GPU grinds, even when none was found to name
+		// (GREEN-066).
+		detail += "; " + grind.OpenCLStatus()
+	}
 	if len(idle) > 0 {
 		detail += fmt.Sprintf("; found but no grinder runs on: %s (poon grind devices says why)", strings.Join(idle, ", "))
 	}

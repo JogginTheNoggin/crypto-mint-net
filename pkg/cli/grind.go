@@ -169,6 +169,9 @@ type devicesReply struct {
 	// FromNode is true when the running node answered: it lists what its
 	// own build can grind, which may differ from this poon's (D208).
 	FromNode bool `json:"from_node,omitempty"`
+	// OpenCL says what the GPU grinder found, or why it found nothing
+	// (GREEN-066): the node's when it answered.
+	OpenCL string `json:"opencl,omitempty"`
 }
 
 func grindDevices(fs *flag.FlagSet, args []string, out io.Writer) error {
@@ -179,10 +182,10 @@ func grindDevices(fs *flag.FlagSet, args []string, out io.Writer) error {
 	// The node is what grinds, so ask it; without one, look here.
 	if cl, err := dialNode(out, w.resolve()); err == nil {
 		if r, err := cl.GrindDevices(); err == nil {
-			return o.write(out, devicesReply{Devices: r.Devices, FromNode: true})
+			return o.write(out, devicesReply{Devices: r.Devices, FromNode: true, OpenCL: r.OpenCL})
 		}
 	}
-	return o.write(out, devicesReply{Devices: grind.Default.Detect(), Local: true})
+	return o.write(out, devicesReply{Devices: grind.Default.Detect(), Local: true, OpenCL: grind.OpenCLStatus()})
 }
 
 func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {

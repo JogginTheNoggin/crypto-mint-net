@@ -353,7 +353,10 @@ the system sees it, and some systems need `ocl-icd-libopencl1`.
 `auto` takes the GPU for layers of those hashes, and the CPU for
 everything else; entries are always ground on the CPU. A GPU listed with a
 note has no grinder, and the note says why (no OpenCL library, or no
-driver lists it). `POON_OPENCL=off` turns the GPU grinder off.
+driver lists it). With no GPU listed at all, `opencl` in `poon grind
+devices` (and `poon doctor`'s grind line) says why: for example "no GPU
+grinder: no OpenCL platform ... install the GPU vendor's OpenCL driver".
+`POON_OPENCL=off` (or `0`, `false`, `no`) turns the GPU grinder off.
 
 ### Paying peers to grind layers (bounty market)
 
