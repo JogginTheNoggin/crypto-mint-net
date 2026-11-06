@@ -575,3 +575,30 @@ func TestSecretOutputExpires(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// A refresh that ends at once is still kept while it is new, so the page
+// that started it can follow it; once old, it is dropped first as before.
+func TestTrimKeepsNewJobs(t *testing.T) {
+	r := New(context.Background(), Options{MaxJobs: 1, KeepNew: time.Hour, Main: func(ctx context.Context, args []string, s cli.Stdio) int { return 0 }})
+	defer r.Close(5 * time.Second)
+	j, _ := r.StartRefresh([]string{"status"})
+	wait(t, j)
+	k, _ := r.Start([]string{"follow"})
+	wait(t, k)
+	if _, ok := r.Get(j.ID); !ok {
+		t.Fatal("a new refresh was dropped before it could be followed")
+	}
+	r.mu.Lock()
+	r.keepNew = 0
+	r.mu.Unlock()
+	l, _ := r.Start([]string{"later"})
+	wait(t, l)
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(time.Millisecond) {
+		if _, ok := r.Get(j.ID); !ok {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatal("an old refresh was kept over the limit")
+		}
+	}
+}

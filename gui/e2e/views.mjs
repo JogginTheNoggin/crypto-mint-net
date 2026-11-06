@@ -355,7 +355,8 @@ try {
   // refuses and Offers says how to turn it on; each form previews its
   // poo bounty line.
   await page.click('nav a[data-id=bounty]');
-  await section('Offers').locator('.bounty-off', { hasText: /^If poo says the market is off: it stays off until the node policy file \(node\.json/ }).waitFor();
+  // Off comes from poo status's bounty field (W-30), not the error text.
+  await section('Offers').locator('.bounty-off', { hasText: /^The market is off on this node\. In Node policies, Set limits: bounty\.post 1/ }).waitFor();
   assert.equal(await section('Offers').locator('.cmd code').innerText(), `poo bounty list -root ${home}`);
   const bwork = section('Work an offer');
   await fill(bwork, 'Offer id', 'ab12');
