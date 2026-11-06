@@ -42,7 +42,7 @@ const COLD_STEPS = [
   ['Where the key is', 'Make the key, or bring one made by another tool (-raw). Note its algorithm and public key; the key itself never comes here.', { view: 'crypto', label: 'Make a key (Series and keys)' }],
   ['Here', 'Make a wallet that holds no private key.', { form: 'Create or restore a wallet', label: 'Create, with Watch-only ticked' }],
   ['Here', 'Record the key: 1 signature needed, key ALG:PUBLIC (for example ed25519:d404…). Its address is where the coins go.', { form: 'Record a shared policy', label: 'Record a shared policy' }],
-  ['Here', 'Watch the mints the key holds. A claim is made where the key is, with poo claim -seed-file, since the wallet holds no key to claim with.', { form: 'Watch mints', label: 'Watch mints' }],
+  ['Here', 'Watch the mints the key holds, and claim a mint to the key: Claim a mint with To a wallet policy and a claim file, which the key signs like a payment.', { form: 'Claim a mint', label: 'Claim a mint' }],
   ['Here', 'Pay with a co-signing file, every time: it is what the key signs.', { form: 'Pay', label: 'Pay' }],
   ['Where the key is', 'Sign the file. Show only first, to read what it pays. On an offline machine, copy the line and run it there.', { form: 'Sign with a key kept elsewhere', label: 'Sign with a key kept elsewhere' }],
   ['Here', 'Send the signed file.', { form: 'Submit a co-signed payment', label: 'Submit a co-signed payment' }],
@@ -155,8 +155,12 @@ export const walletView = {
         args: v => ['wallet', 'resend', ...wf(v)], submit: 'Resend' }),
       form(ctx, { title: 'Watch mints', about: 'Adds mints or pools to look for portions in.', fields: [{ name: 'serial', label: 'Mint serials', type: 'list' }, { name: 'pool', label: 'Pools', type: 'list' }],
         args: v => ['wallet', 'watch', ...wf(v), ...flags('serial', v.serial), ...flags('pool', v.pool)], submit: 'Watch' }),
-      form(ctx, { title: 'Claim a mint', fields: [{ name: 'serial', label: 'Mint serial', type: 'number' }],
-        args: v => ['wallet', 'claim', ...wf(v), ...flag('serial', v.serial)], submit: 'Claim', danger: true }),
+      // A watch-only wallet claims to a policy's address, unsigned, into a
+      // file the key signs (GREEN-060, D194).
+      form(ctx, { title: 'Claim a mint', fields: [{ name: 'serial', label: 'Mint serial', type: 'number' },
+        { name: 'toPolicy', label: 'To a wallet policy', placeholder: 'optional: a policy\'s name, for a key kept elsewhere (watch-only)' },
+        { name: 'out', label: 'Claim file', placeholder: 'with To a wallet policy: the file the key signs', only: { field: 'toPolicy', not: [''] } }],
+        args: v => ['wallet', 'claim', ...wf(v), ...flag('serial', v.serial), ...flag('to-policy', v.toPolicy), ...flag('out', v.out)], submit: 'Claim', danger: true }),
       form(ctx, { title: 'Follow only the watched mints', about: 'Light mode: the node policy follows only the pools of the mints this wallet watches, in place of what it follows now.', fields: [],
         args: v => ['wallet', 'follow', ...wf(v)], submit: 'Follow only these', danger: true }),
       form(ctx, { title: 'Change the passphrase', about: 'Seals the seed under a new passphrase. poo asks for the old one, then the new one, each in a masked field.', fields: [],
