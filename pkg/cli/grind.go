@@ -166,6 +166,9 @@ type devicesReply struct {
 	// Local is true when no node answered and the devices were detected
 	// here instead.
 	Local bool `json:"local,omitempty"`
+	// FromNode is true when the running node answered: it lists what its
+	// own build can grind, which may differ from this poon's (D208).
+	FromNode bool `json:"from_node,omitempty"`
 }
 
 func grindDevices(fs *flag.FlagSet, args []string, out io.Writer) error {
@@ -176,7 +179,7 @@ func grindDevices(fs *flag.FlagSet, args []string, out io.Writer) error {
 	// The node is what grinds, so ask it; without one, look here.
 	if cl, err := dialNode(out, w.resolve()); err == nil {
 		if r, err := cl.GrindDevices(); err == nil {
-			return o.write(out, devicesReply{Devices: r.Devices})
+			return o.write(out, devicesReply{Devices: r.Devices, FromNode: true})
 		}
 	}
 	return o.write(out, devicesReply{Devices: grind.Default.Detect(), Local: true})
@@ -246,6 +249,9 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 		}
 	}
 	if *device != "" && len(rows) == 0 {
+		if skipped != nil { // the device is there but grinds none of the hashes
+			return skipped
+		}
 		return fmt.Errorf("no device %q (poon grind devices lists them)", *device)
 	}
 	// Nothing measured is an error, not an empty list: -threads 2000 used
