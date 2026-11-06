@@ -243,3 +243,8 @@ table.grind-jobs .hint { margin: 2px 0 0; font-size: 11px; }
 nav.jump { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--muted); margin: 0 0 12px; }
 nav.jump button { font-size: 12px; padding: 2px 8px; }
 a.step-view { font-size: 13px; }
+
+/* A key kept off this machine, step by step (GUI-GREEN-061) */
+.cold-steps { margin: 8px 0 0; padding-left: 22px; }
+.cold-steps li { margin: 6px 0; }
+.cold-steps button { margin-left: 2px; }
