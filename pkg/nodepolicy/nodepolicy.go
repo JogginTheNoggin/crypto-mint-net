@@ -685,7 +685,7 @@ func isLoopback(host string) bool {
 
 // ErrNoPartOne refuses a variable supply series listed without its issuer
 // witness: part 1 of a variable series is released by the issuer witness
-// on the series (PoO section 16.8), so without it no mint of the series is
+// on the series (PoON section 16.8), so without it no mint of the series is
 // released at this node. Missing information, never a series found
 // invalid (D166).
 var ErrNoPartOne = errors.New("a variable supply series' mints are released by its issuer witness, and node.json has none for it: add the issuer_witness its issuer published (poon series sign)")

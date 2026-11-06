@@ -3,7 +3,7 @@
 ## Summary
 
 Transactions: transfers within one mint that spend whole portions and create
-new ones of the same total. The tid is `H("PoO-tx" ∥ body)`; witnesses sit
+new ones of the same total. The tid is `H("PoON-tx" ∥ body)`; witnesses sit
 outside it. Validity is split into stateless checks (anything that needs
 only the series) and checks against a `View` of pool state, so the cheap
 checks can run before any state lookup.

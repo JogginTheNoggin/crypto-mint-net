@@ -1,6 +1,6 @@
 # crypto-mint-net
 
-A full node for **Proof of Ownership (PoO)**: a consensus mechanism for
+A full node for **Proof of Ownership (PoON)**: a consensus mechanism for
 decentralized, high-throughput payments in which ownership of a minted unit is
 held by the cumulative work attached to the history that records it, not by
 votes, block rewards or elapsed time. The command-line tool is `poon`
@@ -8,7 +8,7 @@ votes, block rewards or elapsed time. The command-line tool is `poon`
 
 ## Summary
 
-This repository is the reference implementation of the PoO full node, written
+This repository is the reference implementation of the PoON full node, written
 in Go with no dependencies outside the standard library. Milestone 1, the
 consensus core, is complete: series and pools, addresses and witnesses,
 transactions, entries, layers, pool state, the per-pool ledger tree with

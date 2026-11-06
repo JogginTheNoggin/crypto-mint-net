@@ -16,18 +16,18 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 )
 
-// Parts of a variable series (PoO section 16.8, D163).
+// Parts of a variable series (PoON section 16.8, D163).
 //
 // Part 1 is the series' N mints, released by the issuer witness on the
 // series. Part k, from 2 on, holds the M serials from N + (k − 2) × M to
 // N + (k − 1) × M − 1. Its id is
 //
-//	part_id(1) = H("PoO-part" ∥ series_id ∥ 1 ∥ series_id)
-//	part_id(k) = H("PoO-part" ∥ series_id ∥ k ∥ part_id(k − 1))
+//	part_id(1) = H("PoON-part" ∥ series_id ∥ 1 ∥ series_id)
+//	part_id(k) = H("PoON-part" ∥ series_id ∥ k ∥ part_id(k − 1))
 //
 // with k written as 8 bytes, and nothing else: the issuer has nothing to
 // choose, so there is exactly one part k. The issuer releases part k with
-// a witness over H("PoO-part-v1" ∥ part_id(k)), which sits beside the part
+// a witness over H("PoON-part-v1" ∥ part_id(k)), which sits beside the part
 // and outside its id, the way a witness sits outside a tid. A release of
 // part k proves every part before it, and nothing withdraws one.
 
@@ -202,7 +202,7 @@ func (s *Series) PartOf(serial uint64) (uint64, error) {
 	return k, nil
 }
 
-// partID returns H("PoO-part" ∥ series_id ∥ k ∥ previous).
+// partID returns H("PoON-part" ∥ series_id ∥ k ∥ previous).
 func (s *Series) partID(k uint64, previous hash.Hash) hash.Hash {
 	w := encoding.NewWriter(8 + hash.Size).U64(k).Raw(previous[:])
 	return s.h(hash.TagPart, s.id[:], w.Bytes())
@@ -276,10 +276,10 @@ func (s *Series) PartIDContext(ctx context.Context, k uint64) (hash.Hash, error)
 	return id, nil
 }
 
-// ReleaseMessage returns H("PoO-part-v1" ∥ part_id), the value a release
+// ReleaseMessage returns H("PoON-part-v1" ∥ part_id), the value a release
 // witness signs in place of a tid. Its tag keeps it from ever equal to a
 // tid or to the series' issuer message, so a release is never valid as
-// either (PoO section 16.8).
+// either (PoON section 16.8).
 func (s *Series) ReleaseMessage(partID hash.Hash) hash.Hash {
 	return s.h(hash.TagRelease, partID[:])
 }
@@ -298,7 +298,7 @@ type Release struct {
 }
 
 // ID returns the id of the part the release names, worked out from its own
-// fields: H("PoO-part" ∥ series ∥ part ∥ previous).
+// fields: H("PoON-part" ∥ series ∥ part ∥ previous).
 func (r Release) ID(h hash.Func) hash.Hash {
 	w := encoding.NewWriter(8 + hash.Size).U64(r.Part).Raw(r.Previous[:])
 	return h(hash.TagPart, r.Series[:], w.Bytes())

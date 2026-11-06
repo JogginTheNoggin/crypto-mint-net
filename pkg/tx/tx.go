@@ -7,12 +7,12 @@
 //
 //	Tx {
 //	    mint      : (series_id, serial), or (series_id, part, serial) for a
-//	                variable series (PoO section 16.8, D166)
+//	                variable series (PoON section 16.8, D166)
 //	    inputs    : [ (tid, index) ]       // empty only for a claim
 //	    outputs   : [ (address, amount) ]  // distinct addresses, amounts >= 1
 //	    witnesses : [ Witness ]            // outside the tid
 //	}
-//	tid = H("PoO-tx" ∥ encode(mint, inputs, outputs))
+//	tid = H("PoON-tx" ∥ encode(mint, inputs, outputs))
 //
 // Validation is split in two. CheckStateless checks everything that does not
 // depend on a ledger, including claim witnesses, since a claim's witnesses
@@ -114,7 +114,7 @@ func (t *Tx) writeBody(w *encoding.Writer) {
 	}
 }
 
-// TID returns H("PoO-tx" ∥ body). Witnesses are left out, so adding or
+// TID returns H("PoON-tx" ∥ body). Witnesses are left out, so adding or
 // replacing a witness never changes the tid.
 func (t *Tx) TID(h hash.Func) hash.Hash { return h(hash.TagTx, t.Body()) }
 

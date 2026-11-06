@@ -37,7 +37,7 @@ wrong without any warning, and the docs skipped one step.
 - `Host.PostBounty` refuses an offer whose pool does not hold the
   entry, using the same `ledger.Pool.Has` check that `AddLayerHashed`
   makes before it keeps a layer. If another pool of the series does
-  hold the entry, the error names it: "pool 0 of series d0b927f7 does
+  hold the entry, the error names it: "pool 0 of series 9d7f095d does
   not hold entry 229eb6ee, so a layer on it would be paid for and not
   kept; it is in pool 1".
 - When neither `-pool` nor `-serial` is given, `poon bounty post` sends

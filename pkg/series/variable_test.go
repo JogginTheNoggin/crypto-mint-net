@@ -91,7 +91,7 @@ func TestFixedSeriesIDPinned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = "d0b927f79fe74b0847926ed4100392567f03e0385dfd882431f527a59973095a"
+	const want = "9d7f095da805d59ec8aa667a24ce07d618dd3dbdd95a8a7d97318f5bcfbbe3f1"
 	if got := s.ID().String(); got != want {
 		t.Fatalf("series_id %s, want %s", got, want)
 	}
@@ -104,7 +104,7 @@ type issuerKey struct {
 
 func newIssuer(t *testing.T, label string) issuerKey {
 	t.Helper()
-	seed := sha256.Sum256([]byte("PoO-test-key:" + label))
+	seed := sha256.Sum256([]byte("PoON-test-key:" + label))
 	sg, err := policy.NewEd25519Signer(seed[:])
 	if err != nil {
 		t.Fatal(err)
@@ -256,8 +256,8 @@ func TestPartRanges(t *testing.T) {
 	}
 }
 
-// part_id(1) = H("PoO-part" ∥ series_id ∥ 1 ∥ series_id), part_id(k) =
-// H("PoO-part" ∥ series_id ∥ k ∥ part_id(k − 1)).
+// part_id(1) = H("PoON-part" ∥ series_id ∥ 1 ∥ series_id), part_id(k) =
+// H("PoON-part" ∥ series_id ∥ k ∥ part_id(k − 1)).
 func TestPartIDs(t *testing.T) {
 	s, _ := New(docParams(newIssuer(t, "issuer").addr))
 	h := sha256Func()

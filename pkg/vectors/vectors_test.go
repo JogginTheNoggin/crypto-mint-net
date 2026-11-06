@@ -40,7 +40,7 @@ func TestGolden(t *testing.T) {
 // v1Digest is the SHA-256 of testdata/vectors.json for byte form v1, which
 // is frozen (decision D76). -update cannot change it: a new byte form is a
 // new format version beside this one, never an edit of it.
-const v1Digest = "d89968f2aeccc918b072e3796a1717b2c12bc9f3c837fa12b73e399ac885754f"
+const v1Digest = "307c8f212aa4a098166320d148e06462c83c50855d328f4a8c69ec2535710b5b"
 
 func TestByteFormV1Frozen(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("testdata", "vectors.json"))

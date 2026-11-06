@@ -222,7 +222,7 @@ built.
   room by the oldest unreached candidate (D160).
 - **Variable supply series, phase 1 (D163):** a series can be variable.
   Its issuer releases more parts of M mints later, in order, and each
-  release proves every part before it (PoO section 16.8). This round
+  release proves every part before it (PoON section 16.8). This round
   builds the definition (format version 2), part ranges and ids, release
   records and checks, the issuer tools `poon series new -variable`,
   `poon series sign`, `poon series release` and `poon series parts`, and
@@ -261,6 +261,9 @@ built.
     start `POON_` (`POON_HOME`, `POON_PASSPHRASE`, `POON_SEED`, ...),
     shared files' kinds start `poon-`, metrics start `poon_`, and the RPC
     hello label is `poon-rpc-hello` (D205). The name is kept in `pkg/brand`.
+  - The protocol's labels start `PoON-` (D206, approved by jerry): every
+    id, address and wallet key differs from earlier builds, and the
+    default series id is `45772e75…f4c5`.
   - `poon bounty list -ask` says how many peers it asked, with a note
     when none could be; a grinder's held offer reads filled once the
     payer accepted every layer it asks for; `poon policy limits` says
@@ -537,7 +540,7 @@ built.
   - A new key algorithm, `slh-dsa-sha2-256s` (FIPS 205, number 11).
   - The default reserve series: `poon init` with no series follows it, and
     tools name it `"builtin": "reserve"` on its full id. Its id is pinned
-    (`fe52c1ac…f139`).
+    (`45772e75…f4c5`).
   - `poon series new` writes a 128 KiB ceiling by default and, like
     `poon init -series`, refuses a series with no ceiling or one above
     4 MiB without `-any-ceiling`. Node policy `series_ceiling` lets a node

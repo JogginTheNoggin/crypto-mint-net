@@ -37,7 +37,7 @@ type Vectors struct {
 }
 
 // Compute builds the vectors from the example series. Keys come from
-// testutil.NewKey labels, whose seeds are SHA-256("PoO-test-key:" + label).
+// testutil.NewKey labels, whose seeds are SHA-256("PoON-test-key:" + label).
 func Compute() Vectors {
 	s := testutil.ExampleSeries()
 	k := testutil.NewKeys(s)

@@ -19,7 +19,7 @@ const (
 	// Reserve() still builds it, so the series can never change by
 	// accident, and poon names this id "the built-in reserve series" only
 	// when it matches in full (look-alike ids share a prefix).
-	ReserveID = "fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f139"
+	ReserveID = "45772e75a4670fd7c37dd66898550c2e657fb2c35b547335be2ce7a64466f4c5"
 )
 
 // Reserve returns the default reserve series' params: a fixed supply of

@@ -59,7 +59,7 @@ func NewSigner(alg AlgID, seed []byte) (Signer, error) {
 // expand derives n bytes from seed for one algorithm and attempt, with
 // HKDF-SHA512 (RFC 5869).
 func expand(seed []byte, label string, attempt byte, n int) []byte {
-	b, err := hkdf.Expand(sha512.New, seed, fmt.Sprintf("PoO-key-v1 %s %d", label, attempt), n)
+	b, err := hkdf.Expand(sha512.New, seed, fmt.Sprintf("PoON-key-v1 %s %d", label, attempt), n)
 	if err != nil {
 		panic(err) // unreachable: n is far below HKDF's limit
 	}

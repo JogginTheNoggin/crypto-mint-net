@@ -39,7 +39,7 @@ type known struct {
 	Policies []knownPolicy `json:"policies"`
 }
 
-func knownSeed(alg string) []byte { s := sha256.Sum256([]byte("PoO-known-" + alg)); return s[:] }
+func knownSeed(alg string) []byte { s := sha256.Sum256([]byte("PoON-known-" + alg)); return s[:] }
 
 // computeKnown builds the file. Signatures are made fresh, so when the
 // file exists its signatures are kept: they must still verify.
@@ -60,7 +60,7 @@ func computeKnown(t *testing.T, old map[string]knownKey) known {
 		}
 		k.Keys = append(k.Keys, knownKey{a.Name(), hex.EncodeToString(seed), hex.EncodeToString(s.Public()), hex.EncodeToString(msg), sig})
 	}
-	hl, _ := NewHashlock(hash.SHA3_256, []byte("PoO-known-preimage"))
+	hl, _ := NewHashlock(hash.SHA3_256, []byte("PoON-known-preimage"))
 	ps := []struct {
 		name string
 		p    Policy

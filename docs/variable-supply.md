@@ -17,7 +17,7 @@ built only as those documents specify. Anything else needs his permission.
   the series releases it.
 - **Later parts.** Part k, from 2 on, holds serials N + (k − 2)·M to
   N + (k − 1)·M − 1. Its id is
-  `part_id(k) = H("PoO-part" ∥ series_id ∥ k ∥ part_id(k − 1))`, where
+  `part_id(k) = H("PoON-part" ∥ series_id ∥ k ∥ part_id(k − 1))`, where
   part 1 names the series_id as its previous part.
 - **Releases.** The issuer releases part k with the same issuer witness, over
   the part id. The release sits beside the part, outside its id. A release
@@ -89,9 +89,9 @@ run on fixed series only.
     costs k hashes once: time, never memory, and never a refusal, since
     refusing a valid release for being far out would make nodes with the
     same release disagree (RED-070, ORANGE-034, D165);
-  - `ReleaseMessage`, which is `H("PoO-part-v1" ∥ part_id)`. A release
+  - `ReleaseMessage`, which is `H("PoON-part-v1" ∥ part_id)`. A release
     witness is checked against this message, the same way the issuer
-    witness on the series is checked against `H("PoO-issuer-v1" ∥
+    witness on the series is checked against `H("PoON-issuer-v1" ∥
     series_id)`. The two tags differ, so a release is never valid as a
     transaction witness or as the series' issuer witness, and neither is
     valid as a release.
@@ -104,7 +104,7 @@ run on fixed series only.
   3. that `Previous` is `part_id(k − 1)`.
 - **Not followed yet.** `nodepolicy.Policy.Accepted` refuses a variable
   series with `ErrVariableNotFollowed`, which wraps `series.ErrUnreadable`.
-  This is the "unknown means unreadable" rule (PoO 16.7). Until phase 2 the
+  This is the "unknown means unreadable" rule (PoON 16.7). Until phase 2 the
   node never decides anything about a variable mint.
 - **Tools.**
   - `poon series new -variable -part-size M [-max-parts K] -issuer ADDR`.

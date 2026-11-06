@@ -3,13 +3,13 @@
 // size, the strength minimums, entry hash credit, the allowed policy types
 // and key algorithms, the witness ceiling, and an optional issuer.
 //
-// A series is identified by series_id = H("PoO-series" ∥ encode(params)).
+// A series is identified by series_id = H("PoON-series" ∥ encode(params)).
 // Its byte form starts with the format version and the hash number, so a
 // reader always knows which hash computes the id. Changing any rule gives a
 // new series_id and so a new series with new mints.
 //
 // A series is fixed, the series of the first protocol documents, or
-// variable (PoO section 16.8, D163): a variable series adds a part size M
+// variable (PoON section 16.8, D163): a variable series adds a part size M
 // and an optional largest number of parts, and its issuer releases parts
 // of M more mints, one at a time and in order (parts.go). A fixed series
 // keeps its byte form exactly: format version 1, with no supply fields,
@@ -18,7 +18,7 @@
 // never as invalid.
 //
 // The package also derives the pools of a series: the pool of serial s is
-// s / P, and pool k starts its ledger at pool_id = H("PoO-pool" ∥ series_id
+// s / P, and pool k starts its ledger at pool_id = H("PoON-pool" ∥ series_id
 // ∥ k), with k written as 8 bytes.
 package series
 
@@ -85,7 +85,7 @@ type Params struct {
 	// beside the series. Selection never reads it.
 	Issuer *hash.Hash `json:"issuer,omitempty"`
 	// SupplyType is fixed (left out: the series of today) or variable
-	// (PoO section 16.8). A fixed series has no part size or largest
+	// (PoON section 16.8). A fixed series has no part size or largest
 	// number of parts.
 	SupplyType SupplyType `json:"supply_type,omitempty"`
 	// PartSize is M, the mints in every part after part 1, which holds
@@ -426,7 +426,7 @@ func (s *Series) PoolRange(k uint64) (first, last uint64) {
 	return first, last
 }
 
-// PoolID returns H("PoO-pool" ∥ series_id ∥ k), the parent of the first
+// PoolID returns H("PoON-pool" ∥ series_id ∥ k), the parent of the first
 // entry of pool k.
 func (s *Series) PoolID(k uint64) hash.Hash {
 	w := encoding.NewWriter(8).U64(k)
@@ -443,7 +443,7 @@ func (s *Series) Mint(serial uint64) MintID {
 	return m
 }
 
-// IssuerMessageTID returns H("PoO-issuer-v1" ∥ series_id), the value an
+// IssuerMessageTID returns H("PoON-issuer-v1" ∥ series_id), the value an
 // issuer witness signs in place of a tid. The tag keeps it from ever equal
 // to a real tid, so an issuer signature can never authorize a transaction.
 func (s *Series) IssuerMessageTID() hash.Hash {
@@ -463,7 +463,7 @@ func (s *Series) CheckIssuer(w policy.Witness) error {
 
 // MintID names one mint: (series_id, serial) for a fixed series, and
 // (series_id, part, serial) for a variable series, whose part must be the
-// one that holds the serial (PoO section 16.8). Part is 0 for a fixed
+// one that holds the serial (PoON section 16.8). Part is 0 for a fixed
 // series and left out of its JSON and bytes.
 type MintID struct {
 	Series hash.Hash `json:"series"`

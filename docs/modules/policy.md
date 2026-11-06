@@ -3,8 +3,8 @@
 ## Summary
 
 Mint policies: the rules that control an address. A policy is a type number
-and params; its address is `H("PoO-address" ∥ encode(policy))`. A witness is
-the policy plus the data that satisfies it, signing `"PoO-witness-v1" ∥ tid`
+and params; its address is `H("PoON-address" ∥ encode(policy))`. A witness is
+the policy plus the data that satisfies it, signing `"PoON-witness-v1" ∥ tid`
 (decision D9). The package has a registry of policy types and key
 algorithms. It ships three types: threshold (K of up to 16 keys, decision
 D7), hashlock and k-of-policies (decision D82), and nine key algorithms:

@@ -368,7 +368,7 @@ changes how a node selects from what it holds:
 | Outputs add up to the inputs | (a) | `tx.Owners` | |
 | One witness per input, in order, each satisfying its portion's address | (a) | `tx.CheckAgainst` | Section 6.4 |
 | Amounts and supply are 64-bit; a sum that overflows is refused | (b) | `tx.OutputSum` | No valid transaction overflows, since S fits |
-| tid = H("PoO-tx" ∥ body), witnesses outside | (b) | `tx.TID`, D3 | The document's formula has no tag; the byte form is the series' to fix |
+| tid = H("PoON-tx" ∥ body), witnesses outside | (b) | `tx.TID`, D3 | The document's formula has no tag; the byte form is the series' to fix |
 | Input index is 32 bits | (b) | D2 | |
 | At most 65,536 inputs and outputs | **(c)** | C2 above | |
 
@@ -377,7 +377,7 @@ changes how a node selects from what it holds:
 | Rule | Class | Where | Note |
 |---|---|---|---|
 | Policy hashes to the address, type and algorithms allowed, then satisfy | (a) | `policy.Registry.Check` | Section 6.4, cheap check first |
-| Signed message is "PoO-witness-v1" ∥ tid | (a) | D9 | Section 6.3 |
+| Signed message is "PoON-witness-v1" ∥ tid | (a) | D9 | Section 6.3 |
 | Witness size at most the series' ceiling, measured as encoded | (b) | D19 | |
 | Threshold: 1 to 16 distinct keys, exactly K signatures, increasing indices | (b) | D7 | A declared type bound and one form per witness |
 | Hashlock: preimage at most 1,024 bytes; k-of-policies: 1 to 16 parts, nested at most 4 deep | (b) | D82 | Type bounds |
@@ -389,7 +389,7 @@ changes how a node selects from what it holds:
 
 | Rule | Class | Where | Note |
 |---|---|---|---|
-| Hash = H("PoO-entry" ∥ parent ∥ tids ∥ nonce) | (a) | `entry.HashOf` | |
+| Hash = H("PoON-entry" ∥ parent ∥ tids ∥ nonce) | (a) | `entry.HashOf` | |
 | Nonce only when a minimum entry strength is set; else it must be 0 on the wire | (b) | D5 | The document says the nonce is absent |
 | Nonce is 8 bytes | (b) | D5 | |
 | Every transaction on a mint of the entry's pool and series | (a) | `entry.CheckShape` | |
@@ -419,12 +419,12 @@ changes how a node selects from what it holds:
 | Rule | Class | Where | Note |
 |---|---|---|---|
 | N at least 1, S at least 1, P from 1 to N | (a) | `series.validate` | |
-| Pool of serial s is s / P; pool_id = H("PoO-pool" ∥ series_id ∥ k as 8 bytes) | (a) | `series.PoolID` | |
-| series_id = H("PoO-series" ∥ params), params start with format version and hash number; issuer witness outside | (b) | D3, D4 | Section 16.2 |
+| Pool of serial s is s / P; pool_id = H("PoON-pool" ∥ series_id ∥ k as 8 bytes) | (a) | `series.PoolID` | |
+| series_id = H("PoON-series" ∥ params), params start with format version and hash number; issuer witness outside | (b) | D3, D4 | Section 16.2 |
 | At least one policy type and one algorithm; lists sorted, no repeats; at most 1,024 each | (b) | `series.validate`, `DecodeParams` | One byte form per series |
 | Strength minimums at most 256 | (b) | `series.validate` | A 32-byte hash has 256 bits |
 | A number this node lacks, or format version other than 1, makes the series unreadable | (a) | `series.New` | Section 16.7 |
-| The issuer witness signs H("PoO-issuer-v1" ∥ series_id) | (b) | D8 | |
+| The issuer witness signs H("PoON-issuer-v1" ∥ series_id) | (b) | D8 | |
 
 ## How this was checked
 

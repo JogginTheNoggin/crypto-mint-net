@@ -82,7 +82,7 @@ release off the peer's read loop (D171).
 
   `decodeThresholdDataFor` needs only the params and the registry. A node
   that has not built a series still frames its transactions and never
-  judges them (PoO 16.7).
+  judges them (PoON 16.7).
 
 ### Black's checks of "only loosens"
 
@@ -144,7 +144,7 @@ is refused by this build at the ceiling, or at the exact-size check.
     rules.
   - It never touches a series already listed, a ledger, or a witness.
   - Declining to follow a series is a lack of information.
-- **Unchanged by this round.** `max_witness` 0 stays valid, and PoO 16.1
+- **Unchanged by this round.** `max_witness` 0 stays valid, and PoON 16.1
   is untouched.
 
 ### Spendability, algorithm 11 and in-place limits
@@ -177,10 +177,10 @@ is refused by this build at the ceiling, or at the exact-size check.
 - **How it was checked.**
   - Black read `encoded_params` field by field, by hand, against the
     document.
-  - Black then worked out `SHA-512/256("PoO-series" ∥ encoded_params)`
+  - Black then worked out `SHA-512/256("PoON-series" ∥ encoded_params)`
     with Python's `hashlib`, not the project's code.
 
-  The result is `fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f139`,
+  The result is `45772e75a4670fd7c37dd66898550c2e657fb2c35b547335be2ce7a64466f4c5`,
   the same as `series.ReserveID`.
 - **Naming the reserve.** `"builtin": "reserve"` is shown only when the
   full id matches. That is display.
@@ -234,7 +234,7 @@ is refused by this build at the ceiling, or at the exact-size check.
   refused now. Series with a ceiling of 64 KiB or less decide exactly as
   before.
 - **The reserve series is exactly the one in your document.** Its id
-  `fe52c1ac…f139` was checked by hand.
+  `45772e75…f4c5` was checked by hand.
 - **Before v0.1.0, keep it that way.** Once a build is released, any
   further loosening of witness limits needs new algorithm or type
   numbers.

@@ -40,7 +40,7 @@ func NewVerified(size int) *Verified {
 
 func verifiedKey(w Witness, tid hash.Hash) [sha256.Size]byte {
 	enc := encoding.NewWriter(64 + w.Size() + hash.Size)
-	enc.Raw([]byte("PoO-verified-v1"))
+	enc.Raw([]byte("PoON-verified-v1"))
 	w.Encode(enc)
 	enc.Raw(tid[:])
 	return sha256.Sum256(enc.Bytes())

@@ -53,7 +53,7 @@ type Key struct {
 // NewKey derives a key from a label. The same label always gives the same
 // key, under any series using the same hash.
 func NewKey(s *series.Series, label string) *Key {
-	seed := sha256.Sum256([]byte("PoO-test-key:" + label))
+	seed := sha256.Sum256([]byte("PoON-test-key:" + label))
 	signer, err := policy.NewEd25519Signer(seed[:])
 	if err != nil {
 		panic(err)

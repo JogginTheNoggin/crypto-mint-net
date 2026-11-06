@@ -50,7 +50,7 @@ func (a slhdsaAlg) Verify(pub, msg, sig []byte) bool {
 
 // signer derives the key from the seed: FIPS 205's key generation reads
 // SK.seed, SK.prf and PK.seed (n bytes each) from HKDF-SHA512 of the seed,
-// info "PoO-key-v1 <name> 0", so the same seed always gives the same key.
+// info "PoON-key-v1 <name> 0", so the same seed always gives the same key.
 func (a slhdsaAlg) signer(seed []byte) (Signer, error) {
 	n := a.pub / 2
 	_, sk, err := slhdsa.GenerateKey(bytes.NewReader(expand(seed, a.name, 0, 3*n)), a.set)

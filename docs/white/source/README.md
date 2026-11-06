@@ -134,8 +134,8 @@ Checked on `origin/main` @ 4c0f708 (2026-11-05).
 | Wire message types | `pkg/wire`, `pkg/p2p` (dispatch) | type numbers, never reused | Read | Unknown types are ignored, by design |
 | Wire header flags | `pkg/wire` (Decode) | none | Read | Unknown flags are malformed and drop the peer (W-4) |
 | Hello | `pkg/wire` (messages.go), `pkg/p2p` | `Protocol` 1 (highest spoken), `Agent` "poon" | Any protocol 1 or more is accepted | Same; nothing negotiates down yet (W-4) |
-| Pool log | `pkg/store` | header `PoO-log\x01` | Read | An unknown record kind stops the node at start (`pkg/node` "unknown record kind") (W-3) |
-| Pool snapshot | `pkg/node`, `pkg/ledger` | `PoO-snap\x01`, record version 1, and a build id | Ignored unless the same build wrote it, so every upgrade replays once (D178, RED-087) | Ignored, replayed |
+| Pool log | `pkg/store` | header `PoON-log\x01` | Read | An unknown record kind stops the node at start (`pkg/node` "unknown record kind") (W-3) |
+| Pool snapshot | `pkg/node`, `pkg/ledger` | `PoON-snap\x01`, record version 1, and a build id | Ignored unless the same build wrote it, so every upgrade replays once (D178, RED-087) | Ignored, replayed |
 | `node.json` | `pkg/nodepolicy` | `format` 1, must equal | Read | Unknown fields are silently ignored, and lost if the older node saves the file (W-1) |
 | Policy export bundle | `pkg/nodepolicy` (bundle.go) | `kind` "poon-node-policies", `format` 1; a bare policy file is accepted | Read | Refused: `DisallowUnknownFields` and format must equal |
 | Settings export | `pkg/nodepolicy` (settings.go) | same bundle (`kind`, `format` 1) | Read | Refused, as above |

@@ -81,7 +81,7 @@ stay with ordinary machines should weigh that.
 | 11 | `slh-dsa-sha2-256s` | 64 | 29792 | FIPS 205 | `github.com/cloudflare/circl/sign/slhdsa` |
 
 Sizes are in bytes. Every signature signs the witness message
-`"PoO-witness-v1" ∥ tid` (decision D9), as each scheme defines:
+`"PoON-witness-v1" ∥ tid` (decision D9), as each scheme defines:
 
 - **Ed25519** signs the message itself. Verification rejects
   non-canonical signatures and encodings.
@@ -106,11 +106,11 @@ Sizes are in bytes. Every signature signs the witness message
   7,856-byte signature and a slow signer: about 0.27 s to sign and 0.28 ms
   to verify here (Ed25519: 40 µs, ML-DSA-65: 150 µs). A key comes from a
   seed as every other algorithm's does: HKDF-SHA512 with the info
-  `"PoO-key-v1 slh-dsa-sha2-128s 0"` gives the three 16-byte seeds FIPS
+  `"PoON-key-v1 slh-dsa-sha2-128s 0"` gives the three 16-byte seeds FIPS
   205's key generation takes. SLH-DSA-SHA2-256s (number 11, D170) is NIST
   category 5, the level of ML-DSA-87: 64-byte keys, 29,792-byte
   signatures, about 0.59 s to sign and 0.77 ms to verify, and three
-  32-byte seeds from info `"PoO-key-v1 slh-dsa-sha2-256s 0"`.
+  32-byte seeds from info `"PoON-key-v1 slh-dsa-sha2-256s 0"`.
 
 How to choose: Ed25519 is the default, small and fast. P-256 suits
 holders whose keys live in hardware tokens, phones and cloud key services,
@@ -189,15 +189,15 @@ byte forms are in [protocol/encoding.md](protocol/encoding.md).
 
 | Value | Computed as |
 | --- | --- |
-| Series id | `H("PoO-series" ∥ params)` |
-| Pool id | `H("PoO-pool" ∥ series_id ∥ U64 k)` |
-| Address | `H("PoO-address" ∥ policy)` |
-| Transaction id | `H("PoO-tx" ∥ body)`, witnesses left out |
-| Entry hash | `H("PoO-entry" ∥ parent ∥ tids… [∥ U64 nonce])` |
+| Series id | `H("PoON-series" ∥ params)` |
+| Pool id | `H("PoON-pool" ∥ series_id ∥ U64 k)` |
+| Address | `H("PoON-address" ∥ policy)` |
+| Transaction id | `H("PoON-tx" ∥ body)`, witnesses left out |
+| Entry hash | `H("PoON-entry" ∥ parent ∥ tids… [∥ U64 nonce])` |
 | Layer hash | `H(entry hash ∥ U64 nonce)`, with no tag: it is the work (decision D6) |
 | Strength and credit | Leading zero bits of a layer hash; credit is 2^strength |
-| Signed message | `"PoO-witness-v1" ∥ tid` (decision D9) |
-| Issuer message | `"PoO-witness-v1" ∥ H("PoO-issuer-v1" ∥ series_id)` (decision D8) |
+| Signed message | `"PoON-witness-v1" ∥ tid` (decision D9) |
+| Issuer message | `"PoON-witness-v1" ∥ H("PoON-issuer-v1" ∥ series_id)` (decision D8) |
 
 Signatures and hashlocks appear only in witnesses: one witness per output
 of a claim and one per input of a spend, each satisfying the policy of the
@@ -207,7 +207,7 @@ address it proves control of.
 
 | Use | Primitive |
 | --- | --- |
-| Request ids | `SHA-256("PoO-request-v1" ∥ U16 type ∥ section ∥ body)`, SHA-256 whatever the series' hash (decision D31) |
+| Request ids | `SHA-256("PoON-request-v1" ∥ U16 type ∥ section ∥ body)`, SHA-256 whatever the series' hash (decision D31) |
 | Node ids, request nonces | 32 and 8 random bytes from `crypto/rand` |
 
 Connections are plain TCP with no encryption or authentication (decision
@@ -224,7 +224,7 @@ seed:
 - **Ed25519** uses the seed as its RFC 8032 seed.
 - **ML-DSA** uses the seed as its FIPS 204 key-generation seed.
 - **ECDSA and Schnorr** expand the seed with HKDF-SHA512 (RFC 5869), info
-  `"PoO-key-v1 <name> <attempt>"`, into a candidate private scalar, and
+  `"PoON-key-v1 <name> <attempt>"`, into a candidate private scalar, and
   take the first attempt that is a valid scalar (almost always the first;
   for P-521 the top bits are cleared first).
 
@@ -235,10 +235,10 @@ The same seed under two algorithms gives unrelated keys.
 | Use | Primitive | Parameters |
 | --- | --- | --- |
 | Seed | `crypto/rand` | 32 bytes |
-| Key *i* | The wallet's algorithm's key from seed `HMAC-SHA256(seed, "PoO-wallet-<name>-v1" ∥ U32 i)` | decisions D63, D81; for Ed25519 the label is `PoO-wallet-ed25519-v1`, as before |
+| Key *i* | The wallet's algorithm's key from seed `HMAC-SHA256(seed, "PoON-wallet-<name>-v1" ∥ U32 i)` | decisions D63, D81; for Ed25519 the label is `PoON-wallet-ed25519-v1`, as before |
 | Passphrase key | Argon2id (`x/crypto/argon2`) | 3 passes, 64 MiB, 4 lanes, 16-byte random salt, 32-byte key (decision D95) |
 | Passphrase key, older wallets | PBKDF2-HMAC-SHA256 | 600,000 iterations, 16-byte random salt, 32-byte key (decision D64); still opened, moved to Argon2id by a new passphrase |
-| Sealed seed | AES-256-GCM | 12-byte random nonce, 16-byte tag, associated data `"PoO-wallet-seed-v1"` |
+| Sealed seed | AES-256-GCM | 12-byte random nonce, 16-byte tag, associated data `"PoON-wallet-seed-v1"` |
 
 A wallet's keys are all of one algorithm, chosen when it is created
 (`poon wallet create -alg NAME`, default Ed25519). The wallet file names its

@@ -12,7 +12,7 @@
 
 ## What is wrong
 
-`part_id(k)` is a chain: `H("PoO-part" ∥ series_id ∥ k ∥ part_id(k − 1))`. D163's
+`part_id(k)` is a chain: `H("PoON-part" ∥ series_id ∥ k ∥ part_id(k − 1))`. D163's
 `Series.PartID(k)` works it out from part 1 and keeps every id in one
 slice (`partChain.ids`, 32 bytes each, grown by `append`), all while holding
 the cache's mutex:

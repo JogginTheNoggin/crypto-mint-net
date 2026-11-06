@@ -25,7 +25,7 @@ func variableSeries(t *testing.T) *series.Series {
 
 // PartID keeps one id in every stride and the stride last asked for
 // (ORANGE-034). Whatever order parts are asked for in, each id is the one
-// the chain part_id(k) = H("PoO-part" ∥ series_id ∥ k ∥ part_id(k − 1))
+// the chain part_id(k) = H("PoON-part" ∥ series_id ∥ k ∥ part_id(k − 1))
 // gives, worked out here from scratch with Release.ID.
 func TestPartIDsAnyOrder(t *testing.T) {
 	const n = 5000

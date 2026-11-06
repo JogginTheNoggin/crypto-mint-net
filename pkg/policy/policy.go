@@ -3,7 +3,7 @@
 //
 // An address is the hash of a policy:
 //
-//	address        = H("PoO-address" ∥ encode(policy))
+//	address        = H("PoON-address" ∥ encode(policy))
 //	encode(policy) = len(type) ∥ type ∥ len(params) ∥ params
 //
 // where type is the policy type number as 4 big-endian bytes and each len is
@@ -14,7 +14,7 @@
 // Checking a witness follows the cheap-first order of the design: the size
 // ceiling, then one hash to compare with the address, and only then the
 // policy type's satisfaction function, which checks signatures over
-// "PoO-witness-v1" ∥ tid.
+// "PoON-witness-v1" ∥ tid.
 package policy
 
 import (
@@ -106,7 +106,7 @@ func (p Policy) EncodeTo(w *encoding.Writer) {
 	w.VarBytes(p.Params)
 }
 
-// Address returns H("PoO-address" ∥ encode(policy)).
+// Address returns H("PoON-address" ∥ encode(policy)).
 func Address(h hash.Func, p Policy) hash.Hash {
 	return h(hash.TagAddress, p.Encode())
 }
@@ -149,7 +149,7 @@ func DecodeWitness(r *encoding.Reader) Witness {
 }
 
 // Message returns the bytes every signature in a witness covers:
-// "PoO-witness-v1" ∥ tid.
+// "PoON-witness-v1" ∥ tid.
 func Message(tid hash.Hash) []byte {
 	m := make([]byte, 0, len(hash.TagWitness)+hash.Size)
 	m = append(m, hash.TagWitness...)

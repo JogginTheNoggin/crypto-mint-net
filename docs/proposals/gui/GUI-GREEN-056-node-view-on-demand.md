@@ -46,7 +46,7 @@ view four times:
 ## Notes for others (not built here)
 
 - **Source:** the `poon status -counts` rows name the series by id only.
-  On the reserve, the Followed pools row reads `fe52c1ac…` while
+  On the reserve, the Followed pools row reads `45772e75…` while
   Followed series, just above, says "the built-in reserve series".
   Adding `builtin` to each `-counts` row, as `series followed` has it,
   would let both panels name it without the GUI matching ids.

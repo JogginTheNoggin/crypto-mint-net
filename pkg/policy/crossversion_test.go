@@ -35,7 +35,7 @@ type crossVector struct {
 	New     []string `json:"new"`
 	// OldUnreadable says why a series that allows this witness cannot be
 	// built by the old build at all, so the builds never judge it side by
-	// side: a new algorithm number (PoO 16.7).
+	// side: a new algorithm number (PoON 16.7).
 	OldUnreadable string `json:"old_unreadable,omitempty"`
 }
 
@@ -208,7 +208,7 @@ func writeCrossVectors(t *testing.T, h hash.Func) {
 		x.w.Encode(e)
 		v := crossVector{Name: x.name, Address: Address(h, x.w.Policy).String(), Witness: hex.EncodeToString(e.Bytes())}
 		if usesAlg(x.w.Policy, AlgSLHDSASHA2256s) {
-			v.OldUnreadable = "the old build does not know algorithm 11, so it cannot build a series that lists it: unreadable, not a disagreement (PoO 16.7)"
+			v.OldUnreadable = "the old build does not know algorithm 11, so it cannot build a series that lists it: unreadable, not a disagreement (PoON 16.7)"
 		}
 		for _, max := range f.Ceilings {
 			v.New = append(v.New, crossVerdict(h, e.Bytes(), Address(h, x.w.Policy), tid, max))

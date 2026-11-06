@@ -69,7 +69,7 @@ try {
   assert.doesNotMatch(await pools.innerText(), /"pools": \[/, 'no pool rows in the timed panel');
   // One totals row: the example's series is not built into poon, so it has
   // no name (D179), and it has 2 pools.
-  assert.match(await pools.locator('table.series-totals tbody tr').first().innerText(), /^\td0b927f79f[0-9a-f]{6}…\t2\t/);
+  assert.match(await pools.locator('table.series-totals tbody tr').first().innerText(), /^\t9d7f095da8[0-9a-f]{6}…\t2\t/);
   // Snapshots (D178), as poon sums them up: a fresh node has no logs yet.
   await pools.locator('.snapshots', { hasText: /^Snapshots: \d+ of \d+ pools with a log have one.*snapshot_every/ }).waitFor();
   await pools.locator('.replay', { hasText: /^This start: \d+ pools? from (its snapshot|their snapshots)/ }).waitFor();
@@ -505,7 +505,7 @@ try {
   await imp.locator('.import-plan', { hasText: 'A new node policy.' }).waitFor();
   // The worked example's series sets no witness ceiling, so the new
   // policy's plan warns first, with poon's reason (D171). Apply stays.
-  assert.match(await imp.locator('.import-plan .plan-unbounded').innerText(), /d0b927f7: the series sets no witness ceiling/);
+  assert.match(await imp.locator('.import-plan .plan-unbounded').innerText(), /9d7f095d: the series sets no witness ceiling/);
   page.once('dialog', d => d.accept());
   await imp.locator('button.danger:has-text("Apply")').click();
   await imp.locator('.area .area .import-plan', { hasText: 'Saved.' }).waitFor();
