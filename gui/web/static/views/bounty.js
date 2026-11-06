@@ -71,6 +71,9 @@ export function marketView(o, act = () => {}) {
   const out = [];
   const note = marketNote(o);
   if (note) out.push(note);
+  // poo's notes on settings that will not work as most likely meant, such
+  // as posting on with no max_amount or budget (D202), each as printed.
+  if (o && Array.isArray(o.notes)) out.push(...o.notes.map(n => el('p', { class: 'next-step bounty-note', role: 'status' }, String(n))));
   const mine = Array.isArray(o && o.mine) ? o.mine : [];
   const held = Array.isArray(o && o.held) ? o.held : [];
   if (mine.length) {
@@ -157,8 +160,9 @@ export const bountyView = {
     };
     const again = () => { if (market) market.reload(); };
     market = panel(ctx, { title: 'Offers', about: 'The offers this node posted, with the layers peers claimed on them, and the offers peers sent it. Pay, Cancel and Work fill the forms below.', args: () => ['bounty', 'list', ...where.flags()], onResult: draw });
-    forms.ask = form(ctx, { title: 'Ask peers for offers', about: 'Asks every connected peer that runs the market for its open offers, and waits a moment for answers. Offers below the node\'s min_price are not kept.', fields: [sf],
-      args: v => ['bounty', 'list', ...where.flags(), '-ask', ...flag('series', v.series)], submit: 'Ask', onResult: draw });
+    const maxStrength = { name: 'maxStrength', label: 'Strongest offer (bits)', type: 'number', placeholder: 'default: bounty.max_strength, else any' };
+    forms.ask = form(ctx, { title: 'Ask peers for offers', about: 'Asks every connected peer that runs the market for its open offers, and waits a moment for answers. Offers below the node\'s min_price are not kept.', fields: [maxStrength, sf],
+      args: v => ['bounty', 'list', ...where.flags(), '-ask', ...flag('max-strength', v.maxStrength), ...flag('series', v.series)], submit: 'Ask', onResult: draw });
     forms.post = form(ctx, { title: 'Post an offer', about: 'Offers to pay peers for layers on an entry this node holds. The offer goes to every connected peer that runs the market; it must fit the node\'s max_amount, and all open offers and unpaid layers must fit its budget.', fields: [
       { name: 'pool', label: 'Pool', type: 'number', placeholder: 'or a mint serial below' }, { name: 'serial', label: 'Or a mint serial', type: 'number' },
       { name: 'entry', label: 'Entry', required: true, placeholder: 'the entry hash (Build an entry prints it)' },
@@ -169,8 +173,8 @@ export const bountyView = {
       submit: 'Post', danger: true, onResult: again });
     forms.work = form(ctx, { title: 'Work an offer', about: 'Takes a lease on a peer\'s offer, grinds until it finds a layer, the lease ends or the time is up, and claims the layer to be paid to your address. The address is fixed when the lease is taken.', fields: [
       { name: 'id', label: 'Offer id', required: true }, { name: 'to', label: 'Pay to address', required: true, placeholder: 'a fresh one: Wallet, New address' },
-      { name: 'maxSeconds', label: 'Grind at most (seconds)', type: 'number', placeholder: 'default and most: 240' }, sf],
-      args: v => ['bounty', 'work', ...(v.id ? [v.id] : []), ...where.flags(), ...flag('to', v.to), ...flag('max-seconds', v.maxSeconds), ...flag('series', v.series)],
+      { name: 'maxSeconds', label: 'Grind at most (seconds)', type: 'number', placeholder: 'default and most: 240' }, { ...maxStrength, placeholder: 'work no offer stronger than this; default: bounty.max_strength, else any' }, sf],
+      args: v => ['bounty', 'work', ...(v.id ? [v.id] : []), ...where.flags(), ...flag('to', v.to), ...flag('max-seconds', v.maxSeconds), ...flag('max-strength', v.maxStrength), ...flag('series', v.series)],
       submit: 'Work', onResult: (r, area) => { const n = workNote(parse(r)); if (n) area.prepend(n); again(); } });
     forms.pay = form(ctx, { title: 'Pay a claim', about: 'Pays an accepted claim from the wallet the Wallet view names, and tells the grinder the payment. The command asks for the passphrase when it needs it.', fields: [
       { name: 'id', label: 'Offer id', required: true }, { name: 'claim', label: 'Claim nonce', type: 'number', placeholder: 'default: the offer\'s only unpaid claim' }, sf],

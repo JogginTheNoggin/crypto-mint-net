@@ -362,6 +362,13 @@ try {
   await fill(bwork, 'Offer id', 'ab12');
   await fill(bwork, 'Pay to address', 'cd34');
   assert.equal(await bwork.locator('.cmd code').innerText(), `poo bounty work ab12 -root ${home} -to cd34`);
+  // -max-strength (D202): work no offer stronger than this.
+  await fill(bwork, 'Strongest offer (bits)', '30');
+  assert.equal(await bwork.locator('.cmd code').innerText(), `poo bounty work ab12 -root ${home} -to cd34 -max-strength 30`);
+  await fill(bwork, 'Strongest offer (bits)', '');
+  await fill(section('Ask peers for offers'), 'Strongest offer (bits)', '24');
+  assert.equal(await section('Ask peers for offers').locator('.cmd code').innerText(), `poo bounty list -root ${home} -ask -max-strength 24`);
+  await fill(section('Ask peers for offers'), 'Strongest offer (bits)', '');
   await fill(section('Pay a claim'), 'Offer id', 'ab12');
   // No wallet file chosen in the Wallet view: poo's default, wallet.json.
   assert.equal(await section('Pay a claim').locator('.cmd code').innerText(), `poo bounty pay ab12 -root ${home}`);
