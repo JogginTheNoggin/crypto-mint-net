@@ -42,7 +42,12 @@ type bountyAckKey struct {
 }
 
 // ErrNoBounty is a market call on a node whose policy has the market off.
-var ErrNoBounty = errors.New("the bounty market is off: set bounty.post or bounty.take in node.json")
+var ErrNoBounty = errors.New("the bounty market is off: poo policy limits -set bounty.take=1 takes peers' offers; -set bounty.post=1 with bounty.max_amount and bounty.budget posts them")
+
+// ErrNoTake is asking for or working peers' offers on a node that only
+// posts: it keeps no peer's offer, so the answers would be dropped
+// (GREEN-062).
+var ErrNoTake = fmt.Errorf("%w: this node does not take peers' offers; poo policy limits -set bounty.take=1 turns it on", bounty.ErrOff)
 
 // ErrPayerGone is a take or claim whose payer is not connected.
 var ErrPayerGone = errors.New("the peer that sent the offer is not connected")
@@ -178,6 +183,9 @@ func (h *Host) AskBounties(series hash.Hash) (int, error) {
 	if h.cfg.Bounty == nil {
 		return 0, ErrNoBounty
 	}
+	if !h.cfg.Bounty.Config().Take {
+		return 0, ErrNoTake
+	}
 	n := 0
 	for _, p := range h.bountyPeers() {
 		p.send(bountyMsg(wire.TypeBountyListReq, bounty.ListReq{Series: series}.Encode()))
@@ -192,6 +200,9 @@ func (h *Host) TakeBounty(ctx context.Context, id hash.Hash, rate uint64, payTo 
 	b := h.cfg.Bounty
 	if b == nil {
 		return bounty.Grant{}, ErrNoBounty
+	}
+	if !b.Config().Take {
+		return bounty.Grant{}, ErrNoTake
 	}
 	held, ok := b.HeldOffer(id)
 	if !ok {

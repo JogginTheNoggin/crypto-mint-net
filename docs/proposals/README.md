@@ -87,6 +87,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-059](source/GREEN-059-dev-commit-and-dry-run-follow.md) | Source | A dev build names its commit in release; the import dry run says whether the pool is followed | proposed |
 | [GREEN-060](source/GREEN-060-cold-claim-and-key-file.md) | Source | The cold-key steps work with the key never on the node: keygen -out, wallet claim -to-policy, poo sign signs claims | proposed |
 | [GREEN-061](source/GREEN-061-bounty-offer-finds-its-pool.md) | Source | A bounty offer goes to the pool that holds its entry; a pool that does not hold it is refused | proposed |
+| [GREEN-062](source/GREEN-062-bounty-on-with-limits.md) | Source | Turning the bounty market on with poo policy limits -set: on/off values, notes when posting cannot work, errors that name the command | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |

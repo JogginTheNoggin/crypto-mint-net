@@ -87,7 +87,11 @@ wraps (RED-114).
 
 Each is a settable limit: `poo policy limits` lists it and `poo policy
 limits -set bounty.post=1` sets it (D198); a running node takes a change
-on reload.
+on reload. `bounty.post` and `bounty.take` also take `on` and `off`, and
+the reply's `notes` name a setting that cannot work as set: posting on
+without `max_amount` and `budget`, or `max_amount` over `budget`. A node
+that only posts refuses `poo bounty list -ask` and `poo bounty work`,
+naming `bounty.take` (GREEN-062).
 
 | node.json `bounty` | Default | Range |
 | --- | --- | --- |

@@ -156,7 +156,7 @@ Usage:
   poo sign FILE|- -key-file F [-alg NAME] [-raw] [-hash NAME] [-out FILE] [-show]
                               sign a payment waiting for signatures with a
                               key kept off the node; needs no node (D193)
-  poo bounty post -pool K -entry HASH -strength S -amount A [-count N] [-open SECONDS]
+  poo bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
                               offer to pay for layers on an entry (D196)
   poo bounty list [-ask]      this node's offers and those peers sent
   poo bounty work ID -to ADDR [-max-seconds N]

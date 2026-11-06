@@ -252,6 +252,10 @@ func (h *Handler) bountyWork(w http.ResponseWriter, r *http.Request) {
 	if b == nil {
 		return
 	}
+	if !b.Config().Take {
+		writeError(w, bountyErr(p2p.ErrNoTake))
+		return
+	}
 	held, ok := b.HeldOffer(req.ID)
 	if !ok {
 		writeError(w, badRequest("no offer with that id was received; poo bounty list -ask asks peers for theirs"))

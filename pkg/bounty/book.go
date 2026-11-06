@@ -741,7 +741,10 @@ func (b *Book) Post(o Offer) (Mine, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !b.cfg.Post {
-		return Mine{}, fmt.Errorf("%w: set bounty.post to post offers", ErrOff)
+		return Mine{}, fmt.Errorf("%w: poo policy limits -set bounty.post=1 posts offers", ErrOff)
+	}
+	if missing := unsetSpend(b.cfg); missing != "" {
+		return Mine{}, fmt.Errorf("%w: %s not set, so this node posts no offer; poo policy limits -set bounty.max_amount=N -set bounty.budget=N", ErrOff, missing)
 	}
 	b.expire()
 	total, over := mulCheck(o.Amount, uint64(o.Count))
@@ -773,6 +776,20 @@ func (b *Book) Post(o Offer) (Mine, error) {
 		return Mine{}, err
 	}
 	return b.clone(m), nil
+}
+
+// unsetSpend names the spending limits posting needs that cfg leaves
+// unset (GREEN-062): empty when both are set.
+func unsetSpend(cfg Config) string {
+	switch {
+	case cfg.MaxAmount == 0 && cfg.Budget == 0:
+		return "bounty.max_amount and bounty.budget are"
+	case cfg.MaxAmount == 0:
+		return "bounty.max_amount is"
+	case cfg.Budget == 0:
+		return "bounty.budget is"
+	}
+	return ""
 }
 
 func mulCheck(a, b uint64) (uint64, bool) {
