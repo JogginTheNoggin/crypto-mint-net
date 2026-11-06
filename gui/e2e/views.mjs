@@ -366,6 +366,9 @@ try {
   await fill(bwork, 'Strongest offer (bits)', '30');
   assert.equal(await bwork.locator('.cmd code').innerText(), `poon bounty work ab12 -root ${home} -to cd34 -max-strength 30`);
   await fill(bwork, 'Strongest offer (bits)', '');
+  // Strongest offer only narrows the ask, and a reload empties the
+  // offers held from peers (GUI-GREEN-065).
+  assert.match(await section('Ask peers for offers').innerText(), /can ask for fewer, never for more\. A reload \(a save in Set limits\) empties the offers held from peers/);
   await fill(section('Ask peers for offers'), 'Strongest offer (bits)', '24');
   assert.equal(await section('Ask peers for offers').locator('.cmd code').innerText(), `poon bounty list -root ${home} -ask -max-strength 24`);
   await fill(section('Ask peers for offers'), 'Strongest offer (bits)', '');

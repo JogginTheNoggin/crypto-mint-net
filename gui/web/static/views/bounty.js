@@ -161,7 +161,11 @@ export const bountyView = {
     const again = () => { if (market) market.reload(); };
     market = panel(ctx, { title: 'Offers', about: 'The offers this node posted, with the layers peers claimed on them, and the offers peers sent it. Pay, Cancel and Work fill the forms below.', args: () => ['bounty', 'list', ...where.flags()], onResult: draw });
     const maxStrength = { name: 'maxStrength', label: 'Strongest offer (bits)', type: 'number', placeholder: 'default: bounty.max_strength, else any' };
-    forms.ask = form(ctx, { title: 'Ask peers for offers', about: 'Asks every connected peer that runs the market for its open offers, and waits a moment for answers. Offers below the node\'s min_price are not kept.', fields: [maxStrength, sf],
+    // Strongest offer only narrows an ask: the node keeps no offer above
+    // bounty.max_strength whatever the ask says (D202). The offers held
+    // from peers live in memory, so a reload (a save in Set limits) empties
+    // them, and peers take a moment to connect again (GUI-GREEN-065).
+    forms.ask = form(ctx, { title: 'Ask peers for offers', about: 'Asks every connected peer that runs the market for its open offers, and waits a moment for answers. Offers below the node\'s min_price, or stronger than its bounty.max_strength, are not kept: Strongest offer can ask for fewer, never for more. A reload (a save in Set limits) empties the offers held from peers, so ask again a few seconds after it.', fields: [maxStrength, sf],
       args: v => ['bounty', 'list', ...where.flags(), '-ask', ...flag('max-strength', v.maxStrength), ...flag('series', v.series)], submit: 'Ask', onResult: draw });
     forms.post = form(ctx, { title: 'Post an offer', about: 'Offers to pay peers for layers on an entry this node holds. The offer goes to every connected peer that runs the market; it must fit the node\'s max_amount, and all open offers and unpaid layers must fit its budget.', fields: [
       { name: 'pool', label: 'Pool', type: 'number', placeholder: 'or a mint serial below' }, { name: 'serial', label: 'Or a mint serial', type: 'number' },

@@ -416,10 +416,12 @@ try {
     const { secretLine } = await import('/api.js');
     const t0 = performance.now();
     const r = [secretLine('poon sign x.json -key-file ' + Array(20000).fill('zz').join(' ')), secretLine(Array(5000).fill('-key-file zz').join(' ')),
-      secretLine('poon sign -key-file ' + Array(40).fill('ab').join(' ') + ' x.json'), secretLine('poon sign -key-file ' + Array(200).fill('zz').join(' ') + ' ' + 'ab'.repeat(32))];
+      secretLine('poon sign -key-file ' + Array(40).fill('ab').join(' ') + ' x.json'), secretLine('poon sign -key-file ' + Array(200).fill('zz').join(' ') + ' ' + 'ab'.repeat(32)),
+      // One hex word longer than the cap is still tested (GUI/Red R39B).
+      secretLine('poon sign -key-file ' + 'ab'.repeat(300))];
     return [...r, performance.now() - t0 < 1000];
   });
-  assert.deepEqual(long, [false, false, true, false, true], 'secretLine on a long line is quick');
+  assert.deepEqual(long, [false, false, true, false, true, true], 'secretLine on a long line is quick');
   // A list longer than 500 says it was cut, as a table does (ORANGE-018).
   const cut = await page.evaluate(async () => {
     const { render } = await import('/render.js');
