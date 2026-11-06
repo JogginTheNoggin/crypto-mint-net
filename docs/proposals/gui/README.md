@@ -107,7 +107,7 @@ ORANGE-005 explains how to measure.
 | [ORANGE-025](ORANGE-025-long-doctor-detail.md) | Show the first 1,000 characters of a long Health check line, with Show all; and let `poo doctor`'s ceiling check give a count and a few ids (4,096 series with no ceiling: one 455,000-character line, the Node view's first panel 52,346 px tall → 695 px) | small | yes (GUI part) | adopted (R33A; the second half routed to Source) |
 | [ORANGE-026](ORANGE-026-output-dropped-on-the-way.md) | Say when a result lost part of its output, and offer no Save as file then: a 100,000-entry ledger export shown in the page arrived with 19–27 MB of 58.6 MB and still parsed as a ledger (38,008–46,214 of 100,000 entries) with Save as file offered | small | yes | adopted (R34A) |
 | [ORANGE-027](ORANGE-027-ledger-import-as-read.md) | Let `poo ledger import` send a ledger as it reads it and print progress: 100,000 entries (58.6 MB) held whole, poo 195 MB, poo-gui up to 383 MB with a picked file, and 45 s of "running…" with no progress | small | no | accepted, queued in Source R34A |
-| [ORANGE-028](ORANGE-028-keep-new-jobs-bounded.md) | Keep new jobs (Round 37's 10 s `KeepNew`) only up to twice the job and output limits: a burst of 4 MiB jobs kept 188 jobs and a 756 MB heap in 3 s, against 16 jobs and 68 MB before; the prototype keeps 32 jobs and 132 MB | small | yes | proposed |
+| [ORANGE-028](ORANGE-028-keep-new-jobs-bounded.md) | Keep new jobs (Round 37's 10 s `KeepNew`) only up to twice the job and output limits: a burst of 4 MiB jobs kept 188 jobs and a 756 MB heap in 3 s, against 16 jobs and 68 MB before; the prototype keeps 32 jobs and 132 MB | small | yes | adopted (GUI Round 38 Part A, as prototyped) |
 
 ### Re-checks each round
 
