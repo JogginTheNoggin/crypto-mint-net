@@ -113,3 +113,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-046](source/ORANGE-046-bounty-market-measured.md) | Source | Round 36 measured; the bounty market's messages are cheap, but its file only grows | proposed |
 | [ORANGE-047](source/ORANGE-047-bounty-file-remeasured.md) | Source | Round 37 measured; the bounty book no longer grows with its history, and keepjson's remaining cost | proposed |
 | [ORANGE-048](source/ORANGE-048-start-and-wallet-remeasured.md) | Source | Round 38 measured; the start and the wallet no longer grow slower with history | proposed |
+| [ORANGE-049](source/ORANGE-049-list-by-strength.md) | Source | Round 39 measured; a bounty list filtered by strength costs at most 30 µs | proposed |
