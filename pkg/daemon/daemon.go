@@ -14,6 +14,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"log/slog"
@@ -140,6 +141,14 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	cfg.Tracker = tr
 	if cfg.PartsDir, err = partsDir(dir, nlog); err != nil {
 		return false, errors.Join(err, n.Close())
+	}
+	// The bounty market, when the policy takes part (D196); the offers it
+	// posted are kept beside the store, so an accepted claim is still owed
+	// after a restart.
+	if bc, on := n.Policy().BountyConfig(); on {
+		if cfg.Bounty, err = bounty.Open(bc, filepath.Join(dir, bounty.FileName)); err != nil {
+			return false, errors.Join(err, n.Close())
+		}
 	}
 	host, err := p2p.New(n, cfg)
 	if err != nil {

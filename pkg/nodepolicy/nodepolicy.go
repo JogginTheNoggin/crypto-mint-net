@@ -124,6 +124,9 @@ type Policy struct {
 	// Grind says how the node grinds and which jobs it runs by itself
 	// (package grind, M11).
 	Grind *Grind `json:"grind,omitempty"`
+	// Bounty is the node's part in the bounty market, off by default
+	// (D196).
+	Bounty *Bounty `json:"bounty,omitempty"`
 }
 
 // Grind configures the node's grinding (package grind, decision D109).
@@ -559,6 +562,9 @@ func (p Policy) Validate() error {
 	}
 	if err := p.Grind.validate(); err != nil {
 		return fmt.Errorf("%w: grind: %v", ErrInvalid, err)
+	}
+	if err := p.Bounty.validate(); err != nil {
+		return fmt.Errorf("%w: bounty: %v", ErrInvalid, err)
 	}
 	for i, f := range p.Follow {
 		if (f.Issuer == nil) == (f.Series == nil) {

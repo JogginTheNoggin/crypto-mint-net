@@ -40,6 +40,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"log/slog"
@@ -66,6 +67,10 @@ const Protocol = 1
 // Config holds the p2p settings, all node policy. Zero values mean the
 // provisional defaults in DefaultConfig.
 type Config struct {
+	// Bounty is the node's bounty book (D196); nil when its policy neither
+	// posts nor takes, so the host does not list the feature and ignores
+	// the market's messages.
+	Bounty *bounty.Book
 	// Reload, when set, makes the node apply its node policy again: the
 	// host asks for it when it cannot take a release in place (D168).
 	Reload func()
@@ -451,6 +456,9 @@ type poolInfo struct {
 type Host struct {
 	// rel coalesces releases passed on by peers (RED-078).
 	rel releaseQueue
+
+	// bwait holds the bounty takes and claims waiting for answers (D196).
+	bwait bountyWaits
 
 	// prog holds what yielded chases learned (see progress).
 	progMu    sync.Mutex

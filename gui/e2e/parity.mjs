@@ -199,6 +199,12 @@ try {
   // help of each command that has its own (poo grind help, poo wallet help).
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
+    // The bounty market is terminal-only in phase 1 (D196); a view comes later.
+    'bounty post': 'bounty market, terminal-only in phase 1 (D196)',
+    'bounty list': 'bounty market, terminal-only in phase 1 (D196)',
+    'bounty work': 'bounty market, terminal-only in phase 1 (D196)',
+    'bounty pay': 'bounty market, terminal-only in phase 1 (D196)',
+    'bounty cancel': 'bounty market, terminal-only in phase 1 (D196)',
   };
   const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();

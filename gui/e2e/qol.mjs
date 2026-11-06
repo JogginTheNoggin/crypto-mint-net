@@ -258,6 +258,7 @@ try {
   const TERMINAL_ONLY = {
     help: 'the terminal\'s own help, and every form shows its line',
     completion: 'sets up a shell, not this GUI',
+    bounty: 'the bounty market is terminal-only in phase 1 (D196)',
     holdings: 'older form of poo unspent, kept for scripts; Explore runs unspent',
     payment: 'older form of poo tx, kept for scripts; Explore runs tx',
     claim: 'claims with a raw key file; the Wallet view claims from the wallet',

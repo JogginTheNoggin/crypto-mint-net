@@ -156,6 +156,14 @@ Usage:
   poo sign FILE|- -key-file F [-alg NAME] [-raw] [-hash NAME] [-out FILE] [-show]
                               sign a payment waiting for signatures with a
                               key kept off the node; needs no node (D193)
+  poo bounty post -pool K -entry HASH -strength S -amount A [-count N] [-open SECONDS]
+                              offer to pay for layers on an entry (D196)
+  poo bounty list [-ask]      this node's offers and those peers sent
+  poo bounty work ID -to ADDR [-max-seconds N]
+                              lease a peer's offer, grind the layer, claim it
+  poo bounty pay ID [-claim NONCE] [-wallet FILE]
+                              pay an accepted claim from the wallet
+  poo bounty cancel ID        close one of this node's offers
   poo series example          print the worked example's series as JSON
   poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
                               print a new series' params, checked
@@ -394,6 +402,8 @@ func run(args []string, out io.Writer) error {
 		return claimCmd(args[1:], out)
 	case "sign":
 		return signCmd(args[1:], out)
+	case "bounty":
+		return bountyCmd(args[1:], out)
 	case "pay":
 		return payCmd(args[1:], out)
 	case "build":
@@ -690,7 +700,7 @@ func writeJSON(out io.Writer, v any) error {
 
 // ownHelp names the commands whose own usage answers "help" and "-h"
 // (grindUsage, simUsage, walletUsage).
-var ownHelp = map[string]bool{"grind": true, "sim": true, "wallet": true}
+var ownHelp = map[string]bool{"grind": true, "sim": true, "wallet": true, "bounty": true}
 
 // runsBare names the commands made of subcommands that also run with no
 // subcommand, with flags of their own: -h lists those flags, and "help"
