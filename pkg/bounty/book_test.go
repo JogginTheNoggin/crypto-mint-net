@@ -93,19 +93,19 @@ func TestBookLeasesAndClaims(t *testing.T) {
 	}
 	// Claims: another grinder is reserved out, the wrong address and a
 	// weak layer are refused, the right one is accepted.
-	if a := b.Claim("bob", Claim{Offer: m1.ID, Nonce: 1}, 30); a.Outcome != Reserved {
+	if a := b.Claim("bob", Claim{Offer: m1.ID, Nonce: 1}, 30, false); a.Outcome != Reserved {
 		t.Fatalf("bob's claim %s", OutcomeName(a.Outcome))
 	}
-	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 1, PayTo: hash.Hash{0xb}}, 30); a.Outcome != Mismatch {
+	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 1, PayTo: hash.Hash{0xb}}, 30, false); a.Outcome != Mismatch {
 		t.Fatalf("wrong address %s", OutcomeName(a.Outcome))
 	}
-	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 1, PayTo: hash.Hash{0xa}}, 19); a.Outcome != TooWeak {
+	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 1, PayTo: hash.Hash{0xa}}, 19, false); a.Outcome != TooWeak {
 		t.Fatalf("weak %s", OutcomeName(a.Outcome))
 	}
-	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 2, PayTo: hash.Hash{0xa}}, 21); a.Outcome != Accepted {
+	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 2, PayTo: hash.Hash{0xa}}, 21, false); a.Outcome != Accepted {
 		t.Fatalf("good %s", OutcomeName(a.Outcome))
 	}
-	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 2, PayTo: hash.Hash{0xa}}, 21); a.Outcome != Repeat {
+	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 2, PayTo: hash.Hash{0xa}}, 21, false); a.Outcome != Repeat {
 		t.Fatalf("again %s", OutcomeName(a.Outcome))
 	}
 	// Filling one earns a second lease.

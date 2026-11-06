@@ -168,6 +168,27 @@ func TestBountyMarket(t *testing.T) {
 		t.Fatalf("the grinder's address holds %d at the payer, want 10", held.Balance)
 	}
 
+	// An offer for two layers on the same entry is filled by two work
+	// calls: each starts at a random nonce, so the second finds another
+	// layer, and neither is one the payer holds (RED-109, RED-110).
+	var two rpc.BountyPostReply
+	cli(t, &two, append([]string{"bounty", "post", "-pool", "1", "-entry", built.Hash, "-strength", "8", "-amount", "10", "-count", "2"}, pr...)...)
+	for i := 0; i < 50; i++ {
+		cli(t, &seen, append([]string{"bounty", "list", "-ask"}, gr...)...)
+		if len(seen.Held) > 1 {
+			break
+		}
+	}
+	nonces := map[uint64]bool{worked.Nonce: true}
+	for i := range 2 {
+		var w rpc.BountyWorkReply
+		cli(t, &w, append([]string{"bounty", "work", two.Offer.ID.String(), "-to", addr.Address}, gr...)...)
+		if w.Outcome != "accepted" || nonces[w.Nonce] {
+			t.Fatalf("work %d on the two-layer offer: %+v (nonces so far %v)", i, w, nonces)
+		}
+		nonces[w.Nonce] = true
+	}
+
 	// A node with the market off refuses the commands.
 	if _, err := runErr(append([]string{"bounty", "cancel", posted.Offer.ID.String()}, gr...)...); err == nil {
 		t.Fatal("a grinder cancelled the payer's offer")

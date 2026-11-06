@@ -5393,3 +5393,48 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **For White (Part D):** please check the new feature name, message
   numbers 70 to 76 and the `bounties.json` kind and format against
   WHITE-001.
+
+### D197. Round 36 fixes: bounty grinders start at random, claims need a lease and a new layer, leases per address, the payer fixed, bounded records, bounties.json checked (BLUE-037)
+
+- **Merged first:** Green's #299 (GREEN-061: a bounty offer goes to the
+  pool that holds its entry). Orange's #301 (ORANGE-046, measurements
+  and proposals) is docs only and is not merged here; its proposals 1 to
+  3 (pruning paid offers, saving off the inbox worker, a cheaper
+  `Receive`) are for Grey.
+- **Decision:**
+  - **RED-109.** `poo bounty work` starts at a random nonce.
+  - **RED-110.** `Book.Claim` takes `known` (the pool holds that layer,
+    from `ledger.Pool.HasLayer`). A claim with no lease is `no lease`
+    (outcome 10), and a known layer is `known` (outcome 9) and not owed.
+    A known layer is neither recorded nor counted as filled.
+  - **RED-112.** `Book.TakeFrom(peer, addr, take)` limits the leases from
+    one host to `max_leases_per_grinder` in all. The lease keeps `addr`.
+    Listing leased offers and ending unused leases early are not taken.
+  - **RED-111.** (b) `Receive` keeps the first sender as `From`. (c) A
+    grant or ack reaches the waiting call only from `From`
+    (`Book.HeldFrom`). (a), the node id itself, waits for phase 2, and
+    the docs say so.
+  - **RED-113.** Each held offer keeps its newest `MaxAcks` (16) acks.
+    Payers and grinders are capped at 4,096 records each; a grinder
+    with a lease is never the one dropped.
+  - **RED-114.** `Open` re-runs `Offer.Check` and checks the claims (no
+    more than the count, each at least the offer's strength, no repeated
+    nonce). What fails is left out and listed by `Dropped`, which the
+    daemon logs. `Owed` saturates instead of wrapping. A preview with
+    `-yes` for `poo bounty pay` is not added (a new flag needs a GUI
+    form); `pay` pays only claims that passed these checks.
+- **Why:** a grinder must be able to fill a multi-layer offer, a payer
+  must not owe for a layer it holds, and the limits must hold against
+  free node ids.
+- **Consensus:** None. The market is outside the ledger (D196). A known
+  layer still goes to the engine like any layer.
+- **Tier:** Bounty, P2P, RPC, ledger (a read), daemon.
+  - `pkg/bounty/blue037_test.go`:
+    - `TestBlue037ClaimNeedsLeaseAndNewLayer`
+    - `TestBlue037LeasesPerAddress`
+    - `TestBlue037HeldOfferKeepsPayerAndBoundsAcks`
+    - `TestBlue037FileChecked`
+  - `pkg/p2p/blue037_internal_test.go`:
+    `TestBlue037AnswersOnlyFromThePayer`.
+  - `pkg/cli/bounty_test.go`: `TestBountyMarket` now fills a two-layer
+    offer with two work calls.

@@ -242,6 +242,16 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 36 fixes (D197):**
+  - `poo bounty work` grinds from a random nonce, so two grinders find
+    different layers and an offer for several layers can be filled.
+  - A bounty claim needs a lease, and a layer the payer already holds is
+    answered `known` and is not owed.
+  - Leases are limited per network address as well as per node id.
+  - An offer received again keeps its first sender as payer; only the
+    payer answers a take or claim.
+  - The market's acks and peer records are bounded, and `bounties.json`
+    is checked at start.
 - **Round 36 (D195, D196):**
   - **Bounty market (phase 1):** a node can pay peers to grind layers
     on its entries, with no consensus change: `poo bounty post`, `list
