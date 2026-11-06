@@ -20,22 +20,22 @@ import (
 
 const bashCompletion = `# poon bash completion: source this file, or put it in
 # /etc/bash_completion.d/ (or ~/.local/share/bash-completion/completions/poon).
-_poo() {
+_poon() {
 	local cur=${COMP_WORDS[COMP_CWORD]}
 	local IFS=$'\n'
 	COMPREPLY=($(poon __complete "${COMP_WORDS[@]:1:COMP_CWORD-1}" "$cur" 2>/dev/null))
 }
-complete -o default -F _poo poon
+complete -o default -F _poon poon
 `
 
 const zshCompletion = `#compdef poon
-# poon zsh completion: put this file as _poo in a directory on $fpath.
-_poo() {
+# poon zsh completion: put this file as _poon in a directory on $fpath.
+_poon() {
 	local -a c
 	c=(${(f)"$(poon __complete ${words[2,CURRENT-1]} ${words[CURRENT]} 2>/dev/null)"})
 	(( ${#c} )) && compadd -a c || _files
 }
-compdef _poo poon
+compdef _poon poon
 `
 
 const fishCompletion = `# poon fish completion: put this file in ~/.config/fish/completions/poon.fish.

@@ -59,7 +59,7 @@ Usage:
                               the running node's peers, their categories
                               and points, and its peer book, filtered
                               (blocked, timed out: poon tracking)
-  poon peers -counts           only the book's size and counts per state
+  poon peers -counts          only the book's size and counts per state
   poon peers export [-category LIST] [-out FILE]
                               write the peer book, or some categories of
                               it, and the blocks to one shareable file
@@ -76,16 +76,16 @@ Usage:
   poon tracking [ADDR] [-blocked] [-timed-out]
                               what the tracker keeps: every address's
                               status, or one address's record
-  poon chases                  the chase queue of heavier stated weights
-  poon status                  every followed pool of the running node
-  poon doctor [-json]          check the node's setup and say what to fix
+  poon chases                 the chase queue of heavier stated weights
+  poon status                 every followed pool of the running node
+  poon doctor [-json]         check the node's setup and say what to fix
   poon follow [-issuer ID | -series ID [-pool K]... [-mint N]...] [-no-reload]
                               follow more; applied by a running node at once
                               (no flags: show what is followed)
   poon unfollow -issuer ID | -series ID [-pool K]... [-mint N]...
                               follow less, the same way
-  poon reload                  make the running node apply its node policy
-  poon pools [FILTER]          followed pools: tip, height, weight, pending
+  poon reload                 make the running node apply its node policy
+  poon pools [FILTER]         followed pools: tip, height, weight, pending
   poon ledger -pool K [-below H] [-limit N] [FILTER]
                               the selected ledger, newest entry first
   poon ledger export -pool K [-from H] [-to H] [-out FILE]
@@ -94,8 +94,8 @@ Usage:
   poon ledger import [-dry-run] FILE|-
                               hand a ledger file's entries to the node,
                               which checks every one in full
-  poon pending [FILTER]        pending transactions
-  poon unspent [FILTER]        unspent portions
+  poon pending [FILTER]       pending transactions
+  poon unspent [FILTER]       unspent portions
   poon tx [-series ID] [-in-serial N] TID
                               one transaction and where it stands
   poon address [-series ID] [-below H] [-limit N] [FILTER] ADDRESS
@@ -123,7 +123,7 @@ Usage:
   poon payment -serial N -tid HASH
                               where a transaction stands (older form of
                               poon tx, kept for scripts)
-  poon holdings -serial N      unspent portions of a mint (older form of
+  poon holdings -serial N     unspent portions of a mint (older form of
                               poon unspent -serial N, kept for scripts)
   poon policy list|use|archive|unarchive|delete [-root DIR] [NAME]
                               manage saved and archived node policies
@@ -141,12 +141,12 @@ Usage:
   poon settings import FILE|- [-apply] [-full] [-map-path OLD=NEW]
                               merge such a file into this node's settings:
                               shows the plan and what may not fit here
-  poon wallet COMMAND          keys from one seed, payments, requests,
+  poon wallet COMMAND         keys from one seed, payments, requests,
                               co-signing and light mode (poon wallet help)
 
-  poon version [-v]            print the version (-v: Go, platform, commit
+  poon version [-v]           print the version (-v: Go, platform, commit
                               and dependencies, for a bug report)
-  poon crypto                  list the hashes, key algorithms and policy
+  poon crypto                 list the hashes, key algorithms and policy
                               types a series can choose from
   poon keygen [-alg NAME] [-hash NAME] [-seed-file FILE [-raw]]
                               make a key (default Ed25519) and its 1-of-1
@@ -165,11 +165,11 @@ Usage:
                               lease a peer's offer, grind the layer, claim it
   poon bounty pay ID [-claim NONCE] [-wallet FILE]
                               pay an accepted claim from the wallet
-  poon bounty cancel ID        close one of this node's offers
-  poon series example          print the worked example's series as JSON
+  poon bounty cancel ID       close one of this node's offers
+  poon series example         print the worked example's series as JSON
   poon series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
                               print a new series' params, checked
-  poon series info FILE        print the id, supply type and pools of a series
+  poon series info FILE       print the id, supply type and pools of a series
                               file (params or signed)
   poon series sign FILE [-seed-file F] [-alg NAME]
                               sign a series as its issuer: the
@@ -183,14 +183,14 @@ Usage:
   poon series add-release RELEASE
                               give the node a release of a variable
                               series: it follows the new parts' mints
-  poon series followed         the series the running node follows, with
+  poon series followed        the series the running node follows, with
                               the parts it has released (D166)
-  poon demo [-quiet]           run in-process full nodes through a payment,
+  poon demo [-quiet]          run in-process full nodes through a payment,
                               a double spend and its resolution
   poon sim load|partition|attack|sizing [flags]
                               run the deterministic network simulator
                               (poon sim help)
-  poon help [COMMAND]          this text, or one command's usage
+  poon help [COMMAND]         this text, or one command's usage
   poon completion bash|zsh|fish
                               print a shell completion script
 
