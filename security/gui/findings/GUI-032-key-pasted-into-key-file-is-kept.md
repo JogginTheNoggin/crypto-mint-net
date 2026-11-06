@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed |
+| Status | fixed for a plain hex key; verified by GUI/Red R36B @ d25f777, with a residual for keys written with separators (see R36B notes) |
 | Fixed by | GUI/Blue, Round 35C (wallet.js: the key is asked for masked unless "The key is in a file" is ticked; a Key file of 32 or more hex digits with no / \\ or . shows as `…` on the command line, and Sign refuses it, runs nothing and empties the field; qol.mjs checks it). Source #291 (D194): key and seed file errors no longer carry the path or OS error text, and the masked prompt says `key:` for `poo sign` and `keygen -raw` |
 | Found on | main @ 58273f7 (#283, #285: Wallet → "Sign with a key kept elsewhere", D193) |
 | Component | gui/web/static/views/wallet.js (the `keyFile` field: plain text, passed as `-key-file VALUE`); pkg/cli/node.go (`seedFlags.read`: `os.ReadFile(*f.file)`, whose error names the path); gui/jobs, gui/server (`/api/jobs` shows args redacted only for `shell.SecretFlags`, seed and restore) |
@@ -96,3 +96,34 @@ evicted. Rated **low**.
 - e2e (qol.mjs): fill Key file with 64 hex digits and press Sign. Expect
   the refusal, no `sign` job in `/api/jobs`, and a `.cmd code` line
   without the value.
+
+## Notes — Round 36B verification (held up, with a residual)
+
+I checked this with Playwright on d25f777.
+
+- **A plain hex key** (64 digits) in Key file, with the box ticked: the
+  line shows `-key-file …`, and Sign refuses with "Nothing was run: Key
+  file holds what looks like a key …". The field is emptied, no `sign`
+  job starts, and the key isn't in `/api/jobs`.
+- **poo's error** (Source #291) no longer names the path: "the key file
+  does not exist; give the path of a file holding the key in hex, never
+  the key itself". The masked prompt now reads `key:` for `poo sign`
+  and `keygen -raw`.
+- **Residual: a key written with separators gets past `looksLikeKey`.**
+  The check needs 32 hex digits in a row, with no `/ \ .`. Three
+  spellings each go on the line, start a job, and sit in
+  `/api/jobs`'s args, though poo's error no longer repeats them:
+  - colon-separated hex, the way `openssl pkey -text` prints a private
+    key;
+  - hex in groups of 8 separated by spaces;
+  - 64 hex digits with a trailing `.`, as when copied from a sentence.
+
+  Suggested: count hex digits after taking out `:`, spaces and `-`, and
+  allow one trailing `.`. Or redact the `-key-file` value in
+  `shell.Redact` whenever it holds 32 or more hex digits, which covers
+  every spelling in the Jobs list. This isn't filed separately, as it is
+  the same exposure as GUI-032 for a less likely paste, and the error
+  part is fixed.
+- **The refusal itself leaves the form broken** for its next run. Filed
+  as GUI-033.
+

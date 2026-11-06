@@ -5,6 +5,50 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 36 Part B reviewed main @ d25f777 (#296, #298):
+- the watch-only Claim a mint (`-to-policy`, claim file);
+- Make a key with `-out`;
+- Pay's single confirm, and the seven cold-key steps;
+- GUI/Blue's GUI-032 fix (the key-file box, `looksLikeKey`, and
+  `refuse`), with Source's error and prompt wording (#291).
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass.
+
+New: **GUI-033 (Low).** `form()`'s new `refuse` path, like GUI-026's
+required-field path, calls `leave(area)`, which marks the area as left
+(`area.gone`). Nothing clears that mark again, so the form's next run is
+never followed:
+- no masked prompt shows, and the status says "running…" for ever;
+- Stop does nothing;
+- each retry leaves another job waiting on input, holding a job slot.
+
+GUI-032's own message leads straight into this ("Untick … and poo asks
+for the key in a masked field"). Reproduced with Playwright. Fix: don't
+use `leave()` for "nothing was run", or clear `area.gone` before
+`runJob`.
+
+GUI-032 holds for a plain hex key. A key written with separators
+(colon-separated as openssl prints it, grouped by spaces, or with a
+trailing dot) still gets past the check and onto the line and the
+Jobs list. poo's error no longer repeats it. See GUI-032's R36B notes.
+
+Held up:
+- **`keygen -out`** writes the new seed with `O_EXCL` at 0600, refuses
+  to replace an existing file ("a key file is never replaced"), clears
+  the seed, and prints only the public key, the addresses and the
+  file's path. It refuses `-out` with `-seed`, `-seed-file` or `-raw`.
+  The GUI still treats keygen's output as secret, which errs on the
+  safe side.
+- **Watch-only Claim a mint** adds `-to-policy NAME -out FILE`. The
+  claim file holds an unsigned claim, and no key. Claim keeps its
+  confirm.
+- **Pay's confirm** is one question. Without a co-signing file it adds
+  the watch-only warning. poo, not the GUI, refuses such a payment
+  (D194).
+- **The cold-key steps** are a list of links and buttons that scroll to
+  forms. They run nothing.
+
 Round 35 Part B reviewed main @ 58273f7 (#283, #285), focused on how key
 material moves through the GUI:
 - Sign with a key kept elsewhere (`poo sign`: masked key prompt, `-raw`,
@@ -990,4 +1034,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | fixed as a warning (Source D171 `unbounded`, GUI/Blue Read first; Apply stays, per jerry); verified R29B @ 4e1c601 |
 | [GUI-030](GUI-030-replace-import-ignores-series-ceiling.md) | Low | Import node policies with Replace never checks series_ceiling, so a series the node set a ceiling to decline is added anyway, and one listed twice is kept twice | fixed by Source (D176, #207); verified R30B @ 0ade046 |
 | [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | fixed: Source partial totals and Stop between batches, GUI alert; verified R35B @ 58273f7 |
-| [GUI-032](GUI-032-key-pasted-into-key-file-is-kept.md) | Low | A key pasted into "Key file" on Sign with a key kept elsewhere goes on the command line, into poo's error, and into the Jobs list and the job's replayable output | fixed (GUI/Blue R35C; Source #291 for poo's error and prompt) |
+| [GUI-032](GUI-032-key-pasted-into-key-file-is-kept.md) | Low | A key pasted into "Key file" on Sign with a key kept elsewhere goes on the command line, into poo's error, and into the Jobs list and the job's replayable output | fixed for plain hex (Blue R35C, Source #291), verified R36B @ d25f777; residual: keys with separators |
+| [GUI-033](GUI-033-refused-form-never-follows-next-run.md) | Low | After a form refuses to run (GUI-032's refuse, or a missing required field), its next run is never followed: no masked prompt, Stop does nothing, and the job waits on input holding a slot | open |
