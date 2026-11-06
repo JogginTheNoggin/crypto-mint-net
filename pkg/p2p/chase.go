@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"os"
 	"path/filepath"
@@ -1562,7 +1563,7 @@ func (h *Host) fetchParts(pi *poolInfo, p *peer, l wire.Large, parent hash.Hash,
 		pt = st.part
 	} else {
 		st.drop()
-		f, err := os.CreateTemp(h.cfg.PartsDir, "poo-parts-*")
+		f, err := os.CreateTemp(h.cfg.PartsDir, brand.TempPrefix+"parts-*")
 		if err != nil {
 			return wire.EntryItem{}, err
 		}

@@ -28,7 +28,7 @@ specification is [../protocol/wire.md](../protocol/wire.md).
   `FeatureParts`, `FeatureRelease`), `OwnFeatures`, `Has`,
   `ValidRelease`, `ErrBadExtras` (a failure inside those lists, which a node closes for without an offence, D190), and the limits `MaxRelease`, `MaxFeatures`,
   `MaxFeatureName`, `MaxExt`, `MaxExtValue`. `Ping` and `PongReply` carry
-  `Ext` too.
+  `Ext` too, at most `MaxSmallExt` (64 KiB) in all (W-18, D192).
 - Bodies: `Hello`, `Notice`, `DecodeTx` / `DecodeEntry` / `DecodeLayer`;
   requests `ExtensionReq`, `HashChainReq`, `EntriesReq`, `FullLedgerReq`,
   `LayersReq`, `WeightReq`, `PartsReq`, `LayersFromReq` (all with `RequestCommon{Nonce, Time, Limits}`)

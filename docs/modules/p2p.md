@@ -95,7 +95,15 @@ over it the entry is dropped (RED-011, D111). Entries a chase takes in
 pay the same, and an empty budget ends the fetch (RED-012, D114). The **inbox** worker takes each round 8 from
 the priority queue, 4 from backup, 2 from candidate and 1 from unlisted,
 so busy unlisted senders cannot starve peers and nothing waits forever.
-Each queue holds 1024; beyond that new messages are dropped.
+Each queue holds 1024 messages and 32 MiB of message bodies
+(`QueueBytes`, `DefaultQueueBytes`); beyond either a new message is
+dropped, except that an empty queue always takes one, so no message is
+too large to be handled (RED-103, D191).
+
+Accepted connections that have not finished their hello count against
+`MaxInbound` too: while that many are still saying hello, a new one is
+closed at once. Each reads its hello under `wire.MaxHelloFrame` (3 MiB),
+and frames are read into memory as their bytes arrive (RED-100, D191).
 
 An offence flags the sender's address (see [tracking.md](tracking.md)):
 an invalid pushed entry or layer is a flag; a message that cannot be

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,7 +33,7 @@ import (
 
 // LedgerFileKind and LedgerFileFormat name a ledger file.
 const (
-	LedgerFileKind   = "poo-ledger"
+	LedgerFileKind   = brand.KindPrefix + "ledger"
 	LedgerFileFormat = 1
 )
 
@@ -292,6 +293,11 @@ type LedgerDryRun struct {
 	// SeriesKnown says node.json knows the series, so the entry hashes
 	// could be worked out and compared.
 	SeriesKnown bool `json:"series_known"`
+	// PoolFollowed says node.json's follow rules follow the file's pool,
+	// so a real import would be taken rather than refused (GREEN-059).
+	PoolFollowed bool `json:"pool_followed"`
+	// Note says what a real import needs when it would be refused.
+	Note string `json:"note,omitempty"`
 	// Problems lists where the items differ from their summaries or the
 	// header, or do not chain (at most MaxDryRunProblems; ProblemCount
 	// counts them all).
@@ -443,6 +449,13 @@ func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error 
 					s, rep.SeriesKnown = a.Series, true
 				}
 			}
+			rep.PoolFollowed = p.FollowsPool(accepted, h.Series, h.Pool)
+		}
+		switch {
+		case !rep.SeriesKnown:
+			rep.Note = fmt.Sprintf("this node does not know series %s, so a real import is refused; add the series to the node policy and follow pool %d first", h.Series, h.Pool)
+		case !rep.PoolFollowed:
+			rep.Note = fmt.Sprintf("this node does not follow pool %d, so a real import is refused; poo follow -series %s -pool %d first", h.Pool, h.Series, h.Pool)
 		}
 		return nil
 	}
@@ -502,71 +515,79 @@ func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error 
 // readLedgerFile reads a ledger file from r, giving its header to head
 // and then each entry to item, one at a time, so an import holds one
 // batch of items rather than the whole file (ORANGE-043: a 292 MB file
-// took 1.8 GB). The entries are read as they stream when the header
-// fields that name the file and its pool come before them, as poo ledger
-// export writes them; otherwise they are held until the header is read.
-// An error from head or item stops the read.
+// took 1.8 GB). Only the keys format 1 defines are taken, each header
+// value at most MaxLedgerHeaderValue bytes, and the entries must come
+// once. Entries that come before the fields that name the file and its
+// pool (a tool that sorts keys puts them first) are spooled to a
+// temporary file one at a time and given after the header, so they are
+// never held whole either; anything else is refused before it is held
+// (RED-102). An error from head or item stops the read.
 func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFileItem) error) error {
 	bad := func(err error) error { return fmt.Errorf("not a ledger file: %w", err) }
-	dec := json.NewDecoder(r)
+	lr := &limitedValue{r: r, limit: -1}
+	dec := json.NewDecoder(lr)
 	if t, err := dec.Token(); err != nil {
 		return bad(err)
 	} else if t != json.Delim('{') {
 		return bad(errors.New("it is not a JSON object"))
 	}
-	fields := map[string]json.RawMessage{}
-	header := func() (ledgerFile, error) {
-		var h ledgerFile
-		b, err := json.Marshal(fields)
-		if err == nil {
-			err = json.Unmarshal(b, &h)
-		}
-		if err != nil {
-			return h, bad(err)
-		}
-		return h, nil
-	}
-	named := func() bool {
-		for _, k := range []string{"kind", "format", "series", "pool"} {
-			if _, ok := fields[k]; !ok {
-				return false
-			}
-		}
-		return true
-	}
+	var h ledgerFile
+	seen := map[string]bool{}
 	started := false
-	var held []ledgerFileItem
+	var spool *os.File
+	defer func() {
+		if spool != nil {
+			spool.Close()
+			os.Remove(spool.Name())
+		}
+	}()
+	unknown := 0
 	for dec.More() {
+		lr.limit = lr.read + MaxLedgerHeaderValue
 		t, err := dec.Token()
+		lr.limit = -1
 		if err != nil {
 			return bad(err)
 		}
 		k, _ := t.(string)
+		if seen[k] {
+			return bad(fmt.Errorf("%q appears twice", k))
+		}
+		seen[k] = true
 		if k != "entries" {
-			var v json.RawMessage
-			if err := dec.Decode(&v); err != nil {
-				return bad(err)
+			dst, ok := ledgerHeaderField(&h, k)
+			if !ok {
+				// A field a later release added: read under the same bound
+				// and dropped, so an older release still imports the file
+				// (W-20, D192).
+				if unknown++; unknown > MaxLedgerUnknownKeys {
+					return bad(fmt.Errorf("more than %d fields format %d does not define", MaxLedgerUnknownKeys, LedgerFileFormat))
+				}
+				dst = new(json.RawMessage)
 			}
-			fields[k] = v
+			lr.limit = lr.read + MaxLedgerHeaderValue
+			err := dec.Decode(dst)
+			lr.limit = -1
+			if err != nil {
+				return bad(fmt.Errorf("%s: %w", k, err))
+			}
 			continue
 		}
-		if started || !named() {
-			// Out of order, or entries twice: read them whole, as before.
-			var es []ledgerFileItem
-			if err := dec.Decode(&es); err != nil {
-				return bad(err)
+		give := item
+		named := seen["kind"] && seen["format"] && seen["series"] && seen["pool"]
+		if named {
+			if err := head(h); err != nil {
+				return err
 			}
-			held = append(held, es...)
-			continue
+			started = true
+		} else {
+			// Spool the entries until the header is read.
+			if spool, err = os.CreateTemp("", brand.TempPrefix+"ledger-*.spool"); err != nil {
+				return err
+			}
+			enc := json.NewEncoder(spool)
+			give = func(it ledgerFileItem) error { return enc.Encode(it) }
 		}
-		h, err := header()
-		if err != nil {
-			return err
-		}
-		if err := head(h); err != nil {
-			return err
-		}
-		started = true
 		t, err = dec.Token()
 		if err != nil {
 			return bad(err)
@@ -582,7 +603,7 @@ func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFi
 			if err := dec.Decode(&it); err != nil {
 				return bad(err)
 			}
-			if err := item(it); err != nil {
+			if err := give(it); err != nil {
 				return err
 			}
 		}
@@ -594,18 +615,85 @@ func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFi
 		return bad(err)
 	}
 	if !started {
-		h, err := header()
-		if err != nil {
-			return err
-		}
 		if err := head(h); err != nil {
 			return err
 		}
 	}
-	for _, it := range held {
+	if spool == nil {
+		return nil
+	}
+	if _, err := spool.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	sd := json.NewDecoder(bufio.NewReader(spool))
+	for {
+		var it ledgerFileItem
+		if err := sd.Decode(&it); err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
 		if err := item(it); err != nil {
 			return err
 		}
 	}
-	return nil
+}
+
+// MaxLedgerHeaderValue bounds each header value of a ledger file, read
+// before it is held: the longest, the weight, is a few hundred bytes
+// (RED-102).
+const MaxLedgerHeaderValue = 4 << 10
+
+// MaxLedgerUnknownKeys bounds the header fields a ledger file may carry
+// that this release does not know; each is read and dropped (W-20).
+const MaxLedgerUnknownKeys = 64
+
+// ledgerHeaderField returns where key k of a ledger file's header goes,
+// and false for a key format 1 does not define.
+func ledgerHeaderField(h *ledgerFile, k string) (any, bool) {
+	switch k {
+	case "kind":
+		return &h.Kind, true
+	case "format":
+		return &h.Format, true
+	case "series":
+		return &h.Series, true
+	case "pool":
+		return &h.Pool, true
+	case "from":
+		return &h.From, true
+	case "to":
+		return &h.To, true
+	case "height":
+		return &h.Height, true
+	case "tip":
+		return &h.Tip, true
+	case "weight":
+		return &h.Weight, true
+	case "exported":
+		return &h.Exported, true
+	}
+	return nil, false
+}
+
+// limitedValue reads from r, counting, and fails once read reaches limit
+// (none while limit is negative).
+type limitedValue struct {
+	r     io.Reader
+	read  int64
+	limit int64
+}
+
+func (l *limitedValue) Read(p []byte) (int, error) {
+	if l.limit >= 0 {
+		if l.read >= l.limit {
+			return 0, fmt.Errorf("a header value over %d bytes", MaxLedgerHeaderValue)
+		}
+		if left := l.limit - l.read; int64(len(p)) > left {
+			p = p[:left]
+		}
+	}
+	n, err := l.r.Read(p)
+	l.read += int64(n)
+	return n, err
 }

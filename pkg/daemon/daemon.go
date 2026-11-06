@@ -14,6 +14,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"log/slog"
 	"os"
@@ -255,7 +256,7 @@ func partsDir(dir string, log *slog.Logger) (string, error) {
 	if err := os.MkdirAll(pd, 0o700); err != nil {
 		return "", err
 	}
-	old, err := filepath.Glob(filepath.Join(pd, "poo-parts-*"))
+	old, err := filepath.Glob(filepath.Join(pd, brand.TempPrefix+"parts-*"))
 	if err != nil {
 		return "", err
 	}

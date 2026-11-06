@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"net"
 	"net/netip"
@@ -47,7 +48,7 @@ import (
 )
 
 // Kind marks a peer file.
-const Kind = "poo-peers"
+const Kind = brand.KindPrefix + "peers"
 
 // Format is the version of the layout this code reads and writes.
 const Format = 1

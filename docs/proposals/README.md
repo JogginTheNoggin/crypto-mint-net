@@ -84,6 +84,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-056](source/GREEN-056-port-map-says-why-where-when.md) | Source | Port mapping status says why, where and when | proposed |
 | [GREEN-057](source/GREEN-057-unknown-settings-and-release-in-doctor.md) | Source | Doctor names unknown settings (warning for those a save drops) and a release mismatch | proposed |
 | [GREEN-058](source/GREEN-058-ledger-export-pool-zero.md) | Source | Ledger export refuses a start past the tip; import errors name what the node needs | proposed |
+| [GREEN-059](source/GREEN-059-dev-commit-and-dry-run-follow.md) | Source | A dev build names its commit in release; the import dry run says whether the pool is followed | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
@@ -102,3 +103,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-041](source/ORANGE-041-snapshot-pause-and-port-mapping.md) | Source | Round 31 measured; the snapshot pause after D182, the per-start check, and port mapping | proposed |
 | [ORANGE-042](source/ORANGE-042-unknown-settings-and-status-size.md) | Source | Round 32 measured; saving unknown settings was quadratic, and the status reply after an upgrade | proposed |
 | [ORANGE-043](source/ORANGE-043-ledger-export-import-and-hello.md) | Source | Round 33 measured; ledger export and import, and the hello's cost | proposed |
+| [ORANGE-044](source/ORANGE-044-hello-ping-limits-and-peer-memory.md) | Source | Round 34 measured; the hello and ping at the new limits, and memory per connection | proposed |

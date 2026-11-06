@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"net/http"
 	"sort"
 	"strconv"
@@ -369,7 +370,7 @@ func (h *Handler) grindMetrics() []*metric {
 		return nil
 	}
 	tries, states := h.grind.Totals()
-	t := &metric{name: "poo_grind_tries_total", help: "Nonces tried by grind jobs, by device and hash.", kind: "counter"}
+	t := &metric{name: brand.MetricPrefix + "grind_tries_total", help: "Nonces tried by grind jobs, by device and hash.", kind: "counter"}
 	keys := make([][2]string, 0, len(tries))
 	for k := range tries {
 		keys = append(keys, k)
@@ -378,7 +379,7 @@ func (h *Handler) grindMetrics() []*metric {
 	for _, k := range keys {
 		t.add(fmt.Sprintf(`{device="%s",hash="%s"}`, labelValue(k[0]), labelValue(k[1])), float64(tries[k]))
 	}
-	j := &metric{name: "poo_grind_jobs", help: "Grind jobs the node remembers, by state.", kind: "gauge"}
+	j := &metric{name: brand.MetricPrefix + "grind_jobs", help: "Grind jobs the node remembers, by state.", kind: "gauge"}
 	names := make([]string, 0, len(states))
 	for s := range states {
 		names = append(names, s)

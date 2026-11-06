@@ -46,7 +46,7 @@ var Commit = ""
 
 // A release build records no VCS information, so the node names the
 // build its snapshots are written by from these (RED-087, D181).
-func init() { node.SetRelease(Version, Commit) }
+func init() { node.SetRelease(Version, releaseCommit()) }
 
 const usage = `poo: Proof of Ownership full node tool
 
@@ -91,7 +91,8 @@ Usage:
   poo ledger export -pool K [-from H] [-to H] [-out FILE]
                               a stretch of the selected ledger, oldest
                               first, as raw entries anyone can check
-  poo ledger import FILE|-    hand a ledger file's entries to the node,
+  poo ledger import [-dry-run] FILE|-
+                              hand a ledger file's entries to the node,
                               which checks every one in full
   poo pending [FILTER]        pending transactions
   poo unspent [FILTER]        unspent portions
@@ -147,9 +148,14 @@ Usage:
                               and dependencies, for a bug report)
   poo crypto                  list the hashes, key algorithms and policy
                               types a series can choose from
-  poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE]
+  poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE [-raw]]
                               make a key (default Ed25519) and its 1-of-1
-                              address under a hash (default SHA-256)
+                              address under a hash (default SHA-256); with
+                              -raw, show an existing key's public key and
+                              address (D193)
+  poo sign FILE|- -key-file F [-alg NAME] [-raw] [-hash NAME] [-out FILE] [-show]
+                              sign a payment waiting for signatures with a
+                              key kept off the node; needs no node (D193)
   poo series example          print the worked example's series as JSON
   poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
                               print a new series' params, checked
@@ -386,6 +392,8 @@ func run(args []string, out io.Writer) error {
 		return reloadCmd(args[1:], out)
 	case "claim":
 		return claimCmd(args[1:], out)
+	case "sign":
+		return signCmd(args[1:], out)
 	case "pay":
 		return payCmd(args[1:], out)
 	case "build":
@@ -433,6 +441,7 @@ func keygen(args []string, out io.Writer) error {
 	seedFile := fs.String("seed-file", "", "file holding the seed in hex, - for standard input (random if neither)")
 	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")
 	hashName := fs.String("hash", "sha256", "hash of the series the address is for")
+	raw := fs.Bool("raw", false, "with -seed-file: the file holds an existing private key in its algorithm's usual form, as other tools keep it; prints its public key and address, never the key (D193)")
 	w := addWhere(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -456,6 +465,21 @@ func keygen(args []string, out io.Writer) error {
 		}
 		*seedHex = s
 	}
+	if *raw {
+		if *seedFile == "" {
+			return errors.New("-raw reads an existing key from -seed-file")
+		}
+		key, err := hex.DecodeString(*seedHex)
+		if err != nil || len(key) == 0 {
+			return errors.New("the key file must hold the key in hex")
+		}
+		signer, err := policy.NewRawSigner(alg, key)
+		clear(key)
+		if err != nil {
+			return err
+		}
+		return keygenOut(out, w, alg, hid, signer, nil)
+	}
 	seed := make([]byte, policy.SeedSize)
 	if *seedHex != "" {
 		b, err := hex.DecodeString(*seedHex)
@@ -470,6 +494,12 @@ func keygen(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	return keygenOut(out, w, alg, hid, signer, seed)
+}
+
+// keygenOut prints a key's public key, policy and addresses, and its seed
+// when it has one (a raw key's private half is never printed).
+func keygenOut(out io.Writer, w *where, alg policy.AlgID, hid hash.ID, signer policy.Signer, seed []byte) error {
 	pol := policy.SingleKey(alg, signer.Public())
 	// The address depends only on the series' hash: every series using it
 	// gives the same address for this policy.
@@ -477,12 +507,14 @@ func keygen(args []string, out io.Writer) error {
 	addr := policy.Address(h, pol).String()
 	a, _ := policy.Default().Alg(alg)
 	v := map[string]any{
-		"seed":       hex.EncodeToString(seed),
 		"alg":        a.Name(),
 		"public_key": hex.EncodeToString(signer.Public()),
 		"policy":     hex.EncodeToString(pol.Encode()),
 		"hash":       hid.Name(),
 		"address":    addr,
+	}
+	if seed != nil {
+		v["seed"] = hex.EncodeToString(seed)
 	}
 	if hid == hash.SHA256 {
 		v["address_sha256"] = addr // the field's name before there was a choice
@@ -527,7 +559,7 @@ func followedAddresses(w *where, pol policy.Policy, alg policy.AlgID, hid hash.I
 		}
 		a := seriesAddress{Series: s.ID().String(), Hash: si.Params.HashID.Name(), Allowed: s.AllowsKeyAlg(alg), Address: s.Address(pol).String()}
 		if s.ID().String() == series.ReserveID {
-			a.Builtin = "reserve"
+			a.Builtin = rpc.BuiltinDefault
 		}
 		matched = matched || si.Params.HashID == hid
 		fa = append(fa, a)

@@ -115,6 +115,30 @@ A shared policy needs every co-signer's signature:
 ./poo wallet submit -wallet alice.wallet pay.json
 ```
 
+### Keys kept off the node (cold keys)
+
+To keep a private key off the machine that runs the node, make or import
+it on another machine and give the node only its public key. A
+watch-only wallet follows it and prepares payments; `poo sign` signs
+them where the key is (D193):
+
+```sh
+# on the key's machine (no node needed)
+./poo keygen -seed-file key.hex          # or: -raw for a key made by another tool
+# note public_key; on the node's machine
+./poo wallet create -wallet cold.wallet -watch-only
+./poo wallet policy -wallet cold.wallet -name cold -k 1 -key ed25519:PUBLIC_KEY
+./poo wallet watch -wallet cold.wallet -serial 5
+./poo wallet pay -wallet cold.wallet -to BOB_ADDRESS -amount 30 -out pay.json
+# carry pay.json to the key's machine
+./poo sign pay.json -key-file key.hex -show   # read what it pays first
+./poo sign pay.json -key-file key.hex
+# carry it back
+./poo wallet submit -wallet cold.wallet pay.json
+```
+
+A claim is made where the key is, with `poo claim -seed-file`.
+
 For a lighter node, `poo wallet follow` rewrites the node policy to follow
 only the pools of the mints the wallet watches, and a running node applies
 it at once. See [modules/wallet.md](modules/wallet.md).

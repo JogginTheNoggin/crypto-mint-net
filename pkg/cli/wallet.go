@@ -28,6 +28,8 @@ Usage: poo wallet COMMAND [flags]
 
   create [-restore -|HEX] [-gap N] make a wallet (or restore one from its seed;
                                   - reads it hidden)
+  create -watch-only               a wallet with no private key: it watches
+                                   keys kept elsewhere (D193)
   seed                             print the seed (keep it secret)
   passwd                           seal the seed under a new passphrase
   address [-label TEXT]            give out a fresh address
@@ -128,6 +130,9 @@ func (f *walletFlags) unlocked(out io.Writer) (*wallet.Wallet, error) {
 	w, err := f.open()
 	if err != nil {
 		return nil, err
+	}
+	if w.WatchOnly() {
+		return w, nil // no seed, so no passphrase (D193)
 	}
 	p, err := f.passphrase(out, "passphrase: ")
 	if err != nil {
@@ -246,8 +251,19 @@ func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	restore := fs.String("restore", "", "restore from a seed: - to type it hidden (or read a line of standard input), or 64 hex digits, which other users can read on the command line")
 	gap := fs.Int("gap", 0, fmt.Sprintf("unused keys to keep ahead (default %d)", wallet.DefaultGap))
 	algName := fs.String("alg", "ed25519", "key algorithm of every key, by name or number (poo crypto); fixed for the wallet's life")
+	watchOnly := fs.Bool("watch-only", false, "hold no private key at all: add keys kept elsewhere with poo wallet policy -k 1 -key ALG:HEX, pay with -out, sign with poo sign, then submit (D193)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *watchOnly {
+		if *restore != "" {
+			return errors.New("-watch-only holds no seed, so it takes no -restore")
+		}
+		if _, err := wallet.Create(f.file(), "", wallet.Options{WatchOnly: true}); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "wrote %s (watch-only: no seed, no passphrase)\n", f.file())
+		return nil
 	}
 	alg, err := parseAlg(*algName)
 	if err != nil {
@@ -604,10 +620,19 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 	memo := fs.String("memo", "", "a note kept in the wallet")
 	reqFile := fs.String("request", "", "pay this payment request file instead of -to and -amount")
 	outFile := fs.String("out", "", "write the payment waiting for co-signers here")
+	changeTo := fs.String("change", "", "send the change here (default: a fresh address; a watch-only wallet sends it back to where it came from)")
 	var mints uintList
 	fs.Var(&mints, "mint", "pay only from this mint (repeatable)")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	var change hash.Hash
+	if *changeTo != "" {
+		c, err := hash.Parse(*changeTo)
+		if err != nil {
+			return fmt.Errorf("-change: %w", err)
+		}
+		change = c
 	}
 	s, err := f.series()
 	if err != nil {
@@ -635,13 +660,13 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 		if err := readJSON(*reqFile, &r); err != nil {
 			return err
 		}
-		sent, u, err = w.PayRequest(s, n, r)
+		sent, u, err = w.PayRequestWith(s, n, r, wallet.PayOptions{Mints: mints, Change: change})
 	} else {
 		addr, perr := hash.Parse(*to)
 		if perr != nil {
 			return fmt.Errorf("-to: %w", perr)
 		}
-		sent, u, err = w.Pay(s, n, addr, *amount, wallet.PayOptions{Memo: *memo, Mints: mints})
+		sent, u, err = w.Pay(s, n, addr, *amount, wallet.PayOptions{Memo: *memo, Mints: mints, Change: change})
 	}
 	if sent != nil {
 		if serr := saveSent(w, out, "payment", sent, err); serr != nil {
@@ -654,7 +679,7 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 	if u != nil {
 		fmt.Fprintf(out, "signatures missing (per leg, per input): %v\n", u.Missing())
 		if *outFile == "" {
-			fmt.Fprintln(out, "pass -out FILE to write the payment for co-signers")
+			fmt.Fprintln(out, "pass -out FILE to write the payment for co-signers (or for poo sign, with a key kept off the node)")
 			return nil
 		}
 		return writeOut(out, *outFile, u)

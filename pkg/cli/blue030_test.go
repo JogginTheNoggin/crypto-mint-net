@@ -43,7 +43,7 @@ func TestStatusBySeriesBuiltin(t *testing.T) {
 	}
 	st := rpc.StatusReply{Pools: []rpc.PoolStatus{{Series: reserve}, {Series: hash.Hash{2}}}}
 	got := statusBySeries(st).Series
-	if len(got) != 2 || got[0].Builtin != "reserve" || got[1].Builtin != "" {
+	if len(got) != 2 || got[0].Builtin != "default" || got[1].Builtin != "" {
 		t.Fatalf("rows %+v", got)
 	}
 }

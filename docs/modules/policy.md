@@ -27,7 +27,7 @@ sizes, in [../cryptography.md](../cryptography.md).
   refuses (`ErrUnspendable`) a policy whose largest witness is over the
   series' `max_witness`, so every set of signers it allows can spend
   (worst case, D170). With no ceiling every policy passes. Under the
-  reserve series' 128 KiB, 16-of-16 ML-DSA-87 and SLH-DSA-SHA2-128s fit,
+  default series' 128 KiB, 16-of-16 ML-DSA-87 and SLH-DSA-SHA2-128s fit,
   and SLH-DSA-SHA2-256s up to 4. It is checked where an address is made or
   paid, never when a witness is checked (RED-077, RED-079, D169, D170).
 - `MaxK(alg, ceiling)`: the largest k of a k-of-k policy of one algorithm
@@ -40,7 +40,10 @@ sizes, in [../cryptography.md](../cryptography.md).
 - Threshold: `ThresholdParams`, `ThresholdData`, `SignThreshold`, and the
   shortcuts `SingleKey` and `SingleKeyWitness`.
 - Keys: `Signer`, `NewSigner(alg, seed)` for any algorithm from a 32-byte
-  seed, and `Ed25519Signer`.
+  seed, `NewRawSigner(alg, raw)` for a private key made elsewhere in the
+  algorithm's own raw form (an Ed25519 seed, or seed and public key; an
+  ECDSA or secp256k1 scalar; an ML-DSA seed; an SLH-DSA private key;
+  D193), and `Ed25519Signer`.
 - Hashlock: `NewHashlock(hash, preimage)`, `HashlockParams`,
   `HashlockData`.
 - K-of-policies: `AllOf`, `AnyOf`, `KOfPoliciesParams`, `KOfPoliciesData`

@@ -3,6 +3,7 @@ package nodepolicy
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -393,4 +394,46 @@ func intersect(a, b []uint64) []uint64 {
 		}
 	}
 	return union(nil, out)
+}
+
+// FollowsPool says whether p's follow rules follow pool k of series id
+// among the accepted series, as the node applies them at start: a rule
+// for its issuer or for the whole series, one that lists the pool or a
+// mint in it, or a whole-series rule that does not except it. A command
+// that runs without the node, such as poo ledger import -dry-run, uses
+// it to say whether an import would be taken (GREEN-059).
+func (p Policy) FollowsPool(accepted []Accepted, id hash.Hash, k uint64) bool {
+	var s *series.Series
+	var issuer *hash.Hash
+	for _, a := range accepted {
+		if a.Series.ID() == id {
+			s, issuer = a.Series, a.Issuer
+		}
+	}
+	if s == nil || k >= s.PoolCount() {
+		return false
+	}
+	for _, f := range p.Follow {
+		switch {
+		case f.Issuer != nil:
+			if issuer != nil && *f.Issuer == *issuer {
+				return true
+			}
+		case f.Series == nil || *f.Series != id:
+		case len(f.Pools) == 0 && len(f.Mints) == 0:
+			if !slices.Contains(f.Except, k) {
+				return true
+			}
+		default:
+			if slices.Contains(f.Pools, k) {
+				return true
+			}
+			for _, m := range f.Mints {
+				if m < s.Mints() && s.PoolOf(m) == k {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

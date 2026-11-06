@@ -138,8 +138,8 @@ export const nodeView = {
         { name: 'registry', label: 'Address registries', type: 'list', placeholder: 'URL or file …' },
         { name: 'advertise', label: 'Advertise as', placeholder: 'host:port' },
         // With no series, poo follows the built-in reserve series (D170).
-        { name: 'reserve', label: 'Also follow the default reserve series (what happens anyway when no series is given)', type: 'check' },
-        { name: 'noSeries', label: 'Follow no series, not even the default reserve series', type: 'check' },
+        { name: 'reserve', label: 'Also follow the built-in default series (what happens anyway when no series is given)', type: 'check' },
+        { name: 'noSeries', label: 'Follow no series, not even the built-in default series', type: 'check' },
         // Opt-in port mapping (D182): poo asks the router to forward the
         // peer port. Off unless chosen; the help says what peers learn.
         { name: 'portMap', label: 'Ask the router to forward the peer port', type: 'select', options: [{ value: '', label: 'no (default off)' }, 'auto', 'pcp', 'natpmp', 'upnp'], help: 'Lets peers reach a node at home behind a router. The cost: once a dial reaches this node, peers learn this network\'s public IP address. Followed pools shows how the mapping went.' },
@@ -147,7 +147,7 @@ export const nodeView = {
         { name: 'force', label: 'Replace the settings of an existing policy (its data is kept)', type: 'check' },
       ],
       args: v => ['init', ...where.flags(), ...flag('example', v.example), ...flags('series', v.series), ...flag('listen', v.listen),
-        ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('port-map', v.portMap), ...flag('reserve', v.reserve), ...flag('no-series', v.noSeries), ...flag('any-ceiling', v.anyCeiling), ...flag('force', v.force)],
+        ...flag('p2p', v.p2p), ...flags('peer', v.peer), ...flags('registry', v.registry), ...flag('advertise', v.advertise), ...flag('port-map', v.portMap), ...flag('default-series', v.reserve), ...flag('no-series', v.noSeries), ...flag('any-ceiling', v.anyCeiling), ...flag('force', v.force)],
       submit: 'Write policy',
     });
     const followFields = [
@@ -262,7 +262,7 @@ export function followView(o) {
 
 // seriesName is what poo's builtin field names a series by: the default
 // reserve series (D170) or another series built into poo.
-export const seriesName = x => x.builtin === 'reserve' ? 'the built-in reserve series' : x.builtin ? `built in: ${x.builtin}` : '';
+export const seriesName = x => x.builtin === 'default' ? 'the built-in default series' : x.builtin ? `built in: ${x.builtin}` : '';
 
 // seriesTable is the Followed series panel's table, from poo series
 // followed's JSON.

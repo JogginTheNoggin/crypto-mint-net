@@ -5124,3 +5124,138 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     extensions, and a ping at the same limit, are answered with no
     offence; a ping with its tags out of order ends the connection with
     no offence).
+
+### D191. Round 34 fixes: hello frames bounded and capped, queues bounded in bytes, import reads bounded (BLUE-035)
+
+- **Merged first:** Green's #277 (GREEN-059: the release line names a dev
+  build's commit, `-dry-run` notes an unfollowed pool, help text).
+  Orange's #276 (ORANGE-044, measurements and proposals) is docs only and
+  is not merged here.
+- **Decision:**
+  - **RED-100.** `wire.ReadFrame` grows its buffer as the bytes arrive
+    (64 KiB, doubling), so a declared size costs nothing until it is
+    sent. The hello is read under `wire.MaxHelloFrame` (3 MiB; D190's
+    longest hello is about 2.1 MiB), in `handshake` and in the self
+    check. Accepted connections still saying hello are counted
+    (`Host.helloing`), and while `MaxInbound` of them are, a new one is
+    closed at once. That is ORANGE-044 P1's count; the per-address
+    handshake cap is left for Grey, Black and White.
+  - **RED-103, in part.** Each inbox queue is bounded in bytes too
+    (`Config.QueueBytes`, default 32 MiB, so 128 MiB across the four),
+    besides 1024 messages; over either a new message is dropped, but an
+    empty queue always takes one, so no message is too large to handle
+    (ORANGE-044 P2's byte cap). A separate discovery frame limit is not
+    taken: D190 tests that a 2 MiB ping at the limits is answered with no
+    offence (`TestExtrasAtTheLimitsNoOffence`), so that is for Black and
+    White. ORANGE-044 P3 and P4 are left for Grey.
+  - **RED-101.** `decodeImport` reads through a counting reader that,
+    once the first item is read, stops at the batch bound's base64 length
+    plus 64 KiB, so a later item over 8 MiB is refused as it is read.
+  - **RED-102.** `readLedgerFile` takes only format 1's header keys, each
+    read under 4 KiB (`MaxLedgerHeaderValue`) and each once; `entries`
+    also once. Entries before the naming fields are spooled to a
+    temporary file one at a time and given after the header, so a file
+    whose keys a tool sorted still imports and is never held whole.
+- **Why:** memory a peer or a file can make the node hold must follow
+  what it sends and be bounded before it is read.
+- **Consensus:** None. Frame and queue limits and tool input checks. No
+  entry is refused by size; a message dropped from a full queue is asked
+  for again as before; every ledger is still accepted.
+- **Tier:** Wire, P2P, RPC, CLI.
+  - `pkg/wire/blue035_test.go`: `TestBlue035FrameMemoryFollowsBytes`.
+  - `pkg/p2p/blue035_test.go`: `TestBlue035HelloBoundAndCap`.
+  - `pkg/p2p/blue035_internal_test.go`: `TestBlue035InboxBoundInBytes`.
+  - `pkg/rpc/blue035_internal_test.go`: `TestBlue035ImportReadStops`.
+  - `pkg/cli/blue035_test.go`: `TestBlue035LedgerHeaderBounded`.
+
+### D192. Round 35: White's frozen limits and signing steps, the empty token, neutral default-series wording, the "poo" name in one place
+
+- **Merged first:** Blue's #280 (BLUE-035, D191, with Green's #277),
+  Red's #275, Orange's #276 (ORANGE-044, docs), White's #281 and Black's
+  #282 (Round 34 Part D reviews).
+- **Decision:**
+  - **W-18.** The extensions that end a ping, pong or partial pong may
+    hold 64 KiB in all (`wire.MaxSmallExt`), each value read under what
+    is left of that total. The hello keeps its 32 x 64 KiB. Frozen with
+    wire version 1 from the first public tag.
+  - **W-19.** `wire.MaxHelloFrame` (3 MiB) is written into
+    [protocol/wire.md](protocol/wire.md) as frozen with wire version 1.
+  - **W-20.** `poo ledger import` reads a header key it does not know
+    under the same 4 KiB bound as a known one (the key itself too) and
+    drops it, so a file from a later release still imports; at most
+    `MaxLedgerUnknownKeys` (64) of them, and none twice.
+  - **W-21.** [releasing.md](releasing.md) says how a release is signed
+    and checked: maintainers' SSH keys in
+    [allowed_signers](allowed_signers) under one name, `poo-release`;
+    any one of them signs `SHA256SUMS` (`ssh-keygen -Y sign -n file`);
+    a retired key gets `valid-before`. No key is tied to one person, and
+    the file holds no key until a maintainer adds theirs.
+  - **README** says the project is in alpha, ahead of `v0.1.0-alpha.1`.
+  - **RED-W-021.** The RPC client refuses to prove an empty token
+    (`rpc.ErrEmptyToken`): with an empty token anyone could compute the
+    hello proof, so a client would trust any server.
+  - **Neutral wording.** The built-in series is "the built-in default
+    series" in help and output, `poo init -default-series` names it (was
+    `-reserve`), and `builtin` is `"default"` in `poo series info`,
+    `poo series followed` and keygen's `series_addresses`. The series
+    itself, its id and its file are unchanged.
+  - **The "poo" name in one place.** `pkg/brand` holds the program name,
+    the data folder, the user agent and the prefixes of metric names,
+    file kinds and temporary files; the code takes them from there, so a
+    rename is one edit plus the strings brand.go lists as frozen (the
+    wallet key label `PoO-wallet-` and the RPC label `poo-rpc-hello`,
+    which old keys and tokens depend on). The name is not changed.
+  - **Registry URL.** There is no built-in registry URL yet. When one is
+    added it is a single default in the code that `poo init` does not
+    write into node.json, so a new name or domain changes one line.
+- **Why:** White's freeze list must be settled before the first tag;
+  the placeholder names will change (jerry, 2026-11-06).
+- **Consensus:** None. Wire limits on optional fields, a tool's file
+  reader, client checks and names.
+- **Tier:** Wire, CLI, RPC.
+  - `pkg/wire/hello_test.go`, `pkg/p2p/extras_test.go`: pings over and
+    at the 64 KiB total.
+  - `pkg/cli/blue035_test.go`: `TestLedgerHeaderSkipsUnknownKeys` and
+    the large key case.
+  - `pkg/rpc/emptytoken_internal_test.go`: `TestEmptyTokenNeverProved`.
+
+### D193. Round 35: cold keys, a key kept off the node
+
+- **Decision:** jerry asked for an option to use keys the node never
+  holds, as with a cold wallet. All of it is optional and node-side:
+  - **Your own key.** `poo keygen -raw -seed-file F` takes a private key
+    made elsewhere, in the algorithm's own raw form
+    (`policy.NewRawSigner`: an Ed25519 seed or seed and public key, an
+    ECDSA or secp256k1 scalar, an ML-DSA seed, an SLH-DSA key), and
+    prints its public key and addresses, never the key.
+  - **A watch-only wallet.** `poo wallet create -watch-only` makes a
+    wallet file with no seed (`"watch_only": true`). It follows
+    addresses made from public keys (`poo wallet policy -key ALG:PUB`),
+    follows mints (`poo wallet watch`), shows balances and prepares
+    payments (`poo wallet pay -out`), but refuses anything that needs a
+    private key, a claim included (`wallet.ErrWatchOnly`); a claim is
+    made where the key is, with `poo claim -seed-file`. Its change goes back to the first input's
+    address, or to `-change ADDR`.
+  - **Sign elsewhere.** `poo sign FILE -key-file K` adds the signatures
+    one key gives to an unsigned payment, on any machine, even
+    one that never runs a node, and writes the file back (0600) or to
+    `-out`; `-show` prints what each leg spends and pays first. It
+    refuses a key that signs none of the inputs. The unsigned file now
+    names its series' hash (`hash`), so `poo sign` needs no node; `-hash`
+    is for an older file. The signed file is sent with `poo wallet
+    submit`, as before.
+- **Why:** someone who does not trust the software, or wants no private
+  key on a networked machine, can still use the coin.
+- **Consensus:** None. Transactions and signatures are the same bytes;
+  only where they are made changes.
+- **Left out:** the GUI keeps these in the terminal for now (parity
+  LEFT_OUT and TERMINAL_ONLY say why); hardware signers and PSBT-like
+  formats are not taken.
+- **Tier:** Policy, Wallet, CLI.
+  - `pkg/policy/raw_test.go`: `TestRawSignerIsTheSameKey`.
+  - `pkg/cli/coldkeys_test.go`: `TestColdKeyPayment` (keygen and
+    keygen -raw agree, a watch-only wallet claims and pays through a cold
+    key, the wrong key is refused, the payment is submitted and kept).
+- **For Black (Part D):** please confirm no rule changed: a payment
+  signed by `poo sign` is the same transaction the wallet would sign,
+  and the watch-only change default spends nothing new.

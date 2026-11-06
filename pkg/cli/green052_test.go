@@ -25,7 +25,7 @@ func TestKeygenSeriesAddresses(t *testing.T) {
 	cli(t, &k, "keygen", "-seed-file", seed, "-alg", "slh-dsa-sha2-256s", "-root", root)
 	var want struct{ Address string }
 	cli(t, &want, "keygen", "-seed-file", seed, "-alg", "slh-dsa-sha2-256s", "-hash", "sha512-256", "-root", t.TempDir())
-	if len(k.Series) != 1 || k.Series[0].Builtin != "reserve" || k.Series[0].Hash != "sha512-256" || !k.Series[0].Allowed || k.Series[0].Address != want.Address || k.Address == want.Address {
+	if len(k.Series) != 1 || k.Series[0].Builtin != "default" || k.Series[0].Hash != "sha512-256" || !k.Series[0].Allowed || k.Series[0].Address != want.Address || k.Address == want.Address {
 		t.Fatalf("keygen under the reserve series: %+v, want address %s", k, want.Address)
 	}
 	if !strings.Contains(k.Note, "series_addresses") {

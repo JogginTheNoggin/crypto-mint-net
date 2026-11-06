@@ -116,6 +116,10 @@ type PayOptions struct {
 	Memo   string
 	// Mints limits the payment to these serials.
 	Mints []uint64
+	// Change, when set, receives the change of every leg. A watch-only
+	// wallet, which cannot derive a fresh address, sends change back to
+	// the leg's first input's address unless Change is set (D193).
+	Change hash.Hash
 }
 
 // Pay pays amount units of series s to address to, from the portions the
@@ -125,7 +129,7 @@ type PayOptions struct {
 // the payment waits, unsigned, for co-signers (see Unsigned). The wallet
 // file is not saved; the caller saves it.
 func (w *Wallet) Pay(s *series.Series, n Node, to hash.Hash, amount uint64, o PayOptions) (*Sent, *Unsigned, error) {
-	if w.seed == nil {
+	if w.seed == nil && !w.f.WatchOnly {
 		return nil, nil, ErrLocked
 	}
 	if amount == 0 {
@@ -165,7 +169,7 @@ func (w *Wallet) Pay(s *series.Series, n Node, to hash.Hash, amount uint64, o Pa
 		return nil, nil, fmt.Errorf("%w: %d held, %d asked", ErrNoFunds, have, amount)
 	}
 	pay := &Sent{Series: s.ID(), To: to, Amount: amount, Memo: o.Memo, Created: now()}
-	u := &Unsigned{Series: s.ID()}
+	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name()}
 	for _, pl := range plans {
 		t := &tx.Tx{Mint: s.Mint(pl.serial)}
 		for _, in := range pl.inputs {
@@ -174,11 +178,19 @@ func (w *Wallet) Pay(s *series.Series, n Node, to hash.Hash, amount uint64, o Pa
 		t.Outputs = []tx.Output{{Address: to, Amount: pl.pay}}
 		change := pl.total - pl.pay
 		if change > 0 {
-			c, err := w.NewAddress(s, "change")
-			if err != nil {
-				return nil, nil, err
+			to := o.Change
+			switch {
+			case !to.IsZero():
+			case w.seed == nil: // watch-only
+				to = pl.inputs[0].Owner.Address
+			default:
+				c, err := w.NewAddress(s, "change")
+				if err != nil {
+					return nil, nil, err
+				}
+				to = c.Address
 			}
-			t.Outputs = append(t.Outputs, tx.Output{Address: c.Address, Amount: change})
+			t.Outputs = append(t.Outputs, tx.Output{Address: to, Amount: change})
 		}
 		ul, err := w.sign(s, t, pl.inputs)
 		if err != nil {
@@ -233,6 +245,9 @@ func (w *Wallet) sign(s *series.Series, t *tx.Tx, in []Spendable) (UnsignedLeg, 
 		t.Witnesses[i] = policy.Witness{Policy: in[i].Owner.Policy}
 	}
 	ul.Tx = t.Encode()
+	if w.seed == nil { // watch-only: every signature comes from elsewhere
+		return ul, nil
+	}
 	if _, err := w.addSigs(s, &ul, tid); err != nil {
 		return ul, err
 	}
@@ -243,7 +258,7 @@ func (w *Wallet) sign(s *series.Series, t *tx.Tx, in []Spendable) (UnsignedLeg, 
 // wallet holds. It returns how many signatures it added.
 func (w *Wallet) addSigs(s *series.Series, ul *UnsignedLeg, tid hash.Hash) (int, error) {
 	if w.seed == nil {
-		return 0, ErrLocked
+		return 0, w.locked()
 	}
 	msg := policy.Message(tid)
 	added := 0
@@ -296,7 +311,7 @@ func (w *Wallet) Claim(s *series.Series, n Node, serial uint64) (*Sent, error) {
 		return nil, fmt.Errorf("wallet: serial %d: %w", serial, err)
 	}
 	if w.seed == nil {
-		return nil, ErrLocked
+		return nil, w.locked()
 	}
 	a, err := w.NewAddress(s, fmt.Sprintf("claim of mint %d", serial))
 	if err != nil {
@@ -326,8 +341,11 @@ func (w *Wallet) Claim(s *series.Series, n Node, serial uint64) (*Sent, error) {
 // co-signers and back. Each leg holds its transaction (witnesses without
 // data) and, per input, the signatures gathered so far.
 type Unsigned struct {
-	Series hash.Hash     `json:"series"`
-	Legs   []UnsignedLeg `json:"legs"`
+	Series hash.Hash `json:"series"`
+	// Hash names the series' hash function, so a signer with no node and
+	// no series file can work out each leg's transaction id (D193).
+	Hash string        `json:"hash,omitempty"`
+	Legs []UnsignedLeg `json:"legs"`
 }
 
 // UnsignedLeg is one transaction waiting for signatures.
@@ -485,4 +503,44 @@ func (w *Wallet) Submit(s *series.Series, n Node, u *Unsigned) (*Sent, error) {
 		}
 	}
 	return nil, errors.New("wallet: not a payment this wallet made")
+}
+
+// SignWith adds signer's signatures to u, with no wallet and no node: for
+// every input whose policy lists the signer's key (alg and public key),
+// it signs the leg's transaction id under the hash function h. It
+// returns how many signatures it added. This is how a key kept off the
+// node, on another machine, signs a payment a watch-only wallet made
+// (poo sign, D193). The caller should show what the legs pay first.
+func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) (int, error) {
+	pub := signer.Public()
+	added := 0
+	for li := range u.Legs {
+		l := &u.Legs[li]
+		t, err := tx.Decode(l.Tx)
+		if err != nil {
+			return added, err
+		}
+		if len(l.Inputs) != len(t.Inputs) {
+			return added, errors.New("wallet: unsigned leg has the wrong number of inputs")
+		}
+		msg := policy.Message(t.TID(h))
+		for i := range l.Inputs {
+			p, err := l.Inputs[i].policy()
+			if err != nil {
+				return added, err
+			}
+			tp, err := policy.DecodeThresholdParams(policy.Default(), p.Params)
+			if err != nil {
+				return added, err
+			}
+			for ki, k := range tp.Keys {
+				if k.Alg != alg || !bytes.Equal(k.Public, pub) || l.Inputs[i].has(uint16(ki)) {
+					continue
+				}
+				l.Inputs[i].Sigs = append(l.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: signer.Sign(msg)})
+				added++
+			}
+		}
+	}
+	return added, nil
 }

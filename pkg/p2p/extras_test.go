@@ -25,9 +25,22 @@ func maxExt() []wire.Ext {
 	return es
 }
 
+// smallExt is a ping's or pong's extension list at its frozen maximum:
+// MaxExt values filling MaxSmallExt together (W-18).
+func smallExt() []wire.Ext {
+	var es []wire.Ext
+	for i := 0; i < wire.MaxExt; i++ {
+		v := make([]byte, wire.MaxSmallExt/wire.MaxExt)
+		rand.Read(v)
+		es = append(es, wire.Ext{Tag: uint16(40000 + i), Value: v})
+	}
+	return es
+}
+
 // Black's Round 33 condition on D186 term 4: a hello and a ping at the
 // frozen maximum (the longest release, 255 unknown features, 32 unknown
-// extensions of the largest size) are answered, and a ping or pong whose
+// extensions of the largest size; for the ping, 64 KiB of extensions in
+// all, W-18) are answered, and a ping or pong whose
 // extensions list is malformed ends that connection only, with no
 // lasting offence.
 func TestExtrasAtTheLimitsNoOffence(t *testing.T) {
@@ -61,7 +74,7 @@ func TestExtrasAtTheLimitsNoOffence(t *testing.T) {
 		r.write(wire.Message{Header: wire.Header{Type: wire.TypePing, Section: sec, RequestID: rid}, Body: body})
 		return rid
 	}
-	rid := ping(maxExt())
+	rid := ping(smallExt())
 	for {
 		m, _, err := r.read()
 		if err != nil {

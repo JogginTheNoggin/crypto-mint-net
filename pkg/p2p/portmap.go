@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"net"
 	"net/netip"
@@ -326,7 +327,7 @@ var pmConfirmWait = helloTimeout
 
 // selfProbeAgent starts the Agent of a dial-back hello; a random token
 // follows it (RED-090).
-const selfProbeAgent = "poo-self-check/"
+const selfProbeAgent = brand.Name + "-self-check/"
 
 // confirmSelf dials addr and reports nil once this node's own listener
 // has received the dial: the mapped address leads here. The hello it
@@ -378,7 +379,7 @@ func (h *Host) confirmSelf(parent context.Context, addr string) error {
 	// from another node, or a connection that closed (RED-090).
 	answer := make(chan error, 1)
 	go func() {
-		m, _, err := wire.ReadFrame(bufio.NewReader(c), wire.MaxFrame)
+		m, _, err := wire.ReadFrame(bufio.NewReader(c), wire.MaxHelloFrame)
 		if err == nil {
 			if theirs, derr := wire.DecodeHello(m.Body); m.Type == wire.TypeHello && derr == nil && theirs.NodeID != h.id {
 				err = errors.New("another node answered")

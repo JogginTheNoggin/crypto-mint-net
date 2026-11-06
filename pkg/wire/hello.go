@@ -25,6 +25,10 @@ const (
 	MaxFeatureName = 32
 	MaxExt         = 32
 	MaxExtValue    = 64 << 10
+	// MaxSmallExt bounds the extension values of one ping or pong
+	// together, so the messages sent most often stay small (W-18, D192);
+	// a hello may carry MaxExt values of MaxExtValue each.
+	MaxSmallExt = 64 << 10
 )
 
 // ErrBadExtras marks a message refused for its release, features or
@@ -164,7 +168,9 @@ func encodeExt(w *encoding.Writer, es []Ext) {
 	}
 }
 
-func decodeExt(r *encoding.Reader) []Ext {
+// decodeExt reads an extension list whose values together are at most
+// total bytes.
+func decodeExt(r *encoding.Reader, total int) []Ext {
 	m := int(r.U8())
 	if m > MaxExt {
 		r.Fail(fmt.Errorf("%d extensions, more than %d", m, MaxExt))
@@ -172,10 +178,11 @@ func decodeExt(r *encoding.Reader) []Ext {
 	}
 	var out []Ext
 	for i := 0; i < m && r.Err() == nil; i++ {
-		e := Ext{Tag: r.U16(), Value: r.VarBytes(MaxExtValue)}
+		e := Ext{Tag: r.U16(), Value: r.VarBytes(min(MaxExtValue, total))}
 		if r.Err() != nil {
 			return nil
 		}
+		total -= len(e.Value)
 		if len(out) > 0 && out[len(out)-1].Tag >= e.Tag {
 			r.Fail(fmt.Errorf("extension tags not increasing at %d", e.Tag))
 			return nil

@@ -19,7 +19,7 @@ import (
 func cryptoCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("crypto", out)
 	addWhere(fs) // taken and ignored, like every command that needs no node
-	maxWitness := fs.Uint("max-witness", series.ReserveMaxWitness, "the series witness ceiling to count signatures against (0: none; the default is the reserve series')")
+	maxWitness := fs.Uint("max-witness", series.ReserveMaxWitness, "the series witness ceiling to count signatures against (0: none; the default is the built-in default series')")
 	o := addOutput(fs) // a table of the key algorithms reads at a glance (GREEN-052)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -201,7 +201,7 @@ func checkCeiling(max uint32, force bool) error {
 	case force:
 		return nil
 	case max == 0:
-		return fmt.Errorf("the series sets no witness ceiling (max_witness 0), so one witness could be as large as a frame; set -max-witness (the reserve series uses %d), or pass -any-ceiling", series.ReserveMaxWitness)
+		return fmt.Errorf("the series sets no witness ceiling (max_witness 0), so one witness could be as large as a frame; set -max-witness (the built-in default series uses %d), or pass -any-ceiling", series.ReserveMaxWitness)
 	case max > CeilingLimit:
 		return fmt.Errorf("the series' witness ceiling (max_witness %d) is above %d bytes, so one witness could take seconds to check; set a smaller -max-witness, or pass -any-ceiling", max, CeilingLimit)
 	}

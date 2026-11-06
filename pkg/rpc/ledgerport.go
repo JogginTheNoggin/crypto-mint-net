@@ -1,7 +1,9 @@
 package rpc
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -84,7 +86,8 @@ func decodeImport(body io.Reader) (LedgerImportRequest, *Error) {
 	bad := func(format string, a ...any) (LedgerImportRequest, *Error) {
 		return LedgerImportRequest{}, badRequest("body: "+format, a...)
 	}
-	dec := json.NewDecoder(body)
+	cr := &capReader{r: body, limit: -1}
+	dec := json.NewDecoder(cr)
 	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
 		return bad("not a JSON object")
 	}
@@ -115,7 +118,17 @@ func decodeImport(body io.Reader) (LedgerImportRequest, *Error) {
 				}
 				var b []byte
 				if err := dec.Decode(&b); err != nil {
+					if errors.Is(err, errOverCall) {
+						return bad("items: over %d MiB past the first item in one call; send fewer, or a large item alone", MaxImportBatchBytes>>20)
+					}
 					return bad("items: %v", err)
+				}
+				if len(req.Items) == 0 && cr.limit < 0 {
+					// Past the first item the body may hold at most the
+					// batch bound in base64, and the JSON around it; the
+					// reader stops there, so an item over the bound is
+					// never held whole (RED-101).
+					cr.limit = cr.read + int64(base64.StdEncoding.EncodedLen(MaxImportBatchBytes)) + importSlack
 				}
 				if len(req.Items) > 0 {
 					if size+len(b) > MaxImportBatchBytes {
@@ -143,6 +156,35 @@ func decodeImport(body io.Reader) (LedgerImportRequest, *Error) {
 		return bad("more than one JSON value")
 	}
 	return req, nil
+}
+
+// importSlack is the room left past the first item's base64 for the JSON
+// around the later items and the rest of the body.
+const importSlack = 64 << 10
+
+// errOverCall is capReader's error past its limit.
+var errOverCall = errors.New("over the import call's bound")
+
+// capReader reads from r, counting, and fails once it has read limit
+// bytes (none while limit is negative).
+type capReader struct {
+	r     io.Reader
+	read  int64
+	limit int64
+}
+
+func (c *capReader) Read(p []byte) (int, error) {
+	if c.limit >= 0 {
+		if c.read >= c.limit {
+			return 0, errOverCall
+		}
+		if left := c.limit - c.read; int64(len(p)) > left {
+			p = p[:left]
+		}
+	}
+	n, err := c.r.Read(p)
+	c.read += int64(n)
+	return n, err
 }
 
 // LedgerExport asks for one page of an export.

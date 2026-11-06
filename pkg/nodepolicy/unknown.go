@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"reflect"
 	"slices"
 	"strconv"
@@ -369,7 +370,7 @@ func indentKept(b []byte, extras []extra) []byte {
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return b
 	}
-	prefix := "poo-kept-" + hex.EncodeToString(nonce[:]) + "-"
+	prefix := brand.TempPrefix + "kept-" + hex.EncodeToString(nonce[:]) + "-"
 	marked := make([]extra, len(extras))
 	pairs := make([]string, 0, 2*len(extras))
 	for i, e := range extras {
