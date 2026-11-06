@@ -541,6 +541,19 @@ try {
   assert.deepEqual(bm.unpaid, ['1', '0']);
   // Each offer's state from poo (D197); Work only on an open peer offer.
   assert.deepEqual(bm.states, ['', 'expired', 'open', 'filled']);
+  // A long list of peers' offers draws 500 rows, then the rest on Show
+  // more (GUI/Orange R37B: 4,096 held offers were 70,000 elements).
+  const bigHeld = await page.evaluate(async () => {
+    const { marketView } = await import('/views/bounty.js');
+    const offer = { pool: 1, strength: 8, amount: 10, count: 1 };
+    const box = document.createElement('div');
+    box.append(...marketView({ post: false, take: true, mine: [], held: Array.from({ length: 600 }, (_, i) => ({ id: i.toString(16).padStart(64, '0'), from: 'f'.repeat(64), offer, state: 'open' })) }));
+    const rows = () => box.querySelectorAll('.bounty-held tbody tr').length;
+    const first = [rows(), box.querySelector('.bounty-more').textContent];
+    box.querySelector('.bounty-more button').click();
+    return [...first, rows(), box.querySelectorAll('.bounty-more').length];
+  });
+  assert.deepEqual(bigHeld, [500, 'Showing 500 of 600 offers. Show more', 600, 0]);
   assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'work:c'], 'no Cancel on an expired offer');
   // A time poo printed is shown in the reader's own words, poo's text in
   // the tooltip (GUI-GREEN-063).

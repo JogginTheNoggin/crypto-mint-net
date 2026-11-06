@@ -5,7 +5,7 @@
 // GUI does not edit.
 import * as where from '../where.js';
 import * as api from '../api.js';
-import { el, flag, form, mountAll, panel, rawFold, needsNode } from '../views.js';
+import { el, flag, form, mountAll, panel, rawFold, needsNode, rowsTable } from '../views.js';
 import { render } from '../render.js';
 import { walletFile } from './wallet.js';
 
@@ -60,16 +60,6 @@ const isOpen = st => st === undefined || st === 'open';
 // unpaid counts a posted offer's accepted claims with no payment yet.
 const unpaid = m => (Array.isArray(m.claims) ? m.claims.filter(c => !(Array.isArray(c.paid) && c.paid.length)).length : 0);
 
-function table(headers, rows, cls) {
-  const t = el('table', { class: `data ${cls}` });
-  t.createTHead().insertRow().append(...headers.map(h => el('th', {}, h)));
-  const body = t.createTBody();
-  for (const cells of rows) {
-    const tr = body.insertRow();
-    for (const c of cells) tr.insertCell().append(c);
-  }
-  return el('div', { class: 'table-wrap' }, t);
-}
 
 // marketView draws poo bounty list: this node's offers with their claims,
 // and the offers peers sent. act(kind, values) fills a form below.
@@ -81,7 +71,8 @@ export function marketView(o, act = () => {}) {
   const held = Array.isArray(o && o.held) ? o.held : [];
   if (mine.length) {
     out.push(el('h3', {}, `Your offers (${mine.length})`));
-    out.push(table(['offer', 'pool', 'entry', 'strength', 'per layer', 'layers', 'claims', 'unpaid', 'state', 'closes', ''], mine.map(m => {
+    // Long lists draw 500 rows at a time with Show more (GUI/Orange R37B).
+    out.push(rowsTable(mine, m => {
       const f = m.offer || {};
       const owed = unpaid(m);
       return [render(m.id), String(f.pool ?? ''), render(f.entry), String(f.strength ?? ''), render(f.amount), render(f.count),
@@ -89,20 +80,20 @@ export function marketView(o, act = () => {}) {
         el('span', { class: 'row-acts' },
           owed ? el('button', { type: 'button', class: 'small', onclick: () => act('pay', { id: m.id }) }, 'Pay') : '',
           isOpen(m.state) ? el('button', { type: 'button', class: 'small', onclick: () => act('cancel', { id: m.id }) }, 'Cancel') : '')];
-    }), 'bounty-mine'));
+    }, { headers: ['offer', 'pool', 'entry', 'strength', 'per layer', 'layers', 'claims', 'unpaid', 'state', 'closes', ''], cls: 'bounty-mine', more: 'bounty-more', noun: 'offers' }));
     const owed = mine.reduce((a, m) => a + unpaid(m), 0);
     if (owed) out.push(el('p', { class: 'next-step bounty-owed' }, `${plural(owed, 'accepted claim waits', 'accepted claims wait')} to be paid: the node kept the layer, and pays only when you press Pay (no auto-pay in phase 1).`));
   }
   if (held.length) {
     out.push(el('h3', {}, `Offers from peers (${held.length})`));
-    out.push(table(['offer', 'from', 'pool', 'strength', 'per layer', 'layers', 'received', 'state', 'closes', ''], held.map(h => {
+    out.push(rowsTable(held, h => {
       const f = h.offer || {};
       // Work is offered on an open offer (or one poo gives no state for);
       // poo still decides if a lease is granted.
       const workable = isOpen(h.state);
       return [render(h.id), render(h.from), String(f.pool ?? ''), String(f.strength ?? ''), render(f.amount), render(f.count), when(h.received), stateText(h.state), when(h.closes),
         workable ? el('button', { type: 'button', class: 'small', onclick: () => act('work', { id: h.id }) }, 'Work') : ''];
-    }), 'bounty-held'));
+    }, { headers: ['offer', 'from', 'pool', 'strength', 'per layer', 'layers', 'received', 'state', 'closes', ''], cls: 'bounty-held', more: 'bounty-more', noun: 'offers' }));
   }
   if (!mine.length && !held.length && note) {
     out.push(el('p', { class: 'hint empty' }, o.take ? 'No offers yet. Ask peers for offers below, or post one.' : 'No offers yet. Post one below.'));
