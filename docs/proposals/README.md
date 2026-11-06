@@ -106,3 +106,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-043](source/ORANGE-043-ledger-export-import-and-hello.md) | Source | Round 33 measured; ledger export and import, and the hello's cost | proposed |
 | [ORANGE-044](source/ORANGE-044-hello-ping-limits-and-peer-memory.md) | Source | Round 34 measured; the hello and ping at the new limits, and memory per connection | proposed |
 | [ORANGE-045](source/ORANGE-045-poo-sign-and-header-keys.md) | Source | Round 35 measured; `poo sign` signed each input apart, and skipped header keys | proposed |
+| [ORANGE-046](source/ORANGE-046-bounty-market-measured.md) | Source | Round 36 measured; the bounty market's messages are cheap, but its file only grows | proposed |
