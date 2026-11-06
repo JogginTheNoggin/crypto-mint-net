@@ -197,7 +197,8 @@ func TestBountyMarket(t *testing.T) {
 	}
 	// The first offer, filled and paid, needs nothing more: it moved to
 	// the done file and is no longer listed (ORANGE-046 P1). The second is
-	// filled and unpaid, so it stays, says so, and cancelling it keeps
+	// filled and unpaid, so it stays, says so, and cancelling it (still
+	// filled, D200) keeps
 	// its claims owed (GUI-GREEN-062).
 	var listed rpc.BountyReply
 	cli(t, &listed, append([]string{"bounty", "list"}, pr...)...)
@@ -209,7 +210,7 @@ func TestBountyMarket(t *testing.T) {
 	}
 	var closed bounty.Mine
 	cli(t, &closed, append([]string{"bounty", "cancel", two.Offer.ID.String()}, pr...)...)
-	if closed.State != bounty.StateClosed || closed.Owed() != 20 {
+	if closed.State != bounty.StateFilled || !closed.Closed || closed.Owed() != 20 {
 		t.Fatalf("cancelled %+v, owes %d", closed, closed.Owed())
 	}
 	var st rpc.StatusReply

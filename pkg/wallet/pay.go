@@ -448,7 +448,7 @@ func (u *Unsigned) UnmarshalJSON(b []byte) error {
 	case p.Format < 0:
 		return fmt.Errorf("the payment file has format %d", p.Format)
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return fmt.Errorf("the payment file: %w", err)
 	}
@@ -464,7 +464,7 @@ func (u Unsigned) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, u.kept)
+	return keepjson.JoinValid(b, u.kept)
 }
 
 // UnsignedLeg is one transaction waiting for signatures.
@@ -482,7 +482,7 @@ func (l *UnsignedLeg) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return fmt.Errorf("a payment leg: %w", err)
 	}
@@ -498,7 +498,7 @@ func (l UnsignedLeg) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, l.kept)
+	return keepjson.JoinValid(b, l.kept)
 }
 
 // PartialWitness is the policy of one input and the signatures gathered.

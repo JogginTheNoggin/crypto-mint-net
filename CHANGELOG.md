@@ -250,6 +250,16 @@ built.
     offer this node has a lease on is kept when the held list is full.
   - The bounty done file is read a line's start at a time, and an offer
     left out for being done is reported.
+- **Round 38 (D200):**
+  - The bounty done file's layout and the 1,024-byte offer size are
+    frozen for this release; a later done file format is refused
+    clearly.
+  - A start reads only the new end of the done file; offers that
+    finished while the node was stopped, or by the clock, move there.
+  - A filled offer stays filled after its time runs out; `poo status
+    -counts` shows `bounty`; the on-off bounty limits are marked as
+    switches.
+  - Wallet files are checked once on open and save, with the same bytes.
 - **Round 37 (D198):**
   - The bounty market is turned on and tuned with `poo policy limits
     -set bounty.post=1` and the other `bounty.*` limits; `poo status`

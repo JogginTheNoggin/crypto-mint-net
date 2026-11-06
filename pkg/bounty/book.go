@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -117,7 +118,7 @@ func (c *ClaimRecord) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func (c ClaimRecord) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, c.kept)
+	return keepjson.JoinValid(b, c.kept)
 }
 
 // Mine is an offer this node posted.
@@ -172,7 +173,7 @@ func (m *Mine) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return err
 	}
@@ -188,18 +189,20 @@ func (m Mine) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, m.kept)
+	return keepjson.JoinValid(b, m.kept)
 }
 
 // state works out the offer's state at now.
 func (m *Mine) state(now time.Time) string {
+	// Filled first: an offer with every layer handed in stays filled once
+	// its time runs out (GUI-GREEN-063).
 	switch {
+	case len(m.Claims) >= int(m.Offer.Count):
+		return StateFilled
 	case m.Closed && m.expired(now):
 		return StateExpired
 	case m.Closed:
 		return StateClosed
-	case len(m.Claims) >= int(m.Offer.Count):
-		return StateFilled
 	}
 	return StateOpen
 }
@@ -326,6 +329,8 @@ type Book struct {
 	heldAddr map[string]int
 	// heldSwept is when held offers were last checked for their time.
 	heldSwept time.Time
+	// doneSize is the done file's size as this book last knew it.
+	doneSize int64
 	// pending says a save is waiting on its timer (ORANGE-046 P2).
 	pending bool
 	// kept holds the file's fields a later release wrote (W-28).
@@ -348,7 +353,12 @@ type file struct {
 	Kind   string  `json:"kind"`
 	Format int     `json:"format"`
 	Offers []*Mine `json:"offers"`
-	kept   keepjson.Kept
+	// DoneSize is the done file's size when this file was written: only
+	// what lies past it can be an offer also still in Offers, after a
+	// crash between the two writes, so a start reads only that much of
+	// the done file (ORANGE-047 P1, D200).
+	DoneSize int64 `json:"done_size,omitempty"`
+	kept     keepjson.Kept
 }
 
 func (f *file) UnmarshalJSON(b []byte) error {
@@ -357,7 +367,7 @@ func (f *file) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return err
 	}
@@ -372,7 +382,7 @@ func (f file) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, f.kept)
+	return keepjson.JoinValid(b, f.kept)
 }
 
 // DoneFileName is the file, beside FileName, that offers which need
@@ -382,7 +392,12 @@ func (f file) MarshalJSON() ([]byte, error) {
 // bounties.json; an offer found in both is left out of bounties.json.
 const DoneFileName = "bounties-done.jsonl"
 
-// DoneFileKind and DoneFileFormat name the done file.
+// DoneFileKind and DoneFileFormat name the done file. Frozen with format
+// 1: the first line is {"kind": DoneFileKind, "format": 1}, and every
+// later line is one offer whose JSON begins {"id":"<64 hex digits>",
+// whatever fields follow. A reader takes the id from that prefix alone,
+// so a later release may add fields after it; a layout that moves the id
+// is a new format, which this release refuses (W-31, D200).
 const (
 	DoneFileKind   = brand.KindPrefix + "bounties-done"
 	DoneFileFormat = 1
@@ -421,10 +436,11 @@ func Open(cfg Config, path string) (*Book, error) {
 		return nil, fmt.Errorf("%s: format %d is not a format", path, f.Format)
 	}
 	b.kept = f.kept
-	done, unread, err := doneIDs(b.donePath())
+	done, unread, size, err := doneIDs(b.donePath(), f.DoneSize)
 	if err != nil {
 		return nil, err
 	}
+	b.doneSize = size
 	if unread > 0 {
 		b.dropped = append(b.dropped, fmt.Sprintf("%s: %d lines with no offer id this release reads", DoneFileName, unread))
 	}
@@ -458,6 +474,15 @@ func Open(cfg Config, path string) (*Book, error) {
 		}
 		b.mine[m.ID] = m
 		b.order = append(b.order, m.ID)
+	}
+	// An offer that finished while the node was stopped (its time ran
+	// out, its last lease ended) moves to the done file now, not only at
+	// the next change (GUI-GREEN-063).
+	b.expire()
+	if slices.ContainsFunc(b.order, func(id hash.Hash) bool { return b.mine[id].done() }) {
+		if err := b.save(); err != nil {
+			return nil, err
+		}
 	}
 	return b, nil
 }
@@ -516,30 +541,50 @@ func (b *Book) donePath() string {
 // of each line is read, where the id is, and the rest is skipped as it
 // streams, so a line of any length costs a few KiB (RED-117). It also
 // says how many lines it could not read an id from.
-func doneIDs(path string) (map[hash.Hash]bool, int, error) {
+func doneIDs(path string, from int64) (map[hash.Hash]bool, int, int64, error) {
 	ids := map[hash.Hash]bool{}
 	if path == "" {
-		return ids, 0, nil
+		return ids, 0, 0, nil
 	}
 	f, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return ids, 0, nil
+		return ids, 0, 0, nil
 	}
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	size := st.Size()
 	r := bufio.NewReader(f)
 	first, _, err := linePrefix(r, maxDoneHead)
 	if len(first) == 0 && err != nil {
-		return ids, 0, nil // empty
+		return ids, 0, size, nil // empty
 	}
 	var head struct {
 		Kind   string `json:"kind"`
 		Format int    `json:"format"`
 	}
 	if json.Unmarshal(first, &head) != nil || head.Kind != DoneFileKind {
-		return nil, 0, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
+		return nil, 0, 0, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
+	}
+	switch {
+	case head.Format > DoneFileFormat:
+		return nil, 0, 0, fmt.Errorf("%s is format %d, from a later release than this one (format %d): run that release, or move the file aside", path, head.Format, DoneFileFormat)
+	case head.Format < 1:
+		return nil, 0, 0, fmt.Errorf("%s: format %d is not a format", path, head.Format)
+	}
+	// Only the part past what bounties.json last saw can hold an offer in
+	// both files (ORANGE-047 P1). An offset the file does not reach, or
+	// none, reads it all.
+	if from > int64(len(first)) && from <= size {
+		if _, err := f.Seek(from, io.SeekStart); err != nil {
+			return nil, 0, 0, err
+		}
+		r.Reset(f)
 	}
 	bad := 0
 	for {
@@ -561,7 +606,7 @@ func doneIDs(path string) (map[hash.Hash]bool, int, error) {
 			}
 		}
 		if err != nil {
-			return ids, bad, nil
+			return ids, bad, size, nil
 		}
 	}
 }
@@ -614,6 +659,10 @@ func (b *Book) archive() error {
 		return err
 	}
 	st, err := f.Stat()
+	at := int64(0)
+	if err == nil {
+		at = st.Size()
+	}
 	if err == nil && st.Size() == 0 {
 		head, _ := json.Marshal(map[string]any{"kind": DoneFileKind, "format": DoneFileFormat})
 		buf.Write(append(head, '\n'))
@@ -630,6 +679,9 @@ func (b *Book) archive() error {
 	}
 	if err == nil {
 		_, err = f.Write(buf.Bytes())
+	}
+	if err == nil {
+		b.doneSize = at + int64(buf.Len())
 	}
 	if err == nil {
 		err = f.Sync()
@@ -686,7 +738,7 @@ func (b *Book) save() error {
 	if err := b.archive(); err != nil {
 		return err
 	}
-	f := file{Kind: FileKind, Format: FileFormat, kept: b.kept}
+	f := file{Kind: FileKind, Format: FileFormat, DoneSize: b.doneSize, kept: b.kept}
 	for _, id := range b.order {
 		f.Offers = append(f.Offers, b.mine[id])
 	}
@@ -701,7 +753,9 @@ func (b *Book) save() error {
 // Called with mu held.
 func (b *Book) expire() {
 	now := b.now()
+	finished := false
 	for _, m := range b.mine {
+		n := len(m.Leases)
 		m.Leases = slices.DeleteFunc(m.Leases, func(l Lease) bool {
 			if now.After(l.Until) {
 				b.grinderOf(l.Peer).expired++
@@ -712,6 +766,14 @@ func (b *Book) expire() {
 		if !m.Closed && m.expired(now) {
 			m.Closed, m.Leases = true, nil
 		}
+		if len(m.Leases) != n || m.Closed {
+			finished = finished || m.done()
+		}
+	}
+	// An offer that finished by the clock moves to the done file too
+	// (GUI-GREEN-063).
+	if finished {
+		b.saveLater()
 	}
 	// Peers' offers are checked at most once a second, so a list of 64
 	// offers walks them once, not once an offer (ORANGE-046 P3).

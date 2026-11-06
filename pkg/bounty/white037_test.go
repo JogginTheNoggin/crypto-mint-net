@@ -168,8 +168,14 @@ func TestGUIGreen062StateAndNames(t *testing.T) {
 	if got, _ := b.Get(m.ID); got.State != StateFilled {
 		t.Fatalf("filled: %s", got.State)
 	}
+	idle, _ := b.Post(testOffer(20, 1))
 	*now = now.Add(2 * time.Hour)
-	if got, _ := b.Get(m.ID); got.State != StateExpired {
+	// A filled offer stays filled when its time runs out; an idle one is
+	// expired (GUI-GREEN-063).
+	if got, _ := b.Get(m.ID); got.State != StateFilled {
+		t.Fatalf("filled, past its time: %s", got.State)
+	}
+	if got, _ := b.Get(idle.ID); got.State != StateExpired {
 		t.Fatalf("expired: %s", got.State)
 	}
 
@@ -190,5 +196,67 @@ func TestGUIGreen062StateAndNames(t *testing.T) {
 	raw, _ := json.Marshal(h.Acks[0])
 	if !strings.Contains(string(raw), `"outcome_name":"filled"`) {
 		t.Fatalf("ack %s", raw)
+	}
+}
+
+// The done file refuses a later format, reads an id followed by fields a
+// later release added, and an offer that finished while the node was
+// stopped moves there at start (W-31, GUI-GREEN-063, D200).
+func TestW31DoneFileFormatAndStartMove(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, FileName)
+	done := filepath.Join(dir, DoneFileName)
+	b, now := payerBook(t, path)
+	m, _ := b.Post(testOffer(20, 1))
+	_ = b.Close()
+
+	// Past its time with nothing handed in, it is done: a new start moves
+	// it, as its time ran out while the node was stopped.
+	later := now.Add(2 * time.Hour)
+	b2, err := Open(b.Config(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b2.SetClock(func() time.Time { return later })
+	b2.mu.Lock()
+	b2.expire()
+	b2.mu.Unlock()
+	if err := b2.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := b2.Get(m.ID); ok {
+		t.Fatal("an expired, empty offer stayed in the book")
+	}
+	raw, _ := os.ReadFile(done)
+	if !strings.Contains(string(raw), m.ID.String()) {
+		t.Fatalf("done file:\n%s", raw)
+	}
+
+	// A later release's line: the id first, then fields this one does not
+	// know. The offer in both files is still left out.
+	o := testOffer(20, 1)
+	o.Salt = 77
+	o.Raw = o.Encode()
+	id := o.ID()
+	line := `{"id":"` + id.String() + `","later":[1,2],"offer":{}}` + "\n"
+	if err := os.WriteFile(done, append(raw, line...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := file{Kind: FileKind, Format: FileFormat, Offers: []*Mine{{ID: id, Offer: o, Posted: time.Now()}}}
+	fb, _ := json.Marshal(f)
+	_ = os.WriteFile(path, fb, 0o600)
+	b3, err := Open(b.Config(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := b3.Get(id); ok {
+		t.Fatal("an offer in the done file, after a field this release does not know, was loaded")
+	}
+
+	// A later format is refused, saying what to do.
+	head := strings.Replace(string(raw), `"format":1`, `"format":2`, 1)
+	_ = os.WriteFile(done, []byte(head), 0o600)
+	if _, err := Open(b.Config(), path); err == nil || !strings.Contains(err.Error(), "later release") {
+		t.Fatalf("format 2: %v", err)
 	}
 }

@@ -121,14 +121,28 @@ warning in the log, as is a count of done lines with no id (RED-117,
 D199). A lease is saved on a
 short timer; an accepted claim is on disk before its ack is sent.
 
+The done file's format 1 is frozen (W-31, D200): its first line is
+`{"kind":"poo-bounties-done","format":1}`, and every later line is one
+offer whose JSON begins `{"id":"<64 hex digits>"`, whatever fields follow.
+A reader takes the id from that prefix alone; a later format is refused
+with a message to run that release or move the file aside.
+`bounties.json` records the done file's size when it was written
+(`done_size`), so a start reads only what was appended after it, the
+only part that can repeat an offer still in `bounties.json` after a crash
+(ORANGE-047 P1). An offer that finished while the node was stopped, or by
+the clock while it runs, moves to the done file too (GUI-GREEN-063).
+
 ## What the lists say
 
 Each offer has `state` and, when it has open seconds, `closes`. This
-node's offers are open, filled, closed or expired. A peer's offer is
+node's offers are open, filled, closed or expired; a filled offer stays
+filled once its time runs out (D200). A peer's offer is
 open, leased (this node holds a lease), taken (the payer said it is
 leased to another grinder or filled), filled or closed. Each ack has
 `outcome_name` beside `outcome`. `poo status` has `bounty.post` and
-`bounty.take` (W-30).
+`bounty.take` (W-30), and so does `poo status -counts` (D200). In
+`poo policy limits`, `bounty.post` and `bounty.take` carry `"switch":
+true`, so a front end can draw them as tick boxes.
 
 ## Phase 1 limits
 

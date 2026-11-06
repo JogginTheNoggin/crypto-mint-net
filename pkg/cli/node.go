@@ -431,10 +431,13 @@ type statusSummary struct {
 	FileLimit     nodepolicy.FileLimit `json:"file_limit"`
 	Snapshots     node.SnapshotSummary `json:"snapshots"`
 	PortMap       *p2p.PortMapStatus   `json:"port_map,omitempty"`
+	// Bounty is the status's own (W-30), so a view need not ask for every
+	// pool's row to read it (GUI ORANGE R37B, D200).
+	Bounty rpc.BountyStatus `json:"bounty"`
 }
 
 func statusBySeries(st rpc.StatusReply) statusSummary {
-	out := statusSummary{Release: st.Release, Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots, PortMap: st.PortMap}
+	out := statusSummary{Release: st.Release, Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots, PortMap: st.PortMap, Bounty: st.Bounty}
 	at := map[hash.Hash]int{}
 	for _, p := range st.Pools {
 		i, ok := at[p.Series]

@@ -157,6 +157,9 @@ func TestLimitsListsEveryBound(t *testing.T) {
 		if l.Name != b.Name || l.Min != b.Min || l.Max != b.Max || l.Default != b.Default {
 			t.Errorf("limit %d %+v, bound %+v", i, l, b)
 		}
+		if l.Switch != (l.Name == "bounty.post" || l.Name == "bounty.take") {
+			t.Errorf("%s: switch %v", l.Name, l.Switch)
+		}
 		if l.Name == "p2p.max_book" && (l.Set != 1000 || l.Used != 1000) {
 			t.Errorf("max_book: %+v", l)
 		}

@@ -177,6 +177,10 @@ type Limit struct {
 	// without a reload (InPlace, D168), so a front end need not keep its
 	// own list (GUI-GREEN-053).
 	InPlace bool `json:"in_place"`
+	// Switch marks an on-off setting, 1 on and 0 off (bounty.post,
+	// bounty.take), so a front end can draw it as a tick box
+	// (GUI-GREEN-063, D200).
+	Switch bool `json:"switch,omitempty"`
 }
 
 // Limits lists every bounded setting of p with its value, in the order
@@ -186,7 +190,7 @@ func (p Policy) Limits() []Limit {
 	var out []Limit
 	for _, b := range Bounds() {
 		v, _ := p.limitGet(b.Name)
-		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v), InPlace: InPlace[b.Name]})
+		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v), InPlace: InPlace[b.Name], Switch: bountyBools[b.Name]})
 	}
 	return out
 }
