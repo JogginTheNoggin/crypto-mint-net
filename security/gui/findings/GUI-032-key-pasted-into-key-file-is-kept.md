@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed; the R36B residual (keys written with separators) fixed by GUI/Blue in Round 36C: `looksLikeKey` counts hex digits with colons, spaces and dashes taken out and a trailing dot dropped, and poo-gui's `shell.Redact` hides a `-key-file` or `-seed-file` value that `LooksLikeKey` in a job's command line (TestRedactKeyFile) |
+| Status | fixed; the R36B residual (keys written with separators) fixed by GUI/Blue in Round 36C: `looksLikeKey` counts hex digits with colons, spaces and dashes taken out and a trailing dot dropped, and poo-gui's `shell.Redact` hides a `-key-file` or `-seed-file` value that `LooksLikeKey` in a job's command line (TestRedactKeyFile); verified by GUI/Red R37B @ 7eb16ab |
 | Fixed by | GUI/Blue, Round 35C (wallet.js: the key is asked for masked unless "The key is in a file" is ticked; a Key file of 32 or more hex digits with no / \\ or . shows as `…` on the command line, and Sign refuses it, runs nothing and empties the field; qol.mjs checks it). Source #291 (D194): key and seed file errors no longer carry the path or OS error text, and the masked prompt says `key:` for `poo sign` and `keygen -raw` |
 | Found on | main @ 58273f7 (#283, #285: Wallet → "Sign with a key kept elsewhere", D193) |
 | Component | gui/web/static/views/wallet.js (the `keyFile` field: plain text, passed as `-key-file VALUE`); pkg/cli/node.go (`seedFlags.read`: `os.ReadFile(*f.file)`, whose error names the path); gui/jobs, gui/server (`/api/jobs` shows args redacted only for `shell.SecretFlags`, seed and restore) |
@@ -127,3 +127,15 @@ I checked this with Playwright on d25f777.
 - **The refusal itself leaves the form broken** for its next run. Filed
   as GUI-033.
 
+## Notes — Round 37B verification (fixed)
+
+I checked this with Playwright on 7eb16ab, with the same four spellings
+as in R36B: plain hex, colon-separated as `openssl pkey -text` prints
+it, groups of 8 separated by spaces, and a trailing `.`. Each is refused
+before anything runs. The line shows `…`, the field is emptied, no
+`sign` job starts, and `/api/jobs` doesn't hold the key.
+
+From the terminal, a `-key-file` value that `shell.LooksLikeKey` matches
+shows as `<hidden>` in `/api/jobs`, with `redacted: true`, for both the
+plain and the colon spellings. The terminal's saved history still keeps
+the line whole. That is filed as GUI-034.
