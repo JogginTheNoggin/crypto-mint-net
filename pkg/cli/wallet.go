@@ -34,7 +34,9 @@ Usage: poo wallet COMMAND [flags]
   passwd                           seal the seed under a new passphrase
   address [-label TEXT]            give out a fresh address
   addresses                        every address, used or not, and shared ones
-  watch [-serial N]... [-pool K]... add mints to look for portions in
+  watch [-serial N]... [-pool K]... [-tid HASH]...
+                                   add mints to look for portions in (-tid:
+                                   the mint of a payment, such as a bounty's)
   follow                           make the node policy follow only the pools
                                    of the watched mints (light mode)
   balance                          spendable units per watched mint
@@ -456,14 +458,23 @@ func sortOwners(rows []ownerInfo) {
 
 func walletWatch(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
 	var serials, pools uintList
+	var tids stringList
 	fs.Var(&serials, "serial", "a mint to watch (repeatable)")
 	fs.Var(&pools, "pool", "watch every mint of this pool (repeatable)")
+	fs.Var(&tids, "tid", "watch the mint of this transaction, such as a payment's tid from poo bounty list (repeatable; asks the node)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	s, err := f.series()
 	if err != nil {
 		return err
+	}
+	if len(tids) > 0 {
+		got, err := tidSerials(f, out, s.ID(), tids)
+		if err != nil {
+			return err
+		}
+		serials = append(serials, got...)
 	}
 	w, err := f.open()
 	if err != nil {
@@ -490,6 +501,32 @@ func walletWatch(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 		return err
 	}
 	return writeJSON(out, map[string]any{"mints": w.Watched(s.ID()), "pools": w.Pools(s)})
+}
+
+// tidSerials asks the node for each transaction and returns its mint, so
+// a person paid by a peer (a bounty's paid ack names only tids) can
+// watch the mint the payment is in (GREEN-063).
+func tidSerials(f *walletFlags, out io.Writer, series hash.Hash, tids []string) ([]uint64, error) {
+	cl, err := f.c.dial(out)
+	if err != nil {
+		return nil, err
+	}
+	var serials []uint64
+	for _, t := range tids {
+		tid, err := hash.Parse(t)
+		if err != nil {
+			return nil, fmt.Errorf("-tid %s: %w", t, err)
+		}
+		st, err := cl.Tx(&series, tid, nil)
+		if err != nil {
+			return nil, fmt.Errorf("-tid %s: %w (the node must hold the transaction: pending or in a followed pool)", tid.Short(), err)
+		}
+		if st.Tx == nil {
+			return nil, fmt.Errorf("-tid %s: the node did not return the transaction", tid.Short())
+		}
+		serials = append(serials, st.Tx.Serial)
+	}
+	return serials, nil
 }
 
 // walletFollow points the node policy at the wallet's pools: light mode,

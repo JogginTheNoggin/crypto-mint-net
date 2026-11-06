@@ -31,7 +31,7 @@ func TestBountyTurnedOnWithLimits(t *testing.T) {
 
 	// Off: the error names the command, not node.json.
 	stop := startNode(t, filepath.Join(root, "policies", "default"))
-	if _, err := runErr(append([]string{"bounty", "list"}, r...)...); err == nil || !strings.Contains(err.Error(), "poo policy limits -set bounty.take=1") {
+	if _, err := runErr(append([]string{"bounty", "list"}, r...)...); err == nil || !strings.Contains(err.Error(), "poo policy limits -set bounty.take=on") {
 		t.Fatalf("market off: %v", err)
 	}
 	stop()
@@ -66,10 +66,10 @@ func TestBountyTurnedOnWithLimits(t *testing.T) {
 		t.Fatalf("post with no budget: %v", err)
 	}
 	// A node that only posts: asking and working say take is off.
-	if _, err := runErr(append([]string{"bounty", "list", "-ask"}, r...)...); err == nil || !strings.Contains(err.Error(), "bounty.take=1") {
+	if _, err := runErr(append([]string{"bounty", "list", "-ask"}, r...)...); err == nil || !strings.Contains(err.Error(), "bounty.take=on") {
 		t.Fatalf("ask on a post-only node: %v", err)
 	}
-	if _, err := runErr(append([]string{"bounty", "work", strings.Repeat("ab", 32), "-to", strings.Repeat("cd", 32)}, r...)...); err == nil || !strings.Contains(err.Error(), "bounty.take=1") {
+	if _, err := runErr(append([]string{"bounty", "work", strings.Repeat("ab", 32), "-to", strings.Repeat("cd", 32)}, r...)...); err == nil || !strings.Contains(err.Error(), "bounty.take=on") {
 		t.Fatalf("work on a post-only node: %v", err)
 	}
 	// Through the running node the notes come back too.

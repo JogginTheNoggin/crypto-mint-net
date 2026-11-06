@@ -16,7 +16,9 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
 )
 
-// Leg states.
+// Leg states. The names are frozen (W-34, D202): a later release may add
+// states, never rename one, and a reader that meets a state it does not
+// know treats the leg as sent, never as unsent, so nothing is paid twice.
 const (
 	// Unsigned: waiting for co-signers' signatures; not sent.
 	StateUnsigned = "unsigned"

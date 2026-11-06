@@ -511,6 +511,10 @@ type StatusReply struct {
 type BountyStatus struct {
 	Post bool `json:"post"`
 	Take bool `json:"take"`
+	// Notes say what will not work as most likely meant, such as post on
+	// with no spending limits, so post: true is not read as able to post
+	// (GUI-GREEN-064, D202).
+	Notes []string `json:"notes,omitempty"`
 }
 
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -524,7 +528,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 		rep.PortMap = &pm
 	}
 	if b := h.n.Running().Bounty; b != nil {
-		rep.Bounty = BountyStatus{Post: b.Post, Take: b.Take}
+		rep.Bounty = BountyStatus{Post: b.Post, Take: b.Take, Notes: h.n.Running().BountyNotes()}
 	}
 	if p, ok := h.seen.load(h.policyPath()); ok {
 		rep.PolicyChanged = !p.SameApplied(h.n.Running())

@@ -136,9 +136,23 @@ func TestBountyMarket(t *testing.T) {
 	if len(mine.Mine) != 1 || len(mine.Mine[0].Claims) != 1 || mine.Mine[0].Claims[0].PayTo.String() != addr.Address {
 		t.Fatalf("payer's offers %+v", mine.Mine)
 	}
+	// The node fails to record the payment (its done file cannot be
+	// written): the wallet sent it, so the next pay records that payment
+	// and sends nothing (RED-119). The balance check below shows one
+	// payment, not two.
+	donePath := filepath.Join(pdir, bounty.DoneFileName)
+	if err := os.Mkdir(donePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runErr(append([]string{"bounty", "pay", posted.Offer.ID.String()}, pw...)...); err == nil || !strings.Contains(err.Error(), "did not record") {
+		t.Fatalf("a failed record: %v\n%s", err, out)
+	}
+	if err := os.Remove(donePath); err != nil {
+		t.Fatal(err)
+	}
 	var paid BountyPayReply
 	cli(t, &paid, append([]string{"bounty", "pay", posted.Offer.ID.String()}, pw...)...)
-	if !paid.Told || paid.Amount != 10 || paid.Sent == nil || len(paid.Sent.Legs) == 0 {
+	if !paid.Told || !paid.Recorded || paid.Amount != 10 || paid.Sent == nil || len(paid.Sent.Legs) == 0 {
 		t.Fatalf("pay %+v", paid)
 	}
 	if _, err := runErr(append([]string{"bounty", "pay", posted.Offer.ID.String()}, pw...)...); err == nil {

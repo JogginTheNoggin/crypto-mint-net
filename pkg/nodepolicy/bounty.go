@@ -34,6 +34,11 @@ type Bounty struct {
 	HeldOffers int `json:"held_offers,omitempty"`
 	// MinPrice: peers' offers paying less per layer are not kept.
 	MinPrice uint64 `json:"min_price,omitempty"`
+	// MaxStrength is the strongest offer this node works as a grinder, in
+	// bits (0: any): stronger offers are not kept, payers list only offers
+	// at most this strong, and each take carries it so the payer refuses a
+	// lease above it (jerry, D202). A fast machine sets it higher.
+	MaxStrength int `json:"max_strength,omitempty"`
 }
 
 // Bounds of the bounty settings.
@@ -100,6 +105,8 @@ func (p *Policy) bountyLimit(name string) (int, bool) {
 		return b.HeldOffers, true
 	case BoundBountyMinPrice.Name:
 		return amount(b.MinPrice), true
+	case BoundBountyMaxStrength.Name:
+		return b.MaxStrength, true
 	}
 	return 0, false
 }
@@ -141,6 +148,8 @@ func (p *Policy) setBountyLimit(name string, v int) error {
 		b.HeldOffers = v
 	case BoundBountyMinPrice.Name:
 		b.MinPrice = uint64(v)
+	case BoundBountyMaxStrength.Name:
+		b.MaxStrength = v
 	}
 	if *b == (Bounty{}) {
 		p.Bounty = nil
@@ -160,7 +169,7 @@ func (p Policy) BountyConfig() (bounty.Config, bool) {
 		MaxLeasesPerGrinder: b.MaxLeasesPerGrinder,
 		LeaseFloor:          time.Duration(b.LeaseFloorSeconds) * time.Second,
 		LeaseCeiling:        time.Duration(b.LeaseCeilingSeconds) * time.Second,
-		Held:                b.HeldOffers, MinPrice: b.MinPrice,
+		Held:                b.HeldOffers, MinPrice: b.MinPrice, MaxStrength: uint8(b.MaxStrength),
 	}, true
 }
 
@@ -193,4 +202,4 @@ func (p Policy) BountyNotes() []string {
 // OnOff reports whether the bound is an on/off setting (1 on, 0 off),
 // such as bounty.post, which poo policy limits -set also takes as on or
 // off (GREEN-062).
-func (b Bound) OnOff() bool { return b.Min == 1 && b.Max == 1 && b.Default == 0 }
+func (b Bound) OnOff() bool { return bountyBools[b.Name] }

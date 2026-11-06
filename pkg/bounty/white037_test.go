@@ -260,3 +260,48 @@ func TestW31DoneFileFormatAndStartMove(t *testing.T) {
 		t.Fatalf("format 2: %v", err)
 	}
 }
+
+// A grinder states the strongest offer it works: every list request and
+// take carries it, the payer lists and leases only offers at or under
+// it, and the grinder keeps none stronger (jerry, D202).
+func TestMaxStrengthChoosesOffers(t *testing.T) {
+	for _, b := range [][]byte{ListReq{Series: hash.Hash{1}}.Encode(), Take{Offer: hash.Hash{2}}.Encode()} {
+		if b[len(b)-1] != AnyStrength {
+			t.Fatalf("no max strength written as any: %x", b)
+		}
+	}
+	if _, err := DecodeListReq(make([]byte, 32)); err == nil {
+		t.Fatal("a list request with no max strength decoded")
+	}
+	if _, err := DecodeTake(Take{}.Encode()[:72]); err == nil {
+		t.Fatal("a take with no max strength decoded")
+	}
+	if _, err := DecodeListReq(append(make([]byte, 32), 0)); err == nil {
+		t.Fatal("a list request with max strength 0 decoded")
+	}
+	if q, err := DecodeListReq(ListReq{MaxStrength: 24}.Encode()); err != nil || q.MaxStrength != 24 {
+		t.Fatalf("list request %+v %v", q, err)
+	}
+
+	b, _ := payerBook(t, "")
+	b.cfg.Budget = 1000
+	easy, _ := b.Post(testOffer(20, 1))
+	hard, _ := b.Post(testOffer(30, 1))
+	if got := b.Listable(hash.Hash{}, 24); len(got) != 1 || got[0].ID() != easy.ID {
+		t.Fatalf("listed for 24 bits: %d offers", len(got))
+	}
+	if n := len(b.Listable(hash.Hash{}, AnyStrength)); n != 2 {
+		t.Fatalf("listed for any: %d", n)
+	}
+	if g := b.Take("slow", Take{Offer: hard.ID, Rate: 1 << 30, PayTo: hash.Hash{1}, MaxStrength: 24}); g.Seconds != 0 || !strings.Contains(g.Reason, "over the 24") {
+		t.Fatalf("a lease over the grinder's max: %+v", g)
+	}
+	if g := b.Take("fast", Take{Offer: hard.ID, Rate: 1 << 30, PayTo: hash.Hash{1}, MaxStrength: 32}); g.Seconds == 0 {
+		t.Fatalf("a fast grinder refused: %+v", g)
+	}
+
+	g, _ := Open(Config{Take: true, MaxStrength: 24}, "")
+	if g.Receive("payer", hard.Offer) || !g.Receive("payer", easy.Offer) {
+		t.Fatal("the grinder kept an offer over its max, or dropped one under it")
+	}
+}

@@ -330,9 +330,9 @@ or in node.json's `bounty` section:
 
 ```sh
 # the payer: post offers, paying at most 5000 for one and 20000 in all
-./poo policy limits -set bounty.post=1 -set bounty.max_amount=5000 -set bounty.budget=20000
+./poo policy limits -set bounty.post=on -set bounty.max_amount=5000 -set bounty.budget=20000
 # the grinder: take peers' offers
-./poo policy limits -set bounty.take=1
+./poo policy limits -set bounty.take=on
 ```
 
 `poo status` says whether the market is on (`bounty`). `on` and `off`
@@ -350,18 +350,29 @@ the pool that holds it), and the grinder finds, works and claims it:
 # on the grinder: ask peers for offers, then work one
 ./poo wallet create                     # once, if it has no wallet yet
 ./poo wallet address                    # a fresh address to be paid to
+./poo policy limits -set bounty.max_strength=30   # optional: the strongest offer this machine works
 ./poo bounty list -ask
 ./poo bounty work OFFER_ID -to ADDRESS
 # on the payer: see the accepted claim and pay it from the wallet
 ./poo bounty list
 ./poo bounty pay OFFER_ID
 ./poo bounty cancel OFFER_ID            # close the offer early
+./poo bounty list -done 20              # finished offers, which leave the list
+# on the grinder: the paid ack names the payment's tid; watch its mint
+./poo bounty list                       # held[].acks[]: "paid" with "tids"
+./poo wallet watch -tid TID
+./poo wallet balance
 ```
 
 A grinder works an offer alone for the length of its lease (about three
 times the expected time at its rate). The payout address is fixed when
-the lease is taken. Payment is an ordinary payment, so the grinder sees
-it with `poo wallet balance` once it settles. In this first phase the
+the lease is taken. Payment is an ordinary payment from whichever mint
+the payer holds, so the grinder's wallet sees it only once it watches
+that mint: `poo wallet watch -tid TID` asks the node which mint the
+payment is in. Note the tid before the grinder's node restarts, since
+peers' offers and their acks are kept in memory only. An offer that
+needs nothing more (filled or closed, every layer paid) leaves `poo
+bounty list` for `bounties-done.jsonl`; `-done N` shows the last N. In this first phase the
 payer pays by hand, a watch-only wallet cannot pay, and offers reach
 direct peers only. See [docs/modules/bounty.md](modules/bounty.md) for
 every setting.

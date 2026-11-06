@@ -111,20 +111,26 @@ const DefaultSnapshotEvery = 50000
 // The bounty market's settings (D196), settable since Round 37 so the
 // market can be turned on and tuned like any limit (GUI-GREEN-062).
 // bounty.post and bounty.take are 1 for on and 0 (the default) for off;
+// they, and the amounts, take 0 inside their range, where 0 means off or
+// not set, so no setting's default lies outside its range (GUI-GREEN-064,
+// D202);
 // the amounts are in units of the offer's series, at most 2^53 - 1 so a
 // front end reads them exactly. The market only changes what this node
 // offers, takes and pays, never what any node accepts into a ledger.
 var (
-	BoundBountyPost         = Bound{"bounty.post", 1, 1, 0}
-	BoundBountyTake         = Bound{"bounty.take", 1, 1, 0}
+	BoundBountyPost         = Bound{"bounty.post", 0, 1, 0}
+	BoundBountyTake         = Bound{"bounty.take", 0, 1, 0}
 	BoundBountyMaxOpen      = Bound{"bounty.max_open", 1, MaxBountyOpen, bounty.DefaultMaxOpen}
-	BoundBountyMaxAmount    = Bound{"bounty.max_amount", 1, maxSafeAmount, 0}
-	BoundBountyBudget       = Bound{"bounty.budget", 1, maxSafeAmount, 0}
+	BoundBountyMaxAmount    = Bound{"bounty.max_amount", 0, maxSafeAmount, 0}
+	BoundBountyBudget       = Bound{"bounty.budget", 0, maxSafeAmount, 0}
 	BoundBountyMaxLeases    = Bound{"bounty.max_leases_per_grinder", 1, MaxBountyLeases, bounty.DefaultMaxLeasesPerGrinder}
 	BoundBountyLeaseFloor   = Bound{"bounty.lease_floor_seconds", MinBountyLeaseSec, MaxBountyLeaseSec, int(bounty.DefaultLeaseFloor / time.Second)}
 	BoundBountyLeaseCeiling = Bound{"bounty.lease_ceiling_seconds", MinBountyLeaseSec, MaxBountyLeaseSec, int(bounty.DefaultLeaseCeiling / time.Second)}
 	BoundBountyHeld         = Bound{"bounty.held_offers", 1, MaxBountyHeld, bounty.DefaultHeld}
-	BoundBountyMinPrice     = Bound{"bounty.min_price", 1, maxSafeAmount, 0}
+	BoundBountyMinPrice     = Bound{"bounty.min_price", 0, maxSafeAmount, 0}
+	// BoundBountyMaxStrength is the strongest offer this node works as a
+	// grinder, in bits; 0 is any (jerry, D202).
+	BoundBountyMaxStrength = Bound{"bounty.max_strength", 0, 255, 0}
 )
 
 // maxSafeAmount is the largest amount a bounty limit takes: the largest
@@ -145,7 +151,7 @@ func Bounds() []Bound {
 		BoundCandidateSeconds, BoundPortMapSeconds, BoundMaxAddresses, BoundFlagHistory, BoundLogSeconds, BoundLogSize,
 		BoundSeenSize, BoundMaxPending, BoundTies, BoundSeriesCeiling, BoundEntryCacheMiB, BoundRecentWindow, BoundSnapshotEvery,
 		BoundBountyPost, BoundBountyTake, BoundBountyMaxOpen, BoundBountyMaxAmount, BoundBountyBudget, BoundBountyMaxLeases,
-		BoundBountyLeaseFloor, BoundBountyLeaseCeiling, BoundBountyHeld, BoundBountyMinPrice}
+		BoundBountyLeaseFloor, BoundBountyLeaseCeiling, BoundBountyHeld, BoundBountyMinPrice, BoundBountyMaxStrength}
 }
 
 // Check refuses v when it is neither zero (the default) nor in range.

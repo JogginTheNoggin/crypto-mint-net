@@ -22,7 +22,7 @@ func TestCodecRoundTrip(t *testing.T) {
 	if got, err := DecodeList(EncodeList([]Offer{o, o})); err != nil || len(got) != 2 || !got[1].Same(o) {
 		t.Fatalf("list %+v %v", got, err)
 	}
-	tk := Take{Offer: o.ID(), Rate: 5, PayTo: hash.Hash{7}}
+	tk := Take{Offer: o.ID(), Rate: 5, PayTo: hash.Hash{7}, MaxStrength: 30}
 	if got, err := DecodeTake(tk.Encode()); err != nil || got != tk {
 		t.Fatalf("take %+v %v", got, err)
 	}
@@ -74,7 +74,7 @@ func TestBookLeasesAndClaims(t *testing.T) {
 	if m1.ID == m2.ID {
 		t.Fatal("two posts made one offer")
 	}
-	if n := len(b.Listable(hash.Hash{})); n != 2 {
+	if n := len(b.Listable(hash.Hash{}, 0)); n != 2 {
 		t.Fatalf("listable %d", n)
 	}
 	// A rate of 2^20 a second expects one second: the lease is the floor.
@@ -82,7 +82,7 @@ func TestBookLeasesAndClaims(t *testing.T) {
 	if g.Seconds != 60 {
 		t.Fatalf("grant %+v", g)
 	}
-	if n := len(b.Listable(hash.Hash{})); n != 1 {
+	if n := len(b.Listable(hash.Hash{}, 0)); n != 1 {
 		t.Fatalf("a leased offer is still listed: %d", n)
 	}
 	if g := b.Take("bob", Take{Offer: m1.ID, Rate: 1 << 20}); g.Seconds != 0 {
@@ -114,7 +114,7 @@ func TestBookLeasesAndClaims(t *testing.T) {
 	}
 	// The lease runs out: the offer is listed again.
 	*now = now.Add(2 * time.Minute)
-	if n := len(b.Listable(hash.Hash{})); n != 1 {
+	if n := len(b.Listable(hash.Hash{}, 0)); n != 1 {
 		t.Fatalf("after the lease ran out: %d listable", n)
 	}
 	// Restart: the accepted claim is still owed, then paid.

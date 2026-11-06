@@ -37,14 +37,27 @@ The package has two parts:
 2. **Find.** `poo bounty list -ask` asks those peers for their open
    offers. Offers paying less than `min_price` per layer are not kept;
    at most `held_offers` are kept.
-3. **Work.** `poo bounty work ID -to ADDR` measures this node's rate,
+3. **Work.** A grinder states the strongest offer it will work, as
+   `bounty.max_strength` (1 to 255; unset sends 255, any) or
+   `-max-strength S` on `poo bounty list -ask` and `poo bounty work`.
+   Every list request and lease carries it (a required byte in bounty
+   version 1), and a payer lists and leases only offers at or under it,
+   so a payer with offers of many strengths gives each to a grinder that
+   says it can work it; a fast machine states a higher one. A grinder
+   also drops peers' offers above its own setting (D202).
+   `poo bounty work ID -to ADDR` measures this node's rate,
    asks the payer for a lease, grinds from a random nonce (so two
    grinders, or two calls, find different layers; RED-109) until it finds a layer, the lease
    ends or `-max-seconds` (at most 240) passes, and claims the layer to
    be paid to `ADDR`.
 4. **Pay.** `poo bounty list` on the payer shows each accepted claim.
    `poo bounty pay ID [-claim NONCE]` pays it from the wallet and tells
-   the grinder the payment's tids.
+   the grinder the payment's tids. It looks in the wallet first: a
+   payment of that claim the wallet sent (memo `bounty <short id>`, the
+   claim's address and amount, every leg sent, its tids on no other
+   claim) that the node never recorded is recorded now, and nothing is
+   sent again (`"recorded": true`). A payment sent only in part is
+   refused, to settle by hand (RED-119, D201).
 5. **Cancel.** `poo bounty cancel ID` closes an offer; accepted claims
    stay owed.
 
@@ -91,7 +104,7 @@ wraps (RED-114).
 ## Settings
 
 Each is a settable limit: `poo policy limits` lists it and `poo policy
-limits -set bounty.post=1` sets it (D198); a running node takes a change
+limits -set bounty.post=on` sets it (D198); a running node takes a change
 on reload. `bounty.post` and `bounty.take` also take `on` and `off`, and
 the reply's `notes` name a setting that cannot work as set: posting on
 without `max_amount` and `budget`, or `max_amount` over `budget`. A node
@@ -131,6 +144,23 @@ with a message to run that release or move the file aside.
 only part that can repeat an offer still in `bounties.json` after a crash
 (ORANGE-047 P1). An offer that finished while the node was stopped, or by
 the clock while it runs, moves to the done file too (GUI-GREEN-063).
+
+`bounties.json` also records the id on the line that ends at `done_size`
+(`done_last`). A start reads from `done_size` only when that line is still
+there; a done file trimmed, rotated or edited since is read in full, and
+the log says so (RED-118, D201). A file written before `done_last` existed
+is read in full once. When the done file's last line was cut short by a
+stop, the start says so and the next record begins on a new line; a write
+that fails part way is taken back. A payment whose save fails is not kept
+in memory either, so the node and a restart agree the claim is unpaid,
+and `poo bounty pay` then records the wallet's payment (RED-119).
+
+## Finished offers
+
+`poo bounty list -done N` (`/v1/bounty?done=N`) adds `done`: the last N
+offers of `bounties-done.jsonl` (at most 256), oldest first, streamed a
+line at a time; a line over 1 MiB or with no offer is skipped and counted
+in `done_skipped` (GREEN-063).
 
 ## What the lists say
 

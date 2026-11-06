@@ -50,6 +50,10 @@ const LEFT_OUT = {
   'series sign': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
   'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', part: 'Sign, under the Release a part preview (poo series parts), runs the previewed part with -part (GUI-027)', alg: 'Sign, under the Release a part preview, sends the Key algorithm the preview was run with' },
   peers: { counts: 'the timed Peers panel runs it, leaving the book to Find peers (ORANGE-017); a panel line is not a form' },
+  // GREEN-063: terminal-only until the GUI adds them (a finished-offers table; watch by a payment's tid).
+  'bounty list': { done: 'finished offers are terminal-only until the Bounty view adds a table for them (GREEN-063)', 'max-strength': 'new in Source Round 39 (D202); GUI/Grey adds its field next, and bounty.max_strength in Set limits applies meanwhile' },
+  'bounty work': { 'max-strength': 'new in Source Round 39 (D202); GUI/Grey adds its field next, and bounty.max_strength in Set limits applies meanwhile' },
+  'wallet watch': { tid: 'watching a payment\'s mint by its tid is terminal-only until the Wallet view adds it (GREEN-063)' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
 // action select shows each action only the ones poo takes for it (only:,
