@@ -67,6 +67,11 @@ const Protocol = 1
 // Config holds the p2p settings, all node policy. Zero values mean the
 // provisional defaults in DefaultConfig.
 type Config struct {
+	// ID, when not zero, is the node id this host says in its hello; zero
+	// draws a fresh one. A node keeps one id for its process, across
+	// reloads, so held offers, leases and records by id survive a reload
+	// (RED-126). It is not an identity (RED-114).
+	ID hash.Hash
 	// Bounty is the node's bounty book (D196); nil when its policy neither
 	// posts nor takes, so the host does not list the feature and ignores
 	// the market's messages.
@@ -574,8 +579,11 @@ func New(n *node.Node, cfg Config) (*Host, error) {
 	h.inbox = newInbox(cfg.QueueShares, cfg.QueueLimit, cfg.QueueBytes)
 	// Blocked addresses never come back as candidates.
 	h.book.SetRefuse(func(addr string) bool { return h.tr.Status(addr, time.Now()).Blocked })
-	if _, err := rand.Read(h.id[:]); err != nil {
-		return nil, err
+	h.id = cfg.ID
+	if h.id.IsZero() {
+		if _, err := rand.Read(h.id[:]); err != nil {
+			return nil, err
+		}
 	}
 	eng := n.Engine()
 	perSeries := map[hash.Hash]int{}

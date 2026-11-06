@@ -49,3 +49,4 @@ added and how Grey checks it. See [AGENTS.md](../../../AGENTS.md#teams-read-firs
 | [BLUE-039](BLUE-039.md) | RED-118, RED-119 (D201) | `claude/project-thread-ggo8dt` | |
 | [BLUE-040](BLUE-040.md) | RED-120, RED-121 (D203) | `claude/project-thread-ggo8dt` | |
 | [BLUE-041](BLUE-041.md) | RED-122, RED-123 (D207) | `claude/project-thread-ggo8dt` | |
+| [BLUE-042](BLUE-042.md) | RED-124, RED-125, RED-126, RED-127 (D209) | `claude/project-thread-ggo8dt` | |

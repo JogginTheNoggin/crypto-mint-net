@@ -91,7 +91,7 @@ func TestOpenCLPlanGrinds(t *testing.T) {
 			t.Fatalf("plan %+v chunk %d entry threads %d", p, p.chunk, p.entryThreads)
 		}
 		entry := hash.Hash{9, byte(id)}
-		l, s, err := layer.GrindSearchChunk(context.Background(), p.search, entry, 100, 300_000, p.Threads, nil, nil, p.chunk)
+		l, s, err := layer.GrindSearchContext(context.Background(), p.search, entry, 100, 300_000, p.Threads, nil, nil, p.chunk)
 		if err != nil {
 			t.Fatal(err)
 		}

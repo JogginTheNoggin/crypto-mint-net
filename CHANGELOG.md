@@ -265,6 +265,14 @@ built.
     refuses to start. The guide says to start fresh.
   - A grinder's held offer of more than 16 layers reads filled once the
     payer accepted every layer.
+- **Round 41 fixes (D209):**
+  - After a GPU driver error, layers are searched on every CPU core, a
+    stop is quick, the GPU is tried again a minute later, and the error
+    is logged and shown in `poon grind devices`.
+  - `POON_OPENCL_ALL` also takes `true`, `yes` and `on`; on Windows the
+    OpenCL library is loaded from System32 only.
+  - A reload keeps the node id, so a held offer, a lease and a claim
+    made across a reload still match.
 - **Round 41 (D208):**
   - GPUs grind: a GPU with an OpenCL driver (NVIDIA, AMD, Intel) searches
     layers of SHA-256 and SHA-512/256 series, in every release build with

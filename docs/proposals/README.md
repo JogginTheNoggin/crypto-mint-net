@@ -91,6 +91,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-063](source/GREEN-063-bounty-done-and-watch-tid.md) | Source | A bounty from post to paid and through a restart: poon bounty list -done N, poon wallet watch -tid | proposed |
 | [GREEN-064](source/GREEN-064-max-strength-flow.md) | Source | A fast and a slow grinder against offers of several strengths: -max-strength over the setting refused, dropped offers explained, list filtered, minute_strength in grind bench | proposed |
 | [GREEN-065](source/GREEN-065-rename-walk.md) | Source | The renamed tool from a fresh install: poon help columns, completion named _poon, doc comments aligned | proposed |
+| [GREEN-066](source/GREEN-066-why-no-gpu.md) | Source | grind devices and doctor say why no GPU grinds (opencl status); POON_OPENCL takes false and no | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |

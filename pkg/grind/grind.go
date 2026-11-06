@@ -29,6 +29,7 @@
 package grind
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -97,6 +98,9 @@ type Grinder struct {
 	// that tries many nonces at once, such as with SIMD lanes; layers are
 	// searched with it and entries still with New (ORANGE-012).
 	Search func(d Device, id hash.ID) (layer.Search, error)
+	// SearchContext, if set, is Search for a search that sees the grind's
+	// context (RED-124); it is used instead of Search.
+	SearchContext func(d Device, id hash.ID) (layer.SearchContext, error)
 	// Has, if set, says whether this grinder runs on device d: a GPU
 	// grinder runs only on a GPU its driver lists (D208).
 	Has func(d Device) bool
@@ -237,7 +241,7 @@ type Plan struct {
 	Reason   string `json:"reason"`
 
 	newHasher hash.NewHasher
-	search    layer.Search
+	search    layer.SearchContext
 	chunk     uint64
 	// entryThreads grind entries when the device is not the CPU: a GPU
 	// searches layers, and entries are ground on the CPU (D208).
@@ -299,15 +303,22 @@ func (r *Registry) Choose(devs []Device, id hash.ID, want string, threads int) (
 	if err != nil {
 		return Plan{}, err
 	}
-	var search layer.Search
+	var search layer.SearchContext
 	var chunk uint64
-	if g.Search != nil {
-		if search, err = g.Search(d, id); err != nil {
+	switch {
+	case g.SearchContext != nil:
+		if search, err = g.SearchContext(d, id); err != nil {
 			return Plan{}, fmt.Errorf("grind: %s: %w", d.ID, err)
 		}
-		if g.Chunk != nil {
-			chunk = g.Chunk(d, id)
+	case g.Search != nil:
+		s, err := g.Search(d, id)
+		if err != nil {
+			return Plan{}, fmt.Errorf("grind: %s: %w", d.ID, err)
 		}
+		search = func(_ context.Context, e hash.Hash, from, n uint64) (uint64, int) { return s(e, from, n) }
+	}
+	if search != nil && g.Chunk != nil {
+		chunk = g.Chunk(d, id)
 	}
 	switch {
 	case fallback:
@@ -340,7 +351,7 @@ func defaultThreads(d Device) int {
 // Engine returns the engine.Grind for this plan, counting tries in tried
 // if not nil.
 func (p Plan) Engine(tried *atomic.Uint64) engine.Grind {
-	return engine.Grind{New: p.newHasher, Workers: p.Threads, Tried: tried, Search: p.search, Chunk: p.chunk, EntryWorkers: p.entryThreads}
+	return engine.Grind{New: p.newHasher, Workers: p.Threads, Tried: tried, SearchContext: p.search, Chunk: p.chunk, EntryWorkers: p.entryThreads}
 }
 
 // newDefault returns a registry with the CPU probe, the GPU probe, a fast
@@ -387,6 +398,48 @@ func (h funcHasher) Hash(suffix []byte) hash.Hash { return h.f(h.prefix, suffix)
 // gpuProbe lists the GPUs: probeGPUs, or the OpenCL probe where the GPU
 // grinder is built in (D208).
 var gpuProbe = probeGPUs
+
+// openCLStatus says what the GPU grinder found; the OpenCL build sets it.
+var openCLStatus = func() string { return "this build has no GPU grinder (OpenCL)" }
+
+// OpenCLStatus says, in one line, what the GPU grinder found: how many
+// OpenCL devices, or why none (turned off, no library, no driver). poon
+// grind devices and doctor show it, so a machine whose GPU is not listed
+// says why even when no GPU was found to hang a note on (GREEN-066).
+func OpenCLStatus() string { return openCLStatus() }
+
+// openCLStatusOf is OpenCLStatus from what the OpenCL probe found.
+func openCLStatusOf(n int, err error) string {
+	switch {
+	case err != nil:
+		return "no GPU grinder: " + err.Error()
+	case n == 0:
+		return "no GPU grinder: an OpenCL driver is installed but lists no GPU"
+	case n == 1:
+		return "OpenCL: 1 device"
+	}
+	return fmt.Sprintf("OpenCL: %d devices", n)
+}
+
+// openCLOff reports whether a $POON_OPENCL value turns the GPU grinder
+// off: off, 0, false or no, in any case (GREEN-066).
+func openCLOff(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "off", "0", "false", "no":
+		return true
+	}
+	return false
+}
+
+// openCLOn reports whether a $POON_OPENCL_ALL value turns it on: 1,
+// true, yes or on, in any case (RED-125).
+func openCLOn(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
 
 // threadsOf is runtime.NumCPU, a variable for tests.
 var threadsOf = runtime.NumCPU

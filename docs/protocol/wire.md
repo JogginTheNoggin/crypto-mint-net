@@ -189,7 +189,8 @@ that connection only, with no lasting offence (`wire.ErrBadExtras`,
 D190); any other malformed message is an offence as usual.
 
 Each side sends its hello first and sends nothing else until it has read
-the other's, within 10 seconds. The node id is random per run. A node
+the other's, within 10 seconds. The node id is random per run of the
+node's process; a reload keeps it (RED-126, D209). A node
 closes the connection when the node id is its own, when it is already
 connected to that node id (two nodes that dial each other at once both keep
 the connection dialled by the node with the lower id), when it has too many

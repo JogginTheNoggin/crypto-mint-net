@@ -13,6 +13,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/grind"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/logging"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/node"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
@@ -62,8 +64,14 @@ func Run(ctx context.Context, dir string, o Options) error {
 	log = &lockedWriter{w: log}
 	reloading := false
 	var lockedSince time.Time
+	// One node id for the process: a reload keeps it, so peers' held
+	// offers, leases and records by id still name this node (RED-126).
+	var id hash.Hash
+	if _, err := rand.Read(id[:]); err != nil {
+		return err
+	}
 	for {
-		again, err := runOnce(ctx, dir, log, o)
+		again, err := runOnce(ctx, dir, id, log, o)
 		// A reload closes the node, which lets go of the data directory's
 		// lock, then opens it again. A command that takes the lock in that
 		// gap (an offline poon policy limits -set or series add-release,
@@ -105,7 +113,7 @@ var reloadLockWait = 10 * time.Second
 
 // runOnce runs the node until ctx is done or a reload is asked for, and
 // reports which.
-func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload bool, err error) {
+func runOnce(ctx context.Context, dir string, id hash.Hash, log io.Writer, o Options) (reload bool, err error) {
 	n, err := node.Open(dir, node.Options{Log: log, LogLevel: o.LogLevel, LogFormat: o.LogFormat, Reverify: o.Reverify})
 	if err != nil {
 		return false, err
@@ -119,6 +127,7 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	asked := make(chan struct{})
 	ask := func() { once.Do(func() { close(asked) }) }
 	cfg := p2p.FromPolicy(n.Policy())
+	cfg.ID = id
 	cfg.Logger = n.Logger()
 	// A release passed on by a peer that the host cannot take in place
 	// reloads the node (D168).
