@@ -260,8 +260,8 @@ try {
   assert.match(await wpay.locator('.cmd code').innerText(), / -change cc11$/);
   await wpay.locator('input[name=change]').fill('');
   // Pay's one confirm warns when no co-signing file is filled in, and
-  // only then; poo's "signatures missing" with no file gets a line that
-  // says nothing was sent or written (GUI-GREEN-061).
+  // only then (GUI-GREEN-061). poo refuses such a payment before it
+  // records anything (Source #291), so no line of the GUI's follows.
   await wpay.locator('input[name=to]').fill('ab12');
   await wpay.locator('input[name=amount]').fill('5');
   const asked = [];
@@ -276,12 +276,6 @@ try {
   assert.equal(asked[1], 'Run poo wallet pay -wallet w2.json -to ab12 -amount 5 -out pay.json?');
   assert.equal(await wpay.locator('.run-status').count(), 0, 'a dismissed confirm runs nothing');
   for (const n of ['to', 'amount', 'out']) await wpay.locator(`input[name=${n}]`).fill('');
-  const un = await page.evaluate(async () => {
-    const { unsignedNote } = await import('/views/wallet.js');
-    const out = 'signatures missing (per leg, per input): [[1]]\npass -out FILE to write the payment for co-signers (or for poo sign, with a key kept off the node)\n';
-    return [unsignedNote({ code: 0, out }, '')?.textContent, unsignedNote({ code: 0, out }, 'pay.json'), unsignedNote({ code: 0, out: '{"legs": []}' }, ''), unsignedNote({ code: 1, out }, '')];
-  });
-  assert.deepEqual(un, ['Nothing was sent, and no file was written for the key to sign. The wallet has recorded this payment and holds its units: Payments sent lists it as unsigned. Next time, fill in Co-signing file before you press Pay.', null, null, null]);
   // The seven cold-key steps are folded; each step's button goes to its
   // form, and the first links to Make a key.
   const cold = page.locator('section.cold-key');

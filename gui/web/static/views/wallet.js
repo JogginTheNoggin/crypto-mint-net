@@ -36,14 +36,6 @@ export function payQuestion(line, out) {
   return out ? `Run ${line}?` : `Run ${line}?\n\nNo co-signing file is filled in. If this wallet is watch-only, or pays from a shared policy, fill one in first: it is the file the key signs, and poo refuses such a payment without one.`;
 }
 
-// unsignedNote is the line over a payment poo recorded with signatures
-// missing and no co-signing file (poo's "signatures missing" line, exit
-// 0): nothing was sent and nothing was written (GUI-GREEN-061).
-export function unsignedNote(r, out) {
-  if (out || r.code !== 0 || !/^signatures missing/m.test(r.out)) return null;
-  return el('p', { class: 'next-step unsigned-note', role: 'alert' }, 'Nothing was sent, and no file was written for the key to sign. The wallet has recorded this payment and holds its units: Payments sent lists it as unsigned. Next time, fill in Co-signing file before you press Pay.');
-}
-
 // COLD_STEPS is a key kept off this machine from start to end (D193):
 // where each step runs, and the form or view that runs it.
 const COLD_STEPS = [
@@ -120,7 +112,6 @@ export const walletView = {
       // Its one confirm warns when no co-signing file is filled in
       // (GUI-GREEN-061).
       danger: true, dangerText: v => payQuestion(api.quote(payArgs(v)), v.out),
-      onResult: (r, area) => { const n = unsignedNote(r, area.closest('section').querySelector('[name=out]').value.trim()); if (n) area.prepend(n); },
       submit: 'Pay' }),
       // A shared k-of-n payment from start to end (GREEN-039): Pay with a
       // co-signing file writes what co-signers sign; each runs cosign on
