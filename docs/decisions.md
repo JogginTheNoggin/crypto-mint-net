@@ -5874,3 +5874,48 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Tier:** CLI, bounty, docs.
   - `pkg/cli/blue041_test.go`: `TestBlue041ViewOnlyFailsClosed`.
   - `pkg/bounty/blue041_test.go`: `TestBlue041HeldFilledPastMaxAcks`.
+
+### D208. Round 41: a GPU grinder through OpenCL, in every build (jerry)
+- **Decision.** jerry (2026-11-06) asked for the GPU grinder. Grinding is
+  node work outside consensus (M11, D109), so this is node code only.
+  - **OpenCL**, so one kernel runs on NVIDIA, AMD and Intel GPUs, whose
+    drivers all ship it. CUDA would serve NVIDIA alone and needs a
+    toolkit to build.
+  - **No cgo.** The OpenCL library is opened at run time with
+    `github.com/ebitengine/purego` v0.11.2 (a pure-Go `dlopen`), so the
+    pure-Go cross-compiled release builds have the grinder: Linux, macOS
+    and Windows, amd64 and arm64. FreeBSD's pure-Go build cannot use
+    purego, so it has no GPU grinder. A machine without the library or
+    a driver lists its GPUs with a note saying why.
+  - **Layers only, SHA-256 and SHA-512/256** (the example and the default
+    series): a layer is one padded block. Entries are ground on the CPU
+    with every core but one (`engine.Grind.EntryWorkers`). Other hashes
+    keep the CPU.
+  - **Same result as the CPU:** the strongest layer of the nonces tried,
+    the lowest nonce among equals; tested against the CPU search for both
+    hashes with PoCL (OpenCL on the CPU), and on jerry's GPU.
+  - **Chunks:** a search takes about 50 ms of the device's work at a
+    time (`Grinder.Chunk`, `layer.GrindSearchChunk`), so a stop is seen
+    within that. `grind.layer_floor` then sees the strongest layer of each
+    chunk, not of each 4,096 nonces.
+  - **Devices:** an OpenCL device is matched to the system's GPU by PCI
+    address, else by vendor in order; `Grinder.Has` says per device
+    whether a grinder runs, so `auto` never picks a GPU without a driver.
+  - **A driver failing mid-search** moves that search to the CPU, with the
+    same result; nothing panics.
+  - `POON_OPENCL=off` turns it off; `POON_OPENCL_ALL=1` takes non-GPU
+    OpenCL devices too, for tests.
+  - jerry's findings 11 and 12: `poon doctor` names the devices that grind
+    and those found with no grinder; a device with no grinder for a hash
+    is `grind.ErrNoGrinder` ("gpu:1 has no grinder for sha3-256", with the
+    device's note), not "no such device"; `poon grind bench -device ID`
+    with no series measures the hashes the device grinds.
+- **Why:** GPUs grind layers many times faster than CPUs, and jerry wants
+  them used.
+- **Consensus:** None. A grinder only finds nonces; every result is
+  checked by the same rules.
+- **Tier:** Grind, layer, engine, CLI, docs.
+  - `pkg/grind/opencl_test.go`: `TestOpenCLSearchMatchesCPU`,
+    `TestOpenCLPlanGrinds`, `TestMatchOpenCL`.
+  - `pkg/grind/main_test.go`: tests list GPUs without the driver, so they
+    pass the same with or without a GPU.

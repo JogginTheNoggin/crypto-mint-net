@@ -44,7 +44,7 @@ func RunBench(ctx context.Context, p Plan, d time.Duration) (Bench, error) {
 	t0 := time.Now()
 	var err error
 	if p.search != nil {
-		_, _, err = layer.GrindSearch(ctx, p.search, entry, 0, 0, p.Threads, &tried)
+		_, _, err = layer.GrindSearchChunk(ctx, p.search, entry, 0, 0, p.Threads, &tried, nil, p.chunk)
 	} else {
 		_, _, err = layer.GrindWith(ctx, p.newHasher, entry, 0, 0, p.Threads, &tried)
 	}

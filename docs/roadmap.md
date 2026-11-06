@@ -32,7 +32,7 @@ on whatever hardware it has, is the next priority (Source Round 5).
 | M8 | Hardening and open release | In progress (owner steps left) |
 | M9 | Cryptographic choice for mints | Done |
 | M10 | Viewing, watching and live following | Done |
-| M11 | Grinders: fast work on any hardware, for any hash | Done (GPU grinders to come) |
+| M11 | Grinders: fast work on any hardware, for any hash | Done (GPUs through OpenCL, D208) |
 
 ### M1: Consensus core and full-node engine (done)
 
@@ -259,7 +259,7 @@ Built in Source Round 5 (D109, [modules/grind.md](modules/grind.md)):
 `poon grind` (devices, bench, start, run, jobs, stop), `/v1/grind/*`,
 `-device`, `-threads` and `-for` on `poon build` and `poon work`, the
 `grind` section of `node.json`, watch kind `grind` and metrics. The CPU
-has a fast grinder for every hash; GPUs are detected and listed, and
-get used once a GPU grinder is registered. Nothing about consensus
+has a fast grinder for every hash; GPUs with an OpenCL driver grind
+SHA-256 and SHA-512/256 layers (D208). Nothing about consensus
 changed: a grinder only finds nonces faster.
 

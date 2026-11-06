@@ -77,6 +77,10 @@ type Device struct {
 	// Note says anything a user should know, such as a device found but
 	// without a grinder yet.
 	Note string `json:"note,omitempty"`
+
+	// cl is the index+1 of the OpenCL device that is this device, 0 for
+	// none (D208).
+	cl int
 }
 
 // Grinder grinds one hash, or any hash, on one kind of device.
@@ -93,6 +97,12 @@ type Grinder struct {
 	// that tries many nonces at once, such as with SIMD lanes; layers are
 	// searched with it and entries still with New (ORANGE-012).
 	Search func(d Device, id hash.ID) (layer.Search, error)
+	// Has, if set, says whether this grinder runs on device d: a GPU
+	// grinder runs only on a GPU its driver lists (D208).
+	Has func(d Device) bool
+	// Chunk, if set, is how many nonces Search takes at a time on device
+	// d (0: the CPU's 4,096); a GPU takes millions (D208).
+	Chunk func(d Device, id hash.ID) uint64
 }
 
 // Registry holds the grinders and device probes. The zero value is empty;
@@ -126,15 +136,16 @@ func (r *Registry) RegisterProbe(p func() []Device) {
 	r.probes = append(r.probes, p)
 }
 
-// grinder returns the grinder for kind k and hash id: the fast one, else
-// the generic one (fallback true).
-func (r *Registry) grinder(k Kind, id hash.ID) (g Grinder, fallback, ok bool) {
+// grinder returns the grinder for device d and hash id: the fast one,
+// else the generic one (fallback true).
+func (r *Registry) grinder(d Device, id hash.ID) (g Grinder, fallback, ok bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	if g, ok := r.grinders[k][id]; ok {
+	runs := func(g Grinder) bool { return g.Has == nil || g.Has(d) }
+	if g, ok := r.grinders[d.Kind][id]; ok && runs(g) {
 		return g, false, true
 	}
-	if g, ok := r.grinders[k][0]; ok {
+	if g, ok := r.grinders[d.Kind][0]; ok && runs(g) {
 		return g, true, true
 	}
 	return Grinder{}, false, false
@@ -163,11 +174,11 @@ func (r *Registry) Detect() []Device {
 		d := &devs[i]
 		d.Hashes = []string{}
 		for _, id := range hash.IDs() {
-			if g, fallback, ok := r.grinder(d.Kind, id); ok && !fallback && g.Hash == id {
+			if g, fallback, ok := r.grinder(*d, id); ok && !fallback && g.Hash == id {
 				d.Hashes = append(d.Hashes, id.Name())
 			}
 		}
-		d.Generic = r.hasGeneric(d.Kind)
+		d.Generic = r.hasGeneric(*d)
 		if len(d.Hashes) == 0 && !d.Generic && d.Note == "" {
 			d.Note = "found, but no grinder runs on it yet; auto uses another device"
 		}
@@ -180,11 +191,11 @@ func (r *Registry) Detect() []Device {
 	return devs
 }
 
-func (r *Registry) hasGeneric(k Kind) bool {
+func (r *Registry) hasGeneric(d Device) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	_, ok := r.grinders[k][0]
-	return ok
+	g, ok := r.grinders[d.Kind][0]
+	return ok && (g.Has == nil || g.Has(d))
 }
 
 // autoIndex returns the device auto picks for hash id: a device other
@@ -194,7 +205,7 @@ func (r *Registry) hasGeneric(k Kind) bool {
 func (r *Registry) autoIndex(devs []Device, id hash.ID) (int, bool) {
 	best, bestRank := -1, 0
 	for i, d := range devs {
-		_, fallback, ok := r.grinder(d.Kind, id)
+		_, fallback, ok := r.grinder(d, id)
 		if !ok {
 			continue
 		}
@@ -227,11 +238,19 @@ type Plan struct {
 
 	newHasher hash.NewHasher
 	search    layer.Search
+	chunk     uint64
+	// entryThreads grind entries when the device is not the CPU: a GPU
+	// searches layers, and entries are ground on the CPU (D208).
+	entryThreads int
 }
 
-// ErrNoDevice is returned for a device that is not there or cannot grind
-// the hash.
-var ErrNoDevice = errors.New("grind: no such device")
+// ErrNoDevice is returned for a device that is not there, and
+// ErrNoGrinder for one that is there but has no grinder for the hash
+// (jerry's finding 12: "no such device" misled).
+var (
+	ErrNoDevice  = errors.New("grind: no such device")
+	ErrNoGrinder = errors.New("grind: no grinder")
+)
 
 // MaxThreads bounds the threads one search may ask for.
 const MaxThreads = nodepolicy.MaxGrindThreads
@@ -268,18 +287,26 @@ func (r *Registry) Choose(devs []Device, id hash.ID, want string, threads int) (
 		d = devs[i]
 		why = "asked for: "
 	}
-	g, fallback, ok := r.grinder(d.Kind, id)
+	g, fallback, ok := r.grinder(d, id)
 	if !ok {
-		return Plan{}, fmt.Errorf("%w: %s has no grinder for %s", ErrNoDevice, d.ID, id.Name())
+		why := ""
+		if d.Note != "" {
+			why = " (" + d.Note + ")"
+		}
+		return Plan{}, fmt.Errorf("%w: %s has no grinder for %s%s", ErrNoGrinder, d.ID, id.Name(), why)
 	}
 	nh, err := g.New(d, id)
 	if err != nil {
 		return Plan{}, err
 	}
 	var search layer.Search
+	var chunk uint64
 	if g.Search != nil {
 		if search, err = g.Search(d, id); err != nil {
-			return Plan{}, err
+			return Plan{}, fmt.Errorf("grind: %s: %w", d.ID, err)
+		}
+		if g.Chunk != nil {
+			chunk = g.Chunk(d, id)
 		}
 	}
 	switch {
@@ -296,7 +323,11 @@ func (r *Registry) Choose(devs []Device, id hash.ID, want string, threads int) (
 	if d.Threads > 0 && threads > d.Threads {
 		threads = d.Threads
 	}
-	return Plan{Device: d.ID, Kind: d.Kind, Grinder: g.Name, Hash: id.Name(), Threads: threads, Fallback: fallback, Reason: why, newHasher: nh, search: search}, nil
+	p := Plan{Device: d.ID, Kind: d.Kind, Grinder: g.Name, Hash: id.Name(), Threads: threads, Fallback: fallback, Reason: why, newHasher: nh, search: search, chunk: chunk}
+	if d.Kind != CPU {
+		p.entryThreads = max(1, threadsOf()-1)
+	}
+	return p, nil
 }
 
 func defaultThreads(d Device) int {
@@ -309,7 +340,7 @@ func defaultThreads(d Device) int {
 // Engine returns the engine.Grind for this plan, counting tries in tried
 // if not nil.
 func (p Plan) Engine(tried *atomic.Uint64) engine.Grind {
-	return engine.Grind{New: p.newHasher, Workers: p.Threads, Tried: tried, Search: p.search}
+	return engine.Grind{New: p.newHasher, Workers: p.Threads, Tried: tried, Search: p.search, Chunk: p.chunk, EntryWorkers: p.entryThreads}
 }
 
 // newDefault returns a registry with the CPU probe, the GPU probe, a fast
@@ -317,7 +348,7 @@ func (p Plan) Engine(tried *atomic.Uint64) engine.Grind {
 func newDefault() *Registry {
 	r := &Registry{}
 	r.RegisterProbe(probeCPU)
-	r.RegisterProbe(probeGPUs)
+	r.RegisterProbe(func() []Device { return gpuProbe() })
 	for _, id := range hash.IDs() {
 		r.Register(Grinder{Name: "cpu-midstate", Kind: CPU, Hash: id, New: func(_ Device, id hash.ID) (hash.NewHasher, error) {
 			return hash.GrinderFor(id), nil
@@ -352,6 +383,10 @@ type funcHasher struct {
 }
 
 func (h funcHasher) Hash(suffix []byte) hash.Hash { return h.f(h.prefix, suffix) }
+
+// gpuProbe lists the GPUs: probeGPUs, or the OpenCL probe where the GPU
+// grinder is built in (D208).
+var gpuProbe = probeGPUs
 
 // threadsOf is runtime.NumCPU, a variable for tests.
 var threadsOf = runtime.NumCPU

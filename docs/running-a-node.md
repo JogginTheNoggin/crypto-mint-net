@@ -336,6 +336,25 @@ for 10 minutes or block it for a day. You can look and act yourself:
 ./poon chases                            # heavier ledgers waiting to be checked
 ```
 
+### Grinding on a GPU
+
+A GPU with an OpenCL driver grinds layers of SHA-256 and SHA-512/256
+series (the example and the default series), with nothing to build or
+install beyond the GPU vendor's driver (D208). NVIDIA's driver includes
+OpenCL; on Debian and Ubuntu, `clinfo` (package `clinfo`) shows whether
+the system sees it, and some systems need `ocl-icd-libopencl1`.
+
+```sh
+./poon grind devices                     # the GPU lists "hashes": ["sha256", "sha512-256"]
+./poon grind bench -device gpu:1         # its rate for each hash it grinds
+./poon work -serial 5 -entry ENTRY       # auto picks the GPU for layers
+```
+
+`auto` takes the GPU for layers of those hashes, and the CPU for
+everything else; entries are always ground on the CPU. A GPU listed with a
+note has no grinder, and the note says why (no OpenCL library, or no
+driver lists it). `POON_OPENCL=off` turns the GPU grinder off.
+
 ### Paying peers to grind layers (bounty market)
 
 Two nodes that are connected can trade grinding work (D196). It is off

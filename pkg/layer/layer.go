@@ -171,12 +171,29 @@ func GrindSearch(ctx context.Context, search Search, entry hash.Hash, start, tri
 
 // GrindSearchKeep is GrindSearch that also hands layers to keep, if not nil.
 func GrindSearchKeep(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep) (Layer, int, error) {
-	return grind(ctx, entry, start, tries, workers, tried, keep, func() (Search, error) { return search, nil })
+	return GrindSearchChunk(ctx, search, entry, start, tries, workers, tried, keep, 0)
+}
+
+// GrindSearchChunk is GrindSearchKeep with ranges of chunk nonces instead
+// of checkEvery (0: checkEvery), for a search that hashes many nonces at
+// once on another device, such as a GPU (D208): it looks at ctx and adds
+// to tried once a chunk, and keep sees the strongest layer of each chunk.
+// The result is the same whatever the chunk.
+func GrindSearchChunk(ctx context.Context, search Search, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, chunk uint64) (Layer, int, error) {
+	if chunk == 0 {
+		chunk = checkEvery
+	}
+	return grindChunk(ctx, entry, start, tries, workers, tried, keep, chunk, func() (Search, error) { return search, nil })
 }
 
 // grind splits the nonces between workers, each searching its own range
 // with the Search newSearch makes for it.
 func grind(ctx context.Context, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, newSearch func() (Search, error)) (Layer, int, error) {
+	return grindChunk(ctx, entry, start, tries, workers, tried, keep, checkEvery, newSearch)
+}
+
+// grindChunk is grind with ranges of chunk nonces.
+func grindChunk(ctx context.Context, entry hash.Hash, start, tries uint64, workers int, tried *atomic.Uint64, keep *Keep, chunkSize uint64, newSearch func() (Search, error)) (Layer, int, error) {
 	if workers < 1 {
 		workers = 1
 	}
@@ -211,7 +228,7 @@ func grind(ctx context.Context, entry hash.Hash, start, tries uint64, workers in
 			}
 			best, bestStrength := Layer{Entry: entry, Nonce: from}, -1
 			for done := uint64(0); done < n; {
-				chunk := min(n-done, checkEvery)
+				chunk := min(n-done, chunkSize)
 				nonce, s := search(entry, from+done, chunk)
 				if s > bestStrength {
 					best, bestStrength = Layer{Entry: entry, Nonce: nonce}, s

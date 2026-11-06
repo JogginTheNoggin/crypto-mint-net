@@ -226,7 +226,10 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 			}
 			p, err := grind.Default.Choose(devs, id, d.ID, *threads)
 			if err != nil {
-				if *device != "" {
+				// A named device with every hash: only the hashes it
+				// grinds (a GPU grinds two, D208); a named hash or
+				// series it cannot grind is an error.
+				if *device != "" && (*seriesID != "" || !errors.Is(err, grind.ErrNoGrinder)) {
 					return err
 				}
 				skipped = err
