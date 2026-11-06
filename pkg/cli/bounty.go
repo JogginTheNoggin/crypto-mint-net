@@ -20,7 +20,7 @@ import (
 
 const bountyUsage = `usage:
   poo bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
-  poo bounty list [-ask]
+  poo bounty list [-ask] [-done N]
   poo bounty work ID -to ADDR [-max-seconds N]
   poo bounty pay ID [-claim NONCE] [-wallet FILE]
   poo bounty cancel ID`
@@ -99,6 +99,7 @@ func bountyList(args []string, out io.Writer) error {
 	fs := newFlagSet("bounty list", out)
 	c := addClient(fs)
 	ask := fs.Bool("ask", false, "first ask connected peers for their open offers, and wait a moment for answers")
+	done := fs.Int("done", 0, "also list this node's last N finished offers (filled or closed, every layer paid; at most 256), which leave the list")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -118,7 +119,12 @@ func bountyList(args []string, out io.Writer) error {
 		}
 		time.Sleep(BountyAskWait)
 	}
-	rep, err := cl.Bounty()
+	var rep rpc.BountyReply
+	if *done > 0 {
+		rep, err = cl.BountyDone(*done)
+	} else {
+		rep, err = cl.Bounty()
+	}
 	if err != nil {
 		return err
 	}

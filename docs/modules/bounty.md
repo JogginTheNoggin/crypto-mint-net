@@ -132,6 +132,13 @@ only part that can repeat an offer still in `bounties.json` after a crash
 (ORANGE-047 P1). An offer that finished while the node was stopped, or by
 the clock while it runs, moves to the done file too (GUI-GREEN-063).
 
+## Finished offers
+
+`poo bounty list -done N` (`/v1/bounty?done=N`) adds `done`: the last N
+offers of `bounties-done.jsonl` (at most 256), oldest first, streamed a
+line at a time; a line over 1 MiB or with no offer is skipped and counted
+in `done_skipped` (GREEN-063).
+
 ## What the lists say
 
 Each offer has `state` and, when it has open seconds, `closes`. This

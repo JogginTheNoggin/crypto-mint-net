@@ -54,7 +54,7 @@ for a caller of `cli.Run`, such as the GUI.
 | `poo grind schedule remove N... \| -all` | Removes scheduled jobs, numbered from 1 as listed; a running node stops them. `-target T` also checks that each numbered job grinds T, as a check on what was meant. The removal names the whole job, so it is refused if the schedule changed meanwhile, and the add, remove and set commands change the section on the node, so two at once both apply (D125) |
 | `poo grind schedule set [-device D] [-threads N] [-layer-floor S] [-layer-rate R]` | Sets the defaults of every job, build and work; `-device auto` clears the device; `-layer-floor` sets `grind.layer_floor` (D118) and `-layer-rate` sets `grind.layer_rate`, the most layers a second the floor adds (D122) |
 | `poo bounty post -entry HASH -strength S -amount A [-count N] [-open SECONDS] [-pool K] [-serial N]` | Posts an offer to pay A units for each of N layers of at least strength S on an entry this node holds (in the pool that holds it, found when no pool is named; GREEN-061), sent to direct peers that take bounties; needs node.json's `bounty.post` (D196) |
-| `poo bounty list [-ask]` | This node's offers with their leases and claims, the offers peers sent, and what each payer accepted and paid; `-ask` first asks peers for their open offers and waits two seconds |
+| `poo bounty list [-ask] [-done N]` | This node's offers with their leases and claims, the offers peers sent, and what each payer accepted and paid; `-ask` first asks peers for their open offers and waits two seconds; `-done N` adds the last N finished offers (at most 256) from `bounties-done.jsonl` (GREEN-063) |
 | `poo bounty work ID -to ADDR [-max-seconds N]` | Takes a lease on a peer's offer, grinds the layer from a random nonce (at most 240 seconds, or the lease) and claims it, paid to ADDR; the outcome may be `known` (the payer holds that layer) or `no lease` (D197) |
 | `poo bounty pay ID [-claim NONCE] [-wallet FILE]` | Pays an accepted claim on one of this node's offers from the wallet and tells the grinder the payment's tids; a watch-only wallet cannot pay yet |
 | `poo bounty cancel ID` | Closes one of this node's offers; accepted claims stay owed |
@@ -155,7 +155,7 @@ stopped. Flags go before positional arguments.
 | `passwd [-new-passphrase-file FILE]` | Seals the seed under a new passphrase (`$POO_NEW_PASSPHRASE`); a watch-only wallet is refused before any passphrase is asked for |
 | `address [-label TEXT]` | Gives out a fresh address, with its public key for co-signers |
 | `addresses` | Every address the wallet watches: derived keys (the gap included) and shared policies |
-| `watch [-serial N]... [-pool K]...` | Adds mints to look for portions in |
+| `watch [-serial N]... [-pool K]... [-tid HASH]...` | Adds mints to look for portions in; `-tid` asks the node for a transaction and adds its mint, such as a bounty payment's (GREEN-063) |
 | `follow` | Rewrites the node policy to follow only the pools of the watched mints (light mode); a running node applies it at once |
 | `balance` | Spendable units per watched mint |
 | `claim -serial N` | Claims a whole mint for a fresh address |

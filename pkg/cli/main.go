@@ -158,7 +158,9 @@ Usage:
                               key kept off the node; needs no node (D193)
   poo bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
                               offer to pay for layers on an entry (D196)
-  poo bounty list [-ask]      this node's offers and those peers sent
+  poo bounty list [-ask] [-done N]
+                              this node's offers and those peers sent; -done
+                              adds its last N finished ones
   poo bounty work ID -to ADDR [-max-seconds N]
                               lease a peer's offer, grind the layer, claim it
   poo bounty pay ID [-claim NONCE] [-wallet FILE]

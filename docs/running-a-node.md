@@ -356,12 +356,22 @@ the pool that holds it), and the grinder finds, works and claims it:
 ./poo bounty list
 ./poo bounty pay OFFER_ID
 ./poo bounty cancel OFFER_ID            # close the offer early
+./poo bounty list -done 20              # finished offers, which leave the list
+# on the grinder: the paid ack names the payment's tid; watch its mint
+./poo bounty list                       # held[].acks[]: "paid" with "tids"
+./poo wallet watch -tid TID
+./poo wallet balance
 ```
 
 A grinder works an offer alone for the length of its lease (about three
 times the expected time at its rate). The payout address is fixed when
-the lease is taken. Payment is an ordinary payment, so the grinder sees
-it with `poo wallet balance` once it settles. In this first phase the
+the lease is taken. Payment is an ordinary payment from whichever mint
+the payer holds, so the grinder's wallet sees it only once it watches
+that mint: `poo wallet watch -tid TID` asks the node which mint the
+payment is in. Note the tid before the grinder's node restarts, since
+peers' offers and their acks are kept in memory only. An offer that
+needs nothing more (filled or closed, every layer paid) leaves `poo
+bounty list` for `bounties-done.jsonl`; `-done N` shows the last N. In this first phase the
 payer pays by hand, a watch-only wallet cannot pay, and offers reach
 direct peers only. See [docs/modules/bounty.md](modules/bounty.md) for
 every setting.
