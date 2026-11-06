@@ -285,7 +285,8 @@ export const watchView = {
 // on it. Bar heights are scaled to the largest own weight on the page, and
 // every number shown is a field poon ledger printed (the tooltip has the
 // rest). It computes nothing about the ledger itself. fromTip marks the
-// newest bar as the tip.
+// newest bar as the tip; link(entry), if given, makes each bar a link to
+// that address (the Ledger view opens the entry).
 const SVG = 'http://www.w3.org/2000/svg';
 function svg(tag, attrs, text) {
   const e = document.createElementNS(SVG, tag);
@@ -293,7 +294,7 @@ function svg(tag, attrs, text) {
   if (text !== undefined) e.textContent = text;
   return e;
 }
-export function ledgerPicture(page, { fromTip = false } = {}) {
+export function ledgerPicture(page, { fromTip = false, link } = {}) {
   const entries = Array.isArray(page && page.entries) ? page.entries.slice().reverse() : [];
   if (!entries.length) return null;
   const W = 46, GAP = 18, H = 90, TOP = 16, BOTTOM = 34;
@@ -314,10 +315,14 @@ export function ledgerPicture(page, { fromTip = false } = {}) {
     g.append(svg('text', { class: 'lp-tx', x: x + W / 2, y: TOP + H + 28, 'text-anchor': 'middle' }, `${e.tx_count} tx`));
     // The link to the parent, when the parent is the bar on the left.
     if (i > 0 && entries[i - 1].hash === e.parent) g.append(svg('line', { class: 'lp-link', x1: x - GAP, y1: TOP + H / 2, x2: x, y2: TOP + H / 2 }));
-    s.append(g);
+    if (link) {
+      const a = svg('a', { href: link(e), class: 'lp-go', 'aria-label': `Open the entry at height ${e.height}` });
+      a.append(g);
+      s.append(a);
+    } else s.append(g);
   });
   const wrap = el('figure', { class: 'ledger-fig' }, s,
-    el('figcaption', { class: 'hint' }, 'Oldest on the left. Bar: the entry\'s own weight, scaled to the largest on this page; the number above is exact. Hover for the rest.'));
+    el('figcaption', { class: 'hint' }, `Oldest on the left. Bar: the entry's own weight, scaled to the largest on this page; the number above is exact. Hover for the rest${link ? ', click to open it' : ''}.`));
   return wrap;
 }
 

@@ -30,3 +30,13 @@ export function applyTheme() {
   if (t === 'system') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.dataset.theme = t;
 }
+
+// showCommands says whether views show the poon command line behind each
+// panel and form (with Run in terminal and Copy). It is off unless turned
+// on in Settings: the views are the way to act, and the command lines are
+// for someone who wants to learn or script them (jerry, R41). Hiding them
+// changes nothing that runs.
+const SHOW = store.SHOW_COMMANDS;
+export function showCommands() { return load(SHOW) === '1'; }
+export function setShowCommands(on) { save(SHOW, on ? '1' : '0'); applyCommands(); }
+export function applyCommands() { document.documentElement.classList.toggle('show-cmds', showCommands()); }

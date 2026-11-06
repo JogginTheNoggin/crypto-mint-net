@@ -117,9 +117,9 @@ try {
   assert.equal(await hold.locator('.cmd code').innerText(), 'poon unspent -serial 5');
   await hold.locator('button[type=submit]').click();
   await hold.locator('.run-status.ok').waitFor();
-  // Its address links to Explore's address lookup.
-  await hold.locator('a.lookup[href^="#/explore?address="]').first().click();
-  await section('An address').locator('.run-status.ok').waitFor();
+  // Its address links to the Ledger view's address (R41).
+  await hold.locator('a.lookup[href^="#/ledger?address="]').first().click();
+  await page.locator('.ledger-balance').waitFor();
 
   // Explore: the ledger and the transaction, through the same filters.
   await page.click('nav a[data-id=explore]');

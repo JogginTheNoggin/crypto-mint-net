@@ -80,6 +80,9 @@ input, select, textarea { font-size: 13px; padding: 4px 6px; border: 1px solid v
 .panel .hint { margin: 6px 0 8px; }
 .cmd { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 12px; flex-wrap: wrap; }
 .cmd-label { color: var(--muted); }
+/* Command lines show only when Settings turns them on (R41): the views are
+   the way to act; the line is there to learn or script from. */
+html:not(.show-cmds) .cmd { display: none; }
 .cmd code { flex: 1; min-width: 0; padding: 3px 6px; border-radius: 4px; background: var(--bg); word-break: break-all; }
 button.small { font-size: 12px; padding: 2px 8px; }
 button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
@@ -248,3 +251,21 @@ a.step-view { font-size: 13px; }
 .cold-steps { margin: 8px 0 0; padding-left: 22px; }
 .cold-steps li { margin: 6px 0; }
 .cold-steps button { margin-left: 2px; }
+
+/* The Ledger view (R41). */
+.ledger-search { display: flex; gap: 8px; max-width: 1100px; margin: 0 0 10px; }
+.ledger-search input { flex: 1; min-width: 0; font-family: var(--mono); }
+.crumbs { font-size: 13px; margin: 0 0 10px; color: var(--muted); }
+.crumbs a { font-weight: 600; }
+.ledger-summary { margin: 6px 0; font-weight: 600; }
+.clickable tbody tr { cursor: pointer; }
+.clickable tbody tr:hover { background: var(--bg); }
+.ledger-pages { display: flex; gap: 12px; margin: 8px 0 0; }
+.ledger-pages a, .ledger-older a { font-weight: 600; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 6px 0; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ledger-balance { font-size: 18px; }
+.ledger-raw pre { white-space: pre-wrap; word-break: break-all; }
+.ledger-pic .lp-go { cursor: pointer; }
+.ledger-pic .lp-go:hover .lp-bar, .ledger-pic .lp-go:focus .lp-bar { opacity: 1; }

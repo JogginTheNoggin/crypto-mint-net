@@ -14,3 +14,4 @@ export const WHERE = PREFIX + 'where';                 // where.js: Settings' -r
 export const THEME = PREFIX + 'theme';                 // where.js: light or dark
 export const WALLET = PREFIX + 'wallet';               // views/wallet.js: the wallet file
 export const WALLET_SERIES = PREFIX + 'wallet-series'; // views/wallet.js: the wallet's series
+export const SHOW_COMMANDS = PREFIX + 'show-commands'; // where.js: show the poon command behind each action
