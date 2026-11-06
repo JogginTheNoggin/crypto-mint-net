@@ -602,3 +602,30 @@ func TestTrimKeepsNewJobs(t *testing.T) {
 		}
 	}
 }
+
+// A burst of quick jobs, all new, is kept up to twice the limits only:
+// past that the oldest finished go whatever their age (GUI ORANGE-028).
+func TestTrimBoundsNewJobs(t *testing.T) {
+	r := New(context.Background(), Options{MaxJobs: 2, KeepNew: time.Hour, Main: func(ctx context.Context, args []string, s cli.Stdio) int { return 0 }})
+	defer r.Close(5 * time.Second)
+	var last *Job
+	for i := 0; i < 20; i++ {
+		j, err := r.Start([]string{"quick"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		wait(t, j)
+		last = j
+	}
+	// trim runs as each job starts, so the newest may wait for the next.
+	r.mu.Lock()
+	r.trim()
+	n := len(r.order)
+	r.mu.Unlock()
+	if n > 4 {
+		t.Fatalf("kept %d jobs, want at most twice MaxJobs (4)", n)
+	}
+	if _, ok := r.Get(last.ID); !ok {
+		t.Fatal("the newest job was dropped")
+	}
+}

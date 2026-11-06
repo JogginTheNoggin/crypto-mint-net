@@ -63,19 +63,13 @@ function coldSteps(root) {
   return { el: sec, stop: () => {} };
 }
 
-// looksLikeKey says a Key file value is a key rather than a path: 32 or
-// more hex digits in a row once the separators a key is often printed
-// with are taken out (colons as openssl prints it, spaces, dashes, a dot
-// at the end), and no / or \ or other dot in it (GUI-032, GUI/Red R36B).
-// Such a value would show on the command line, in poo's error and in the
-// Jobs list, so the form never sends it: the line shows … in its place,
-// and Sign refuses it and empties the field. poo-gui hides such a value
-// in a job's command line as well (shell.Redact).
-export const looksLikeKey = s => {
-  if (typeof s !== 'string') return false;
-  const t = s.trim().replace(/\.+$/, '');
-  return !/[/\\.]/.test(t) && /[0-9a-fA-F]{32,}/.test(t.replace(/[\s:-]/g, ''));
-};
+// looksLikeKey (api.js) says a Key file value is a key rather than a path
+// (GUI-032). Such a value would show on the command line, in poo's error
+// and in the Jobs list, so the form never sends it: the line shows … in
+// its place, and Sign refuses it and empties the field. poo-gui hides such
+// a value in a job's command line as well (shell.Redact), and the terminal
+// keeps such a line out of its saved history (api.secretLine, GUI-034).
+export const looksLikeKey = api.looksLikeKey;
 export const keyPathArg = s => !s ? '-' : looksLikeKey(s) ? '…' : s;
 
 export const walletView = {

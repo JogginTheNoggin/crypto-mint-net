@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed |
+| Status | fixed; verified by GUI/Red R37B @ 7eb16ab |
 | Fixed by | GUI/Blue, Round 36C (views.js: both refusal paths only stop following a job (`unfollow`), and a submitted form clears `area.gone` before `runJob`; qol.mjs checks that after each refusal the next Sign shows poo's masked prompt and Stop ends the job) |
 | Found on | main @ d25f777 (#296, #298: GUI-032's `refuse` on Sign with a key kept elsewhere) |
 | Component | gui/web/static/views.js (`form`'s submit handler: the `refuse` path, and the GUI-026 required-field path, call `leave(area)`, which sets `area.gone = true`; nothing sets it back, and `runJob` returns at once when `area.gone`) |
@@ -87,3 +87,14 @@ form made for keys kept off the machine. Rated **low**.
   Then Stop ends the job (`/api/jobs` done) within a few seconds. Add
   the same for GUI-026 in views.mjs: after "fill in Parent", fill it in
   and run again, and expect the run to be followed.
+
+## Notes — Round 37B verification (fixed)
+
+I re-ran the repro on 7eb16ab with Playwright:
+1. paste a key, and get the refusal;
+2. untick "The key is in a file", and press Sign.
+
+The masked prompt now shows (`form.ask` visible). Stop then ends the
+job: the status reads `exit 1`, and `/api/jobs` lists it as done. The
+missing-field and refuse paths now drop only the stream (`unfollow`),
+and a submit sets `area.gone = false` before `runJob`.
