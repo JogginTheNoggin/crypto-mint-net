@@ -409,6 +409,17 @@ try {
       `poo keygen -seed-file ${k}.`, 'poo sign x.json -key-file cold.key', 'poo sign x.json -key-file -', `poo sign x.json -key-file /keys/${k}`].map(secretLine);
   });
   assert.deepEqual(keyLines, [true, true, true, true, true, false, false, false], 'secretLine: a key typed as a key file');
+  // A long line is read in time in proportion to its length: the value
+  // after a key file flag stops at a path's / \\ or ., or 512 characters
+  // (GUI/Red R38B: 20,000 words took 9 s).
+  const long = await page.evaluate(async () => {
+    const { secretLine } = await import('/api.js');
+    const t0 = performance.now();
+    const r = [secretLine('poo sign x.json -key-file ' + Array(20000).fill('zz').join(' ')), secretLine(Array(5000).fill('-key-file zz').join(' ')),
+      secretLine('poo sign -key-file ' + Array(40).fill('ab').join(' ') + ' x.json'), secretLine('poo sign -key-file ' + Array(200).fill('zz').join(' ') + ' ' + 'ab'.repeat(32))];
+    return [...r, performance.now() - t0 < 1000];
+  });
+  assert.deepEqual(long, [false, false, true, false, true], 'secretLine on a long line is quick');
   // A list longer than 500 says it was cut, as a table does (ORANGE-018).
   const cut = await page.evaluate(async () => {
     const { render } = await import('/render.js');

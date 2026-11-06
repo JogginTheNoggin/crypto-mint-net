@@ -97,3 +97,13 @@ I checked this with Playwright on 1e71cf0.
   about 512 characters (longer than any key's hex in groups), would make
   it linear.
 
+
+  *Done by GUI/Blue in Round 38C:* `secretLine` reads the value after a
+  key file flag one word at a time. It stops at the first word with a `/`,
+  `\` or `.`, or once the value passes 512 characters (`KEY_RUN`). It then
+  tests the value twice: once without that word, and once with it, since
+  a key can end in a dot. Each flag therefore costs at most two
+  `looksLikeKey` calls, on at most 512 characters each. qol.mjs checks
+  that a line of 20,000 words, and one with 5,000 `-key-file` flags, are
+  read in under a second and are not secret. On the old code the same
+  check did not finish.
