@@ -43,3 +43,4 @@ added and how Grey checks it. See [AGENTS.md](../../../AGENTS.md#teams-read-firs
 | [BLUE-033](BLUE-033.md) | RED-093, RED-094, RED-095, RED-096 (D185) | `claude/project-thread-ggo8dt` | |
 | [BLUE-034](BLUE-034.md) | RED-097, RED-098, RED-099, GUI-031 (D189) | `claude/project-thread-ggo8dt` | |
 | [BLUE-035](BLUE-035.md) | RED-100, RED-101, RED-102, RED-103 (D191) | `claude/project-thread-ggo8dt` | |
+| [BLUE-036](BLUE-036.md) | RED-104, RED-105, RED-106, RED-107, RED-108, GUI-032, GUI-GREEN-061 (D194) | `claude/project-thread-ggo8dt` | |

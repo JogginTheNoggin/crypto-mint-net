@@ -157,7 +157,13 @@ spend. A request without a policy is paid as a bare address, unchecked.
 `PayRequest` checks, then pays.
 
 `Claim(series, node, serial)` claims a whole mint for a fresh address and
-watches the mint.
+watches the mint. `ClaimUnsigned(series, serial, name)` prepares a claim
+to the address of the wallet policy `name`, unsigned, records it so
+`Submit` takes it once signed, and watches the mint: how a watch-only
+wallet claims with a key kept off the node (`poo wallet claim
+-to-policy NAME -out FILE`, then `poo sign`, GREEN-060). A claim needs a
+witness per output, not per input, so its unsigned leg lists one policy
+for its one output; `SignWith` and `Finish` count witnesses that way.
 
 ## Co-signing
 
@@ -170,7 +176,10 @@ It is plain JSON, passed between co-signers as a file.
 - `Missing()` says how many signatures each input still needs.
 - `SignWith(unsigned, hash, alg, signer)` adds one key's signatures with
   no wallet at all (`poo sign`); `Unsigned.Hash` names the series' hash so
-  it needs no node (D193).
+  it needs no node (D193), and `Unsigned.Variable` marks a variable-supply
+  series so its transactions are read with their part (RED-105).
+  `DecodeLeg(i)` reads a leg and refuses one whose series is not the
+  payment's (RED-104); `SignWith` checks each signature it adds (RED-106).
 - A watch-only wallet (`Options.WatchOnly`, `File.WatchOnly`) has no
   seed: it follows addresses from public keys and prepares payments, and
   every call that needs a private key returns `ErrWatchOnly` (D193).

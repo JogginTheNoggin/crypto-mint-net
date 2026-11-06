@@ -33,7 +33,8 @@ const LEFT_OUT = {
   sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poo sim load -h has them'])),
   'series new': { ...Object.fromEntries(['entry-hash-credit', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])) },
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
-  keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)' },
+  keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)', out: 'a key file for a key kept off the node is made in the terminal, on the key\'s machine (GREEN-060)' },
+  'wallet claim': { 'to-policy': 'a claim to a cold key is prepared in the terminal, where poo sign runs too (GREEN-060)', out: 'goes with -to-policy, a terminal option (GREEN-060)' },
   watch: { once: 'the Watch view reconnects by itself, as poo watch without -once does' },
   // poo lists the shared filter flags on every view command, but refuses
   // -kind outside poo watch ("-kind selects events and applies to poo

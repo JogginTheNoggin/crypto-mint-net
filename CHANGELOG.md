@@ -240,6 +240,21 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 35 fixes (D194):**
+  - `poo sign` shows the series, the hash and each input it spends,
+    refuses a file whose series is not its transactions', checks each
+    signature before writing it, and reads a variable-supply payment
+    with no node (payment files now say `"variable": true`).
+  - A raw key whose public half does not match its private key is
+    refused.
+  - Errors about a key or seed file never print its path or contents.
+  - `poo wallet pay` on a watch-only wallet, or for a payment needing
+    other signatures, refuses before recording anything when no `-out`
+    is given; `poo wallet passwd` refuses a watch-only wallet before
+    asking for a passphrase.
+  - `poo ledger import` no longer copies entries to a temporary file:
+    a file whose entries come first is read twice (a pipe is refused),
+    and the dry run checks header keys that come after the entries.
 - **Round 35 (D192, D193):**
   - **Cold keys:** `poo keygen -raw` takes a key made by another tool;
     `poo wallet create -watch-only` makes a wallet with no private key

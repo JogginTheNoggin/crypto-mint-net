@@ -412,7 +412,7 @@ func importLedger(ctx context.Context, r io.Reader, dial func() (ledgerImporter,
 		size += len(it.Item)
 		return nil
 	}
-	err := readLedgerFile(r, head, item)
+	_, err := readLedgerFile(r, head, item)
 	if err == nil {
 		err = send()
 	}
@@ -430,6 +430,7 @@ func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error 
 		s        *series.Series
 		prevHash hash.Hash
 		prevH    int
+		first    int
 	)
 	problem := func(format string, a ...any) {
 		rep.ProblemCount++
@@ -463,8 +464,8 @@ func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error 
 		i := rep.Entries
 		rep.Entries++
 		e := it.ExportEntry
-		if i == 0 && e.Height != f.From {
-			problem("entry 0 is at height %d, but the file says it starts at %d", e.Height, f.From)
+		if i == 0 {
+			first = e.Height
 		}
 		if i > 0 && e.Height != prevH+1 {
 			problem("entry %d is at height %d, after height %d", i, e.Height, prevH)
@@ -492,10 +493,16 @@ func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error 
 		}
 		return nil
 	}
-	if err := readLedgerFile(r, head, item); err != nil {
+	// The range and tip are checked against the whole header, keys after
+	// the entries included (RED-108).
+	f, err := readLedgerFile(r, head, item)
+	if err != nil {
 		return err
 	}
 	if rep.Entries > 0 {
+		if first != f.From {
+			problem("entry 0 is at height %d, but the file says it starts at %d", first, f.From)
+		}
 		if prevH != f.To {
 			problem("the last entry is at height %d, but the file says it ends at %d", prevH, f.To)
 		}
@@ -517,41 +524,58 @@ func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error 
 // batch of items rather than the whole file (ORANGE-043: a 292 MB file
 // took 1.8 GB). Only the keys format 1 defines are taken, each header
 // value at most MaxLedgerHeaderValue bytes, and the entries must come
-// once. Entries that come before the fields that name the file and its
-// pool (a tool that sorts keys puts them first) are spooled to a
-// temporary file one at a time and given after the header, so they are
-// never held whole either; anything else is refused before it is held
-// (RED-102). An error from head or item stops the read.
-func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFileItem) error) error {
+// once (RED-102). It returns the whole header, with any keys that came
+// after the entries, which head may not have seen (RED-108).
+//
+// Entries that come before the fields that name the file and its pool (a
+// tool that sorts keys puts them first) are skipped on a first read, and
+// the file is read again from where it started for them, so nothing is
+// held or copied (RED-107). Input that cannot seek back, such as a pipe,
+// is refused in that case. An error from head or item stops the read.
+func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFileItem) error) (ledgerFile, error) {
+	start := int64(-1)
+	if sk, ok := r.(io.Seeker); ok {
+		if p, err := sk.Seek(0, io.SeekCurrent); err == nil {
+			start = p
+		}
+	}
+	h, early, err := readLedgerPass(r, head, item, nil, start >= 0)
+	if err != nil || !early {
+		return h, err
+	}
+	if _, err := r.(io.Seeker).Seek(start, io.SeekStart); err != nil {
+		return h, err
+	}
+	h2, _, err := readLedgerPass(r, head, item, &h, false)
+	return h2, err
+}
+
+// readLedgerPass is one read of a ledger file for readLedgerFile. With
+// known set, the header is already read and is given to head when the
+// entries start. Otherwise, entries that come before the naming fields
+// are skipped when canRewind (early is then true) and refused if not.
+func readLedgerPass(r io.Reader, head func(ledgerFile) error, item func(ledgerFileItem) error, known *ledgerFile, canRewind bool) (h ledgerFile, early bool, err error) {
 	bad := func(err error) error { return fmt.Errorf("not a ledger file: %w", err) }
 	lr := &limitedValue{r: r, limit: -1}
 	dec := json.NewDecoder(lr)
 	if t, err := dec.Token(); err != nil {
-		return bad(err)
+		return h, false, bad(err)
 	} else if t != json.Delim('{') {
-		return bad(errors.New("it is not a JSON object"))
+		return h, false, bad(errors.New("it is not a JSON object"))
 	}
-	var h ledgerFile
 	seen := map[string]bool{}
 	started := false
-	var spool *os.File
-	defer func() {
-		if spool != nil {
-			spool.Close()
-			os.Remove(spool.Name())
-		}
-	}()
 	unknown := 0
 	for dec.More() {
 		lr.limit = lr.read + MaxLedgerHeaderValue
 		t, err := dec.Token()
 		lr.limit = -1
 		if err != nil {
-			return bad(err)
+			return h, early, bad(err)
 		}
 		k, _ := t.(string)
 		if seen[k] {
-			return bad(fmt.Errorf("%q appears twice", k))
+			return h, early, bad(fmt.Errorf("%q appears twice", k))
 		}
 		seen[k] = true
 		if k != "entries" {
@@ -561,7 +585,7 @@ func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFi
 				// and dropped, so an older release still imports the file
 				// (W-20, D192).
 				if unknown++; unknown > MaxLedgerUnknownKeys {
-					return bad(fmt.Errorf("more than %d fields format %d does not define", MaxLedgerUnknownKeys, LedgerFileFormat))
+					return h, early, bad(fmt.Errorf("more than %d fields format %d does not define", MaxLedgerUnknownKeys, LedgerFileFormat))
 				}
 				dst = new(json.RawMessage)
 			}
@@ -569,74 +593,70 @@ func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFi
 			err := dec.Decode(dst)
 			lr.limit = -1
 			if err != nil {
-				return bad(fmt.Errorf("%s: %w", k, err))
+				return h, early, bad(fmt.Errorf("%s: %w", k, err))
 			}
 			continue
 		}
-		give := item
-		named := seen["kind"] && seen["format"] && seen["series"] && seen["pool"]
-		if named {
-			if err := head(h); err != nil {
-				return err
+		skip := false
+		switch {
+		case known != nil:
+			if err := head(*known); err != nil {
+				return h, early, err
 			}
 			started = true
-		} else {
-			// Spool the entries until the header is read.
-			if spool, err = os.CreateTemp("", brand.TempPrefix+"ledger-*.spool"); err != nil {
-				return err
+		case seen["kind"] && seen["format"] && seen["series"] && seen["pool"]:
+			if err := head(h); err != nil {
+				return h, early, err
 			}
-			enc := json.NewEncoder(spool)
-			give = func(it ledgerFileItem) error { return enc.Encode(it) }
+			started = true
+		case canRewind:
+			skip, early = true, true
+		default:
+			return h, early, bad(errors.New("its entries come before kind, format, series and pool, and a pipe cannot be read twice: give the file's path instead"))
 		}
 		t, err = dec.Token()
 		if err != nil {
-			return bad(err)
+			return h, early, bad(err)
 		}
 		if t == nil { // "entries": null
 			continue
 		}
 		if t != json.Delim('[') {
-			return bad(errors.New("entries is not a list"))
+			return h, early, bad(errors.New("entries is not a list"))
 		}
 		for dec.More() {
+			if skip {
+				var raw json.RawMessage
+				if err := dec.Decode(&raw); err != nil {
+					return h, early, bad(err)
+				}
+				continue
+			}
 			var it ledgerFileItem
 			if err := dec.Decode(&it); err != nil {
-				return bad(err)
+				return h, early, bad(err)
 			}
-			if err := give(it); err != nil {
-				return err
+			if err := item(it); err != nil {
+				return h, early, err
 			}
 		}
 		if _, err := dec.Token(); err != nil {
-			return bad(err)
+			return h, early, bad(err)
 		}
 	}
 	if _, err := dec.Token(); err != nil {
-		return bad(err)
+		return h, early, bad(err)
 	}
-	if !started {
-		if err := head(h); err != nil {
-			return err
+	if !started && !early {
+		hh := h
+		if known != nil {
+			hh = *known
+		}
+		if err := head(hh); err != nil {
+			return h, early, err
 		}
 	}
-	if spool == nil {
-		return nil
-	}
-	if _, err := spool.Seek(0, io.SeekStart); err != nil {
-		return err
-	}
-	sd := json.NewDecoder(bufio.NewReader(spool))
-	for {
-		var it ledgerFileItem
-		if err := sd.Decode(&it); err == io.EOF {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		if err := item(it); err != nil {
-			return err
-		}
-	}
+	return h, early, nil
 }
 
 // MaxLedgerHeaderValue bounds each header value of a ledger file, read

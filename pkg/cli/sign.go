@@ -25,6 +25,13 @@ import (
 
 // SignReport is what poo sign prints.
 type SignReport struct {
+	// Series is the payment's series, the same in every leg (poo sign
+	// refuses a file where they differ), and every amount is in its
+	// units; Hash is the hash function each tid is worked out with, and
+	// Variable says the series is variable supply (RED-104, RED-105).
+	Series   hash.Hash `json:"series"`
+	Hash     string    `json:"hash"`
+	Variable bool      `json:"variable,omitempty"`
 	// Key is the signing key's public key and Address its 1-of-1 address
 	// under the payment's hash.
 	Alg     string `json:"alg"`
@@ -43,9 +50,15 @@ type SignReport struct {
 
 // SignLeg is one transaction of the payment.
 type SignLeg struct {
-	Serial  uint64      `json:"serial"`
-	TID     hash.Hash   `json:"tid"`
-	Inputs  int         `json:"inputs"`
+	Serial uint64    `json:"serial"`
+	TID    hash.Hash `json:"tid"`
+	Inputs int       `json:"inputs"`
+	// Spends lists each input the leg spends as tid:index, to compare
+	// with what the watch-only wallet says it spends (RED-104).
+	Spends []string `json:"spends,omitempty"`
+	// Claim marks a leg that claims a whole mint, which spends no input
+	// (poo wallet claim -to-policy, GREEN-060).
+	Claim   bool        `json:"claim,omitempty"`
 	Outputs []tx.Output `json:"outputs"`
 }
 
@@ -107,7 +120,7 @@ func signCmd(args []string, out io.Writer) error {
 	}
 	h, _ := hash.Lookup(hid)
 
-	sf := &seedFlags{file: keyFile, flag: new(string)}
+	sf := &seedFlags{file: keyFile, flag: new(string), what: "key"}
 	keyHex, err := sf.read(out, false)
 	if err != nil {
 		return err
@@ -129,16 +142,18 @@ func signCmd(args []string, out io.Writer) error {
 		return err
 	}
 
-	rep := SignReport{Alg: algName(alg), Key: hex.EncodeToString(signer.Public()), Address: policy.Address(h, policy.SingleKey(alg, signer.Public())).String(), Shown: *show}
-	for _, l := range u.Legs {
-		t, err := tx.Decode(l.Tx)
+	rep := SignReport{Series: u.Series, Hash: hid.Name(), Variable: u.Variable, Alg: algName(alg), Key: hex.EncodeToString(signer.Public()), Address: policy.Address(h, policy.SingleKey(alg, signer.Public())).String(), Shown: *show}
+	for i, l := range u.Legs {
+		// Every leg must be of the payment's series and mint (RED-104).
+		t, err := u.DecodeLeg(i)
 		if err != nil {
-			return fmt.Errorf("leg of mint %d: %w", l.Serial, err)
+			return err
 		}
-		if t.Mint.Serial != l.Serial {
-			return fmt.Errorf("a leg says mint %d but its transaction spends mint %d", l.Serial, t.Mint.Serial)
+		leg := SignLeg{Serial: l.Serial, TID: t.TID(h), Inputs: len(t.Inputs), Claim: t.IsClaim(), Outputs: t.Outputs}
+		for _, in := range t.Inputs {
+			leg.Spends = append(leg.Spends, fmt.Sprintf("%s:%d", in.TID, in.Index))
 		}
-		rep.Legs = append(rep.Legs, SignLeg{Serial: l.Serial, TID: t.TID(h), Inputs: len(t.Inputs), Outputs: t.Outputs})
+		rep.Legs = append(rep.Legs, leg)
 	}
 	if !*show {
 		if rep.Added, err = wallet.SignWith(&u, h, alg, signer); err != nil {
