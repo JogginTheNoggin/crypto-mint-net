@@ -18,8 +18,8 @@ GUI Grey decides what to adopt in the next Part A. It never publishes a
 release, tags a version or changes the repository's visibility: those are
 the owner's calls. Source White covers the headless node and is the
 primary White team (the owner, 2026-11-05): on anything that crosses both
-layers, such as the release version, tagging, and how `poo-gui` and
-`poo node` of different versions work together, GUI White consults Source
+layers, such as the release version, tagging, and how `poon-gui` and
+`poon node` of different versions work together, GUI White consults Source
 White and follows its lead. Source White's checklist is
 [../source/README.md](../source/README.md).
 
@@ -31,7 +31,7 @@ The baseline (what the GUI versions today and the gaps found on
 | Rule | Source |
 | --- | --- |
 | The GUI is only a visual layer over the headless code and never diverges from it | Owner, 2026-10-27; AGENTS.md |
-| `poo` and `poo-gui` ship from one tag, at one version (`cli.Version`); the `poo` archive never contains GUI code | docs/gui.md (D88), docs/releasing.md |
+| `poon` and `poon-gui` ship from one tag, at one version (`cli.Version`); the `poon` archive never contains GUI code | docs/gui.md (D88), docs/releasing.md |
 | A release never changes byte form v1 | D76 |
 | Builds are reproducible | D78 |
 | The repository stays private; tagging v0.1.0 and going public are the owner's calls | Owner, 2026-10-26 and 2026-11-02 |
@@ -49,26 +49,26 @@ For every item the round produced, answer each line, or write "n/a".
    `CHANGELOG.md` (GUI group) and, for a feature, in `docs/FEATURES.md`
    (GUI section).
 3. Nothing in `gui/` sets its own version: the GUI prints and reports
-   `cli.Version`, so poo-gui and `poo` can never drift apart.
+   `cli.Version`, so poon-gui and `poon` can never drift apart.
 
 **Compatibility with the headless node**
 
-4. The GUI reads poo's JSON output (the default). Any field a view reads
+4. The GUI reads poon's JSON output (the default). Any field a view reads
    that was renamed, removed or changed type in this round is listed, and
    the view still handles output from the previous release (a missing
    field shows as empty, not as an error).
-5. A flag the GUI sends still exists in `poo CMD -h` (the parity check
+5. A flag the GUI sends still exists in `poon CMD -h` (the parity check
    `gui/e2e/parity.mjs` passes), and a flag removed from a form is still
    reachable from the terminal.
 6. RPC calls go through `pkg/cli`/`pkg/rpc` only (`gui/imports_test.go`
    passes); the GUI adds no wire or RPC shape of its own.
-7. If the GUI may talk to a running `poo node` of another version (a
-   separate `poo` archive), the round says what happens: works, a clear
+7. If the GUI may talk to a running `poon node` of another version (a
+   separate `poon` archive), the round says what happens: works, a clear
    message, or a known gap.
 
 **Backwards compatibility in the browser**
 
-8. Browser storage keys (`poo-gui-*`) are unchanged, or the change reads
+8. Browser storage keys (`poon-gui-*`) are unchanged, or the change reads
    the old key and moves it, as `terminal.js` does for history. A saved
    value the new code does not understand is ignored, never a crash.
 9. Server API paths under `/api/` keep their request and reply shapes, or
@@ -79,7 +79,7 @@ For every item the round produced, answer each line, or write "n/a".
 
 **Downloadability and packaging**
 
-11. `scripts/release.sh` still builds `poo-gui` for every platform in
+11. `scripts/release.sh` still builds `poon-gui` for every platform in
     docs/releasing.md, and `go -C gui build` cross-builds for Windows and
     macOS (CI's gui job).
 12. New files the GUI needs at run time are embedded (`gui/web/static`
@@ -97,12 +97,12 @@ For every item the round produced, answer each line, or write "n/a".
 
 **Smooth upgrades**
 
-16. A person who upgrades poo-gui keeps their settings (`-root`,
+16. A person who upgrades poon-gui keeps their settings (`-root`,
     `-policy`, wallet file, theme, terminal history) or is told plainly
     what they must set again.
-17. Files the GUI writes through poo (node.json, policies, exports) are
-    written by poo, so their compatibility is Source White's; White notes
-    any GUI form that writes a field an older `poo` would reject.
+17. Files the GUI writes through poon (node.json, policies, exports) are
+    written by poon, so their compatibility is Source White's; White notes
+    any GUI form that writes a field an older `poon` would reject.
 
 ## Verdicts
 
