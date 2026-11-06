@@ -83,3 +83,11 @@ poon-gui at a79be4b, Playwright, one origin.
   - Settings shows `/data/mynode`;
   - the Wallet view shows `cold-wallet.json`;
   - no `poo-gui-*` key is left.
+
+## Notes — Round 41B verification (closed by jerry's decision)
+
+I checked this on 56c5e0a. There is no migration, as jerry decided.
+Every storage key name is now in `store.js`, and `TestStorageKeysInStore`
+holds them there. Old `poo-gui-*` entries in a test profile stay until
+the site data is cleared, as the finding's status says. I have nothing
+further.

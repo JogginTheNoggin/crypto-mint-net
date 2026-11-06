@@ -5,6 +5,48 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 41 Part B reviewed main @ 56c5e0a (#368, #371):
+- the new Ledger view (pools, pages of a ledger, entries, transactions,
+  addresses, Find), and links into it from `lookupLink`;
+- command lines hidden unless Settings shows them (`show-cmds`);
+- `store.js`, which holds every storage key name;
+- the Work view's Devices table (CPU and any GPU, D208). There is no GPU
+  here: GPU runs happen only on jerry's machine;
+- GUI/Blue's GUI-036 fix, and GUI-037's close.
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol`, `variable`, `terminal` and new `ledger` e2e
+tests pass.
+
+There are no new findings.
+
+Fixed and verified: **GUI-036.** A seed typed in groups after `-restore`
+or `-seed`, or in halves after `-restore=`, now shows only `<hidden>`
+words in Jobs. **GUI-037** is closed by jerry's decision (no migration).
+Its key names are now in one file.
+
+Held up:
+- **Ledger addresses** (`#/ledger?tid=…&pool=…`).
+  - `pool`, `below`, `limit` and `series` always go after their own
+    flag, so they are flag values.
+  - Only `tid`, `address` and `find` are free words. A value that starts
+    with `-` is read as a flag. But every one of these commands still
+    needs its tid or address, so poon refuses with a usage error and
+    nothing runs. I checked `tid=-dir=/etc`, `address=-o=table`,
+    `pool=-dir=/` and `find=-dir=/tmp`: all exit 1.
+  - The flags these commands take only read or filter. None writes a
+    file or dials another address.
+  - A link from another site gets no cookie (`SameSite=Strict`), so it
+    can't start one of these runs anyway.
+- **Ledger rendering.** Every value is from poon's own JSON, and is drawn
+  with `el()` as text or as an `href` the view builds with
+  `URLSearchParams`. `lookupLink` still links only hex values.
+- **Hidden command lines** are CSS only (`html:not(.show-cmds) .cmd`).
+  What runs is the same. Confirm prompts still name the command. Copy's
+  secret check is unchanged, and Jobs still shows each command.
+- **Devices.** Each cell, including the GPU driver's name and note, is
+  poon's text, drawn as text. `kind` only picks a class name.
+
 Round 40 Part B reviewed main @ a79be4b (#352, #354):
 - the poo → poon rename across `gui/` (D204), checked for anything it
   broke;
@@ -1201,5 +1243,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-033](GUI-033-refused-form-never-follows-next-run.md) | Low | After a form refuses to run (GUI-032's refuse, or a missing required field), its next run is never followed: no masked prompt, Stop does nothing, and the job waits on input holding a slot | fixed (GUI/Blue R36C); verified R37B @ 7eb16ab |
 | [GUI-034](GUI-034-key-after-key-file-saved-in-terminal-history.md) | Low | A key typed after -key-file in the terminal is saved whole to the browser's history (localStorage), though Jobs now shows it as <hidden> | fixed (GUI/Blue R37C); verified R38B @ 1e71cf0 |
 | [GUI-035](GUI-035-key-split-over-words-shown-in-jobs.md) | Low | A key typed in the terminal as several words after -key-file (groups, or openssl's 15-byte lines) shows in clear in the Jobs list: shell.Redact reads only the next word | fixed (GUI/Blue R39C); verified R40B @ a79be4b |
-| [GUI-036](GUI-036-seed-split-over-words-shown-in-jobs.md) | Low | A seed typed in the terminal as several words after -restore or -seed shows in the Jobs list except its first word: Redact hides one word after a secret flag | fixed (GUI/Blue R40C) |
+| [GUI-036](GUI-036-seed-split-over-words-shown-in-jobs.md) | Low | A seed typed in the terminal as several words after -restore or -seed shows in the Jobs list except its first word: Redact hides one word after a secret flag | fixed (GUI/Blue R40C); verified R41B @ 56c5e0a |
 | [GUI-037](GUI-037-renamed-storage-keys-leave-old-history.md) | Low | The poon rename moved the browser storage keys with no migration: the old saved history is never filtered or forgotten, and Settings' root, the wallet file and theme are dropped | fixed (GUI/Blue R40C): fresh start by jerry's decision, no migration; key names now in store.js |
