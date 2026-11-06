@@ -3,9 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed |
+| Status | fixed; verified by GUI/Red R40B @ a79be4b |
 | Fixed by | GUI/Blue, Round 39C (gui/shell `keyFileFlag`: the value after `-key-file` or `-seed-file` is read word by word, up to the next flag, a word with `/ \\ .` (tested with and without it), or past 512 characters, and every word of a value that `LooksLikeKey` is hidden; TestRedactKeyFileWords covers groups of 8, openssl's 15-byte lines, two halves, `=` with more words and a dot at the end, and fails on the old code). Also from the R39B notes: `secretLine` tests the first word before the 512-character cap, so one hex word longer than that stays out of history (qol.mjs) |
-| Fixed by | |
 | Found on | main @ 21c34c8 (#338, #341); the code is from Round 36C (`shell.Redact` with `LooksLikeKey`, GUI-032) |
 | Component | gui/shell/secret.go (`keyFileFlag`: tests only `args[i+1]`; `Redact` hides only that word); compare gui/web/static/api.js (`secretLine`: reads the words after the flag as one value) |
 | Surface | local (the Jobs list and `/api/jobs`, for as long as the job is kept) |
@@ -99,3 +98,20 @@ terminal-only. Rated **low**.
   openssl's 15-byte lines, and two halves of 32. Expect no hex group in
   the result. Also check that `-key-file cold.key extra` still shows
   `cold.key`.
+
+## Notes — Round 40B verification (fixed)
+
+I checked this with Playwright on a79be4b (poon-gui). The same three
+terminal lines now show only `<hidden>` words in `/api/jobs` after
+`-key-file`:
+
+- groups of 8: eight `<hidden>`;
+- openssl's 15-byte lines: three;
+- two halves: two.
+
+None of the lines is saved to the history. One hex word of 600 digits
+is kept out of the history again, as is `--key-file=` with the same.
+
+The same gap is still open for the secret flags, `-restore` and
+`-seed`. `Redact` still hides one word after them, so a seed typed in
+groups shows in Jobs. Filed as GUI-036.
