@@ -169,7 +169,7 @@ func (w *Wallet) Pay(s *series.Series, n Node, to hash.Hash, amount uint64, o Pa
 		return nil, nil, fmt.Errorf("%w: %d held, %d asked", ErrNoFunds, have, amount)
 	}
 	pay := &Sent{Series: s.ID(), To: to, Amount: amount, Memo: o.Memo, Created: now()}
-	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name()}
+	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name(), Variable: s.IsVariable()}
 	for _, pl := range plans {
 		t := &tx.Tx{Mint: s.Mint(pl.serial)}
 		for _, in := range pl.inputs {
@@ -379,7 +379,7 @@ func (w *Wallet) ClaimUnsigned(s *series.Series, serial uint64, name string) (*S
 	pay := &Sent{Series: s.ID(), To: addr, Amount: s.Params().Supply, Claim: true, Created: now(),
 		Legs: []Leg{{Serial: serial, TID: tid, Tx: t.Encode(), Amount: s.Params().Supply, State: StateUnsigned}}}
 	w.f.Sent = append(w.f.Sent, pay)
-	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name(),
+	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name(), Variable: s.IsVariable(),
 		Legs: []UnsignedLeg{{Serial: serial, Tx: t.Encode(), Inputs: []PartialWitness{{Policy: p.Encode()}}}}}
 	return pay, u, nil
 }
@@ -401,8 +401,11 @@ type Unsigned struct {
 	Series hash.Hash `json:"series"`
 	// Hash names the series' hash function, so a signer with no node and
 	// no series file can work out each leg's transaction id (D193).
-	Hash string        `json:"hash,omitempty"`
-	Legs []UnsignedLeg `json:"legs"`
+	Hash string `json:"hash,omitempty"`
+	// Variable marks a variable-supply series, whose transactions carry a
+	// part; a signer with no series needs it to read them (RED-105).
+	Variable bool          `json:"variable,omitempty"`
+	Legs     []UnsignedLeg `json:"legs"`
 }
 
 // UnsignedLeg is one transaction waiting for signatures.
@@ -447,6 +450,33 @@ func (p PartialWitness) need() (int, error) {
 		return 0, err
 	}
 	return int(tp.K) - len(p.Sigs), nil
+}
+
+// DecodeLeg reads leg i's transaction, with its part when the series is
+// variable, and checks that it is of the payment's series and the leg's
+// mint (RED-104, RED-105).
+func (u *Unsigned) DecodeLeg(i int) (*tx.Tx, error) {
+	l := u.Legs[i]
+	var t *tx.Tx
+	var err error
+	if u.Variable || series.IsVariableID(u.Series) {
+		t, err = tx.DecodeVariable(l.Tx)
+	} else {
+		t, err = tx.Decode(l.Tx)
+	}
+	if err != nil {
+		if !u.Variable {
+			return nil, fmt.Errorf("leg of mint %d does not decode (%v); if its series is variable supply, the file needs \"variable\": true, which poo wallet pay writes from this release", l.Serial, err)
+		}
+		return nil, fmt.Errorf("leg of mint %d: %w", l.Serial, err)
+	}
+	if t.Mint.Series != u.Series {
+		return nil, fmt.Errorf("a leg of mint %d is in series %s, but the payment says series %s", l.Serial, t.Mint.Series, u.Series)
+	}
+	if t.Mint.Serial != l.Serial {
+		return nil, fmt.Errorf("a leg says mint %d but its transaction spends mint %d", l.Serial, t.Mint.Serial)
+	}
+	return t, nil
 }
 
 // Complete reports whether every input of every leg has its signatures.
@@ -576,7 +606,7 @@ func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) 
 	added := 0
 	for li := range u.Legs {
 		l := &u.Legs[li]
-		t, err := tx.Decode(l.Tx)
+		t, err := u.DecodeLeg(li)
 		if err != nil {
 			return added, err
 		}
@@ -600,6 +630,11 @@ func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) 
 				}
 				if sig == nil {
 					sig = signer.Sign(msg)
+					// A signature that does not verify never reaches the
+					// file (RED-106).
+					if a, ok := policy.Default().Alg(alg); !ok || !a.Verify(pub, msg, sig) {
+						return added, errors.New("wallet: the key's signature does not verify under its public key")
+					}
 				}
 				l.Inputs[i].Sigs = append(l.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: sig})
 				added++

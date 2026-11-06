@@ -23,7 +23,38 @@ import (
 //
 // It is node-side only: what a key signs and how a witness is checked are
 // unchanged.
+//
+// The key is self-tested: it signs a fixed message, and the signature
+// must verify under the public key it gives, so a key whose stated public
+// half does not match its secret (an SLH-DSA PK.root mistyped or from
+// another key) is refused rather than giving an address no signature can
+// spend (RED-106).
 func NewRawSigner(alg AlgID, raw []byte) (Signer, error) {
+	s, err := newRawSigner(alg, raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := SelfTest(s); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// SelfTest signs a fixed message with s and checks the signature under
+// s's public key with its algorithm's verifier (RED-106).
+func SelfTest(s Signer) error {
+	a, ok := Default().Alg(s.Alg())
+	if !ok {
+		return fmt.Errorf("%w: %d", ErrUnknownSigner, s.Alg())
+	}
+	msg := []byte("poo key self-test")
+	if !a.Verify(s.Public(), msg, s.Sign(msg)) {
+		return fmt.Errorf("policy: the %s key's public half does not match its private key; it would give an address no signature can spend", a.Name())
+	}
+	return nil
+}
+
+func newRawSigner(alg AlgID, raw []byte) (Signer, error) {
 	switch alg {
 	case AlgEd25519:
 		switch len(raw) {

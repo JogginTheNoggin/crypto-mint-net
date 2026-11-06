@@ -463,6 +463,9 @@ func keygen(args []string, out io.Writer) error {
 	}
 	if *seedFile != "" {
 		f := &seedFlags{file: seedFile, flag: new(string)}
+		if *raw {
+			f.what = "key"
+		}
 		s, err := f.read(out, false)
 		if err != nil {
 			return err

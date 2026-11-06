@@ -176,7 +176,10 @@ It is plain JSON, passed between co-signers as a file.
 - `Missing()` says how many signatures each input still needs.
 - `SignWith(unsigned, hash, alg, signer)` adds one key's signatures with
   no wallet at all (`poo sign`); `Unsigned.Hash` names the series' hash so
-  it needs no node (D193).
+  it needs no node (D193), and `Unsigned.Variable` marks a variable-supply
+  series so its transactions are read with their part (RED-105).
+  `DecodeLeg(i)` reads a leg and refuses one whose series is not the
+  payment's (RED-104); `SignWith` checks each signature it adds (RED-106).
 - A watch-only wallet (`Options.WatchOnly`, `File.WatchOnly`) has no
   seed: it follows addresses from public keys and prepares payments, and
   every call that needs a private key returns `ErrWatchOnly` (D193).

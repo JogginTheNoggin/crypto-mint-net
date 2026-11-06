@@ -15,7 +15,7 @@ func TestReadLedgerFileStreams(t *testing.T) {
 	const fields = `"kind":"poo-ledger","format":1,"series":"` + "0000000000000000000000000000000000000000000000000000000000000001" + `","pool":7`
 	read := func(src string) (h ledgerFile, got []string, beforeHead int, err error) {
 		headed := false
-		err = readLedgerFile(strings.NewReader(src), func(f ledgerFile) error {
+		_, err = readLedgerFile(strings.NewReader(src), func(f ledgerFile) error {
 			h, headed = f, true
 			return nil
 		}, func(it ledgerFileItem) error {
@@ -50,11 +50,11 @@ func TestReadLedgerFileStreams(t *testing.T) {
 	}
 	// An error from the header or an item stops the read.
 	stop := errors.New("stop")
-	if err := readLedgerFile(strings.NewReader(`{`+fields+`,"entries":`+items+`}`), func(ledgerFile) error { return stop }, nil); !errors.Is(err, stop) {
+	if _, err := readLedgerFile(strings.NewReader(`{`+fields+`,"entries":`+items+`}`), func(ledgerFile) error { return stop }, nil); !errors.Is(err, stop) {
 		t.Fatalf("head error: %v", err)
 	}
 	n := 0
-	if err := readLedgerFile(strings.NewReader(`{`+fields+`,"entries":`+items+`}`), func(ledgerFile) error { return nil }, func(ledgerFileItem) error {
+	if _, err := readLedgerFile(strings.NewReader(`{`+fields+`,"entries":`+items+`}`), func(ledgerFile) error { return nil }, func(ledgerFileItem) error {
 		n++
 		return stop
 	}); !errors.Is(err, stop) || n != 1 {

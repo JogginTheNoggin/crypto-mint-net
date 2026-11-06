@@ -5259,3 +5259,50 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **For Black (Part D):** please confirm no rule changed: a payment
   signed by `poo sign` is the same transaction the wallet would sign,
   and the watch-only change default spends nothing new.
+
+### D194. Round 35 fixes: what poo sign shows and checks, raw keys self-tested, key files never echoed, no unrecorded pay, ledger files read twice (BLUE-036)
+
+- **Merged first:** Green's #289 (GREEN-060: the cold-key steps with the
+  key never on the node, `poo wallet claim -to-policy -out`, `poo keygen
+  -out`) and Orange's #286 (ORANGE-045: one signature per key per
+  transaction).
+- **Decision:**
+  - **RED-104.** `poo sign` prints the payment's `series`, the `hash`
+    each tid uses, and each leg's `spends` (`tid:index`).
+    `Unsigned.DecodeLeg` refuses a leg whose series is not the file's.
+    `SignWith` checks each signature it adds under the key's verifier.
+    The optional `-series` and `-expect-*` flags are not added.
+  - **RED-105.** `Unsigned.Variable` (`"variable": true`, written by
+    `poo wallet pay` and `wallet claim -to-policy`) marks a
+    variable-supply series. `tx.DecodeVariable` reads the part for a
+    series the process has not built. A file without the mark that fails
+    to decode gets an error that names the mark.
+  - **RED-106.** `NewRawSigner` self-tests every key: it signs a fixed
+    message, which must verify under the public key it gives.
+  - **RED-107.** The temporary spool is gone. When the entries come
+    before the naming fields, the first read skips them, and the file is
+    read again from where it started (any `io.Seeker`). A pipe is refused
+    with a message to give the file's path.
+  - **RED-108.** `readLedgerFile` returns the whole header. The dry run
+    checks the first height, the last height and the tip against it at
+    the end, so keys after the entries count.
+  - **GUI-032.** `seedFlags.read` never returns the path or the OS
+    error's text. It says only that the key or seed file does not exist,
+    cannot be read, or could not be read. The hidden prompt and the
+    errors say "key" for `poo sign` and `keygen -raw`.
+  - **GUI-GREEN-061.** `poo wallet pay` refuses up front on a watch-only
+    wallet with no `-out`. For a payment that needs other signatures and
+    has no `-out`, it refuses before the wallet is saved, so nothing is
+    recorded or held. `wallet passwd` refuses a watch-only wallet before
+    it asks for a passphrase. The watch-only claim error already points
+    at `claim -to-policy` and `poo sign` (GREEN-060).
+- **Why:** an offline signer must see and check what it signs; a key
+  must give an address it can spend; a GUI field must not print a pasted
+  key back; and a payment nobody can finish must not hold units.
+- **Consensus:** None. The transaction byte form is unchanged; the
+  `variable` mark is a file field for tools.
+- **Tier:** CLI, wallet, policy, tx.
+  - `pkg/cli/blue036_test.go`: `TestBlue036ColdKeySteps`,
+    `TestBlue036LedgerFileOrder`.
+  - `pkg/wallet/blue036_test.go`: `TestBlue036VariableLegRead`.
+  - `pkg/policy/blue036_test.go`: `TestBlue036RawKeySelfTested`.
