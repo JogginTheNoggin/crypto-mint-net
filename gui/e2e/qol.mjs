@@ -6,6 +6,8 @@
 //
 // Needs the playwright package and a Chromium it can launch.
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { launch } from './lib.mjs';
@@ -233,8 +235,42 @@ try {
   assert.equal(await sg.locator('input[name=keyFile]').inputValue(), '');
   assert.equal((await page.evaluate(async () => (await import('/api.js')).jobs())).length, jobsBefore, 'a key-shaped Key file starts no job');
   assert.ok(!(await page.content()).includes(pasted), 'the pasted key is nowhere on the page');
-  const lk = await page.evaluate(async () => { const { looksLikeKey } = await import('/views/wallet.js'); return ['ab'.repeat(16), 'AB'.repeat(32), 'ab'.repeat(15), '/keys/' + 'ab'.repeat(32), 'cold.key', 'C:\\k\\' + 'ab'.repeat(32), ''].map(looksLikeKey); });
-  assert.deepEqual(lk, [true, true, false, false, false, false, false]);
+  // Written with the separators a key is often printed with, it is a key
+  // too: colons as openssl prints it, groups with spaces, a dot at the end
+  // (GUI/Red R36B).
+  const lk = await page.evaluate(async () => { const { looksLikeKey } = await import('/views/wallet.js'); return ['ab'.repeat(16), 'AB'.repeat(32), 'ab'.repeat(15), '/keys/' + 'ab'.repeat(32), 'cold.key', 'C:\\k\\' + 'ab'.repeat(32), '',
+    Array(32).fill('ab').join(':'), Array(5).fill('abcdef01').join(' '), 'ab'.repeat(32) + '.', 'ab-'.repeat(16), 'my.key.' + 'ab'.repeat(16)].map(looksLikeKey); });
+  assert.deepEqual(lk, [true, true, false, false, false, false, false, true, true, true, true, false]);
+  // After a refusal the form still follows its next run: unticked as the
+  // refusal says, Sign shows poo's masked prompt, and Stop ends the job
+  // (GUI-033). Before, the refusal left the result area marked gone, so
+  // the job was never followed: no prompt, no Stop, a job slot held.
+  const tmp = mkdtempSync(join(tmpdir(), 'poo-gui-qol-'));
+  const payFile = join(tmp, 'pay.json');
+  writeFileSync(payFile, '{"hash":"sha256","legs":[{"serial":1}]}');
+  await sg.locator('input[name=file]').fill(payFile);
+  await sg.locator('label', { hasText: 'The key is in a file' }).locator('input').uncheck();
+  await sg.locator('button[type=submit]').click();
+  await sg.locator('form.ask').waitFor({ state: 'visible', timeout: 10000 });
+  await sg.locator('button', { hasText: /^Stop$/ }).click();
+  await sg.locator('form.ask').waitFor({ state: 'hidden', timeout: 10000 });
+  const signJob = async () => (await page.evaluate(async () => (await import('/api.js')).jobs())).filter(j => j.args.includes('sign') && j.args.includes('-key-file') && !j.done);
+  for (let i = 0; i < 50 && (await signJob()).length; i++) await page.waitForTimeout(100);
+  assert.deepEqual(await signJob(), [], 'Stop ended the sign job');
+  // The same after the missing-field refusal (GUI-026).
+  await sg.locator('input[name=file]').fill('');
+  // The browser would refuse the empty field first; GUI-026's own check
+  // is what is tested here.
+  await sg.locator('input[name=file]').evaluate(i => i.removeAttribute('required'));
+  await sg.locator('button[type=submit]').click();
+  await sg.locator('.missing[role=alert]').waitFor();
+  await sg.locator('input[name=file]').fill(payFile);
+  await sg.locator('button[type=submit]').click();
+  await sg.locator('form.ask').waitFor({ state: 'visible', timeout: 10000 });
+  await sg.locator('button', { hasText: /^Stop$/ }).click();
+  await sg.locator('form.ask').waitFor({ state: 'hidden', timeout: 10000 });
+  await sg.locator('input[name=file]').fill('pay.json');
+  await sg.locator('label', { hasText: 'The key is in a file' }).locator('input').check();
   await sg.locator('input[name=keyFile]').fill('cold.key');
   await sg.locator('input[name=alg]').fill('ml-dsa-65');
   await sg.locator('label', { hasText: '(-raw)' }).locator('input').check();
