@@ -2,12 +2,15 @@ package wallet
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/keepjson"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
@@ -169,7 +172,7 @@ func (w *Wallet) Pay(s *series.Series, n Node, to hash.Hash, amount uint64, o Pa
 		return nil, nil, fmt.Errorf("%w: %d held, %d asked", ErrNoFunds, have, amount)
 	}
 	pay := &Sent{Series: s.ID(), To: to, Amount: amount, Memo: o.Memo, Created: now()}
-	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name()}
+	u := newUnsigned(s)
 	for _, pl := range plans {
 		t := &tx.Tx{Mint: s.Mint(pl.serial)}
 		for _, in := range pl.inputs {
@@ -262,6 +265,10 @@ func (w *Wallet) addSigs(s *series.Series, ul *UnsignedLeg, tid hash.Hash) (int,
 	}
 	msg := policy.Message(tid)
 	added := 0
+	// Every input of a leg signs the same message, so a key that owns
+	// several of them signs once and gives each the same signature
+	// (ORANGE-045).
+	sigs := map[uint32][]byte{}
 	for i := range ul.Inputs {
 		p, err := ul.Inputs[i].policy()
 		if err != nil {
@@ -279,11 +286,16 @@ func (w *Wallet) addSigs(s *series.Series, ul *UnsignedLeg, tid hash.Hash) (int,
 			if !ok {
 				continue
 			}
-			sg, err := w.signer(idx)
-			if err != nil {
-				return added, err
+			sig, ok := sigs[idx]
+			if !ok {
+				sg, err := w.signer(idx)
+				if err != nil {
+					return added, err
+				}
+				sig = sg.Sign(msg)
+				sigs[idx] = sig
 			}
-			ul.Inputs[i].Sigs = append(ul.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: sg.Sign(msg)})
+			ul.Inputs[i].Sigs = append(ul.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: sig})
 			added++
 		}
 	}
@@ -337,15 +349,122 @@ func (w *Wallet) Claim(s *series.Series, n Node, serial uint64) (*Sent, error) {
 	return pay, nil
 }
 
+// ClaimUnsigned prepares a claim of mint serial of s to the address of the
+// wallet's policy named name, with no signature: a watch-only wallet's
+// claim, for poo sign to sign where the key is (GREEN-060). The claim's
+// one witness is for its one output, so the unsigned leg lists one
+// policy, as a payment lists one per input. It records the claim, so
+// Submit takes the signed file, and watches the mint.
+func (w *Wallet) ClaimUnsigned(s *series.Series, serial uint64, name string) (*Sent, *Unsigned, error) {
+	if err := tx.CheckMint(s, s.Mint(serial)); err != nil {
+		return nil, nil, fmt.Errorf("wallet: serial %d: %w", serial, err)
+	}
+	var pi *PolicyInfo
+	for i := range w.f.Policies {
+		if w.f.Policies[i].Name == name {
+			pi = &w.f.Policies[i]
+		}
+	}
+	if pi == nil {
+		return nil, nil, fmt.Errorf("wallet: no policy %q (poo wallet policy -name %s -k 1 -key ALG:PUBLIC)", name, name)
+	}
+	p := pi.Params().Policy()
+	if err := CheckPolicy(s, p); err != nil {
+		return nil, nil, err
+	}
+	addr := s.Address(p)
+	t := &tx.Tx{Mint: s.Mint(serial), Outputs: []tx.Output{{Address: addr, Amount: s.Params().Supply}}}
+	t.Witnesses = []policy.Witness{{Policy: p}}
+	tid := t.TID(s.Hash())
+	if err := w.WatchMints(s, serial); err != nil {
+		return nil, nil, err
+	}
+	pay := &Sent{Series: s.ID(), To: addr, Amount: s.Params().Supply, Claim: true, Created: now(),
+		Legs: []Leg{{Serial: serial, TID: tid, Tx: t.Encode(), Amount: s.Params().Supply, State: StateUnsigned}}}
+	w.f.Sent = append(w.f.Sent, pay)
+	u := newUnsigned(s)
+	u.Legs = []UnsignedLeg{{Serial: serial, Tx: t.Encode(), Inputs: []PartialWitness{{Policy: p.Encode()}}}}
+	return pay, u, nil
+}
+
+// witnessCount is how many witnesses t needs: one per input, or for a
+// claim one per output (tx.CheckForm). An unsigned leg lists a partial
+// witness for each.
+func witnessCount(t *tx.Tx) int {
+	if t.IsClaim() {
+		return len(t.Outputs)
+	}
+	return len(t.Inputs)
+}
+
 // Unsigned is a payment waiting for signatures: what a payer passes to
 // co-signers and back. Each leg holds its transaction (witnesses without
 // data) and, per input, the signatures gathered so far.
 type Unsigned struct {
+	// Kind and Format name the file (W-23, D195). A file with neither is
+	// format 1, as written before they were added.
+	Kind   string    `json:"kind,omitempty"`
+	Format int       `json:"format,omitempty"`
 	Series hash.Hash `json:"series"`
 	// Hash names the series' hash function, so a signer with no node and
 	// no series file can work out each leg's transaction id (D193).
-	Hash string        `json:"hash,omitempty"`
-	Legs []UnsignedLeg `json:"legs"`
+	Hash string `json:"hash,omitempty"`
+	// Variable marks a variable-supply series, whose transactions carry a
+	// part; a signer with no series needs it to read them (RED-105).
+	Variable bool          `json:"variable,omitempty"`
+	Legs     []UnsignedLeg `json:"legs"`
+	// kept holds the fields a later release wrote that this one does not
+	// know, written back unchanged by poo sign and cosign (W-23).
+	kept keepjson.Kept
+}
+
+// PaymentFileKind and PaymentFormat name the file poo wallet pay -out
+// writes and poo sign reads (W-23, D195). A field an older signer must
+// not ignore raises PaymentFormat (W-25).
+const (
+	PaymentFileKind = brand.KindPrefix + "payment"
+	PaymentFormat   = 1
+)
+
+// newUnsigned starts a payment file for series s.
+func newUnsigned(s *series.Series) *Unsigned {
+	return &Unsigned{Kind: PaymentFileKind, Format: PaymentFormat, Series: s.ID(), Hash: s.Params().HashID.Name(), Variable: s.IsVariable()}
+}
+
+// UnmarshalJSON reads a payment file: it refuses another kind of file and
+// a format this release does not know, and keeps the fields it does not
+// know.
+func (u *Unsigned) UnmarshalJSON(b []byte) error {
+	type plain Unsigned
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	switch {
+	case p.Kind != "" && p.Kind != PaymentFileKind:
+		return fmt.Errorf("a %q file, not a payment (%s)", p.Kind, PaymentFileKind)
+	case p.Format > PaymentFormat:
+		return fmt.Errorf("the payment file is format %d, from a later release; this release reads format %d, so sign it with the release that wrote it or a later one", p.Format, PaymentFormat)
+	case p.Format < 0:
+		return fmt.Errorf("the payment file has format %d", p.Format)
+	}
+	kept, err := keepjson.Split(b, p)
+	if err != nil {
+		return fmt.Errorf("the payment file: %w", err)
+	}
+	*u = Unsigned(p)
+	u.kept = kept
+	return nil
+}
+
+// MarshalJSON writes a payment file with the fields it kept.
+func (u Unsigned) MarshalJSON() ([]byte, error) {
+	type plain Unsigned
+	b, err := json.Marshal(plain(u))
+	if err != nil {
+		return nil, err
+	}
+	return keepjson.Join(b, u.kept)
 }
 
 // UnsignedLeg is one transaction waiting for signatures.
@@ -353,6 +472,33 @@ type UnsignedLeg struct {
 	Serial uint64           `json:"serial"`
 	Tx     Hex              `json:"tx"`
 	Inputs []PartialWitness `json:"inputs"`
+	kept   keepjson.Kept
+}
+
+// UnmarshalJSON reads one leg, keeping the fields it does not know (W-23).
+func (l *UnsignedLeg) UnmarshalJSON(b []byte) error {
+	type plain UnsignedLeg
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	kept, err := keepjson.Split(b, p)
+	if err != nil {
+		return fmt.Errorf("a payment leg: %w", err)
+	}
+	*l = UnsignedLeg(p)
+	l.kept = kept
+	return nil
+}
+
+// MarshalJSON writes one leg with the fields it kept.
+func (l UnsignedLeg) MarshalJSON() ([]byte, error) {
+	type plain UnsignedLeg
+	b, err := json.Marshal(plain(l))
+	if err != nil {
+		return nil, err
+	}
+	return keepjson.Join(b, l.kept)
 }
 
 // PartialWitness is the policy of one input and the signatures gathered.
@@ -392,6 +538,33 @@ func (p PartialWitness) need() (int, error) {
 	return int(tp.K) - len(p.Sigs), nil
 }
 
+// DecodeLeg reads leg i's transaction, with its part when the series is
+// variable, and checks that it is of the payment's series and the leg's
+// mint (RED-104, RED-105).
+func (u *Unsigned) DecodeLeg(i int) (*tx.Tx, error) {
+	l := u.Legs[i]
+	var t *tx.Tx
+	var err error
+	if u.Variable || series.IsVariableID(u.Series) {
+		t, err = tx.DecodeVariable(l.Tx)
+	} else {
+		t, err = tx.Decode(l.Tx)
+	}
+	if err != nil {
+		if !u.Variable {
+			return nil, fmt.Errorf("leg of mint %d does not decode (%v); if its series is variable supply, the file needs \"variable\": true, which poo wallet pay writes from this release", l.Serial, err)
+		}
+		return nil, fmt.Errorf("leg of mint %d: %w", l.Serial, err)
+	}
+	if t.Mint.Series != u.Series {
+		return nil, fmt.Errorf("a leg of mint %d is in series %s, but the payment says series %s", l.Serial, t.Mint.Series, u.Series)
+	}
+	if t.Mint.Serial != l.Serial {
+		return nil, fmt.Errorf("a leg says mint %d but its transaction spends mint %d", l.Serial, t.Mint.Serial)
+	}
+	return t, nil
+}
+
 // Complete reports whether every input of every leg has its signatures.
 func (u *Unsigned) Complete() bool {
 	for _, l := range u.Legs {
@@ -427,8 +600,11 @@ func (l UnsignedLeg) Finish() (*tx.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(l.Inputs) != len(t.Inputs) {
+	if len(l.Inputs) != witnessCount(t) {
 		return nil, errors.New("wallet: unsigned leg has the wrong number of inputs")
+	}
+	if len(t.Witnesses) != len(l.Inputs) {
+		t.Witnesses = make([]policy.Witness, len(l.Inputs))
 	}
 	for i, in := range l.Inputs {
 		pol, err := in.policy()
@@ -516,14 +692,15 @@ func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) 
 	added := 0
 	for li := range u.Legs {
 		l := &u.Legs[li]
-		t, err := tx.Decode(l.Tx)
+		t, err := u.DecodeLeg(li)
 		if err != nil {
 			return added, err
 		}
-		if len(l.Inputs) != len(t.Inputs) {
+		if len(l.Inputs) != witnessCount(t) {
 			return added, errors.New("wallet: unsigned leg has the wrong number of inputs")
 		}
 		msg := policy.Message(t.TID(h))
+		var sig []byte // one signature serves every input of the leg (ORANGE-045)
 		for i := range l.Inputs {
 			p, err := l.Inputs[i].policy()
 			if err != nil {
@@ -537,7 +714,15 @@ func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) 
 				if k.Alg != alg || !bytes.Equal(k.Public, pub) || l.Inputs[i].has(uint16(ki)) {
 					continue
 				}
-				l.Inputs[i].Sigs = append(l.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: signer.Sign(msg)})
+				if sig == nil {
+					sig = signer.Sign(msg)
+					// A signature that does not verify never reaches the
+					// file (RED-106).
+					if a, ok := policy.Default().Alg(alg); !ok || !a.Verify(pub, msg, sig) {
+						return added, errors.New("wallet: the key's signature does not verify under its public key")
+					}
+				}
+				l.Inputs[i].Sigs = append(l.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: sig})
 				added++
 			}
 		}

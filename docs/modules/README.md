@@ -38,6 +38,8 @@ together. When you change a package, update its page.
 | `pkg/filter` | [filter.md](filter.md) | Node (viewing) |
 | `pkg/watch` | [watch.md](watch.md) | Node (viewing) |
 | `pkg/grind` | [grind.md](grind.md) | Node (hash work) |
+| `pkg/bounty` | [bounty.md](bounty.md) | Node policy (bounty market) |
+| `pkg/keepjson` | [keepjson.md](keepjson.md) | Files |
 | `pkg/rpc` | [rpc.md](rpc.md) | Node (local control) |
 | `pkg/daemon` | [daemon.md](daemon.md) | Node (running a node) |
 | `pkg/wallet` | [wallet.md](wallet.md) | Wallet (holder's habits) |

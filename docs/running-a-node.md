@@ -124,11 +124,17 @@ them where the key is (D193):
 
 ```sh
 # on the key's machine (no node needed)
-./poo keygen -seed-file key.hex          # or: -raw for a key made by another tool
+./poo keygen -out key.hex                # a new key, written to key.hex only (0600)
+#   or, for a key made by another tool: ./poo keygen -raw -seed-file key.hex
 # note public_key; on the node's machine
 ./poo wallet create -wallet cold.wallet -watch-only
 ./poo wallet policy -wallet cold.wallet -name cold -k 1 -key ed25519:PUBLIC_KEY
-./poo wallet watch -wallet cold.wallet -serial 5
+./poo wallet claim -wallet cold.wallet -serial 5 -to-policy cold -out claim.json
+# carry claim.json to the key's machine, sign it, carry it back
+./poo sign claim.json -key-file key.hex -show
+./poo sign claim.json -key-file key.hex
+./poo wallet submit -wallet cold.wallet claim.json
+./poo build -pool 1 -work 100000
 ./poo wallet pay -wallet cold.wallet -to BOB_ADDRESS -amount 30 -out pay.json
 # carry pay.json to the key's machine
 ./poo sign pay.json -key-file key.hex -show   # read what it pays first
@@ -137,7 +143,13 @@ them where the key is (D193):
 ./poo wallet submit -wallet cold.wallet pay.json
 ```
 
-A claim is made where the key is, with `poo claim -seed-file`.
+`poo keygen -out` writes the seed to a new file only you can read and
+prints only the public key, so the key is never on screen; it refuses to
+replace an existing file. Back the file up: it is the only copy.
+`wallet claim -to-policy` prepares the claim unsigned, as `wallet pay
+-out` does a payment, and `wallet claim` also watches the mint
+(GREEN-060). `poo claim -seed-file` still claims directly on a machine
+that has both the key and a running node.
 
 For a lighter node, `poo wallet follow` rewrites the node policy to follow
 only the pools of the mints the wallet watches, and a running node applies
@@ -309,6 +321,39 @@ for 10 minutes or block it for a day. You can look and act yourself:
 ./poo peer template -template detailed 203.0.113.5:7733   # record more
 ./poo chases                            # heavier ledgers waiting to be checked
 ```
+
+### Paying peers to grind layers (bounty market)
+
+Two nodes that are connected can trade grinding work (D196). It is off
+until each turns it on in node.json, then restarts:
+
+```json
+"bounty": {"post": true, "take": true, "max_amount": 5000, "budget": 20000}
+```
+
+The payer posts an offer on an entry it holds, and the grinder finds,
+works and claims it:
+
+```sh
+# on the payer: pay 1000 units for each of 2 layers of strength 28
+./poo bounty post -entry ENTRY -strength 28 -amount 1000 -count 2
+# on the grinder: ask peers for offers, then work one
+./poo wallet address                    # a fresh address to be paid to
+./poo bounty list -ask
+./poo bounty work OFFER_ID -to ADDRESS
+# on the payer: see the accepted claim and pay it from the wallet
+./poo bounty list
+./poo bounty pay OFFER_ID
+./poo bounty cancel OFFER_ID            # close the offer early
+```
+
+A grinder works an offer alone for the length of its lease (about three
+times the expected time at its rate). The payout address is fixed when
+the lease is taken. Payment is an ordinary payment, so the grinder sees
+it with `poo wallet balance` once it settles. In this first phase the
+payer pays by hand, a watch-only wallet cannot pay, and offers reach
+direct peers only. See [docs/modules/bounty.md](modules/bounty.md) for
+every setting.
 
 ### Behind a router (NAT)
 

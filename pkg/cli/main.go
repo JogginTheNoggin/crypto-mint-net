@@ -156,6 +156,14 @@ Usage:
   poo sign FILE|- -key-file F [-alg NAME] [-raw] [-hash NAME] [-out FILE] [-show]
                               sign a payment waiting for signatures with a
                               key kept off the node; needs no node (D193)
+  poo bounty post -pool K -entry HASH -strength S -amount A [-count N] [-open SECONDS]
+                              offer to pay for layers on an entry (D196)
+  poo bounty list [-ask]      this node's offers and those peers sent
+  poo bounty work ID -to ADDR [-max-seconds N]
+                              lease a peer's offer, grind the layer, claim it
+  poo bounty pay ID [-claim NONCE] [-wallet FILE]
+                              pay an accepted claim from the wallet
+  poo bounty cancel ID        close one of this node's offers
   poo series example          print the worked example's series as JSON
   poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
                               print a new series' params, checked
@@ -394,6 +402,8 @@ func run(args []string, out io.Writer) error {
 		return claimCmd(args[1:], out)
 	case "sign":
 		return signCmd(args[1:], out)
+	case "bounty":
+		return bountyCmd(args[1:], out)
 	case "pay":
 		return payCmd(args[1:], out)
 	case "build":
@@ -442,9 +452,13 @@ func keygen(args []string, out io.Writer) error {
 	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")
 	hashName := fs.String("hash", "sha256", "hash of the series the address is for")
 	raw := fs.Bool("raw", false, "with -seed-file: the file holds an existing private key in its algorithm's usual form, as other tools keep it; prints its public key and address, never the key (D193)")
+	keyOut := fs.String("out", "", "write a new random seed to this file (readable by you only, never replacing a file) and print only the public key and addresses: a key file for poo sign, claim and pay -seed-file")
 	w := addWhere(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *keyOut != "" && (*seedHex != "" || *seedFile != "" || *raw) {
+		return errors.New("-out makes a new key; it does not go with -seed, -seed-file or -raw")
 	}
 	alg, err := parseAlg(*algName)
 	if err != nil {
@@ -459,6 +473,9 @@ func keygen(args []string, out io.Writer) error {
 	}
 	if *seedFile != "" {
 		f := &seedFlags{file: seedFile, flag: new(string)}
+		if *raw {
+			f.what = "key"
+		}
 		s, err := f.read(out, false)
 		if err != nil {
 			return err
@@ -478,7 +495,7 @@ func keygen(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return keygenOut(out, w, alg, hid, signer, nil)
+		return keygenOut(out, w, alg, hid, signer, nil, "")
 	}
 	seed := make([]byte, policy.SeedSize)
 	if *seedHex != "" {
@@ -494,12 +511,45 @@ func keygen(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return keygenOut(out, w, alg, hid, signer, seed)
+	if *keyOut != "" {
+		// The seed goes to the file only, never to the screen, so a key
+		// meant to stay off the node is not left in a terminal's
+		// scrollback (GREEN-060).
+		if err := writeNewKeyFile(*keyOut, seed); err != nil {
+			return err
+		}
+		clear(seed)
+		return keygenOut(out, w, alg, hid, signer, nil, *keyOut)
+	}
+	return keygenOut(out, w, alg, hid, signer, seed, "")
+}
+
+// writeNewKeyFile writes seed in hex to a new file only its owner can
+// read, refusing to replace one: an existing key file may be the only
+// copy of a key.
+func writeNewKeyFile(path string, seed []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("%s exists: a key file is never replaced; name a new file", path)
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(f, hex.EncodeToString(seed)); err != nil {
+		f.Close()
+		os.Remove(path)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // keygenOut prints a key's public key, policy and addresses, and its seed
 // when it has one (a raw key's private half is never printed).
-func keygenOut(out io.Writer, w *where, alg policy.AlgID, hid hash.ID, signer policy.Signer, seed []byte) error {
+func keygenOut(out io.Writer, w *where, alg policy.AlgID, hid hash.ID, signer policy.Signer, seed []byte, keyFile string) error {
 	pol := policy.SingleKey(alg, signer.Public())
 	// The address depends only on the series' hash: every series using it
 	// gives the same address for this policy.
@@ -515,6 +565,10 @@ func keygenOut(out io.Writer, w *where, alg policy.AlgID, hid hash.ID, signer po
 	}
 	if seed != nil {
 		v["seed"] = hex.EncodeToString(seed)
+	}
+	if keyFile != "" {
+		v["key_file"] = keyFile
+		v["key_note"] = "the seed is in key_file only, readable by you; back it up, it is the only copy"
 	}
 	if hid == hash.SHA256 {
 		v["address_sha256"] = addr // the field's name before there was a choice
@@ -646,7 +700,7 @@ func writeJSON(out io.Writer, v any) error {
 
 // ownHelp names the commands whose own usage answers "help" and "-h"
 // (grindUsage, simUsage, walletUsage).
-var ownHelp = map[string]bool{"grind": true, "sim": true, "wallet": true}
+var ownHelp = map[string]bool{"grind": true, "sim": true, "wallet": true, "bounty": true}
 
 // runsBare names the commands made of subcommands that also run with no
 // subcommand, with flags of their own: -h lists those flags, and "help"

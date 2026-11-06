@@ -84,6 +84,15 @@ D25). Nothing here changes what is valid.
 }
 ```
 
+`bounty` (D196, off when absent) sets this node's part in the bounty
+market: `post` and `take`, `max_open`, `max_amount` and `budget`,
+`max_leases_per_grinder`, `lease_floor_seconds` and
+`lease_ceiling_seconds`, `held_offers` and `min_price`. `Validate`
+checks each against its range, and `BountyConfig` gives the
+`bounty.Config` the daemon opens the book with. See
+[bounty.md](bounty.md). It changes only what this node offers, takes
+and pays, never what any node accepts into a ledger.
+
 `grind.layer_floor`, when above 0, keeps every layer the node's own
 grinding finds at or above that strength (raised to the series' minimum),
 not only the strongest of each search: several times the credit for the

@@ -75,6 +75,9 @@ type Ext struct {
 // every node of release 0.1.0 has, so a later release can tell old from
 // new.
 const (
+	// FeatureBounty is listed only by a node whose policy posts or takes
+	// bounties (D196): types 70 to 76.
+	FeatureBounty     = "bounty"
 	FeatureLayersFrom = "layers-from" // types 27 and 53
 	FeatureManyLayers = "many-layers" // type 52
 	FeatureParts      = "parts"       // types 26, 50 and 51

@@ -250,6 +250,7 @@ func NewHandler(n *node.Node, token string) *Handler {
 	h.mux.HandleFunc("POST /v1/series/release", h.addRelease)
 	h.mux.HandleFunc("POST /v1/peers/forget-imported", h.forgetImported)
 	h.mux.HandleFunc("GET /v1/metrics", h.metrics)
+	h.routeBounty()
 	h.viewRoutes()
 	h.grindRoutes()
 	return h

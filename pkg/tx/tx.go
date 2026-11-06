@@ -158,13 +158,30 @@ func Decode(b []byte) (*Tx, error) {
 // count the bytes left could not hold, so what is allocated stays in
 // proportion to the bytes received.
 func DecodeFrom(r *encoding.Reader) *Tx {
+	return decodeFrom(r, false)
+}
+
+// DecodeVariable is Decode for a transaction known to be of a variable
+// series, which the process may not have built: a signer with no node
+// reads a payment file this way (RED-105).
+func DecodeVariable(b []byte) (*Tx, error) {
+	r := encoding.NewReader(b)
+	t := decodeFrom(r, true)
+	if err := r.Finish(); err != nil {
+		return nil, fmt.Errorf("tx: decode: %w", err)
+	}
+	return t, nil
+}
+
+// decodeFrom is DecodeFrom; variable reads the part whatever the series.
+func decodeFrom(r *encoding.Reader, variable bool) *Tx {
 	t := &Tx{}
 	r.Into(t.Mint.Series[:])
 	// A variable series' mint carries its part. The reader tells one from
 	// its id, which it knows when it has built the series; a series it has
 	// not built reads as fixed, and its transactions cannot be checked
 	// here in any case (D166).
-	if series.IsVariableID(t.Mint.Series) {
+	if variable || series.IsVariableID(t.Mint.Series) {
 		t.Mint.Part = r.U64()
 	}
 	t.Mint.Serial = r.U64()

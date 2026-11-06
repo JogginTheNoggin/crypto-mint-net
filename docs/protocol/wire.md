@@ -133,6 +133,13 @@ the clock skew (2 minutes) ahead.
 | 62 | yes | Follow reply |
 | 63 | partial yes | Follow reply |
 | 64 | peer list | `List<Peer>` |
+| 70 | bounty offer | Offer: `U8` kind (1 layer) ∥ `Hash` series ∥ `U64` pool ∥ `Hash` entry ∥ `U8` strength ∥ `U64` amount ∥ `U16` count ∥ `U32` open seconds ∥ `U64` salt |
+| 71 | bounty list request | `Hash` series (zero: all) |
+| 72 | bounty list | `List<Bytes>` offers, at most 64 |
+| 73 | bounty take | `Hash` offer id ∥ `U64` rate (tries a second) ∥ `Hash` pay-to address |
+| 74 | bounty grant | `Hash` offer id ∥ `U32` seconds (0: refused) ∥ `Bytes` reason (at most 200) |
+| 75 | bounty claim | `Hash` offer id ∥ `U64` nonce ∥ `Hash` pay-to address |
+| 76 | bounty ack | `Hash` offer id ∥ `U64` nonce ∥ `U8` outcome ∥ `List<Hash>` tids (at most 16) |
 
 **Common** starts every request: `U64` nonce ∥ `U64` time (Unix seconds) ∥
 the asker's limits `U32` chunk size ∥ `U32` entry limit ∥ `U32` hash limit
@@ -169,7 +176,7 @@ public tag (W-17, D190).
 
 Feature names and extension tags are registered in `pkg/wire` (`hello.go`)
 and never reused. Registered features: `layers-from`, `many-layers`,
-`parts`, `release`. No extension tag is registered yet. A node skips a
+`parts`, `release`, `bounty` (D196: listed only when node policy turns the bounty market on; messages 70 to 76 go only to a peer that lists it, and a node with the market off ignores them; the offer id is the SHA-256 of the offer's bytes; decoders ignore trailing bytes). No extension tag is registered yet. A node skips a
 feature or tag it does not know, and keeps no extension value of a tag
 it does not know.
 

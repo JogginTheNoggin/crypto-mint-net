@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -408,7 +409,7 @@ func statusCmd(args []string, out io.Writer) error {
 type seriesStatus struct {
 	Series hash.Hash `json:"series"`
 	// Builtin names a series the code carries, as poo series followed
-	// does ("reserve"; GUI-GREEN-056).
+	// does ("default"; GUI-GREEN-056, D192).
 	Builtin  string `json:"builtin,omitempty"`
 	Pools    int    `json:"pools"`
 	Entries  int    `json:"entries"`
@@ -469,6 +470,17 @@ type seedFlags struct {
 	// seed is what signer last read, so a hint can try it under other
 	// algorithms without asking for it again.
 	seed []byte
+	// what names the value in a prompt and an error: "seed" when empty,
+	// "key" for a private key read with -raw (GUI-032).
+	what string
+}
+
+// name is what f reads, for prompts and errors.
+func (f *seedFlags) name() string {
+	if f.what == "" {
+		return "seed"
+	}
+	return f.what
 }
 
 func addSeed(fs *flag.FlagSet, use string) *seedFlags {
@@ -487,18 +499,20 @@ func (f *seedFlags) read(out io.Writer, env bool) (string, error) {
 	switch {
 	case *f.file == "-":
 		if s, ok := out.(*stdio); ok && s.secret != nil {
-			v, err := s.secret("seed: ")
+			v, err := s.secret(f.name() + ": ")
 			return strings.TrimSpace(v), err
 		}
 		line, err := inputOf(out).ReadString('\n')
 		if err != nil && (err != io.EOF || line == "") {
-			return "", errors.New("no seed on standard input")
+			return "", fmt.Errorf("no %s on standard input", f.name())
 		}
 		return strings.TrimSpace(line), nil
 	case *f.file != "":
 		b, err := os.ReadFile(*f.file)
 		if err != nil {
-			return "", err
+			// Never the path or the error's text: in a form, a key pasted
+			// where its file's path goes would be printed back (GUI-032).
+			return "", f.readErr(err)
 		}
 		return strings.TrimSpace(string(b)), nil
 	}
@@ -506,6 +520,18 @@ func (f *seedFlags) read(out io.Writer, env bool) (string, error) {
 		return strings.TrimSpace(v), nil
 	}
 	return "", nil
+}
+
+// readErr says why f's file could not be read, without its path.
+func (f *seedFlags) readErr(err error) error {
+	why := "could not be read"
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		why = "does not exist"
+	case errors.Is(err, fs.ErrPermission):
+		why = "cannot be read (permission denied)"
+	}
+	return fmt.Errorf("the %s file %s; give the path of a file holding the %s in hex, never the %s itself", f.name(), why, f.name(), f.name())
 }
 
 // signer reads the seed and returns its Ed25519 key.

@@ -51,6 +51,9 @@ var readCommands = map[string]map[string]bool{
 	// The wallet reads only these: the others sign, give out addresses or
 	// record payment states in the wallet file, and seed reveals the seed.
 	"wallet": {"addresses": true, "balance": true, "help": true},
+	// The bounty market: list only looks (and refuses -ask itself); post,
+	// work, pay and cancel act (D196).
+	"bounty": {"list": true, "help": true},
 }
 
 // writeCommands are the commands that change something, listed so the

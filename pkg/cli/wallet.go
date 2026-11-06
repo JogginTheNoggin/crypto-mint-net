@@ -331,6 +331,10 @@ func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	if err != nil {
 		return err
 	}
+	if w.WatchOnly() {
+		// Refused before a new passphrase is asked for (GUI-GREEN-061).
+		return fmt.Errorf("%w: it holds no seed, so it has no passphrase to change", wallet.ErrWatchOnly)
+	}
 	var p string
 	switch v, ok := os.LookupEnv("POO_NEW_PASSPHRASE"); {
 	case *newFile != "":
@@ -582,8 +586,13 @@ func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 
 func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
 	serial := fs.Uint64("serial", 0, "the mint's serial")
+	polName := fs.String("to-policy", "", "claim to this wallet policy's address, unsigned, for poo sign where its keys are (with -out; how a watch-only wallet claims)")
+	outFile := fs.String("out", "", "with -to-policy: write the claim waiting for signatures here")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if (*polName == "") != (*outFile == "") {
+		return errors.New("-to-policy and -out go together: the claim is written unsigned for poo sign, then sent with poo wallet submit")
 	}
 	s, err := f.series()
 	if err != nil {
@@ -592,6 +601,26 @@ func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	w, err := f.unlocked(out)
 	if err != nil {
 		return err
+	}
+	if *polName != "" {
+		// A claim to a policy whose keys are elsewhere: prepared here,
+		// signed with poo sign, sent with poo wallet submit (GREEN-060).
+		release, err := holdWallet(w, out)
+		if err != nil {
+			return err
+		}
+		defer release()
+		p, u, err := w.ClaimUnsigned(s, *serial, *polName)
+		if err != nil {
+			return err
+		}
+		if err := saveSent(w, out, "claim", p, nil); err != nil {
+			return err
+		}
+		return writeOut(out, *outFile, u)
+	}
+	if w.WatchOnly() {
+		return fmt.Errorf("%w; to claim with a key kept off the node: poo wallet claim -serial %d -to-policy NAME -out claim.json, poo sign claim.json -key-file KEY, poo wallet submit claim.json", wallet.ErrWatchOnly, *serial)
 	}
 	n, err := f.node(out, s)
 	if err != nil {
@@ -642,6 +671,12 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 	if err != nil {
 		return err
 	}
+	// A payment that needs signatures from elsewhere is recorded, and its
+	// units held, only when its file is written: nothing writes it later
+	// (GUI-GREEN-061).
+	if w.WatchOnly() && *outFile == "" {
+		return errPayNeedsOut(nil)
+	}
 	n, err := f.node(out, s)
 	if err != nil {
 		return err
@@ -668,6 +703,10 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 		}
 		sent, u, err = w.Pay(s, n, addr, *amount, wallet.PayOptions{Memo: *memo, Mints: mints, Change: change})
 	}
+	if err == nil && u != nil && *outFile == "" {
+		// Nothing was sent; leave the wallet as it was (GUI-GREEN-061).
+		return errPayNeedsOut(u.Missing())
+	}
 	if sent != nil {
 		if serr := saveSent(w, out, "payment", sent, err); serr != nil {
 			return serr
@@ -678,13 +717,19 @@ func walletPay(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) e
 	}
 	if u != nil {
 		fmt.Fprintf(out, "signatures missing (per leg, per input): %v\n", u.Missing())
-		if *outFile == "" {
-			fmt.Fprintln(out, "pass -out FILE to write the payment for co-signers (or for poo sign, with a key kept off the node)")
-			return nil
-		}
 		return writeOut(out, *outFile, u)
 	}
 	return writeJSON(out, sent)
+}
+
+// errPayNeedsOut refuses a payment this wallet cannot sign alone when no
+// -out is given; missing, when known, says which signatures it lacks.
+func errPayNeedsOut(missing [][]int) error {
+	what := "this wallet is watch-only, so a payment needs signatures from elsewhere"
+	if missing != nil {
+		what = fmt.Sprintf("this payment needs signatures this wallet cannot give (missing per leg, per input: %v)", missing)
+	}
+	return fmt.Errorf("%s; nothing was recorded or held: run it again with -out FILE, add the signatures (poo sign, or the co-signers), then poo wallet submit FILE", what)
 }
 
 func walletRequest(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {

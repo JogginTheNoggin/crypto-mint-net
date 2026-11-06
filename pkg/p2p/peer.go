@@ -246,7 +246,7 @@ func (p *peer) info() PeerInfo {
 // not a valid release string) and its features (D186). The self-check
 // probe of a port mapping sends its own, without either.
 func (h *Host) ownHello() wire.Hello {
-	hl := wire.Hello{Protocol: Protocol, NodeID: h.id, Agent: h.cfg.Agent, Features: wire.OwnFeatures}
+	hl := wire.Hello{Protocol: Protocol, NodeID: h.id, Agent: h.cfg.Agent, Features: h.features()}
 	if r := node.RunningRelease().Version; !h.cfg.HideRelease && wire.ValidRelease(r) {
 		hl.Release = r
 	}
@@ -538,7 +538,7 @@ func budgetKind(t wire.Type) string {
 		return tracking.KindEntry
 	case t == wire.TypeLayer:
 		return tracking.KindLayer
-	case t.IsDiscovery():
+	case t.IsDiscovery() || t.IsBounty():
 		return tracking.KindDiscovery
 	}
 	return tracking.KindRequest
@@ -568,7 +568,11 @@ func (h *Host) dispatch(p *peer, m wire.Message, size int) error {
 			return errors.New("reply chunks arrive faster than they are read")
 		}
 		return nil
-	case !m.Type.IsRequest() && !m.Type.IsDiscovery() && !isPushed(m.Type) && m.Type != wire.TypeRelease:
+	case m.Type.IsBounty() && h.cfg.Bounty == nil:
+		// The market is off here: its messages are ignored like unknown
+		// types (D196).
+		return nil
+	case !m.Type.IsRequest() && !m.Type.IsDiscovery() && !isPushed(m.Type) && m.Type != wire.TypeRelease && !m.Type.IsBounty():
 		// Unknown types are ignored, so later versions can add messages.
 		return nil
 	}
@@ -593,6 +597,8 @@ func (h *Host) handle(p *peer, m wire.Message, size int) error {
 	switch {
 	case m.Type == wire.TypeRelease:
 		return h.handleRelease(p, m)
+	case m.Type.IsBounty():
+		return h.handleBounty(p, m)
 	case isPushed(m.Type):
 		if pi := h.poolFor(m.Section); pi != nil && size > 0 {
 			h.tr.Cost(p.key, pi.section.Text(), 0, size, false, time.Now())
