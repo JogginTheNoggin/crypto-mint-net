@@ -39,11 +39,17 @@ func secretFlag(arg string) (secret, inline bool) {
 var keyFileFlags = []string{"key-file", "seed-file"}
 
 // keyFileFlag reports whether args[i] is a key file flag whose value
-// LooksLikeKey, and whether it carries its value after "=".
-func keyFileFlag(args []string, i int) (secret, inline bool) {
+// LooksLikeKey, whether the value starts after "=", and how many of the
+// args after it are part of the value. A key typed as several words (in
+// groups, as openssl prints it in lines, or in halves) is several args,
+// so the value is read as secretLine reads it in the page: word by word,
+// up to the next flag, or a word with / \ or . in it (tested with and
+// without that word, as a key may end in a dot), or past keyRun
+// characters (GUI-035).
+func keyFileFlag(args []string, i int) (secret, inline bool, more int) {
 	arg := args[i]
 	if !strings.HasPrefix(arg, "-") {
-		return false, false
+		return false, false, 0
 	}
 	name, val, inline := strings.Cut(strings.TrimPrefix(strings.TrimPrefix(arg, "-"), "-"), "=")
 	found := false
@@ -51,16 +57,42 @@ func keyFileFlag(args []string, i int) (secret, inline bool) {
 		found = found || name == f
 	}
 	if !found {
-		return false, false
+		return false, false, 0
 	}
-	if !inline {
-		if i+1 >= len(args) {
-			return false, false
+	v, n, j := "", 0, i+1
+	if inline {
+		v = val
+		if strings.ContainsAny(v, "/\\.") || len(v) > keyRun {
+			return LooksLikeKey(v), true, 0
 		}
-		val = args[i+1]
 	}
-	return LooksLikeKey(val), inline
+	for ; j < len(args); j++ {
+		x := args[j]
+		if strings.HasPrefix(x, "-") && len(x) > 1 {
+			break
+		}
+		w := x
+		if v != "" {
+			w = v + " " + x
+		}
+		if v != "" && len(w) > keyRun {
+			break
+		}
+		if strings.ContainsAny(x, "/\\.") {
+			if !LooksLikeKey(v) && LooksLikeKey(w) {
+				return true, inline, n + 1
+			}
+			break
+		}
+		v, n = w, n+1
+	}
+	return LooksLikeKey(v), inline, n
 }
+
+// keyRun is the most characters after a key file flag read as one value:
+// far past any key written with separators (an SLH-DSA-256s secret key is
+// 128 bytes, 383 characters as colon hex). api.js uses the same.
+const keyRun = 512
 
 // LooksLikeKey reports whether s, given where a path goes, is a key: 32
 // or more hex digits in a row once the separators a key is often printed
@@ -107,8 +139,11 @@ func Redact(args []string) ([]string, bool) {
 	var out []string
 	for i := 0; i < len(args); i++ {
 		secret, inline := secretFlag(args[i])
+		more := 1
 		if !secret {
-			secret, inline = keyFileFlag(args, i)
+			secret, inline, more = keyFileFlag(args, i)
+		} else if inline {
+			more = 0
 		}
 		if !secret {
 			continue
@@ -119,7 +154,8 @@ func Redact(args []string) ([]string, bool) {
 		if inline {
 			name, _, _ := strings.Cut(args[i], "=")
 			out[i] = name + "=" + Hidden
-		} else if i+1 < len(args) {
+		}
+		for ; more > 0 && i+1 < len(args); more-- {
 			i++
 			out[i] = Hidden
 		}

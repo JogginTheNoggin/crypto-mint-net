@@ -3,7 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
+| Fixed by | GUI/Blue, Round 39C (gui/shell `keyFileFlag`: the value after `-key-file` or `-seed-file` is read word by word, up to the next flag, a word with `/ \\ .` (tested with and without it), or past 512 characters, and every word of a value that `LooksLikeKey` is hidden; TestRedactKeyFileWords covers groups of 8, openssl's 15-byte lines, two halves, `=` with more words and a dot at the end, and fails on the old code). Also from the R39B notes: `secretLine` tests the first word before the 512-character cap, so one hex word longer than that stays out of history (qol.mjs) |
 | Fixed by | |
 | Found on | main @ 21c34c8 (#338, #341); the code is from Round 36C (`shell.Redact` with `LooksLikeKey`, GUI-032) |
 | Component | gui/shell/secret.go (`keyFileFlag`: tests only `args[i+1]`; `Redact` hides only that word); compare gui/web/static/api.js (`secretLine`: reads the words after the flag as one value) |
