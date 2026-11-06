@@ -8,8 +8,8 @@
 // the address bar (#/ledger?pool=1&height=3 and so on), so Back works and a
 // place can be linked to.
 //
-// Every screen is poon pools, poon ledger, poon pending, poon tx or poon
-// address run once (api.run), laid out. Nothing here computes anything
+// Every screen is poon pools, poon ledger, poon pending, poon tx, poon
+// unspent or poon address run once (api.run), laid out. Nothing here computes anything
 // about the ledger: the only arithmetic is which height the next page
 // starts at. The command lines each screen ran are shown under it when
 // Settings shows commands.
@@ -44,6 +44,8 @@ function go(p, text, title) {
   return el('a', { class: 'go', href: href(p), title: title || undefined }, text);
 }
 const hashGo = (p, h) => go(p, el('code', {}, short(h)), h);
+// mintGo links a mint's serial to its own screen (GUI-GREEN-067).
+const mintGo = (n, s) => (n === undefined || n === null || n === '') ? '' : go({ serial: n, series: s }, String(n), `Mint ${n}: who holds it`);
 
 const when = (() => {
   let fmt = null;
@@ -91,8 +93,8 @@ export const ledgerView = {
     const series = p.get('series') || '';
     const sflag = s => (s ? ['-series', s] : []);
 
-    const search = el('input', { name: 'find', placeholder: 'A transaction id or an address', spellcheck: 'false', 'aria-label': 'Transaction id or address' });
-    search.value = p.get('find') || p.get('tid') || p.get('address') || '';
+    const search = el('input', { name: 'find', placeholder: 'A transaction id, an address or a mint number', spellcheck: 'false', 'aria-label': 'Transaction id, address or mint number' });
+    search.value = p.get('find') || p.get('tid') || p.get('address') || p.get('serial') || '';
     const searchForm = el('form', { class: 'ledger-search', role: 'search', autocomplete: 'off' }, search,
       el('button', { type: 'submit', class: 'primary' }, 'Find'));
     searchForm.onsubmit = ev => {
@@ -214,7 +216,7 @@ export const ledgerView = {
     // txTable lists transactions, each linked to its own screen.
     const txTable = (txs, cls) => clickable(rowsTable(txs, x => [
       hashGo({ tid: x.tid, series: x.series || series }, x.tid),
-      x.claim ? 'Mint claim' : 'Payment', str(x.serial), str(x.amount),
+      x.claim ? 'Mint claim' : 'Payment', mintGo(x.serial, x.series || series), str(x.amount),
       plural(Array.isArray(x.outputs) ? x.outputs.length : 0, 'output'),
     ], { headers: ['Transaction', 'Kind', 'Mint', 'Amount', 'Pays'], cls, more: 'ledger-more', noun: 'transactions' }));
 
@@ -268,7 +270,7 @@ export const ledgerView = {
         facts([
           ['Where it stands', where_],
           ['Transaction', render(t.tid, 0, 'hash')],
-          ['Mint', str(t.serial)],
+          ['Mint', mintGo(t.serial, s)],
           ['Amount', str(t.amount)],
           ['Weight behind it', st.selected ? `${st.from} (a rival must beat this to reverse it)` : ''],
           ['Size', t.size !== undefined ? `${t.size} bytes` : ''],
@@ -312,7 +314,7 @@ export const ledgerView = {
       ])));
       if (a.unreadable) parts.push(el('p', { class: 'next-step bad' }, `${plural(a.unreadable, 'entry was', 'entries were')} unreadable from the node's log, so the history may be missing items.`));
       parts.push(section(`Holdings (${hold.length})`, hold.length ? clickable(rowsTable(hold, x => [
-        hashGo({ tid: x.input && x.input.tid, series: s }, x.input && x.input.tid), str(x.input && x.input.index), str(x.serial), str(x.amount),
+        hashGo({ tid: x.input && x.input.tid, series: s }, x.input && x.input.tid), str(x.input && x.input.index), mintGo(x.serial, s), str(x.amount),
       ], { headers: ['Made by transaction', 'Output', 'Mint', 'Amount'], cls: 'ledger-holdings', more: 'ledger-more', noun: 'holdings' })) : el('p', { class: 'hint empty' }, 'Nothing unspent.')));
       const more = Array.isArray(a.next) ? a.next : [];
       parts.push(section(`History (${hist.length})`, hist.length ? clickable(rowsTable(hist, x => [
@@ -335,8 +337,35 @@ export const ledgerView = {
       addrScreen(v, v.series || series);
     };
 
-    // ---- Find: a transaction first, then an address.
+    // ---- A mint: who holds its units now (poon unspent -serial), and the
+    // pool that holds it (from poon pools' serial ranges). GUI-GREEN-067.
+    const mint = async n => {
+      setCrumbs([null, `Mint ${n}`]);
+      busy(`Looking up mint ${n}…`);
+      const [u, pl] = await Promise.all([
+        read(['unspent', ...where.flags(), ...sflag(series), '-serial', String(n)]),
+        read(['pools', ...where.flags()])]);
+      if (gone) return;
+      if (u.v === undefined) return failed(u.r, `mint ${n}`);
+      const rows = Array.isArray(u.v) ? u.v : [];
+      const pool = (Array.isArray(pl.v) ? pl.v : []).find(x => (!series || x.series === series) && Number(x.first_serial) <= Number(n) && Number(n) <= Number(x.last_serial));
+      if (pool) setCrumbs([{ pool: pool.pool, series: pool.series }, `Pool ${pool.pool}`], [null, `Mint ${n}`]);
+      const s = (pool && pool.series) || series;
+      const parts = [section(`Mint ${n}`, facts([
+        ['Pool', pool ? go({ pool: pool.pool, series: s }, `Pool ${pool.pool}`) : 'No pool this node follows holds this mint.'],
+        ['Unspent portions', String(rows.length)],
+      ]))];
+      parts.push(section(`Who holds it (${rows.length})`, rows.length ? clickable(rowsTable(rows, x => [
+        hashGo({ address: x.address, series: s }, x.address), str(x.amount),
+        hashGo({ tid: x.input && x.input.tid, series: s }, x.input && x.input.tid), str(x.input && x.input.index),
+      ], { headers: ['Address', 'Amount', 'Made by transaction', 'Output'], cls: 'ledger-mint', more: 'ledger-more', noun: 'portions' }))
+        : el('p', { class: 'hint empty' }, pool ? 'Nothing unspent in the selected ledger: the mint is not claimed yet, or its claim is still pending.' : 'Nothing.')));
+      body.replaceChildren(...parts);
+    };
+
+    // ---- Find: a mint number, else a transaction, then an address.
     const find = async text => {
+      if (/^\d+$/.test(text)) return mint(text);
       setCrumbs([null, `Find ${short(text)}`]);
       busy('Looking…');
       const t = await read(['tx', ...where.flags(), ...sflag(series), text]);
@@ -347,13 +376,14 @@ export const ledgerView = {
       if (gone) return;
       if (a.v !== undefined) return addrScreen(a.v, a.v.series || series, 'Not a transaction this node holds, so it is shown as an address.');
       if (needsNode(a.r)) return failed(a.r, '');
-      body.replaceChildren(el('div', { class: 'run-status bad ledger-not-found', role: 'alert' }, `Nothing found for ${text}: it is not a transaction this node holds, and not an address.`),
+      body.replaceChildren(el('div', { class: 'run-status bad ledger-not-found', role: 'alert' }, `Nothing found for ${text}: it is not a mint number, a transaction this node holds, or an address.`),
         el('details', {}, el('summary', {}, 'What poon said'),
           el('pre', { class: 'text-out err' }, `poon tx: ${(t.r.err || '').trim()}\npoon address: ${(a.r.err || '').trim()}`)));
     };
 
     const k = p.get('pool');
     if (p.get('tid')) tx(p.get('tid'));
+    else if (p.get('serial')) mint(p.get('serial'));
     else if (p.get('address')) address(p.get('address'), k, p.get('below'));
     else if (p.get('find')) find(p.get('find'));
     else if (k !== null && k !== '' && p.get('height')) entry(k, p.get('height'));

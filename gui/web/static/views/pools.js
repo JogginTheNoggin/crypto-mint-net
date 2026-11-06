@@ -107,6 +107,31 @@ export const poolsView = {
       // and keeps poon's output under Output as printed, drawn when opened.
       // A text that is not one whole ledger file is never offered to save.
       onResult: exportResult });
+    const layerForm = form(ctx, { title: 'Add a layer', about: 'Adds the strongest layer found, by default on the selected tip.',
+        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'entry', label: 'Entry hash', placeholder: 'default: the selected tip' }, { name: 'tries', label: 'Tries', type: 'number', placeholder: 'default 65536, or more for a series with a high layer floor; with For: as many as fit' }, series, ...grindFields(), { name: 'start', label: 'First nonce', type: 'number', placeholder: 'default 0' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
+        args: v => ['work', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('entry', v.entry), ...flag('tries', v.tries), ...flag('series', v.series), ...grindFlags(v), ...flag('start', v.start), ...flag('bytes', v.bytes)], submit: 'Work' });
+    const buildForm = form(ctx, { title: 'Build an entry', about: 'Builds an entry from the pending transactions of a pool.',
+        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, parent, series, ...grindFields(), { name: 'maxTries', label: 'Most entry tries', type: 'number', placeholder: 'when the series sets a minimum entry strength' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
+        args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('parent', v.parent), ...flag('work', v.work), ...flag('series', v.series), ...grindFlags(v), ...flag('max-tries', v.maxTries), ...flag('bytes', v.bytes)], submit: 'Build',
+        // An entry poon built with no layer yet waits for one (poon's next
+        // line says so): one press fills Add a layer with it, instead of
+        // copying the hash (GUI-GREEN-067).
+        onResult: (r, area) => {
+          const v = Object.fromEntries(['pool', 'serial', 'series'].map(k => [k, buildForm.inputs[k] ? buildForm.inputs[k].value.trim() : '']));
+          let o = null;
+          try { o = JSON.parse(r.out); } catch (_) { /* not JSON */ }
+          if (r.code !== 0 || !o || typeof o.hash !== 'string' || !o.next) return;
+          const btn = el('button', { type: 'button', class: 'small' }, 'Add a layer to it');
+          btn.onclick = () => {
+            const f = layerForm;
+            f.inputs.pool.value = (v && v.pool) || ''; f.inputs.serial.value = (v && v.serial) || ''; f.inputs.entry.value = o.hash;
+            if (v && v.series) f.inputs.series.value = v.series;
+            f.form.dispatchEvent(new Event('input'));
+            f.el.scrollIntoView({ block: 'start' });
+            f.form.querySelector('button[type=submit]').focus();
+          };
+          area.prepend(el('p', { class: 'next-step build-next', role: 'status' }, 'The entry is built. It is selected once a layer lands on it. ', btn));
+        } });
     let picker = null;
     const ledgerImport = form(ctx, { title: 'Import a ledger', about: 'Gives the node the entries and layers of a ledger file. Each is checked as if a peer had sent it: valid ones are kept, the rest are listed with poon\'s reason, and the node switches to a heavier branch only as it would for a peer.',
       fields: [{ name: 'file', label: 'Ledger file', placeholder: 'a path on this machine, or pick one below', required: true },
@@ -130,9 +155,7 @@ export const poolsView = {
       form(ctx, { title: 'Where a payment stands', about: 'A transaction, the weight behind it, and known rivals.',
         fields: [{ name: 'tid', label: 'Transaction id', placeholder: 'hex' }, { ...serial, required: false, label: 'In mint serial', placeholder: 'optional: look only in its pool' }, series],
         args: v => ['tx', ...where.flags(), ...flag('in-serial', v.serial), ...flag('series', v.series), ...(v.tid ? [v.tid] : [])], submit: 'Look up' }),
-      form(ctx, { title: 'Build an entry', about: 'Builds an entry from the pending transactions of a pool.',
-        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional' }, parent, series, ...grindFields(), { name: 'maxTries', label: 'Most entry tries', type: 'number', placeholder: 'when the series sets a minimum entry strength' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
-        args: v => ['build', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('parent', v.parent), ...flag('work', v.work), ...flag('series', v.series), ...grindFlags(v), ...flag('max-tries', v.maxTries), ...flag('bytes', v.bytes)], submit: 'Build' }),
+      buildForm,
       // A rival claim (D161): the mint's claim built into an entry on a
       // chosen parent instead of submitted, so it can be grinded to
       // compete with the entry holding the claim now. The seed is typed
@@ -140,9 +163,7 @@ export const poolsView = {
       form(ctx, { title: 'Build a rival claim', about: 'Builds a claim of a mint into an entry on the parent you choose, such as the one before the entry holding the claim now, and prints its hash and the command to grind it. poon asks for the claiming key\'s seed in a masked field.',
         fields: [{ ...serial }, { ...parent, required: true, placeholder: 'before-claim, root, or an entry hash' }, series, { name: 'work', label: 'Layer tries', type: 'number', placeholder: 'optional: then add the strongest layer found' }, { name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs', help: 'The claiming key\'s algorithm (-alg).' }, { name: 'maxTries', label: 'Most entry tries', type: 'number', placeholder: 'when the series sets a minimum entry strength' }],
         args: v => ['claim', ...where.flags(), '-seed-file', '-', ...flag('serial', v.serial), ...flag('parent', v.parent), ...flag('series', v.series), ...flag('work', v.work), ...flag('max-tries', v.maxTries), ...flag('alg', v.alg)], submit: 'Build claim' }),
-      form(ctx, { title: 'Add a layer', about: 'Adds the strongest layer found, by default on the selected tip.',
-        fields: [{ name: 'pool', label: 'Pool', type: 'number' }, { ...serial, required: false, placeholder: 'or a mint serial' }, { name: 'entry', label: 'Entry hash', placeholder: 'default: the selected tip' }, { name: 'tries', label: 'Tries', type: 'number', placeholder: 'default 65536, or more for a series with a high layer floor; with For: as many as fit' }, series, ...grindFields(), { name: 'start', label: 'First nonce', type: 'number', placeholder: 'default 0' }, { name: 'bytes', label: 'Also print the hex, for Submit on another node', type: 'check' }],
-        args: v => ['work', ...where.flags(), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('entry', v.entry), ...flag('tries', v.tries), ...flag('series', v.series), ...grindFlags(v), ...flag('start', v.start), ...flag('bytes', v.bytes)], submit: 'Work' }),
+      layerForm,
       // poon submit (Source D142) hands the node an entry or layer made
       // elsewhere, as the hex Build or Add a layer prints with -bytes,
       // typed in or read by poon from a file (-f, BLUE-015).

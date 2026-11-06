@@ -114,6 +114,15 @@ try {
   await page.goBack();
   await body.locator('h2', { hasText: 'Mint claim' }).waitFor();
 
+  // A mint opens who holds it, in its pool (GUI-GREEN-067).
+  await body.locator('dl.facts a.go', { hasText: /^6$/ }).click();
+  await body.locator('h2', { hasText: 'Mint 6' }).waitFor();
+  assert.equal(await page.locator('.crumbs').innerText(), 'Pools › Pool 1 › Mint 6');
+  const holders = body.locator('table.ledger-mint tbody tr');
+  assert.equal(await holders.count(), 1);
+  assert.match(await holders.innerText(), new RegExp(`^${addr.slice(0, 10)}…${addr.slice(-6)}\t100\t`));
+  await shot('mint');
+
   // Find: a transaction id, then an address, then neither.
   const find = async text => {
     await page.locator('.ledger-search input').fill(text);
@@ -124,6 +133,12 @@ try {
   await find(addr);
   await body.locator('.ledger-found-note').waitFor();
   await body.locator('.ledger-balance', { hasText: '100' }).waitFor();
+  // A mint number opens the mint; one no followed pool holds says so.
+  await find('2');
+  await body.locator('h2', { hasText: 'Mint 2' }).waitFor();
+  assert.match(await body.innerText(), /not claimed yet/);
+  await find('99');
+  await body.locator('dl.facts', { hasText: 'No pool this node follows holds this mint.' }).waitFor();
   await find('not-a-hash');
   await body.locator('.ledger-not-found').waitFor();
 
@@ -135,6 +150,20 @@ try {
   await hold.locator('button[type=submit]').click();
   await hold.locator('a.lookup[href^="#/ledger?address="]').first().click();
   await body.locator('.ledger-balance').waitFor();
+
+  // An entry built with no layer waits for one: one press fills Add a
+  // layer with its pool and hash (GUI-GREEN-067).
+  poon(['claim', '-serial', '4'], { POON_SEED: 'd4'.repeat(32) });
+  await page.click('nav a[data-id=pools]');
+  const build = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Build an entry' }) });
+  await build.locator('input[name=pool]').fill('1');
+  await build.locator('button[type=submit]').click();
+  await build.locator('.build-next button').click();
+  const layer = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Add a layer' }) });
+  assert.equal(await layer.locator('input[name=pool]').inputValue(), '1');
+  const filled = await layer.locator('input[name=entry]').inputValue();
+  assert.match(filled, /^[0-9a-f]{64}$/);
+  assert.ok((await build.locator('.area').textContent()).includes(filled), 'the hash poon printed for the built entry');
 
   // Settings shows the command lines, at once and on every view.
   await page.click('nav a[data-id=settings]');

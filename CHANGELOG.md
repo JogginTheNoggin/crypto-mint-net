@@ -44,7 +44,9 @@ built.
   `bounty.max_strength`, and to ask again after a reload (GUI-GREEN-065).
   Ask gives the number of peers asked only when there were some, as
   poon's note covers none, and the page's request header is `X-Poon-GUI`
-  (GUI-GREEN-066).
+  (GUI-GREEN-066). In the Ledger view a mint's number opens who holds it
+  and in which pool, and Find takes a mint number; an entry built with no
+  layer offers Add a layer to it, filled in (GUI-GREEN-067).
 - **Cryptographic choice:** a series can use SHA-256, SHA-512/256,
   SHA3-256, BLAKE2b-256 or BLAKE3; allow Ed25519, ECDSA (P-256, P-384,
   P-521, secp256k1), BIP-340 Schnorr and ML-DSA-44/65/87 keys; and allow
