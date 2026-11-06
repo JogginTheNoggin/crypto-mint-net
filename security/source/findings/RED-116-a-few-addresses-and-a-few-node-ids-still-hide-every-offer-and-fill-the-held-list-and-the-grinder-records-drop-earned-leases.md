@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 37 Part B, on `main` @ `bf90ffd` (D198; follow-up to RED-111 and RED-112) |
 | Area | `pkg/bounty/book.go` (`TakeFrom`, `Receive`, `forgetGrinder`), `pkg/p2p/bounty.go` (`hostOf`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-038) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 3a02a37 (BLUE-038) |
 | For Black | Not a rule. |
 
 ## What is wrong

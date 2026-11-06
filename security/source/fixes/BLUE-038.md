@@ -5,6 +5,7 @@
 | Fixes | RED-115 (medium), RED-116 (low, in part), RED-117 (low, in part) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `bf90ffd` (Source Round 37 Part C), with GREEN-062 (#314) merged in |
+| Code | `3a02a37` |
 | Decisions | D199 |
 | With | GREEN-062 (#314), carried: it changes the same `book.go` and `p2p/bounty.go`. ORANGE-047 (#313) is docs only; its proposals are for Grey (proposal 3 with White). |
 | Review | No consensus change: the market is outside the ledger (D196). For White: an offer over 1,024 bytes is refused even alone (a list already had that bound); held offers gain `addr`. |

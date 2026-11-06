@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 37 Part B, on `main` @ `bf90ffd` (D198, W-27) |
 | Area | `pkg/bounty/bounty.go` (`DecodeOffer`, `Offer.Raw`), `pkg/bounty/book.go` (`Receive`, `HeldOffers`), `pkg/p2p/bounty.go` (`handleBounty`), `pkg/rpc/bounty.go` (`GET /v1/bounty`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-038) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 3a02a37 (BLUE-038) |
 | For Black | Not a rule: the offer is not part of any ledger. |
 
 ## What is wrong
