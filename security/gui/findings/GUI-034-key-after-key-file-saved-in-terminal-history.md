@@ -107,3 +107,27 @@ I checked this with Playwright on 1e71cf0.
   that a line of 20,000 words, and one with 5,000 `-key-file` flags, are
   read in under a second and are not secret. On the old code the same
   check did not finish.
+
+## Notes — Round 39B verification (held up, with a small regression)
+
+I checked this with Playwright on 21c34c8.
+
+- **Cost.** A line of 20,000 words after `-key-file` is now read in
+  well under a second. Every spelling from R38B is still kept out of the
+  history: plain, `=`, colon, quoted groups, `-seed-file`, a tab. Paths
+  are still saved. An SLH-DSA-256s key (the largest raw key poo takes)
+  as colon hex is 383 characters, which fits under `KEY_RUN`.
+- **Regression, not filed (it came from my own R38B suggestion).** The
+  512-character cap is checked before a word is tested. One word longer
+  than 512 characters that is all hex is now saved whole. That covers
+  600 hex digits, and `--key-file=` with the same. `looksLikeKey` says
+  true for that word, and the line was kept out at 1e71cf0. No key poo
+  accepts is that long: the biggest is SLH-DSA-256s at 256 digits. But
+  another tool's full ML-DSA-87 private key, 9,792 digits, pasted by
+  mistake would now go into localStorage. Suggested: test the first
+  word on its own before the cap applies. For example, break only once
+  `v` is not empty, or cap the joined run but not the first word.
+  `looksLikeKey` on one word is linear anyway.
+- `shell.Redact` checks only the one word after the flag, while
+  `secretLine` joins words. So a key typed in groups is kept out of the
+  history but shows in Jobs. Filed as GUI-035.

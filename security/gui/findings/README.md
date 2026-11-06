@@ -5,6 +5,44 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 39 Part B reviewed main @ 21c34c8 (#338, #341):
+- `-max-strength` on Ask and Work in the Bounty view;
+- `bounty.max_strength` (0 to 255) in Set limits, and the switches'
+  "node.json sets on" text;
+- poo's market notes (`notes`) drawn over the tables, and the empty-table
+  hint naming only the steps this node takes;
+- the single time formatter in `when()`;
+- GUI/Blue's linear `secretLine` (my GUI-034 R38B hardening note).
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol`, `variable` and `terminal` e2e tests pass.
+
+New: **GUI-035 (Low).** `shell.Redact` tests only the one word after
+`-key-file`, while the terminal splits a line on spaces. A key typed in
+groups, or pasted as openssl prints it (15 bytes, 30 hex digits, a
+line), is kept out of the saved history by `secretLine`. But it shows in
+clear in `/api/jobs` and the Jobs view. poo refuses the line with only
+its usage text. Fix: read the run of words in `keyFileFlag` the way
+`secretLine` does, and hide all of it.
+
+Note on GUI-034: the 512-character cap I suggested now lets a single
+hex word over 512 characters into the history. No key poo takes is that
+long. See GUI-034's R39B notes.
+
+Held up:
+- **`-max-strength`** goes on the line only when filled. On Ask it
+  follows `-ask`. poo refuses over 255 on both, and 0 means the node's
+  setting on both. It is a number field, so no text gets in. A wording
+  nit: poo's refusal says "1 to 255" though it takes 0. Also, a node
+  with `bounty.max_strength` set has no way from the form to say "any"
+  for one run.
+- **`bounty.max_strength`** in Set limits is 0 to 255, and poo refuses
+  256. `OnOff` now comes from the bounty switches list, not the bounds,
+  so the amounts' new 0 minimum doesn't make them switches.
+- **Notes** are poo's own strings from the node's policy
+  (`BountyNotes`), not a peer's. They are drawn with `el()` as text.
+- **`when()`** gives the same output with one `Intl.DateTimeFormat`.
+
 Round 38 Part B reviewed main @ 1e71cf0 (#324, #327):
 - the bounty.post and bounty.take switches in Set limits, and poo's
   notes over the result;
@@ -1119,3 +1157,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-032](GUI-032-key-pasted-into-key-file-is-kept.md) | Low | A key pasted into "Key file" on Sign with a key kept elsewhere goes on the command line, into poo's error, and into the Jobs list and the job's replayable output | fixed (Blue R35C, Source #291; separators and shell.Redact, Blue R36C); verified R37B @ 7eb16ab |
 | [GUI-033](GUI-033-refused-form-never-follows-next-run.md) | Low | After a form refuses to run (GUI-032's refuse, or a missing required field), its next run is never followed: no masked prompt, Stop does nothing, and the job waits on input holding a slot | fixed (GUI/Blue R36C); verified R37B @ 7eb16ab |
 | [GUI-034](GUI-034-key-after-key-file-saved-in-terminal-history.md) | Low | A key typed after -key-file in the terminal is saved whole to the browser's history (localStorage), though Jobs now shows it as <hidden> | fixed (GUI/Blue R37C); verified R38B @ 1e71cf0 |
+| [GUI-035](GUI-035-key-split-over-words-shown-in-jobs.md) | Low | A key typed in the terminal as several words after -key-file (groups, or openssl's 15-byte lines) shows in clear in the Jobs list: shell.Redact reads only the next word | open |
