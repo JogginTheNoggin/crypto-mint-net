@@ -5,6 +5,64 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 35 Part B reviewed main @ 58273f7 (#283, #285), focused on how key
+material moves through the GUI:
+- Sign with a key kept elsewhere (`poo sign`: masked key prompt, `-raw`,
+  Show only; D193);
+- Make a key with `-raw`;
+- `wallet create -watch-only` and `pay -change`;
+- Source's fix for GUI-031 (partial totals, Stop between batches).
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass.
+
+New: **GUI-032 (Low).** The new sign form's "Key file" is a plain text
+field, and it's the first GUI form that takes key material through a
+path field. A key pasted into it, which is easy to do with a cold key on
+the clipboard, goes to several places: the form's command line, poo's
+error (`open KEY: no such file or directory`), the Jobs list's args
+(`-key-file` isn't a secret flag), and the job's replayable output.
+Suggested fix: refuse a hex-looking value before running, or put the
+path behind a box so the masked prompt is the plain way. Source could
+also stop echoing such a value.
+
+Fixed: **GUI-031.** poo prints the partial totals, with `sent` and
+`stopped`, and the GUI draws them as an alert. Stop now ends an import
+0.8 s later, between batches. See its R35B notes.
+
+Held up (key material):
+- **The masked path.** With Key file empty, `poo sign -key-file -` asks
+  through poo's secret prompt, in a `password` field with Show. I tried
+  a seed, an Ed25519 raw key, and an ML-DSA-87-sized input. Afterwards
+  the key wasn't in the page, the Jobs list, or the job's output. poo's
+  errors for a bad key ("must hold the key in hex", "a poo seed is 64
+  hex digits …") don't echo it.
+- **Process arguments.** poo-gui runs poo in-process (`cli.Main`), so no
+  argument, even a mistaken one, is in an OS process list. The line the
+  form offers for an offline machine is `-key-file -` unless a path is
+  given.
+- **Make a key with `-raw`** runs `-seed-file - -raw`: the key is typed
+  masked, and poo prints only the public key and address. The output is
+  still withheld as secret (`keygen` is in `secretOutputs`), which errs
+  on the safe side.
+- **Watch-only and `-change`** carry no key material: a flag, and an
+  address.
+- **Memory.** The key passes through Go strings (the prompt's reply,
+  `keyHex`) that can't be wiped. poo clears the decoded bytes. That's
+  usual for Go and not worth a finding, but a long-lived poo-gui keeps
+  such strings until the GC reuses the memory.
+
+Notes, not filed:
+- **The masked prompt says `seed:` for a `-raw` key** too. "key:" would
+  match the form. This is noted in GUI-032.
+- **A lost reply on a batch in flight.** `poo ledger import` counts a
+  batch only once the node answers. If the node dies, or the 5-minute
+  RPC timeout ends, while it is working on a batch, some of that batch
+  may already be kept, though it isn't in `sent` or the totals. When
+  that is the first batch, nothing is printed but the error, and the
+  GUI shows no alert. I couldn't make a batch slow enough to show this.
+  The words could say that the batch in flight may be partly kept.
+
 Round 34 Part B reviewed main @ 7099e84 (#269, which merged #260 to
 #264):
 - the Peers view's lines on the releases connected peers claim (White
@@ -931,4 +989,5 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-028](GUI-028-far-part-job-cannot-be-stopped.md) | Low | A far part number (Preview, Sign, Show parts, or an issuer-signed far release) starts a job that hashes for hours; Stop doesn't end it, and 16 such jobs fill every job slot until poo-gui restarts | mitigated by GUI/Blue (Round 27C: cost confirm, Stop note); mitigation verified R28B @ adcf216; core fix routed to Source |
 | [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | fixed as a warning (Source D171 `unbounded`, GUI/Blue Read first; Apply stays, per jerry); verified R29B @ 4e1c601 |
 | [GUI-030](GUI-030-replace-import-ignores-series-ceiling.md) | Low | Import node policies with Replace never checks series_ceiling, so a series the node set a ceiling to decline is added anyway, and one listed twice is kept twice | fixed by Source (D176, #207); verified R30B @ 0ade046 |
-| [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | GUI interim line done (Blue R33C), verified R34B @ 7099e84; fix routed to Source (partial totals, Stop between batches), GUI summary after |
+| [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | fixed: Source partial totals and Stop between batches, GUI alert; verified R35B @ 58273f7 |
+| [GUI-032](GUI-032-key-pasted-into-key-file-is-kept.md) | Low | A key pasted into "Key file" on Sign with a key kept elsewhere goes on the command line, into poo's error, and into the Jobs list and the job's replayable output | fixed (GUI/Blue R35C; Source #291 for poo's error and prompt) |

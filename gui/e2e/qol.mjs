@@ -218,6 +218,23 @@ try {
   const sg = wsec('Sign with a key kept elsewhere');
   await sg.locator('input[name=file]').fill('pay.json');
   assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file -');
+  // Key file shows only once "The key is in a file" is ticked (GUI-032).
+  assert.equal(await sg.locator('input[name=keyFile]').isVisible(), false, 'no Key file field until the key is said to be in a file');
+  await sg.locator('label', { hasText: 'The key is in a file' }).locator('input').check();
+  assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file -');
+  // A key pasted where the path goes never reaches the command line, and
+  // Sign refuses it, runs nothing and empties the field (GUI-032).
+  const pasted = 'ab'.repeat(32);
+  await sg.locator('input[name=keyFile]').fill(pasted);
+  assert.equal(await sg.locator('.cmd code').innerText(), "poo sign pay.json -key-file '…'");
+  const jobsBefore = (await page.evaluate(async () => (await import('/api.js')).jobs())).length;
+  await sg.locator('button[type=submit]').click();
+  await sg.locator('.refused[role=alert]', { hasText: /^Nothing was run: Key file holds what looks like a key, not a path/ }).waitFor();
+  assert.equal(await sg.locator('input[name=keyFile]').inputValue(), '');
+  assert.equal((await page.evaluate(async () => (await import('/api.js')).jobs())).length, jobsBefore, 'a key-shaped Key file starts no job');
+  assert.ok(!(await page.content()).includes(pasted), 'the pasted key is nowhere on the page');
+  const lk = await page.evaluate(async () => { const { looksLikeKey } = await import('/views/wallet.js'); return ['ab'.repeat(16), 'AB'.repeat(32), 'ab'.repeat(15), '/keys/' + 'ab'.repeat(32), 'cold.key', 'C:\\k\\' + 'ab'.repeat(32), ''].map(looksLikeKey); });
+  assert.deepEqual(lk, [true, true, false, false, false, false, false]);
   await sg.locator('input[name=keyFile]').fill('cold.key');
   await sg.locator('input[name=alg]').fill('ml-dsa-65');
   await sg.locator('label', { hasText: '(-raw)' }).locator('input').check();
@@ -242,6 +259,32 @@ try {
   await wpay.locator('input[name=change]').fill('cc11');
   assert.match(await wpay.locator('.cmd code').innerText(), / -change cc11$/);
   await wpay.locator('input[name=change]').fill('');
+  // Pay's one confirm warns when no co-signing file is filled in, and
+  // only then (GUI-GREEN-061). poo refuses such a payment before it
+  // records anything (Source #291), so no line of the GUI's follows.
+  await wpay.locator('input[name=to]').fill('ab12');
+  await wpay.locator('input[name=amount]').fill('5');
+  const asked = [];
+  const onDialog = d => { asked.push(d.message()); d.dismiss(); };
+  page.on('dialog', onDialog);
+  await wpay.locator('form.fields button[type=submit]').click();
+  await wpay.locator('input[name=out]').fill('pay.json');
+  await wpay.locator('form.fields button[type=submit]').click();
+  await until(async () => asked.length === 2, 'two Pay confirms');
+  page.off('dialog', onDialog);
+  assert.match(asked[0], /^Run poo wallet pay -wallet w2\.json -to ab12 -amount 5\?\n\nNo co-signing file is filled in\. If this wallet is watch-only, or pays from a shared policy, fill one in first/);
+  assert.equal(asked[1], 'Run poo wallet pay -wallet w2.json -to ab12 -amount 5 -out pay.json?');
+  assert.equal(await wpay.locator('.run-status').count(), 0, 'a dismissed confirm runs nothing');
+  for (const n of ['to', 'amount', 'out']) await wpay.locator(`input[name=${n}]`).fill('');
+  // The seven cold-key steps are folded; each step's button goes to its
+  // form, and the first links to Make a key.
+  const cold = page.locator('section.cold-key');
+  assert.equal(await cold.locator('details.cold').evaluate(d => d.open), false, 'the steps start folded');
+  await cold.locator('summary').click();
+  assert.equal(await cold.locator('.cold-steps li').count(), 7);
+  assert.equal(await cold.locator('.cold-steps a').first().getAttribute('href'), '#/crypto');
+  await cold.locator('.cold-steps button', { hasText: 'Sign with a key kept elsewhere' }).click();
+  assert.equal(await page.evaluate(() => document.activeElement.tagName + ':' + document.activeElement.textContent), 'H2:Sign with a key kept elsewhere');
   const wcr = wsec('Create or restore a wallet');
   await wcr.locator('label', { hasText: 'Watch-only' }).locator('input').check();
   assert.equal(await wcr.locator('.cmd code').innerText(), 'poo wallet create -wallet w2.json -watch-only');
@@ -260,7 +303,7 @@ try {
     completion: 'sets up a shell, not this GUI',
     holdings: 'older form of poo unspent, kept for scripts; Explore runs unspent',
     payment: 'older form of poo tx, kept for scripts; Explore runs tx',
-    claim: 'claims with a raw key file; the Wallet view claims from the wallet',
+    claim: 'claims with a key file, where the key is: a watch-only wallet claims this way (D193; the Wallet view\'s cold-key steps say so); the Wallet view claims from the wallet',
     pay: 'pays with a raw key file; the Wallet view pays from the wallet',
     settings: 'new in Source Round 20 (D155); GUI/Grey adds its export and import form next, and the terminal runs it until then',
   };
