@@ -370,7 +370,7 @@ function noNode(sec, area, r) {
 // onResult, if given, is called with the finished job's {code, out, err}
 // and the result area, so a view can act on the data rather than on the
 // rendered page.
-export function form(ctx, { title, about, fields, args, submit = 'Run', danger, ask: askFirst, onResult, onStart, secretOutput, gate: g }) {
+export function form(ctx, { title, about, fields, args, submit = 'Run', danger, dangerText, ask: askFirst, onResult, onStart, secretOutput, gate: g }) {
   const area = el('div', { class: 'area' });
   const inputs = {};
   const labels = {};
@@ -450,7 +450,9 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     // nothing: the cost of a far part (GUI-028).
     const q = askFirst && askFirst(v);
     if (q && !confirm(q)) return;
-    if (danger && !confirm(`Run ${api.quote(args(values()))}?`)) return;
+    // dangerText(values), if given, is the whole question in place of
+    // "Run …?" (Pay's warning, GUI-GREEN-061).
+    if (danger && !confirm(dangerText ? dangerText(v) : `Run ${api.quote(args(values()))}?`)) return;
     if (g) g.take();
     busy = submitBtn.disabled = true;
     runJob(args(values()), area, { secretOutput, onStart, lazy: true }).then(async r => {
