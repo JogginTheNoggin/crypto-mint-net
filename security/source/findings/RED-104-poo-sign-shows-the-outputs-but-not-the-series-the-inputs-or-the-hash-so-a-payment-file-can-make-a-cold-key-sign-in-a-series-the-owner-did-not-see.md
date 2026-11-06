@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 35 Part B, on `main` @ `866a4ac` (D193) |
 | Area | `pkg/cli/sign.go` (`signCmd`, `SignReport`, `SignLeg`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-036) |
+| Fixed by | `claude/project-thread-ggo8dt` @ f835882 (BLUE-036) |
 | For Black | Not a consensus rule: nothing about what a witness means or how it is checked changes. |
 
 ## What is wrong

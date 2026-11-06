@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 35 Part B, on `main` @ `866a4ac` (D193) |
 | Area | `pkg/cli/sign.go` (`tx.Decode`), `pkg/tx` (`DecodeFrom` reads the `Part` only if `series.IsVariableID(id)`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-036) |
+| Fixed by | `claude/project-thread-ggo8dt` @ f835882 (BLUE-036) |
 | For Black | Not a rule: the byte form is unchanged. It is a tool gap. |
 
 ## What is wrong

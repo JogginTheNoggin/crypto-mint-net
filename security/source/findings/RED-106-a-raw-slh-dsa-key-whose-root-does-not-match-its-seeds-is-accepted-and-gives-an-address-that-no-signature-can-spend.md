@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 35 Part B, on `main` @ `866a4ac` (D193) |
 | Area | `pkg/policy/raw.go` (`NewRawSigner`, SLH-DSA case), `pkg/cli/main.go` (`keygen -raw`), `pkg/cli/sign.go` |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-036) |
+| Fixed by | `claude/project-thread-ggo8dt` @ f835882 (BLUE-036) |
 | For Black | Not a rule. |
 
 ## What is wrong

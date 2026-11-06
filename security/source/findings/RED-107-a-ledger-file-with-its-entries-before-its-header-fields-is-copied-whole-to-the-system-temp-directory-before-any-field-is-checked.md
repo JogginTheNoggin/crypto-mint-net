@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 35 Part B, on `main` @ `866a4ac` (D192, W-20 / RED-102 follow-up) |
 | Area | `pkg/cli/ledgerport.go` (`readLedgerFile`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-036) |
+| Fixed by | `claude/project-thread-ggo8dt` @ f835882 (BLUE-036) |
 | For Black | Not a rule: nothing about what the node accepts changes. |
 
 ## What is wrong
