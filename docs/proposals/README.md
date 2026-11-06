@@ -115,3 +115,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-047](source/ORANGE-047-bounty-file-remeasured.md) | Source | Round 37 measured; the bounty book no longer grows with its history, and keepjson's remaining cost | proposed |
 | [ORANGE-048](source/ORANGE-048-start-and-wallet-remeasured.md) | Source | Round 38 measured; the start and the wallet no longer grow slower with history | proposed |
 | [ORANGE-049](source/ORANGE-049-list-by-strength.md) | Source | Round 39 measured; a bounty list filtered by strength costs at most 30 µs | proposed |
+| [ORANGE-050](source/ORANGE-050-rename-checked.md) | Source | Round 40 checked; the rename to `poon` costs nothing, and one benchmark runs again | proposed |

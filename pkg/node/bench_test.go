@@ -39,7 +39,7 @@ func BenchmarkHandleTxParallel(b *testing.B) {
 			pol.Follow = []nodepolicy.Follow{{Series: &id}}
 			pol.RPC.Listen = "off"
 			pol.NoSync = !sync
-			pol.MaxPending = b.N + 1
+			pol.MaxPending = max(b.N+1, 16) // the floor is 16
 			dir := b.TempDir()
 			if err := nodepolicy.Save(filepath.Join(dir, nodepolicy.FileName), pol); err != nil {
 				b.Fatal(err)
