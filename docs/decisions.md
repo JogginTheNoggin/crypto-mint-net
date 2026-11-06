@@ -5619,3 +5619,46 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   Round 37 condition.
 - **For White (Part D):** please check W-31's freeze text, `done_size` in
   `bounties.json`, and that the wallet bytes are unchanged.
+
+### D201. Round 38 fixes: the done file read from its offset only when the line there is the one named, a cut line ended before the next record, and bounty pay records the wallet's payment instead of paying twice (BLUE-039)
+
+- **Merged first:** Green's #328 (GREEN-063: `poo wallet watch -tid` and
+  `poo bounty list -done N`). Orange's #329 (ORANGE-048) is measurements
+  only and is not merged here; it asks nothing of Blue.
+- **Decision:**
+  - **RED-118.**
+    - `bounties.json` records `done_last`, the id on the done line that
+      ends at `done_size`. A start reads from `done_size` only when the
+      byte before it is a newline and that line begins with `done_last`
+      (found by reading that one line backwards). Otherwise it reads the
+      whole done file and logs that the file changed. A file with no
+      `done_last` (D200) is read in full.
+    - A start reports a done file whose last line has no newline.
+      `archive` writes a newline first when the file does not end in
+      one, and truncates back a write that failed part way.
+    - A cut last line's id still counts: only offers that need nothing
+      more are written there.
+  - **RED-119.**
+    - `Book.Paid` puts the claim back to unpaid when its save fails, so
+      memory and file agree. If the offer reached the done file before
+      the failure, the payment stands and `bounties.json` is saved again
+      on the timer.
+    - `poo bounty pay` looks in the wallet's `Sent` list before it sends:
+      memo `bounty <short id>`, the claim's address, amount and series,
+      every leg pending or selected, no tid recorded on another claim.
+      Found, it is recorded with the node and nothing is sent
+      (`recorded` in the output). A payment sent only in part is refused.
+    - Not taken: a "paying" mark in `bounties.json` and a new `poo bounty
+      paid` command. The wallet's record is the mark, and a new command
+      or flag needs a GUI form.
+- **Why:** a payer must never pay one layer twice, and a grinder's owed
+  payment must never vanish, whatever happened to the files between two
+  writes.
+- **Consensus:** None. The market is outside the ledger (D196).
+- **Tier:** Bounty, CLI, files.
+  - `pkg/bounty/blue039_test.go`:
+    - `TestBlue039TrimmedDoneFile`
+    - `TestBlue039TornDoneFile`
+    - `TestBlue039PaidSaveFails`
+  - `pkg/cli/bounty_test.go`: `TestBountyMarket` (a failed record, then
+    pay again).

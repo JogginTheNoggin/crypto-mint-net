@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
@@ -30,6 +31,11 @@ type BountyReply struct {
 	// Payers is, by peer, what each payer accepted and paid of this
 	// node's claims.
 	Payers map[string]bounty.PayerRecord `json:"payers,omitempty"`
+	// Done are the last finished offers (filled or closed, every layer
+	// paid), from bounties-done.jsonl, when asked for with ?done=N; and
+	// DoneSkipped the lines there that could not be read (GREEN-063).
+	Done        []bounty.Mine `json:"done,omitempty"`
+	DoneSkipped int           `json:"done_skipped,omitempty"`
 }
 
 // BountyPostRequest posts an offer.
@@ -136,7 +142,19 @@ func (h *Handler) bountyList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := b.Config()
-	writeJSON(w, BountyReply{Post: c.Post, Take: c.Take, Mine: b.Mine(), Held: b.HeldOffers(), Payers: b.Payers()})
+	out := BountyReply{Post: c.Post, Take: c.Take, Mine: b.Mine(), Held: b.HeldOffers(), Payers: b.Payers()}
+	if q := r.URL.Query().Get("done"); q != "" {
+		n, err := strconv.Atoi(q)
+		if err != nil || n < 0 {
+			writeError(w, badRequest("done must be a count"))
+			return
+		}
+		if out.Done, out.DoneSkipped, err = b.Done(n); err != nil {
+			writeError(w, classify(err))
+			return
+		}
+	}
+	writeJSON(w, out)
 }
 
 func (h *Handler) bountyPost(w http.ResponseWriter, r *http.Request) {
@@ -325,6 +343,12 @@ func (h *Handler) bountyWork(w http.ResponseWriter, r *http.Request) {
 func (c *Client) Bounty() (BountyReply, error) {
 	var out BountyReply
 	return out, c.do(http.MethodGet, "/v1/bounty", nil, &out)
+}
+
+// BountyDone is Bounty with the last n finished offers (GREEN-063).
+func (c *Client) BountyDone(n int) (BountyReply, error) {
+	var out BountyReply
+	return out, c.do(http.MethodGet, "/v1/bounty?done="+strconv.Itoa(n), nil, &out)
 }
 
 // BountyPost posts an offer.

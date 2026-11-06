@@ -329,8 +329,10 @@ type Book struct {
 	heldAddr map[string]int
 	// heldSwept is when held offers were last checked for their time.
 	heldSwept time.Time
-	// doneSize is the done file's size as this book last knew it.
+	// doneSize is the done file's size as this book last knew it, and
+	// doneLast the id on its last line (zero when not known).
 	doneSize int64
+	doneLast hash.Hash
 	// pending says a save is waiting on its timer (ORANGE-046 P2).
 	pending bool
 	// kept holds the file's fields a later release wrote (W-28).
@@ -358,6 +360,10 @@ type file struct {
 	// crash between the two writes, so a start reads only that much of
 	// the done file (ORANGE-047 P1, D200).
 	DoneSize int64 `json:"done_size,omitempty"`
+	// DoneLast is the id on the line that ends at DoneSize. A start reads
+	// from DoneSize only when that line is still there, so a done file
+	// trimmed, rotated or edited since is read in full (RED-118, D201).
+	DoneLast *hash.Hash `json:"done_last,omitempty"`
 	kept     keepjson.Kept
 }
 
@@ -436,13 +442,24 @@ func Open(cfg Config, path string) (*Book, error) {
 		return nil, fmt.Errorf("%s: format %d is not a format", path, f.Format)
 	}
 	b.kept = f.kept
-	done, unread, size, err := doneIDs(b.donePath(), f.DoneSize)
+	var last hash.Hash
+	if f.DoneLast != nil {
+		last = *f.DoneLast
+	}
+	scan, err := doneIDs(b.donePath(), f.DoneSize, last)
 	if err != nil {
 		return nil, err
 	}
-	b.doneSize = size
-	if unread > 0 {
-		b.dropped = append(b.dropped, fmt.Sprintf("%s: %d lines with no offer id this release reads", DoneFileName, unread))
+	done := scan.ids
+	b.doneSize, b.doneLast = scan.size, scan.last
+	if scan.moved {
+		b.dropped = append(b.dropped, fmt.Sprintf("%s changed since %s was written (done_size %d is not the end of the line it named): read it all", DoneFileName, FileName, f.DoneSize))
+	}
+	if scan.unread > 0 {
+		b.dropped = append(b.dropped, fmt.Sprintf("%s: %d lines with no offer id this release reads", DoneFileName, scan.unread))
+	}
+	if scan.torn {
+		b.dropped = append(b.dropped, fmt.Sprintf("%s: the last line was cut short (a stop while it was written); the next record starts on a new line", DoneFileName))
 	}
 	// The file is checked as an offer and a claim are when they are made:
 	// what fails is left out and reported, never paid (RED-114).
@@ -537,56 +554,87 @@ func (b *Book) donePath() string {
 	return filepath.Join(filepath.Dir(b.path), DoneFileName)
 }
 
+// doneScan is what a start reads from the done file.
+type doneScan struct {
+	ids    map[hash.Hash]bool
+	unread int       // whole lines with no id this release reads
+	size   int64     // the file's size
+	last   hash.Hash // the id on the last whole line, if known
+	moved  bool      // the offset given was not where the file left off
+	torn   bool      // the last line has no newline
+}
+
 // doneIDs reads the ids of the offers in the done file. Only the start
 // of each line is read, where the id is, and the rest is skipped as it
-// streams, so a line of any length costs a few KiB (RED-117). It also
-// says how many lines it could not read an id from.
-func doneIDs(path string, from int64) (map[hash.Hash]bool, int, int64, error) {
-	ids := map[hash.Hash]bool{}
+// streams, so a line of any length costs a few KiB (RED-117). It reads
+// from the offset from only when the line that ends there still carries
+// the id last; otherwise it reads the whole file (RED-118).
+func doneIDs(path string, from int64, last hash.Hash) (doneScan, error) {
+	scan := doneScan{ids: map[hash.Hash]bool{}}
 	if path == "" {
-		return ids, 0, 0, nil
+		return scan, nil
 	}
 	f, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return ids, 0, 0, nil
+		return scan, nil
 	}
 	if err != nil {
-		return nil, 0, 0, err
+		return doneScan{}, err
 	}
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
-		return nil, 0, 0, err
+		return doneScan{}, err
 	}
-	size := st.Size()
+	scan.size = st.Size()
+	if scan.size > 0 {
+		var end [1]byte
+		if _, err := f.ReadAt(end[:], scan.size-1); err != nil {
+			return doneScan{}, err
+		}
+		scan.torn = end[0] != '\n'
+	}
 	r := bufio.NewReader(f)
 	first, _, err := linePrefix(r, maxDoneHead)
 	if len(first) == 0 && err != nil {
-		return ids, 0, size, nil // empty
+		return scan, nil // empty
 	}
 	var head struct {
 		Kind   string `json:"kind"`
 		Format int    `json:"format"`
 	}
 	if json.Unmarshal(first, &head) != nil || head.Kind != DoneFileKind {
-		return nil, 0, 0, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
+		return doneScan{}, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
 	}
 	switch {
 	case head.Format > DoneFileFormat:
-		return nil, 0, 0, fmt.Errorf("%s is format %d, from a later release than this one (format %d): run that release, or move the file aside", path, head.Format, DoneFileFormat)
+		return doneScan{}, fmt.Errorf("%s is format %d, from a later release than this one (format %d): run that release, or move the file aside", path, head.Format, DoneFileFormat)
 	case head.Format < 1:
-		return nil, 0, 0, fmt.Errorf("%s: format %d is not a format", path, head.Format)
+		return doneScan{}, fmt.Errorf("%s: format %d is not a format", path, head.Format)
 	}
 	// Only the part past what bounties.json last saw can hold an offer in
 	// both files (ORANGE-047 P1). An offset the file does not reach, or
-	// none, reads it all.
-	if from > int64(len(first)) && from <= size {
-		if _, err := f.Seek(from, io.SeekStart); err != nil {
-			return nil, 0, 0, err
+	// none, reads it all; so does one whose line is not the one
+	// bounties.json named (RED-118).
+	if from > int64(len(first)) {
+		ok := false
+		if from <= scan.size {
+			if ok, err = lineEndsAt(f, from, last, int64(len(first))); err != nil {
+				return doneScan{}, err
+			}
 		}
-		r.Reset(f)
+		if ok {
+			if _, err := f.Seek(from, io.SeekStart); err != nil {
+				return doneScan{}, err
+			}
+			r.Reset(f)
+			scan.last = last
+		} else {
+			// Said when bounties.json named a line; an older file that
+			// named none is simply read in full.
+			scan.moved = !last.IsZero()
+		}
 	}
-	bad := 0
 	for {
 		line, whole, err := linePrefix(r, len(doneIDPrefix)+2*hash.Size+1)
 		if len(line) > 0 {
@@ -598,17 +646,129 @@ func doneIDs(path string, from int64) (map[hash.Hash]bool, int, int64, error) {
 			}
 			switch {
 			case perr == nil:
-				ids[id] = true
+				// A cut last line's id counts: only an offer that needs
+				// nothing more is ever written here.
+				scan.ids[id] = true
 			case whole:
 				// Not a line this release writes; a line cut short by a
 				// crash at the end of the file is not counted.
-				bad++
+				scan.unread++
+			}
+			if whole {
+				scan.last = id // zero when the line has no id
 			}
 		}
 		if err != nil {
-			return ids, bad, size, nil
+			if scan.torn {
+				scan.last = hash.Zero // a later start reads it all
+			}
+			return scan, nil
 		}
 	}
+}
+
+// lineEndsAt reports whether the line that ends at end (its newline the
+// byte before end) begins with the id want, or, for a zero want, is the
+// file's first line, which ends at head+1. Only that one line is read,
+// backwards in steps, so it costs the line's length.
+func lineEndsAt(f *os.File, end int64, want hash.Hash, head int64) (bool, error) {
+	if want.IsZero() {
+		return end == head+1, nil
+	}
+	var nl [1]byte
+	if _, err := f.ReadAt(nl[:], end-1); err != nil {
+		return false, err
+	}
+	if nl[0] != '\n' {
+		return false, nil
+	}
+	start, buf := end-1, make([]byte, 4<<10)
+	for start > 0 {
+		n := int64(len(buf))
+		if start < n {
+			n = start
+		}
+		if _, err := f.ReadAt(buf[:n], start-n); err != nil {
+			return false, err
+		}
+		if i := bytes.LastIndexByte(buf[:n], '\n'); i >= 0 {
+			start = start - n + int64(i) + 1
+			break
+		}
+		start -= n
+	}
+	prefix := make([]byte, len(doneIDPrefix)+2*hash.Size+1)
+	if end-1-start < int64(len(prefix)) {
+		return false, nil
+	}
+	if _, err := f.ReadAt(prefix, start); err != nil {
+		return false, err
+	}
+	return string(prefix) == doneIDPrefix+want.String()+`"`, nil
+}
+
+// MaxDoneList bounds how many finished offers Done returns, and
+// maxDoneLine how long a done line Done reads; a longer one is skipped.
+const (
+	MaxDoneList = 256
+	maxDoneLine = 1 << 20
+)
+
+// Done returns the last n offers of the done file, oldest first, and how
+// many lines it skipped (too long, or not an offer this release reads):
+// the offers that needed nothing more and left poo bounty list
+// (GREEN-063). The file streams, so it costs one line at a time.
+func (b *Book) Done(n int) ([]Mine, int, error) {
+	n = min(max(n, 0), MaxDoneList)
+	path := b.donePath()
+	if n == 0 || path == "" {
+		return nil, 0, nil
+	}
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+	r := bufio.NewReader(f)
+	first, _, err := linePrefix(r, maxDoneHead)
+	if len(first) == 0 && err != nil {
+		return nil, 0, nil
+	}
+	var head struct {
+		Kind   string `json:"kind"`
+		Format int    `json:"format"`
+	}
+	if json.Unmarshal(first, &head) != nil || head.Kind != DoneFileKind || head.Format < 1 || head.Format > DoneFileFormat {
+		return nil, 0, fmt.Errorf("%s: not a %s file of format %d", path, DoneFileKind, DoneFileFormat)
+	}
+	ring := make([]Mine, 0, n)
+	next, skipped := 0, 0
+	for {
+		line, whole, err := linePrefix(r, maxDoneLine+1)
+		if len(line) > 0 {
+			var m Mine
+			switch {
+			case len(line) > maxDoneLine:
+				skipped++
+			case !whole:
+				// Cut short at the end: being written now, or by a crash.
+			case json.Unmarshal(line, &m) != nil || m.ID.IsZero():
+				skipped++
+			case len(ring) < n:
+				ring = append(ring, m)
+			default:
+				ring[next] = m
+				next = (next + 1) % n
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return append(ring[next:], ring[:next]...), skipped, nil
 }
 
 // doneIDPrefix is how each done line begins: the offer's id comes first.
@@ -654,7 +814,7 @@ func (b *Book) archive() error {
 		return nil
 	}
 	var buf bytes.Buffer
-	f, err := os.OpenFile(b.donePath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := os.OpenFile(b.donePath(), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
@@ -666,6 +826,14 @@ func (b *Book) archive() error {
 	if err == nil && st.Size() == 0 {
 		head, _ := json.Marshal(map[string]any{"kind": DoneFileKind, "format": DoneFileFormat})
 		buf.Write(append(head, '\n'))
+	}
+	if err == nil && at > 0 {
+		// A line cut short by a stop is ended first, so the next record
+		// is a line of its own and its id is read (RED-118).
+		var end [1]byte
+		if _, err = f.ReadAt(end[:], at-1); err == nil && end[0] != '\n' {
+			buf.WriteByte('\n')
+		}
 	}
 	for _, m := range done {
 		c := *m
@@ -679,9 +847,11 @@ func (b *Book) archive() error {
 	}
 	if err == nil {
 		_, err = f.Write(buf.Bytes())
-	}
-	if err == nil {
-		b.doneSize = at + int64(buf.Len())
+		if err != nil {
+			// A write that failed part way is taken back, so no cut line
+			// names an offer that stays in bounties.json (RED-119).
+			_ = f.Truncate(at)
+		}
 	}
 	if err == nil {
 		err = f.Sync()
@@ -692,6 +862,7 @@ func (b *Book) archive() error {
 	if err != nil {
 		return err
 	}
+	b.doneSize, b.doneLast = at+int64(buf.Len()), done[len(done)-1].ID
 	for _, m := range done {
 		delete(b.mine, m.ID)
 	}
@@ -739,6 +910,10 @@ func (b *Book) save() error {
 		return err
 	}
 	f := file{Kind: FileKind, Format: FileFormat, DoneSize: b.doneSize, kept: b.kept}
+	if !b.doneLast.IsZero() {
+		last := b.doneLast
+		f.DoneLast = &last
+	}
 	for _, id := range b.order {
 		f.Offers = append(f.Offers, b.mine[id])
 	}
@@ -1127,7 +1302,17 @@ func (b *Book) Paid(id hash.Hash, nonce uint64, tids []hash.Hash) (Ack, string, 
 	}
 	m.Claims[i].Paid = slices.Clone(tids)
 	if err := b.save(); err != nil {
-		return Ack{}, "", err
+		if b.mine[id] == m {
+			// Not written: memory says what the file says, unpaid, so a
+			// restart and this run agree, and poo bounty pay finds the
+			// payment in the wallet and records it (RED-119).
+			m.Claims[i].Paid = nil
+			return Ack{}, "", err
+		}
+		// The offer reached the done file, synced, with the payment: it
+		// is recorded. Only bounties.json is behind, and a start leaves
+		// its copy out; it is written again soon.
+		b.saveLater()
 	}
 	return Ack{Offer: id, Nonce: nonce, Outcome: Paid, TIDs: slices.Clone(tids)}, m.Claims[i].Peer, nil
 }
