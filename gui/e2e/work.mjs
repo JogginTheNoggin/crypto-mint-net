@@ -24,11 +24,14 @@ try {
   await page.click('nav a[data-id=work]');
   // Devices: the table poon grind devices prints, with the CPU in it.
   // Drawn as a table (D208): the CPU row, which a node answered for, and
-  // the line that no GPU was found (there is none here).
+  // the line that no GPU was found, on a machine with none. A machine with
+  // an OpenCL device (the CI runner has one) lists it instead, and then
+  // has no such line.
   const devs = section('Devices');
   await devs.locator('table.grind-devices tr.device-cpu', { hasText: 'cpu' }).waitFor();
   await devs.locator('.devices-from', { hasText: 'running node' }).waitFor();
-  await devs.locator('.devices-no-gpu').waitFor();
+  if (await devs.locator('table.grind-devices tr.device-gpu').count()) assert.equal(await devs.locator('.devices-no-gpu').count(), 0, 'no "No GPU" line when a GPU is listed');
+  else await devs.locator('.devices-no-gpu').waitFor();
   await devs.locator('details.raw').waitFor({ state: 'attached' });
   // A GPU row as poon prints one, drawn by the same code: its id, what auto
   // picks it for, and poon's note when it cannot grind. (GPU grinding is
