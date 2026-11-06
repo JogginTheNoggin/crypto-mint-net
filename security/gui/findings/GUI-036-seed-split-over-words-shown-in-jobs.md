@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed |
+| Status | fixed; verified by GUI/Red R41B @ 56c5e0a |
 | Fixed by | GUI/Blue, Round 40C (gui/shell `secretWords`: after `-restore` or `-seed`, the next arg is always the value, as poon's flag parser takes it, and every arg after it is hidden too, up to the next flag; after `-restore=` or `--seed=`, the args after it are hidden the same way. No `LooksLikeKey` test, since the value is always a secret. `sim -seed` is unchanged. TestRedactSecretWords covers the three lines above, the value ending at `-wallet` or `-alg`, and `wallet create -restore - -wallet w.json` keeping `w.json`, and fails on the old code) |
 | Found on | main @ a79be4b (#352, #354; GUI-035's fix in R39C) |
 | Component | gui/shell/secret.go (`Redact`: for a secret flag, `more := 1`, so only the next word is hidden; GUI-035's word-by-word read is only in `keyFileFlag`) |
@@ -83,3 +83,14 @@ use `-seed-file -` and `-restore -`. Rated **low**.
 - **Test (secret_test.go).** Add the three lines above, and expect no
   hex group in the result. Also check `wallet create -restore - -wallet
   w.json` still shows `w.json`.
+
+## Notes — Round 41B verification (fixed)
+
+I checked this with Playwright on 56c5e0a, using the same three lines.
+`/api/jobs` now shows only `<hidden>` after `-restore` and `-seed`:
+
+- eight words for the groups of 8;
+- four for the groups of 16;
+- `-restore=<hidden>` and one more for the halves.
+
+None of the lines is saved to the history.
