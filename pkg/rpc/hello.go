@@ -66,6 +66,11 @@ var ErrNoProof = errors.New("it did not prove it knows this node's token")
 // prove asks the server at c.base for its hello and checks it against
 // c.token and addr, the address read from rpc.addr. It sends no token.
 func (c *Client) prove(addr string) error {
+	if c.token == "" {
+		// Anyone can make the proof for an empty token, so an empty token
+		// file (a view token cut short, say) proves nothing (RED-W-021).
+		return ErrEmptyToken
+	}
 	var n [32]byte
 	if _, err := rand.Read(n[:]); err != nil {
 		return err
@@ -94,6 +99,10 @@ func (c *Client) prove(addr string) error {
 	}
 	return ErrNoProof
 }
+
+// ErrEmptyToken is why a client with an empty token does not dial: no
+// server can prove it knows that token, since anyone can.
+var ErrEmptyToken = errors.New("the token is empty, so no server can prove it knows it; write the token again (poo node makes it at start)")
 
 // NotProvedError is what Dial returns when the server at the address in
 // rpc.addr did not prove it knows the node's token: nothing answers there

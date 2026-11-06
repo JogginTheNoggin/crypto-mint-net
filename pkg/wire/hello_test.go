@@ -115,6 +115,16 @@ func TestBadExtrasMarked(t *testing.T) {
 	if _, err := wire.DecodeHello(h); !errors.Is(err, wire.ErrBadExtras) {
 		t.Fatalf("a bad release: %v", err)
 	}
+	// A ping's extensions over MaxSmallExt together (W-18), each under
+	// MaxExtValue.
+	big := wire.Ping{Nonce: 1, Ext: []wire.Ext{{Tag: 1, Value: make([]byte, wire.MaxSmallExt/2)}, {Tag: 2, Value: make([]byte, wire.MaxSmallExt/2+1)}}}.Encode()
+	if _, err := wire.DecodePing(big); !errors.Is(err, wire.ErrBadExtras) {
+		t.Fatalf("a ping over the total: %v", err)
+	}
+	full := wire.Ping{Nonce: 1, Ext: []wire.Ext{{Tag: 1, Value: make([]byte, wire.MaxSmallExt/2)}, {Tag: 2, Value: make([]byte, wire.MaxSmallExt/2)}}}.Encode()
+	if _, err := wire.DecodePing(full); err != nil {
+		t.Fatalf("a ping at the total: %v", err)
+	}
 	pong := wire.PongReply{}.Encode()
 	pong[len(pong)-1] = wire.MaxExt + 1
 	if _, err := wire.DecodePongReply(pong); !errors.Is(err, wire.ErrBadExtras) {

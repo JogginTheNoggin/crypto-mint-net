@@ -540,8 +540,11 @@ func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFi
 			os.Remove(spool.Name())
 		}
 	}()
+	unknown := 0
 	for dec.More() {
+		lr.limit = lr.read + MaxLedgerHeaderValue
 		t, err := dec.Token()
+		lr.limit = -1
 		if err != nil {
 			return bad(err)
 		}
@@ -553,7 +556,13 @@ func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFi
 		if k != "entries" {
 			dst, ok := ledgerHeaderField(&h, k)
 			if !ok {
-				return bad(fmt.Errorf("format %d has no field %q", LedgerFileFormat, k))
+				// A field a later release added: read under the same bound
+				// and dropped, so an older release still imports the file
+				// (W-20, D192).
+				if unknown++; unknown > MaxLedgerUnknownKeys {
+					return bad(fmt.Errorf("more than %d fields format %d does not define", MaxLedgerUnknownKeys, LedgerFileFormat))
+				}
+				dst = new(json.RawMessage)
 			}
 			lr.limit = lr.read + MaxLedgerHeaderValue
 			err := dec.Decode(dst)
@@ -633,6 +642,10 @@ func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFi
 // before it is held: the longest, the weight, is a few hundred bytes
 // (RED-102).
 const MaxLedgerHeaderValue = 4 << 10
+
+// MaxLedgerUnknownKeys bounds the header fields a ledger file may carry
+// that this release does not know; each is read and dropped (W-20).
+const MaxLedgerUnknownKeys = 64
 
 // ledgerHeaderField returns where key k of a ledger file's header goes,
 // and false for a key format 1 does not define.

@@ -82,7 +82,7 @@ func DecodeHello(b []byte) (Hello, error) {
 			r.Fail(fmt.Errorf("release %q", h.Release))
 		}
 		h.Features = decodeFeatures(r)
-		h.Ext = decodeExt(r)
+		h.Ext = decodeExt(r, MaxExt*MaxExtValue)
 	})
 	if err := finishExtras(r, "hello", bad); err != nil {
 		if oldHello(b) {
