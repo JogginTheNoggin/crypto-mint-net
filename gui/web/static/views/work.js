@@ -144,6 +144,33 @@ function tableResult(r, area, draw) {
   area.append(rawFold(raw));
 }
 
+// devicesTable draws poon grind devices: one row per device, with the
+// hashes it grinds fast, those auto picks it for, and poon's note on why
+// it cannot grind when it cannot (D208: a GPU is a device like the CPU,
+// gpu:N, ground through OpenCL). Every word in a cell is a field poon
+// printed; the lines above say only whether a node answered (from_node,
+// local) and whether the list holds a GPU at all.
+export function devicesTable(v) {
+  const devs = Array.isArray(v && v.devices) ? v.devices : [];
+  const list = xs => (Array.isArray(xs) && xs.length ? xs.join(', ') : '');
+  const lines = [];
+  if (v && v.from_node) lines.push(el('p', { class: 'hint devices-from' }, 'The running node\'s devices: the ones its jobs use.'));
+  else if (v && v.local) lines.push(el('p', { class: 'hint devices-from' }, 'No node answered, so these are the devices found on this machine.'));
+  if (!devs.some(d => d.kind === 'gpu')) lines.push(el('p', { class: 'hint devices-no-gpu' }, 'No GPU found. A graphics card shows here as gpu:0 once its OpenCL driver is installed.'));
+  const body = el('tbody');
+  for (const d of devs) {
+    const fast = list(d.hashes);
+    body.append(el('tr', { class: `device device-${d.kind || 'other'}` },
+      el('td', {}, el('code', {}, d.id || '')),
+      el('td', {}, d.name || ''),
+      el('td', {}, (fast || 'none') + (d.generic ? ' (any other hash, slower)' : '')),
+      el('td', {}, list(d.auto_for) || el('span', { class: 'nil' }, 'none')),
+      el('td', { class: d.note ? 'device-note' : '' }, d.note || (d.threads ? `${d.threads} threads` : ''))));
+  }
+  return el('div', {}, ...lines, el('div', { class: 'table-wrap' }, el('table', { class: 'data grind-devices' },
+    el('thead', {}, el('tr', {}, ...['device', 'name', 'grinds fast', 'auto picks it for', 'note'].map(h => el('th', {}, h)))), body)));
+}
+
 // deviceChoices offers the device ids poon grind devices printed, plus
 // auto, to every Device field in the view. A field still takes any text:
 // poon decides what is valid.
@@ -153,7 +180,7 @@ function deviceChoices(root, out) {
   let dl = document.getElementById('grind-devices');
   if (!dl) { dl = el('datalist', { id: 'grind-devices' }); document.body.append(dl); }
   dl.textContent = '';
-  for (const d of [{ id: 'auto', name: 'pick for each hash' }, ...devs]) dl.append(el('option', { value: d.id }, d.name || d.id));
+  for (const d of [{ id: 'auto', name: 'pick the fastest for each hash' }, ...devs]) dl.append(el('option', { value: d.id }, `${d.name || d.id}${d.note ? ` (${d.note})` : ''}`));
   for (const i of root.querySelectorAll('input[name=device]')) i.setAttribute('list', 'grind-devices');
 }
 
@@ -389,8 +416,8 @@ export const workView = {
           help: 'Peers take only so many layers a second from one node, and time out and then block a node that keeps sending more. poon keeps this rate well inside that by default and refuses a higher one, naming the range it allows.' }],
         args: v => ['grind', 'schedule', 'set', ...where.flags(), ...flag('device', v.device), ...flag('threads', v.threads), ...flag('layer-floor', v.floor), ...flag('layer-rate', v.rate)], submit: 'Set', onResult: afterSchedule, gate: edits });
     return mountAll(root, 'Work', 'The node\'s hash grinding: which devices it has, how fast each is, and the jobs it runs. Each part is a poon grind command; node.json\'s grind section sets the defaults and the jobs the node runs by itself.', [
-      panel(ctx, { title: 'Devices', about: 'Each device, what it grinds fast, and which one auto picks for each hash.', args: () => ['grind', 'devices', ...where.flags()],
-        onResult: r => { if (r.code === 0) deviceChoices(root, r.out); } }),
+      panel(ctx, { title: 'Devices', about: 'Each device that can grind, the CPU and any GPU, what it grinds fast, and which one auto picks for each hash. Pick one in a job\'s Device field, or leave it on auto.', args: () => ['grind', 'devices', ...where.flags()],
+        onResult: (r, area) => { if (r.code === 0) deviceChoices(root, r.out); tableResult(r, area, devicesTable); } }),
       jobsPanel,
       schedulePanel,
       form(ctx, { title: 'Schedule a job', about: 'Adds a job to node.json\'s grind section with poon grind schedule add. It has no For: it runs whenever its hours allow.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields().filter(fd => fd.name !== 'for').map(scheduled)],
