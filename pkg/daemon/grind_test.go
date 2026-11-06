@@ -84,8 +84,16 @@ func TestPolicyGrindJobs(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("no found event on the watch stream")
 	}
-	jobs, err := c.GrindJobs()
-	must(t, err)
+	// The tip job may reach the entry a moment after the pending job's
+	// layers selected it; wait for its first layer.
+	var jobs []grind.Job
+	for end := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		jobs, err = c.GrindJobs()
+		must(t, err)
+		if len(jobs) != 3 || jobs[1].Layers > 0 || time.Now().After(end) {
+			break
+		}
+	}
 	if len(jobs) != 3 || jobs[0].Spec.Source != "policy" || jobs[0].Entries != 1 || jobs[1].Layers == 0 || jobs[2].State != grind.StateWaiting {
 		t.Fatalf("jobs %+v", jobs)
 	}

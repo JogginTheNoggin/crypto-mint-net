@@ -17,7 +17,7 @@ lets a node decline such a series on import. Two places leave a gap:
 
 1. **A shared policy file is the documented way series spread, and
    `policy import` says nothing about the ceiling.** The plan shows
-   `+ series: 9d7f095d` and `follows every pool (2)` for a series with
+   `+ series: d0b927f7` and `follows every pool (2)` for a series with
    `max_witness` 0, the same as for the reserve. With `series_ceiling` off
    (the default) nothing is declined, and nothing is said.
 2. **When `series_ceiling` is set and a series is declined, the text plan
@@ -35,12 +35,12 @@ no ceiling.
 $ poon policy export -dir n1 -out pexp.json          # n1 follows the documents' example, max_witness 0
 $ poon init -dir r1                                   # the reserve series
 $ poon policy import -dir r1 pexp.json
-  + series: 9d7f095d                                 # no mention of the ceiling
-  series 9d7f095d: follows every pool (2)
+  + series: d0b927f7                                 # no mention of the ceiling
+  series d0b927f7: follows every pool (2)
 $ # series_ceiling 1048576 set in r1/node.json (it has no `policy limits` name)
 $ poon policy import -dir r1 pexp.json
   nothing to change                                  # text plan
-$ poon policy import -dir r1 -json pexp.json         # "declined": ["9d7f095d: the series sets no witness ceiling, and series_ceiling is 1048576"]
+$ poon policy import -dir r1 -json pexp.json         # "declined": ["d0b927f7: the series sets no witness ceiling, and series_ceiling is 1048576"]
 ```
 
 ## What could happen

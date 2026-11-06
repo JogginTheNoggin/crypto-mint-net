@@ -90,6 +90,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-062](source/GREEN-062-bounty-on-with-limits.md) | Source | Turning the bounty market on with poon policy limits -set: on/off values, notes when posting cannot work, errors that name the command | proposed |
 | [GREEN-063](source/GREEN-063-bounty-done-and-watch-tid.md) | Source | A bounty from post to paid and through a restart: poon bounty list -done N, poon wallet watch -tid | proposed |
 | [GREEN-064](source/GREEN-064-max-strength-flow.md) | Source | A fast and a slow grinder against offers of several strengths: -max-strength over the setting refused, dropped offers explained, list filtered, minute_strength in grind bench | proposed |
+| [GREEN-065](source/GREEN-065-rename-walk.md) | Source | The renamed tool from a fresh install: poon help columns, completion named _poon, doc comments aligned | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
@@ -114,3 +115,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-047](source/ORANGE-047-bounty-file-remeasured.md) | Source | Round 37 measured; the bounty book no longer grows with its history, and keepjson's remaining cost | proposed |
 | [ORANGE-048](source/ORANGE-048-start-and-wallet-remeasured.md) | Source | Round 38 measured; the start and the wallet no longer grow slower with history | proposed |
 | [ORANGE-049](source/ORANGE-049-list-by-strength.md) | Source | Round 39 measured; a bounty list filtered by strength costs at most 30 µs | proposed |
+| [ORANGE-050](source/ORANGE-050-rename-checked.md) | Source | Round 40 checked; the rename to `poon` costs nothing, and one benchmark runs again | proposed |

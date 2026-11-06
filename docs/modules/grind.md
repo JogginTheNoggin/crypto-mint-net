@@ -36,10 +36,46 @@ plain one-goroutine search finds for the same nonces.
 | `note` | For example, a GPU found with no grinder for it yet |
 
 The CPU probe uses `klauspost/cpuid`. The GPU probe reads
-`/sys/class/drm/card*/device` on Linux (vendor and driver). There is no
-GPU grinder yet, so GPUs are listed with a note and `auto` passes them
-over. Registering a grinder for kind `gpu` makes them used, with no other
-change. When two probes find the same id (the system's list and a grinder's
+`/sys/class/drm/card*/device` on Linux (vendor, driver and PCI address).
+
+## The GPU grinder (D208)
+
+`gpu-opencl` searches layers of SHA-256 and SHA-512/256 series on any GPU
+with an OpenCL driver (NVIDIA, AMD and Intel ship one) on Linux, macOS
+and Windows, amd64 and arm64.
+
+- **No cgo.** The OpenCL library (`libOpenCL.so.1`, the macOS framework,
+  `OpenCL.dll`) is opened when devices are first listed, through
+  `ebitengine/purego`, so every release build has the grinder. A machine
+  with no library or driver lists its GPUs with a note saying why, and
+  `auto` uses the CPU. FreeBSD builds have no GPU grinder.
+- **Which GPU.** An OpenCL device is matched to a GPU the system lists by
+  its PCI address (the Khronos, NVIDIA or AMD extension), else by vendor in
+  order. A GPU no driver lists keeps a note; an OpenCL GPU the system does
+  not list (macOS, Windows) is added as the next `gpu:N`. Each grinder says
+  whether it runs on a device (`Grinder.Has`), so a GPU without a driver is
+  never offered.
+- **The kernel** (`opencl_kernel.cl`) hashes `entry ∥ nonce`, one padded
+  block, and keeps each work item's strongest layer as a key
+  `(strength+1) << 32 | (0xffffffff - offset)`; each work group writes its
+  largest key, so the result is the strongest layer, the lowest nonce among
+  equals: what the CPU returns for the same nonces.
+- **Chunks.** A search takes a chunk of nonces at a time (`Grinder.Chunk`,
+  `engine.Grind.Chunk`): about 50 ms of the device's work, timed when the
+  kernel is built (2^16 to 2^30). It looks at its context and counts tries
+  once a chunk, and `grind.layer_floor` sees the strongest layer of each
+  chunk.
+- **Entries** are ground on the CPU with every core but one
+  (`engine.Grind.EntryWorkers`), so `poon build` is no slower on a machine
+  with a GPU.
+- **Failures.** If the driver fails mid-search, that range and every later
+  one are searched on the CPU instead, with the same result.
+- `$POON_OPENCL=off` turns it off. `$POON_OPENCL_ALL=1` also takes OpenCL
+  devices that are not GPUs, such as PoCL on a CPU, which is how the tests
+  run on a machine with no GPU.
+
+Registering a grinder for kind `gpu` (or any other) makes devices used,
+with no other change. When two probes find the same id (the system's list and a grinder's
 own probe), the first one is kept.
 
 ## Grinders and plans
@@ -167,9 +203,8 @@ random nonce, so slices and jobs never repeat each other.
   any hasher, so a device needs no change elsewhere.
 - **A new hash:** `cpu-generic` grinds it as soon as `pkg/hash` knows it.
   For speed, register a grinder for it.
-- **A device that searches whole ranges itself,** as a GPU kernel would:
-  it can still sit behind `Hasher`, one try at a time. A range interface
-  can come with the first such grinder.
+- **A device that searches whole ranges itself,** as a GPU kernel does:
+  a `Search` with a `Chunk` (see the GPU grinder above).
 
 ## Tests
 
@@ -179,6 +214,11 @@ random nonce, so slices and jobs never repeat each other.
     and several.
   - A registered test device is picked by auto for its hash only.
   - GPUs from a fake `/sys/class/drm`.
+- `opencl_test.go` (with `POON_OPENCL_ALL=1` and any OpenCL driver, such as
+  PoCL): the GPU search equals the CPU's for both hashes, ranges of any
+  length, across a 32-bit word and up to the last nonce; a plan grinds
+  through chunks with the CPU's result; devices are matched by PCI address
+  and vendor.
   - Hours windows and spec checks.
   - Every kind of job on a real node: pending builds an entry, tip selects
     it, an entry job stops at its from(e), waiting, stop and `for`, along

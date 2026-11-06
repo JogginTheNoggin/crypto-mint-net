@@ -502,7 +502,21 @@ func grindCheck(p nodepolicy.Policy, accepted []nodepolicy.Accepted) Check {
 	if p.Grind != nil {
 		jobs = len(p.Grind.Jobs)
 	}
-	return Check{Name: "grind", Result: checkOK, Detail: fmt.Sprintf("devices: %s; jobs in the policy: %d", strings.Join(ids, ", "), jobs)}
+	// Devices found but without a grinder are named apart, so a GPU
+	// that cannot grind is not read as one that can (jerry's finding 11).
+	var grinds, idle []string
+	for _, d := range devs {
+		if len(d.Hashes) > 0 || d.Generic {
+			grinds = append(grinds, d.ID)
+		} else {
+			idle = append(idle, d.ID)
+		}
+	}
+	detail := fmt.Sprintf("grinds on: %s; jobs in the policy: %d", strings.Join(grinds, ", "), jobs)
+	if len(idle) > 0 {
+		detail += fmt.Sprintf("; found but no grinder runs on: %s (poon grind devices says why)", strings.Join(idle, ", "))
+	}
+	return Check{Name: "grind", Result: checkOK, Detail: detail}
 }
 
 // filesCheck reports a data directory or token others can read.

@@ -75,12 +75,14 @@ func viewOnlyOf(out io.Writer) bool {
 }
 
 // viewOnlyEnv reports whether $POON_VIEW_ONLY turns view-only mode on.
+// Any value but empty, 0, false, no or off turns it on: a value this
+// release does not know fails closed, never open (RED-122, D207).
 func viewOnlyEnv() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(ViewOnlyEnv))) {
-	case "1", "true", "yes", "on":
-		return true
+	case "", "0", "false", "no", "off":
+		return false
 	}
-	return false
+	return true
 }
 
 // ErrViewOnly is what a command refused in view-only mode returns,

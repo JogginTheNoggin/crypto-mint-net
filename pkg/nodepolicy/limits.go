@@ -201,7 +201,7 @@ var zeroMeans = map[string]string{
 	"bounty.max_amount":   "not set: posting is refused",
 	"bounty.budget":       "not set: posting is refused",
 	"bounty.min_price":    "no least price: offers at any price are kept",
-	"bounty.max_strength": "any strength (255 is sent)",
+	"bounty.max_strength": "any strength",
 }
 
 // zero says what 0 means for b.

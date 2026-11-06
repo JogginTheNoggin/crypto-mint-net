@@ -113,7 +113,9 @@ second, and the zero time (never, as a peer not yet tried) to `-`, unless
 JSON lacks.
 
 **View-only mode.** `poon -view-only COMMAND`, or any command with
-`POON_VIEW_ONLY=1` set, only looks (D101). Commands that talk to the node
+`POON_VIEW_ONLY=1` set, only looks (D101). Any value of `POON_VIEW_ONLY`
+other than empty, `0`, `false`, `no` or `off` turns it on, so an
+unknown value fails closed (RED-122, D207). Commands that talk to the node
 use `rpc.view-token`, which the node lets read and nothing else, and every
 command that would change something is refused before it runs with
 `view-only: poon X changes things`. The commands that run are those of

@@ -971,6 +971,13 @@ type Grind struct {
 	// Search, when set, searches layers a range of nonces at a time
 	// instead of hashing each with New (ORANGE-012).
 	Search layer.Search
+	// Chunk, when above 0, is how many nonces Search takes at a time
+	// (a GPU's batch, D208); 0 is the CPU's.
+	Chunk uint64
+	// EntryWorkers, when above 0, is how many goroutines grind an entry
+	// instead of Workers: a GPU searches layers, and entries are still
+	// ground on the CPU (D208).
+	EntryWorkers int
 	// Floor, when above 0, also hands Keep the other layers found at or
 	// above it, and at or above the series' minimum layer strength
 	// (ORANGE-010, D118). Keep runs on the search's workers at once.
@@ -982,6 +989,14 @@ type Grind struct {
 	// KeptCount, if not nil, counts the layers besides the strongest that
 	// the node took in (node.Node.WorkWith).
 	KeptCount *atomic.Uint64
+}
+
+// entryWorkers is EntryWorkers, else Workers.
+func (g Grind) entryWorkers() int {
+	if g.EntryWorkers > 0 {
+		return g.EntryWorkers
+	}
+	return g.Workers
 }
 
 func (g Grind) hasher(s *series.Series) hash.NewHasher {
@@ -1056,7 +1071,7 @@ func (e *Engine) BuildEntryOn(ctx context.Context, k PoolKey, maxTries uint64, g
 		return nil, refused, ErrNothingPending
 	}
 	s := p.s
-	en, h, err := entry.BuildWith(ctx, g.hasher(s), s, parent, txs, maxTries, g.Workers, g.Tried)
+	en, h, err := entry.BuildWith(ctx, g.hasher(s), s, parent, txs, maxTries, g.entryWorkers(), g.Tried)
 	if err != nil {
 		return nil, refused, err
 	}
@@ -1142,7 +1157,7 @@ func (e *Engine) GrindLayerWith(ctx context.Context, k PoolKey, entryHash hash.H
 	var l layer.Layer
 	var strength int
 	if g.Search != nil {
-		l, strength, err = layer.GrindSearchKeep(ctx, g.Search, entryHash, start, tries, g.Workers, g.Tried, keep)
+		l, strength, err = layer.GrindSearchChunk(ctx, g.Search, entryHash, start, tries, g.Workers, g.Tried, keep, g.Chunk)
 	} else {
 		l, strength, err = layer.GrindWithKeep(ctx, g.hasher(s), entryHash, start, tries, g.Workers, g.Tried, keep)
 	}

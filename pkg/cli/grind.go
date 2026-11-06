@@ -166,6 +166,9 @@ type devicesReply struct {
 	// Local is true when no node answered and the devices were detected
 	// here instead.
 	Local bool `json:"local,omitempty"`
+	// FromNode is true when the running node answered: it lists what its
+	// own build can grind, which may differ from this poon's (D208).
+	FromNode bool `json:"from_node,omitempty"`
 }
 
 func grindDevices(fs *flag.FlagSet, args []string, out io.Writer) error {
@@ -176,7 +179,7 @@ func grindDevices(fs *flag.FlagSet, args []string, out io.Writer) error {
 	// The node is what grinds, so ask it; without one, look here.
 	if cl, err := dialNode(out, w.resolve()); err == nil {
 		if r, err := cl.GrindDevices(); err == nil {
-			return o.write(out, devicesReply{Devices: r.Devices})
+			return o.write(out, devicesReply{Devices: r.Devices, FromNode: true})
 		}
 	}
 	return o.write(out, devicesReply{Devices: grind.Default.Detect(), Local: true})
@@ -226,7 +229,10 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 			}
 			p, err := grind.Default.Choose(devs, id, d.ID, *threads)
 			if err != nil {
-				if *device != "" {
+				// A named device with every hash: only the hashes it
+				// grinds (a GPU grinds two, D208); a named hash or
+				// series it cannot grind is an error.
+				if *device != "" && (*seriesID != "" || !errors.Is(err, grind.ErrNoGrinder)) {
 					return err
 				}
 				skipped = err
@@ -243,6 +249,15 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 		}
 	}
 	if *device != "" && len(rows) == 0 {
+		for _, d := range devs { // there, but it grinds none of the hashes
+			if d.ID == *device {
+				why := ""
+				if d.Note != "" {
+					why = ": " + d.Note
+				}
+				return fmt.Errorf("%s has no grinder for any hash%s", d.ID, why)
+			}
+		}
 		return fmt.Errorf("no device %q (poon grind devices lists them)", *device)
 	}
 	// Nothing measured is an error, not an empty list: -threads 2000 used

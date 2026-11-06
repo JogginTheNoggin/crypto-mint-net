@@ -20,7 +20,7 @@ policy names. With `poon` on your `PATH`:
 
 ```sh
 source <(poon completion bash)                          # bash, this shell
-poon completion zsh > "${fpath[1]}/_poon"                # zsh
+poon completion zsh > "${fpath[1]}/_poon"               # zsh
 poon completion fish > ~/.config/fish/completions/poon.fish   # fish
 ```
 
@@ -53,11 +53,11 @@ exits.
 ## 4. Claim, pay and settle
 
 ```sh
-./poon keygen > alice.json          # note "seed"
-./poon keygen > bob.json            # note "address_sha256"
-export POON_SEED=ALICE_SEED        # or -seed-file FILE; never on the command line
+./poon keygen > alice.json           # note "seed"
+./poon keygen > bob.json             # note "address_sha256"
+export POON_SEED=ALICE_SEED          # or -seed-file FILE; never on the command line
 ./poon claim -serial 5
-./poon build -pool 1 -work 100000   # an entry, then a layer that selects it
+./poon build -pool 1 -work 100000    # an entry, then a layer that selects it
 ./poon pay -serial 5 -to BOB_ADDRESS -amount 30
 ./poon build -pool 1 -work 100000
 ./poon tx -in-serial 5 TID_FROM_PAY  # where the payment stands
@@ -83,7 +83,7 @@ behind one seed and a passphrase, uses a fresh address for every payment,
 and follows each payment's weight:
 
 ```sh
-export POON_PASSPHRASE='a long passphrase'   # or -passphrase-file FILE
+export POON_PASSPHRASE='a long passphrase'    # or -passphrase-file FILE
 ./poon wallet create -wallet alice.wallet     # then: poon wallet seed, and back it up
 ./poon wallet create -wallet bob.wallet
 ./poon wallet watch -wallet alice.wallet -serial 5
@@ -232,6 +232,20 @@ lighter it may be pruned if more than `k` lighter branches are held
 (`k: -1` in node.json keeps every branch). Everything after the old
 claim that depends on it is not on the new branch.
 
+### Data from earlier builds: start fresh
+
+Builds from before the rename to `poon` (D204 to D206) used other file
+kinds, labels and a different default series id, and nothing of theirs is
+read: no old folder, environment variable or file kind. Nothing was
+released under the old name, so there is no migration. A node pointed at
+files an earlier build wrote refuses to start. Start fresh instead: run
+`poon init` in a new data folder (the
+default `~/.poon`, or `POON_HOME`), make a new wallet, and take what you
+need by hand. Set `POON_VIEW_ONLY` again where a profile or service used
+the old switch. Any value of it other than empty, `0`, `false`, `no` or
+`off` turns view-only mode on, so a value this release does not read
+leaves it on, never off (RED-122, D207).
+
 ## 5. Restart
 
 Stop the node and start it again. `poon status` shows the same tips and
@@ -321,6 +335,25 @@ for 10 minutes or block it for a day. You can look and act yourself:
 ./poon peer template -template detailed 203.0.113.5:7733   # record more
 ./poon chases                            # heavier ledgers waiting to be checked
 ```
+
+### Grinding on a GPU
+
+A GPU with an OpenCL driver grinds layers of SHA-256 and SHA-512/256
+series (the example and the default series), with nothing to build or
+install beyond the GPU vendor's driver (D208). NVIDIA's driver includes
+OpenCL; on Debian and Ubuntu, `clinfo` (package `clinfo`) shows whether
+the system sees it, and some systems need `ocl-icd-libopencl1`.
+
+```sh
+./poon grind devices                     # the GPU lists "hashes": ["sha256", "sha512-256"]
+./poon grind bench -device gpu:1         # its rate for each hash it grinds
+./poon work -serial 5 -entry ENTRY       # auto picks the GPU for layers
+```
+
+`auto` takes the GPU for layers of those hashes, and the CPU for
+everything else; entries are always ground on the CPU. A GPU listed with a
+note has no grinder, and the note says why (no OpenCL library, or no
+driver lists it). `POON_OPENCL=off` turns the GPU grinder off.
 
 ### Paying peers to grind layers (bounty market)
 

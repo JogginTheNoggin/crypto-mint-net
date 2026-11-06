@@ -258,6 +258,22 @@ built.
     offer this node has a lease on is kept when the held list is full.
   - The bounty done file is read a line's start at a time, and an offer
     left out for being done is reported.
+- **Round 40 fixes (D207):**
+  - `POON_VIEW_ONLY` is on for any value but empty, `0`, `false`, `no`
+    or `off`, so a value it does not read leaves view-only mode on.
+  - Data from builds before the rename is not read; a node pointed at it
+    refuses to start. The guide says to start fresh.
+  - A grinder's held offer of more than 16 layers reads filled once the
+    payer accepted every layer.
+- **Round 41 (D208):**
+  - GPUs grind: a GPU with an OpenCL driver (NVIDIA, AMD, Intel) searches
+    layers of SHA-256 and SHA-512/256 series, in every release build with
+    nothing more to install than the GPU's driver; `auto` picks it for
+    layers, and entries stay on the CPU.
+  - `poon doctor` names the devices that grind apart from those found
+    with no grinder; a device with no grinder for a hash says so, not "no
+    such device"; `poon grind bench -device gpu:N` measures the hashes the
+    GPU grinds.
 - **Round 40 (D204):**
   - The tool is now `poon` (proof of ownership network, or node), and the
     GUI `poon-gui`: the data folder is `~/.poon`, environment variables
@@ -267,6 +283,8 @@ built.
   - The protocol's labels start `PoON-` (D206, approved by jerry): every
     id, address and wallet key differs from earlier builds, and the
     default series id is `45772e75…f4c5`.
+  - Builds from before D206 share no ids or files with this one: set up
+    fresh (a new data folder and wallet).
   - `poon bounty list -ask` says how many peers it asked, with a note
     when none could be; a grinder's held offer reads filled once the
     payer accepted every layer it asks for; `poon policy limits` says

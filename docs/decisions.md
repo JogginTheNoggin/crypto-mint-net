@@ -5843,3 +5843,88 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   series id or address with one after it, which is a separate network,
   not a fork.
 - **Tier:** Hash, series, policy, wallet, store, vectors, docs.
+
+### D207. Round 40 fixes: view-only fails closed, data from earlier builds is a fresh start, held offers past 16 layers read filled (BLUE-041)
+
+- **Merged first:** Green's #356 (GREEN-065: the usage text's spacing and
+  the zsh completion's `_poon` name) and Orange's #360 (ORANGE-050: no
+  regression from the rename, and a test-only fix so
+  `BenchmarkHandleTxParallel` runs again).
+- **Decision:**
+  - **RED-122.** No old name is read (jerry: nothing is released, no
+    fallback, no old names), so the old variables stay unread and no
+    warning names them. What could fail open is `POON_VIEW_ONLY` itself:
+    it now turns view-only mode on for any value but empty, `0`, `false`,
+    `no` or `off`, where before only `1`, `true`, `yes` and `on` did.
+    `docs/running-a-node.md` gains "Data from earlier builds: start
+    fresh": nothing of the earlier builds is read, a node pointed at
+    their files refuses to start (GUI Green #359), and the way on is a
+    new data folder, wallet and `POON_VIEW_ONLY`.
+  - **RED-123.**
+    - (1) A held offer counts the payer's accepts (`accepted`, each nonce
+      once while its ack is kept), so an offer of more than `MaxAcks`
+      (16) layers reads filled once every layer is accepted. Display
+      only; the payer's answer is unchanged.
+    - (2) Payments with Round 39's 8-character memo, and (3) temp files
+      under the old prefix, are not handled: both exist only from builds
+      before the rename, whose data is a fresh start.
+- **Why:** a safety switch must never turn off because of a spelling,
+  and a grinder must see an offer it filled as filled.
+- **Consensus:** None.
+- **Tier:** CLI, bounty, docs.
+  - `pkg/cli/blue041_test.go`: `TestBlue041ViewOnlyFailsClosed`.
+  - `pkg/bounty/blue041_test.go`: `TestBlue041HeldFilledPastMaxAcks`.
+
+### D208. Round 41: a GPU grinder through OpenCL, in every build (jerry)
+- **Decision.** jerry (2026-11-06) asked for the GPU grinder. Grinding is
+  node work outside consensus (M11, D109), so this is node code only.
+  - **OpenCL**, so one kernel runs on NVIDIA, AMD and Intel GPUs, whose
+    drivers all ship it. CUDA would serve NVIDIA alone and needs a
+    toolkit to build.
+  - **No cgo.** The OpenCL library is opened at run time with
+    `github.com/ebitengine/purego` v0.11.2 (a pure-Go `dlopen`), so the
+    pure-Go cross-compiled release builds have the grinder: Linux, macOS
+    and Windows, amd64 and arm64. FreeBSD's pure-Go build cannot use
+    purego, so it has no GPU grinder. A machine without the library or
+    a driver lists its GPUs with a note saying why.
+  - **Layers only, SHA-256 and SHA-512/256** (the example and the default
+    series): a layer is one padded block. Entries are ground on the CPU
+    with every core but one (`engine.Grind.EntryWorkers`). Other hashes
+    keep the CPU.
+  - **Same result as the CPU:** the strongest layer of the nonces tried,
+    the lowest nonce among equals; tested against the CPU search for both
+    hashes with PoCL (OpenCL on the CPU), and on jerry's GPU.
+  - **Chunks:** a search takes about 50 ms of the device's work at a
+    time (`Grinder.Chunk`, `layer.GrindSearchChunk`), so a stop is seen
+    within that. `grind.layer_floor` then sees the strongest layer of each
+    chunk, not of each 4,096 nonces.
+  - **Devices:** an OpenCL device is matched to the system's GPU by PCI
+    address, else by vendor in order; `Grinder.Has` says per device
+    whether a grinder runs, so `auto` never picks a GPU without a driver.
+  - **A driver failing mid-search** moves that search to the CPU, with the
+    same result; nothing panics.
+  - `POON_OPENCL=off` turns it off; `POON_OPENCL_ALL=1` takes non-GPU
+    OpenCL devices too, for tests.
+  - jerry's findings 11 and 12: `poon doctor` names the devices that grind
+    and those found with no grinder; a device with no grinder for a hash
+    is `grind.ErrNoGrinder` ("gpu:1 has no grinder for sha3-256", with the
+    device's note), not "no such device"; `poon grind bench -device ID`
+    with no series measures the hashes the device grinds.
+  - **Measured on jerry's RTX 2070 SUPER:** SHA-256 layers at about
+    4.55 G/s and SHA-512/256 at about 1.55 G/s, against 37.1 M/s and
+    13.3 M/s on its CPU; a 10-second `poon work` tried 45.2 G nonces and
+    kept a strength-35 layer. The run also gave fixes made here:
+    `poon build -work` checks its tries before building (finding 18) and
+    names the entry if the layer fails; `poon grind devices` says when the
+    list comes from the node (`from_node`); the bench names why a device
+    measured nothing; CLI tests turn the GPU off so they pass the same on
+    a GPU machine.
+- **Why:** GPUs grind layers many times faster than CPUs, and jerry wants
+  them used.
+- **Consensus:** None. A grinder only finds nonces; every result is
+  checked by the same rules.
+- **Tier:** Grind, layer, engine, CLI, docs.
+  - `pkg/grind/opencl_test.go`: `TestOpenCLSearchMatchesCPU`,
+    `TestOpenCLPlanGrinds`, `TestMatchOpenCL`.
+  - `pkg/grind/main_test.go`: tests list GPUs without the driver, so they
+    pass the same with or without a GPU.
