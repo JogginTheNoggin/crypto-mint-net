@@ -213,6 +213,39 @@ try {
   assert.equal(await wsec('Co-sign a payment').locator('.cmd code').innerText(), 'poo wallet cosign -wallet w2.json pay.json');
   await wsec('Submit a co-signed payment').locator('input[name=file]').fill('pay.json');
   assert.equal(await wsec('Submit a co-signed payment').locator('.cmd code').innerText(), 'poo wallet submit -wallet w2.json pay.json');
+  // Cold keys (D193): sign a co-signing file with a key kept elsewhere.
+  // An empty key file has poo ask for the key in a masked field.
+  const sg = wsec('Sign with a key kept elsewhere');
+  await sg.locator('input[name=file]').fill('pay.json');
+  assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file -');
+  await sg.locator('input[name=keyFile]').fill('cold.key');
+  await sg.locator('input[name=alg]').fill('ml-dsa-65');
+  await sg.locator('label', { hasText: '(-raw)' }).locator('input').check();
+  await sg.locator('input[name=out]').fill('signed.json');
+  await sg.locator('label', { hasText: 'Show only' }).locator('input').check();
+  assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file cold.key -alg ml-dsa-65 -raw -out signed.json -show');
+  const notes = await page.evaluate(async () => {
+    const { signNote } = await import('/views/wallet.js');
+    const t = o => { const n = signNote({ code: 0, out: JSON.stringify(o) }); return n && n.textContent; };
+    const leg = { serial: 1, tid: 'aa', inputs: 2, outputs: [] };
+    return [t({ alg: 'ed25519', public_key: 'pk', address: 'ad', legs: [leg, leg], added: 2, missing: [[0, 1], [0, 0]], wrote: 'pay.json' }),
+      t({ alg: 'ed25519', public_key: 'pk', address: 'ad', legs: [leg], added: 1, missing: [[0]] }),
+      t({ alg: 'ed25519', public_key: 'pk', address: 'ad', legs: [leg], added: 0, missing: [[1, 1]], shown: true }),
+      signNote({ code: 1, out: '' })];
+  });
+  assert.deepEqual(notes, [
+    'This key (address ad) added 2 signatures to 2 transactions, written to pay.json; 1 signature is still needed.',
+    'This key (address ad) added 1 signature to 1 transaction; no more signatures are needed: Submit a co-signed payment sends it.',
+    'Shown only, nothing was signed: the payment has 1 transaction, and this key\'s address is ad; 2 signatures are still needed.',
+    null]);
+  const wpay = wsec('Pay');
+  await wpay.locator('input[name=change]').fill('cc11');
+  assert.match(await wpay.locator('.cmd code').innerText(), / -change cc11$/);
+  await wpay.locator('input[name=change]').fill('');
+  const wcr = wsec('Create or restore a wallet');
+  await wcr.locator('label', { hasText: 'Watch-only' }).locator('input').check();
+  assert.equal(await wcr.locator('.cmd code').innerText(), 'poo wallet create -wallet w2.json -watch-only');
+  await wcr.locator('label', { hasText: 'Watch-only' }).locator('input').uncheck();
   for (const [t, c] of [['Send dropped legs again', 'resend'], ['Follow only the watched mints', 'follow'], ['Change the passphrase', 'passwd'], ['Show the seed', 'seed']]) {
     assert.equal(await wsec(t).locator('.cmd code').innerText(), `poo wallet ${c} -wallet w2.json`);
   }
@@ -229,7 +262,6 @@ try {
     payment: 'older form of poo tx, kept for scripts; Explore runs tx',
     claim: 'claims with a raw key file; the Wallet view claims from the wallet',
     pay: 'pays with a raw key file; the Wallet view pays from the wallet',
-    sign: 'signs an unsigned payment with a key kept off the node (cold keys, D193); it runs in the terminal, or on another machine',
     settings: 'new in Source Round 20 (D155); GUI/Grey adds its export and import form next, and the terminal runs it until then',
   };
   const ran = new Set();
@@ -261,6 +293,12 @@ try {
   await key.locator('input[name=own]').check();
   assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -seed-file -');
   assert.ok(!(await key.locator('button.copy-cmd').isDisabled()), 'a line that reads its seed from input is copied');
+  // A key made by another tool gives only its public half (D193).
+  await key.locator('input[name=own]').uncheck();
+  await key.locator('input[name=raw]').check();
+  assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -seed-file - -raw');
+  await key.locator('input[name=raw]').uncheck();
+  await key.locator('input[name=own]').check();
   const secret = await page.evaluate(async () => {
     const { secretLine } = await import('/api.js');
     return ['poo keygen -seed ' + 'ab'.repeat(32), 'poo keygen -seed=ab', 'poo wallet create -restore -', 'poo wallet create -restore=-', 'poo keygen -seed-file -', 'poo sim -seed 3', 'poo keygen -seed'].map(secretLine);

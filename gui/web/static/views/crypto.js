@@ -38,8 +38,9 @@ export const cryptoView = {
     return mountAll(root, 'Series and keys', 'Offline tools: the choices a series can make, keys, and series parameters.', [
       panel(ctx, { title: 'Hashes, key algorithms and policy types', args: () => ['crypto'], onResult: r => { if (r.code === 0) cryptoChoices(r.out); } }),
       form(ctx, { title: 'Make a key', about: 'A key and its 1-of-1 address, from a random seed unless you give your own; the output includes the seed.',
-        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs' }, { name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'own', label: 'Use my own seed', type: 'check', help: 'poo asks for it in a masked field after you press Make key (-seed-file -), so it is never on the command line (D98).' }],
-        args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...(v.own ? ['-seed-file', '-'] : [])], submit: 'Make key', secretOutput: true }),
+        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs' }, { name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'own', label: 'Use my own seed', type: 'check', help: 'poo asks for it in a masked field after you press Make key (-seed-file -), so it is never on the command line (D98).' },
+          { name: 'raw', label: 'Or a key made by another tool: give its private key, in its algorithm\'s usual form (-raw), and get only its public key and address', type: 'check', help: 'poo asks for the key in a masked field and never prints it (D193). Use it to add a cold key to a watch-only wallet.' }],
+        args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...(v.own || v.raw ? ['-seed-file', '-'] : []), ...flag('raw', v.raw)], submit: 'Make key', secretOutput: true }),
       // A series is fixed unless Variable is ticked (D163): then the issuer
       // releases more parts later. poo checks the definition; the GUI only
       // passes the fields on and offers what poo printed as a file.
