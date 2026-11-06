@@ -13,9 +13,9 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
 
-const simUsage = `poo sim: run the network simulator on the worked example's series
+const simUsage = `poon sim: run the network simulator on the worked example's series
 
-Usage: poo sim SCENARIO [flags]
+Usage: poon sim SCENARIO [flags]
 
   load        payments under load: agreement, conservation, wait, sibling work
   partition   split the network, heal it: the heavier side must win

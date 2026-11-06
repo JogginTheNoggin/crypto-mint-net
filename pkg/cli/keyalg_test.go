@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// A key made with poo keygen -alg can claim, pay, sign a series and
+// A key made with poon keygen -alg can claim, pay, sign a series and
 // release its parts: the commands that take a seed take -alg too. Without
 // it the seed's Ed25519 key is used, and the issuer check says which -alg
 // is the issuer's; a key the series does not allow is refused before it is

@@ -11,13 +11,13 @@ async function nodeJob() {
   return js.reverse().find(j => !j.done && j.args[0] === 'node');
 }
 
-// doctorReport lays out poo doctor -o json: one row per check, as printed.
-// A check whose fix is a poo command line (fix_args, D110) gets a button
-// that types it into the terminal exactly as poo printed it: poo already
+// doctorReport lays out poon doctor -o json: one row per check, as printed.
+// A check whose fix is a poon command line (fix_args, D110) gets a button
+// that types it into the terminal exactly as poon printed it: poon already
 // names the checked policy's -dir when Settings chose -root or -policy
 // (GREEN-036), so the view adds nothing. Any other fix is shown as the
-// text poo printed.
-const RUNNABLE_FIX = /^poo [a-z][\w./:=-]*( [\w./:=-]+)*$/;
+// text poon printed.
+const RUNNABLE_FIX = /^poon [a-z][\w./:=-]*( [\w./:=-]+)*$/;
 // DETAIL_CHARS is how much of a doctor check's detail shows at first. A
 // detail names what it found, and one can name every followed series: at
 // 4,096 series with no witness ceiling, the ceiling check's detail was
@@ -41,10 +41,10 @@ export function doctorReport(rep, ctx) {
   for (const c of rep.checks || []) {
     let run = null;
     if (Array.isArray(c.fix_args) && c.fix_args.length) run = c.fix_args;
-    else if (c.fix && RUNNABLE_FIX.test(c.fix)) run = c.fix.replace(/^poo /, '').split(' ');
+    else if (c.fix && RUNNABLE_FIX.test(c.fix)) run = c.fix.replace(/^poon /, '').split(' ');
     const fix = c.fix ? (run
       ? el('div', { class: 'doctor-fix' }, 'fix: ', el('code', {}, api.quote(run)), ' ',
-        el('button', { type: 'button', class: 'small', onclick: () => ctx.openInTerminal(api.quote(run).replace(/^poo /, '')) }, 'Run in terminal'))
+        el('button', { type: 'button', class: 'small', onclick: () => ctx.openInTerminal(api.quote(run).replace(/^poon /, '')) }, 'Run in terminal'))
       : el('div', { class: 'doctor-fix' }, `fix: ${c.fix}`)) : null;
     list.append(el('li', { class: `doctor-${c.result}` },
       el('span', { class: `pill pill-${c.result}` }, c.result),
@@ -60,14 +60,14 @@ export const nodeView = {
     const runArea = el('div', { class: 'area' });
     const startBtn = el('button', { type: 'button', class: 'primary' }, 'Start node');
     // -reverify (D178): this start ignores the pool snapshots and replays
-    // every log whole, then poo status says whether the replay matched.
+    // every log whole, then poon status says whether the replay matched.
     const reverify = el('input', { type: 'checkbox', name: 'reverify' });
     const nodeArgs = () => ['node', ...where.flags(), ...flag('reverify', reverify.checked)];
     const runLine = cmdLine(nodeArgs(), ctx);
     reverify.onchange = () => runLine.set(nodeArgs());
     const runSec = el('section', { class: 'panel' },
       el('div', { class: 'panel-head' }, el('h2', {}, 'Run the node'), startBtn),
-      el('p', { class: 'hint' }, 'Runs poo node inside the GUI until you stop it or close the GUI. A node already running elsewhere (for example as a service) is used as it is: the views below talk to whichever node serves this node policy.'),
+      el('p', { class: 'hint' }, 'Runs poon node inside the GUI until you stop it or close the GUI. A node already running elsewhere (for example as a service) is used as it is: the views below talk to whichever node serves this node policy.'),
       el('label', { class: 'check reverify' }, reverify, ' Check every record again on this start: ignore the pool snapshots and replay each pool log whole (slower; Followed pools then says whether the replay matched the snapshots)'),
       runLine, runArea);
     let following = null, unfollowLog = null, gone = false;
@@ -99,12 +99,12 @@ export const nodeView = {
       setTimeout(showRunning, 200);
     };
     showRunning();
-    // poo status says when node.json changed since the node loaded it and
+    // poon status says when node.json changed since the node loaded it and
     // the change waits for a reload (Source GREEN-037). The panel says so
     // above what it shows, with the Reload form's own button (GREEN-038).
-    // The 5 s refresh asks for poo's totals per series (-counts, D177), not a
+    // The 5 s refresh asks for poon's totals per series (-counts, D177), not a
     // row per pool: on the reserve series that was 352 KB and a 150 ms pause
-    // every 5 s (ORANGE-021). poo adds them up; the GUI totals nothing.
+    // every 5 s (ORANGE-021). poon adds them up; the GUI totals nothing.
     // Each pool's row is in Each pool below, which runs only when asked.
     const status = panel(ctx, { title: 'Followed pools', about: 'What the running node follows: totals for each series (pools, entries, branches, pending, waiting, stored records), with the entry cache and file limit notes. Refreshes every 5 seconds.', args: () => ['status', '-counts', ...where.flags()], refresh: 5000,
       onResult: (r, area) => {
@@ -112,11 +112,11 @@ export const nodeView = {
         try { st = r.code === 0 && JSON.parse(r.out); } catch (_) { return; }
         if (!st) return;
         // Where entry bodies are (D172) and the open file limit
-        // (ORANGE-037), as poo status gives them; the GUI judges nothing.
+        // (ORANGE-037), as poon status gives them; the GUI judges nothing.
         const notes = statusNotes(st);
         if (notes.length) area.prepend(...notes);
-        // The totals poo printed, one row per series, naming a series built
-        // into poo by its builtin field (D179). The notes above already say
+        // The totals poon printed, one row per series, naming a series built
+        // into poon by its builtin field (D179). The notes above already say
         // what bodies, file_limit and snapshots hold, so the rest stays
         // folded under "Output as printed".
         const raw = area.querySelector('.result');
@@ -131,16 +131,16 @@ export const nodeView = {
       about: 'Creates the node policy (settings, series to follow) and makes it current.',
       fields: [
         { name: 'example', label: 'Follow the worked example series', type: 'check' },
-        { name: 'series', label: 'Series files', type: 'list', placeholder: 'path/to/series.json …', help: 'Series parameter files (poo series new) to know and follow.' },
+        { name: 'series', label: 'Series files', type: 'list', placeholder: 'path/to/series.json …', help: 'Series parameter files (poon series new) to know and follow.' },
         { name: 'listen', label: 'RPC address', placeholder: 'default; "off" to disable' },
         { name: 'p2p', label: 'P2P address', placeholder: 'default; "off" to accept none' },
         { name: 'peer', label: 'Peers', type: 'list', placeholder: 'host:port …' },
         { name: 'registry', label: 'Address registries', type: 'list', placeholder: 'URL or file …' },
         { name: 'advertise', label: 'Advertise as', placeholder: 'host:port' },
-        // With no series, poo follows the built-in reserve series (D170).
+        // With no series, poon follows the built-in reserve series (D170).
         { name: 'reserve', label: 'Also follow the built-in default series (what happens anyway when no series is given)', type: 'check' },
         { name: 'noSeries', label: 'Follow no series, not even the built-in default series', type: 'check' },
-        // Opt-in port mapping (D182): poo asks the router to forward the
+        // Opt-in port mapping (D182): poon asks the router to forward the
         // peer port. Off unless chosen; the help says what peers learn.
         { name: 'portMap', label: 'Ask the router to forward the peer port', type: 'select', options: [{ value: '', label: 'no (default off)' }, 'auto', 'pcp', 'natpmp', 'upnp'], help: 'Lets peers reach a node at home behind a router. The cost: once a dial reaches this node, peers learn this network\'s public IP address. Followed pools shows how the mapping went.' },
         { name: 'anyCeiling', label: 'Accept a series file whose witness ceiling is not set or above 4 MiB', type: 'check' },
@@ -162,7 +162,7 @@ export const nodeView = {
     // elements each time the Node view opened. Each pool now runs when
     // Show is pressed; the follow list shows its rules at once and draws
     // its pools only when they are opened (GUI-GREEN-056).
-    const eachPool = panel(ctx, { title: 'Each pool', about: 'Where each followed pool stands, one row per pool, as poo status prints it. It runs when you press Show, and does not refresh by itself.', args: () => ['status', ...where.flags()], start: false });
+    const eachPool = panel(ctx, { title: 'Each pool', about: 'Where each followed pool stands, one row per pool, as poon status prints it. It runs when you press Show, and does not refresh by itself.', args: () => ['status', ...where.flags()], start: false });
     const follows = panel(ctx, { title: 'What the node follows', about: 'The follow list of the node policy, and the pools it covers.', args: () => ['follow', ...where.flags()],
       onResult: (r, area) => {
         let o;
@@ -172,18 +172,18 @@ export const nodeView = {
         raw.replaceWith(followView(o));
         area.append(rawFold(raw));
       } });
-    // Replace (GREEN-038, Source) is poo follow -replace: with a series, the
+    // Replace (GREEN-038, Source) is poon follow -replace: with a series, the
     // pools and mints given become all it follows of that series, in one
-    // change. It shows only once a series is named, as poo requires.
+    // change. It shows only once a series is named, as poon requires.
     const follow = form(ctx, { title: 'Follow more', about: 'Adds to the node policy; a running node applies it at once.',
       fields: [...followFields, { name: 'replace', label: 'Replace what the series follows with these', type: 'check', only: { field: 'series', not: [''] } }, { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }], args: v => followArgs('follow', v), submit: 'Follow' });
     const unfollow = form(ctx, { title: 'Follow less', fields: [...followFields, { name: 'noReload', label: 'Only write the policy (no reload)', type: 'check' }],
       args: v => followArgs('unfollow', v), submit: 'Unfollow', danger: true });
     const reload = form(ctx, { title: 'Reload the node policy', about: 'Makes the running node apply its node policy file as it now stands.', fields: [],
       args: () => ['reload', ...where.flags()], submit: 'Reload', onResult: r => { if (r.code === 0) status.reload(); } });
-    // Variable supply series the running node follows (D166): what poo
+    // Variable supply series the running node follows (D166): what poon
     // says it has released, the next part, the mints and units so far and
-    // the newest release it holds. The GUI only lays out poo's answer.
+    // the newest release it holds. The GUI only lays out poon's answer.
     const variable = panel(ctx, { title: 'Variable series', about: 'Each followed series that can grow: the parts released so far, the next part, the mints and units that exist now, and the newest release the node holds.', args: () => ['series', 'followed', ...where.flags()],
       onResult: (r, area) => {
         let o;
@@ -198,12 +198,12 @@ export const nodeView = {
           el('p', { class: 'hint empty' }, `None of the ${all.length} followed series is variable.`);
         if (raw) { raw.replaceWith(body); area.append(rawFold(raw)); }
       } });
-    // Every series the running node follows, one row each, as poo series
+    // Every series the running node follows, one row each, as poon series
     // followed gives them: a newcomer on the default sees "the built-in
-    // reserve series" by name (poo's builtin, D170), not only a hash and
-    // 1,024 pool rows. The GUI only lays out poo's answer
+    // reserve series" by name (poon's builtin, D170), not only a hash and
+    // 1,024 pool rows. The GUI only lays out poon's answer
     // (GUI-GREEN-054).
-    const followed = panel(ctx, { title: 'Followed series', about: 'Each series the running node follows: its name when it is built into poo, its id, whether its supply is fixed or can grow, and its pools, mints, units per mint and floors.', args: () => ['series', 'followed', ...where.flags()],
+    const followed = panel(ctx, { title: 'Followed series', about: 'Each series the running node follows: its name when it is built into poon, its id, whether its supply is fixed or can grow, and its pools, mints, units per mint and floors.', args: () => ['series', 'followed', ...where.flags()],
       onResult: (r, area) => {
         let o;
         try { o = r.code === 0 && parseJSON(r.out); } catch (_) { return; }
@@ -213,20 +213,20 @@ export const nodeView = {
         const body = all.length ? seriesTable(all) : el('p', { class: 'hint empty' }, 'The node follows no series. Write a node policy below, or Follow more.');
         raw.replaceWith(body); area.append(rawFold(raw));
       } });
-    // A release made by the issuer reaches a node as a file (D166): poo
+    // A release made by the issuer reaches a node as a file (D166): poon
     // checks it, keeps it in node.json and the node reloads to follow the
-    // new parts' mints. A file picked here goes to poo as its input (-).
+    // new parts' mints. A file picked here goes to poon as its input (-).
     let picker = null;
-    const addRelease = form(ctx, { title: 'Add a release', about: 'Gives the node a release of a variable series it follows. poo checks it against the series, saves it in node.json, and the node then follows the new parts\' mints. A release can never be taken back.',
+    const addRelease = form(ctx, { title: 'Add a release', about: 'Gives the node a release of a variable series it follows. poon checks it against the series, saves it in node.json, and the node then follows the new parts\' mints. A release can never be taken back.',
       fields: [{ name: 'file', label: 'Release file', placeholder: 'a path on this machine, or pick one below', required: true }],
       args: v => ['series', 'add-release', ...where.flags(), ...(v.file ? [v.file] : [])], submit: 'Add release', danger: true,
       onStart: j => picker.feed(j),
       onResult: (r, area) => { appliedNote(r, area); if (r.code === 0) { variable.reload(); status.reload(); } } });
     picker = pickFile(addRelease);
     const t = setInterval(showRunning, 3000);
-    // poo doctor checks the policy, files, series, RPC and P2P in one go.
+    // poon doctor checks the policy, files, series, RPC and P2P in one go.
     // Its report is drawn as a checklist; the raw output stays one click away.
-    const health = panel(ctx, { title: 'Health check', about: 'What poo doctor finds for this node policy, with the fix it suggests.',
+    const health = panel(ctx, { title: 'Health check', about: 'What poon doctor finds for this node policy, with the fix it suggests.',
       args: () => ['doctor', '-o', 'json', ...where.flags()],
       onResult: (r, area) => {
         let rep;
@@ -244,7 +244,7 @@ export function variableTable(vs, cells) {
   return rowsTable(vs, cells, { headers: ['series', 'parts released', 'next part', 'mints', 'units', 'newest release'], cls: 'variable-series', more: 'variable-more', noun: 'variable series' });
 }
 
-// followView draws poo follow's JSON: the follow rules as printed, and
+// followView draws poon follow's JSON: the follow rules as printed, and
 // its pools folded under a count, drawn only when opened.
 export function followView(o) {
   const rest = { ...o };
@@ -254,15 +254,15 @@ export function followView(o) {
   return el('div', { class: 'result follow-view' }, render(rest), pools);
 }
 
-// seriesName is what poo's builtin field names a series by: the default
-// reserve series (D170) or another series built into poo.
+// seriesName is what poon's builtin field names a series by: the default
+// reserve series (D170) or another series built into poon.
 export const seriesName = x => x.builtin === 'default' ? 'the built-in default series' : x.builtin ? `built in: ${x.builtin}` : '';
 
-// seriesTable is the Followed series panel's table, from poo series
+// seriesTable is the Followed series panel's table, from poon series
 // followed's JSON.
 export function seriesTable(all) {
   const p = x => x.params || {};
-  // poo's warning on a series (a witness ceiling not set, or above 4 MiB:
+  // poon's warning on a series (a witness ceiling not set, or above 4 MiB:
   // D171) goes in its own column, as printed.
   const cells = x => [seriesName(x), el('code', { class: 'hex', title: String(x.id) }, String(x.id).slice(0, 16) + '…'),
     ...[x.variable ? 'variable' : 'fixed', x.pools, x.variable ? x.variable.mints : p(x).mints, p(x).supply, `${p(x).min_entry_strength ?? 0} / ${p(x).min_layer_strength ?? 0}`].map(v => String(v ?? '')),
@@ -270,8 +270,8 @@ export function seriesTable(all) {
   return rowsTable(all, cells, { headers: ['name', 'series', 'supply', 'pools', 'mints', 'units per mint', 'entry / layer floor', 'warning'], cls: 'followed-series', more: 'followed-more', noun: 'series' });
 }
 
-// statusNotes draws poo status's entry body cache (D172) and open file
-// limit (ORANGE-037) as one line each, from the fields poo gives.
+// statusNotes draws poon status's entry body cache (D172) and open file
+// limit (ORANGE-037) as one line each, from the fields poon gives.
 const MIB = 1 << 20;
 export function statusNotes(st, guiVersion = api.version) {
   const out = [];
@@ -289,7 +289,7 @@ export function statusNotes(st, guiVersion = api.version) {
   const fl = st.file_limit;
   if (fl && fl.known && fl.low) out.push(el('p', { class: 'next-step file-limit-low', role: 'alert' },
     `The open file limit is ${fl.soft}, below the ${fl.need} the followed pools need. Raise it (ulimit -n, or LimitNOFILE for a service) and restart the node.`));
-  // Each figure is read only if poo gave it as a number: a partial reply
+  // Each figure is read only if poon gave it as a number: a partial reply
   // (an older node, a field left out) shows "?" for it rather than
   // throwing, which would leave the lines after it undrawn (GUI/Red R29B).
   const b = st.bodies;
@@ -298,15 +298,15 @@ export function statusNotes(st, guiVersion = api.version) {
   const mib = (x, d) => num(x) ? (x / MIB).toFixed(d) : '?';
   if (b && num(b.max_bytes)) out.push(el('p', { class: 'hint entry-cache' },
     `Entry cache: ${mib(b.used_bytes, 1)} of ${mib(b.max_bytes, 0)} MiB (entry_cache_mib), ${n(b.bodies)} bodies; ${n(b.hits)} hits, ${n(b.loads)} read from disk${num(b.errors) && b.errors ? `, ${b.errors} failed reads` : ''}. ${n(b.in_memory)} of ${n(b.held)} entries are in memory${num(b.cold) ? `, and ${b.cold} older ones (outside recent_window) are read from the logs when needed` : ''}.`));
-  // Pool snapshots (D178), as poo sums them up.
+  // Pool snapshots (D178), as poon sums them up.
   const sn = st.snapshots;
   if (sn && sn.off) out.push(el('p', { class: 'hint snapshots' }, 'Pool snapshots are off (no_snapshots): each start replays every pool log whole.'));
   else if (sn && num(sn.pools)) out.push(el('p', { class: 'hint snapshots' },
     `Snapshots: ${n(sn.pools - (num(sn.missing) ? sn.missing : 0))} of ${n(sn.pools)} pools with a log have one${num(sn.age_seconds) && sn.pools > sn.missing ? `, the oldest ${age(sn.age_seconds)} old` : ''}; a start would replay at most ${n(sn.behind)} records. A snapshot is written every ${n(sn.every)} records (snapshot_every)${num(sn.due) && num(sn.every) && sn.due > sn.every ? `, or up to ${sn.due} for the largest log` : ''}, ${mib(sn.bytes, 1)} MiB in all.`));
-  // The router port mapping (D182), as poo reports it; absent or off: no
+  // The router port mapping (D182), as poon reports it; absent or off: no
   // line. A state that leaves peers unable to reach the node (failed,
   // not_public, and unconfirmed: mapped but the dial back did not arrive,
-  // so poo removed it; GUI/Red R31B) is an alert; poo's own state and
+  // so poon removed it; GUI/Red R31B) is an alert; poon's own state and
   // error words are kept.
   const pm = st.port_map;
   if (pm && pm.mode && pm.mode !== 'off') {
@@ -320,14 +320,14 @@ export function statusNotes(st, guiVersion = api.version) {
   if (rp && num(rp.snapshots)) out.push(el('p', { class: 'hint replay' },
     `This start: ${n(rp.snapshots)} ${rp.snapshots === 1 ? 'pool' : 'pools'} from ${rp.snapshots === 1 ? 'its snapshot' : 'their snapshots'} (${n(rp.snapshot_records)} records not read again), ${n(rp.records)} records replayed after them${unused(rp.snapshots_unused, rp.snapshots_unused_count, 'snapshots not used')}.`));
   if (rp && num(rp.reverified) && rp.reverified) out.push(el('p', rp.reverify_differed ? { class: 'next-step reverify-differed', role: 'alert' } : { class: 'hint reverify' },
-    rp.reverify_differed ? `Checked every record again: the full replay of ${rp.reverify_differed} of ${rp.reverified} pools built a different pool than its snapshot held. Run poo doctor and keep the logs for a report.`
+    rp.reverify_differed ? `Checked every record again: the full replay of ${rp.reverify_differed} of ${rp.reverified} pools built a different pool than its snapshot held. Run poon doctor and keep the logs for a report.`
       : `Checked every record again: the full replay of all ${rp.reverified} pools matched their snapshots.`));
   if (rp && ((rp.reverify_not_compared || []).length || rp.reverify_not_compared_count)) out.push(el('p', { class: 'hint reverify-not-compared' },
     `Not compared${unused(rp.reverify_not_compared, rp.reverify_not_compared_count, 'pools').replace(/^; /, ': ')}.`));
   return out;
 }
 
-// unused says how many of a list poo capped at a few reasons there are,
+// unused says how many of a list poon capped at a few reasons there are,
 // from its count field when it gives one (D184, GUI White S2), with the
 // reasons it printed.
 function unused(list, total, noun) {
@@ -343,8 +343,8 @@ function age(s) {
   return `${s} second${s === 1 ? '' : 's'}`;
 }
 
-// totalsTable is the Followed pools panel's table, from poo status
-// -counts: one row per series, with its name when it is built into poo.
+// totalsTable is the Followed pools panel's table, from poon status
+// -counts: one row per series, with its name when it is built into poon.
 export function totalsTable(rows) {
   const cells = x => [seriesName(x), el('code', { class: 'hex', title: String(x.series) }, String(x.series).slice(0, 16) + '…'),
     ...['pools', 'entries', 'branches', 'pending', 'waiting', 'stored_records'].map(k => String(x[k] ?? ''))];

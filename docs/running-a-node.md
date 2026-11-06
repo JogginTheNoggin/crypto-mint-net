@@ -6,46 +6,46 @@ How to run the full node today: write a node policy, start the daemon, and
 use the local commands to claim a mint, pay, build an entry, add work and
 check a payment, then restart and see everything come back from disk, and
 then connect a second node and watch what you do on one reach the other.
-Keys made with `poo keygen` are raw seeds printed on screen; use them only
+Keys made with `poon keygen` are raw seeds printed on screen; use them only
 for testing, never for anything of value.
 
 ## 1. Build
 
 ```sh
-go build -o poo ./cmd/poo
+go build -o poon ./cmd/poon
 ```
 
 Optionally, turn on tab completion of commands, subcommands, flags and
-policy names. With `poo` on your `PATH`:
+policy names. With `poon` on your `PATH`:
 
 ```sh
-source <(poo completion bash)                          # bash, this shell
-poo completion zsh > "${fpath[1]}/_poo"                # zsh
-poo completion fish > ~/.config/fish/completions/poo.fish   # fish
+source <(poon completion bash)                          # bash, this shell
+poon completion zsh > "${fpath[1]}/_poo"                # zsh
+poon completion fish > ~/.config/fish/completions/poon.fish   # fish
 ```
 
 ## 2. Write a node policy
 
 ```sh
-./poo init -example
+./poon init -example
 ```
 
-This writes `~/.poo/policies/default/node.json`, which knows and follows
+This writes `~/.poon/policies/default/node.json`, which knows and follows
 the worked example's series (8 mints of 100 units, pool size 4) and makes
-it the current node policy. Set `POO_HOME` to keep everything somewhere
+it the current node policy. Set `POON_HOME` to keep everything somewhere
 else. To follow your own series, write its parameters as JSON (start from
-`./poo series example`) and pass `-series FILE`. Edit `node.json` to follow
+`./poon series example`) and pass `-series FILE`. Edit `node.json` to follow
 only some pools or mints, or to change K and the other limits; see
 [modules/nodepolicy.md](modules/nodepolicy.md).
 
 ## 3. Start the node
 
 ```sh
-./poo node
+./poon node
 ```
 
 It prints how many pools it follows and what it replayed, and listens for
-peers on port 7733 and for local commands on `127.0.0.1:7732` (`poo
+peers on port 7733 and for local commands on `127.0.0.1:7732` (`poon
 init` wrote both into `node.json`; change them there). Leave it running
 and use another terminal. Stop it with Ctrl-C; it compacts its stores and
 exits.
@@ -53,22 +53,22 @@ exits.
 ## 4. Claim, pay and settle
 
 ```sh
-./poo keygen > alice.json          # note "seed"
-./poo keygen > bob.json            # note "address_sha256"
-export POO_SEED=ALICE_SEED        # or -seed-file FILE; never on the command line
-./poo claim -serial 5
-./poo build -pool 1 -work 100000   # an entry, then a layer that selects it
-./poo pay -serial 5 -to BOB_ADDRESS -amount 30
-./poo build -pool 1 -work 100000
-./poo tx -in-serial 5 TID_FROM_PAY  # where the payment stands
-./poo unspent -serial 5
-./poo pools
+./poon keygen > alice.json          # note "seed"
+./poon keygen > bob.json            # note "address_sha256"
+export POON_SEED=ALICE_SEED        # or -seed-file FILE; never on the command line
+./poon claim -serial 5
+./poon build -pool 1 -work 100000   # an entry, then a layer that selects it
+./poon pay -serial 5 -to BOB_ADDRESS -amount 30
+./poon build -pool 1 -work 100000
+./poon tx -in-serial 5 TID_FROM_PAY  # where the payment stands
+./poon unspent -serial 5
+./poon pools
 ```
 
-`claim` and `pay` read the key's seed from `POO_SEED` or `-seed-file`
+`claim` and `pay` read the key's seed from `POON_SEED` or `-seed-file`
 (`-` for standard input), never from an argument: other users of the
 machine can read a command line, and the shell keeps it in its history
-(D98). For everyday spending use `poo wallet`, which keeps the seed sealed.
+(D98). For everyday spending use `poon wallet`, which keeps the seed sealed.
 
 Mint 5 is in pool 1 (pools hold serials 0 to 3 and 4 to 7). A new entry
 has no weight until a layer lands on it, so it is held but not selected;
@@ -78,80 +78,80 @@ compares with its threshold.
 
 ## 4b. The same with a wallet
 
-`poo claim` and `poo pay` sign with a raw key. A wallet keeps every key
+`poon claim` and `poon pay` sign with a raw key. A wallet keeps every key
 behind one seed and a passphrase, uses a fresh address for every payment,
 and follows each payment's weight:
 
 ```sh
-export POO_PASSPHRASE='a long passphrase'   # or -passphrase-file FILE
-./poo wallet create -wallet alice.wallet     # then: poo wallet seed, and back it up
-./poo wallet create -wallet bob.wallet
-./poo wallet watch -wallet alice.wallet -serial 5
-./poo wallet watch -wallet bob.wallet -pool 1
-./poo wallet claim -wallet alice.wallet -serial 4
-./poo build -pool 1 -work 100000
-./poo wallet request -wallet bob.wallet -amount 30 -memo lunch -out req.json
-./poo wallet pay -wallet alice.wallet -request req.json   # note each leg's tid
-./poo wallet receive -wallet bob.wallet -request req.json -serial 4 -tid TID
-./poo build -pool 1 -work 100000
-./poo wallet receive -wallet bob.wallet -request req.json -threshold 50000
-./poo wallet status -wallet alice.wallet
+export POON_PASSPHRASE='a long passphrase'   # or -passphrase-file FILE
+./poon wallet create -wallet alice.wallet     # then: poon wallet seed, and back it up
+./poon wallet create -wallet bob.wallet
+./poon wallet watch -wallet alice.wallet -serial 5
+./poon wallet watch -wallet bob.wallet -pool 1
+./poon wallet claim -wallet alice.wallet -serial 4
+./poon build -pool 1 -work 100000
+./poon wallet request -wallet bob.wallet -amount 30 -memo lunch -out req.json
+./poon wallet pay -wallet alice.wallet -request req.json   # note each leg's tid
+./poon wallet receive -wallet bob.wallet -request req.json -serial 4 -tid TID
+./poon build -pool 1 -work 100000
+./poon wallet receive -wallet bob.wallet -request req.json -threshold 50000
+./poon wallet status -wallet alice.wallet
 ```
 
 The request carries the policy behind Bob's address, so Alice's wallet
 checks it before paying. `receive` shows each leg as pending, then
 selected with its `from` and any known rival; `settled` is true once
 every leg is selected, ahead of every rival and at the threshold. A leg
-the node no longer holds is `dropped` (send it again with `poo wallet
+the node no longer holds is `dropped` (send it again with `poon wallet
 resend`) or `void` if another transaction spent its input.
 
 A shared policy needs every co-signer's signature:
 
 ```sh
-./poo wallet address -wallet bob.wallet          # note "public"
-./poo wallet policy -wallet alice.wallet -name joint -k 2 -key self -key BOB_PUBLIC
-./poo wallet pay -wallet alice.wallet -to JOINT_OR_OTHER_ADDRESS -amount 10 -out pay.json
-./poo wallet cosign -wallet bob.wallet pay.json
-./poo wallet submit -wallet alice.wallet pay.json
+./poon wallet address -wallet bob.wallet          # note "public"
+./poon wallet policy -wallet alice.wallet -name joint -k 2 -key self -key BOB_PUBLIC
+./poon wallet pay -wallet alice.wallet -to JOINT_OR_OTHER_ADDRESS -amount 10 -out pay.json
+./poon wallet cosign -wallet bob.wallet pay.json
+./poon wallet submit -wallet alice.wallet pay.json
 ```
 
 ### Keys kept off the node (cold keys)
 
 To keep a private key off the machine that runs the node, make or import
 it on another machine and give the node only its public key. A
-watch-only wallet follows it and prepares payments; `poo sign` signs
+watch-only wallet follows it and prepares payments; `poon sign` signs
 them where the key is (D193):
 
 ```sh
 # on the key's machine (no node needed)
-./poo keygen -out key.hex                # a new key, written to key.hex only (0600)
-#   or, for a key made by another tool: ./poo keygen -raw -seed-file key.hex
+./poon keygen -out key.hex                # a new key, written to key.hex only (0600)
+#   or, for a key made by another tool: ./poon keygen -raw -seed-file key.hex
 # note public_key; on the node's machine
-./poo wallet create -wallet cold.wallet -watch-only
-./poo wallet policy -wallet cold.wallet -name cold -k 1 -key ed25519:PUBLIC_KEY
-./poo wallet claim -wallet cold.wallet -serial 5 -to-policy cold -out claim.json
+./poon wallet create -wallet cold.wallet -watch-only
+./poon wallet policy -wallet cold.wallet -name cold -k 1 -key ed25519:PUBLIC_KEY
+./poon wallet claim -wallet cold.wallet -serial 5 -to-policy cold -out claim.json
 # carry claim.json to the key's machine, sign it, carry it back
-./poo sign claim.json -key-file key.hex -show
-./poo sign claim.json -key-file key.hex
-./poo wallet submit -wallet cold.wallet claim.json
-./poo build -pool 1 -work 100000
-./poo wallet pay -wallet cold.wallet -to BOB_ADDRESS -amount 30 -out pay.json
+./poon sign claim.json -key-file key.hex -show
+./poon sign claim.json -key-file key.hex
+./poon wallet submit -wallet cold.wallet claim.json
+./poon build -pool 1 -work 100000
+./poon wallet pay -wallet cold.wallet -to BOB_ADDRESS -amount 30 -out pay.json
 # carry pay.json to the key's machine
-./poo sign pay.json -key-file key.hex -show   # read what it pays first
-./poo sign pay.json -key-file key.hex
+./poon sign pay.json -key-file key.hex -show   # read what it pays first
+./poon sign pay.json -key-file key.hex
 # carry it back
-./poo wallet submit -wallet cold.wallet pay.json
+./poon wallet submit -wallet cold.wallet pay.json
 ```
 
-`poo keygen -out` writes the seed to a new file only you can read and
+`poon keygen -out` writes the seed to a new file only you can read and
 prints only the public key, so the key is never on screen; it refuses to
 replace an existing file. Back the file up: it is the only copy.
 `wallet claim -to-policy` prepares the claim unsigned, as `wallet pay
 -out` does a payment, and `wallet claim` also watches the mint
-(GREEN-060). `poo claim -seed-file` still claims directly on a machine
+(GREEN-060). `poon claim -seed-file` still claims directly on a machine
 that has both the key and a running node.
 
-For a lighter node, `poo wallet follow` rewrites the node policy to follow
+For a lighter node, `poon wallet follow` rewrites the node policy to follow
 only the pools of the mints the wallet watches, and a running node applies
 it at once. See [modules/wallet.md](modules/wallet.md).
 
@@ -162,31 +162,31 @@ Every view takes the same filter flags: `-series`, `-pool`, `-serial`,
 are comma-separated; fields combine with "and" ([modules/filter.md](modules/filter.md)).
 
 ```sh
-./poo pools                               # every followed pool: tip, height, weight, pending
-./poo ledger -pool 1 -limit 10            # the newest ten entries of pool 1, with their transactions
-./poo ledger -pool 1 -serial 5            # only entries holding mint 5's transactions
-./poo pending -address ADDR               # pending transactions paying or spending ADDR
-./poo tx TID                              # where a transaction stands, its rivals and contents
-./poo address ADDR                        # balance, holdings, history, pending
-./poo unspent -serial 5                   # unspent portions of mint 5
+./poon pools                               # every followed pool: tip, height, weight, pending
+./poon ledger -pool 1 -limit 10            # the newest ten entries of pool 1, with their transactions
+./poon ledger -pool 1 -serial 5            # only entries holding mint 5's transactions
+./poon pending -address ADDR               # pending transactions paying or spending ADDR
+./poon tx TID                              # where a transaction stands, its rivals and contents
+./poon address ADDR                        # balance, holdings, history, pending
+./poon unspent -serial 5                   # unspent portions of mint 5
 ```
 
 To carry a ledger, or part of one, to another node:
 
 ```sh
-./poo ledger export -pool 1 -from 1 -to 500 -out pool1.json
-./poo ledger import pool1.json            # on the other node: every entry is checked in full
+./poon ledger export -pool 1 -from 1 -to 500 -out pool1.json
+./poon ledger import pool1.json            # on the other node: every entry is checked in full
 ```
 
 The file holds each entry's raw bytes and layers, so nothing in it is
 trusted; a range imports only from where the other node's ledger already
 reaches.
 
-`poo watch` prints events as they happen, one JSON line each, until you
+`poon watch` prints events as they happen, one JSON line each, until you
 stop it. In another terminal:
 
 ```sh
-./poo watch -serial 5 -kind tx,selected,reverted
+./poon watch -serial 5 -kind tx,selected,reverted
 ```
 
 then pay from mint 5 and build an entry: the watcher prints the `tx`
@@ -196,16 +196,16 @@ described in [modules/watch.md](modules/watch.md).
 What the node follows can change while it runs:
 
 ```sh
-./poo follow                              # what node.json follows, and what the node follows now
-./poo unfollow -series SERIES_ID -pool 0  # stop following pool 0
-./poo follow -series SERIES_ID -pool 0    # follow it again: its store replays from disk
+./poon follow                              # what node.json follows, and what the node follows now
+./poon unfollow -series SERIES_ID -pool 0  # stop following pool 0
+./poon follow -series SERIES_ID -pool 0    # follow it again: its store replays from disk
 ```
 
 The node applies each change at once by reloading its node policy in
-place (`poo reload` or SIGHUP does the same after a hand edit of
-`node.json`). A running `poo watch` reconnects by itself; events during
+place (`poon reload` or SIGHUP does the same after a hand edit of
+`node.json`). A running `poon watch` reconnects by itself; events during
 the reload, which takes a moment, are not replayed, so look at the views
-for anything that happened then. With the node stopped, `poo follow`
+for anything that happened then. With the node stopped, `poon follow`
 edits `node.json` and the node applies it when it starts.
 
 ## 4d. Claim a mint someone else claimed
@@ -217,15 +217,15 @@ of a mint it has claimed is refused there. To compete, build it on a
 branch from before that claim and add weight to the branch (D161):
 
 ```sh
-./poo claim -seed-file bob.seed -serial 5 -parent before-claim -work 4000
+./poon claim -seed-file bob.seed -serial 5 -parent before-claim -work 4000
 # prints the entry, and next: the command that adds weight to it
-./poo grind start ENTRY -serial 5 -for 2h      # or poo work -serial 5 -entry ENTRY
-./poo holdings -serial 5                       # bob holds it once the branch outweighs the other
+./poon grind start ENTRY -serial 5 -for 2h      # or poon work -serial 5 -entry ENTRY
+./poon holdings -serial 5                       # bob holds it once the branch outweighs the other
 ```
 
 `-parent` takes an entry hash, `root` (the pool's first entry) or
 `before-claim` (the parent of the selected entry that holds the mint's
-claim). `poo build -parent ...` does the same with the pending
+claim). `poon build -parent ...` does the same with the pending
 transactions that fit on that parent. The branch is kept like any
 other: it is selected once it is heavier, everywhere, and while it is
 lighter it may be pruned if more than `k` lighter branches are held
@@ -234,17 +234,17 @@ claim that depends on it is not on the new branch.
 
 ## 5. Restart
 
-Stop the node and start it again. `poo status` shows the same tips and
+Stop the node and start it again. `poon status` shows the same tips and
 weights, and the replay line reports how many records it read back. Every
 record is checked again on the way in; a file damaged by a crash loses at
 most its last record.
 
 Memory: the node keeps every entry's skeleton in memory and reads entry
 bodies back from the pool logs when it serves them, keeping up to
-`entry_cache_mib` (256 MiB by default) of them cached. `poo status` shows
-the cache under `bodies`; `poo policy limits -set entry_cache_mib=N`
+`entry_cache_mib` (256 MiB by default) of them cached. `poon status` shows
+the cache under `bodies`; `poon policy limits -set entry_cache_mib=N`
 changes it in a running node. Each pool in use keeps its log open, so
-`poo doctor` and the node's start-up warn when the open file limit is
+`poon doctor` and the node's start-up warn when the open file limit is
 below the followed pools plus 256 (raise it with `ulimit -n` or
 `LimitNOFILE=`). Entries more than `recent_window` (10,000 by default) below each tip
 also leave their transactions and undo records on disk; a deep switch
@@ -256,8 +256,8 @@ written at a clean stop, after each compaction and every
 replays only newer records, so it no longer re-checks the whole history.
 A damaged, stale or foreign snapshot, one written by another release,
 or one that does not restore the pool it was written from is ignored and
-the log replayed as before; `poo status` and `poo doctor` show how old they are. To check
-everything once, start with `poo node -reverify`; to never use them, set
+the log replayed as before; `poon status` and `poon doctor` show how old they are. To check
+everything once, start with `poon node -reverify`; to never use them, set
 `"no_snapshots": true` in node.json.
 
 ## 6. A second node
@@ -266,9 +266,9 @@ Give the second node its own policy, its own RPC port, and the first node
 as a peer:
 
 ```sh
-./poo init -policy second -example -listen 127.0.0.1:7742 -p2p off -peer 127.0.0.1:7733
-./poo node -policy second            # in a third terminal
-./poo peers -policy second           # the first node, connected
+./poon init -policy second -example -listen 127.0.0.1:7742 -p2p off -peer 127.0.0.1:7733
+./poon node -policy second            # in a third terminal
+./poon peers -policy second           # the first node, connected
 ```
 
 `init` makes the new policy current, so give the first node's commands
@@ -278,7 +278,7 @@ it hears of from other nodes (D96): for several nodes on one machine to
 find each other, set `"allow_local_peers": true` in each policy's `p2p`
 section. On connecting, the second node asks the first for its whole ledger of each
 pool. From then on, whatever either node keeps is forwarded to the other:
-claim, pay and build on the first node and `./poo status -policy second`
+claim, pay and build on the first node and `./poon status -policy second`
 shows the same tips and weights a moment later. To let the first node dial
 the second as well, or to connect nodes on different machines, give each a
 `-p2p` address the other can reach and list it with `-peer`, or edit the
@@ -302,7 +302,7 @@ Two `init` flags help on a real network:
   `https://`, `file://` or a plain path, read on start-up and every hour.
   See [modules/registry.md](modules/registry.md) for the format.
 
-`poo peers` shows the connected peers and the peer book: every address the
+`poon peers` shows the connected peers and the peer book: every address the
 node knows, whether it is a priority peer, a backup, a candidate or
 archived for each mint policy, and its points. The node relies on its
 priority peers, keeps backups ready, and swaps them as their points
@@ -313,59 +313,59 @@ sends invalid data or floods the node is flagged; enough flags time it out
 for 10 minutes or block it for a day. You can look and act yourself:
 
 ```sh
-./poo tracking                          # every tracked address and its status
-./poo tracking 203.0.113.5              # one address: flags, measures, points
-./poo peer block -seconds -1 203.0.113.5:7733   # until you unblock it
-./poo peer block -range 203.0.113.5:7733        # its whole network range
-./poo peer unblock 203.0.113.5:7733
-./poo peer template -template detailed 203.0.113.5:7733   # record more
-./poo chases                            # heavier ledgers waiting to be checked
+./poon tracking                          # every tracked address and its status
+./poon tracking 203.0.113.5              # one address: flags, measures, points
+./poon peer block -seconds -1 203.0.113.5:7733   # until you unblock it
+./poon peer block -range 203.0.113.5:7733        # its whole network range
+./poon peer unblock 203.0.113.5:7733
+./poon peer template -template detailed 203.0.113.5:7733   # record more
+./poon chases                            # heavier ledgers waiting to be checked
 ```
 
 ### Paying peers to grind layers (bounty market)
 
 Two nodes that are connected can trade grinding work (D196). It is off
-until each turns it on, with `poo policy limits -set` (the node reloads)
+until each turns it on, with `poon policy limits -set` (the node reloads)
 or in node.json's `bounty` section:
 
 ```sh
 # the payer: post offers, paying at most 5000 for one and 20000 in all
-./poo policy limits -set bounty.post=on -set bounty.max_amount=5000 -set bounty.budget=20000
+./poon policy limits -set bounty.post=on -set bounty.max_amount=5000 -set bounty.budget=20000
 # the grinder: take peers' offers
-./poo policy limits -set bounty.take=on
+./poon policy limits -set bounty.take=on
 ```
 
-`poo status` says whether the market is on (`bounty`). `on` and `off`
+`poon status` says whether the market is on (`bounty`). `on` and `off`
 work as well as 1 and 0, and the reply's `notes` say when a setting
 cannot work yet, such as posting turned on before `bounty.budget` is
 set.
 
 The payer posts an offer on an entry it holds (`ENTRY` is the `hash`
-that `poo build` prints, or a pool's `tip` in `poo pools`; the node finds
+that `poon build` prints, or a pool's `tip` in `poon pools`; the node finds
 the pool that holds it), and the grinder finds, works and claims it:
 
 ```sh
 # on the payer: pay 1000 units for each of 2 layers of strength 28
-./poo bounty post -entry ENTRY -strength 28 -amount 1000 -count 2
+./poon bounty post -entry ENTRY -strength 28 -amount 1000 -count 2
 # on the grinder: ask peers for offers, then work one
-./poo wallet create                     # once, if it has no wallet yet
-./poo wallet address                    # a fresh address to be paid to
-./poo grind bench                       # minute_strength: what this machine finds in about a minute
-./poo policy limits -set bounty.max_strength=30   # optional: the strongest offer this machine works
-./poo bounty list -ask
-./poo bounty work OFFER_ID -to ADDRESS
+./poon wallet create                     # once, if it has no wallet yet
+./poon wallet address                    # a fresh address to be paid to
+./poon grind bench                       # minute_strength: what this machine finds in about a minute
+./poon policy limits -set bounty.max_strength=30   # optional: the strongest offer this machine works
+./poon bounty list -ask
+./poon bounty work OFFER_ID -to ADDRESS
 # on the payer: see the accepted claim and pay it from the wallet
-./poo bounty list
-./poo bounty pay OFFER_ID
-./poo bounty cancel OFFER_ID            # close the offer early
-./poo bounty list -done 20              # finished offers, which leave the list
+./poon bounty list
+./poon bounty pay OFFER_ID
+./poon bounty cancel OFFER_ID            # close the offer early
+./poon bounty list -done 20              # finished offers, which leave the list
 # on the grinder: the paid ack names the payment's tid; watch its mint
-./poo bounty list                       # held[].acks[]: "paid" with "tids"
-./poo wallet watch -tid TID
-./poo wallet balance
+./poon bounty list                       # held[].acks[]: "paid" with "tids"
+./poon wallet watch -tid TID
+./poon wallet balance
 ```
 
-To choose `bounty.max_strength`, start from `minute_strength` in `poo
+To choose `bounty.max_strength`, start from `minute_strength` in `poon
 grind bench` for the series' hash: each bit more doubles the time, so
 two above it is about four minutes on average. Offers above the setting
 are not kept, and `-max-strength` cannot go above it (the error says how
@@ -375,10 +375,10 @@ A grinder works an offer alone for the length of its lease (about three
 times the expected time at its rate). The payout address is fixed when
 the lease is taken. Payment is an ordinary payment from whichever mint
 the payer holds, so the grinder's wallet sees it only once it watches
-that mint: `poo wallet watch -tid TID` asks the node which mint the
+that mint: `poon wallet watch -tid TID` asks the node which mint the
 payment is in. Note the tid before the grinder's node restarts, since
 peers' offers and their acks are kept in memory only. An offer that
-needs nothing more (filled or closed, every layer paid) leaves `poo
+needs nothing more (filled or closed, every layer paid) leaves `poon
 bounty list` for `bounties-done.jsonl`; `-done N` shows the last N. In this first phase the
 payer pays by hand, a watch-only wallet cannot pay, and offers reach
 direct peers only. See [docs/modules/bounty.md](modules/bounty.md) for
@@ -396,9 +396,9 @@ There are two ways to take inbound connections:
 
 - **Forward the port by hand.** In the router, forward TCP port 7733 (or
   your `-p2p` port) to this machine. Then set `p2p.advertise`
-  (`poo init -advertise`) to the router's public address and that port.
+  (`poon init -advertise`) to the router's public address and that port.
 - **Let the node ask the router.** Set `p2p.port_map` to `auto`
-  (`poo init -port-map auto`). The node asks the router by PCP, then
+  (`poon init -port-map auto`). The node asks the router by PCP, then
   NAT-PMP, then UPnP. It talks only to the gateway, at the default
   route's address on Linux or at `p2p.port_map_gateway` elsewhere. It
   offers the address the router reports only after dialling it and
@@ -406,9 +406,9 @@ There are two ways to take inbound connections:
   by default) and removes the mapping when it stops cleanly. A
   `p2p.advertise` you set always wins. On a node set up already, add
   `"port_map": "auto"` to the `p2p` section of `node.json` and run
-  `poo reload`.
+  `poon reload`.
 
-`poo doctor`'s `port-map` line, and `port_map` in `poo status`, say what
+`poon doctor`'s `port-map` line, and `port_map` in `poon status`, say what
 happened:
 
 - **advertised:** it works.
@@ -421,7 +421,7 @@ happened:
 - **failed:** the router has PCP, NAT-PMP and UPnP turned off, or no
   gateway was found. `gateway` names the router the node asked, and
   `next_try` when it asks again: the wait starts at a minute and doubles
-  to 30 minutes. After you change the router, `poo reload` asks at once.
+  to 30 minutes. After you change the router, `poon reload` asks at once.
 - **skipped:** `reason` says why: `p2p.advertise` is set, or `p2p.listen`
   is off.
 
@@ -446,13 +446,13 @@ are not encrypted (D30), so use the VPN if the link needs privacy.
 ## Node policies
 
 ```sh
-./poo init -policy shop -series shop-series.json
-./poo policy list
-./poo policy use default        # picks up where it left off
-./poo policy archive shop       # kept apart, with its data
-./poo policy use shop           # an archived policy starts from scratch
-./poo policy unarchive shop     # or take it out by hand and pick up
-./poo policy delete shop        # gone for good
+./poon init -policy shop -series shop-series.json
+./poon policy list
+./poon policy use default        # picks up where it left off
+./poon policy archive shop       # kept apart, with its data
+./poon policy use shop           # an archived policy starts from scratch
+./poon policy unarchive shop     # or take it out by hand and pick up
+./poon policy delete shop        # gone for good
 ```
 
 Stop the node before archiving or deleting the policy it uses; a running
@@ -463,20 +463,20 @@ node holds a lock on its directory.
 One file carries node policies to another node or machine:
 
 ```sh
-./poo policy export -out shop.json                 # the current node policy
-./poo policy export -series 1a2b... -out s.json    # one series and how it is followed
-./poo policy export -all -full -out backup.json    # every saved policy, this machine's settings too
-./poo policy import shop.json                      # shows the plan; changes nothing
-./poo policy import shop.json -apply               # merges in what to follow
-./poo policy import mine.json -apply -settings     # and the node settings, from a file you trust
-./poo policy import backup.json -apply -full       # restores a backup on this machine
+./poon policy export -out shop.json                 # the current node policy
+./poon policy export -series 1a2b... -out s.json    # one series and how it is followed
+./poon policy export -all -full -out backup.json    # every saved policy, this machine's settings too
+./poon policy import shop.json                      # shows the plan; changes nothing
+./poon policy import shop.json -apply               # merges in what to follow
+./poon policy import mine.json -apply -settings     # and the node settings, from a file you trust
+./poon policy import backup.json -apply -full       # restores a backup on this machine
 ```
 
 ### Moving settings to another machine
 
 A node's settings are everything in its node policy but what it
 follows: its peers, registries, limits, p2p switches, tracking, logs and
-grind jobs. `poo settings` writes them to one file and reads them back
+grind jobs. `poon settings` writes them to one file and reads them back
 (D155). node.json has no key, seed, passphrase or token, and the wallet
 is a file of its own. A plain export also leaves out what names you or
 opens a door: registry files, registry URLs with a user name, password
@@ -486,11 +486,11 @@ since a setup is made of them; the export says how many, so check them
 before you share the file (D156).
 
 ```sh
-./poo settings export -out settings.json            # the settings, without this machine's own
-./poo settings export -full -out settings.json      # with rpc, listen addresses, grind device and threads
-./poo settings import settings.json                 # on the new machine: shows the plan
-./poo settings import settings.json -full -map-path /home/old=/home/new
-./poo settings import settings.json -apply          # merges them in
+./poon settings export -out settings.json            # the settings, without this machine's own
+./poon settings export -full -out settings.json      # with rpc, listen addresses, grind device and threads
+./poon settings import settings.json                 # on the new machine: shows the plan
+./poon settings import settings.json -full -map-path /home/old=/home/new
+./poon settings import settings.json -apply          # merges them in
 ```
 
 The preview lists, as "may not fit this machine", anything the file
@@ -504,7 +504,7 @@ brings that the new machine may lack:
 - a grind job for a series this node does not list.
 
 A settings import never changes what the node follows. To carry that
-too, export the node policy with `poo policy export`.
+too, export the node policy with `poon policy export`.
 
 By default an import takes only what to follow: series, follows and
 accepted issuers. Peers, registries, grind jobs, tracking and the p2p
@@ -526,28 +526,28 @@ changed. A running node applies an import at once and never takes an
 
 ### Adding and sharing peers
 
-`poo peer add ADDR` puts an address in the peer book by hand, as a
+`poon peer add ADDR` puts an address in the peer book by hand, as a
 candidate the manager may dial; `-label TEXT` names it and `-keep` also
-lists it in the node policy's `p2p.peers`. `poo peer remove ADDR` takes it
-out of both, `poo peer label ADDR -label TEXT` renames it, and `poo peer
-connect ADDR` dials it now. `poo peers` filters the book with `-category`,
-`-mint-policy`, `-label` and `-addr`, and `poo tracking -blocked` or
+lists it in the node policy's `p2p.peers`. `poon peer remove ADDR` takes it
+out of both, `poon peer label ADDR -label TEXT` renames it, and `poon peer
+connect ADDR` dials it now. `poon peers` filters the book with `-category`,
+`-mint-policy`, `-label` and `-addr`, and `poon tracking -blocked` or
 `-timed-out` lists only those addresses (D157).
 
 ```sh
-./poo peers export -out peers.json                         # the whole book, labels and blocks
-./poo peers export -category priority,backup -out good.json
-./poo peers export -category blocked -out blocklist.json   # a block list to share
-./poo peers import good.json                               # on the other node: shows the plan
-./poo peers import good.json -apply                        # adds every address as unlisted
-./poo peers import blocklist.json -blocks -apply           # takes the blocks too
+./poon peers export -out peers.json                         # the whole book, labels and blocks
+./poon peers export -category priority,backup -out good.json
+./poon peers export -category blocked -out blocklist.json   # a block list to share
+./poon peers import good.json                               # on the other node: shows the plan
+./poon peers import good.json -apply                        # adds every address as unlisted
+./poon peers import blocklist.json -blocks -apply           # takes the blocks too
 ```
 
 An imported address always lands unlisted: the node knows it but has not
 picked it. When a mint policy is short of peers, the manager promotes the
 oldest imported addresses to candidates and dials them before it asks its
 peers and registries for more, so a new node with an imported book finds
-peers by itself. `poo peer connect -imported` does that at once, and
+peers by itself. `poon peer connect -imported` does that at once, and
 `p2p.no_dial_imported: true` in node.json turns it off, leaving imported
 addresses for you to promote by hand.
 
@@ -579,10 +579,10 @@ so read the file before you share it.
   checks the work behind the branch before it fetches any entry, and
   switches only on weight it computed (decisions D52 to D54). Nothing the
   tracker records is sent to other nodes.
-- `poo claim` and `poo pay` take a raw seed on the command line, which your
-  shell may save in its history; use `poo wallet` instead. The wallet file
+- `poon claim` and `poon pay` take a raw seed on the command line, which your
+  shell may save in its history; use `poon wallet` instead. The wallet file
   holds the seed sealed with your passphrase (decision D64) and is
-  readable only by your user, but the seed printed by `poo wallet seed`
+  readable only by your user, but the seed printed by `poon wallet seed`
   restores every key: keep it offline. Reading the passphrase from
   standard input echoes it; prefer `-passphrase-file` or
-  `POO_PASSPHRASE` in a private shell.
+  `POON_PASSPHRASE` in a private shell.

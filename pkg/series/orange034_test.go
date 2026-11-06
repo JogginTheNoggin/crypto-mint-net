@@ -43,7 +43,7 @@ func TestPartIDsAnyOrder(t *testing.T) {
 			t.Fatalf("part %d: %s, %v; want %s", k, got.Short(), err, want[k].Short())
 		}
 	}
-	// In order, as poo series parts lists them.
+	// In order, as poon series parts lists them.
 	s := variableSeries(t)
 	for k := uint64(1); k <= n; k++ {
 		check(s, k)

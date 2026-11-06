@@ -60,7 +60,7 @@ func TestReleasesPassBetweenPeers(t *testing.T) {
 		t.Fatalf("part 1 only: %d pools indexed", a.h.IndexedPools())
 	}
 
-	// a takes part 2 as poo series add-release gives it.
+	// a takes part 2 as poon series add-release gives it.
 	r2 := testutil.Release(s, 2)
 	res, err := a.n.AddRelease(r2)
 	if err != nil || !res.Added || res.Released != 2 || res.Mints != 12 {

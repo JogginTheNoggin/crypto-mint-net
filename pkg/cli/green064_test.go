@@ -19,7 +19,7 @@ import (
 func TestBountyMaxStrengthFlow(t *testing.T) {
 	createIterations = 1
 	defer func() { createIterations = 0 }()
-	t.Setenv("POO_PASSPHRASE", "pw")
+	t.Setenv("POON_PASSPHRASE", "pw")
 	payer, fast, slow := t.TempDir(), t.TempDir(), t.TempDir()
 	pr, fr, sr := []string{"-root", payer}, []string{"-root", fast}, []string{"-root", slow}
 	pAddr := freeAddr(t)

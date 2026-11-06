@@ -108,7 +108,7 @@ func (f *fakeImporter) LedgerImport(req rpc.LedgerImportRequest) (node.ImportRes
 // ledgerJSON is a ledger file of n items of size bytes each.
 func ledgerJSON(n, size int) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `{"kind":"poo-ledger","format":1,"series":"%s","pool":1,"entries":[`, hashN(1))
+	fmt.Fprintf(&b, `{"kind":"poon-ledger","format":1,"series":"%s","pool":1,"entries":[`, hashN(1))
 	item, _ := json.Marshal(make([]byte, size))
 	for i := range n {
 		if i > 0 {

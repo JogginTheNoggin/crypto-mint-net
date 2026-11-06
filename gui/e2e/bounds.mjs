@@ -1,9 +1,9 @@
 // End-to-end check of the Watch view's bounds (GUI-007): events held while
 // paused, the error box and an unfinished line stay bounded however much a
-// stream sends. The stream is synthetic, served in place of poo watch's,
+// stream sends. The stream is synthetic, served in place of poon watch's,
 // so the check needs no busy node.
 //
-//   node gui/e2e/bounds.mjs PATH/TO/poo-gui
+//   node gui/e2e/bounds.mjs PATH/TO/poon-gui
 import assert from 'node:assert/strict';
 import { launch } from './lib.mjs';
 
@@ -15,7 +15,7 @@ try {
   // The watch job and its event stream are served here.
   await page.route('**/api/jobs', async route => {
     if (route.request().method() !== 'POST') return route.continue();
-    route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ id: 'fake', args: ['watch'], command: 'poo watch' }) });
+    route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ id: 'fake', args: ['watch'], command: 'poon watch' }) });
   });
   let release;
   const released = new Promise(r => { release = r; });

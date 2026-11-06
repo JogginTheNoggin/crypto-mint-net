@@ -10,8 +10,8 @@ their sizes, standards, where each is used and why it was chosen.
   algorithms it allows and the address policy types it allows, by number,
   when it is published. The node ships five hashes, eleven signature
   algorithms and three policy types (decisions D80 to D82, D168, D170). A series picks
-  any hash and any subset of the others; `poo crypto` lists them and
-  `poo series new` builds checked params from their names.
+  any hash and any subset of the others; `poon crypto` lists them and
+  `poon series new` builds checked params from their names.
 - **Hashes** (all 32-byte output): SHA-256, SHA-512/256, SHA3-256,
   BLAKE2b-256, BLAKE3.
 - **Signatures:** Ed25519; ECDSA over P-256, P-384 and P-521; ECDSA and
@@ -128,7 +128,7 @@ witness is bounded by its type's declared bounds (below), by its
 algorithms' exact key and signature sizes (each signature is read at its
 key's exact size), and by its series' witness ceiling (`max_witness`),
 the only overall limit, checked before any hash or signature. A series
-with no ceiling is valid, but `poo series new` and `poo init` refuse one
+with no ceiling is valid, but `poon series new` and `poon init` refuse one
 (or one above 4 MiB) without `-any-ceiling`, and a node may decline to
 add one (`series_ceiling`). An address whose largest witness does not fit
 its series' ceiling cannot be made (`CheckSpendable`). Under the reserve
@@ -142,7 +142,7 @@ series' 128 KiB ceiling the largest k-of-k is:
 | SLH-DSA-SHA2-128s | 7,856 B | 16 (about 126.5 KB) |
 | SLH-DSA-SHA2-256s | 29,792 B | 4 (119,506 B) |
 
-`poo crypto -max-witness N` gives the same for any ceiling.
+`poon crypto -max-witness N` gives the same for any ceiling.
 
 ### Address policy types
 
@@ -241,7 +241,7 @@ The same seed under two algorithms gives unrelated keys.
 | Sealed seed | AES-256-GCM | 12-byte random nonce, 16-byte tag, associated data `"PoO-wallet-seed-v1"` |
 
 A wallet's keys are all of one algorithm, chosen when it is created
-(`poo wallet create -alg NAME`, default Ed25519). The wallet file names its
+(`poon wallet create -alg NAME`, default Ed25519). The wallet file names its
 algorithm, key derivation and work factor, so wallets made before there
 was a choice read unchanged.
 

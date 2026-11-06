@@ -4,13 +4,13 @@ import * as where from '../where.js';
 import { el, flag, flags, form, mountAll } from '../views.js';
 
 // The Wallet view's wallet file, kept per browser like the Settings flags.
-const WALLET_KEY = 'poo-gui-wallet';
+const WALLET_KEY = 'poon-gui-wallet';
 export const walletFile = () => { try { return localStorage.getItem(WALLET_KEY) || ''; } catch (_) { return ''; } };
 const setWalletFile = v => { try { localStorage.setItem(WALLET_KEY, v); } catch (_) { /* storage off */ } };
 const walletSeries = () => { try { return localStorage.getItem(WALLET_KEY + '-series') || ''; } catch (_) { return ''; } };
-// signNote is the line over poo sign's reply (D193): which key signed,
+// signNote is the line over poon sign's reply (D193): which key signed,
 // how many signatures it added and how many are still needed, read from
-// poo's own fields. null when poo printed no reply.
+// poon's own fields. null when poon printed no reply.
 export function signNote(r) {
   let o = null;
   try { o = JSON.parse(r.out); } catch (_) { return null; }
@@ -28,12 +28,12 @@ const setWalletSeries = v => { try { localStorage.setItem(WALLET_KEY + '-series'
 
 // payQuestion is Pay's one confirm. With no co-signing file it says what
 // a payment that needs a signature this wallet cannot give (a watch-only
-// wallet, a shared policy) needs: the file is what the key signs, and poo
+// wallet, a shared policy) needs: the file is what the key signs, and poon
 // refuses such a payment without one, before recording anything (Source
-// #291, D194; GUI-GREEN-061). The GUI cannot tell which wallet it is; poo
+// #291, D194; GUI-GREEN-061). The GUI cannot tell which wallet it is; poon
 // can.
 export function payQuestion(line, out) {
-  return out ? `Run ${line}?` : `Run ${line}?\n\nNo co-signing file is filled in. If this wallet is watch-only, or pays from a shared policy, fill one in first: it is the file the key signs, and poo refuses such a payment without one.`;
+  return out ? `Run ${line}?` : `Run ${line}?\n\nNo co-signing file is filled in. If this wallet is watch-only, or pays from a shared policy, fill one in first: it is the file the key signs, and poon refuses such a payment without one.`;
 }
 
 // COLD_STEPS is a key kept off this machine from start to end (D193):
@@ -64,9 +64,9 @@ function coldSteps(root) {
 }
 
 // looksLikeKey (api.js) says a Key file value is a key rather than a path
-// (GUI-032). Such a value would show on the command line, in poo's error
+// (GUI-032). Such a value would show on the command line, in poon's error
 // and in the Jobs list, so the form never sends it: the line shows … in
-// its place, and Sign refuses it and empties the field. poo-gui hides such
+// its place, and Sign refuses it and empties the field. poon-gui hides such
 // a value in a job's command line as well (shell.Redact), and the terminal
 // keeps such a line out of its saved history (api.secretLine, GUI-034).
 export const looksLikeKey = api.looksLikeKey;
@@ -79,7 +79,7 @@ export const walletView = {
     // The wallet file is chosen once for the whole view, like -root and
     // -policy in Settings, instead of in every form.
     const pick = el('input', { name: 'wallet-file', value: walletFile(), placeholder: 'wallet.json in the root', spellcheck: 'false' });
-    // Every poo wallet command takes -series; it is chosen here once, with
+    // Every poon wallet command takes -series; it is chosen here once, with
     // the file, instead of in three forms and missing from the rest
     // (GUI-GREEN-041).
     const pickSeries = el('input', { name: 'wallet-series', value: walletSeries(), placeholder: 'only if the node follows more than one', spellcheck: 'false' });
@@ -98,7 +98,7 @@ export const walletView = {
     pickSeries.addEventListener('input', changed);
     const pass = 'The command asks for the passphrase when it needs it.';
     const payArgs = v => ['wallet', 'pay', ...wf(v), ...flag('to', v.to), ...flag('amount', v.amount), ...flag('request', v.request), ...flags('mint', v.mint), ...flag('memo', v.memo), ...flag('out', v.out), ...flag('change', v.change)];
-    return mountAll(root, 'Wallet', 'Keys from one seed, payments and requests, all through poo wallet. Passphrases go straight to the command and are never stored.', [
+    return mountAll(root, 'Wallet', 'Keys from one seed, payments and requests, all through poon wallet. Passphrases go straight to the command and are never stored.', [
       { el: picker, stop: () => {} },
       coldSteps(root),
       form(ctx, { title: 'Balance', about: 'Spendable units per watched mint. ' + pass, fields: [], args: v => ['wallet', 'balance', ...wf(v)], submit: 'Show balance' }),
@@ -123,30 +123,30 @@ export const walletView = {
         args: v => ['wallet', 'policy', ...wf(v), ...flag('name', v.name), ...flag('k', v.k), ...flags('key', v.key), ...flag('label', v.label)], submit: 'Record' }),
       form(ctx, { title: 'Co-sign a payment', about: 'Adds this wallet\'s signatures to a co-signing file another signer wrote with Pay. ' + pass, fields: [{ name: 'file', label: 'Co-signing file' }],
         args: v => ['wallet', 'cosign', ...wf(v), ...(v.file ? [v.file] : [])], submit: 'Co-sign' }),
-      // Cold keys (D193): poo sign signs a co-signing file with a key kept
+      // Cold keys (D193): poon sign signs a co-signing file with a key kept
       // off the wallet, with no node and no wallet. An empty key file runs
-      // -key-file -, so poo asks for the key in a masked field.
+      // -key-file -, so poon asks for the key in a masked field.
       form(ctx, { title: 'Sign with a key kept elsewhere', about: 'Signs a co-signing file (from Pay with a co-signing file) with a key that is not in this wallet, such as a cold key, without the node. Show only first to read what it pays. The same command runs on an offline machine: copy its line.', fields: [
         { name: 'file', label: 'Co-signing file', required: true },
         // The key is asked for in a masked field unless it is in a file;
         // the path field shows only then, so a key on the clipboard has
         // no plain field named Key to be pasted into (GUI-032).
-        { name: 'inFile', label: 'The key is in a file (otherwise poo asks for it in a masked field)', type: 'check' },
+        { name: 'inFile', label: 'The key is in a file (otherwise poon asks for it in a masked field)', type: 'check' },
         { name: 'keyFile', label: 'Key file', placeholder: 'a path on this machine', required: true, only: { field: 'inFile', values: [true] } },
         { name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519', list: 'crypto-algs' },
-        { name: 'raw', label: 'The key is a private key in its algorithm\'s usual form, as another tool keeps it, not a poo seed (-raw)', type: 'check' },
+        { name: 'raw', label: 'The key is a private key in its algorithm\'s usual form, as another tool keeps it, not a poon seed (-raw)', type: 'check' },
         { name: 'hash', label: 'Hash', placeholder: 'only if the file does not name the series\' hash', list: 'crypto-hashes' },
         { name: 'out', label: 'Write the signed payment to', placeholder: 'default: back into the co-signing file' },
         { name: 'show', label: 'Show only: say what it pays and what this key would sign, and sign nothing', type: 'check' }],
         args: v => ['sign', ...(v.file ? [v.file] : []), '-key-file', keyPathArg(v.keyFile), ...flag('alg', v.alg), ...flag('raw', v.raw), ...flag('hash', v.hash), ...flag('out', v.out), ...flag('show', v.show)],
-        refuse: v => looksLikeKey(v.keyFile) && { field: 'keyFile', text: 'Key file holds what looks like a key, not a path, so it was emptied. Untick "The key is in a file" and poo asks for the key in a masked field, where it is never shown or kept.' },
+        refuse: v => looksLikeKey(v.keyFile) && { field: 'keyFile', text: 'Key file holds what looks like a key, not a path, so it was emptied. Untick "The key is in a file" and poon asks for the key in a masked field, where it is never shown or kept.' },
         submit: 'Sign', onResult: (r, area) => { const n = signNote(r); if (n) area.prepend(n); } }),
       form(ctx, { title: 'Submit a co-signed payment', about: 'Sends a payment whose co-signing file has every signature it needs.', fields: [{ name: 'file', label: 'Co-signing file' }],
         args: v => ['wallet', 'submit', ...wf(v), ...(v.file ? [v.file] : [])], submit: 'Submit', danger: true }),
       form(ctx, { title: 'Request a payment', about: 'Asks to be paid, to a fresh address.', fields: [{ name: 'amount', label: 'Amount', type: 'number' }, { name: 'memo', label: 'What for' }, { name: 'out', label: 'Request file', placeholder: 'default: print it' }],
         args: v => ['wallet', 'request', ...wf(v), ...flag('amount', v.amount), ...flag('memo', v.memo), ...flag('out', v.out)], submit: 'Make request' }),
       // -serial N -tid HASH pairs name transactions the payer told you of;
-      // poo pairs them in order and says if the counts differ (GUI-GREEN-041).
+      // poon pairs them in order and says if the counts differ (GUI-GREEN-041).
       form(ctx, { title: 'What has arrived', fields: [{ name: 'address', label: 'Requested address' }, { name: 'request', label: 'Or the request file' }, { name: 'threshold', label: 'Threshold', placeholder: 'from(e) for settled' },
         { name: 'tid', label: 'Transactions the payer named', type: 'list', placeholder: 'optional: tid …' }, { name: 'tidSerial', label: 'Their mint serials', type: 'list', placeholder: 'one per transaction, in order' }],
         args: v => ['wallet', 'receive', ...wf(v), ...flag('address', v.address), ...flag('request', v.request), ...flag('threshold', v.threshold), ...flags('serial', v.tidSerial), ...flags('tid', v.tid)], submit: 'Check' }),
@@ -164,18 +164,18 @@ export const walletView = {
         args: v => ['wallet', 'claim', ...wf(v), ...flag('serial', v.serial), ...flag('to-policy', v.toPolicy), ...flag('out', v.out)], submit: 'Claim', danger: true }),
       form(ctx, { title: 'Follow only the watched mints', about: 'Light mode: the node policy follows only the pools of the mints this wallet watches, in place of what it follows now.', fields: [],
         args: v => ['wallet', 'follow', ...wf(v)], submit: 'Follow only these', danger: true }),
-      form(ctx, { title: 'Change the passphrase', about: 'Seals the seed under a new passphrase. poo asks for the old one, then the new one, each in a masked field.', fields: [],
+      form(ctx, { title: 'Change the passphrase', about: 'Seals the seed under a new passphrase. poon asks for the old one, then the new one, each in a masked field.', fields: [],
         args: v => ['wallet', 'passwd', ...wf(v)], submit: 'Change' }),
       form(ctx, { title: 'Show the seed', about: 'Prints the seed, to back it up. Anyone with it can spend from this wallet. The output is hidden until you show it, and Jobs hides it.', fields: [],
         args: v => ['wallet', 'seed', ...wf(v)], submit: 'Show seed', danger: true, secretOutput: true }),
-      // Restoring runs -restore -, so poo asks for the seed through its
+      // Restoring runs -restore -, so poon asks for the seed through its
       // secret prompt (D106) and the seed is typed into a masked field,
       // never onto the command line.
       // Watch-only (D193): the wallet holds no private key and needs no
       // passphrase; keys kept elsewhere are added with Record a shared
       // policy (1 signature, ALG:HEX), payments go to a co-signing file and
       // are signed with Sign with a key kept elsewhere.
-      form(ctx, { title: 'Create or restore a wallet', fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519', list: 'crypto-algs' }, { name: 'restore', label: 'Restore from a seed', type: 'check', help: 'poo asks for the seed in a masked field after you press Create.' }, { name: 'gap', label: 'Gap', type: 'number' },
+      form(ctx, { title: 'Create or restore a wallet', fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'default ed25519', list: 'crypto-algs' }, { name: 'restore', label: 'Restore from a seed', type: 'check', help: 'poon asks for the seed in a masked field after you press Create.' }, { name: 'gap', label: 'Gap', type: 'number' },
         { name: 'watchOnly', label: 'Watch-only: hold no private key at all (-watch-only)', type: 'check', help: 'Add keys kept elsewhere with Record a shared policy (1 signature needed, key ALG:HEX), pay with a co-signing file, sign it with Sign with a key kept elsewhere, then Submit a co-signed payment.' }],
         args: v => ['wallet', 'create', ...wf(v), ...flag('alg', v.alg), ...(v.restore ? ['-restore', '-'] : []), ...flag('gap', v.gap), ...flag('watch-only', v.watchOnly)], submit: 'Create' }),
     ]);

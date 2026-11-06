@@ -103,7 +103,7 @@ func (c *Client) prove(addr string) error {
 
 // ErrEmptyToken is why a client with an empty token does not dial: no
 // server can prove it knows that token, since anyone can.
-var ErrEmptyToken = errors.New("the token is empty, so no server can prove it knows it; write the token again (poo node makes it at start)")
+var ErrEmptyToken = errors.New("the token is empty, so no server can prove it knows it; write the token again (poon node makes it at start)")
 
 // NotProvedError is what Dial returns when the server at the address in
 // rpc.addr did not prove it knows the node's token: nothing answers there
@@ -117,7 +117,7 @@ type NotProvedError struct {
 }
 
 func (e *NotProvedError) Error() string {
-	return fmt.Sprintf("%v: the server at %s (from %s): %s; the file may be left from a node that stopped without cleaning up, so the token was not sent (a node of an older poo cannot prove it either: restart it)",
+	return fmt.Sprintf("%v: the server at %s (from %s): %s; the file may be left from a node that stopped without cleaning up, so the token was not sent (a node of an older poon cannot prove it either: restart it)",
 		ErrNotRunning, plain.Safe(e.Addr), AddrFile, plain.Safe(e.Err.Error()))
 }
 

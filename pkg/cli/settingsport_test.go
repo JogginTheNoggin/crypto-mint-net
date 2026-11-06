@@ -91,7 +91,7 @@ func TestSettingsExportImport(t *testing.T) {
 	}
 
 	// Each import refuses the other's file.
-	if err := run([]string{"policy", "import", file, "-root", dst}, &o); err == nil || !strings.Contains(err.Error(), "poo settings import") {
+	if err := run([]string{"policy", "import", file, "-root", dst}, &o); err == nil || !strings.Contains(err.Error(), "poon settings import") {
 		t.Fatalf("policy import of a settings file: %v", err)
 	}
 	all := filepath.Join(t.TempDir(), "all.json")

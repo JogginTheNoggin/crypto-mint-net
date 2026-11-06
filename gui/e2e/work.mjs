@@ -1,9 +1,9 @@
 // End-to-end check of the Work view against a real node: the devices and
-// jobs poo grind lists, a job run and followed live with its plan and
+// jobs poon grind lists, a job run and followed live with its plan and
 // rate, Stop ending it as an interrupt does (exit 0), and a reload taking
 // a running job up again, and SIGHUP reloading the node it hosts.
 //
-//   node gui/e2e/work.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
+//   node gui/e2e/work.mjs PATH/TO/poon-gui [SCREENSHOT_DIR]
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -12,35 +12,35 @@ import { launch, nodeStopped } from './lib.mjs';
 const bin = process.argv[2];
 const shots = process.argv[3];
 const { env, pid, page, errors, close } = await launch(bin);
-const poo = (args, extra = {}) => execFileSync(bin, ['poo', ...args], { env: { ...env, ...extra } }).toString();
+const poon = (args, extra = {}) => execFileSync(bin, ['poon', ...args], { env: { ...env, ...extra } }).toString();
 const section = title => page.locator('section.panel', { has: page.locator('h2', { hasText: title }) }).first();
 
 try {
-  poo(['init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off']);
+  poon(['init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off']);
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Start node")');
   await page.locator('.live-out', { hasText: 'rpc: listening' }).waitFor();
 
   await page.click('nav a[data-id=work]');
-  // Devices: the table poo grind devices prints, with the CPU in it.
+  // Devices: the table poon grind devices prints, with the CPU in it.
   await section('Devices').locator('.result', { hasText: 'cpu' }).waitFor();
 
   // A pending transaction, ground into an entry by a job on "pending".
-  poo(['claim', '-serial', '5'], { POO_SEED: 'a1'.repeat(32) });
+  poon(['claim', '-serial', '5'], { POON_SEED: 'a1'.repeat(32) });
   const run = section('Run a job');
   const target = run.locator('input[name=target]');
   const forIn = run.locator('label', { hasText: /^For/ }).locator('input');
   await target.fill('pending');
   await forIn.fill('3s');
-  assert.match(await run.locator('.cmd code').innerText(), /^poo grind run -for 3s pending$/);
+  assert.match(await run.locator('.cmd code').innerText(), /^poon grind run -for 3s pending$/);
   await run.locator('button:has-text("Run and follow")').click();
   await run.locator('tbody tr', { hasText: 'entry' }).first().waitFor({ timeout: 20000 });
   await run.locator('.run-status', { hasText: '(exit 0)' }).waitFor({ timeout: 30000 });
 
-  // Layers on the tip: the plan poo picked, a rate, then its end.
+  // Layers on the tip: the plan poon picked, a rate, then its end.
   await target.fill('tip');
   await forIn.fill('4s');
-  assert.match(await run.locator('.cmd code').innerText(), /^poo grind run -for 4s tip$/);
+  assert.match(await run.locator('.cmd code').innerText(), /^poon grind run -for 4s tip$/);
   await run.locator('button:has-text("Run and follow")').click();
   await run.locator('.grind-plan', { hasText: 'device' }).waitFor({ timeout: 20000 });
   await run.locator('.rate-chart').waitFor({ timeout: 20000 });
@@ -54,7 +54,7 @@ try {
   await run.locator('.run-status', { hasText: '(exit 0)' }).waitFor({ timeout: 30000 });
   if (shots) await page.screenshot({ path: join(shots, 'work.png'), fullPage: true });
 
-  // Without -for, Stop interrupts it: poo stops the node's job and exits 0.
+  // Without -for, Stop interrupts it: poon stops the node's job and exits 0.
   await forIn.fill('');
   await run.locator('button:has-text("Run and follow")').click();
   await run.locator('.grind-plan', { hasText: 'device' }).waitFor({ timeout: 20000 });
@@ -75,7 +75,7 @@ try {
   await jobs.locator('table.grind-jobs tr', { hasText: 'stopped' }).first().waitFor();
 
   // A job left to the node shows as a row with Stop, which runs
-  // poo grind stop ID; the rates read as H/s, as in the live counter.
+  // poon grind stop ID; the rates read as H/s, as in the live counter.
   const bg = section('Start a job in the background');
   await bg.locator('button[type=submit]').click();
   await bg.locator('.run-status.ok').waitFor();
@@ -88,13 +88,13 @@ try {
     assert.ok(Date.now() < end, 'the stopped job lost its Stop button');
     await page.waitForTimeout(100);
   }
-  // Device fields offer the ids poo grind devices printed, and auto.
+  // Device fields offer the ids poon grind devices printed, and auto.
   assert.equal(await run.locator('input[name=device]').getAttribute('list'), 'grind-devices');
   const ids = await page.locator('#grind-devices option').evaluateAll(os => os.map(o => o.value));
   assert.ok(ids.includes('auto') && ids.includes('cpu'), `device choices ${ids}`);
   if (shots) await page.screenshot({ path: join(shots, 'work-jobs.png'), fullPage: true });
 
-  // The schedule (GREEN-026): a job added through poo grind schedule add
+  // The schedule (GREEN-026): a job added through poon grind schedule add
   // shows as a row, the running node starts it at once, and Remove drops
   // it again with its job.
   const sched = section('Schedule');
@@ -120,7 +120,7 @@ try {
   assert.ok(!(await until.isVisible()) && !/until-from/.test(await add.locator('.cmd code').innerText()), 'hidden until-from is not sent');
   assert.ok(!(await section('Run a job').locator('input[name=untilFrom]').isVisible()), 'the run form hides until-from for tip');
   await add.locator('input[name=hours]').fill('0-23');
-  assert.match(await add.locator('.cmd code').innerText(), /^poo grind schedule add tip -hours 0-23$/);
+  assert.match(await add.locator('.cmd code').innerText(), /^poon grind schedule add tip -hours 0-23$/);
   await add.locator('button[type=submit]').click();
   await add.locator('.run-status.ok').waitFor();
   const row = sched.locator('table.grind-schedule tbody tr', { hasText: '0-23' });
@@ -133,7 +133,7 @@ try {
   await sched.locator('.counts', { hasText: 'device auto, 1 thread.' }).waitFor({ timeout: 10000 });
   // Each default field shows what is set now (GREEN-033).
   await defs.locator('input[name=threads][placeholder^="now 1 (up to "]').waitFor();
-  // The ranges come from poo's limits in the same reply (GUI-015).
+  // The ranges come from poon's limits in the same reply (GUI-015).
   assert.match(await defs.locator('input[name=rate]').getAttribute('placeholder'), /\(up to 50\)$/);
   assert.equal(await defs.locator('input[name=device]').getAttribute('placeholder'), 'now auto');
   // The layer floor and rate (D122) are schedule defaults too, and a
@@ -143,8 +143,8 @@ try {
   assert.match(await defs.locator('.cmd code').innerText(), /-layer-floor 200 -layer-rate 5$/);
   await defs.locator('button[type=submit]').click();
   await sched.locator('.counts', { hasText: 'strength 200 or more, at most 5 a second' }).waitFor({ timeout: 10000 });
-  // A rate past what peers take is poo's to refuse (GUI-015, D127): the
-  // field says why, the form shows poo's error with the range, and the
+  // A rate past what peers take is poon's to refuse (GUI-015, D127): the
+  // field says why, the form shows poon's error with the range, and the
   // schedule keeps the rate it had.
   assert.match(await defs.locator('label', { hasText: 'Layer rate' }).locator('small').innerText(), /time out and then block/);
   await defs.locator('input[name=rate]').fill('100000');
@@ -206,14 +206,14 @@ try {
   await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).waitFor();
   // A stale row (GREEN-031): the schedule changes outside this page, so
   // the tip row's number 1 now names a pending job. Remove sends -target
-  // tip, poo refuses, and the table is read again with the pending job
+  // tip, poon refuses, and the table is read again with the pending job
   // kept.
-  poo(['grind', 'schedule', 'add', 'pending', '-hours', '5-6']);
-  poo(['grind', 'schedule', 'remove', '1']);
+  poon(['grind', 'schedule', 'add', 'pending', '-hours', '5-6']);
+  poon(['grind', 'schedule', 'remove', '1']);
   await sched.locator('table.grind-schedule tbody tr', { hasText: '3-4' }).locator('button', { hasText: 'Remove' }).click();
   await sched.locator('table.grind-schedule tbody tr', { hasText: '5-6' }).waitFor({ timeout: 10000 });
   assert.equal(await sched.locator('table.grind-schedule tbody tr').count(), 1, 'the stale Remove removed nothing');
-  // ... and says so, in poo's words, above the table drawn again (GUI-016).
+  // ... and says so, in poon's words, above the table drawn again (GUI-016).
   const refused = sched.locator('.remove-refused');
   await refused.waitFor();
   assert.match(await refused.innerText(), /^Not removed: .+[.!?] The table is current now\.$/s);
@@ -221,12 +221,12 @@ try {
   // that is still right is refused by -if-version, shown, and the row stays.
   // Here reading the schedule again fails too, so the refusal does not
   // claim the table is current; Refresh then draws it.
-  poo(['grind', 'schedule', 'add', 'tip', '-hours', '7-8']);
+  poon(['grind', 'schedule', 'add', 'tip', '-hours', '7-8']);
   const failRead = route => {
     const body = route.request().postDataJSON() || {};
     const args = body.args || [];
     // Only the read: grind schedule with no subcommand, so the Remove itself
-    // reaches poo and is refused there.
+    // reaches poon and is refused there.
     const read = args[0] === 'grind' && args[1] === 'schedule' && !['remove', 'add', 'set'].includes(args[2]);
     if (route.request().method() === 'POST' && read) return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"test: schedule read refused"}' });
     return route.continue();
@@ -240,7 +240,7 @@ try {
   await fresh.waitFor({ timeout: 10000 });
   assert.match(await fresh.innerText(), /^Not removed: .+[.!?]$/s);
   assert.doesNotMatch(await fresh.innerText(), /current now/, 'no claim the table is current when it could not be read');
-  assert.doesNotMatch(await fresh.innerText(), /test: schedule read refused/, 'the refusal is poo\'s, not the failed read');
+  assert.doesNotMatch(await fresh.innerText(), /test: schedule read refused/, 'the refusal is poon\'s, not the failed read');
   await page.unroute('**/api/jobs', failRead);
   // The browser logs the refused read it was made to see.
   errors.splice(errorsBefore, errors.length - errorsBefore, ...errors.slice(errorsBefore).filter(e => !/status of 503/.test(e)));
@@ -263,11 +263,11 @@ try {
   if (shots) await page.screenshot({ path: join(shots, 'work-schedule.png'), fullPage: true });
 
   // Without a terminal SIGHUP is a reload (GUI-011): the node the GUI
-  // hosts reloads its node policy, and poo-gui keeps running.
+  // hosts reloads its node policy, and poon-gui keeps running.
   await page.click('nav a[data-id=node]');
   process.kill(pid, 'SIGHUP');
   await page.locator('.live-out', { hasText: 'reloading its node policy' }).waitFor({ timeout: 20000 });
-  await page.locator('.run-status.live', { hasText: 'running: poo node' }).waitFor();
+  await page.locator('.run-status.live', { hasText: 'running: poon node' }).waitFor();
   // The reload restarts the node on the new policy: wait until it listens
   // again, so what follows talks to the reloaded node.
   for (const end = Date.now() + 20000; ;) {
@@ -280,11 +280,11 @@ try {
   await section('Devices').locator('.result', { hasText: 'cpu' }).waitFor();
   await page.click('nav a[data-id=node]');
   // A node.json change left for a reload (GREEN-038): Followed pools says
-  // so while poo status reports policy_changed (Source GREEN-037), and its
-  // Reload now runs poo reload, after which the notice is gone.
-  const series = JSON.parse(poo(['follow'])).follow[0].series;
-  poo(['unfollow', '-series', series, '-pool', '1', '-no-reload']);
-  assert.match(poo(['status']), /"policy_changed": true/);
+  // so while poon status reports policy_changed (Source GREEN-037), and its
+  // Reload now runs poon reload, after which the notice is gone.
+  const series = JSON.parse(poon(['follow'])).follow[0].series;
+  poon(['unfollow', '-series', series, '-pool', '1', '-no-reload']);
+  assert.match(poon(['status']), /"policy_changed": true/);
   const notice = section('Followed pools').locator('.policy-changed');
   await section('Followed pools').locator('button:has-text("Refresh")').click();
   await notice.waitFor({ timeout: 10000 });

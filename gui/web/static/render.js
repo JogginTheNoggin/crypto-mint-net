@@ -9,7 +9,7 @@ function el(tag, cls, text) {
   return e;
 }
 
-// parseJSON is JSON.parse that keeps every whole number exact. poo prints
+// parseJSON is JSON.parse that keeps every whole number exact. poon prints
 // amounts, balances and totals as JSON numbers up to 2^64 - 1, and a
 // plain JSON.parse rounds any above 2^53 (9,007,199,254,740,991): on the
 // reserve series (10^14 units a mint) that is a balance of 91 mints.
@@ -20,7 +20,7 @@ function el(tag, cls, text) {
 // source text access, Chromium 114 on), the reviver reads the digits
 // from it, and only numbers are ever changed. Elsewhere the numbers are
 // swapped for marked strings first; the mark holds a random part made
-// for each call, so no string poo printed can carry it (GUI/Red R30B: a
+// for each call, so no string poon printed can carry it (GUI/Red R30B: a
 // fixed mark turned any string that began with it into a BigInt, or
 // dropped the whole result to text).
 const SOURCE = (() => { try { let ok = false; JSON.parse('1', (k, v, c) => { ok = !!c && c.source === '1'; return v; }); return ok; } catch (_) { return false; } })();
@@ -29,7 +29,7 @@ const NUMBER16 = /(?:^|[:[,])\s*-?\d{16}/;
 export function parseJSON(text) {
   // Fast path: a number above 2^53 has at least 16 digits, and a JSON
   // number starts the text or follows a colon, bracket or comma. Any 16
-  // digits would not do: poo's hashes and keys are hex strings with such
+  // digits would not do: poon's hashes and keys are hex strings with such
   // runs, so nearly every long answer took the slow path below, at 3 to
   // 4 times JSON.parse (ORANGE-022).
   if (!NUMBER16.test(text)) return JSON.parse(text);
@@ -69,7 +69,7 @@ const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // LOOKUPS are the fields whose value Explore can look up. A value under
 // one of these keys gets a link that opens Explore with it filled in, and
-// Explore runs the same poo command its form shows.
+// Explore runs the same poon command its form shows.
 const LOOKUPS = { tid: 'tid', address: 'address', to: 'address' };
 
 export function lookupLink(key, v) {
@@ -101,7 +101,7 @@ export function secretValue(v) {
 
 // rateText shows tries a second the way people read them; the Work view's
 // live counter and every printed "rate" field use it, with the exact value
-// poo printed in the tooltip.
+// poon printed in the tooltip.
 export function rateText(r) {
   if (!r) return '0 H/s';
   for (const [n, u] of [[1e9, 'G'], [1e6, 'M'], [1e3, 'k']]) if (r >= n) return `${(r / n).toFixed(2)} ${u}H/s`;

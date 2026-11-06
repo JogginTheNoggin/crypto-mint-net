@@ -1,8 +1,8 @@
 // End-to-end check of the quality-of-life prototypes: tab completion read
-// from poo's help, the Getting started guide, the accessibility hooks, next
+// from poon's help, the Getting started guide, the accessibility hooks, next
 // steps under errors, empty states, the Jobs filters, the narrow menu and high contrast.
 //
-//   node gui/e2e/qol.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
+//   node gui/e2e/qol.mjs PATH/TO/poon-gui [SCREENSHOT_DIR]
 //
 // Needs the playwright package and a Chromium it can launch.
 import { execFileSync } from 'node:child_process';
@@ -27,18 +27,18 @@ const until = async (cond, what, ms = 20000) => {
 const termText = () => page.locator('.terminal .term-out').innerText();
 
 try {
-  // The header shows the release, the one poo version prints: poo and
-  // poo-gui share one version (GUI White G4, GUI-GREEN-058).
-  const pooVersion = String(execFileSync(bin, ['poo', 'version'], { env })).trim();
+  // The header shows the release, the one poon version prints: poon and
+  // poon-gui share one version (GUI White G4, GUI-GREEN-058).
+  const poonVersion = String(execFileSync(bin, ['poon', 'version'], { env })).trim();
   await page.locator('#version:not([hidden])').waitFor();
-  assert.equal(await page.locator('#version').innerText(), `v${pooVersion}`);
+  assert.equal(await page.locator('#version').innerText(), `v${poonVersion}`);
   // Getting started is the first view, and marks itself current.
   await page.locator('h1', { hasText: 'Getting started' }).waitFor();
   assert.equal(await page.locator('nav a[aria-current=page]').getAttribute('data-id'), 'start');
   if (shots) await page.screenshot({ path: join(shots, 'start.png') });
   // The guide reaches grinding too, and each node step links its view (GREEN-036).
   const grindStep = page.locator('.steps li', { hasText: 'Help secure the ledger' });
-  assert.equal(await grindStep.locator('code').innerText(), 'poo grind start tip');
+  assert.equal(await grindStep.locator('code').innerText(), 'poon grind start tip');
   assert.equal(await grindStep.locator('a.step-view').getAttribute('href'), '#/work');
   await page.locator('.steps li', { hasText: 'Check its health' }).locator('a.step-view').click();
   await page.locator('h1', { hasText: 'Node' }).waitFor();
@@ -46,7 +46,7 @@ try {
 
   // A step types its line into the terminal and runs it.
   await page.locator('.steps li', { hasText: 'Check the tool' }).getByRole('button').click();
-  await until(async () => /\$ poo version\n\S/.test(await termText()), 'version output');
+  await until(async () => /\$ poon version\n\S/.test(await termText()), 'version output');
   assert.equal(await page.locator('nav a[aria-current=page]').getAttribute('data-id'), 'terminal');
   await until(async () => (await page.locator('.terminal [role=status]').textContent()) === 'Command finished.', 'the exit announcement');
 
@@ -58,7 +58,7 @@ try {
   await line.press('b');
   await line.press('Tab');
   await until(async () => (await line.inputValue()) === 'wallet balance ', 'completion to "wallet balance "');
-  // A subcommand listed inline in poo help: "poo policy list|use|...".
+  // A subcommand listed inline in poon help: "poon policy list|use|...".
   await line.fill('policy ar');
   await line.press('Tab');
   await until(async () => (await line.inputValue()) === 'policy archive ', 'completion to "policy archive "');
@@ -85,7 +85,7 @@ try {
   await banner.waitFor();
   await status.locator('details.no-node > summary').click();
   await status.locator('.next-step').waitFor();
-  assert.match(await status.locator('pre.err').innerText(), /^poo: rpc: is the node running\?/);
+  assert.match(await status.locator('pre.err').innerText(), /^poon: rpc: is the node running\?/);
   await banner.locator('a').click();
   await until(async () => (await page.locator('nav a[aria-current=page]').getAttribute('data-id')) === 'node', 'the Node view');
   if (shots) await page.screenshot({ path: join(shots, 'next-step.png') });
@@ -110,8 +110,8 @@ try {
   await rows.first().waitFor();
   // The newest row is the three runs, shown once with their count.
   const newest = rows.first();
-  await until(async () => (await newest.locator('code').innerText()) === 'poo version' &&
-    (await newest.locator('.count').count()) === 1, 'poo version grouped into one row');
+  await until(async () => (await newest.locator('code').innerText()) === 'poon version' &&
+    (await newest.locator('.count').count()) === 1, 'poon version grouped into one row');
   assert.equal(await newest.locator('.count').innerText(), '×3');
   await page.fill('.job-tools input[type=search]', 'policy');
   await until(async () => (await rows.count()) > 0 && (await rows.allInnerTexts()).every(t => t.includes('policy')), 'the text filter');
@@ -144,18 +144,18 @@ try {
   assert.equal(await muted(), '#c8c8c0');
   await page.emulateMedia({ contrast: 'no-preference', colorScheme: 'light' });
 
-  // Node: poo doctor as a checklist. With no node policy the policy check
+  // Node: poon doctor as a checklist. With no node policy the policy check
   // fails with its fix as printed, and the raw output is kept.
   await page.click('nav a[data-id=node]');
   const health = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Health check' }) });
   await health.locator('ul.doctor li.doctor-fail', { has: page.locator('strong', { hasText: /^policy$/ }) }).waitFor();
-  assert.match(await health.locator('li.doctor-fail .doctor-fix').innerText(), /^fix: poo init/);
+  assert.match(await health.locator('li.doctor-fail .doctor-fix').innerText(), /^fix: poon init/);
   // Its fix is a command (fix_args), so it can be run from here.
   assert.equal(await health.locator('li.doctor-fail .doctor-fix button', { hasText: 'Run in terminal' }).count(), 1);
-  assert.equal(await health.locator('.cmd code').innerText(), 'poo doctor -o json');
+  assert.equal(await health.locator('.cmd code').innerText(), 'poon doctor -o json');
   assert.equal(await health.locator('details.raw').count(), 1);
   // "Output as printed" is drawn only when opened (ORANGE-020); Copy
-  // output is there before, with poo's exact output.
+  // output is there before, with poon's exact output.
   const raw = health.locator('details.raw');
   assert.equal(await raw.locator('.result .undrawn').count(), 1, 'the folded output is not drawn yet');
   assert.equal(await raw.locator('.result dl, .result table').count(), 0);
@@ -167,7 +167,7 @@ try {
   assert.equal(await raw.locator('.result > dl, .result > table, .result > .table-wrap').count(), 1, 'opened again, it is drawn once');
   if (shots) await page.screenshot({ path: join(shots, 'doctor.png') });
 
-  // Peers: the action form shows only the flags poo peer takes for the
+  // Peers: the action form shows only the flags poon peer takes for the
   // chosen action, and never sends a hidden one.
   await page.click('nav a[data-id=peers]');
   const act = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Act on a peer' }) });
@@ -176,16 +176,16 @@ try {
   assert.deepEqual(await visible(), ['Action', 'Peer address', 'Seconds', 'Whole range']);
   await act.locator('input[name=range]').check();
   await act.locator('input[name=addr]').fill('203.0.113.5:7733');
-  assert.equal(await act.locator('.cmd code').innerText(), 'poo peer block -range 203.0.113.5:7733');
+  assert.equal(await act.locator('.cmd code').innerText(), 'poon peer block -range 203.0.113.5:7733');
   await act.locator('select[name=action]').selectOption('unblock');
   assert.deepEqual(await visible(), ['Action', 'Peer address']);
   // Hidden means not drawn, not only marked (GREEN-032).
   assert.ok(!(await act.locator('input[name=seconds]').isVisible()), 'a hidden flag is not drawn');
-  assert.equal(await act.locator('.cmd code').innerText(), 'poo peer unblock 203.0.113.5:7733');
+  assert.equal(await act.locator('.cmd code').innerText(), 'poon peer unblock 203.0.113.5:7733');
   await act.locator('select[name=action]').selectOption('clear');
   assert.deepEqual(await visible(), ['Action', 'Peer address', 'Clear']);
 
-  // Series and keys: key and hash fields suggest what poo crypto printed.
+  // Series and keys: key and hash fields suggest what poon crypto printed.
   await page.click('nav a[data-id=crypto]');
   await page.locator('#crypto-hashes option[value=blake3]').waitFor({ state: 'attached' });
   assert.ok(await page.locator('#crypto-algs option[value=ed25519]').count(), 'key algorithms suggested');
@@ -194,41 +194,41 @@ try {
   await page.click('nav a[data-id=wallet]');
   await page.fill('.wallet-pick input', 'w2.json');
   const bal = page.locator('section.panel', { has: page.locator('h2', { hasText: 'Balance' }) });
-  assert.equal(await bal.locator('.cmd code').innerText(), 'poo wallet balance -wallet w2.json');
+  assert.equal(await bal.locator('.cmd code').innerText(), 'poon wallet balance -wallet w2.json');
   assert.equal(await page.locator('section.panel label', { hasText: 'Wallet file' }).count(), 1, 'one wallet field');
   // One series for the whole view too, on every wallet command (GUI-GREEN-041).
   await page.fill('.wallet-pick input[name=wallet-series]', 'ab12');
-  assert.equal(await bal.locator('.cmd code').innerText(), 'poo wallet balance -wallet w2.json -series ab12');
+  assert.equal(await bal.locator('.cmd code').innerText(), 'poon wallet balance -wallet w2.json -series ab12');
   const recv = page.locator('section.panel', { has: page.locator('h2', { hasText: 'What has arrived' }) });
   await recv.locator('input[name=tid]').fill('aa bb');
   await recv.locator('input[name=tidSerial]').fill('3 5');
-  assert.equal(await recv.locator('.cmd code').innerText(), 'poo wallet receive -wallet w2.json -series ab12 -serial 3 -serial 5 -tid aa -tid bb');
+  assert.equal(await recv.locator('.cmd code').innerText(), 'poon wallet receive -wallet w2.json -series ab12 -serial 3 -serial 5 -tid aa -tid bb');
   await page.fill('.wallet-pick input[name=wallet-series]', '');
-  // Every poo wallet command has a form (GREEN-039), so a shared payment
+  // Every poon wallet command has a form (GREEN-039), so a shared payment
   // Pay starts can be co-signed and submitted here too.
   const wsec = t => page.locator('section.panel', { has: page.locator('h2', { hasText: t }) }).first();
   await wsec('Record a shared policy').locator('input[name=name]').fill('joint');
   await wsec('Record a shared policy').locator('input[name=k]').fill('2');
   await wsec('Record a shared policy').locator('input[name=key]').fill('self ed25519:ab');
-  assert.equal(await wsec('Record a shared policy').locator('.cmd code').innerText(), 'poo wallet policy -wallet w2.json -name joint -k 2 -key self -key ed25519:ab');
+  assert.equal(await wsec('Record a shared policy').locator('.cmd code').innerText(), 'poon wallet policy -wallet w2.json -name joint -k 2 -key self -key ed25519:ab');
   await wsec('Co-sign a payment').locator('input[name=file]').fill('pay.json');
-  assert.equal(await wsec('Co-sign a payment').locator('.cmd code').innerText(), 'poo wallet cosign -wallet w2.json pay.json');
+  assert.equal(await wsec('Co-sign a payment').locator('.cmd code').innerText(), 'poon wallet cosign -wallet w2.json pay.json');
   await wsec('Submit a co-signed payment').locator('input[name=file]').fill('pay.json');
-  assert.equal(await wsec('Submit a co-signed payment').locator('.cmd code').innerText(), 'poo wallet submit -wallet w2.json pay.json');
+  assert.equal(await wsec('Submit a co-signed payment').locator('.cmd code').innerText(), 'poon wallet submit -wallet w2.json pay.json');
   // Cold keys (D193): sign a co-signing file with a key kept elsewhere.
-  // An empty key file has poo ask for the key in a masked field.
+  // An empty key file has poon ask for the key in a masked field.
   const sg = wsec('Sign with a key kept elsewhere');
   await sg.locator('input[name=file]').fill('pay.json');
-  assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file -');
+  assert.equal(await sg.locator('.cmd code').innerText(), 'poon sign pay.json -key-file -');
   // Key file shows only once "The key is in a file" is ticked (GUI-032).
   assert.equal(await sg.locator('input[name=keyFile]').isVisible(), false, 'no Key file field until the key is said to be in a file');
   await sg.locator('label', { hasText: 'The key is in a file' }).locator('input').check();
-  assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file -');
+  assert.equal(await sg.locator('.cmd code').innerText(), 'poon sign pay.json -key-file -');
   // A key pasted where the path goes never reaches the command line, and
   // Sign refuses it, runs nothing and empties the field (GUI-032).
   const pasted = 'ab'.repeat(32);
   await sg.locator('input[name=keyFile]').fill(pasted);
-  assert.equal(await sg.locator('.cmd code').innerText(), "poo sign pay.json -key-file '…'");
+  assert.equal(await sg.locator('.cmd code').innerText(), "poon sign pay.json -key-file '…'");
   const jobsBefore = (await page.evaluate(async () => (await import('/api.js')).jobs())).length;
   await sg.locator('button[type=submit]').click();
   await sg.locator('.refused[role=alert]', { hasText: /^Nothing was run: Key file holds what looks like a key, not a path/ }).waitFor();
@@ -242,10 +242,10 @@ try {
     Array(32).fill('ab').join(':'), Array(5).fill('abcdef01').join(' '), 'ab'.repeat(32) + '.', 'ab-'.repeat(16), 'my.key.' + 'ab'.repeat(16)].map(looksLikeKey); });
   assert.deepEqual(lk, [true, true, false, false, false, false, false, true, true, true, true, false]);
   // After a refusal the form still follows its next run: unticked as the
-  // refusal says, Sign shows poo's masked prompt, and Stop ends the job
+  // refusal says, Sign shows poon's masked prompt, and Stop ends the job
   // (GUI-033). Before, the refusal left the result area marked gone, so
   // the job was never followed: no prompt, no Stop, a job slot held.
-  const tmp = mkdtempSync(join(tmpdir(), 'poo-gui-qol-'));
+  const tmp = mkdtempSync(join(tmpdir(), 'poon-gui-qol-'));
   const payFile = join(tmp, 'pay.json');
   writeFileSync(payFile, '{"hash":"sha256","legs":[{"serial":1}]}');
   await sg.locator('input[name=file]').fill(payFile);
@@ -276,7 +276,7 @@ try {
   await sg.locator('label', { hasText: '(-raw)' }).locator('input').check();
   await sg.locator('input[name=out]').fill('signed.json');
   await sg.locator('label', { hasText: 'Show only' }).locator('input').check();
-  assert.equal(await sg.locator('.cmd code').innerText(), 'poo sign pay.json -key-file cold.key -alg ml-dsa-65 -raw -out signed.json -show');
+  assert.equal(await sg.locator('.cmd code').innerText(), 'poon sign pay.json -key-file cold.key -alg ml-dsa-65 -raw -out signed.json -show');
   const notes = await page.evaluate(async () => {
     const { signNote } = await import('/views/wallet.js');
     const t = o => { const n = signNote({ code: 0, out: JSON.stringify(o) }); return n && n.textContent; };
@@ -296,7 +296,7 @@ try {
   assert.match(await wpay.locator('.cmd code').innerText(), / -change cc11$/);
   await wpay.locator('input[name=change]').fill('');
   // Pay's one confirm warns when no co-signing file is filled in, and
-  // only then (GUI-GREEN-061). poo refuses such a payment before it
+  // only then (GUI-GREEN-061). poon refuses such a payment before it
   // records anything (Source #291), so no line of the GUI's follows.
   await wpay.locator('input[name=to]').fill('ab12');
   await wpay.locator('input[name=amount]').fill('5');
@@ -308,8 +308,8 @@ try {
   await wpay.locator('form.fields button[type=submit]').click();
   await until(async () => asked.length === 2, 'two Pay confirms');
   page.off('dialog', onDialog);
-  assert.match(asked[0], /^Run poo wallet pay -wallet w2\.json -to ab12 -amount 5\?\n\nNo co-signing file is filled in\. If this wallet is watch-only, or pays from a shared policy, fill one in first/);
-  assert.equal(asked[1], 'Run poo wallet pay -wallet w2.json -to ab12 -amount 5 -out pay.json?');
+  assert.match(asked[0], /^Run poon wallet pay -wallet w2\.json -to ab12 -amount 5\?\n\nNo co-signing file is filled in\. If this wallet is watch-only, or pays from a shared policy, fill one in first/);
+  assert.equal(asked[1], 'Run poon wallet pay -wallet w2.json -to ab12 -amount 5 -out pay.json?');
   assert.equal(await wpay.locator('.run-status').count(), 0, 'a dismissed confirm runs nothing');
   for (const n of ['to', 'amount', 'out']) await wpay.locator(`input[name=${n}]`).fill('');
   // The seven cold-key steps are folded; each step's button goes to its
@@ -323,7 +323,7 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement.tagName + ':' + document.activeElement.textContent), 'H2:Sign with a key kept elsewhere');
   const wcr = wsec('Create or restore a wallet');
   await wcr.locator('label', { hasText: 'Watch-only' }).locator('input').check();
-  assert.equal(await wcr.locator('.cmd code').innerText(), 'poo wallet create -wallet w2.json -watch-only');
+  assert.equal(await wcr.locator('.cmd code').innerText(), 'poon wallet create -wallet w2.json -watch-only');
   await wcr.locator('label', { hasText: 'Watch-only' }).locator('input').uncheck();
   // A watch-only wallet claims to a policy, into a file the key signs
   // (GREEN-060); Claim file shows only with To a wallet policy.
@@ -332,24 +332,24 @@ try {
   assert.ok(!(await wcl.locator('input[name=out]').isVisible()), 'no claim file until a policy is named');
   await wcl.locator('input[name=toPolicy]').fill('cold');
   await wcl.locator('input[name=out]').fill('claim.json');
-  assert.equal(await wcl.locator('.cmd code').innerText(), 'poo wallet claim -wallet w2.json -serial 7 -to-policy cold -out claim.json');
+  assert.equal(await wcl.locator('.cmd code').innerText(), 'poon wallet claim -wallet w2.json -serial 7 -to-policy cold -out claim.json');
   await wcl.locator('input[name=toPolicy]').fill('');
-  assert.equal(await wcl.locator('.cmd code').innerText(), 'poo wallet claim -wallet w2.json -serial 7');
+  assert.equal(await wcl.locator('.cmd code').innerText(), 'poon wallet claim -wallet w2.json -serial 7');
   await wcl.locator('input[name=serial]').fill('');
   for (const [t, c] of [['Send dropped legs again', 'resend'], ['Follow only the watched mints', 'follow'], ['Change the passphrase', 'passwd'], ['Show the seed', 'seed']]) {
-    assert.equal(await wsec(t).locator('.cmd code').innerText(), `poo wallet ${c} -wallet w2.json`);
+    assert.equal(await wsec(t).locator('.cmd code').innerText(), `poon wallet ${c} -wallet w2.json`);
   }
   const used = new Set(await page.locator('section.panel .cmd code').evaluateAll(cs => cs.map(c => c.textContent.split(' ')[2])));
-  const help = execFileSync(bin, ['poo', 'wallet', 'help'], { env }).toString();
-  for (const sub of [...help.matchAll(/^  ([a-z]+) /gm)].map(m => m[1])) assert.ok(used.has(sub), `the Wallet view runs poo wallet ${sub}`);
+  const help = execFileSync(bin, ['poon', 'wallet', 'help'], { env }).toString();
+  for (const sub of [...help.matchAll(/^  ([a-z]+) /gm)].map(m => m[1])) assert.ok(used.has(sub), `the Wallet view runs poon wallet ${sub}`);
 
-  // Every command poo help lists is run by some view or Getting started
+  // Every command poon help lists is run by some view or Getting started
   // step, or is here with the reason it stays in the terminal (GREEN-040).
   const TERMINAL_ONLY = {
     help: 'the terminal\'s own help, and every form shows its line',
     completion: 'sets up a shell, not this GUI',
-    holdings: 'older form of poo unspent, kept for scripts; Explore runs unspent',
-    payment: 'older form of poo tx, kept for scripts; Explore runs tx',
+    holdings: 'older form of poon unspent, kept for scripts; Explore runs unspent',
+    payment: 'older form of poon tx, kept for scripts; Explore runs tx',
     claim: 'claims with a key file, where the key is: a watch-only wallet claims this way (D193; the Wallet view\'s cold-key steps say so); the Wallet view claims from the wallet',
     pay: 'pays with a raw key file; the Wallet view pays from the wallet',
     settings: 'new in Source Round 20 (D155); GUI/Grey adds its export and import form next, and the terminal runs it until then',
@@ -362,9 +362,9 @@ try {
     await page.locator('#main h1').first().waitFor();
     for (const t of await page.locator('#main .cmd code, #main .step-cmd code').allInnerTexts()) ran.add(t.split(' ')[1]);
   }
-  const top = execFileSync(bin, ['poo', 'help'], { env }).toString();
-  for (const cmd of new Set([...top.matchAll(/^  poo ([a-z]+)/gm)].map(m => m[1]))) {
-    assert.ok(ran.has(cmd) || TERMINAL_ONLY[cmd], `a view runs poo ${cmd}, or TERMINAL_ONLY says why not`);
+  const top = execFileSync(bin, ['poon', 'help'], { env }).toString();
+  for (const cmd of new Set([...top.matchAll(/^  poon ([a-z]+)/gm)].map(m => m[1]))) {
+    assert.ok(ran.has(cmd) || TERMINAL_ONLY[cmd], `a view runs poon ${cmd}, or TERMINAL_ONLY says why not`);
   }
   await page.click('nav a[data-id=wallet]');
   await page.fill('.wallet-pick input', 'w2.json');
@@ -379,24 +379,24 @@ try {
   await key.locator('button.copy-cmd').click();
   await key.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await key.locator('.cmd code').innerText());
-  // A seed is never on a form's line: poo asks for it (D98, GUI-GREEN-047).
+  // A seed is never on a form's line: poon asks for it (D98, GUI-GREEN-047).
   await key.locator('input[name=own]').check();
-  assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -seed-file -');
+  assert.equal(await key.locator('.cmd code').innerText(), 'poon keygen -alg ed25519 -seed-file -');
   assert.ok(!(await key.locator('button.copy-cmd').isDisabled()), 'a line that reads its seed from input is copied');
   // A key made by another tool gives only its public half (D193).
   await key.locator('input[name=own]').uncheck();
   await key.locator('input[name=raw]').check();
-  assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -seed-file - -raw');
+  assert.equal(await key.locator('.cmd code').innerText(), 'poon keygen -alg ed25519 -seed-file - -raw');
   await key.locator('input[name=raw]').uncheck();
   // A new key saved to a file shows only its public half (GREEN-060).
   await key.locator('input[name=own]').uncheck();
   await key.locator('input[name=out]').fill('cold.key');
-  assert.equal(await key.locator('.cmd code').innerText(), 'poo keygen -alg ed25519 -out cold.key');
+  assert.equal(await key.locator('.cmd code').innerText(), 'poon keygen -alg ed25519 -out cold.key');
   await key.locator('input[name=out]').fill('');
   await key.locator('input[name=own]').check();
   const secret = await page.evaluate(async () => {
     const { secretLine } = await import('/api.js');
-    return ['poo keygen -seed ' + 'ab'.repeat(32), 'poo keygen -seed=ab', 'poo wallet create -restore -', 'poo wallet create -restore=-', 'poo keygen -seed-file -', 'poo sim -seed 3', 'poo keygen -seed'].map(secretLine);
+    return ['poon keygen -seed ' + 'ab'.repeat(32), 'poon keygen -seed=ab', 'poon wallet create -restore -', 'poon wallet create -restore=-', 'poon keygen -seed-file -', 'poon sim -seed 3', 'poon keygen -seed'].map(secretLine);
   });
   assert.deepEqual(secret, [true, true, false, false, false, false, true], 'secretLine: a value of - is read in a masked field, not on the line');
   // A key where a key file's path goes is a secret line too (GUI-034):
@@ -405,8 +405,8 @@ try {
   const keyLines = await page.evaluate(async () => {
     const { secretLine } = await import('/api.js');
     const k = 'ab'.repeat(32);
-    return [`poo sign x.json -key-file ${k}`, `poo sign x.json --key-file=${k}`, `poo sign x.json -key-file ${Array(32).fill('ab').join(':')}`, `poo sign -key-file '${Array(8).fill('abcdef01').join(' ')}' x.json`,
-      `poo keygen -seed-file ${k}.`, 'poo sign x.json -key-file cold.key', 'poo sign x.json -key-file -', `poo sign x.json -key-file /keys/${k}`].map(secretLine);
+    return [`poon sign x.json -key-file ${k}`, `poon sign x.json --key-file=${k}`, `poon sign x.json -key-file ${Array(32).fill('ab').join(':')}`, `poon sign -key-file '${Array(8).fill('abcdef01').join(' ')}' x.json`,
+      `poon keygen -seed-file ${k}.`, 'poon sign x.json -key-file cold.key', 'poon sign x.json -key-file -', `poon sign x.json -key-file /keys/${k}`].map(secretLine);
   });
   assert.deepEqual(keyLines, [true, true, true, true, true, false, false, false], 'secretLine: a key typed as a key file');
   // A long line is read in time in proportion to its length: the value
@@ -415,8 +415,8 @@ try {
   const long = await page.evaluate(async () => {
     const { secretLine } = await import('/api.js');
     const t0 = performance.now();
-    const r = [secretLine('poo sign x.json -key-file ' + Array(20000).fill('zz').join(' ')), secretLine(Array(5000).fill('-key-file zz').join(' ')),
-      secretLine('poo sign -key-file ' + Array(40).fill('ab').join(' ') + ' x.json'), secretLine('poo sign -key-file ' + Array(200).fill('zz').join(' ') + ' ' + 'ab'.repeat(32))];
+    const r = [secretLine('poon sign x.json -key-file ' + Array(20000).fill('zz').join(' ')), secretLine(Array(5000).fill('-key-file zz').join(' ')),
+      secretLine('poon sign -key-file ' + Array(40).fill('ab').join(' ') + ' x.json'), secretLine('poon sign -key-file ' + Array(200).fill('zz').join(' ') + ' ' + 'ab'.repeat(32))];
     return [...r, performance.now() - t0 < 1000];
   });
   assert.deepEqual(long, [false, false, true, false, true], 'secretLine on a long line is quick');
@@ -461,7 +461,7 @@ try {
     return [...seen, long.length];
   });
   assert.deepEqual(dd, [1001, 'Show all 30000 characters', null, 30000, 1001, 30000], 'a long doctor detail is cut at 1,000 characters with Show all');
-  // A result whose output poo-gui dropped in part says so and loses its
+  // A result whose output poon-gui dropped in part says so and loses its
   // Save as file, which would write a file with a gap (ORANGE-026).
   const inc = await page.evaluate(async () => {
     const { incomplete, el } = await import('/views.js');
@@ -501,19 +501,19 @@ try {
   const ls = await page.evaluate(async () => {
     const { ledgerSummary } = await import('/views/pools.js');
     const entry = h => `{"height":${h},"hash":"${'a'.repeat(64)}","item":"AAAA"}`;
-    const file = (from, to, n, kind = 'poo-ledger') => `{\n  "kind": "${kind}",\n  "format": 1,\n  "pool": 3,\n  "from": ${from},\n  "to": ${to},\n  "height": 9,\n  "entries":[${Array.from({ length: n }, (_, i) => '\n    ' + entry(from + i)).join(',')}\n  ]\n}\n`;
+    const file = (from, to, n, kind = 'poon-ledger') => `{\n  "kind": "${kind}",\n  "format": 1,\n  "pool": 3,\n  "from": ${from},\n  "to": ${to},\n  "height": 9,\n  "entries":[${Array.from({ length: n }, (_, i) => '\n    ' + entry(from + i)).join(',')}\n  ]\n}\n`;
     const whole = file(2, 4, 3);
-    return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poo settings')), ledgerSummary('wrote 3 entries to x'), ledgerSummary('{"kind":"poo-ledger","format":2,"pages":[]}')];
+    return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poon settings')), ledgerSummary('wrote 3 entries to x'), ledgerSummary('{"kind":"poon-ledger","format":2,"pages":[]}')];
   });
   assert.deepEqual(ls, ['A ledger file of pool 3: 3 entries, heights 2 to 4 of 9.', 'A ledger file of pool 3: 1 entry, heights 1 to 1 of 9.', 'A ledger file of pool 3 with no entries: the selected ledger\'s height is 9.', null, null, null, null, null,
-    'A ledger file in format 2, which this poo-gui does not read; poo checks it in full on import.'], 'a later format gets a neutral line, not the cut-file alert (White N2)');
+    'A ledger file in format 2, which this poon-gui does not read; poon checks it in full on import.'], 'a later format gets a neutral line, not the cut-file alert (White N2)');
   // A ledger export that is not one whole file is folded under Output as
   // printed, not drawn, and gets one alert: its own, or ORANGE-026's when
-  // poo-gui dropped part of the output (GUI/Orange R34B notes).
+  // poon-gui dropped part of the output (GUI/Orange R34B notes).
   const ex = await page.evaluate(async () => {
     const { exportResult } = await import('/views/pools.js');
     const { incomplete, el } = await import('/views.js');
-    const cut = '{"kind": "poo-ledger", "format": 1, "entries": [';
+    const cut = '{"kind": "poon-ledger", "format": 1, "entries": [';
     return [false, true].map(dropped => {
       const area = el('div', {}, el('div', { class: 'result' }, cut));
       const r = { code: 0, out: cut, err: '', dropped };
@@ -524,7 +524,7 @@ try {
     });
   });
   assert.deepEqual(ex, [[1, 1, 0, true, 0, 0], [1, 0, 1, true, 0, 0]], 'a cut ledger export is folded and has one alert');
-  // The Bounty view's tables lay out poo bounty list: an offer with an
+  // The Bounty view's tables lay out poon bounty list: an offer with an
   // unpaid claim gets Pay, an open offer of this node's Cancel, an open
   // peer's offer Work, and each fills its form (GUI-GREEN-062, 063).
   const bm = await page.evaluate(async () => {
@@ -540,9 +540,9 @@ try {
     for (const b of box.querySelectorAll('button')) b.click();
     return { text: [...box.querySelectorAll('h3, .bounty-on, .bounty-owed')].map(e => e.textContent), unpaid: [...box.querySelectorAll('.bounty-mine tbody tr')].map(r => r.children[7].textContent), acts,
       states: [...box.querySelectorAll('.bounty-mine tbody tr, .bounty-held tbody tr')].map(r => [...r.children].filter((_, i, a) => i === a.length - 3).map(c => c.textContent)[0]),
-      off: (() => { const bad = { code: 1, out: '', err: 'poo: refused' }; const t = n => n && n.textContent.split('.')[0];
+      off: (() => { const bad = { code: 1, out: '', err: 'poon: refused' }; const t = n => n && n.textContent.split('.')[0];
         return [t(offNote(bad, { bounty: { post: false, take: false } })), offNote(bad, { bounty: { post: true, take: false } }), t(offNote(bad, null)), t(offNote(bad, {})),
-          offNote({ code: 1, out: '', err: 'poo: rpc: is the node running?' }, null), offNote({ code: 0, out: '{}', err: '' }, null)]; })(),
+          offNote({ code: 1, out: '', err: 'poon: rpc: is the node running?' }, null), offNote({ code: 0, out: '{}', err: '' }, null)]; })(),
       closes: (() => { const t = box.querySelector('.bounty-mine tbody tr:nth-child(2) time'); return t && [t.getAttribute('datetime'), t.title, t.textContent !== t.title && t.textContent.length > 0]; })(),
       when: [when('not a time'), when(''), when(undefined)],
       pay: payNote({ offer: id1, nonce: 8, pay_to: 'f'.repeat(64), amount: 10, told: true }).textContent,
@@ -550,7 +550,7 @@ try {
   });
   assert.deepEqual(bm.text, ['This node posts offers and takes offers from peers.', 'Your offers (2)', '1 accepted claim waits to be paid: the node kept the layer, and pays only when you press Pay (no auto-pay in phase 1).', 'Offers from peers (2)']);
   assert.deepEqual(bm.unpaid, ['1', '0']);
-  // Each offer's state from poo (D197); Work only on an open peer offer.
+  // Each offer's state from poon (D197); Work only on an open peer offer.
   assert.deepEqual(bm.states, ['', 'expired', 'open', 'filled']);
   // A long list of peers' offers draws 500 rows, then the rest on Show
   // more (GUI/Orange R37B: 4,096 held offers were 70,000 elements).
@@ -565,7 +565,7 @@ try {
     return [...first, rows(), box.querySelectorAll('.bounty-more').length];
   });
   assert.deepEqual(bigHeld, [500, 'Showing 500 of 600 offers. Show more', 600, 0]);
-  // poo's notes on the market's settings (D202) show over the tables.
+  // poon's notes on the market's settings (D202) show over the tables.
   const bnotes = await page.evaluate(async () => {
     const { marketView } = await import('/views/bounty.js');
     const box = document.createElement('div');
@@ -579,17 +579,17 @@ try {
   const empty = await page.evaluate(async () => {
     const { marketView, offNote } = await import('/views/bounty.js');
     const t = (post, take) => marketView({ post, take, mine: [], held: [] }).map(e => e.textContent).filter(s => s.startsWith('No offers'))[0];
-    return [t(true, true), t(false, true), t(true, false), /bounty\.post on to pay[\s\S]*bounty\.take on to grind/.test(offNote({ code: 1, out: '', err: 'poo: off' }, { bounty: { post: false, take: false } }).textContent)];
+    return [t(true, true), t(false, true), t(true, false), /bounty\.post on to pay[\s\S]*bounty\.take on to grind/.test(offNote({ code: 1, out: '', err: 'poon: off' }, { bounty: { post: false, take: false } }).textContent)];
   });
   assert.deepEqual(empty, ['No offers yet. Ask peers for offers below, or post one.', 'No offers yet. Ask peers for offers below.', 'No offers yet. Post one below.', true]);
-  // A time poo printed is shown in the reader's own words, poo's text in
+  // A time poon printed is shown in the reader's own words, poon's text in
   // the tooltip (GUI-GREEN-063).
   assert.deepEqual(bm.closes, ['2026-11-06T15:00:00Z', '2026-11-06T15:00:00Z', true]);
   assert.deepEqual(bm.when, ['not a time', '', '']);
-  assert.deepEqual(bm.off, ['The market is off on this node', null, 'If poo says the market is off: In Node policies, Set limits: bounty', 'If poo says the market is off: In Node policies, Set limits: bounty', null, null], 'off comes from status bounty (W-30); without it, a fixed line; error text is never read (S5)');
+  assert.deepEqual(bm.off, ['The market is off on this node', null, 'If poon says the market is off: In Node policies, Set limits: bounty', 'If poon says the market is off: In Node policies, Set limits: bounty', null, null], 'off comes from status bounty (W-30); without it, a fixed line; error text is never read (S5)');
   assert.equal(bm.pay, 'Paid 10 to ffffffffff…ffffff for the layer with nonce 8; the grinder was told.');
   assert.deepEqual(bm.work, ['Found a layer of strength 19 in 1048576 tries; the payer answered: accepted. The payer pays when it presses Pay; the payment goes to the address you gave.', 'No layer found in 5 tries before the lease or the time ran out; work the offer again for a new lease.']);
-  // The Followed series table names the reserve series by poo's builtin
+  // The Followed series table names the reserve series by poon's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).
   const ft = await page.evaluate(async () => {
@@ -603,8 +603,8 @@ try {
   assert.deepEqual(ft.map(r => r.slice(0, 7)), [
     ['the built-in default series', 'fe52c1ac4178cc69…', 'fixed', '1024', '32768', '100000000000000', '20 / 24'],
     ['', 'fe52c1ac4178cc69…', 'variable', '2', '12', '100', '0 / 0'],
-  ], 'the reserve is named by poo\'s builtin, not by its id');
-  // The warning column shows poo's warning as given (D171): none for the
+  ], 'the reserve is named by poon\'s builtin, not by its id');
+  // The warning column shows poon's warning as given (D171): none for the
   // reserve, which sets a 128 KiB ceiling.
   assert.equal(ft[0][7], '');
   assert.match(ft[1][7], /no witness ceiling/);
@@ -615,7 +615,7 @@ try {
   await ask.locator('input').fill('ab'.repeat(32));
   await ask.locator('input').press('Enter');
   await key.locator('.run-status.ok').waitFor();
-  const want = execFileSync(bin, ['poo', 'keygen', '-seed', 'ab'.repeat(32)], { env }).toString();
+  const want = execFileSync(bin, ['poon', 'keygen', '-seed', 'ab'.repeat(32)], { env }).toString();
   assert.equal((await key.locator('.result dd code.hex').first().getAttribute('title')).split('\n')[0], JSON.parse(want).address, 'the key is made from the seed typed in');
   await key.locator('input[name=own]').uncheck();
   // GUI-024: on Windows a copied line is pasted into PowerShell or cmd.exe,
@@ -643,18 +643,18 @@ try {
     assert.ok(!(await copy.isDisabled()), 'a plain line is copied');
     await copy.click();
     await addr.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
-    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^poo address .*abc123$/);
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^poon address .*abc123$/);
     await addr.locator('input[name=addr]').fill('my addr');
     await copy.click();
     await addr.locator('button.copy-cmd', { hasText: 'Copied' }).waitFor();
-    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^poo address .*"my addr"$/, 'a space is double-quoted');
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^poon address .*"my addr"$/, 'a space is double-quoted');
     await page.unroute('**/api/info', windows);
     await page.goto(origin + '/#/start');
     await page.reload();
     await page.locator('#main h1').first().waitFor();
   }
 
-  // A result has a Copy output button for poo's exact output.
+  // A result has a Copy output button for poon's exact output.
   await page.click('nav a[data-id=crypto]');
   await page.locator('section.panel button.copy-out').first().waitFor();
 
@@ -665,9 +665,9 @@ try {
   await page.click('nav a[data-id=start]');
   const step = page.locator('.steps li', { hasText: 'Write a node policy' });
   // The guide writes the default node policy, which follows the built-in
-  // reserve series (D170), as poo init does with no series (GUI-GREEN-054).
-  assert.equal(await step.locator('code').innerText(), 'poo init -root /tmp/qol-root');
-  assert.equal(await page.locator('.steps li', { hasText: 'Check the tool' }).locator('code').innerText(), 'poo version');
+  // reserve series (D170), as poon init does with no series (GUI-GREEN-054).
+  assert.equal(await step.locator('code').innerText(), 'poon init -root /tmp/qol-root');
+  assert.equal(await page.locator('.steps li', { hasText: 'Check the tool' }).locator('code').innerText(), 'poon version');
   await page.click('nav a[data-id=settings]');
   await page.locator('label', { hasText: 'Root' }).locator('input').fill('');
   await page.click('button:has-text("Save")');

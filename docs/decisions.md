@@ -5748,3 +5748,44 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/cli/bounty_test.go`: `TestBountyMarket` marks the payment's leg
     dropped; pay asks the node, finds it held, records it, and the
     grinder holds one amount.
+
+### D204. Round 40: the tool is renamed poon, the memo id frozen at 16 bytes, and GUI-GREEN-065's notes (jerry, W-36)
+- **Decision.** Merged first: Blue's #346 (BLUE-040, D203, with Green's
+  #343 GREEN-064), Red's #342 (RED-120, RED-121), Orange's #340
+  (ORANGE-049, measured), White's #347, Black's #351 (all clear).
+  - **poo is now poon (jerry):** proof of ownership network, or node.
+    Entries before this one keep the name they were written with.
+    - The command and binary: `poon` (`cmd/poon`); the GUI: `poon-gui`
+      (`gui/cmd/poon-gui`). Error lines start `poon:`.
+    - The data folder: `~/.poon`. Environment variables start `POON_`
+      (`POON_HOME`, `POON_PASSPHRASE`, `POON_NEW_PASSPHRASE`, `POON_SEED`,
+      `POON_VIEW_ONLY`), read through `brand.EnvPrefix`.
+    - Shared files' kinds start `poon-` (`poon-ledger`, `poon-payment`,
+      `poon-peers`, `poon-node-policies`, `poon-bounties`,
+      `poon-bounties-done`); temporary files start `poon-`; metrics start
+      `poon_`; the hello's agent is `poon`; the release signers' principal
+      is `poon-release`.
+    - Unchanged, as `pkg/brand` lists: the wallet key label `PoO-wallet-`,
+      the RPC hello label `poo-rpc-hello`, every byte form and hash label.
+      No consensus byte, id or hash changes.
+    - Nothing is released, so nothing reads the old names.
+    - A later rename changes `brand.Name` and `brand.EnvPrefix` and then
+      replaces the whole word in the living code and docs; `pkg/brand`
+      says how.
+  - **W-36.** The memo id is frozen at 16 bytes; a later release may
+    write more of the id, never less, so prefix matching keeps working.
+  - **GUI-GREEN-065.**
+    - `-ask -max-strength` above `bounty.max_strength` is refused
+      (already in GREEN-064).
+    - `poon bounty list -ask` gives `asked`, the peers asked, with a note
+      when there were none.
+    - A grinder's held offer reads `filled` once the payer has accepted as
+      many of its layers as the offer asks for.
+    - `poon policy limits` gives each limit's `zero`: what 0 means.
+- **Why:** jerry's name; the rest so a user reads what a setting or a
+  held offer means without guessing.
+- **Consensus:** None.
+- **Tier:** CLI, GUI, node policy, bounty, docs.
+  - `pkg/bounty/green065_test.go`: `TestGUIGreen065HeldFilledByAccepts`
+  - `pkg/nodepolicy/limits_test.go`: `TestLimitsSayWhatZeroMeans`
+  - `pkg/cli/bounty_test.go`: `TestBountyMarket` (`asked`)

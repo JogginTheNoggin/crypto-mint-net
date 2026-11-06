@@ -1,5 +1,5 @@
 // Package shell splits a line typed in the GUI's terminal into the command
-// line the platform's shell would pass to poo, so a line works the same in
+// line the platform's shell would pass to poon, so a line works the same in
 // both. A line that would mean something more in a real shell (a pipe, a
 // variable, a glob) is refused instead of being given a meaning the shell
 // would not give it (docs/gui.md, The terminal's grammar).
@@ -28,7 +28,7 @@ type UnsupportedError struct {
 }
 
 func (e *UnsupportedError) Error() string {
-	return fmt.Sprintf("the terminal runs one poo command and no shell syntax: quote %q (at byte %d) to pass it to poo", e.Char, e.Pos)
+	return fmt.Sprintf("the terminal runs one poon command and no shell syntax: quote %q (at byte %d) to pass it to poon", e.Char, e.Pos)
 }
 
 // Grammar is a shell's word splitting.
@@ -42,7 +42,7 @@ const (
 	// of a word begins a comment. Unquoted | & ; < > ( ) $ ` * ? [ and a
 	// leading ~ are refused, as is $ or ` inside "...".
 	POSIX Grammar = iota
-	// Windows is cmd.exe passing a line to poo.exe, split the way Go
+	// Windows is cmd.exe passing a line to poon.exe, split the way Go
 	// splits a Windows command line: words are separated by spaces or
 	// tabs; "..." groups, and "" inside quotes is a quote; backslashes are
 	// literal except before a quote, where 2n backslashes give n and open
@@ -51,7 +51,7 @@ const (
 	Windows
 )
 
-// Native is the grammar of the shell poo runs from on this platform.
+// Native is the grammar of the shell poon runs from on this platform.
 var Native = native()
 
 func native() Grammar {
@@ -74,9 +74,9 @@ func Split(line string) ([]string, error) { return Native.Split(line) }
 // Quote quotes args with the Native grammar.
 func Quote(args []string) string { return Native.Quote(args) }
 
-// Split splits line into words. A leading "poo" word is dropped, so
-// "poo status" and "status" are the same command, as the terminal's
-// prompt already reads "poo". Nothing else is interpreted.
+// Split splits line into words. A leading "poon" word is dropped, so
+// "poon status" and "status" are the same command, as the terminal's
+// prompt already reads "poon". Nothing else is interpreted.
 func (g Grammar) Split(line string) ([]string, error) {
 	if strings.ContainsAny(line, "\r\n") {
 		return nil, ErrNewline
@@ -91,7 +91,7 @@ func (g Grammar) Split(line string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(words) > 0 && words[0] == "poo" {
+	if len(words) > 0 && words[0] == "poon" {
 		words = words[1:]
 	}
 	return words, nil
@@ -230,7 +230,7 @@ const safePOSIX = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345678
 // it.
 func (g Grammar) Quote(args []string) string {
 	parts := make([]string, 0, len(args)+1)
-	parts = append(parts, "poo")
+	parts = append(parts, "poon")
 	for _, a := range args {
 		parts = append(parts, g.quoteWord(a))
 	}

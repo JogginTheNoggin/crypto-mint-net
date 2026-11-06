@@ -344,7 +344,7 @@ func (r Release) MarshalJSON() ([]byte, error) {
 }
 
 // releaseRead is what a release file may hold: the release's own fields,
-// and the part's id and ranges that poo series release adds for people
+// and the part's id and ranges that poon series release adds for people
 // (ORANGE-034), which a reader ignores and works out again from the
 // series.
 type releaseRead struct {
@@ -358,7 +358,7 @@ type releaseRead struct {
 	Units     json.RawMessage `json:"units"`
 }
 
-// UnmarshalJSON reads what MarshalJSON writes, and what poo series release
+// UnmarshalJSON reads what MarshalJSON writes, and what poon series release
 // prints. Any other key is refused (ErrUnknownKey), as in a series file,
 // so a later field of a release is unreadable here instead of dropped
 // (RED-074).

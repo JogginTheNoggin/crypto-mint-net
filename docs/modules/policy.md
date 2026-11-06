@@ -31,7 +31,7 @@ sizes, in [../cryptography.md](../cryptography.md).
   and SLH-DSA-SHA2-256s up to 4. It is checked where an address is made or
   paid, never when a witness is checked (RED-077, RED-079, D169, D170).
 - `MaxK(alg, ceiling)`: the largest k of a k-of-k policy of one algorithm
-  under a ceiling, params included. `poo crypto` prints it as
+  under a ceiling, params included. `poon crypto` prints it as
   `max_signatures_per_witness`.
 - No network-wide size limit (D170): `DecodeWitness` needs no series and
   is bounded only by the bytes received; threshold data is read against

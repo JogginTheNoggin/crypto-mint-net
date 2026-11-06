@@ -13,7 +13,7 @@ import (
 type paramsFields Params
 
 // MarshalJSON writes a fixed series as it always has. A variable series
-// names its hash under "variable_hash" and leaves "hash" out, so a poo
+// names its hash under "variable_hash" and leaves "hash" out, so a poon
 // from before D163, which ignores the keys it does not know, finds no hash
 // and refuses the series (hash 0 is no hash) instead of reading it as a
 // fixed series with another id (RED-071, D165).
@@ -28,10 +28,10 @@ func (p Params) MarshalJSON() ([]byte, error) {
 	}{VariableHash: p.HashID, paramsFields: paramsFields(p)})
 }
 
-// ErrUnknownKey is returned for series JSON with a key this poo does not
-// know: a series made by a later poo, which must be unreadable here
+// ErrUnknownKey is returned for series JSON with a key this poon does not
+// know: a series made by a later poon, which must be unreadable here
 // rather than read as another series (RED-071).
-var ErrUnknownKey = errors.New("series: a key this poo does not know (a series from a later version?)")
+var ErrUnknownKey = errors.New("series: a key this poon does not know (a series from a later version?)")
 
 // UnmarshalJSON reads both forms MarshalJSON writes, and a variable series
 // written with "hash" (D163's first form). A key it does not know is an

@@ -1,8 +1,8 @@
-// End-to-end check of poo-gui -view-only: the header says so, reads run,
-// and a command that changes something is refused by poo's own view-only
-// mode, with the same message poo -view-only prints in a shell.
+// End-to-end check of poon-gui -view-only: the header says so, reads run,
+// and a command that changes something is refused by poon's own view-only
+// mode, with the same message poon -view-only prints in a shell.
 //
-//   node gui/e2e/viewonly.mjs PATH/TO/poo-gui
+//   node gui/e2e/viewonly.mjs PATH/TO/poon-gui
 //
 // Needs the playwright package and a Chromium it can launch.
 import assert from 'node:assert/strict';
@@ -37,16 +37,16 @@ try {
   };
   await line.fill('version');
   await line.press('Enter');
-  await until(async () => (await out.innerText()).includes('poo '), 'version output');
+  await until(async () => (await out.innerText()).includes('poon '), 'version output');
 
-  // The refusal is the core's: compare with poo -view-only from a shell.
+  // The refusal is the core's: compare with poon -view-only from a shell.
   let want = '';
   try {
-    execFileSync(bin, ['poo', '-view-only', 'init'], { env, stdio: ['ignore', 'ignore', 'pipe'] });
+    execFileSync(bin, ['poon', '-view-only', 'init'], { env, stdio: ['ignore', 'ignore', 'pipe'] });
   } catch (e) {
     want = e.stderr.toString().trim();
   }
-  assert.ok(want.includes('view-only'), `poo -view-only init refuses: ${want}`);
+  assert.ok(want.includes('view-only'), `poon -view-only init refuses: ${want}`);
   await line.fill('init');
   await line.press('Enter');
   await until(async () => (await out.innerText()).includes(want), 'the refusal');

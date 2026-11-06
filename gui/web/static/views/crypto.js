@@ -3,8 +3,8 @@ import * as api from '../api.js';
 import { el, flag, form, mountAll, panel, pickFile, runJob } from '../views.js';
 import { saveAs } from './policies.js';
 
-// cryptoChoices offers the hashes and key algorithms poo crypto printed as
-// suggestions in the fields that name one (a datalist suggests, poo still
+// cryptoChoices offers the hashes and key algorithms poon crypto printed as
+// suggestions in the fields that name one (a datalist suggests, poon still
 // decides). The lists stay in the page for the Wallet view's key field too.
 function cryptoChoices(out) {
   let c;
@@ -17,10 +17,10 @@ function cryptoChoices(out) {
   }
 }
 
-// A key field opened before Series and keys asks poo crypto once, the
-// first time it is focused, so its suggestions are poo's own. One ask is
+// A key field opened before Series and keys asks poon crypto once, the
+// first time it is focused, so its suggestions are poon's own. One ask is
 // in flight at a time (ORANGE-011): focus moving in and out of key fields
-// before poo answers would otherwise run poo crypto for each focus, each
+// before poon answers would otherwise run poon crypto for each focus, each
 // a job in the Jobs list.
 let askingCrypto = null;
 document.addEventListener('focusin', e => {
@@ -38,14 +38,14 @@ export const cryptoView = {
     return mountAll(root, 'Series and keys', 'Offline tools: the choices a series can make, keys, and series parameters.', [
       panel(ctx, { title: 'Hashes, key algorithms and policy types', args: () => ['crypto'], onResult: r => { if (r.code === 0) cryptoChoices(r.out); } }),
       form(ctx, { title: 'Make a key', about: 'A key and its 1-of-1 address, from a random seed unless you give your own; the output includes the seed.',
-        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs' }, { name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'own', label: 'Use my own seed', type: 'check', help: 'poo asks for it in a masked field after you press Make key (-seed-file -), so it is never on the command line (D98).' },
+        fields: [{ name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs' }, { name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'own', label: 'Use my own seed', type: 'check', help: 'poon asks for it in a masked field after you press Make key (-seed-file -), so it is never on the command line (D98).' },
           { name: 'out', label: 'Save the new key to a file', placeholder: 'optional: a key file for Sign with a key kept elsewhere; only the public key and addresses are shown (-out)' },
-          { name: 'raw', label: 'Or a key made by another tool: give its private key, in its algorithm\'s usual form (-raw), and get only its public key and address', type: 'check', help: 'poo asks for the key in a masked field and never prints it (D193). Use it to add a cold key to a watch-only wallet.' }],
+          { name: 'raw', label: 'Or a key made by another tool: give its private key, in its algorithm\'s usual form (-raw), and get only its public key and address', type: 'check', help: 'poon asks for the key in a masked field and never prints it (D193). Use it to add a cold key to a watch-only wallet.' }],
         args: v => ['keygen', ...flag('alg', v.alg), ...flag('hash', v.hash), ...(v.own || v.raw ? ['-seed-file', '-'] : []), ...flag('raw', v.raw), ...flag('out', v.out)], submit: 'Make key', secretOutput: true }),
       // A series is fixed unless Variable is ticked (D163): then the issuer
-      // releases more parts later. poo checks the definition; the GUI only
-      // passes the fields on and offers what poo printed as a file.
-      form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked by poo, with Save as file. More options are in the terminal (poo series new -h).',
+      // releases more parts later. poon checks the definition; the GUI only
+      // passes the fields on and offers what poon printed as a file.
+      form(ctx, { title: 'New series parameters', about: 'Prints new series parameters, checked by poon, with Save as file. More options are in the terminal (poon series new -h).',
         fields: [{ name: 'hash', label: 'Hash', placeholder: 'sha256', list: 'crypto-hashes' }, { name: 'algs', label: 'Key algorithms', placeholder: 'comma list: ' + 'see the list above' }, { name: 'types', label: 'Policy types', placeholder: 'comma list: see the list above' }, { name: 'mints', label: 'Mints', type: 'number', placeholder: 'default 8' },
           // N, S and P together: a variable series needs N and M to be
           // multiples of P, so P is here beside them (GUI-GREEN-051).
@@ -61,22 +61,22 @@ export const cryptoView = {
         onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'series.json')); } }),
       form(ctx, { title: 'Series file info', fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json' }],
         args: v => ['series', 'info', ...(v.file ? [v.file] : [])], submit: 'Show' }),
-      form(ctx, { title: 'Sign a series', about: 'Signs a series file as its issuer and prints the issuer witness for node.json. poo asks for the issuer key\'s seed in a masked field.',
+      form(ctx, { title: 'Sign a series', about: 'Signs a series file as its issuer and prints the issuer witness for node.json. poon asks for the issuer key\'s seed in a masked field.',
         fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs', help: 'The issuer key\'s algorithm, from the list above (-alg).' }],
         args: v => ['series', 'sign', ...(v.file ? [v.file] : []), ...flag('alg', v.alg), '-seed-file', '-'], submit: 'Sign',
         onResult: (r, area) => { if (r.code === 0 && r.out.trim().startsWith('{')) area.append(saveAs(r.out, 'series-witness.json')); } }),
-      // Parts of a variable series, as poo prints them: ranges, never the
+      // Parts of a variable series, as poon prints them: ranges, never the
       // serials one by one (ORANGE-018); run when asked, not on a timer.
-      form(ctx, { title: 'Parts of a variable series', about: 'Each part\'s serials, pools and part id, worked out by poo from the series file. Up to 1,000 parts at a time.',
+      form(ctx, { title: 'Parts of a variable series', about: 'Each part\'s serials, pools and part id, worked out by poon from the series file. Up to 1,000 parts at a time.',
         fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'from', label: 'From part', type: 'number', placeholder: 'default 1' }, { name: 'to', label: 'To part', type: 'number', placeholder: 'from + 9, or the most parts' }],
         args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.from), ...flag('to', v.to)], submit: 'Show',
         ask: v => farPart(v.from, v.to) }),
       releaseForm(ctx),
       checkReleaseForm(ctx),
-      // The last two commands poo help lists that no view ran (GREEN-040).
-      form(ctx, { title: 'The worked example\'s series', about: 'The series poo init -example follows, as JSON: a starting point for a series file.', fields: [],
+      // The last two commands poon help lists that no view ran (GREEN-040).
+      form(ctx, { title: 'The worked example\'s series', about: 'The series poon init -example follows, as JSON: a starting point for a series file.', fields: [],
         args: () => ['series', 'example'], submit: 'Show' }),
-      form(ctx, { title: 'Simulate the network', about: 'The deterministic network simulator, on the worked example\'s series, in this process: it touches no files and no node. The same seed gives the same result. More flags are in the terminal (poo sim load -h).',
+      form(ctx, { title: 'Simulate the network', about: 'The deterministic network simulator, on the worked example\'s series, in this process: it touches no files and no node. The same seed gives the same result. More flags are in the terminal (poon sim load -h).',
         fields: [{ name: 'scenario', label: 'Scenario', type: 'select', options: ['load', 'partition', 'attack', 'sizing'] },
           { name: 'seed', label: 'Seed', type: 'number', placeholder: 'default 1' }, { name: 'runs', label: 'Runs', type: 'number', placeholder: 'default 1, seeds from Seed up' },
           { name: 'nodes', label: 'Nodes', type: 'number', placeholder: 'default 16' }, { name: 'duration', label: 'Duration (ms)', type: 'number', placeholder: 'default 60000' },
@@ -87,30 +87,30 @@ export const cryptoView = {
 };
 
 // FAR_PART is the part from which working out a part's id takes long
-// enough to ask first. poo hashes every part id up to K the first time a
+// enough to ask first. poon hashes every part id up to K the first time a
 // process needs part K, at a few million a second: part 10^8 takes some
-// 30 s, part 5x10^10 hours. Stop cannot end that until poo checks for it
-// (GUI-028, routed to Source), and the job holds one of poo-gui's job
-// slots while it runs. The GUI knows K, so it asks without a poo call.
+// 30 s, part 5x10^10 hours. Stop cannot end that until poon checks for it
+// (GUI-028, routed to Source), and the job holds one of poon-gui's job
+// slots while it runs. The GUI knows K, so it asks without a poon call.
 const FAR_PART = 100000000n;
 function farPart(...parts) {
   let far = 0n;
   for (const p of parts) if (/^\d+$/.test(p || '')) { const k = BigInt(p); if (k > far) far = k; }
   if (far < FAR_PART) return null;
-  return `Part ${far} takes poo about ${far} hashes to work out, some 30 s for each 10^8, so a far part takes hours. Once started, Stop cannot end it, and it holds one of the GUI's job slots until it ends. Run it?`;
+  return `Part ${far} takes poon about ${far} hashes to work out, some 30 s for each 10^8, so a far part takes hours. Once started, Stop cannot end it, and it holds one of the GUI's job slots until it ends. Run it?`;
 }
 
 // releaseForm is Release a part (D163) in two steps, like the imports
-// (GUI-023): Preview runs poo series parts for part K and says which
+// (GUI-023): Preview runs poon series parts for part K and says which
 // serials the release brings into being, then Sign, under the preview,
 // signs that part of that series and nothing else. A release can never be
 // taken back and releases every part before it, so the seed is asked for
 // only once the person has seen the range (GUI-027). Any change to the
-// form takes Sign away. After signing, the release poo printed is held to
+// form takes Sign away. After signing, the release poon printed is held to
 // the preview: the same series and the same part.
 function releaseForm(ctx) {
   let previewed = null, dropSign = () => {};
-  const f = form(ctx, { title: 'Release a part', about: 'Signs part K of a variable series as its issuer and prints the release to publish. Preview first shows which serials the release brings into being; Sign, under it, then signs that part. A release is permanent: nothing can take it back, and it also releases every part before it. poo asks for the issuer key\'s seed in a masked field.',
+  const f = form(ctx, { title: 'Release a part', about: 'Signs part K of a variable series as its issuer and prints the release to publish. Preview first shows which serials the release brings into being; Sign, under it, then signs that part. A release is permanent: nothing can take it back, and it also releases every part before it. poon asks for the issuer key\'s seed in a masked field.',
     fields: [{ name: 'file', label: 'Series file', placeholder: 'series.json', required: true }, { name: 'part', label: 'Part', type: 'number', placeholder: 'from 2 on', required: true }, { name: 'alg', label: 'Key algorithm', placeholder: 'ed25519', list: 'crypto-algs', help: 'The issuer key\'s algorithm, from the list above (-alg).' }],
     args: v => ['series', 'parts', ...(v.file ? [v.file] : []), ...flag('from', v.part), ...flag('to', v.part)], submit: 'Preview',
     ask: v => farPart(v.part),
@@ -122,13 +122,13 @@ function releaseForm(ctx) {
       const pt = info && Array.isArray(info.parts) && info.parts.length === 1 ? info.parts[0] : null;
       if (!pt || typeof info.series_id !== 'string') return;
       // Part 1 is released by the series' own issuer witness (Sign a
-      // series); poo releases parts from 2 on.
+      // series); poon releases parts from 2 on.
       if (pt.part < 2) { area.append(el('p', { class: 'hint' }, 'Part 1 is released by the issuer witness on the series (Sign a series above); a release is for part 2 on.')); return; }
       const file = f.inputs.file.value.trim();
       // The key algorithm is kept with what was previewed, so Sign signs
       // with the one shown when the preview ran.
       previewed = { file, part: pt.part, series: info.series_id, last: pt.last_serial, alg: f.inputs.alg.value.trim() };
-      // The mints that exist once the part is released are poo's count
+      // The mints that exist once the part is released are poon's count
       // (mints_released, D168); the GUI adds nothing up.
       const range = `serials ${pt.first_serial} to ${pt.last_serial}, and with every part before it, serials 0 to ${pt.last_serial}${pt.mints_released !== undefined ? `: ${pt.mints_released} mints` : ''}`;
       const what = el('p', { class: 'next-step release-range', role: 'alert' },
@@ -149,10 +149,10 @@ function releaseForm(ctx) {
           const same = rel && rel.series === p.series && rel.part === p.part;
           // A release that is not the one previewed is not offered to
           // save: it says do not publish it (GUI/Red R26B).
-          if (same) out.append(el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. poo checks it below.`), saveAs(r2.out, `release-${p.part}.json`));
+          if (same) out.append(el('p', { class: 'run-status ok release-made' }, `Signed: part ${p.part} of series ${p.series.slice(0, 12)}, ${range}. poon checks it below.`), saveAs(r2.out, `release-${p.part}.json`));
           else out.append(el('p', { class: 'run-status bad release-differs', role: 'alert' }, 'This release is not the part previewed (the series file changed?): do not publish it. Preview again.'));
-          // poo checks the release just printed, read from its input
-          // (-check -), so what is saved is what poo says it releases.
+          // poon checks the release just printed, read from its input
+          // (-check -), so what is saved is what poon says it releases.
           if (same) {
             const checked = el('div', { class: 'area release-check' });
             out.append(checked);
@@ -169,7 +169,7 @@ function releaseForm(ctx) {
 }
 
 // Check a release takes the release file by path, or picked in the
-// browser and sent to poo as its input (-check -, D166), as Add a release
+// browser and sent to poon as its input (-check -, D166), as Add a release
 // and the imports take theirs (GUI-GREEN-052): a release made elsewhere
 // can be checked before it is given to a node.
 function checkReleaseForm(ctx) {

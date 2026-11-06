@@ -7,7 +7,7 @@ import (
 )
 
 func TestFlagsForRefusesUnusedFlags(t *testing.T) {
-	t.Setenv("POO_HOME", t.TempDir())
+	t.Setenv("POON_HOME", t.TempDir())
 	for _, c := range []struct {
 		args []string
 		want string

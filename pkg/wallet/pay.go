@@ -353,7 +353,7 @@ func (w *Wallet) Claim(s *series.Series, n Node, serial uint64) (*Sent, error) {
 
 // ClaimUnsigned prepares a claim of mint serial of s to the address of the
 // wallet's policy named name, with no signature: a watch-only wallet's
-// claim, for poo sign to sign where the key is (GREEN-060). The claim's
+// claim, for poon sign to sign where the key is (GREEN-060). The claim's
 // one witness is for its one output, so the unsigned leg lists one
 // policy, as a payment lists one per input. It records the claim, so
 // Submit takes the signed file, and watches the mint.
@@ -368,7 +368,7 @@ func (w *Wallet) ClaimUnsigned(s *series.Series, serial uint64, name string) (*S
 		}
 	}
 	if pi == nil {
-		return nil, nil, fmt.Errorf("wallet: no policy %q (poo wallet policy -name %s -k 1 -key ALG:PUBLIC)", name, name)
+		return nil, nil, fmt.Errorf("wallet: no policy %q (poon wallet policy -name %s -k 1 -key ALG:PUBLIC)", name, name)
 	}
 	p := pi.Params().Policy()
 	if err := CheckPolicy(s, p); err != nil {
@@ -416,12 +416,12 @@ type Unsigned struct {
 	Variable bool          `json:"variable,omitempty"`
 	Legs     []UnsignedLeg `json:"legs"`
 	// kept holds the fields a later release wrote that this one does not
-	// know, written back unchanged by poo sign and cosign (W-23).
+	// know, written back unchanged by poon sign and cosign (W-23).
 	kept keepjson.Kept
 }
 
-// PaymentFileKind and PaymentFormat name the file poo wallet pay -out
-// writes and poo sign reads (W-23, D195). A field an older signer must
+// PaymentFileKind and PaymentFormat name the file poon wallet pay -out
+// writes and poon sign reads (W-23, D195). A field an older signer must
 // not ignore raises PaymentFormat (W-25).
 const (
 	PaymentFileKind = brand.KindPrefix + "payment"
@@ -554,7 +554,7 @@ func (u *Unsigned) DecodeLeg(i int) (*tx.Tx, error) {
 	}
 	if err != nil {
 		if !u.Variable {
-			return nil, fmt.Errorf("leg of mint %d does not decode (%v); if its series is variable supply, the file needs \"variable\": true, which poo wallet pay writes from this release", l.Serial, err)
+			return nil, fmt.Errorf("leg of mint %d does not decode (%v); if its series is variable supply, the file needs \"variable\": true, which poon wallet pay writes from this release", l.Serial, err)
 		}
 		return nil, fmt.Errorf("leg of mint %d: %w", l.Serial, err)
 	}
@@ -688,7 +688,7 @@ func (w *Wallet) Submit(s *series.Series, n Node, u *Unsigned) (*Sent, error) {
 // it signs the leg's transaction id under the hash function h. It
 // returns how many signatures it added. This is how a key kept off the
 // node, on another machine, signs a payment a watch-only wallet made
-// (poo sign, D193). The caller should show what the legs pay first.
+// (poon sign, D193). The caller should show what the legs pay first.
 func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) (int, error) {
 	pub := signer.Public()
 	added := 0

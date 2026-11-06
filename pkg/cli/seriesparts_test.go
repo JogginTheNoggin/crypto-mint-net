@@ -226,9 +226,9 @@ func TestSeriesPartsAsRanges(t *testing.T) {
 	}
 }
 
-// A node keeps a variable series listed without its issuer witness: poo
-// init says what it needs, and poo doctor says to add the witness, not to
-// correct the series (GREEN-049, D166); and poo series parts -from past
+// A node keeps a variable series listed without its issuer witness: poon
+// init says what it needs, and poon doctor says to add the witness, not to
+// correct the series (GREEN-049, D166); and poon series parts -from past
 // the last part names the cap.
 func TestVariableSeriesNotes(t *testing.T) {
 	dir := t.TempDir()
@@ -277,13 +277,13 @@ func TestVariableSeriesOnANode(t *testing.T) {
 	if err := os.WriteFile(signed, []byte(runOut(t, "series", "sign", file, "-seed-file", issuerSeed)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// poo series info reads the signed file too, with the supply type,
+	// poon series info reads the signed file too, with the supply type,
 	// part size and no max_parts for an uncapped series; -h is help, not a
 	// file (GUI-GREEN-051).
 	if a, b := runOut(t, "series", "info", signed), runOut(t, "series", "info", file); a != b || !strings.Contains(a, `"supply_type": "variable"`) || !strings.Contains(a, `"part_size": 4`) || strings.Contains(a, "max_parts") {
 		t.Fatalf("series info of the signed file:\n%s\nof the params file:\n%s", a, b)
 	}
-	if out := runOut(t, "series", "info", "-h"); !strings.Contains(out, "usage: poo series info") {
+	if out := runOut(t, "series", "info", "-h"); !strings.Contains(out, "usage: poon series info") {
 		t.Fatalf("series info -h: %s", out)
 	}
 	rel := filepath.Join(dir, "part2.json")
@@ -300,7 +300,7 @@ func TestVariableSeriesOnANode(t *testing.T) {
 	defer stop()
 	alice := seedFile(t, strings.Repeat("a1", 32))
 	cli(t, nil, append([]string{"claim", "-seed-file", alice, "-serial", "2"}, r...)...)
-	if _, err := runErr(append([]string{"claim", "-seed-file", alice, "-serial", "9"}, r...)...); err == nil || !strings.Contains(err.Error(), "waiting for a release") || !strings.Contains(err.Error(), "poo series add-release FILE") || ExitCode(err) != ExitWaiting {
+	if _, err := runErr(append([]string{"claim", "-seed-file", alice, "-serial", "9"}, r...)...); err == nil || !strings.Contains(err.Error(), "waiting for a release") || !strings.Contains(err.Error(), "poon series add-release FILE") || ExitCode(err) != ExitWaiting {
 		t.Fatalf("a claim on part 2 before its release: %v (exit %d)", err, ExitCode(err))
 	}
 	var followed struct{ Series []rpc.SeriesInfo }
@@ -365,7 +365,7 @@ func TestVariableSeriesOnANode(t *testing.T) {
 	}
 }
 
-// poo series parts -o table lists one row per part (GREEN-049's idea).
+// poon series parts -o table lists one row per part (GREEN-049's idea).
 func TestSeriesPartsTable(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "series.json")

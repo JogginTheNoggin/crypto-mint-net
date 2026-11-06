@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// BLUE-036 (RED-104, GUI-032, GUI-GREEN-061): poo sign shows the series,
+// BLUE-036 (RED-104, GUI-032, GUI-GREEN-061): poon sign shows the series,
 // the hash and each input spent, and refuses a file whose series is not
 // its transactions'; a key file's value is never echoed; a watch-only pay
 // with no -out records nothing.
@@ -29,7 +29,7 @@ func TestBlue036ColdKeySteps(t *testing.T) {
 		PublicKey string `json:"public_key"`
 	}
 	cli(t, &k, "keygen", "-seed-file", keyFile)
-	t.Setenv("POO_PASSPHRASE", "")
+	t.Setenv("POON_PASSPHRASE", "")
 	wfile := filepath.Join(root, "watch.json")
 	ww := append([]string{"-wallet", wfile}, r...)
 	wcmd := func(v any, sub string, args ...string) {
@@ -70,7 +70,7 @@ func TestBlue036ColdKeySteps(t *testing.T) {
 		t.Fatalf("balance after the refused pay %d, want 100", bal.Total)
 	}
 
-	// With -out, poo sign shows the series, hash and inputs.
+	// With -out, poon sign shows the series, hash and inputs.
 	u := filepath.Join(t.TempDir(), "pay.json")
 	runOut(t, append(append([]string{"wallet", "pay"}, ww...), "-to", bk.Address, "-amount", "30", "-out", u)...)
 	var file map[string]any
@@ -115,7 +115,7 @@ func TestBlue036ColdKeySteps(t *testing.T) {
 // read twice, is refused. RED-108: header keys after the entries reach
 // the result, so the dry run checks the range against them.
 func TestBlue036LedgerFileOrder(t *testing.T) {
-	const fields = `"kind":"poo-ledger","format":1,"series":"0000000000000000000000000000000000000000000000000000000000000001","pool":7`
+	const fields = `"kind":"poon-ledger","format":1,"series":"0000000000000000000000000000000000000000000000000000000000000001","pool":7`
 	const items = `[{"height":1,"item":"AQI="},{"height":2,"item":"AwQ="}]`
 	early := `{"entries":` + items + `,` + fields + `}`
 	var got []string

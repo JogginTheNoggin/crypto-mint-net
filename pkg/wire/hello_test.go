@@ -14,7 +14,7 @@ import (
 // The hello carries release, features and extensions; the ping and pong
 // carry extensions (D186).
 func TestHelloReleaseFeaturesExt(t *testing.T) {
-	h := wire.Hello{Protocol: 1, NodeID: hash.Hash{3}, Agent: "poo", Release: "0.1.0-alpha.1+abc",
+	h := wire.Hello{Protocol: 1, NodeID: hash.Hash{3}, Agent: "poon", Release: "0.1.0-alpha.1+abc",
 		Features: wire.OwnFeatures, Ext: []wire.Ext{{Tag: 1, Value: []byte("x")}, {Tag: 900, Value: nil}}}
 	if err := h.Check(); err != nil {
 		t.Fatal(err)

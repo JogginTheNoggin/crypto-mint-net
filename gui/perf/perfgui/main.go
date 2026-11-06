@@ -1,19 +1,19 @@
 // Command perfgui serves the real GUI page and API over a job runner whose
-// poo is partly simulated, so the page can be measured under loads a test
+// poon is partly simulated, so the page can be measured under loads a test
 // node cannot produce on demand (docs/proposals/gui/ORANGE-001). It is a
-// measuring tool only: it is not released and poo-gui never uses it.
+// measuring tool only: it is not released and poon-gui never uses it.
 //
 //	go -C gui run ./perf/perfgui [-rate N] [-events N] [-log N]
 //
 // It prints a sign-in address. Commands run by the real cli.Main, except:
 //
 //	watch  prints -events watch events, -rate per second (0: as fast as
-//	       it can), in the shape poo watch prints, then waits until stopped
+//	       it can), in the shape poon watch prints, then waits until stopped
 //	node   prints -log log lines a second until stopped, like a busy node
 //	grind run  prints a plan, then -events progress lines, -rate per second,
-//	       with a found line before every -found'th, like poo grind run
+//	       with a found line before every -found'th, like poon grind run
 //	big    prints -events lines of output and exits (a large result)
-//	bigjson prints a JSON list of -events rows like poo unspent's and exits
+//	bigjson prints a JSON list of -events rows like poon unspent's and exits
 package main
 
 import (
@@ -73,7 +73,7 @@ func fakeMain(ctx context.Context, args []string, s cli.Stdio) int {
 		case "node":
 			return fakeNode(ctx, s)
 		case "bigjson":
-			// A large JSON result, shaped like poo unspent's rows.
+			// A large JSON result, shaped like poon unspent's rows.
 			rows := make([]map[string]any, *events)
 			for i := range rows {
 				rows[i] = map[string]any{"pool": i % 4, "serial": i % 100, "address": hx(i, 32), "tid": hx(i+1, 32), "portion": i % 7, "amount": fmt.Sprint(i + 1), "height": i / 6, "entry": hx(i+2, 32), "spent": false}
@@ -98,7 +98,7 @@ func hx(i, n int) string {
 	return hex.EncodeToString(b)
 }
 
-// event is one line in the shape poo watch prints (pkg/watch.Event).
+// event is one line in the shape poon watch prints (pkg/watch.Event).
 func event(i int) []byte {
 	kinds := []string{"tx", "tx", "tx", "entry", "layer", "selected"}
 	k := kinds[i%len(kinds)]
@@ -119,7 +119,7 @@ func event(i int) []byte {
 	return append(b, '\n')
 }
 
-// fakeWatch writes one event per Write, as poo watch's json.Encoder does.
+// fakeWatch writes one event per Write, as poon watch's json.Encoder does.
 func fakeWatch(ctx context.Context, s cli.Stdio) int {
 	start := time.Now()
 	for i := 0; i < *events; i++ {
@@ -138,7 +138,7 @@ func fakeWatch(ctx context.Context, s cli.Stdio) int {
 }
 
 func fakeNode(ctx context.Context, s cli.Stdio) int {
-	fmt.Fprintln(s.Err, "poo node: 1 pools followed (fake, for measuring)")
+	fmt.Fprintln(s.Err, "poon node: 1 pools followed (fake, for measuring)")
 	t := time.NewTicker(time.Second / time.Duration(max(*logRate, 1)))
 	defer t.Stop()
 	for i := 0; ; i++ {
@@ -146,12 +146,12 @@ func fakeNode(ctx context.Context, s cli.Stdio) int {
 		case <-ctx.Done():
 			return 0
 		case <-t.C:
-			fmt.Fprintf(s.Err, "%s poo node: peer 127.0.0.1:%d sent entry %s at height %d\n", time.Now().Format(time.RFC3339), 7000+i%9, hx(i, 32), i)
+			fmt.Fprintf(s.Err, "%s poon node: peer 127.0.0.1:%d sent entry %s at height %d\n", time.Now().Format(time.RFC3339), 7000+i%9, hx(i, 32), i)
 		}
 	}
 }
 
-// fakeGrind writes events in the shape poo grind run prints
+// fakeGrind writes events in the shape poon grind run prints
 // (pkg/grind.Event), one per Write, then waits until stopped.
 func fakeGrind(ctx context.Context, s cli.Stdio) int {
 	enc := json.NewEncoder(s.Out)

@@ -127,7 +127,7 @@ func (r *Registry) fitHint(p Policy, budget int) string {
 // MaxK returns the largest k for which a k-of-k threshold policy of
 // algorithm a fits a witness ceiling of max bytes (0: none), counting the
 // policy's params as well as its signatures. It is at most
-// MaxThresholdKeys. poo crypto shows it (Red's condition 5, D170).
+// MaxThresholdKeys. poon crypto shows it (Red's condition 5, D170).
 func MaxK(a KeyAlg, max int) int {
 	if max <= 0 {
 		return MaxThresholdKeys

@@ -121,7 +121,7 @@ whose kinds are not event kinds:
 
 Events while the node reloads are not replayed (D91): a client that sees
 `end` connects again, reads the views for where things stand, and goes
-on. `rpc.Client.Watch(ctx, f, fn)` reads the stream; `poo watch` does
+on. `rpc.Client.Watch(ctx, f, fn)` reads the stream; `poon watch` does
 the reconnecting.
 
 ## Tests

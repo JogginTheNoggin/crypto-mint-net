@@ -474,7 +474,7 @@ func TestSecretEndsOnCancel(t *testing.T) {
 
 // TestViewOnly runs jobs through the core with Options.ViewOnly: reads
 // run as they do headless, and a command that changes something is
-// refused by the core itself, exactly as poo -view-only refuses it.
+// refused by the core itself, exactly as poon -view-only refuses it.
 func TestViewOnly(t *testing.T) {
 	r := New(context.Background(), Options{ViewOnly: true})
 	defer r.Close(5 * time.Second)
@@ -495,10 +495,10 @@ func TestViewOnly(t *testing.T) {
 			t.Fatal(err)
 		}
 		if got := wait(t, j); got != want {
-			t.Errorf("%v: exit %d, poo -view-only %d", args, got, want)
+			t.Errorf("%v: exit %d, poon -view-only %d", args, got, want)
 		}
 		if j.Output(Stdout) != out.String() || j.Output(Stderr) != errOut.String() {
-			t.Errorf("%v: output differs from poo -view-only", args)
+			t.Errorf("%v: output differs from poon -view-only", args)
 		}
 	}
 	j, _ := r.Start([]string{"init", "-root", dir})

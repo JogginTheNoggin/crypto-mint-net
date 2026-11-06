@@ -97,15 +97,15 @@ second can at least be detected.
 - **Files:** the data directory, policies, peer book, tracking file, logs
   and wallet are written with mode 0600 in 0700 directories, through a
   temporary file and a rename. The only 0644 files are the payment
-  requests and unsigned transactions `poo wallet` writes when asked, which
+  requests and unsigned transactions `poon wallet` writes when asked, which
   hold nothing secret.
 - **Wallet:** the seed is sealed with AES-256-GCM under a key from
   Argon2id (64 MiB, 3 passes, 16-byte random salt, random nonce; D95,
   older wallets PBKDF2-SHA256 at 600,000 iterations) and bound to its use
   with associated data (D64). The passphrase comes from an environment variable, a file or standard input, never a flag.
 - **View token and view-only mode (D100, D101):** `rpc.view-token` (mode
-  0600) opens `GET` and `HEAD` only; `poo -view-only` and
-  `POO_VIEW_ONLY=1` use it and refuse every command that writes. A typed
+  0600) opens `GET` and `HEAD` only; `poon -view-only` and
+  `POON_VIEW_ONLY=1` use it and refuse every command that writes. A typed
   passphrase is read with echo off.
 - **Views and the watch stream (M10):** behind the same token. Every
   view is bounded per request (D94). A watcher that reads slowly loses
@@ -152,7 +152,7 @@ second can at least be detected.
   atomic swap but not its refund, since consensus has no clock (D82).
 - **Key derivation.** Closed by D95: new wallets seal the seed with
   Argon2id (64 MiB, 3 passes), which resists guessing on GPUs far better
-  than PBKDF2, and `poo wallet passwd` upgrades older wallets.
+  than PBKDF2, and `poon wallet passwd` upgrades older wallets.
 
 ## Reporting
 

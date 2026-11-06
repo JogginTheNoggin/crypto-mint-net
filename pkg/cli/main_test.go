@@ -80,7 +80,7 @@ func TestMainExitCode(t *testing.T) {
 	if code := Main(context.Background(), []string{"version"}, s); code != 0 || strings.TrimSpace(out.String()) != Version {
 		t.Fatalf("version: code %d, out %q", code, out.String())
 	}
-	if code := Main(context.Background(), []string{"nope"}, s); code != 1 || !strings.HasPrefix(errOut.String(), `poo: unknown command "nope"`) {
+	if code := Main(context.Background(), []string{"nope"}, s); code != 1 || !strings.HasPrefix(errOut.String(), `poon: unknown command "nope"`) {
 		t.Fatalf("unknown command: code %d, err %q", code, errOut.String())
 	}
 }
@@ -115,7 +115,7 @@ func TestRunReadsIn(t *testing.T) {
 	}
 }
 
-// TestRunNodeStopsOnCancel checks poo node stops when its context is
+// TestRunNodeStopsOnCancel checks poon node stops when its context is
 // cancelled, as it does on an interrupt from a shell.
 func TestRunNodeStopsOnCancel(t *testing.T) {
 	dir := t.TempDir()

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// poo claim -parent before-claim builds a rival claim on the branch from
+// poon claim -parent before-claim builds a rival claim on the branch from
 // before the selected claim, and enough work on it makes it the selected
 // ledger: the mint then belongs to the rival (D161).
 func TestRivalClaimCLI(t *testing.T) {
@@ -39,7 +39,7 @@ func TestRivalClaimCLI(t *testing.T) {
 		Next     string
 	}
 	cli(t, &rival, append([]string{"claim", "-seed-file", seedFile(t, bob), "-serial", "5", "-parent", "before-claim"}, r...)...)
-	if rival.Switched || !strings.Contains(rival.Next, "poo grind start "+rival.Hash) {
+	if rival.Switched || !strings.Contains(rival.Next, "poon grind start "+rival.Hash) {
 		t.Fatalf("rival %+v", rival)
 	}
 	for i := 0; i < 50; i++ {
@@ -79,7 +79,7 @@ func TestRivalClaimCLI(t *testing.T) {
 	}
 }
 
-// poo policy limits -set changes node.json with the node stopped, checked
+// poon policy limits -set changes node.json with the node stopped, checked
 // whole, and a bad value changes nothing.
 func TestPolicyLimitsSet(t *testing.T) {
 	root := t.TempDir()
@@ -142,13 +142,13 @@ func TestBuildNextSteps(t *testing.T) {
 		Next     string
 	}
 	cli(t, &built, append([]string{"build", "-serial", "5"}, r...)...)
-	if built.Switched || !strings.Contains(built.Next, "poo work -pool 1 -entry "+built.Hash) {
+	if built.Switched || !strings.Contains(built.Next, "poon work -pool 1 -entry "+built.Hash) {
 		t.Fatalf("plain build: %+v", built)
 	}
 	// Alice's claim is in an entry no layer has selected.
 	var out bytes.Buffer
 	err := run(append([]string{"claim", "-seed-file", seedFile(t, bob), "-serial", "5", "-parent", "before-claim"}, r...), &out)
-	if err == nil || !strings.Contains(err.Error(), "-parent root") || !strings.Contains(err.Error(), "poo pending -pool 1") {
+	if err == nil || !strings.Contains(err.Error(), "-parent root") || !strings.Contains(err.Error(), "poon pending -pool 1") {
 		t.Fatalf("before-claim on an unselected claim: %v", err)
 	}
 	var rival struct {
@@ -157,7 +157,7 @@ func TestBuildNextSteps(t *testing.T) {
 		Next  string
 	}
 	cli(t, &rival, append([]string{"claim", "-seed-file", seedFile(t, bob), "-serial", "6", "-parent", "root"}, r...)...)
-	if !strings.Contains(rival.Next, "poo grind start "+rival.Hash+" -pool 1") || strings.Contains(rival.Next, "-serial") || rival.Entry != "" {
+	if !strings.Contains(rival.Next, "poon grind start "+rival.Hash+" -pool 1") || strings.Contains(rival.Next, "-serial") || rival.Entry != "" {
 		t.Fatalf("claim -parent root: %+v", rival)
 	}
 	cli(t, nil, append([]string{"claim", "-seed-file", seedFile(t, bob), "-serial", "7"}, r...)...)

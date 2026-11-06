@@ -205,3 +205,25 @@ func TestSetLimits(t *testing.T) {
 		t.Errorf("back to the defaults: %v %v %+v", ok, err, p.P2P)
 	}
 }
+
+// GUI-GREEN-065: every limit says what 0 means; one with no word of its
+// own means its default.
+func TestLimitsSayWhatZeroMeans(t *testing.T) {
+	for _, l := range (Policy{}).Limits() {
+		if l.Zero == "" {
+			t.Fatalf("%s: no zero meaning", l.Name)
+		}
+		if _, own := zeroMeans[l.Name]; !own && l.Default == 0 {
+			t.Fatalf("%s: default 0 with no word for what 0 means", l.Name)
+		}
+	}
+	names := map[string]bool{}
+	for _, b := range Bounds() {
+		names[b.Name] = true
+	}
+	for name := range zeroMeans {
+		if !names[name] {
+			t.Fatalf("zeroMeans names %s, which is not a limit", name)
+		}
+	}
+}

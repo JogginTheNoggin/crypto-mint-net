@@ -271,12 +271,12 @@ func TestRequestGuards(t *testing.T) {
 
 // TestRunSameAsCLI is the GUI's promise: a command run through the GUI's
 // API, as args or as a typed line, gives the same bytes and exit code as
-// cli.Main, the function the poo binary runs.
+// cli.Main, the function the poon binary runs.
 func TestRunSameAsCLI(t *testing.T) {
 	h := newHarness(t, jobs.Options{})
 	for _, line := range []string{
 		"version",
-		"poo crypto",
+		"poon crypto",
 		"keygen -seed " + strings.Repeat("cd", 32) + " -alg ml-dsa-44 -hash blake3",
 		"series example",
 		"series new -mints 100",
@@ -324,12 +324,12 @@ func TestJobStreamAndInput(t *testing.T) {
 		ID      string
 		Command string
 	}
-	r := h.do("POST", "/api/jobs", map[string]any{"line": "poo wallet seed -memo 'a b'"}, nil)
+	r := h.do("POST", "/api/jobs", map[string]any{"line": "poon wallet seed -memo 'a b'"}, nil)
 	if r.StatusCode != http.StatusCreated {
 		t.Fatalf("start: %d", r.StatusCode)
 	}
 	decode(t, r, &j)
-	if j.Command != "poo wallet seed -memo 'a b'" {
+	if j.Command != "poon wallet seed -memo 'a b'" {
 		t.Fatalf("command %q", j.Command)
 	}
 	resp := h.do("GET", "/api/jobs/"+j.ID+"/events", nil, nil)
@@ -410,7 +410,7 @@ func TestSplitEndpoint(t *testing.T) {
 		Args    []string
 		Command string
 	}
-	decode(t, h.do("GET", "/api/split?line="+strings.ReplaceAll("poo pay -memo 'x y'", " ", "%20"), nil, nil), &got)
+	decode(t, h.do("GET", "/api/split?line="+strings.ReplaceAll("poon pay -memo 'x y'", " ", "%20"), nil, nil), &got)
 	if len(got.Args) != 3 || got.Args[2] != "x y" || got.Command != shell.Quote([]string{"pay", "-memo", "x y"}) {
 		t.Fatalf("%+v", got)
 	}
@@ -472,8 +472,8 @@ func TestInfo(t *testing.T) {
 	}
 }
 
-// TestInfoVersion: /api/info gives the page the release poo-gui was
-// built as (Server.Version, cli.Version in poo-gui), so it can show it
+// TestInfoVersion: /api/info gives the page the release poon-gui was
+// built as (Server.Version, cli.Version in poon-gui), so it can show it
 // (GUI White G4, GUI-GREEN-058).
 func TestInfoVersion(t *testing.T) {
 	h := newHarness(t, jobs.Options{})
@@ -647,7 +647,7 @@ func TestJobEOF(t *testing.T) {
 		return 0
 	}})
 	var j struct{ ID string }
-	r := h.do("POST", "/api/jobs", map[string]any{"line": "poo submit entry -f -"}, nil)
+	r := h.do("POST", "/api/jobs", map[string]any{"line": "poon submit entry -f -"}, nil)
 	if r.StatusCode != http.StatusCreated {
 		t.Fatalf("start: %d", r.StatusCode)
 	}
@@ -693,7 +693,7 @@ func TestInputInParts(t *testing.T) {
 		return 0
 	}})
 	var j struct{ ID string }
-	decode(t, h.do("POST", "/api/jobs", map[string]any{"line": "poo submit entry -f -"}, nil), &j)
+	decode(t, h.do("POST", "/api/jobs", map[string]any{"line": "poon submit entry -f -"}, nil), &j)
 	part := strings.Repeat("ab", MaxBody/4)
 	for _, b := range []map[string]any{{"line": part, "more": true}, {"line": part, "more": true}, {"line": "cd"}} {
 		if r := h.do("POST", "/api/jobs/"+j.ID+"/input", b, nil); r.StatusCode != http.StatusNoContent {

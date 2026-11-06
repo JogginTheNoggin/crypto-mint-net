@@ -42,7 +42,7 @@ jobs:
         # (D124); they are skipped under -race, so they run here on their own.
         run: go test -count=1 -timeout 20m -run 'TestHeavierLedgerHuge|TestHeavierLedgerLongBareRun|TestTwoSlowFetchesBothFinish' ./pkg/p2p
       - name: demo
-        run: go run ./cmd/poo demo -quiet
+        run: go run ./cmd/poon demo -quiet
       - name: fuzz
         run: FUZZTIME=5s ./scripts/fuzz.sh
       - name: release build
@@ -64,14 +64,14 @@ jobs:
           npx playwright install --with-deps chromium
       - name: end to end
         run: |
-          go -C gui build -o "$RUNNER_TEMP/poo-gui" ./cmd/poo-gui
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/terminal.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/views.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/qol.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/watch.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/viewonly.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/bounds.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/work.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/streams.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/parity.mjs "$RUNNER_TEMP/poo-gui"
-          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/variable.mjs "$RUNNER_TEMP/poo-gui"
+          go -C gui build -o "$RUNNER_TEMP/poon-gui" ./cmd/poon-gui
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/terminal.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/views.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/qol.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/watch.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/viewonly.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/bounds.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/work.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/streams.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/parity.mjs "$RUNNER_TEMP/poon-gui"
+          NODE_PATH="$RUNNER_TEMP/node_modules" node gui/e2e/variable.mjs "$RUNNER_TEMP/poon-gui"

@@ -8,11 +8,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
 
 // View-only mode (GREEN-007 part 2, decision D101): an invocation that
-// only looks. It is on when Stdio.ViewOnly is set, when $POO_VIEW_ONLY is
+// only looks. It is on when Stdio.ViewOnly is set, when $POON_VIEW_ONLY is
 // 1 or true, or when the arguments start with -view-only. Then every
 // command that talks to the node dials with the view token
 // (rpc.view-token), so the node itself refuses anything but reads, and
@@ -20,7 +21,7 @@ import (
 // nothing is written locally either.
 
 // ViewOnlyEnv is the environment variable that turns view-only mode on.
-const ViewOnlyEnv = "POO_VIEW_ONLY"
+const ViewOnlyEnv = brand.EnvPrefix + "VIEW_ONLY"
 
 // readCommands are the commands that only read: from the node, from local
 // files, or nothing at all. A command maps to true when all of it reads,
@@ -32,12 +33,12 @@ var readCommands = map[string]map[string]bool{
 	"crypto": nil, "keygen": nil, "series": nil, "sim": nil, "demo": nil,
 	"completion": nil, "__complete": nil, "doctor": nil,
 	"status": nil, "tracking": nil, "chases": nil,
-	// poo peers with its filters only looks; export writes a file and
+	// poon peers with its filters only looks; export writes a file and
 	// import changes the book (D157). "-" stands for a first argument
 	// that is a flag.
 	"peers":   {"-": true},
 	"payment": nil, "holdings": nil,
-	// poo ledger with flags only looks; export writes a file and import
+	// poon ledger with flags only looks; export writes a file and import
 	// hands entries to the node (D188).
 	"ledger": {"-": true},
 	"pools":  nil, "pending": nil, "unspent": nil, "tx": nil, "address": nil,
@@ -63,7 +64,7 @@ var writeCommands = []string{
 	// settings export writes a file, as policy export does, and import
 	// changes node.json (D155).
 	"settings",
-	// poo sign writes the signed payment file (D193).
+	// poon sign writes the signed payment file (D193).
 	"sign",
 }
 
@@ -73,7 +74,7 @@ func viewOnlyOf(out io.Writer) bool {
 	return ok && s.viewOnly
 }
 
-// viewOnlyEnv reports whether $POO_VIEW_ONLY turns view-only mode on.
+// viewOnlyEnv reports whether $POON_VIEW_ONLY turns view-only mode on.
 func viewOnlyEnv() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(ViewOnlyEnv))) {
 	case "1", "true", "yes", "on":
@@ -88,10 +89,10 @@ var ErrViewOnly = errors.New("view-only")
 
 // errViewOnly is the error for a command that would change something.
 func errViewOnly(what string) error {
-	return fmt.Errorf("%w: poo %s changes things", ErrViewOnly, what)
+	return fmt.Errorf("%w: poon %s changes things", ErrViewOnly, what)
 }
 
-// ReloadsOnHangup reports whether the command line args (without "poo")
+// ReloadsOnHangup reports whether the command line args (without "poon")
 // runs a node, which reloads its node policy on SIGHUP; every other
 // command should stop on it, as on an interrupt.
 func ReloadsOnHangup(args []string) bool {
@@ -186,7 +187,7 @@ func SecretFlags() []string { return []string{"seed", "restore"} }
 // new key's seed, wallet seed the wallet's.
 var secretOutputs = map[string]map[string]bool{"keygen": nil, "wallet": {"seed": true}}
 
-// SecretOutput reports whether the command line args (without "poo")
+// SecretOutput reports whether the command line args (without "poon")
 // prints a secret, so a front end that keeps output, such as the GUI's
 // terminal and job list, can hide it (GUI-009).
 func SecretOutput(args []string) bool {

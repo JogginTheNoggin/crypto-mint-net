@@ -36,9 +36,9 @@ import (
 // DefaultPolicyName is the node policy used when none is named or current.
 const DefaultPolicyName = "default"
 
-// defaultRoot is where node policies live: $POO_HOME, or ~/.poo.
+// defaultRoot is where node policies live: $POON_HOME, or ~/.poon.
 func defaultRoot() string {
-	if r := os.Getenv("POO_HOME"); r != "" {
+	if r := os.Getenv(brand.EnvPrefix + "HOME"); r != "" {
 		return r
 	}
 	home, err := os.UserHomeDir()
@@ -55,7 +55,7 @@ type where struct {
 
 func addWhere(fs *flag.FlagSet) *where {
 	return &where{
-		root: fs.String("root", defaultRoot(), "directory holding the node policies ($POO_HOME)"),
+		root: fs.String("root", defaultRoot(), "directory holding the node policies ($POON_HOME)"),
 		name: fs.String("policy", "", "node policy name (default: the current one, else \"default\")"),
 		dir:  fs.String("dir", "", "use this data directory directly instead of -root and -policy"),
 	}
@@ -191,16 +191,16 @@ func initCmd(args []string, out io.Writer) error {
 	return nil
 }
 
-// signedSeries is what poo series sign prints: a series with its issuer
-// witness, which poo init -series also takes.
+// signedSeries is what poon series sign prints: a series with its issuer
+// witness, which poon init -series also takes.
 type signedSeries struct {
 	ID            string        `json:"series_id,omitempty"`
 	Params        series.Params `json:"params"`
 	IssuerWitness string        `json:"issuer_witness"`
 }
 
-// readSeriesInfo reads a series file for poo init -series: a series' params
-// as poo series new prints them, or a signed series as poo series sign
+// readSeriesInfo reads a series file for poon init -series: a series' params
+// as poon series new prints them, or a signed series as poon series sign
 // prints it, whose witness is checked here.
 func readSeriesInfo(b []byte) (nodepolicy.SeriesInfo, error) {
 	var keys map[string]json.RawMessage
@@ -237,11 +237,11 @@ func readSeriesInfo(b []byte) (nodepolicy.SeriesInfo, error) {
 
 // waitingHint follows a mint that waits for its part's release: what
 // releases it at this node (GREEN-050).
-const waitingHint = "; once the issuer publishes that part's release, peers pass it on, or give it to the node with poo series add-release FILE (poo series followed shows what is released here)"
+const waitingHint = "; once the issuer publishes that part's release, peers pass it on, or give it to the node with poon series add-release FILE (poon series followed shows what is released here)"
 
 // variableNote says what a variable series needs before the node follows
 // it (D166, GREEN-049): it is kept, not wrong.
-const variableNote = "the node follows it once node.json has the issuer_witness its issuer published (poo series sign), which releases part 1; give it later parts with poo series add-release (docs/variable-supply.md)"
+const variableNote = "the node follows it once node.json has the issuer_witness its issuer published (poon series sign), which releases part 1; give it later parts with poon series add-release (docs/variable-supply.md)"
 
 // nodeCmd runs the node until interrupted.
 func nodeCmd(args []string, out io.Writer) error {
@@ -249,7 +249,7 @@ func nodeCmd(args []string, out io.Writer) error {
 	w := addWhere(fs)
 	level := fs.String("log-level", "", "debug, info, warn or error (default: the node policy's log.level, else info)")
 	format := fs.String("log-format", "", "plain, text or json (default: the node policy's log.format, else plain)")
-	reverify := fs.Bool("reverify", false, "ignore the pool snapshots and replay every pool log whole, checking every record again; where a snapshot covered a whole log, say whether the replay matched it (poo status, poo doctor)")
+	reverify := fs.Bool("reverify", false, "ignore the pool snapshots and replay every pool log whole, checking every record again; where a snapshot covered a whole log, say whether the replay matched it (poon status, poon doctor)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -408,7 +408,7 @@ func statusCmd(args []string, out io.Writer) error {
 // seriesStatus is the totals of one followed series' pools.
 type seriesStatus struct {
 	Series hash.Hash `json:"series"`
-	// Builtin names a series the code carries, as poo series followed
+	// Builtin names a series the code carries, as poon series followed
 	// does ("default"; GUI-GREEN-056, D192).
 	Builtin  string `json:"builtin,omitempty"`
 	Pools    int    `json:"pools"`
@@ -419,7 +419,7 @@ type seriesStatus struct {
 	Stored   int    `json:"stored_records"`
 }
 
-// statusSummary is poo status -counts: the status reply with the pool rows
+// statusSummary is poon status -counts: the status reply with the pool rows
 // added up per series, so a node following thousands of pools prints a
 // few lines (GUI ORANGE-021, D177). The notes are the reply's own.
 type statusSummary struct {
@@ -460,13 +460,13 @@ func statusBySeries(st rpc.StatusReply) statusSummary {
 // errSeedFlag refuses a seed on the command line, where other users of
 // the machine can read it in the process list and it stays in the shell's
 // history (RED-005, decision D98).
-var errSeedFlag = errors.New("-seed is not accepted: other users can read the command line; set POO_SEED or use -seed-file")
+var errSeedFlag = errors.New("-seed is not accepted: other users can read the command line; set POON_SEED or use -seed-file")
 
-// seedFlags say where a command reads a key's seed: $POO_SEED, or a file
+// seedFlags say where a command reads a key's seed: $POON_SEED, or a file
 // (-seed-file, "-" for standard input), never the command line.
 type seedFlags struct {
 	file, flag *string
-	// alg is the key's algorithm, as poo keygen -alg makes it; nil (keygen,
+	// alg is the key's algorithm, as poon keygen -alg makes it; nil (keygen,
 	// which has its own -alg) is Ed25519. The same seed makes a different
 	// key, and so a different address, under each algorithm (GREEN-051).
 	alg *string
@@ -488,9 +488,9 @@ func (f *seedFlags) name() string {
 
 func addSeed(fs *flag.FlagSet, use string) *seedFlags {
 	return &seedFlags{
-		file: fs.String("seed-file", "", "file holding "+use+" in hex, - for standard input (or set POO_SEED)"),
-		flag: fs.String("seed", "", "not accepted: use POO_SEED or -seed-file"),
-		alg:  fs.String("alg", "ed25519", "the key's algorithm, by name or number, as given to poo keygen -alg (poo crypto)"),
+		file: fs.String("seed-file", "", "file holding "+use+" in hex, - for standard input (or set POON_SEED)"),
+		flag: fs.String("seed", "", "not accepted: use POON_SEED or -seed-file"),
+		alg:  fs.String("alg", "ed25519", "the key's algorithm, by name or number, as given to poon keygen -alg (poon crypto)"),
 	}
 }
 
@@ -519,7 +519,7 @@ func (f *seedFlags) read(out io.Writer, env bool) (string, error) {
 		}
 		return strings.TrimSpace(string(b)), nil
 	}
-	if v, ok := os.LookupEnv("POO_SEED"); ok && env {
+	if v, ok := os.LookupEnv(brand.EnvPrefix + "SEED"); ok && env {
 		return strings.TrimSpace(v), nil
 	}
 	return "", nil
@@ -552,11 +552,11 @@ func (f *seedFlags) signer(out io.Writer) (policy.Signer, error) {
 		return nil, err
 	}
 	if seedHex == "" {
-		return nil, errors.New("no seed: set POO_SEED or use -seed-file (see poo keygen)")
+		return nil, errors.New("no seed: set POON_SEED or use -seed-file (see poon keygen)")
 	}
 	seed, err := hex.DecodeString(seedHex)
 	if err != nil || len(seed) != 32 {
-		return nil, fmt.Errorf("the seed must be 64 hex digits (see poo keygen)")
+		return nil, fmt.Errorf("the seed must be 64 hex digits (see poon keygen)")
 	}
 	f.seed = seed
 	return policy.NewSigner(alg, seed)
@@ -601,7 +601,7 @@ func claimCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if *parent == "" && (*tries != 0 || *work != 0) {
-		return errors.New("-max-tries and -work go with -parent; a claim submitted to the pending pool is built with poo build")
+		return errors.New("-max-tries and -work go with -parent; a claim submitted to the pending pool is built with poon build")
 	}
 	signer, err := seed.signer(out)
 	if err != nil {
@@ -664,7 +664,7 @@ func buildOnParent(out io.Writer, cl *rpc.Client, ref rpc.PoolRef, sel string, s
 			// The claim may be pending, or in an entry no layer has
 			// selected yet: say where to look and what else to build on
 			// (GREEN-048).
-			return fmt.Errorf("%w: a claim still pending, or in an entry with no layer yet, is not in it (poo pending %s shows the pending ones); -parent root builds on the pool's first entry", err, sel)
+			return fmt.Errorf("%w: a claim still pending, or in an entry with no layer yet, is not in it (poon pending %s shows the pending ones); -parent root builds on the pool's first entry", err, sel)
 		}
 		return err
 	}
@@ -690,7 +690,7 @@ func buildOnParent(out io.Writer, cl *rpc.Client, ref rpc.PoolRef, sel string, s
 		// The pool as the person can name it again: -pool K always picks
 		// this pool, where -serial 0 from a -pool build picked pool 0
 		// (GREEN-048).
-		rep.Next = fmt.Sprintf("the entry is kept as a branch; add weight with poo grind start %s %s (or poo work %s -entry %s) until it outweighs the selected ledger, and keep node.json's k high enough that it is not pruned meanwhile", r.Hash, sel, sel, r.Hash)
+		rep.Next = fmt.Sprintf("the entry is kept as a branch; add weight with poon grind start %s %s (or poon work %s -entry %s) until it outweighs the selected ledger, and keep node.json's k high enough that it is not pruned meanwhile", r.Hash, sel, sel, r.Hash)
 	}
 	return writeJSON(out, rep)
 }
@@ -825,9 +825,9 @@ func buildCmd(args []string, out io.Writer) error {
 		rep.Layer = &l
 	}
 	if !r.Switched && (rep.Layer == nil || !rep.Layer.Switched) {
-		// A new entry has no weight, and poo work without -entry works on
+		// A new entry has no weight, and poon work without -entry works on
 		// the selected tip, which this is not (GREEN-048).
-		rep.Next = fmt.Sprintf("the entry is selected once a layer lands on it: poo work %s -entry %s, or add -work N to the build", poolArgs(c, ref), r.Hash)
+		rep.Next = fmt.Sprintf("the entry is selected once a layer lands on it: poon work %s -entry %s, or add -work N to the build", poolArgs(c, ref), r.Hash)
 	}
 	return writeJSON(out, rep)
 }
@@ -896,9 +896,9 @@ func workCmd(args []string, out io.Writer) error {
 }
 
 // addBytes is -bytes, which keeps the encoded entry or layer in a build
-// or work reply, as poo submit takes it on another node (GREEN-039).
+// or work reply, as poon submit takes it on another node (GREEN-039).
 func addBytes(fs *flag.FlagSet) *bool {
-	return fs.Bool("bytes", false, "also print the encoded entry or layer (hex), for poo submit on another node")
+	return fs.Bool("bytes", false, "also print the encoded entry or layer (hex), for poon submit on another node")
 }
 
 func paymentCmd(args []string, out io.Writer) error {
@@ -961,7 +961,7 @@ func holdingsCmd(args []string, out io.Writer) error {
 // peerCmd acts on one peer of the running node: a timeout, a block, lifting
 // them, clearing its records, choosing its tracking template, deleting it.
 func peerCmd(args []string, out io.Writer) error {
-	const use = "usage: poo peer timeout|block|unblock|clear|template|delete|add|remove|label|connect ADDR [-seconds N] [-range] [-what flags|measures|all] [-template NAME] [-label TEXT] [-keep], or poo peer connect|remove -imported"
+	const use = "usage: poon peer timeout|block|unblock|clear|template|delete|add|remove|label|connect ADDR [-seconds N] [-range] [-what flags|measures|all] [-template NAME] [-label TEXT] [-keep], or poon peer connect|remove -imported"
 	if len(args) == 0 {
 		return errors.New(use)
 	}
@@ -976,7 +976,7 @@ func peerCmd(args []string, out io.Writer) error {
 	imported := fs.Bool("imported", false, "with no address: connect tries every unlisted address an imported peer file gave; remove forgets them all (RED-058)")
 	action := args[0]
 	rest, addr := args[1:], ""
-	// The address may come before the flags: poo peer add ADDR -label X.
+	// The address may come before the flags: poon peer add ADDR -label X.
 	if len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
 		addr, rest = rest[0], rest[1:]
 	}
@@ -1055,7 +1055,7 @@ func peerOffline(dir string, req rpc.PeerRequest, nodeErr error) (rpc.PeerReply,
 			return out, true, err
 		}
 		if _, held := book.Record(req.Addr); req.Action == "add" && !held {
-			return out, true, errors.New("the node is stopped and its peer book does not hold this address, so it cannot take a label yet: add it with -keep alone, then poo peer label ADDR -label TEXT once the node has it; nothing was changed")
+			return out, true, errors.New("the node is stopped and its peer book does not hold this address, so it cannot take a label yet: add it with -keep alone, then poon peer label ADDR -label TEXT once the node has it; nothing was changed")
 		}
 	}
 	if req.Action != "label" {
@@ -1090,7 +1090,7 @@ func trackingCmd(args []string, out io.Writer) error {
 	o := addOutput(fs)
 	blocked := fs.Bool("blocked", false, "only the blocked addresses and network ranges")
 	timedOut := fs.Bool("timed-out", false, "only the timed-out addresses")
-	pos, err := parseMixed(fs, args) // poo tracking ADDR -o table (GREEN-054)
+	pos, err := parseMixed(fs, args) // poon tracking ADDR -o table (GREEN-054)
 	if err != nil {
 		return err
 	}
@@ -1098,7 +1098,7 @@ func trackingCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) > 1 {
-		return errors.New("usage: poo tracking [ADDR]")
+		return errors.New("usage: poon tracking [ADDR]")
 	}
 	cl, err := dialNode(out, w.resolve())
 	if err != nil {
@@ -1144,10 +1144,10 @@ func chasesCmd(args []string, out io.Writer) error {
 // node policies, and exports and imports them (policyport.go, D149).
 func policyCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("policy", out)
-	root := fs.String("root", defaultRoot(), "directory holding the node policies ($POO_HOME)")
+	root := fs.String("root", defaultRoot(), "directory holding the node policies ($POON_HOME)")
 	fresh := fs.Bool("fresh", false, "unarchive: drop the stored data and start from scratch")
 	if len(args) == 0 {
-		return fmt.Errorf("usage: poo policy list|use|archive|unarchive|delete [-root DIR] [NAME], or poo policy export|import|limits")
+		return fmt.Errorf("usage: poon policy list|use|archive|unarchive|delete [-root DIR] [NAME], or poon policy export|import|limits")
 	}
 	sub := args[0]
 	switch sub {
@@ -1158,7 +1158,7 @@ func policyCmd(args []string, out io.Writer) error {
 	case "limits":
 		return policyLimitsCmd(args[1:], out)
 	}
-	pos, err := parseMixed(fs, args[1:]) // poo policy use NAME -root DIR (GREEN-054)
+	pos, err := parseMixed(fs, args[1:]) // poon policy use NAME -root DIR (GREEN-054)
 	if err != nil {
 		return err
 	}
@@ -1185,7 +1185,7 @@ func policyCmd(args []string, out io.Writer) error {
 		return nil
 	}
 	if len(pos) != 1 {
-		return fmt.Errorf("poo policy %s needs one NAME", sub)
+		return fmt.Errorf("poon policy %s needs one NAME", sub)
 	}
 	name := pos[0]
 	switch sub {
@@ -1217,7 +1217,7 @@ type grindOptions struct {
 
 func addGrindOptions(fs *flag.FlagSet) *grindOptions {
 	return &grindOptions{
-		device:  fs.String("device", "", "device: auto, cpu, gpu:0, ... (poo grind devices; default: node.json's grind section, else auto)"),
+		device:  fs.String("device", "", "device: auto, cpu, gpu:0, ... (poon grind devices; default: node.json's grind section, else auto)"),
 		threads: fs.Int("threads", 0, "threads (default: every core but one)"),
 		dur:     fs.String("for", "", "grind for this long, up to 4m (30s), instead of a number of tries"),
 	}
@@ -1246,7 +1246,7 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: poo policy limits [-set NAME=VALUE]... [-o FORMAT] [-policy NAME | -dir DIR]")
+		return errors.New("usage: poon policy limits [-set NAME=VALUE]... [-o FORMAT] [-policy NAME | -dir DIR]")
 	}
 	dir := w.resolve()
 	path := filepath.Join(dir, nodepolicy.FileName)
@@ -1268,7 +1268,7 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 		}
 		name = strings.TrimSpace(name)
 		if hint := limitHint(name); hint != "" {
-			return fmt.Errorf("-set %q: %q is not a settable limit; did you mean %s? (poo policy limits lists them)", kv, name, hint)
+			return fmt.Errorf("-set %q: %q is not a settable limit; did you mean %s? (poon policy limits lists them)", kv, name, hint)
 		}
 		v, err := limitValue(name, strings.TrimSpace(val))
 		if err != nil {
@@ -1310,7 +1310,7 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 	return o.write(out, rpc.LimitsReply{Limits: p.Limits(), Saved: changed, Notes: p.BountyNotes()})
 }
 
-// poolArgs names a pool as poo's commands take it, for a next step: the
+// poolArgs names a pool as poon's commands take it, for a next step: the
 // series only when the person named one, since otherwise the only
 // followed series is the default (GREEN-048).
 func poolArgs(c *clientFlags, ref rpc.PoolRef) string {
@@ -1365,7 +1365,7 @@ func limitHint(name string) string {
 }
 
 // refuseEmptyFlag refuses a flag given with an empty value, which would
-// otherwise read as the flag left out: poo claim -parent "" submitted the
+// otherwise read as the flag left out: poon claim -parent "" submitted the
 // claim to the pending pool instead of building it on a parent.
 func refuseEmptyFlag(fs *flag.FlagSet, name string) error {
 	var err error

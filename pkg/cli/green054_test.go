@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// Flags may follow a command's word, as they may for poo series parts FILE
-// -o table: poo tx TID -o table, poo address ADDR -limit 1, poo tracking
-// ADDR -o json and poo policy use NAME -root DIR all work (GREEN-054).
+// Flags may follow a command's word, as they may for poon series parts FILE
+// -o table: poon tx TID -o table, poon address ADDR -limit 1, poon tracking
+// ADDR -o json and poon policy use NAME -root DIR all work (GREEN-054).
 func TestFlagsAfterTheWord(t *testing.T) {
 	root := t.TempDir()
 	r := []string{"-root", root}
@@ -22,18 +22,18 @@ func TestFlagsAfterTheWord(t *testing.T) {
 	cli(t, &key, "keygen", "-seed", alice, "-root", t.TempDir())
 
 	if out := runOut(t, append([]string{"tx", claim.TID, "-o", "table"}, r...)...); !strings.Contains(out, "pending") {
-		t.Errorf("poo tx TID -o table:\n%s", out)
+		t.Errorf("poon tx TID -o table:\n%s", out)
 	}
 	if out := runOut(t, append([]string{"address", key.Address, "-o", "table", "-limit", "1"}, r...)...); !strings.Contains(out, "balance") {
-		t.Errorf("poo address ADDR -o table:\n%s", out)
+		t.Errorf("poon address ADDR -o table:\n%s", out)
 	}
 	if _, err := runErr(append([]string{"tracking", "127.0.0.1:1", "-o", "json"}, r...)...); err != nil && strings.Contains(err.Error(), "usage") {
-		t.Errorf("poo tracking ADDR -o json: %v", err)
+		t.Errorf("poon tracking ADDR -o json: %v", err)
 	}
-	if _, err := runErr("tx", claim.TID, "-o", "table", "extra", "-root", root); err == nil || !strings.Contains(err.Error(), "usage: poo tx") {
+	if _, err := runErr("tx", claim.TID, "-o", "table", "extra", "-root", root); err == nil || !strings.Contains(err.Error(), "usage: poon tx") {
 		t.Errorf("two words: %v", err)
 	}
 	if _, err := runErr("policy", "use", "default", "-root", root); err != nil {
-		t.Errorf("poo policy use NAME -root DIR: %v", err)
+		t.Errorf("poon policy use NAME -root DIR: %v", err)
 	}
 }

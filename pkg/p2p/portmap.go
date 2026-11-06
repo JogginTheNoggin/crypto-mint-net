@@ -40,7 +40,7 @@ const (
 	PortMapFailed      = "failed"      // the router gave no mapping
 )
 
-// PortMapStatus is what poo status shows of the port mapping (D182).
+// PortMapStatus is what poon status shows of the port mapping (D182).
 type PortMapStatus struct {
 	// Mode is the p2p.port_map setting ("off" when not set).
 	Mode  string `json:"mode"`

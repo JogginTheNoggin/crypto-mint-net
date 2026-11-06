@@ -6,7 +6,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/cli"
 )
 
-// SecretFlags are the poo flags whose value is a secret, as the core
+// SecretFlags are the poon flags whose value is a secret, as the core
 // declares them (cli.SecretFlags, D106): wallet create -restore and keygen
 // -seed take a seed, which restores every key. The GUI keeps a line
 // holding one of them out of the terminal's saved history and hides the
@@ -88,7 +88,7 @@ func LooksLikeKey(s string) bool {
 	return false
 }
 
-// command returns args' first word that is not a flag: the poo command.
+// command returns args' first word that is not a flag: the poon command.
 func command(args []string) string {
 	for _, a := range args {
 		if !strings.HasPrefix(a, "-") {

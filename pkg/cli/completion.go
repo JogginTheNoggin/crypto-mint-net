@@ -12,39 +12,39 @@ import (
 )
 
 // Shell completion (GREEN-005). The scripts are tiny: each asks
-// poo __complete WORDS... CURRENT for the candidates. The answers come
+// poon __complete WORDS... CURRENT for the candidates. The answers come
 // from the usage texts and from each command's own flag set, learned by
 // running the command with -h under a probe (newFlagSet), so they are
 // never stale. A flag set parses before a command does anything, so the
 // probe only reads.
 
-const bashCompletion = `# poo bash completion: source this file, or put it in
-# /etc/bash_completion.d/ (or ~/.local/share/bash-completion/completions/poo).
+const bashCompletion = `# poon bash completion: source this file, or put it in
+# /etc/bash_completion.d/ (or ~/.local/share/bash-completion/completions/poon).
 _poo() {
 	local cur=${COMP_WORDS[COMP_CWORD]}
 	local IFS=$'\n'
-	COMPREPLY=($(poo __complete "${COMP_WORDS[@]:1:COMP_CWORD-1}" "$cur" 2>/dev/null))
+	COMPREPLY=($(poon __complete "${COMP_WORDS[@]:1:COMP_CWORD-1}" "$cur" 2>/dev/null))
 }
-complete -o default -F _poo poo
+complete -o default -F _poo poon
 `
 
-const zshCompletion = `#compdef poo
-# poo zsh completion: put this file as _poo in a directory on $fpath.
+const zshCompletion = `#compdef poon
+# poon zsh completion: put this file as _poo in a directory on $fpath.
 _poo() {
 	local -a c
-	c=(${(f)"$(poo __complete ${words[2,CURRENT-1]} ${words[CURRENT]} 2>/dev/null)"})
+	c=(${(f)"$(poon __complete ${words[2,CURRENT-1]} ${words[CURRENT]} 2>/dev/null)"})
 	(( ${#c} )) && compadd -a c || _files
 }
-compdef _poo poo
+compdef _poo poon
 `
 
-const fishCompletion = `# poo fish completion: put this file in ~/.config/fish/completions/poo.fish.
-complete -c poo -f -a '(poo __complete (commandline -opc)[2..-1] (commandline -ct) 2>/dev/null)'
+const fishCompletion = `# poon fish completion: put this file in ~/.config/fish/completions/poon.fish.
+complete -c poon -f -a '(poon __complete (commandline -opc)[2..-1] (commandline -ct) 2>/dev/null)'
 `
 
 func completionCmd(args []string, out io.Writer) error {
 	if len(args) != 1 {
-		return errors.New("usage: poo completion bash|zsh|fish")
+		return errors.New("usage: poon completion bash|zsh|fish")
 	}
 	switch args[0] {
 	case "bash":
@@ -151,14 +151,14 @@ func subcommands(cmd string) []string {
 		return append(out, "help")
 	}
 	for _, line := range strings.Split(usage, "\n") {
-		rest, ok := strings.CutPrefix(line, "  poo "+cmd+" ")
+		rest, ok := strings.CutPrefix(line, "  poon "+cmd+" ")
 		if !ok {
 			continue
 		}
 		w, _, _ := strings.Cut(rest, " ")
 		if subWord.MatchString(w) {
 			// A list of subcommands, and maybe more on later lines, as
-			// poo policy export and import (D149).
+			// poon policy export and import (D149).
 			for _, sub := range strings.Split(w, "|") {
 				if !slices.Contains(out, sub) {
 					out = append(out, sub)
@@ -167,7 +167,7 @@ func subcommands(cmd string) []string {
 			continue
 		}
 		if w != "" && !strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "[") && strings.ToLower(w) == w && !slices.Contains(out, w) {
-			out = append(out, w) // one subcommand per line, as poo series
+			out = append(out, w) // one subcommand per line, as poon series
 		}
 	}
 	return out

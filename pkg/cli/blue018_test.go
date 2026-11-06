@@ -45,7 +45,7 @@ func TestPolicyImportUsageNamesSettings(t *testing.T) {
 	}
 }
 
-// RED-045, D150: a running node takes any bundle poo policy import
+// RED-045, D150: a running node takes any bundle poon policy import
 // reads, including one over the 8 MiB the other endpoints take.
 func TestRunningNodeTakesALargeImport(t *testing.T) {
 	root := t.TempDir()

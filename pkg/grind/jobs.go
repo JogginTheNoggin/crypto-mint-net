@@ -60,7 +60,7 @@ type Spec struct {
 	Source string `json:"source,omitempty"`
 	// Lease, when set ("15s"), stops the job unless it is renewed
 	// (Manager.Renew) within that long: a job its follower started, such
-	// as poo grind run's, ends when the follower is gone (GUI-010).
+	// as poon grind run's, ends when the follower is gone (GUI-010).
 	Lease string `json:"lease,omitempty"`
 }
 
@@ -867,15 +867,15 @@ func (r *runner) idle(entry hash.Hash) (why, hint string) {
 	s := r.j.Spec
 	switch {
 	case r.noPools && entry != (hash.Hash{}):
-		return "no followed pool holds the entry yet", "wait for it from a peer, or check the hash with poo ledger"
+		return "no followed pool holds the entry yet", "wait for it from a peer, or check the hash with poon ledger"
 	case r.noPools:
-		return "no followed pool matches", "follow the pool (poo follow), or change -series and -pool"
+		return "no followed pool matches", "follow the pool (poon follow), or change -series and -pool"
 	case strings.HasPrefix(s.Target, TargetTx) && !r.seen:
-		return "the node does not hold the transaction yet", "send it (poo pay), or wait for it from a peer"
+		return "the node does not hold the transaction yet", "send it (poon pay), or wait for it from a peer"
 	case s.Target == TargetPending:
 		return "no pending transactions to build an entry from", "claim or pay to make one, or wait for one from a peer"
 	case s.Target == TargetTip:
-		return "no entry to add layers to yet", "build one: target pending, or poo build"
+		return "no entry to add layers to yet", "build one: target pending, or poon build"
 	}
 	return "nothing to work on yet", ""
 }

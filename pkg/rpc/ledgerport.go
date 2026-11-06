@@ -59,7 +59,7 @@ func (h *Handler) ledgerExport(w http.ResponseWriter, r *http.Request) {
 // MaxImportBatchBytes bounds the items of one import call, beyond its
 // first: a call holds one item of any size (an entry has no size bound,
 // D144), and then more only while they total at most this. It is the size
-// of an export page, and poo ledger import sends batches of it (RED-098).
+// of an export page, and poon ledger import sends batches of it (RED-098).
 const MaxImportBatchBytes = watch.ExportBytes
 
 func (h *Handler) ledgerImport(w http.ResponseWriter, r *http.Request) {

@@ -42,13 +42,13 @@ func TestMetrics(t *testing.T) {
 	if st != 200 || !strings.HasPrefix(typ, "text/plain; version=0.0.4") {
 		t.Fatalf("status %d, type %q", st, typ)
 	}
-	want := `poo_pool_height{series="` + f.s.ID().String() + `",pool="1"} 0`
-	for _, s := range []string{"# TYPE poo_pool_height gauge", want, "poo_pool_pending{", "poo_pool_weight{"} {
+	want := `poon_pool_height{series="` + f.s.ID().String() + `",pool="1"} 0`
+	for _, s := range []string{"# TYPE poon_pool_height gauge", want, "poon_pool_pending{", "poon_pool_weight{"} {
 		if !strings.Contains(body, s) {
 			t.Errorf("metrics lack %q:\n%s", s, body)
 		}
 	}
-	if strings.Contains(body, "poo_peers_connected") {
+	if strings.Contains(body, "poon_peers_connected") {
 		t.Error("peer metrics without a p2p host")
 	}
 }
@@ -72,8 +72,8 @@ func TestMetricsWithHost(t *testing.T) {
 	defer srv.Close()
 	_, _, body := scrape(t, srv.URL, tok)
 	for _, s := range []string{
-		`poo_peers_connected{direction="inbound"} 0`, `poo_peers_connected{direction="outbound"} 0`,
-		"# TYPE poo_peer_sent_total counter", "poo_peer_book_records ",
+		`poon_peers_connected{direction="inbound"} 0`, `poon_peers_connected{direction="outbound"} 0`,
+		"# TYPE poon_peer_sent_total counter", "poon_peer_book_records ",
 	} {
 		if !strings.Contains(body, s) {
 			t.Errorf("metrics lack %q:\n%s", s, body)

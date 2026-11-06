@@ -142,7 +142,7 @@ func TestManySeriesMergeIsLinear(t *testing.T) {
 // for a device or rename.
 func TestBundleRefusesWindowsNames(t *testing.T) {
 	for _, n := range []string{"con", "NUL", "com1", "lpt9.x", "aux.json", "name."} {
-		in := `{"kind":"poo-node-policies","format":1,"scope":"node","policies":[{"name":"` + n + `","policy":{"format":1}}]}`
+		in := `{"kind":"poon-node-policies","format":1,"scope":"node","policies":[{"name":"` + n + `","policy":{"format":1}}]}`
 		if _, err := nodepolicy.ReadBundle(strings.NewReader(in)); !errors.Is(err, nodepolicy.ErrBundle) {
 			t.Errorf("%q: %v", n, err)
 		}

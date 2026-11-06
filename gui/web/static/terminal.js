@@ -1,11 +1,11 @@
 // The terminal: a typed line goes to the server, which splits it as a
 // shell would and runs it through cli.Main, the same as typing it after
-// "poo" in a shell. Nothing here changes the command line.
+// "poon" in a shell. Nothing here changes the command line.
 import * as api from './api.js';
 import { complete } from './complete.js';
 import { scrollback } from './scroll.js';
 
-const HISTORY_KEY = 'poo-gui-history';
+const HISTORY_KEY = 'poon-gui-history';
 
 // A line is saved to the browser's storage unless it may hold a secret,
 // such as a seed after -restore, or starts with a space, as a shell with
@@ -24,7 +24,7 @@ export function mount(root) {
   root.innerHTML = `
     <section class="terminal" aria-label="Terminal">
       <div class="term-bar">
-        <span>Terminal: the same commands as <code>poo</code> in a shell. Tab completes, Ctrl-C stops a command, Ctrl-L clears.</span>
+        <span>Terminal: the same commands as <code>poon</code> in a shell. Tab completes, Ctrl-C stops a command, Ctrl-L clears.</span>
         <span class="spacer"></span>
         <button type="button" data-act="clear" title="Clear the screen (Ctrl-L)">Clear</button>
         <button type="button" data-act="forget" title="Forget the command lines this browser saved">Forget history</button>
@@ -36,7 +36,7 @@ export function mount(root) {
       <pre class="term-out" tabindex="0" aria-label="Terminal output"></pre>
       <div class="sr-only" role="status" aria-live="polite"></div>
       <form class="term-in" autocomplete="off">
-        <label class="prompt" for="term-line">$ poo</label>
+        <label class="prompt" for="term-line">$ poon</label>
         <input id="term-line" name="line" spellcheck="false" autocapitalize="off" autofocus>
       </form>
     </section>`;
@@ -73,7 +73,7 @@ export function mount(root) {
   const sb = scrollback(out, { follow: true });
   const write = (text, cls) => sb.write(text, cls);
 
-  // A passphrase or seed is masked and never echoed, exactly when poo
+  // A passphrase or seed is masked and never echoed, exactly when poon
   // reads one: the core reads every secret through cli.Stdio.Secret
   // (decision D101), and the job's state says so. Other input shows as
   // typed, as in a shell. Show typing unmasks a secret on request.
@@ -90,18 +90,18 @@ export function mount(root) {
     line.type = masked ? 'password' : 'text';
     showBtn.hidden = !(job && secret);
     showBtn.setAttribute('aria-pressed', String(showTyping));
-    prompt.textContent = job ? (secret ? (masked ? 'secret (hidden)' : 'secret') : 'input') : '$ poo';
+    prompt.textContent = job ? (secret ? (masked ? 'secret (hidden)' : 'secret') : 'input') : '$ poon';
   };
 
   async function runLine(text) {
-    // Every line goes to poo, even "clear": clearing the screen is the
+    // Every line goes to poon, even "clear": clearing the screen is the
     // Clear button and Ctrl-L, never a command (GUI-002).
-    write(`$ poo ${text.replace(/^\s*poo(\s+|$)/, '')}\n`, 'echo');
+    write(`$ poon ${text.replace(/^\s*poon(\s+|$)/, '')}\n`, 'echo');
     let j;
     try {
       j = await api.start(text);
     } catch (e) {
-      write(`poo-gui: ${e.message}\n`, 'err');
+      write(`poon-gui: ${e.message}\n`, 'err');
       finished();
       return;
     }
@@ -118,7 +118,7 @@ export function mount(root) {
         finished();
         line.focus();
       },
-      error: () => { if (job === cur) { write('[lost the connection to poo-gui]\n', 'err'); setRunning(null); finished(); } },
+      error: () => { if (job === cur) { write('[lost the connection to poon-gui]\n', 'err'); setRunning(null); finished(); } },
     });
   }
 
@@ -128,10 +128,10 @@ export function mount(root) {
     line.value = '';
     if (job) {
       // The running command reads this line, as from a shell's input.
-      // A secret is not echoed (poo ends its line itself, as the headless
+      // A secret is not echoed (poon ends its line itself, as the headless
       // terminal does); other input is, as a shell's terminal echoes it.
       if (!secret) write(text + '\n', 'echo');
-      try { await api.input(job.id, text); } catch (e) { write(`poo-gui: ${e.message}\n`, 'err'); }
+      try { await api.input(job.id, text); } catch (e) { write(`poon-gui: ${e.message}\n`, 'err'); }
       return;
     }
     if (text.trim() === '') return;
@@ -147,7 +147,7 @@ export function mount(root) {
     if (!job) return;
     if (line.value !== '') { form.requestSubmit(); return; }
     write('^D\n', 'note');
-    try { await api.eof(job.id); } catch (e) { write(`poo-gui: ${e.message}\n`, 'err'); }
+    try { await api.eof(job.id); } catch (e) { write(`poon-gui: ${e.message}\n`, 'err'); }
   };
   line.addEventListener('keydown', ev => {
     if (ev.ctrlKey && ev.key === 'd' && job) {
@@ -161,7 +161,7 @@ export function mount(root) {
       ev.preventDefault();
       sb.clear();
     } else if (ev.key === 'Tab' && !job && !ev.shiftKey && line.selectionStart === line.value.length) {
-      // Completion only reads poo's help; it never changes what runs.
+      // Completion only reads poon's help; it never changes what runs.
       ev.preventDefault();
       const typed = line.value;
       complete(typed).then(c => {

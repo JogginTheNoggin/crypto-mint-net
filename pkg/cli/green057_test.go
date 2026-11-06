@@ -48,7 +48,7 @@ func TestUnknownInsideListEntriesNamed(t *testing.T) {
 	}
 }
 
-// Doctor compares the running node's release with this poo's (GREEN-057).
+// Doctor compares the running node's release with this poon's (GREEN-057).
 func TestReleaseCheck(t *testing.T) {
 	mine := node.RunningRelease()
 	if c := releaseCheck(rpc.StatusReply{Release: mine}); c.Result != checkOK {

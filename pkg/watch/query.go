@@ -97,7 +97,7 @@ type Ledger struct {
 	Next int `json:"next"`
 	// Unreadable counts the entries looked at whose bodies could not be
 	// read back from the node's log, so the page may miss transactions
-	// that match (RED-084, D173). poo doctor reports the damage.
+	// that match (RED-084, D173). poon doctor reports the damage.
 	Unreadable int `json:"unreadable,omitempty"`
 }
 

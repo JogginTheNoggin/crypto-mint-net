@@ -11,7 +11,7 @@ import (
 
 func TestComplete(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("POO_HOME", root)
+	t.Setenv("POON_HOME", root)
 	cli(t, nil, "init", "-example", "-root", root)
 	for _, c := range []struct {
 		words []string
@@ -44,7 +44,7 @@ func TestComplete(t *testing.T) {
 // return.
 func TestProbeOnlyReads(t *testing.T) {
 	root, cwd := t.TempDir(), t.TempDir()
-	t.Setenv("POO_HOME", root)
+	t.Setenv("POON_HOME", root)
 	t.Setenv("HOME", root)
 	t.Chdir(cwd)
 	n := 0
@@ -82,7 +82,7 @@ func TestFlagErrorsGoToErr(t *testing.T) {
 func TestCompletionScripts(t *testing.T) {
 	for _, sh := range []string{"bash", "zsh", "fish"} {
 		var b bytes.Buffer
-		if err := run([]string{"completion", sh}, &b); err != nil || !strings.Contains(b.String(), "poo __complete") {
+		if err := run([]string{"completion", sh}, &b); err != nil || !strings.Contains(b.String(), "poon __complete") {
 			t.Errorf("%s: %v\n%s", sh, err, b.String())
 		}
 	}
@@ -91,21 +91,21 @@ func TestCompletionScripts(t *testing.T) {
 	}
 }
 
-// The one line poo help gives a command with its own usage names every
-// subcommand that usage lists: "poo grind" left out schedule, and
+// The one line poon help gives a command with its own usage names every
+// subcommand that usage lists: "poon grind" left out schedule, and
 // completion, which read that line, did not offer it (GREEN-044).
 func TestHelpLineNamesEverySubcommand(t *testing.T) {
 	for _, cmd := range []string{"grind", "sim"} {
 		var line string
 		for _, l := range strings.Split(usage, "\n") {
-			if rest, ok := strings.CutPrefix(l, "  poo "+cmd+" "); ok {
+			if rest, ok := strings.CutPrefix(l, "  poon "+cmd+" "); ok {
 				line, _, _ = strings.Cut(rest, " ")
 			}
 		}
 		names := strings.Split(line, "|")
 		for _, sub := range subcommands(cmd) {
 			if sub != "help" && !slices.Contains(names, sub) {
-				t.Errorf("poo help: the %s line %q leaves out %s", cmd, line, sub)
+				t.Errorf("poon help: the %s line %q leaves out %s", cmd, line, sub)
 			}
 		}
 	}
@@ -114,8 +114,8 @@ func TestHelpLineNamesEverySubcommand(t *testing.T) {
 	}
 }
 
-// "poo CMD help", "-h" and "--help" print a command's usage lines and
-// exit 0 for every command made of subcommands, as poo help CMD does
+// "poon CMD help", "-h" and "--help" print a command's usage lines and
+// exit 0 for every command made of subcommands, as poon help CMD does
 // (GREEN-045). Before, policy took "-h" for a NAME, series for a
 // subcommand, and settings, peer, submit and completion failed.
 func TestSubcommandHelpWords(t *testing.T) {
@@ -130,18 +130,18 @@ func TestSubcommandHelpWords(t *testing.T) {
 		for _, w := range []string{"help", "-h", "--help"} {
 			var out bytes.Buffer
 			if err := Run(context.Background(), []string{cmd, w}, Stdio{Out: &out, Err: &out}); err != nil {
-				t.Errorf("poo %s %s: %v\n%s", cmd, w, err, out.String())
+				t.Errorf("poon %s %s: %v\n%s", cmd, w, err, out.String())
 				continue
 			}
 			if runsBare[cmd] && w != "help" {
 				// Its usage lines, then its own flags (D157).
 				if !strings.HasPrefix(out.String(), want.String()) || !strings.Contains(out.String(), "Usage of "+cmd) {
-					t.Errorf("poo %s %s printed\n%s", cmd, w, out.String())
+					t.Errorf("poon %s %s printed\n%s", cmd, w, out.String())
 				}
 				continue
 			}
 			if !ownHelp[cmd] && out.String() != want.String() {
-				t.Errorf("poo %s %s printed\n%s\nwant poo help %s:\n%s", cmd, w, out.String(), cmd, want.String())
+				t.Errorf("poon %s %s printed\n%s\nwant poon help %s:\n%s", cmd, w, out.String(), cmd, want.String())
 			}
 		}
 	}

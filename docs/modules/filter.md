@@ -27,7 +27,7 @@ included, selects items the same way (decision D90).
   transaction.
 - **kind**: `tx`, `entry`, `layer`, `switch`, `selected`, `reverted`,
   `dropped`, `grind` (grind jobs, M11). Views have no kind: the RPC views ignore it, and the view
-  commands refuse `-kind`, which only `poo watch` takes.
+  commands refuse `-kind`, which only `poon watch` takes.
 
 `MatchScope(series, pool, first, last)` answers whether anything in a
 pool holding serials `first..last` could match, so views skip whole pools

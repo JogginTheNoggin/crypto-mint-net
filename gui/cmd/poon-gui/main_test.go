@@ -14,14 +14,14 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/cli"
 )
 
-// TestPooPassthrough checks "poo-gui poo ARGS" is "poo ARGS".
+// TestPooPassthrough checks "poon-gui poon ARGS" is "poon ARGS".
 func TestPooPassthrough(t *testing.T) {
 	for _, args := range [][]string{{"version"}, {"crypto"}, {"nope"}} {
 		var a, ae, b, be bytes.Buffer
-		ca := run(context.Background(), append([]string{"poo"}, args...), cli.Stdio{Out: &a, Err: &ae}, nil)
+		ca := run(context.Background(), append([]string{"poon"}, args...), cli.Stdio{Out: &a, Err: &ae}, nil)
 		cb := cli.Main(context.Background(), args, cli.Stdio{Out: &b, Err: &be})
 		if ca != cb || a.String() != b.String() || ae.String() != be.String() {
-			t.Errorf("%v: poo-gui poo differs from poo", args)
+			t.Errorf("%v: poon-gui poon differs from poon", args)
 		}
 	}
 }
@@ -69,7 +69,7 @@ func TestServeOpensAndStops(t *testing.T) {
 	}
 }
 
-// TestNoOpenPrintsOneUseAddresses is GUI-001: with -no-open poo-gui
+// TestNoOpenPrintsOneUseAddresses is GUI-001: with -no-open poon-gui
 // prints a sign-in address, Enter prints a new one, and each works once.
 func TestNoOpenPrintsOneUseAddresses(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

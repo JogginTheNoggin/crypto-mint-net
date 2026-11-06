@@ -110,7 +110,7 @@ type result struct {
 }
 
 // WaitDisk is a chase group's Waiting while its chase waits for disk
-// space for a large entry's parts: poo chases, poo doctor and the metrics
+// space for a large entry's parts: poon chases, poon doctor and the metrics
 // show it, so a heavier ledger waiting on disk does not look like a
 // healthy node (Black's RED-022 condition, D124).
 const WaitDisk = "waiting for disk space for a large entry"

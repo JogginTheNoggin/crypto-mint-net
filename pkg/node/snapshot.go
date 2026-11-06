@@ -114,7 +114,7 @@ var buildID = sync.OnceValue(func() string {
 })
 
 func makeBuildID(version, commit string, exe func() string) string {
-	id := fmt.Sprintf("poo snap%d", snapshotSemantics)
+	id := fmt.Sprintf("poon snap%d", snapshotSemantics)
 	if version != "" {
 		id += " " + version
 	}
@@ -759,7 +759,7 @@ func (n *Node) sortedLogKeys() []engine.PoolKey {
 	return out
 }
 
-// SnapshotSummary sums up the pools' snapshots for poo status and doctor
+// SnapshotSummary sums up the pools' snapshots for poon status and doctor
 // (D178): one line however many pools are followed.
 type SnapshotSummary struct {
 	// Off is set when no_snapshots is on.

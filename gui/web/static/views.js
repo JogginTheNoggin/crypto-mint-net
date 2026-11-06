@@ -1,6 +1,6 @@
 // The parts every view is built from (the views themselves are in views/,
-// one file each, GUI-GREEN-044). Each panel runs one poo command and
-// renders what it prints; each form builds one poo command line from its
+// one file each, GUI-GREEN-044). Each panel runs one poon command and
+// renders what it prints; each form builds one poon command line from its
 // fields and runs it. Nothing here computes anything a command does not
 // print, and every panel shows its command line, which runs the same in
 // the terminal (docs/gui.md).
@@ -27,7 +27,7 @@ export function el(tag, attrs = {}, ...kids) {
 // passphrase or seed), and the result rendered once it ends. It resolves to
 // {code, out, err}. secretOutput leaves out the Copy output button, for a
 // command whose output holds a secret (keygen prints its seed).
-// EXIT_WAITING is poo's exit code for a command refused only because the
+// EXIT_WAITING is poon's exit code for a command refused only because the
 // mint's part is not released at this node yet (cli.ExitWaiting, D168): it
 // waits for a release, it is not invalid.
 const EXIT_WAITING = 3;
@@ -45,7 +45,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
   const liveOut = scrollback(live);
   const ask = el('form', { class: 'ask', hidden: true });
   const askLabel = el('label', {});
-  // A passphrase or seed is masked: the job's state says when poo reads
+  // A passphrase or seed is masked: the job's state says when poon reads
   // one (cli.Stdio.Secret, decision D101), never a guess from the output.
   const askInput = el('input', { type: 'password', autocomplete: 'off', spellcheck: 'false' });
   const showBtn = el('button', { type: 'button', class: 'small', 'aria-pressed': 'false', title: 'Show what you type' }, 'Show');
@@ -71,7 +71,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
       let out = '', err = '', tail = '', dropped = false;
       // Stop cancels the command, which ends at its next check. One that
       // never checks (a far part's id chain, GUI-028) runs on, and holds
-      // one of poo-gui's job slots until it ends: after STOP_WAIT, say so
+      // one of poon-gui's job slots until it ends: after STOP_WAIT, say so
       // rather than "running…", so a later "too many commands running"
       // has its reason on the page.
       let stopWait = null;
@@ -80,7 +80,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
         if (stopWait) return;
         stopWait = setTimeout(() => {
           status.className = 'run-status stop-pending';
-          status.textContent = 'Stop asked; poo is still working and will end on its own. Until then it holds one of the GUI\'s job slots (Jobs lists it).';
+          status.textContent = 'Stop asked; poon is still working and will end on its own. Until then it holds one of the GUI\'s job slots (Jobs lists it).';
         }, STOP_WAIT);
       };
       ask.onsubmit = ev => {
@@ -90,17 +90,17 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
         askInput.type = 'password';
         showBtn.setAttribute('aria-pressed', 'false');
         ask.hidden = true;
-        return api.input(j.id, v).then(() => true, e => { err += `poo-gui: ${e.message}\n`; return false; });
+        return api.input(j.id, v).then(() => true, e => { err += `poon-gui: ${e.message}\n`; return false; });
       };
       // The input is ended only once what is typed has arrived whole: a
       // send that failed must not leave the command reading half of it.
       endBtn.onclick = async () => {
         if (askInput.value !== '' && !(await ask.onsubmit(new Event('submit')))) return;
         ask.hidden = true;
-        api.eof(j.id).catch(e => { err += `poo-gui: ${e.message}\n`; });
+        api.eof(j.id).catch(e => { err += `poon-gui: ${e.message}\n`; });
       };
       area.unfollow = api.follow(j.id, {
-        // poo-gui keeps the last DefaultMaxOutput (4 MiB) of a job's
+        // poon-gui keeps the last DefaultMaxOutput (4 MiB) of a job's
         // output; a page that falls further behind loses the part between,
         // and the stream says so (ORANGE-026).
         dropped: () => { dropped = true; },
@@ -125,7 +125,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
           clearTimeout(stopWait);
           stopBtn.remove();
           ask.remove();
-          // poo's exit code says a mint of a part not released yet waits
+          // poon's exit code says a mint of a part not released yet waits
           // for a release, not that it is invalid (D166, D168).
           const waiting = e.code === EXIT_WAITING;
           status.className = 'run-status ' + (e.code === 0 ? 'ok' : waiting ? 'waiting' : 'bad');
@@ -136,7 +136,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
           area.append(showResult(out, err, { empty, secretOutput: secretOutput || j.secretOutput, lazy }));
           resolve({ code: e.code, out, err, dropped });
         },
-        error: () => { area.unfollow = null; status.textContent = 'lost the connection to poo-gui'; resolve({ code: -1, out, err, dropped }); },
+        error: () => { area.unfollow = null; status.textContent = 'lost the connection to poon-gui'; resolve({ code: -1, out, err, dropped }); },
       });
     }).catch(e => {
       status.className = 'run-status bad';
@@ -147,7 +147,7 @@ export function runJob(args, area, { onStart, empty, refresh, secretOutput, lazy
 }
 
 // leave closes the event stream of a job still running in area, when its
-// view is left (ORANGE-010). The page has six connections to poo-gui; a
+// view is left (ORANGE-010). The page has six connections to poon-gui; a
 // stream left open on every visit would use them up and stall the GUI.
 // The job itself runs on, as a detached command does, and is in Jobs.
 function leave(area) {
@@ -194,7 +194,7 @@ export function showResult(out, err, { empty, secretOutput, lazy } = {}) {
       if (cut) box.append(el('p', { class: 'hint' }, `The first ${cut} characters are not shown; Copy output copies all of it.`));
       box.append(el('pre', { class: 'text-out' }, cut ? out.slice(cut) : out));
     }
-    // The output exactly as poo printed it, for a script or a bug report.
+    // The output exactly as poon printed it, for a script or a bug report.
     if (!secretOutput) box.append(copyButton('Copy output', () => out, 'small copy-out'));
   }
   if (err.trim()) {
@@ -223,7 +223,7 @@ function drawn(area, r) {
   if (r && r.dropped) incomplete(area);
 }
 
-// incomplete marks a result whose output poo-gui dropped in part: the
+// incomplete marks a result whose output poon-gui dropped in part: the
 // page fell more than a job's kept output (4 MiB) behind, so what it holds
 // has a gap that can still read as whole JSON. A Save as file of it would
 // write a file with entries missing, so that button is removed
@@ -231,7 +231,7 @@ function drawn(area, r) {
 export function incomplete(area) {
   for (const b of area.querySelectorAll('.save-as')) (b.closest('.actions') || b).remove();
   area.prepend(el('p', { class: 'next-step output-dropped', role: 'alert' },
-    'Part of this output was dropped: poo printed it faster than the page could take it, and poo-gui keeps only the last 4 MiB of a command\'s output. What is shown, and what Copy output copies, has a gap. Write it to a file instead: the form\'s file field where it has one, or -out in the terminal.'));
+    'Part of this output was dropped: poon printed it faster than the page could take it, and poon-gui keeps only the last 4 MiB of a command\'s output. What is shown, and what Copy output copies, has a gap. Write it to a file instead: the form\'s file field where it has one, or -out in the terminal.'));
 }
 
 // cmdLine shows a command line with a button that runs it in the terminal.
@@ -248,7 +248,7 @@ export function copyButton(label, text, cls = 'small') {
 
 // cmdLine shows the command a panel or form runs, quoted as the
 // platform's shell takes it, with Run in terminal and Copy: the line
-// pasted into a shell runs the same poo command (GUI-GREEN-046). Copy is
+// pasted into a shell runs the same poon command (GUI-GREEN-046). Copy is
 // off while the line holds a secret flag, as the terminal keeps such a
 // line out of its history (GUI-006).
 // ask, if given, returns a question to confirm before Run in terminal
@@ -258,7 +258,7 @@ export function cmdLine(args, ctx, { ask } = {}) {
   const copy = copyButton('Copy', () => api.copyLine(row.args), 'small copy-cmd');
   copy.title = 'Copy this command line, to run it in a shell';
   const row = el('div', { class: 'cmd' }, el('span', { class: 'cmd-label' }, 'Runs'), code,
-    el('button', { type: 'button', class: 'small', title: 'Type this command into the terminal and run it', onclick: () => { const q = ask && ask(); if (q && !confirm(q)) return; ctx.openInTerminal(api.quote(row.args).replace(/^poo /, '')); } }, 'Run in terminal'), ' ', copy);
+    el('button', { type: 'button', class: 'small', title: 'Type this command into the terminal and run it', onclick: () => { const q = ask && ask(); if (q && !confirm(q)) return; ctx.openInTerminal(api.quote(row.args).replace(/^poon /, '')); } }, 'Run in terminal'), ' ', copy);
   // Copy is off for a line with a secret, and for one no quoting makes
   // safe to paste into a Windows shell (GUI-024).
   const secret = () => {
@@ -278,7 +278,7 @@ export function cmdLine(args, ctx, { ask } = {}) {
 // panel runs args() when shown (and every refresh ms) and renders it.
 // onResult, as for form, is called with the finished job and the area.
 // start: false leaves the panel unrun until its button is pressed, for a
-// command whose output is large (poo status on the reserve's 1,024 pools
+// command whose output is large (poon status on the reserve's 1,024 pools
 // is 350 KB): the button reads Show until the first run (GUI-GREEN-056).
 export function panel(ctx, { title, about, args, refresh, empty, onResult, start = true }) {
   const area = el('div', { class: 'area' });
@@ -353,7 +353,7 @@ const NO_NODE = /is the node running\?/;
 // noNode collapses a panel whose command failed only because no node is
 // answering, and shows the view's one banner while any panel is in that
 // state (GREEN-011). It decides nothing: the panel's own result, error
-// text and next step stay, one click away, exactly as poo printed them.
+// text and next step stay, one click away, exactly as poon printed them.
 // needsNode says a command failed only because no node answered.
 export const needsNode = r => r.code !== 0 && NO_NODE.test(r.err) && !r.out.trim();
 
@@ -376,7 +376,7 @@ function noNode(sec, area, r) {
 // A choices field is a box to tick for each of options, sent as one comma
 // list, for a flag that takes some of a fixed set (-category, -kind). A
 // field with flag set marks its select or boxes with data-flag, so the
-// parity check holds their choices to the ones poo -h lists (GUI-GREEN-048).
+// parity check holds their choices to the ones poon -h lists (GUI-GREEN-048).
 //   args(values) returns the argv; the preview updates as fields change.
 // onResult, if given, is called with the finished job's {code, out, err}
 // and the result area, so a view can act on the data rather than on the
@@ -405,8 +405,8 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
     f.append(labels[fd.name]);
   }
   // A field with only: {field, values} is shown, and sent, only while that
-  // other field (an action select) holds one of values: the same pairs poo
-  // checks with flagsFor, so a form never offers a flag poo would refuse.
+  // other field (an action select) holds one of values: the same pairs poon
+  // checks with flagsFor, so a form never offers a flag poon would refuse.
   // only: {field, not} is the other way round: hidden while the field holds
   // one of not (a grind target of tip or pending takes no -until-from).
   // A check box's value is whether it is ticked: values: [true].
@@ -505,7 +505,7 @@ export function form(ctx, { title, about, fields, args, submit = 'Run', danger, 
 
 // choices is a set of boxes, one for each option, in a fieldset whose
 // value() is the ticked ones as a comma list: none ticked sends nothing,
-// so poo's default (every one) holds. Watch's kinds use it too.
+// so poon's default (every one) holds. Watch's kinds use it too.
 export function choices(name, options, legend, flagName) {
   const boxes = options.map(o => el('input', { type: 'checkbox', name, value: o }));
   const set = el('fieldset', { class: 'kinds', 'data-flag': flagName }, el('legend', {}, legend),
@@ -515,8 +515,8 @@ export function choices(name, options, legend, flagName) {
 }
 
 // pickFile adds "Or pick a file" under a form's file field. A file picked
-// in the browser goes to poo on its standard input: the field becomes -,
-// and feed(job) sends the file's text, then end of input, as poo reads it
+// in the browser goes to poon on its standard input: the field becomes -,
+// and feed(job) sends the file's text, then end of input, as poon reads it
 // (ORANGE-014). Typing a path again drops the picked file. Nothing is
 // stored by the GUI. get() is the file picked now, or null; onPick runs
 // when one is picked. Every form that takes a file this way uses it
@@ -534,7 +534,7 @@ export function pickFile(f, { field = 'file', onPick } = {}) {
     fileIn.dispatchEvent(new Event('input', { bubbles: true }));
   };
   fileIn.addEventListener('input', () => { if (fileIn.value.trim() !== '-') { picked = null; pick.value = ''; } });
-  fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poo as its input (- above); nothing is stored by the GUI')));
+  fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poon as its input (- above); nothing is stored by the GUI')));
   return {
     get: () => picked,
     feed: (j, file = picked) => { if (file && fileIn.value.trim() === '-') api.inputFile(j.id, file).catch(() => {}); },
@@ -542,11 +542,11 @@ export function pickFile(f, { field = 'file', onPick } = {}) {
 }
 
 // appliedNote puts one plain line at the top of a form's result, saying
-// what poo's reply says the change did: saved and applied in place,
+// what poon's reply says the change did: saved and applied in place,
 // saved and the node reloading, saved for the next start, or nothing
-// changed (with poo's own note, when it gives one). It reads only the
+// changed (with poon's own note, when it gives one). It reads only the
 // reply's saved, in_place, reloading and note fields, so it holds no
-// rule of its own (D84); the reply stays below as poo printed it. Set
+// rule of its own (D84); the reply stays below as poon printed it. Set
 // limits and Add a release use it (GUI-GREEN-053).
 export function appliedNote(r, area) {
   if (!r || r.code !== 0) return;

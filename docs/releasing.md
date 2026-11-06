@@ -3,7 +3,7 @@
 ## Summary
 
 How a release is made and how anyone can check one. A release is a tag
-`vX.Y.Z` on the main branch. Pushing the tag runs the tests, builds `poo`
+`vX.Y.Z` on the main branch. Pushing the tag runs the tests, builds `poon`
 for seven platforms with `scripts/release.sh`, and opens a draft GitHub
 release with the archives and `SHA256SUMS`. The owner reads the draft and
 publishes it. Builds are reproducible (decision D78): rebuilding a tag with
@@ -26,7 +26,7 @@ checked without trusting whoever built it.
 ## Tagging
 
 ```sh
-git tag -a v0.1.0 -m "poo 0.1.0"
+git tag -a v0.1.0 -m "poon 0.1.0"
 git push origin v0.1.0
 ```
 
@@ -37,26 +37,26 @@ leaves a draft. Publishing it is a separate, manual step.
 
 | Platform | Archive |
 | --- | --- |
-| Linux amd64, arm64 | `poo-VERSION-linux-ARCH.tar.gz` |
-| macOS amd64, arm64 | `poo-VERSION-darwin-ARCH.tar.gz` |
-| Windows amd64, arm64 | `poo-VERSION-windows-ARCH.zip` |
-| FreeBSD amd64 | `poo-VERSION-freebsd-amd64.tar.gz` |
+| Linux amd64, arm64 | `poon-VERSION-linux-ARCH.tar.gz` |
+| macOS amd64, arm64 | `poon-VERSION-darwin-ARCH.tar.gz` |
+| Windows amd64, arm64 | `poon-VERSION-windows-ARCH.zip` |
+| FreeBSD amd64 | `poon-VERSION-freebsd-amd64.tar.gz` |
 
-Each platform also gets a `poo-gui-VERSION-OS-ARCH` archive with the GUI
-([gui.md](gui.md)). `poo-gui` contains the same commands as `poo`
-(`poo-gui poo ARGS` runs `poo ARGS`), so it can be installed instead of
-`poo` or beside it. The `poo` archives never contain GUI code.
+Each platform also gets a `poon-gui-VERSION-OS-ARCH` archive with the GUI
+([gui.md](gui.md)). `poon-gui` contains the same commands as `poon`
+(`poon-gui poon ARGS` runs `poon ARGS`), so it can be installed instead of
+`poon` or beside it. The `poon` archives never contain GUI code.
 
-Each holds the `poo` (or `poo-gui`) binary, the README and, once there is one, the
+Each holds the `poon` (or `poon-gui`) binary, the README and, once there is one, the
 license. Binaries are static (`CGO_ENABLED=0`) and print their version with
-`poo version`.
+`poon version`.
 
 ## Signing
 
 The checksums file is signed so anyone can tell the project's maintainers
 published it (W-21, D192). Each maintainer has their own SSH key; no key
 is shared, kept in the repository or given to CI. The public keys are in
-[allowed_signers](allowed_signers), all under one name, `poo-release`, so
+[allowed_signers](allowed_signers), all under one name, `poon-release`, so
 any one maintainer can sign a release and a check never depends on one
 person.
 
@@ -64,15 +64,15 @@ A maintainer makes a key once and adds its public half to
 `docs/allowed_signers` by a reviewed change:
 
 ```sh
-ssh-keygen -t ed25519 -f ~/.ssh/poo-release -C "poo release: NAME"
+ssh-keygen -t ed25519 -f ~/.ssh/poon-release -C "poon release: NAME"
 # docs/allowed_signers gets a line:
-# poo-release namespaces="file" ssh-ed25519 AAAA... NAME
+# poon-release namespaces="file" ssh-ed25519 AAAA... NAME
 ```
 
 At each release, after `scripts/release.sh`, one maintainer signs:
 
 ```sh
-ssh-keygen -Y sign -f ~/.ssh/poo-release -n file dist/SHA256SUMS
+ssh-keygen -Y sign -f ~/.ssh/poon-release -n file dist/SHA256SUMS
 ```
 
 and uploads `SHA256SUMS.sig` beside `SHA256SUMS`. A maintainer who steps
@@ -83,7 +83,7 @@ Keyless signing (Sigstore) can come later, once CI has a runner.
 ## Checking a release
 
 ```sh
-ssh-keygen -Y verify -f docs/allowed_signers -I poo-release -n file \
+ssh-keygen -Y verify -f docs/allowed_signers -I poon-release -n file \
   -s SHA256SUMS.sig < SHA256SUMS
 sha256sum -c SHA256SUMS
 ```

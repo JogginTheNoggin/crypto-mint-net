@@ -20,7 +20,7 @@ func TestBuildIDNamesTheRelease(t *testing.T) {
 	if a == b || a == c || b == c {
 		t.Fatalf("ids shared: %q %q %q", a, b, c)
 	}
-	if !strings.HasPrefix(a, "poo snap") || !strings.Contains(a, "0.1.0") || !strings.Contains(a, "abc123") {
+	if !strings.HasPrefix(a, "poon snap") || !strings.Contains(a, "0.1.0") || !strings.Contains(a, "abc123") {
 		t.Fatalf("id %q", a)
 	}
 }

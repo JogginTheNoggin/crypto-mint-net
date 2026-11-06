@@ -29,7 +29,7 @@ neither token, and the node at another address signs that address, so
 neither passes. A failed proof is `*NotProvedError`, which wraps
 `ErrNotRunning` (a command falls back as when no node runs) and either
 the dial error or `ErrNoProof`. Nothing the stranger sent is printed.
-`poo doctor` reports either case. An older node has no `/hello`;
+`poon doctor` reports either case. An older node has no `/hello`;
 restart it after an upgrade.
 
 Two tokens are accepted, both 32 random bytes in hex in files readable
@@ -42,7 +42,7 @@ is read. A request body is at most `MaxBody` (8 MiB), except `POST /entry`
 with `rpc.token`: an entry has no size bound, as the node takes one of any
 size from a peer in parts, so its owner may hand it one of any size too
 (RED-038, D144); and `POST /policy/import` with `rpc.token`, which takes up
-to `MaxImportBody`, so any bundle `poo policy import` reads fits (RED-045,
+to `MaxImportBody`, so any bundle `poon policy import` reads fits (RED-045,
 D150).
 
 | Method and path | Body or query | Reply |
@@ -95,10 +95,10 @@ when the node follows exactly one series. Reply shapes are in
 | `GET /watch` | filter | A stream of newline-delimited JSON events with `hello`, `ping`, `missed` and `end` notices; it ends on a reload |
 | `GET /follow` | | `{follow, pools}`: the node policy's follow list and the pools followed now |
 | `POST /follow` | `{remove, replace, issuer, series, pools, mints, no_reload}` | `{follow, pools, reloading}`; saves the changed node policy and, unless `no_reload`, reloads the node after replying. `replace` puts `pools` and `mints` in place of the series' rule in one change (GUI-018, D139) |
-| `POST /policy/import` | `{policy, options: {prefer_file, replace, settings, full, series_only, settings_only, map_paths: [{from, to}]}, dry_run, no_reload}` | `{plan, saved, reloading}`: takes only what to follow unless `settings` or `full` (D150), and with `settings_only` only the settings (`poo settings import`, D155); the plan's `fit` lists what may not fit the node's machine; the body may be up to `MaxImportBody` (any bundle the CLI reads); merges a node policy from a bundle into the node's (`nodepolicy.Merge`) under the same lock as `/follow`, saves it unless `dry_run` or nothing changes, and reloads unless `no_reload`. 422 `invalid` when the result would not validate. The `rpc` section is never taken, even with `full`: it changes only in node.json with the node stopped, so a token holder cannot open the interface to the network (D149) |
+| `POST /policy/import` | `{policy, options: {prefer_file, replace, settings, full, series_only, settings_only, map_paths: [{from, to}]}, dry_run, no_reload}` | `{plan, saved, reloading}`: takes only what to follow unless `settings` or `full` (D150), and with `settings_only` only the settings (`poon settings import`, D155); the plan's `fit` lists what may not fit the node's machine; the body may be up to `MaxImportBody` (any bundle the CLI reads); merges a node policy from a bundle into the node's (`nodepolicy.Merge`) under the same lock as `/follow`, saves it unless `dry_run` or nothing changes, and reloads unless `no_reload`. 422 `invalid` when the result would not validate. The `rpc` section is never taken, even with `full`: it changes only in node.json with the node stopped, so a token holder cannot open the interface to the network (D149) |
 | `POST /policy/limits` | `{set: {NAME: VALUE}, no_reload}` | `{limits, saved, in_place, reloading}`: sets bounded settings of node.json by name (`nodepolicy.Bounds`; 0 is the default), checked whole before saving, then applies them: in place (`in_place`) when every changed limit is one `nodepolicy.InPlace` names and node.json holds nothing else the node does not run yet, else by a reload (`reloading`); 422 for a name or value out of range (D161, D168). Each entry of `limits` has `in_place`, whether a running node applies that limit without a reload (D170) |
 | `POST /reload` | `{}` | `{reloading: true}`; the node applies its node policy again. 422 `invalid` when `node.json` does not load, and the node keeps its current policy |
-| `GET /metrics` | | What `/status` and `/peers` report, in Prometheus text format 0.0.4 (`poo_pool_height`, `poo_pool_weight` as a float, `poo_pool_pending`, `poo_peers_connected`, `poo_entry_cache_bytes`, `poo_entry_cache_max_bytes`, `poo_entry_bodies_in_memory`, `poo_entry_body_loads_total`, `poo_entry_body_load_errors_total`, …); a scraper sends the token as a bearer token (GREEN-002) |
+| `GET /metrics` | | What `/status` and `/peers` report, in Prometheus text format 0.0.4 (`poon_pool_height`, `poon_pool_weight` as a float, `poon_pool_pending`, `poon_peers_connected`, `poon_entry_cache_bytes`, `poon_entry_cache_max_bytes`, `poon_entry_bodies_in_memory`, `poon_entry_body_loads_total`, `poon_entry_body_load_errors_total`, …); a scraper sends the token as a bearer token (GREEN-002) |
 
 A reload restarts the interface: `rpc.addr` is written again and the next
 call should `Dial` afresh. `/watch` replies `not_found` without a hub, the grind jobs without a
@@ -146,8 +146,8 @@ release is given (D166).
 Submitted items are taken in as `Pushed` (a wallet is an unlisted node);
 build and work are `Local`. A work request holds its connection while it
 grinds, so it is capped at 2^24 nonces or 4 minutes; longer work is a
-grind job. `/metrics` adds `poo_grind_tries_total{device,hash}` and
-`poo_grind_jobs{state}` when the node runs jobs.
+grind job. `/metrics` adds `poon_grind_tries_total{device,hash}` and
+`poon_grind_jobs{state}` when the node runs jobs.
 
 ## Wallets
 

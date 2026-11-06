@@ -43,7 +43,7 @@ func TestLedgerExportPastTipAndImportHints(t *testing.T) {
 	b, _ = json.Marshal(m)
 	seven := filepath.Join(t.TempDir(), "pool7.json")
 	os.WriteFile(seven, b, 0o600)
-	if _, err := runErr("ledger", "import", seven, "-root", src); err == nil || !strings.Contains(err.Error(), "poo follow -series") || !strings.Contains(err.Error(), "-pool 7") {
+	if _, err := runErr("ledger", "import", seven, "-root", src); err == nil || !strings.Contains(err.Error(), "poon follow -series") || !strings.Contains(err.Error(), "-pool 7") {
 		t.Fatalf("a pool not followed: %v", err)
 	}
 }

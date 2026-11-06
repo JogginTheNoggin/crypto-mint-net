@@ -16,7 +16,7 @@ export const policiesView = {
         { name: 'fresh', label: 'Fresh (drop stored data)', type: 'check', only: { field: 'sub', values: ['unarchive'] } }],
       args: v => ['policy', v.sub, ...rootFlag(), ...flag('fresh', v.fresh), ...(v.name ? [v.name] : [])], submit: 'Apply', danger: true }),
       // Export and import share node policies as one file (D149). A file
-      // of every saved policy names each policy itself, so poo takes only
+      // of every saved policy names each policy itself, so poon takes only
       // -root with it; the other scopes use Settings' -root and -policy.
       form(ctx, { title: 'Export node policies', about: 'Writes this node policy, one series, or every saved policy to one file others can import. Without a file, it is printed here, with Save as file.', fields: [
         { name: 'scope', label: 'What', type: 'select', options: [{ value: 'policy', label: 'this node policy' }, { value: 'all', label: 'every saved node policy' }, { value: 'series', label: 'one series' }] },
@@ -39,27 +39,27 @@ export const policiesView = {
   },
 };
 
-// limitsParts is the settable limits (D159, D160, D161): poo policy limits
+// limitsParts is the settable limits (D159, D160, D161): poon policy limits
 // lists each one's range, default, the value node.json sets and the one in
-// effect, and -set changes them, checked by poo against the range before
-// anything is saved. The list comes from poo, so a limit Source adds shows
+// effect, and -set changes them, checked by poon against the range before
+// anything is saved. The list comes from poon, so a limit Source adds shows
 // here without a change to the GUI.
 //
-// Set limits draws a field for each limit poo listed, named for it and
+// Set limits draws a field for each limit poon listed, named for it and
 // showing its value in effect, range and default, so no name has to be
 // remembered or typed (GUI-GREEN-049). A field left empty sends nothing.
-// poo still checks every value; the GUI only shows what poo printed.
+// poon still checks every value; the GUI only shows what poon printed.
 function limitsParts(ctx) {
   let typed = [];
   // saved is set by a successful save, so the redraw after it starts empty;
   // any other redraw (Refresh) keeps what was typed and not yet saved.
   let saved = false;
-  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json. A running node applies them at once where poo can, else it reloads; the line above the result says which. Fill only the ones to change. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
-    { name: 'set', label: 'Other limits (NAME=VALUE)', type: 'list', placeholder: 'any poo policy limits names that are not listed above' }],
+  const set = form(ctx, { title: 'Set limits', about: 'Saves the limits to node.json. A running node applies them at once where poon can, else it reloads; the line above the result says which. Fill only the ones to change. Each value must lie in its range, or nothing is saved; 0 puts a limit back to its default.', fields: [
+    { name: 'set', label: 'Other limits (NAME=VALUE)', type: 'list', placeholder: 'any poon policy limits names that are not listed above' }],
   args: v => ['policy', 'limits', ...where.flags(), ...flags('set', [...typed.filter(i => i.value.trim()).map(i => `${i.name}=${i.value.trim()}`), ...v.set])], submit: 'Save', danger: true,
   onResult: (r, area) => {
     appliedNote(r, area);
-    // poo's notes on settings that will not work as most likely meant
+    // poon's notes on settings that will not work as most likely meant
     // (bounty.post on with no budget, GREEN-062), each as printed.
     let o = null;
     try { o = JSON.parse(r.out); } catch (_) { /* not JSON */ }
@@ -76,7 +76,7 @@ function limitsParts(ctx) {
       const named = list.filter(l => l && typeof l.name === 'string');
       const before = saved ? {} : Object.fromEntries(typed.map(i => [i.name, i.value]));
       saved = false;
-      // A limit poo marks as a switch (bounty.post, bounty.take: D198) is
+      // A limit poon marks as a switch (bounty.post, bounty.take: D198) is
       // a choice of on or off; left unchanged, it sends nothing.
       const field = l => {
         if (l.switch !== true) return el('input', { name: l.name, type: 'text', inputmode: 'numeric', placeholder: String(l.used ?? ''), spellcheck: 'false', 'data-limit': l.name, value: before[l.name] || '' });
@@ -111,8 +111,8 @@ export function saveAs(text, name) {
 }
 
 // mapField is -map-path OLD=NEW, for registry file paths in a file made
-// on another machine (D155); poo reads the paths, the GUI only sends them.
-const mapField = { name: 'map', label: 'Registry paths from the other machine (OLD=NEW)', type: 'list', placeholder: '/home/a/.poo=/home/b/.poo' };
+// on another machine (D155); poon reads the paths, the GUI only sends them.
+const mapField = { name: 'map', label: 'Registry paths from the other machine (OLD=NEW)', type: 'list', placeholder: '/home/a/.poon=/home/b/.poon' };
 
 // The two imports: one form, different commands and options. Each
 // spec gives the form's title and fields and builds the preview line.
@@ -139,25 +139,25 @@ const SETTINGS_IMPORT = {
   args: v => ['settings', 'import', ...where.flags(), ...flag('prefer-file', v.prefer), ...flag('replace', v.replace), ...flag('full', v.full), ...flags('map-path', v.map), ...flag('no-reload', v.noReload), '-json', ...(v.file ? [v.file] : [])],
 };
 
-// importForm previews poo policy import or poo settings import (neither
-// changes anything without -apply), draws the plan poo printed, and
-// offers Apply with the same flags. poo makes the plan; the GUI only
+// importForm previews poon policy import or poon settings import (neither
+// changes anything without -apply), draws the plan poon printed, and
+// offers Apply with the same flags. poon makes the plan; the GUI only
 // lays it out.
 export function importForm(ctx, spec) {
   const importArgs = spec.args;
-  // A spec may draw its own plan and find its digest (poo peers import
+  // A spec may draw its own plan and find its digest (poon peers import
   // prints one object, not a list of node policies).
   const show = spec.show || showPlan;
   const digestOf = spec.digest || (o => (o[0] || {}).digest);
-  // Whether poo's plan changes nothing: poo then prints no digest, as
+  // Whether poon's plan changes nothing: poon then prints no digest, as
   // there is nothing to apply (Source R30, GUI/Red R28B).
   const changesNothing = spec.changesNothing || planChangesNothing;
-  // A file picked in the browser goes to poo on its standard input:
+  // A file picked in the browser goes to poon on its standard input:
   // FILE is -, and the job is sent the file's text, then end of input,
-  // as typing it and Ctrl-D would. poo reads and checks it (D149).
-  // The file is read as poo reads it, not whole first (ORANGE-014), and
+  // as typing it and Ctrl-D would. poon reads and checks it (D149).
+  // The file is read as poon reads it, not whole first (ORANGE-014), and
   // Apply sends the digest of the file previewed (-if-digest, D151), so
-  // poo refuses anything else, the file changed on disk included (GUI-023).
+  // poon refuses anything else, the file changed on disk included (GUI-023).
   let picker = null; // pickFile's; the file picked now is picker.get()
   const feed = (args, j, file) => {
     if (args[args.length - 1] !== '-' || !file) return;
@@ -261,9 +261,9 @@ export function allOf(xs) {
   return d;
 }
 
-// planChangesNothing says whether every node policy's plan in poo policy
+// planChangesNothing says whether every node policy's plan in poon policy
 // import -json (or settings import) adds, removes and changes nothing and
-// makes no new policy, as poo printed it.
+// makes no new policy, as poon printed it.
 function planChangesNothing(list) {
   return Array.isArray(list) && list.length > 0 && list.every(t => {
     const p = (t && t.plan) || {};
@@ -271,7 +271,7 @@ function planChangesNothing(list) {
   });
 }
 
-// showPlan draws poo policy import -json: one table per node policy, a row
+// showPlan draws poon policy import -json: one table per node policy, a row
 // for each setting added, removed, changed or in conflict.
 function showPlan(r, area, applied) {
   if (r.code !== 0) return;
@@ -291,14 +291,14 @@ function showPlan(r, area, applied) {
       `${p.same || 0} already the same.`,
       (p.skipped || []).length ? `Machine-local settings left alone: ${p.skipped.join(', ')}.` : null,
       (p.refused || []).length ? `Not accepted here: ${p.refused.join('; ')}.` : null,
-      // Series the node policy's series_ceiling left out, with poo's reason (D170).
+      // Series the node policy's series_ceiling left out, with poon's reason (D170).
       (p.declined || []).length ? `Left out by this node's series ceiling: ${p.declined.slice(0, SOME).join('; ')}${p.declined.length > SOME ? `; and ${p.declined.length - SOME} more` : ''}.` : null,
       (p.follows || []).length ? `Follows: ${p.follows.slice(0, SOME).map(c => `series ${c.series.slice(0, 12)}: ${c.followed} of ${c.pools} pools${c.whole ? ' (the whole series)' : ''}`).join('; ')}${p.follows.length > SOME ? `; and ${p.follows.length - SOME} more series ("Output as printed" has them all)` : ''}.` : null,
       (p.fit || []).length ? `May not fit this machine: ${p.fit.join('; ')}.` : null,
       t.saved ? (t.reloading ? 'Saved; the running node is reloading it.' : 'Saved.') : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',
     ].filter(Boolean).join(' ');
     // Read first: lines that change a defence of this node or where it
-    // reaches out (D150), as poo prints them first.
+    // reaches out (D150), as poon prints them first.
     const defences = (p.defences || []).length ? el('div', { class: 'next-step plan-defences' },
       el('p', { role: 'alert' }, `Read first: ${count(p.defences, 'line')} ${p.defences.length === 1 ? 'changes' : 'change'} a defence of this node or where it reaches out: `, someOf(p.defences)), allOf(p.defences)) : null;
     // Series listed but not accepted before that the result uses: the
@@ -306,9 +306,9 @@ function showPlan(r, area, applied) {
     const nowUsed = (p.now_used || []).length ? el('div', { class: 'next-step plan-now-used' },
       el('p', { role: 'alert' }, `Now used: ${count(p.now_used, 'series', 'series')} listed but not accepted before. The node will follow, mine into and relay ${p.now_used.length === 1 ? 'it' : 'them'}: `, someOf(p.now_used)), allOf(p.now_used)) : null;
     // Series with no witness ceiling, or one above 4 MiB, that the import
-    // adds or follows more of: a warning only, as poo gives it (D171).
+    // adds or follows more of: a warning only, as poon gives it (D171).
     const unbounded = (p.unbounded || []).length ? el('div', { class: 'next-step plan-unbounded' },
-      el('p', { role: 'alert' }, `Read first: the import adds or follows more of ${count(p.unbounded, 'series', 'series')} with no witness ceiling or a large one. This is a warning only; poo gives the reason for each: `, someOf(p.unbounded)), allOf(p.unbounded)) : null;
+      el('p', { role: 'alert' }, `Read first: the import adds or follows more of ${count(p.unbounded, 'series', 'series')} with no witness ceiling or a large one. This is a warning only; poon gives the reason for each: `, someOf(p.unbounded)), allOf(p.unbounded)) : null;
     return el('div', { class: 'import-plan' },
       el('h3', {}, `${t.name || t.dir} (${t.mode}${t.running ? ', running' : ''})`), defences, unbounded, nowUsed,
       lines.length ? planTable(lines) : el('p', {}, 'No settings change.'),

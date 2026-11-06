@@ -518,7 +518,7 @@ type Host struct {
 	lastReg   time.Time
 	selfAddrs map[string]bool // addresses found to lead back to this node
 	// mapped is the address a confirmed port mapping gives (D182), or nil;
-	// pm is what poo status shows of the mapping.
+	// pm is what poon status shows of the mapping.
 	mapped atomic.Pointer[string]
 	pmMu   sync.Mutex
 	pm     PortMapStatus

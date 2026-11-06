@@ -13,7 +13,7 @@ import (
 )
 
 // TestSubmitEntryAndLayer: an entry and a layer made by one node, in the
-// hex its API prints, are handed to another with poo submit, which
+// hex its API prints, are handed to another with poon submit, which
 // selects them as a peer's would be (GREEN-038, D143).
 func TestSubmitEntryAndLayer(t *testing.T) {
 	rootA, rootB := t.TempDir(), t.TempDir()
@@ -64,8 +64,8 @@ func TestSubmitEntryAndLayer(t *testing.T) {
 		t.Fatalf("submit layer %+v, want %+v", lay, worked)
 	}
 
-	// The same with poo alone: build -bytes -work prints the entry and its
-	// layer for poo submit on the other node (GREEN-039).
+	// The same with poon alone: build -bytes -work prints the entry and its
+	// layer for poon submit on the other node (GREEN-039).
 	var both struct {
 		Hash  string
 		Entry string
@@ -137,7 +137,7 @@ func TestSubmitEntryAndLayer(t *testing.T) {
 	// 300 KB of hex on standard input is read whole and decoded (junk, so
 	// refused as an entry); -f with an argument is refused.
 	err = Run(context.Background(), []string{"submit", "entry", "-pool", "1", "-root", rootB, "-"}, Stdio{In: strings.NewReader(strings.Repeat("00", 150_000)), Out: io.Discard, Err: io.Discard})
-	if err == nil || !strings.Contains(err.Error(), "poo submit entry:") || strings.Contains(err.Error(), "usage") {
+	if err == nil || !strings.Contains(err.Error(), "poon submit entry:") || strings.Contains(err.Error(), "usage") {
 		t.Fatalf("300 KB of hex on standard input: %v", err)
 	}
 	var sink strings.Builder
@@ -147,10 +147,10 @@ func TestSubmitEntryAndLayer(t *testing.T) {
 
 	var out strings.Builder
 	if err := run([]string{"submit"}, &out); err == nil {
-		t.Fatal("poo submit accepted")
+		t.Fatal("poon submit accepted")
 	}
 	if err := run([]string{"submit", "tx"}, &out); err == nil {
-		t.Fatal("poo submit tx accepted")
+		t.Fatal("poon submit tx accepted")
 	}
 	for _, bad := range [][]string{
 		{"entry", "-pool", "1"}, {"entry", "-pool", "1", "zz"}, {"entry", "-pool", "1", "00"},
@@ -163,7 +163,7 @@ func TestSubmitEntryAndLayer(t *testing.T) {
 	}
 }
 
-// A build or work reply made with -bytes can be piped into poo submit as
+// A build or work reply made with -bytes can be piped into poon submit as
 // printed (GREEN-040).
 func TestSubmitFromReply(t *testing.T) {
 	build := `{"hash": "aa", "entry": "e1e1", "layer": {"hash": "bb", "layer": "1a1a"}}`

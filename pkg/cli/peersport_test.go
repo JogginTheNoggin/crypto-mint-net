@@ -183,7 +183,7 @@ func TestPeersRunning(t *testing.T) {
 		t.Fatalf("connect -imported: %+v", pr)
 	}
 	file := filepath.Join(t.TempDir(), "p.json")
-	doc := `{"kind":"poo-peers","format":1,"peers":[{"addr":"8.8.5.5:1","policies":[{"section":"*/*/*/*","state":"priority"}]}]}`
+	doc := `{"kind":"poon-peers","format":1,"peers":[{"addr":"8.8.5.5:1","policies":[{"section":"*/*/*/*","state":"priority"}]}]}`
 	if err := os.WriteFile(file, []byte(doc), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestPeersRunning(t *testing.T) {
 	// with -if-digest; before, the node hashed an empty file digest (it is
 	// left out of JSON) and refused every such apply as not previewed.
 	file2 := filepath.Join(t.TempDir(), "p2.json")
-	if err := os.WriteFile(file2, []byte(`{"kind":"poo-peers","format":1,"peers":[{"addr":"8.8.6.6:1","policies":[{"section":"*/*/*/*","state":"priority"}]}]}`), 0o600); err != nil {
+	if err := os.WriteFile(file2, []byte(`{"kind":"poon-peers","format":1,"peers":[{"addr":"8.8.6.6:1","policies":[{"section":"*/*/*/*","state":"priority"}]}]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	preview := runOut(t, "peers", "import", file2, "-root", root)

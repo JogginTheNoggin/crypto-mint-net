@@ -8,7 +8,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 )
 
-// GUI ORANGE-021: poo status -counts adds the pool rows up per series, in
+// GUI ORANGE-021: poon status -counts adds the pool rows up per series, in
 // the order the series first appear, and keeps the notes.
 func TestStatusBySeries(t *testing.T) {
 	a, b := hash.Hash{1}, hash.Hash{2}
@@ -34,7 +34,7 @@ func TestStatusBySeries(t *testing.T) {
 	}
 }
 
-// GUI-GREEN-056 (D179): a row of the default series names it, as poo
+// GUI-GREEN-056 (D179): a row of the default series names it, as poon
 // series followed does; another series' row has no builtin.
 func TestStatusBySeriesBuiltin(t *testing.T) {
 	reserve, err := hash.Parse(series.ReserveID)

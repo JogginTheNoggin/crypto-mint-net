@@ -345,7 +345,7 @@ func Digest(file string, opt Options, p Plan) string {
 func notes(plan Plan, opt Options, n Node, unlisted int, lim peers.Limits) []string {
 	out := []string{}
 	if len(plan.Added) > 0 || len(plan.More) > 0 {
-		out = append(out, fmt.Sprintf("once applied, the node tries these addresses when it is short of peers, after its own candidates and before registries (p2p.no_dial_imported stops that); imported addresses take %d of the %d places the book keeps for them (of %d), and poo peer remove -imported takes them all out", unlisted, lim.MaxUnlisted, lim.MaxRecords))
+		out = append(out, fmt.Sprintf("once applied, the node tries these addresses when it is short of peers, after its own candidates and before registries (p2p.no_dial_imported stops that); imported addresses take %d of the %d places the book keeps for them (of %d), and poon peer remove -imported takes them all out", unlisted, lim.MaxUnlisted, lim.MaxRecords))
 	}
 	ranges, v4 := 0, map[string]bool{}
 	for _, l := range plan.Blocks {

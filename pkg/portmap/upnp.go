@@ -23,7 +23,7 @@ const ssdpAddr = "239.255.255.250:1900"
 var (
 	igdTypes     = []string{"urn:schemas-upnp-org:device:InternetGatewayDevice:2", "urn:schemas-upnp-org:device:InternetGatewayDevice:1"}
 	wanServices  = []string{"urn:schemas-upnp-org:service:WANIPConnection:", "urn:schemas-upnp-org:service:WANPPPConnection:"}
-	upnpDescName = "poo node"
+	upnpDescName = "poon node"
 )
 
 // onGateway checks that raw is a plain http URL whose host is gw's own IP

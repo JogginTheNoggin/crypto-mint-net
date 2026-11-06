@@ -10,16 +10,16 @@ import (
 )
 
 // GREEN-063: a bounty from post to paid and through a restart, as a new
-// user. A finished offer left poo bounty list with no command to see it
+// user. A finished offer left poon bounty list with no command to see it
 // again (only bounties-done.jsonl by hand), and the grinder's wallet
 // showed 0 after being paid: a paid ack names the payment's tids, not the
 // mint it is in, and the grinder's held offers and acks are gone after a
-// restart. poo bounty list -done N lists the finished offers, and
-// poo wallet watch -tid TID watches a payment's mint.
+// restart. poon bounty list -done N lists the finished offers, and
+// poon wallet watch -tid TID watches a payment's mint.
 func TestBountyDoneListAndWatchByTID(t *testing.T) {
 	createIterations = 1
 	defer func() { createIterations = 0 }()
-	t.Setenv("POO_PASSPHRASE", "pw")
+	t.Setenv("POON_PASSPHRASE", "pw")
 	root := t.TempDir()
 	r := []string{"-root", root}
 	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "127.0.0.1:0"}, r...)...)

@@ -1,16 +1,16 @@
-// Package cli is the poo command: the Proof of Ownership full node's
-// command-line tool, as a library. cmd/poo is a few lines around Main, and
+// Package cli is the poon command: the Proof of Ownership full node's
+// command-line tool, as a library. cmd/poon is a few lines around Main, and
 // the GUI's terminal and every GUI action call the same Main, so the
 // headless tool and the GUI always run the same code (docs/gui.md).
 //
-// It runs the node daemon (poo node), which stores what it accepts and
+// It runs the node daemon (poon node), which stores what it accepts and
 // serves a local RPC, and talks to a running node: status, claims and
 // payments from a single key, building entries and adding layers, and
 // reading where a payment stands. It also manages node policies and has
 // offline commands for keys, series and an in-process demo. The node
 // finds peers from its node policy, address registries and its peers, ranks
 // them, and tracks how they behave; the owner can inspect and act on them
-// (poo peers, poo peer, poo tracking, poo chases). poo wallet keeps a
+// (poon peers, poon peer, poon tracking, poon chases). poon wallet keeps a
 // holder's keys and pays, requests and watches payments through the node.
 package cli
 
@@ -48,158 +48,158 @@ var Commit = ""
 // build its snapshots are written by from these (RED-087, D181).
 func init() { node.SetRelease(Version, releaseCommit()) }
 
-const usage = `poo: Proof of Ownership full node tool
+const usage = `poon: Proof of Ownership full node tool
 
 Usage:
-  poo init [-example] [-series FILE]... [-p2p ADDR] [-peer ADDR]...
+  poon init [-example] [-series FILE]... [-p2p ADDR] [-peer ADDR]...
                               write a node policy and make it current
-  poo node [-log-level L] [-log-format F]
+  poon node [-log-level L] [-log-format F]
                               run the node until interrupted
-  poo peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT]
+  poon peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT]
                               the running node's peers, their categories
                               and points, and its peer book, filtered
-                              (blocked, timed out: poo tracking)
-  poo peers -counts           only the book's size and counts per state
-  poo peers export [-category LIST] [-out FILE]
+                              (blocked, timed out: poon tracking)
+  poon peers -counts           only the book's size and counts per state
+  poon peers export [-category LIST] [-out FILE]
                               write the peer book, or some categories of
                               it, and the blocks to one shareable file
-  poo peers import FILE|- [-apply] [-blocks [-ranges]] [-if-digest D]
+  poon peers import FILE|- [-apply] [-blocks [-ranges]] [-if-digest D]
                               add such a file's addresses, unlisted, and
                               with -blocks its blocks; shows the plan first
-  poo peer timeout|block|unblock|clear|template|delete ADDR
+  poon peer timeout|block|unblock|clear|template|delete ADDR
            [-seconds N] [-range] [-what flags|measures|all] [-template NAME]
                               act on one peer
-  poo peer add|remove|label|connect ADDR [-label TEXT] [-keep]
+  poon peer add|remove|label|connect ADDR [-label TEXT] [-keep]
                               add a peer by hand, take one out, label it,
                               or dial it now (connect -imported: every
                               address an imported file gave)
-  poo tracking [ADDR] [-blocked] [-timed-out]
+  poon tracking [ADDR] [-blocked] [-timed-out]
                               what the tracker keeps: every address's
                               status, or one address's record
-  poo chases                  the chase queue of heavier stated weights
-  poo status                  every followed pool of the running node
-  poo doctor [-json]          check the node's setup and say what to fix
-  poo follow [-issuer ID | -series ID [-pool K]... [-mint N]...] [-no-reload]
+  poon chases                  the chase queue of heavier stated weights
+  poon status                  every followed pool of the running node
+  poon doctor [-json]          check the node's setup and say what to fix
+  poon follow [-issuer ID | -series ID [-pool K]... [-mint N]...] [-no-reload]
                               follow more; applied by a running node at once
                               (no flags: show what is followed)
-  poo unfollow -issuer ID | -series ID [-pool K]... [-mint N]...
+  poon unfollow -issuer ID | -series ID [-pool K]... [-mint N]...
                               follow less, the same way
-  poo reload                  make the running node apply its node policy
-  poo pools [FILTER]          followed pools: tip, height, weight, pending
-  poo ledger -pool K [-below H] [-limit N] [FILTER]
+  poon reload                  make the running node apply its node policy
+  poon pools [FILTER]          followed pools: tip, height, weight, pending
+  poon ledger -pool K [-below H] [-limit N] [FILTER]
                               the selected ledger, newest entry first
-  poo ledger export -pool K [-from H] [-to H] [-out FILE]
+  poon ledger export -pool K [-from H] [-to H] [-out FILE]
                               a stretch of the selected ledger, oldest
                               first, as raw entries anyone can check
-  poo ledger import [-dry-run] FILE|-
+  poon ledger import [-dry-run] FILE|-
                               hand a ledger file's entries to the node,
                               which checks every one in full
-  poo pending [FILTER]        pending transactions
-  poo unspent [FILTER]        unspent portions
-  poo tx [-series ID] [-in-serial N] TID
+  poon pending [FILTER]        pending transactions
+  poon unspent [FILTER]        unspent portions
+  poon tx [-series ID] [-in-serial N] TID
                               one transaction and where it stands
-  poo address [-series ID] [-below H] [-limit N] [FILTER] ADDRESS
+  poon address [-series ID] [-below H] [-limit N] [FILTER] ADDRESS
                               an address's balance, history and pending
-  poo watch [-notices] [-once] [FILTER]
+  poon watch [-notices] [-once] [FILTER]
                               live events, one JSON object per line
                               FILTER: -series -pool -serial -address
                               -address-policy -tid -kind (repeatable, comma lists)
-  poo claim -seed-file FILE [-alg NAME] -serial N [-parent HASH|root|before-claim [-work N]]
+  poon claim -seed-file FILE [-alg NAME] -serial N [-parent HASH|root|before-claim [-work N]]
                               claim a whole mint for a key's address; with
                               -parent, build it on that branch to outweigh
                               a claim the selected ledger holds
-  poo pay -seed-file FILE [-alg NAME] -serial N -to ADDR -amount A
+  poon pay -seed-file FILE [-alg NAME] -serial N -to ADDR -amount A
                               pay from a key's address, change back to it
-  poo build -pool K | -serial N [-parent HASH|root|before-claim] [-work N] [-device D] [-threads N] [-for 30s]
+  poon build -pool K | -serial N [-parent HASH|root|before-claim] [-work N] [-device D] [-threads N] [-for 30s]
                               build an entry from the pending transactions,
                               on the selected tip or the -parent named
-  poo work -pool K | -serial N [-entry HASH] [-tries N | -for 30s] [-device D] [-threads N]
+  poon work -pool K | -serial N [-entry HASH] [-tries N | -for 30s] [-device D] [-threads N]
                               add a layer (default: on the selected tip)
-  poo submit entry|layer -pool K | -serial N HEX
+  poon submit entry|layer -pool K | -serial N HEX
                               hand the node an entry or layer made elsewhere
-  poo grind devices|bench|start|run|schedule|jobs|stop
+  poon grind devices|bench|start|run|schedule|jobs|stop
                               the node's hash work: devices, speed, and jobs
-                              by hand, scheduled or automatic (poo grind help)
-  poo payment -serial N -tid HASH
+                              by hand, scheduled or automatic (poon grind help)
+  poon payment -serial N -tid HASH
                               where a transaction stands (older form of
-                              poo tx, kept for scripts)
-  poo holdings -serial N      unspent portions of a mint (older form of
-                              poo unspent -serial N, kept for scripts)
-  poo policy list|use|archive|unarchive|delete [-root DIR] [NAME]
+                              poon tx, kept for scripts)
+  poon holdings -serial N      unspent portions of a mint (older form of
+                              poon unspent -serial N, kept for scripts)
+  poon policy list|use|archive|unarchive|delete [-root DIR] [NAME]
                               manage saved and archived node policies
-  poo policy limits [-set NAME=VALUE]... [-o FORMAT]
+  poon policy limits [-set NAME=VALUE]... [-o FORMAT]
                               the settable limits: range, default, value;
                               -set changes them, live in a running node
-  poo policy export [-all | -series ID] [-full] [-out FILE]
+  poon policy export [-all | -series ID] [-full] [-out FILE]
                               write node policies to one shareable file
-  poo policy import FILE|- [-apply] [-settings | -full] [-if-digest D]
+  poon policy import FILE|- [-apply] [-settings | -full] [-if-digest D]
                               merge such a file into the node policies here:
                               shows the plan, changes them only with -apply
-  poo settings export [-full] [-out FILE]
+  poon settings export [-full] [-out FILE]
                               write this node's settings (not what it
                               follows) to one file, for another machine
-  poo settings import FILE|- [-apply] [-full] [-map-path OLD=NEW]
+  poon settings import FILE|- [-apply] [-full] [-map-path OLD=NEW]
                               merge such a file into this node's settings:
                               shows the plan and what may not fit here
-  poo wallet COMMAND          keys from one seed, payments, requests,
-                              co-signing and light mode (poo wallet help)
+  poon wallet COMMAND          keys from one seed, payments, requests,
+                              co-signing and light mode (poon wallet help)
 
-  poo version [-v]            print the version (-v: Go, platform, commit
+  poon version [-v]            print the version (-v: Go, platform, commit
                               and dependencies, for a bug report)
-  poo crypto                  list the hashes, key algorithms and policy
+  poon crypto                  list the hashes, key algorithms and policy
                               types a series can choose from
-  poo keygen [-alg NAME] [-hash NAME] [-seed-file FILE [-raw]]
+  poon keygen [-alg NAME] [-hash NAME] [-seed-file FILE [-raw]]
                               make a key (default Ed25519) and its 1-of-1
                               address under a hash (default SHA-256); with
                               -raw, show an existing key's public key and
                               address (D193)
-  poo sign FILE|- -key-file F [-alg NAME] [-raw] [-hash NAME] [-out FILE] [-show]
+  poon sign FILE|- -key-file F [-alg NAME] [-raw] [-hash NAME] [-out FILE] [-show]
                               sign a payment waiting for signatures with a
                               key kept off the node; needs no node (D193)
-  poo bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
+  poon bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
                               offer to pay for layers on an entry (D196)
-  poo bounty list [-ask] [-max-strength S] [-done N]
+  poon bounty list [-ask] [-max-strength S] [-done N]
                               this node's offers and those peers sent; -done
                               adds its last N finished ones
-  poo bounty work ID -to ADDR [-max-seconds N] [-max-strength S]
+  poon bounty work ID -to ADDR [-max-seconds N] [-max-strength S]
                               lease a peer's offer, grind the layer, claim it
-  poo bounty pay ID [-claim NONCE] [-wallet FILE]
+  poon bounty pay ID [-claim NONCE] [-wallet FILE]
                               pay an accepted claim from the wallet
-  poo bounty cancel ID        close one of this node's offers
-  poo series example          print the worked example's series as JSON
-  poo series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
+  poon bounty cancel ID        close one of this node's offers
+  poon series example          print the worked example's series as JSON
+  poon series new [-hash NAME] [-algs LIST] [-types LIST] [-mints N] ...
                               print a new series' params, checked
-  poo series info FILE        print the id, supply type and pools of a series
+  poon series info FILE        print the id, supply type and pools of a series
                               file (params or signed)
-  poo series sign FILE [-seed-file F] [-alg NAME]
+  poon series sign FILE [-seed-file F] [-alg NAME]
                               sign a series as its issuer: the
                               issuer_witness for node.json
-  poo series release FILE -part K [-seed-file F] [-alg NAME] | -check RELEASE
+  poon series release FILE -part K [-seed-file F] [-alg NAME] | -check RELEASE
                               release part K of a variable series as its
                               issuer, or check a release (D163)
-  poo series parts FILE [-from K] [-to K] [-o table]
+  poon series parts FILE [-from K] [-to K] [-o table]
                               a variable series' parts: serials, pools
                               and part ids
-  poo series add-release RELEASE
+  poon series add-release RELEASE
                               give the node a release of a variable
                               series: it follows the new parts' mints
-  poo series followed         the series the running node follows, with
+  poon series followed         the series the running node follows, with
                               the parts it has released (D166)
-  poo demo [-quiet]           run in-process full nodes through a payment,
+  poon demo [-quiet]           run in-process full nodes through a payment,
                               a double spend and its resolution
-  poo sim load|partition|attack|sizing [flags]
+  poon sim load|partition|attack|sizing [flags]
                               run the deterministic network simulator
-                              (poo sim help)
-  poo help [COMMAND]          this text, or one command's usage
-  poo completion bash|zsh|fish
+                              (poon sim help)
+  poon help [COMMAND]          this text, or one command's usage
+  poon completion bash|zsh|fish
                               print a shell completion script
 
 Node commands pick a data directory with -dir, or with -root (default
-$POO_HOME or ~/.poo) and -policy (default: the current node policy).
+$POON_HOME or ~/.poon) and -policy (default: the current node policy).
 Client commands take -series ID when the node follows more than one series.
 Read commands print JSON; -o table prints columns for reading (-wide: full hashes).
 
-poo -view-only COMMAND (or POO_VIEW_ONLY=1) only looks: it dials the node
+poon -view-only COMMAND (or POON_VIEW_ONLY=1) only looks: it dials the node
 with rpc.view-token, which the node lets read and nothing else, and refuses
 every command that would change something.
 `
@@ -214,29 +214,29 @@ type Stdio struct {
 	// masked field. prompt says what is asked for. Nil reads a line of In.
 	Secret func(prompt string) (string, error)
 	// ViewOnly runs the invocation in view-only mode (see scope.go), as
-	// $POO_VIEW_ONLY=1 or a leading -view-only argument also do.
+	// $POON_VIEW_ONLY=1 or a leading -view-only argument also do.
 	ViewOnly bool
 }
 
 // Main runs the command line args (without the program name) and returns
-// the process exit code: errors are printed to Err as "poo: <error>".
-// Cancelling ctx stops a long-running command such as poo node, as an
+// the process exit code: errors are printed to Err as "poon: <error>".
+// Cancelling ctx stops a long-running command such as poon node, as an
 // interrupt does from a shell.
 func Main(ctx context.Context, args []string, s Stdio) int {
 	if err := Run(ctx, args, s); err != nil {
-		fmt.Fprintln(s.Err, "poo:", err)
+		fmt.Fprintln(s.Err, "poon:", err)
 		return ExitCode(err)
 	}
 	return 0
 }
 
-// The exit codes of poo: 0 done, 1 refused or failed, and ExitWaiting.
+// The exit codes of poon: 0 done, 1 refused or failed, and ExitWaiting.
 const (
 	ExitFailed = 1
 	// ExitWaiting: refused only because the mint's part is not released at
 	// this node yet (D166), as the RPC's 409 waiting says. It is not an
 	// invalid mint, and the same command works once the release arrives,
-	// from a peer or from poo series add-release (D168).
+	// from a peer or from poon series add-release (D168).
 	ExitWaiting = 3
 )
 
@@ -286,7 +286,7 @@ type stdio struct {
 	in  *bufio.Reader // one reader, so successive lines are not lost
 	ctx context.Context
 	// probe, when set, is given every flag set a command makes, and the
-	// flag sets print nothing: poo __complete runs a command with -h to
+	// flag sets print nothing: poon __complete runs a command with -h to
 	// learn its flags (completion.go).
 	probe func(*flag.FlagSet)
 	// secret reads a secret (Stdio.Secret); nil reads a line of in.
@@ -355,8 +355,8 @@ func run(args []string, out io.Writer) error {
 			}
 			return peersCmd(args[1:], out)
 		}
-		// "poo policy help", "-h" or "--help": a command made of
-		// subcommands prints its usage lines, as poo help policy does,
+		// "poon policy help", "-h" or "--help": a command made of
+		// subcommands prints its usage lines, as poon help policy does,
 		// and exits 0, where it took the word for a subcommand or a
 		// NAME and failed (GREEN-045).
 		return helpCmd(args[:1], out)
@@ -451,10 +451,10 @@ func keygen(args []string, out io.Writer) error {
 	fs := newFlagSet("keygen", out)
 	seedHex := fs.String("seed", "", "32-byte seed in hex, for test vectors only: other users can read the command line (random if empty)")
 	seedFile := fs.String("seed-file", "", "file holding the seed in hex, - for standard input (random if neither)")
-	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poo crypto)")
+	algName := fs.String("alg", "ed25519", "key algorithm, by name or number (poon crypto)")
 	hashName := fs.String("hash", "sha256", "hash of the series the address is for")
 	raw := fs.Bool("raw", false, "with -seed-file: the file holds an existing private key in its algorithm's usual form, as other tools keep it; prints its public key and address, never the key (D193)")
-	keyOut := fs.String("out", "", "write a new random seed to this file (readable by you only, never replacing a file) and print only the public key and addresses: a key file for poo sign, claim and pay -seed-file")
+	keyOut := fs.String("out", "", "write a new random seed to this file (readable by you only, never replacing a file) and print only the public key and addresses: a key file for poon sign, claim and pay -seed-file")
 	w := addWhere(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -576,7 +576,7 @@ func keygenOut(out io.Writer, w *where, alg policy.AlgID, hid hash.ID, signer po
 		v["address_sha256"] = addr // the field's name before there was a choice
 	}
 	// The address under each series the node policy lists, which is the
-	// one to give a payer: poo init follows the reserve series by default
+	// one to give a payer: poon init follows the reserve series by default
 	// (D170), whose hash is SHA-512/256, so the sha256 "address" above is
 	// not this key's address there (GREEN-052).
 	if fa, note := followedAddresses(w, pol, alg, hid); len(fa) > 0 {
@@ -646,7 +646,7 @@ func seriesCmd(args []string, out io.Writer) error {
 	case "followed":
 		return seriesFollowed(args[1:], out)
 	case "info":
-		const infoUsage = "usage: poo series info FILE (a series params file or a signed series file)"
+		const infoUsage = "usage: poon series info FILE (a series params file or a signed series file)"
 		if len(args) == 2 && (args[1] == "-h" || args[1] == "-help" || args[1] == "--help") {
 			fmt.Fprintln(out, infoUsage)
 			return nil
@@ -681,7 +681,7 @@ func seriesCmd(args []string, out io.Writer) error {
 			info.Pools = append(info.Pools, pool{k, f, l, s.PoolID(k).String()})
 		}
 		// A variable series also lists its first parts, each as ranges
-		// (poo series parts lists any others).
+		// (poon series parts lists any others).
 		if s.IsVariable() {
 			info.SupplyType, info.PartSize, info.MaxParts = "variable", s.PartSize(), s.MaxParts()
 			if info.Parts, err = partRows(contextOf(out), s, 1, 10); err != nil {
@@ -706,7 +706,7 @@ var ownHelp = map[string]bool{"grind": true, "sim": true, "wallet": true, "bount
 
 // runsBare names the commands made of subcommands that also run with no
 // subcommand, with flags of their own: -h lists those flags, and "help"
-// the usage lines (poo peers, D157; poo ledger, D188).
+// the usage lines (poon peers, D157; poon ledger, D188).
 var runsBare = map[string]bool{"peers": true, "ledger": true}
 
 func isHelpWord(s string) bool { return s == "help" || s == "-h" || s == "--help" }

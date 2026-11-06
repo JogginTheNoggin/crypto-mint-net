@@ -19,7 +19,7 @@ func TestPortMapCheckSaysWhyWhereWhen(t *testing.T) {
 	got, _ = portMapCheck(rpc.StatusReply{PortMap: &p2p.PortMapStatus{Mode: "auto", State: p2p.PortMapFailed, Error: "upnp: no gateway answered the search",
 		Gateway: "192.0.2.1", NextTry: time.Now().Add(4*time.Minute + 30*time.Second)}})
 	if !strings.Contains(got.Detail, "asked the router at 192.0.2.1") || !strings.Contains(got.Detail, "asks again in 4m") ||
-		!strings.Contains(got.Fix, "poo reload tries again at once") {
+		!strings.Contains(got.Fix, "poon reload tries again at once") {
 		t.Errorf("failed: %+v", got)
 	}
 	got, _ = portMapCheck(rpc.StatusReply{PortMap: &p2p.PortMapStatus{Mode: "auto", State: p2p.PortMapFailed, Error: portmapNoGateway}})

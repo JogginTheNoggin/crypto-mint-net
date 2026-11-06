@@ -23,10 +23,10 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 )
 
-// The peer book from the command line (D157): filters on poo peers and
-// poo tracking, and a peer file to export and import (package peerport).
+// The peer book from the command line (D157): filters on poon peers and
+// poon tracking, and a peer file to export and import (package peerport).
 
-// peersCmd is poo peers: the running node's connections and peer book,
+// peersCmd is poon peers: the running node's connections and peer book,
 // filtered, or with export or import a peer file.
 func peersCmd(args []string, out io.Writer) error {
 	if len(args) > 0 {
@@ -40,7 +40,7 @@ func peersCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("peers", out)
 	w := addWhere(fs)
 	o := addOutput(fs)
-	cats := fs.String("category", "", "only addresses in one of these book states for some mint policy, comma-separated: "+strings.Join(stateNames(), ", ")+" (blocked and timed-out addresses are the tracker's: poo tracking -blocked, poo tracking -timed-out)")
+	cats := fs.String("category", "", "only addresses in one of these book states for some mint policy, comma-separated: "+strings.Join(stateNames(), ", ")+" (blocked and timed-out addresses are the tracker's: poon tracking -blocked, poon tracking -timed-out)")
 	pol := fs.String("mint-policy", "", "only addresses with a mint policy whose text holds this (a series id, or a part of one)")
 	label := fs.String("label", "", "only addresses whose label holds this (any case)")
 	addr := fs.String("addr", "", "only addresses that hold this")
@@ -52,7 +52,7 @@ func peersCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: poo peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT] | -counts, or poo peers export|import")
+		return errors.New("usage: poon peers [-category LIST] [-mint-policy TEXT] [-label TEXT] [-addr TEXT] | -counts, or poon peers export|import")
 	}
 	var want []peers.State
 	for _, c := range splitList(*cats) {
@@ -247,7 +247,7 @@ func peersExportCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("poo peers export takes flags only")
+		return errors.New("poon peers export takes flags only")
 	}
 	pb, err := openPeerBook(out, w.resolve(), false)
 	if err != nil {
@@ -293,7 +293,7 @@ func peersExportCmd(args []string, out io.Writer) error {
 	return nil
 }
 
-// peersImportReport is what poo peers import did, or would do.
+// peersImportReport is what poon peers import did, or would do.
 type peersImportReport struct {
 	Running bool          `json:"running"`
 	Plan    peerport.Plan `json:"plan"`
@@ -324,7 +324,7 @@ func peersImportCmd(args []string, out io.Writer) error {
 	if file == "" && fs.NArg() == 1 {
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 || file == "" {
-		return errors.New("usage: poo peers import FILE|- [-apply] [-blocks [-ranges]] [-if-digest D] [-json]")
+		return errors.New("usage: poon peers import FILE|- [-apply] [-blocks [-ranges]] [-if-digest D] [-json]")
 	}
 	if *apply && viewOnlyOf(out) {
 		return errViewOnly("peers import -apply")
@@ -463,11 +463,11 @@ func printPeersPlan(out io.Writer, r peersImportReport, apply bool) {
 	case !apply:
 		fmt.Fprintln(out, "dry run: nothing was changed; add -apply to make this change")
 	default:
-		fmt.Fprintln(out, "  applied: the addresses are unlisted; the node tries them when it is short of peers, or now with poo peer connect -imported")
+		fmt.Fprintln(out, "  applied: the addresses are unlisted; the node tries them when it is short of peers, or now with poon peer connect -imported")
 	}
 }
 
-// forgetImported is poo peer remove -imported: it takes out every
+// forgetImported is poon peer remove -imported: it takes out every
 // address known only from an imported peer file, which an import may have
 // put there by the thousand, in one step (RED-058, D158). Blocks, and
 // addresses the node learned, promoted or verified, stay.

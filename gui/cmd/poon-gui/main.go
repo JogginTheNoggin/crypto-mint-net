@@ -1,14 +1,14 @@
-// Command poo-gui is the visual way to use the Proof of Ownership full
-// node. It is the headless poo tool plus a page that runs poo commands:
+// Command poon-gui is the visual way to use the Proof of Ownership full
+// node. It is the headless poon tool plus a page that runs poon commands:
 // every view, form and the terminal run command lines through cli.Main,
-// the function the poo binary runs (docs/gui.md).
+// the function the poon binary runs (docs/gui.md).
 //
 // Usage:
 //
-//	poo-gui [-listen 127.0.0.1:PORT] [-no-open] [-app]
-//	poo-gui poo ARGS...     run a poo command exactly as poo ARGS... would
+//	poon-gui [-listen 127.0.0.1:PORT] [-no-open] [-app]
+//	poon-gui poon ARGS...     run a poon command exactly as poon ARGS... would
 //
-// A browser signs in by opening a sign-in address once. poo-gui opens one
+// A browser signs in by opening a sign-in address once. poon-gui opens one
 // itself, or with -no-open prints one; press Enter in its window for
 // another (docs/gui.md, Security).
 package main
@@ -47,19 +47,19 @@ func main() {
 	os.Exit(code)
 }
 
-// hangup says which signals end poo-gui through its cancel path, so its
+// hangup says which signals end poon-gui through its cancel path, so its
 // jobs are interrupted (a followed grind stops the node's job) before it
 // exits, given whether SIGHUP was ignored at start and whether standard
 // input is a terminal (docs/gui.md, Signals).
 //
 // Interrupt and SIGTERM always stop it. SIGHUP stops it only when it was
 // started from a terminal, where SIGHUP means the terminal closed
-// (GUI-010). Started with SIGHUP ignored, as nohup does, poo-gui leaves it
+// (GUI-010). Started with SIGHUP ignored, as nohup does, poon-gui leaves it
 // ignored, so it outlives the session it was started from; catching it
 // would un-ignore it (GUI-011). Without a terminal, SIGHUP is a daemon's
-// reload: it does not stop poo-gui (absorb is true, so Go's default exit
+// reload: it does not stop poon-gui (absorb is true, so Go's default exit
 // does not run either), and a node the GUI hosts reloads its node policy
-// on it, as poo node does. Windows never sends SIGHUP.
+// on it, as poon node does. Windows never sends SIGHUP.
 func hangup(ignored, tty bool) (stopOn []os.Signal, absorb bool) {
 	stopOn = []os.Signal{os.Interrupt, syscall.SIGTERM}
 	switch {
@@ -74,17 +74,17 @@ func hangup(ignored, tty bool) (stopOn []os.Signal, absorb bool) {
 
 // run is the program; open shows a URL to the user.
 func run(ctx context.Context, args []string, s cli.Stdio, open func(url string, app bool) error) int {
-	if len(args) > 0 && args[0] == "poo" {
+	if len(args) > 0 && args[0] == "poon" {
 		return cli.Main(ctx, args[1:], s)
 	}
-	fs := flag.NewFlagSet("poo-gui", flag.ContinueOnError)
+	fs := flag.NewFlagSet("poon-gui", flag.ContinueOnError)
 	fs.SetOutput(s.Err)
-	listen := fs.String("listen", "", "loopback address to serve the GUI on (default: 127.0.0.1 on the port poo-gui used last, else any free port)")
+	listen := fs.String("listen", "", "loopback address to serve the GUI on (default: 127.0.0.1 on the port poon-gui used last, else any free port)")
 	noOpen := fs.Bool("no-open", false, "print the address instead of opening a browser")
 	app := fs.Bool("app", false, "open a browser app window (Chrome, Chromium or Edge) instead of a tab")
-	viewOnly := fs.Bool("view-only", false, "run every command in poo's view-only mode: read with the node's view token, refuse changes")
+	viewOnly := fs.Bool("view-only", false, "run every command in poon's view-only mode: read with the node's view token, refuse changes")
 	fs.Usage = func() {
-		fmt.Fprint(s.Err, "Usage:\n  poo-gui [-listen ADDR] [-no-open] [-app] [-view-only]\n  poo-gui poo ARGS...   run a poo command exactly as poo ARGS... would\n\n")
+		fmt.Fprint(s.Err, "Usage:\n  poon-gui [-listen ADDR] [-no-open] [-app] [-view-only]\n  poon-gui poon ARGS...   run a poon command exactly as poon ARGS... would\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -98,13 +98,13 @@ func run(ctx context.Context, args []string, s cli.Stdio, open func(url string, 
 		opener = func(url string) error { return open(url, *app) }
 	}
 	if err := serve(ctx, *listen, *viewOnly, s.In, s.Out, opener); err != nil {
-		fmt.Fprintln(s.Err, "poo-gui:", err)
+		fmt.Fprintln(s.Err, "poon-gui:", err)
 		return 1
 	}
 	return 0
 }
 
-// How long a sign-in address works. The one poo-gui opens itself is used
+// How long a sign-in address works. The one poon-gui opens itself is used
 // by the browser at once, so it lives only long enough for a browser to
 // start; a printed one leaves time to copy it.
 const (
@@ -115,7 +115,7 @@ const (
 // serve runs the GUI until ctx is done, then stops every job, giving a
 // running node time to close its stores. open, when not nil, opens a
 // sign-in address in a browser; otherwise one is printed. Each line read
-// from in prints a new sign-in address. viewOnly runs every job in poo's
+// from in prints a new sign-in address. viewOnly runs every job in poon's
 // view-only mode (decision D101).
 func serve(ctx context.Context, listen string, viewOnly bool, in io.Reader, out io.Writer, open func(url string) error) error {
 	ln, err := listenGUI(listen)
@@ -128,7 +128,7 @@ func serve(ctx context.Context, listen string, viewOnly bool, in io.Reader, out 
 	printURL := func(prefix string) {
 		u, err := srv.SignInURL(printTTL)
 		if err != nil {
-			fmt.Fprintln(out, "poo-gui:", err)
+			fmt.Fprintln(out, "poon-gui:", err)
 			return
 		}
 		fmt.Fprintf(out, "%sopen %s\n  (works once, within %v; press Enter here for another)\n", prefix, u, printTTL)
@@ -143,13 +143,13 @@ func serve(ctx context.Context, listen string, viewOnly bool, in io.Reader, out 
 		}
 		if err == nil {
 			opened = true
-			fmt.Fprintf(out, "poo-gui %s: opened %s in your browser; press Enter here for a sign-in address to open it elsewhere\n", cli.Version, srv.Home())
+			fmt.Fprintf(out, "poon-gui %s: opened %s in your browser; press Enter here for a sign-in address to open it elsewhere\n", cli.Version, srv.Home())
 		} else {
-			fmt.Fprintf(out, "poo-gui %s: could not open a browser (%v)\n", cli.Version, err)
+			fmt.Fprintf(out, "poon-gui %s: could not open a browser (%v)\n", cli.Version, err)
 		}
 	}
 	if !opened {
-		printURL(fmt.Sprintf("poo-gui %s: ", cli.Version))
+		printURL(fmt.Sprintf("poon-gui %s: ", cli.Version))
 	}
 	if in != nil {
 		go func() {
@@ -199,10 +199,10 @@ func appBrowsers() []string {
 }
 
 // listenGUI listens on addr, or, when none is given, on 127.0.0.1 at the
-// port poo-gui used last, falling back to any free port (GUI White G1).
+// port poon-gui used last, falling back to any free port (GUI White G1).
 // The browser keeps the GUI's saved settings (node policy, wallet file,
 // theme, terminal history) per origin, port included, so a new port each
-// start lost them all. Only the port number is kept, in poo-gui's folder
+// start lost them all. Only the port number is kept, in poon-gui's folder
 // under the user's config directory; nothing else is written there.
 func listenGUI(addr string) (net.Listener, error) {
 	if addr != "" {
@@ -231,12 +231,12 @@ func listenGUI(addr string) (net.Listener, error) {
 	return ln, nil
 }
 
-// lastPortFile is where poo-gui keeps the port it used last, or "" when
+// lastPortFile is where poon-gui keeps the port it used last, or "" when
 // the system names no config directory.
 func lastPortFile() string {
 	dir, err := os.UserConfigDir()
 	if err != nil || dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, "poo-gui", "last-port")
+	return filepath.Join(dir, "poon-gui", "last-port")
 }

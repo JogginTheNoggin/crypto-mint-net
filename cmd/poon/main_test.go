@@ -14,7 +14,7 @@ func TestBinaryRunsCLI(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the binary")
 	}
-	bin := filepath.Join(t.TempDir(), "poo")
+	bin := filepath.Join(t.TempDir(), "poon")
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
@@ -23,9 +23,9 @@ func TestBinaryRunsCLI(t *testing.T) {
 		t.Fatalf("version: %v %q", err, out)
 	}
 	cmd := exec.Command(bin, "no-such-command")
-	cmd.Env = append(os.Environ(), "POO_HOME="+t.TempDir())
+	cmd.Env = append(os.Environ(), "POON_HOME="+t.TempDir())
 	b, err := cmd.CombinedOutput()
-	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 1 || !strings.HasPrefix(string(b), "poo: unknown command") {
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 1 || !strings.HasPrefix(string(b), "poon: unknown command") {
 		t.Fatalf("bad command: %v %q", err, b)
 	}
 }

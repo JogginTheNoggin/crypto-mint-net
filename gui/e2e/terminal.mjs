@@ -1,8 +1,8 @@
 // End-to-end check of the GUI in a real browser: the terminal runs the
-// same commands as poo, prompts for a passphrase in a masked field, runs a
+// same commands as poon, prompts for a passphrase in a masked field, runs a
 // node, and the Jobs view lists and stops it.
 //
-//   node gui/e2e/terminal.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
+//   node gui/e2e/terminal.mjs PATH/TO/poon-gui [SCREENSHOT_DIR]
 //
 // Needs the playwright package and a Chromium it can launch.
 import { execFileSync } from 'node:child_process';
@@ -32,7 +32,7 @@ try {
   // type types a line; a new command line (not input to a running one)
   // is awaited with idle().
   const type = async text => {
-    if (await page.locator('.term-in .prompt').innerText() === '$ poo') expect = (await runs()) + 1;
+    if (await page.locator('.term-in .prompt').innerText() === '$ poon') expect = (await runs()) + 1;
     await line.fill(text);
     await line.press('Enter');
   };
@@ -47,34 +47,34 @@ try {
   };
   const idle = () => until(async () => (await runs()) >= expect, 'the command to end');
 
-  // Same bytes as poo itself.
+  // Same bytes as poon itself.
   const seed = 'ab'.repeat(32);
-  const want = execFileSync(bin, ['poo', 'keygen', '-seed', seed, '-alg', 'ed25519'], { env }).toString();
-  await type(`poo keygen -seed ${seed} -alg ed25519`);
+  const want = execFileSync(bin, ['poon', 'keygen', '-seed', seed, '-alg', 'ed25519'], { env }).toString();
+  await type(`poon keygen -seed ${seed} -alg ed25519`);
   await idle();
   const text = await out.innerText();
-  assert.ok(text.includes(want.trim().split('\n')[1].trim()), 'keygen output matches poo');
+  assert.ok(text.includes(want.trim().split('\n')[1].trim()), 'keygen output matches poon');
 
   // GUI-006: a line holding a seed is not saved to the browser's storage,
   // nor is one that starts with a space; up-arrow still recalls it this
   // session, and Jobs hides the seed.
   await type(' version');
   await idle();
-  const saved = await page.evaluate(() => localStorage.getItem('poo-gui-history') || '');
+  const saved = await page.evaluate(() => localStorage.getItem('poon-gui-history') || '');
   assert.ok(!saved.includes(seed), 'the seed is not saved in history');
   assert.ok(!saved.includes(' version'), 'a line starting with a space is not saved');
   // GUI-034: a key typed where -key-file wants a path is not saved either,
   // plain or with colons; a path is.
   const colonKey = Array(32).fill('cd').join(':');
-  for (const l of [`poo sign x.json -key-file ${'ef'.repeat(32)}`, `poo sign x.json -key-file ${colonKey}`, 'poo sign x.json -key-file cold.key']) { await type(l); await idle(); }
-  const saved2 = await page.evaluate(() => localStorage.getItem('poo-gui-history') || '');
+  for (const l of [`poon sign x.json -key-file ${'ef'.repeat(32)}`, `poon sign x.json -key-file ${colonKey}`, 'poon sign x.json -key-file cold.key']) { await type(l); await idle(); }
+  const saved2 = await page.evaluate(() => localStorage.getItem('poon-gui-history') || '');
   assert.ok(!saved2.includes('ef'.repeat(32)) && !saved2.includes(colonKey), 'a key after -key-file is not saved in history');
-  assert.ok(saved2.includes('poo sign x.json -key-file cold.key'), 'a key file path is saved');
+  assert.ok(saved2.includes('poon sign x.json -key-file cold.key'), 'a key file path is saved');
   for (let i = 0; i < 5; i++) await line.press('ArrowUp');
-  assert.equal(await line.inputValue(), `poo keygen -seed ${seed} -alg ed25519`, 'up-arrow recalls the line this session');
+  assert.equal(await line.inputValue(), `poon keygen -seed ${seed} -alg ed25519`, 'up-arrow recalls the line this session');
   await line.fill('');
   await page.click('nav a[data-id=jobs]');
-  const keyRow = page.locator('.job', { hasText: /^poo keygen/ }).first();
+  const keyRow = page.locator('.job', { hasText: /^poon keygen/ }).first();
   await keyRow.waitFor();
   assert.ok((await keyRow.innerText()).includes('<hidden>') && !(await keyRow.innerText()).includes(seed), 'Jobs hides the seed');
   assert.equal(await keyRow.getByRole('button', { name: 'Run again in terminal' }).count(), 0, 'a hidden line is not offered to run again');
@@ -101,13 +101,13 @@ try {
   // An error is shown with its exit code, as a shell would.
   await type('no-such-command');
   await idle();
-  assert.match(await out.innerText(), /poo: unknown command "no-such-command"[\s\S]*\[exit 1\]/);
+  assert.match(await out.innerText(), /poon: unknown command "no-such-command"[\s\S]*\[exit 1\]/);
 
-  // GUI-002: "clear" is a poo command line like any other, as in a
-  // shell after "poo"; the Clear button clears the screen.
+  // GUI-002: "clear" is a poon command line like any other, as in a
+  // shell after "poon"; the Clear button clears the screen.
   await type('clear');
   await idle();
-  assert.match(await out.innerText(), /poo: unknown command "clear"/);
+  assert.match(await out.innerText(), /poon: unknown command "clear"/);
   await page.click('[data-act=clear]');
   assert.equal(await out.innerText(), '');
   // GUI-002: shell syntax the terminal does not run is refused, not
@@ -157,14 +157,14 @@ try {
   for (let i = 0; ; i++) {
     await type('status');
     await idle();
-    if (/"pools"|"series"|\[\s*\{/.test((await out.innerText()).split('$ poo status').pop())) break;
+    if (/"pools"|"series"|\[\s*\{/.test((await out.innerText()).split('$ poon status').pop())) break;
     assert.ok(i < 20, 'status never answered');
     await page.waitForTimeout(250);
   }
 
   // GUI-021: Ctrl-C is not an end of input, as in a shell. submit -f -
   // reads to its end; Ctrl-C fails that read, and nothing is decoded or
-  // sent. Ctrl-D ends the input, and poo reads what was typed.
+  // sent. Ctrl-D ends the input, and poon reads what was typed.
   const lastRun = async mark => (await out.innerText()).split(mark).pop();
   await type('submit layer -pool 1 -f -');
   await until(async () => (await page.locator('.term-in .prompt').innerText()) === 'input', 'the input prompt');
@@ -172,7 +172,7 @@ try {
   await line.press('Control+c');
   await idle();
   {
-    const said = await lastRun('$ poo submit layer');
+    const said = await lastRun('$ poon submit layer');
     assert.match(said, /stopped/, 'Ctrl-C fails the read');
     assert.doesNotMatch(said, /not hex|"hash"/, 'nothing typed before Ctrl-C was decoded or sent');
   }
@@ -181,7 +181,7 @@ try {
   await type('zz');
   await line.press('Control+d');
   await idle();
-  assert.match(await lastRun('$ poo submit layer'), /\^D\n[\s\S]*the layer is not hex/, 'Ctrl-D ended the input and poo read it');
+  assert.match(await lastRun('$ poon submit layer'), /\^D\n[\s\S]*the layer is not hex/, 'Ctrl-D ended the input and poon read it');
 
   // GUI-018: wallet follow, run in the terminal against the running node,
   // swaps the series' rule for the wallet's pools in one request (D139).
@@ -202,21 +202,21 @@ try {
   await answer();
   await type(`wallet follow -wallet ${join(home, 'w.json')}`);
   await answer();
-  assert.match(await since('$ poo wallet follow'), /series [0-9a-f]+ follows pools \[0\]; the node applied it/, 'the running node applied the follow');
+  assert.match(await since('$ poon wallet follow'), /series [0-9a-f]+ follows pools \[0\]; the node applied it/, 'the running node applied the follow');
   await type('follow');
   await idle();
-  const listed = JSON.parse((await since('$ poo follow')).replace(/^[^{]*/, '').replace(/[^}]*$/, ''));
+  const listed = JSON.parse((await since('$ poon follow')).replace(/^[^{]*/, '').replace(/[^}]*$/, ''));
   assert.equal(listed.follow.length, 1, 'one follow rule for the series');
   assert.deepEqual(listed.follow[0].pools, [0], "the rule is the wallet's pools");
   assert.deepEqual(listed.pools.map(p => p.pool), [0], 'the node follows only that pool now');
 
   // The Jobs view lists the running node and stops it.
   await page.click('nav a[data-id=jobs]');
-  const nodeRow = page.locator('.job', { hasText: /^poo node/ }).filter({ hasText: 'running' });
+  const nodeRow = page.locator('.job', { hasText: /^poon node/ }).filter({ hasText: 'running' });
   await nodeRow.first().waitFor();
   if (shots) await page.screenshot({ path: join(shots, 'jobs.png') });
   await nodeRow.first().getByRole('button', { name: 'Stop' }).click();
-  await page.locator('.job', { hasText: /^poo node/ }).filter({ hasText: 'exit 0' }).first().waitFor({ timeout: 20000 });
+  await page.locator('.job', { hasText: /^poon node/ }).filter({ hasText: 'exit 0' }).first().waitFor({ timeout: 20000 });
 
   assert.deepEqual(errors, [], 'no page errors');
   console.log('gui e2e: ok');

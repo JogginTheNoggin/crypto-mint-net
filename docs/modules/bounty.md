@@ -16,16 +16,16 @@ The package has two parts:
   70 to 76, [docs/protocol/wire.md](../protocol/wire.md)). Decoders
   ignore trailing bytes, so a later release can add fields.
 - **The book** (`book.go`): the offers this node posted, with their
-  leases and claims, kept in `bounties.json` (kind `poo-bounties`,
+  leases and claims, kept in `bounties.json` (kind `poon-bounties`,
   format 1); the offers peers sent, kept in memory; and, by peer, what
   each payer accepted and paid.
 
 `pkg/p2p` (`bounty.go`) sends and answers the messages, `pkg/rpc`
-(`bounty.go`) serves `/v1/bounty`, and `poo bounty` runs it.
+(`bounty.go`) serves `/v1/bounty`, and `poon bounty` runs it.
 
 ## The steps
 
-1. **Post.** `poo bounty post -entry HASH -strength S -amount A [-count
+1. **Post.** `poon bounty post -entry HASH -strength S -amount A [-count
    N] [-open SECONDS] [-pool K | -serial N]` makes an offer on an entry
    the node holds. With no `-pool` or `-serial` the node finds the pool
    that holds the entry; a named pool that does not hold it is refused,
@@ -34,43 +34,44 @@ The package has two parts:
    offers and unpaid layers owe must fit `budget`, and one offer must fit
    `max_amount`. The offer goes to every connected peer that lists the
    feature `bounty`.
-2. **Find.** `poo bounty list -ask` asks those peers for their open
+2. **Find.** `poon bounty list -ask` asks those peers for their open
    offers. Offers paying less than `min_price` per layer are not kept;
    at most `held_offers` are kept.
 3. **Work.** A grinder states the strongest offer it will work, as
    `bounty.max_strength` (1 to 255; unset sends 255, any) or
-   `-max-strength S` on `poo bounty list -ask` and `poo bounty work`.
+   `-max-strength S` on `poon bounty list -ask` and `poon bounty work`.
    Every list request and lease carries it (a required byte in bounty
    version 1), and a payer lists and leases only offers at or under it,
    so a payer with offers of many strengths gives each to a grinder that
    says it can work it; a fast machine states a higher one. A grinder
    also drops peers' offers above its own setting (D202), so
    `-max-strength` above the setting is refused with the command that
-   raises it, `poo bounty list -max-strength S` lists only offers at or
+   raises it, `poon bounty list -max-strength S` lists only offers at or
    under S, and working an id the node never kept says which setting
-   left it out. `poo grind bench` gives `minute_strength`, the strength
+   left it out. `poon grind bench` gives `minute_strength`, the strength
    found in about a minute, to start the setting from (GREEN-064).
-   `poo bounty work ID -to ADDR` measures this node's rate,
+   `poon bounty work ID -to ADDR` measures this node's rate,
    asks the payer for a lease, grinds from a random nonce (so two
    grinders, or two calls, find different layers; RED-109) until it finds a layer, the lease
    ends or `-max-seconds` (at most 240) passes, and claims the layer to
    be paid to `ADDR`.
-4. **Pay.** `poo bounty list` on the payer shows each accepted claim.
-   `poo bounty pay ID [-claim NONCE]` pays it from the wallet and tells
+4. **Pay.** `poon bounty list` on the payer shows each accepted claim.
+   `poon bounty pay ID [-claim NONCE]` pays it from the wallet and tells
    the grinder the payment's tids. The payment's memo is `bounty `
    followed by the first 16 bytes of the offer's id in hex (32
-   characters; RED-121, D203). It looks in the wallet first: a payment
+   characters; RED-121, D203). The memo id is frozen at 16 bytes; a
+   later release may write more of the id, never less (W-36, D204). It looks in the wallet first: a payment
    of that claim the wallet sent (that memo, the claim's address and
    amount, every leg sent, its tids on no other claim) that the node
    never recorded is recorded now, and nothing is sent again
    (`"recorded": true`). A payment sent only in part is refused, to
    settle by hand (RED-119, D201). A payment with a dropped leg is asked
    about again and its dropped legs are sent again, never replaced by a
-   new payment: a dropped leg's inputs are unspent and `poo wallet
+   new payment: a dropped leg's inputs are unspent and `poon wallet
    resend` would send it later anyway (RED-120, D203). If the node still
    does not hold it, or one of its inputs was spent beside a live leg,
    the command stops for the payer to settle it by hand.
-5. **Cancel.** `poo bounty cancel ID` closes an offer; accepted claims
+5. **Cancel.** `poon bounty cancel ID` closes an offer; accepted claims
    stay owed.
 
 ## Leases
@@ -115,12 +116,12 @@ wraps (RED-114).
 
 ## Settings
 
-Each is a settable limit: `poo policy limits` lists it and `poo policy
+Each is a settable limit: `poon policy limits` lists it and `poon policy
 limits -set bounty.post=on` sets it (D198); a running node takes a change
 on reload. `bounty.post` and `bounty.take` also take `on` and `off`, and
 the reply's `notes` name a setting that cannot work as set: posting on
 without `max_amount` and `budget`, or `max_amount` over `budget`. A node
-that only posts refuses `poo bounty list -ask` and `poo bounty work`,
+that only posts refuses `poon bounty list -ask` and `poon bounty work`,
 naming `bounty.take` (GREEN-062).
 
 | node.json `bounty` | Default | Range |
@@ -147,7 +148,7 @@ D199). A lease is saved on a
 short timer; an accepted claim is on disk before its ack is sent.
 
 The done file's format 1 is frozen (W-31, D200): its first line is
-`{"kind":"poo-bounties-done","format":1}`, and every later line is one
+`{"kind":"poon-bounties-done","format":1}`, and every later line is one
 offer whose JSON begins `{"id":"<64 hex digits>"`, whatever fields follow.
 A reader takes the id from that prefix alone; a later format is refused
 with a message to run that release or move the file aside.
@@ -165,11 +166,11 @@ is read in full once. When the done file's last line was cut short by a
 stop, the start says so and the next record begins on a new line; a write
 that fails part way is taken back. A payment whose save fails is not kept
 in memory either, so the node and a restart agree the claim is unpaid,
-and `poo bounty pay` then records the wallet's payment (RED-119).
+and `poon bounty pay` then records the wallet's payment (RED-119).
 
 ## Finished offers
 
-`poo bounty list -done N` (`/v1/bounty?done=N`) adds `done`: the last N
+`poon bounty list -done N` (`/v1/bounty?done=N`) adds `done`: the last N
 offers of `bounties-done.jsonl` (at most 256), oldest first, streamed a
 line at a time; a line over 1 MiB or with no offer is skipped and counted
 in `done_skipped` (GREEN-063).
@@ -181,15 +182,15 @@ node's offers are open, filled, closed or expired; a filled offer stays
 filled once its time runs out (D200). A peer's offer is
 open, leased (this node holds a lease), taken (the payer said it is
 leased to another grinder or filled), filled or closed. Each ack has
-`outcome_name` beside `outcome`. `poo status` has `bounty.post` and
-`bounty.take` (W-30), and so does `poo status -counts` (D200). In
-`poo policy limits`, `bounty.post` and `bounty.take` carry `"switch":
+`outcome_name` beside `outcome`. `poon status` has `bounty.post` and
+`bounty.take` (W-30), and so does `poon status -counts` (D200). In
+`poon policy limits`, `bounty.post` and `bounty.take` carry `"switch":
 true`, so a front end can draw them as tick boxes.
 
 ## Phase 1 limits
 
 - A watch-only wallet cannot pay a bounty yet.
-- No auto-pay: the payer runs `poo bounty pay`.
+- No auto-pay: the payer runs `poon bounty pay`.
 - Offers go only to direct peers (passing them on is phase 3) and are
   not signed (phase 2). Until then the payer is whoever holds the
   connection with that node id: a peer can claim the id (RED-111 a), so

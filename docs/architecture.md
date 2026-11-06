@@ -26,7 +26,7 @@ holder's keys and talks to a node only through reads and submissions.
 
 ```mermaid
 graph TD
-  main[cmd/poo] --> cmd
+  main[cmd/poon] --> cmd
   cmd[cli] --> daemon
   cmd --> watch
   daemon --> rpc
@@ -113,7 +113,7 @@ project. Every package above `policy` also imports `hash`, and most import
 | Viewing | `filter`, `watch` | One filter for every front end; views of what the node holds and a live event stream |
 | Network | `wire`, `peers`, `registry`, `tracking`, `chase`, `p2p` | Messages between full nodes, the peer book and ranking, bootstrap lists, peer tracking, the chase queue, discovery, forwarding, catch-up |
 | Wallet | `wallet` | Keys from one seed, payments, requests, co-signing, following weight |
-| Tools | `cmd/poo`, `cli`, `sim`, `vectors`, `testutil` | CLI, demo, network simulator, published vectors, test helpers |
+| Tools | `cmd/poon`, `cli`, `sim`, `vectors`, `testutil` | CLI, demo, network simulator, published vectors, test helpers |
 
 ## The three tiers
 

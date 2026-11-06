@@ -158,24 +158,24 @@ func TestKindOnlyOnWatch(t *testing.T) {
 		var help strings.Builder
 		_ = Run(context.Background(), []string{name, "-h"}, Stdio{Out: &help, Err: &help})
 		if strings.Contains(help.String(), "-kind") {
-			t.Errorf("poo %s -h lists -kind:\n%s", name, help.String())
+			t.Errorf("poon %s -h lists -kind:\n%s", name, help.String())
 		}
 	}
 	var help strings.Builder
 	_ = Run(context.Background(), []string{"watch", "-h"}, Stdio{Out: &help, Err: &help})
 	if !strings.Contains(help.String(), "-kind") {
-		t.Errorf("poo watch -h lacks -kind:\n%s", help.String())
+		t.Errorf("poon watch -h lacks -kind:\n%s", help.String())
 	}
 	// The same slip in grind: run listed -lease and refused it.
 	for cmd, want := range map[string]bool{"start": true, "run": false} {
 		help.Reset()
 		_ = Run(context.Background(), []string{"grind", cmd, "-h"}, Stdio{Out: &help, Err: &help})
 		if strings.Contains(help.String(), "-lease") != want {
-			t.Errorf("poo grind %s -h lists -lease: %v, want %v", cmd, !want, want)
+			t.Errorf("poon grind %s -h lists -lease: %v, want %v", cmd, !want, want)
 		}
 		// A job with no -series grinds every followed series (GREEN-042).
 		if !strings.Contains(help.String(), "every followed series") || strings.Contains(help.String(), "default: the only followed series") {
-			t.Errorf("poo grind %s -h misdescribes -series:\n%s", cmd, help.String())
+			t.Errorf("poon grind %s -h misdescribes -series:\n%s", cmd, help.String())
 		}
 	}
 }

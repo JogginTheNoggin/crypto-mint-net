@@ -11,11 +11,11 @@ import (
 func TestReplayedCapsReasons(t *testing.T) {
 	n := &Node{}
 	for i := 0; i < 8192; i++ {
-		n.replay.Unused = append(n.replay.Unused, fmt.Sprintf("p%d: written by \"poo older\"", i))
+		n.replay.Unused = append(n.replay.Unused, fmt.Sprintf("p%d: written by \"poon older\"", i))
 	}
 	n.replay.NotCompared = []string{"p1: covers 1 of 2"}
 	r := n.Replayed()
-	if len(r.Unused) != MaxReasons || r.UnusedCount != 8192 || r.Unused[0] != `p0: written by "poo older"` {
+	if len(r.Unused) != MaxReasons || r.UnusedCount != 8192 || r.Unused[0] != `p0: written by "poon older"` {
 		t.Fatalf("unused %d of %d", len(r.Unused), r.UnusedCount)
 	}
 	if len(r.NotCompared) != 1 || r.NotComparedCount != 1 {

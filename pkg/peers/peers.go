@@ -107,10 +107,10 @@ const (
 	FromPeerList Source = "peer-list"
 	FromReply    Source = "reply"
 	FromInbound  Source = "inbound"
-	// FromHand is an address the owner added (poo peer add, D157).
+	// FromHand is an address the owner added (poon peer add, D157).
 	FromHand Source = "hand"
 	// FromImport is an address from a peer file the owner imported
-	// (poo peers import, D157).
+	// (poon peers import, D157).
 	FromImport Source = "import"
 )
 
@@ -142,7 +142,7 @@ type Record struct {
 	// spread, so many names for one machine are one range (RED-067, D162).
 	Via      string   `json:"via,omitempty"`
 	Policies []Policy `json:"policies"`
-	// Label is the owner's own note on the node (poo peer label, D157).
+	// Label is the owner's own note on the node (poon peer label, D157).
 	// It is local: it never changes how the node is treated, and is
 	// never sent to a peer.
 	Label string `json:"label,omitempty"`
@@ -606,7 +606,7 @@ func (b *Book) makeRoomLocked(addr string, src Source, st State, now time.Time) 
 }
 
 // strongSource reports whether an address from src is one the owner gave:
-// by hand (poo peer add) or in the node policy. It may take the place of
+// by hand (poon peer add) or in the node policy. It may take the place of
 // any learned record, reached or not, but a priority or backup peer now,
 // so the owner is never shut out of their own book (RED-064, RED-067).
 func strongSource(src Source) bool { return src == FromHand || src == FromConfig }
@@ -661,7 +661,7 @@ const (
 const (
 	byNetwork = iota // any source but the owner
 	byFit            // Fit, after a limit was lowered
-	byOwner          // poo peer add, p2p.peers
+	byOwner          // poon peer add, p2p.peers
 )
 
 // giveClass returns which class r gives way in, to an address from by.
@@ -858,7 +858,7 @@ func (r *Record) imported() bool {
 func (b *Book) unlistedLocked() int { return len(b.imp) }
 
 // ForgetImported deletes every record known only from an imported file
-// (poo peer remove -imported, RED-058) and returns how many. A record the
+// (poon peer remove -imported, RED-058) and returns how many. A record the
 // node learned another way, or promoted, verified or tried, stays; so do
 // blocks, which are the tracker's.
 func (b *Book) ForgetImported() int {

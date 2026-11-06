@@ -163,7 +163,7 @@ func TestGrindEndpoints(t *testing.T) {
 	must(t, err)
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	for _, want := range []string{`poo_grind_tries_total{device="cpu",hash="sha256"}`, `poo_grind_jobs{state="done"} 1`, `poo_grind_jobs{state="stopped"}`} {
+	for _, want := range []string{`poon_grind_tries_total{device="cpu",hash="sha256"}`, `poon_grind_jobs{state="done"} 1`, `poon_grind_jobs{state="stopped"}`} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("metrics lack %s:\n%s", want, body)
 		}

@@ -16,7 +16,7 @@ func TestPartsDir(t *testing.T) {
 	if err := os.MkdirAll(pd, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	left := filepath.Join(pd, "poo-parts-123")
+	left := filepath.Join(pd, "poon-parts-123")
 	keep := filepath.Join(pd, "other")
 	for _, f := range []string{left, keep} {
 		if err := os.WriteFile(f, []byte("x"), 0o600); err != nil {

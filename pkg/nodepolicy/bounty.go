@@ -115,7 +115,7 @@ func (p *Policy) bountyLimit(name string) (int, bool) {
 // with nothing set is removed, so node.json stays as it was.
 func (p *Policy) setBountyLimit(name string, v int) error {
 	if _, ok := p.bountyLimit(name); !ok {
-		return fmt.Errorf("%w: %q is not a settable limit (poo policy limits lists them)", ErrInvalid, name)
+		return fmt.Errorf("%w: %q is not a settable limit (poon policy limits lists them)", ErrInvalid, name)
 	}
 	switch {
 	case bountyBools[name] && v != 0 && v != 1:
@@ -176,7 +176,7 @@ func (p Policy) BountyConfig() (bounty.Config, bool) {
 // BountyNotes says what in the bounty settings will not work as a person
 // most likely meant (GREEN-062): posting turned on with no spending
 // limits, which refuses every offer, and one offer allowed more than the
-// whole budget. poo policy limits -set shows them after a change.
+// whole budget. poon policy limits -set shows them after a change.
 func (p Policy) BountyNotes() []string {
 	b := p.Bounty
 	if b == nil {
@@ -200,6 +200,6 @@ func (p Policy) BountyNotes() []string {
 }
 
 // OnOff reports whether the bound is an on/off setting (1 on, 0 off),
-// such as bounty.post, which poo policy limits -set also takes as on or
+// such as bounty.post, which poon policy limits -set also takes as on or
 // off (GREEN-062).
 func (b Bound) OnOff() bool { return bountyBools[b.Name] }

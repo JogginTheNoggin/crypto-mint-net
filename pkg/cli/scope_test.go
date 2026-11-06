@@ -50,7 +50,7 @@ func TestViewOnly(t *testing.T) {
 	dir := filepath.Join(root, "policies", "default")
 	stop := startNode(t, dir)
 	defer stop()
-	t.Setenv("POO_PASSPHRASE", "view test")
+	t.Setenv("POON_PASSPHRASE", "view test")
 	createIterations = 1
 	defer func() { createIterations = 0 }()
 	cli(t, nil, append([]string{"wallet", "create"}, r...)...)
@@ -80,7 +80,7 @@ func TestViewOnly(t *testing.T) {
 		{"wallet", "watch", "-serial", "1"}, {"wallet", "follow"}, {"wallet", "status"},
 	} {
 		_, err := viewRun(append(args, r...)...)
-		if err == nil || !strings.HasPrefix(err.Error(), "view-only: poo "+args[0]) {
+		if err == nil || !strings.HasPrefix(err.Error(), "view-only: poon "+args[0]) {
 			t.Errorf("view-only %v: %v, want refused", args, err)
 		}
 	}
@@ -88,17 +88,17 @@ func TestViewOnly(t *testing.T) {
 		t.Error("view-only changed node.json")
 	}
 
-	// The switch can also be a leading -view-only or $POO_VIEW_ONLY.
+	// The switch can also be a leading -view-only or $POON_VIEW_ONLY.
 	var out bytes.Buffer
 	if err := Run(context.Background(), append([]string{"-view-only", "reload"}, r...), Stdio{Out: &out, Err: &out}); err == nil {
 		t.Error("-view-only reload ran")
 	}
 	t.Setenv(ViewOnlyEnv, "1")
 	if err := Run(context.Background(), append([]string{"build", "-pool", "1"}, r...), Stdio{Out: &out, Err: &out}); err == nil {
-		t.Error("POO_VIEW_ONLY=1 build ran")
+		t.Error("POON_VIEW_ONLY=1 build ran")
 	}
 	if err := Run(context.Background(), append([]string{"status"}, r...), Stdio{Out: &out, Err: &out}); err != nil {
-		t.Errorf("POO_VIEW_ONLY=1 status: %v", err)
+		t.Errorf("POON_VIEW_ONLY=1 status: %v", err)
 	}
 }
 
@@ -146,7 +146,7 @@ func TestRestoreSeedHidden(t *testing.T) {
 	cli(t, nil, append([]string{"init", "-example"}, r...)...)
 	createIterations = 1
 	defer func() { createIterations = 0 }()
-	t.Setenv("POO_PASSPHRASE", "pw")
+	t.Setenv("POON_PASSPHRASE", "pw")
 	cli(t, nil, append([]string{"wallet", "create"}, r...)...)
 	var seed bytes.Buffer
 	must(t, run(append([]string{"wallet", "seed"}, r...), &seed))
@@ -184,7 +184,7 @@ func TestSecretOutputAndErrorCodes(t *testing.T) {
 		t.Errorf("no node: %q %v", ErrorCode(err), err)
 	}
 	err := Run(context.Background(), []string{"claim", "-root", root}, Stdio{Out: io.Discard, Err: io.Discard, ViewOnly: true})
-	if ErrorCode(err) != CodeViewOnly || !strings.HasPrefix(err.Error(), "view-only: poo claim") {
+	if ErrorCode(err) != CodeViewOnly || !strings.HasPrefix(err.Error(), "view-only: poon claim") {
 		t.Errorf("view-only: %q %v", ErrorCode(err), err)
 	}
 	if ErrorCode(&rpc.Error{Code: rpc.CodeNotFound}) != rpc.CodeNotFound || ErrorCode(errors.New("x")) != CodeError || ErrorCode(nil) != "" {

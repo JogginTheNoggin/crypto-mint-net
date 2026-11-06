@@ -36,7 +36,7 @@ async function launch(flags = []) {
   const requests = [];
   page.on('request', r => requests.push({ url: r.url(), method: r.method(), t: Date.now() }));
   // Event streams the page has open: the browser allows six connections
-  // to poo-gui, and each open stream holds one.
+  // to poon-gui, and each open stream holds one.
   const streams = new Set();
   page.on('request', r => { if (r.url().includes('/events')) streams.add(r); });
   for (const ev of ['requestfinished', 'requestfailed']) page.on(ev, r => streams.delete(r));
@@ -129,7 +129,7 @@ if (want('watch')) {
 }
 
 if (want('terminal')) {
-  // poo watch typed in the terminal: every line is kept as a span.
+  // poon watch typed in the terminal: every line is kept as a span.
   const n = 20000;
   const g = await launch(['-rate', '0', '-events', String(n)]);
   await g.page.click('nav a[data-id=terminal]');
@@ -192,7 +192,7 @@ if (want('refresh') || want('jobs')) {
 }
 
 if (want('command')) {
-  // One short real command (poo crypto) through each path the page uses.
+  // One short real command (poon crypto) through each path the page uses.
   const g = await launch();
   out.command = await g.page.evaluate(async () => {
     const H = { 'Content-Type': 'application/json', 'X-Poo-GUI': '1' };
@@ -259,7 +259,7 @@ if (want('paused')) {
 }
 
 if (want('work')) {
-  // The Work view's live run of poo grind run, at rising rates of
+  // The Work view's live run of poon grind run, at rising rates of
   // progress lines (a found line before every 4th, or every FOUND'th).
   out.work = [];
   const found = process.env.FOUND ? ['-found', process.env.FOUND] : [];
@@ -280,7 +280,7 @@ if (want('work')) {
 }
 
 if (want('reload')) {
-  // A long poo grind run already going when the page is reloaded: the
+  // A long poon grind run already going when the page is reloaded: the
   // Work view takes it up again and reads its kept output from the start.
   const n = Number(process.env.RELOAD_EVENTS || 40000);
   const g = await launch(['-rate', '0', '-events', String(n)]);

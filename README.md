@@ -3,7 +3,8 @@
 A full node for **Proof of Ownership (PoO)**: a consensus mechanism for
 decentralized, high-throughput payments in which ownership of a minted unit is
 held by the cumulative work attached to the history that records it, not by
-votes, block rewards or elapsed time.
+votes, block rewards or elapsed time. The command-line tool is `poon`
+(proof of ownership network, or node) and the GUI is `poon-gui`.
 
 ## Summary
 
@@ -26,7 +27,7 @@ heavier ledgers that check the work behind a branch before fetching it.
 Milestone 6 adds the wallet: keys from one sealed seed, a fresh address
 per payment, shared k-of-n policies with co-signing, payment requests
 that carry the receiver's policy, and following every payment's weight
-against known rivals (`poo wallet`). Milestone 7 adds a deterministic
+against known rivals (`poon wallet`). Milestone 7 adds a deterministic
 network simulator, fuzzing and benchmarks: see [docs/simulation.md](docs/simulation.md) for
 what they measured. Milestone 8 hardens it for release: a security review
 ([docs/security.md](docs/security.md)), byte form v1 declared stable, and
@@ -66,32 +67,32 @@ You need Go 1.27 or later (the `go` command fetches the toolchain `go.mod` names
 git clone https://github.com/JogginTheNoggin/crypto-mint-net
 cd crypto-mint-net
 go test ./...            # run every test
-go run ./cmd/poo demo    # four in-process full nodes: payment, double spend, recovery
-go run ./cmd/poo keygen  # a key and its 1-of-1 address
-go run ./cmd/poo series example > series.json
-go run ./cmd/poo series info series.json
+go run ./cmd/poon demo    # four in-process full nodes: payment, double spend, recovery
+go run ./cmd/poon keygen  # a key and its 1-of-1 address
+go run ./cmd/poon series example > series.json
+go run ./cmd/poon series info series.json
 ```
 
 To run a node with a store and a local RPC, and pay with it, see
 [docs/running-a-node.md](docs/running-a-node.md):
 
 ```sh
-go build -o poo ./cmd/poo
-./poo init -example      # a node policy following the example series
-./poo node               # in another terminal: ./poo status
+go build -o poon ./cmd/poon
+./poon init -example      # a node policy following the example series
+./poon node               # in another terminal: ./poon status
 ```
 
-The GUI, `poo-gui`, is the same tool with a visual layer and a built-in
-terminal; every click runs a `poo` command ([docs/gui.md](docs/gui.md)):
+The GUI, `poon-gui`, is the same tool with a visual layer and a built-in
+terminal; every click runs a `poon` command ([docs/gui.md](docs/gui.md)):
 
 ```sh
-cd gui && go run ./cmd/poo-gui   # opens the GUI in your browser
-go -C gui build -o poo-gui ./cmd/poo-gui   # or build it once: ./gui/poo-gui
+cd gui && go run ./cmd/poon-gui   # opens the GUI in your browser
+go -C gui build -o poon-gui ./cmd/poon-gui   # or build it once: ./gui/poon-gui
 ```
 
-Each release also ships `poo-gui-VERSION-OS-ARCH` archives (`.tar.gz`, or
-`.zip` on Windows) beside the `poo` ones, with `SHA256SUMS`
-(`scripts/release.sh`). `go install github.com/JogginTheNoggin/crypto-mint-net/gui/cmd/poo-gui@TAG` does not work:
+Each release also ships `poon-gui-VERSION-OS-ARCH` archives (`.tar.gz`, or
+`.zip` on Windows) beside the `poon` ones, with `SHA256SUMS`
+(`scripts/release.sh`). `go install github.com/JogginTheNoggin/crypto-mint-net/gui/cmd/poon-gui@TAG` does not work:
 `gui/go.mod` points at the core module in this tree with a `replace`, which
 `go install` refuses. Build from a checkout of the tag instead.
 
@@ -99,8 +100,8 @@ Each release also ships `poo-gui-VERSION-OS-ARCH` archives (`.tar.gz`, or
 
 | Path | What it holds |
 | --- | --- |
-| `gui/` | `poo-gui`: a separate module that runs `pkg/cli` behind a local web page, with a terminal ([docs/gui.md](docs/gui.md)) |
-| `pkg/cli`, `cmd/poo` | The `poo` command (node daemon, client commands, in-process demo) as a library, and the few lines of process around it |
+| `gui/` | `poon-gui`: a separate module that runs `pkg/cli` behind a local web page, with a terminal ([docs/gui.md](docs/gui.md)) |
+| `pkg/cli`, `cmd/poon` | The `poon` command (node daemon, client commands, in-process demo) as a library, and the few lines of process around it |
 | `pkg/encoding` | The canonical byte form every hash is computed over |
 | `pkg/hash` | 32-byte hashes, the hash number list, domain tags, strength |
 | `pkg/weight` | Arbitrary-precision credit and weight |

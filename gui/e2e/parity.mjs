@@ -1,4 +1,4 @@
-// Flag parity (GUI-GREEN-042): every flag poo CMD -h lists is one some
+// Flag parity (GUI-GREEN-042): every flag poon CMD -h lists is one some
 // form of the GUI can send, or is in LEFT_OUT with the reason it is not.
 // GREEN-040 checks that every command is reachable; this checks a level
 // deeper, so a flag Source adds cannot go missing from the GUI unnoticed.
@@ -8,7 +8,7 @@
 // command line the form previews, and keeps the flags in it. It never
 // presses a button, so nothing runs.
 //
-//   node gui/e2e/parity.mjs PATH/TO/poo-gui
+//   node gui/e2e/parity.mjs PATH/TO/poon-gui
 import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { launch } from './lib.mjs';
@@ -20,42 +20,42 @@ const { page, env, errors, close } = await launch(bin);
 const EVERYWHERE = {
   root: 'Settings sets it for every view', policy: 'Settings sets it for every view',
   dir: 'the GUI names a policy by -root and -policy instead',
-  wallet: 'the Wallet view sets it once, above its forms', o: 'the GUI reads poo\'s JSON, the default',
-  wide: 'widens poo\'s text tables; the GUI draws its own from the JSON',
-  'passphrase-file': 'poo asks for the passphrase in a masked field instead (D106)',
-  'new-passphrase-file': 'poo asks for the new passphrase in a masked field instead (D106)',
-  'seed-file': 'a seed is typed into poo\'s masked prompt, never named as a file (D98)',
+  wallet: 'the Wallet view sets it once, above its forms', o: 'the GUI reads poon\'s JSON, the default',
+  wide: 'widens poon\'s text tables; the GUI draws its own from the JSON',
+  'passphrase-file': 'poon asks for the passphrase in a masked field instead (D106)',
+  'new-passphrase-file': 'poon asks for the new passphrase in a masked field instead (D106)',
+  'seed-file': 'a seed is typed into poon\'s masked prompt, never named as a file (D98)',
 };
 // Flags of one command the GUI leaves to the terminal, each with why.
 // Grey can move any of them into a form; the check accepts either.
 const LEFT_OUT = {
   node: { 'log-level': 'the live log is for reading; the terminal sets a level', 'log-format': 'the live log is for reading; the terminal sets a format' },
-  sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poo sim load -h has them'])),
-  'series new': { ...Object.fromEntries(['entry-hash-credit', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poo series new -h has the rest'])) },
+  sim: Object.fromEntries(['build-every', 'builders', 'degree', 'give-up', 'head-start', 'k', 'max-latency', 'min-latency', 'pay-every', 'share', 'split', 'threshold', 'tries', 'work-every'].map(f => [f, 'a simulator tuning flag; the form says poon sim load -h has them'])),
+  'series new': { ...Object.fromEntries(['entry-hash-credit', 'min-entry-strength', 'min-layer-strength'].map(f => [f, 'the form says poon series new -h has the rest'])) },
   demo: { quiet: 'Getting started runs demo -quiet; the GUI has no demo form' },
-  keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poo ask for the seed in a masked field (-seed-file -)' },
-  watch: { once: 'the Watch view reconnects by itself, as poo watch without -once does' },
-  // poo lists the shared filter flags on every view command, but refuses
-  // -kind outside poo watch ("-kind selects events and applies to poo
+  keygen: { seed: 'for test vectors only, since it is on the command line (D98); the form has poon ask for the seed in a masked field (-seed-file -)' },
+  watch: { once: 'the Watch view reconnects by itself, as poon watch without -once does' },
+  // poon lists the shared filter flags on every view command, but refuses
+  // -kind outside poon watch ("-kind selects events and applies to poon
   // watch only"), so no form offers it there.
-  ...Object.fromEntries(['pools', 'pending', 'unspent', 'ledger', 'tx', 'address'].map(c => [c, { kind: 'poo refuses -kind outside poo watch' }])),
-  tx: { kind: 'poo refuses -kind outside poo watch', ...Object.fromEntries(['address', 'address-policy', 'pool', 'serial', 'tid'].map(f => [f, 'one transaction by its id: In mint serial (-in-serial) is the narrowing that helps'])) },
-  address: { kind: 'poo refuses -kind outside poo watch', address: 'the address is the command\'s own argument', 'address-policy': 'the address is the command\'s own argument' },
+  ...Object.fromEntries(['pools', 'pending', 'unspent', 'ledger', 'tx', 'address'].map(c => [c, { kind: 'poon refuses -kind outside poon watch' }])),
+  tx: { kind: 'poon refuses -kind outside poon watch', ...Object.fromEntries(['address', 'address-policy', 'pool', 'serial', 'tid'].map(f => [f, 'one transaction by its id: In mint serial (-in-serial) is the narrowing that helps'])) },
+  address: { kind: 'poon refuses -kind outside poon watch', address: 'the address is the command\'s own argument', 'address-policy': 'the address is the command\'s own argument' },
   'grind schedule': { 'if-version': 'add and set are applied as edits under the node\'s lock and keep changes made meanwhile (D125); Remove sends it' },
   'peers import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D157); a preview has none to send' },
   'settings import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, D155); a preview has none to send' },
   'policy import': { apply: 'Apply, under the preview, runs the previewed line with -apply', 'if-digest': 'Apply sends the digest the preview printed (D151, GUI-023); a preview has none to send' },
   grind: { lease: 'a lease ends a job its client stops renewing; the GUI\'s Start leaves the job to the node, and Run is followed and stops with the page' },
-  claim: { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
-  'series sign': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)' },
-  'series release': { seed: 'not accepted by poo: the seed goes in a masked field (-seed-file -)', part: 'Sign, under the Release a part preview (poo series parts), runs the previewed part with -part (GUI-027)', alg: 'Sign, under the Release a part preview, sends the Key algorithm the preview was run with' },
+  claim: { seed: 'not accepted by poon: the seed goes in a masked field (-seed-file -)' },
+  'series sign': { seed: 'not accepted by poon: the seed goes in a masked field (-seed-file -)' },
+  'series release': { seed: 'not accepted by poon: the seed goes in a masked field (-seed-file -)', part: 'Sign, under the Release a part preview (poon series parts), runs the previewed part with -part (GUI-027)', alg: 'Sign, under the Release a part preview, sends the Key algorithm the preview was run with' },
   peers: { counts: 'the timed Peers panel runs it, leaving the book to Find peers (ORANGE-017); a panel line is not a form' },
   // GREEN-063: terminal-only until the GUI adds them (a finished-offers table; watch by a payment's tid).
   'bounty list': { done: 'finished offers are terminal-only until the Bounty view adds a table for them (GREEN-063)' },
   'wallet watch': { tid: 'watching a payment\'s mint by its tid is terminal-only until the Wallet view adds it (GREEN-063)' },
 };
 // Commands whose subcommands share one set of flags, of which the GUI's
-// action select shows each action only the ones poo takes for it (only:,
+// action select shows each action only the ones poon takes for it (only:,
 // GREEN-028): the family's forms together must cover the family's flags.
 const FAMILIES = ['peer', 'sim', 'policy'];
 
@@ -117,9 +117,9 @@ try {
     lines.filter(l => l.startsWith('panel ')).forEach(l => panelCmds.add(commandOf(l.slice(6)).slice(0, 2).join(' ')));
   }
 
-  // A field that states poo's default in its placeholder ("default 16")
-  // must state the one poo -h prints for its flag, so the GUI's hint
-  // cannot drift from poo (GUI-GREEN-043). Each such field is filled
+  // A field that states poon's default in its placeholder ("default 16")
+  // must state the one poon -h prints for its flag, so the GUI's hint
+  // cannot drift from poon (GUI-GREEN-043). Each such field is filled
   // alone, so the preview says which flag it is.
   const stated = [];
   for (const v of views) {
@@ -157,19 +157,19 @@ try {
     if (k < 1 || !t[k - 1].startsWith('-')) continue;
     const fl = t[k - 1].slice(1);
     const cmd = commandOf(s.line.replace(' 7777', ''));
-    const r = spawnSync(bin, ['poo', ...cmd, '-h'], { env });
+    const r = spawnSync(bin, ['poon', ...cmd, '-h'], { env });
     const m = new RegExp(`^ {2}-${fl}(?: \\w+)?\n\\s+(.*)$`, 'm').exec(`${r.stdout}${r.stderr}`);
     // Go's flag help leaves a zero default out.
-    const poo = (m && /\(default "?([^")]*)"?\)$/.exec(m[1]) || [, '0'])[1];
-    if (poo !== s.said) drift.push(`poo ${cmd.join(' ')} -${fl}: the GUI says default ${s.said}, poo says ${poo}`);
+    const poon = (m && /\(default "?([^")]*)"?\)$/.exec(m[1]) || [, '0'])[1];
+    if (poon !== s.said) drift.push(`poon ${cmd.join(' ')} -${fl}: the GUI says default ${s.said}, poon says ${poon}`);
   }
   assert.ok(stated.length > 5, 'fields that state a default were found');
-  assert.deepEqual([...new Set(drift)], [], 'a stated default is poo\'s');
+  assert.deepEqual([...new Set(drift)], [], 'a stated default is poon\'s');
 
   // A field that offers a fixed set of values (a select or boxes marked
-  // with data-flag) offers exactly the ones poo -h lists for its flag, so
+  // with data-flag) offers exactly the ones poon -h lists for its flag, so
   // a book state or event kind Source adds shows up here (GUI-GREEN-048).
-  // poo lists them as "...: a, b, c" or "a, b or c".
+  // poon lists them as "...: a, b, c" or "a, b or c".
   const offered = [];
   for (const v of views) {
     await page.click(`nav a[data-id=${v}]`);
@@ -183,43 +183,43 @@ try {
   const choiceDrift = [];
   for (const o of offered) {
     const cmd = commandOf(o.line);
-    const r = spawnSync(bin, ['poo', ...cmd, '-h'], { env });
+    const r = spawnSync(bin, ['poon', ...cmd, '-h'], { env });
     const m = new RegExp(`^ {2}-${o.flag}(?: \\w+)?\n\\s+(.*)$`, 'm').exec(`${r.stdout}${r.stderr}`);
     const help = m ? m[1].replace(/\s*\([^()]*\)\s*$/, '') : '';
     const list = (/: ([a-z-]+(?:, [a-z-]+)+)$/.exec(help) || /([a-z-]+(?:, [a-z-]+)* or [a-z-]+)$/.exec(help) || [, ''])[1];
-    const poo = list.split(/, | or /).filter(Boolean);
-    if ([...o.values].sort().join() !== [...poo].sort().join()) choiceDrift.push(`poo ${cmd.join(' ')} -${o.flag}: the GUI offers ${o.values.join(', ')}; poo lists ${poo.join(', ') || 'none'}`);
+    const poon = list.split(/, | or /).filter(Boolean);
+    if ([...o.values].sort().join() !== [...poon].sort().join()) choiceDrift.push(`poon ${cmd.join(' ')} -${o.flag}: the GUI offers ${o.values.join(', ')}; poon lists ${poon.join(', ') || 'none'}`);
   }
   assert.ok(offered.length >= 4, 'fields that offer a fixed set of values were found');
-  assert.deepEqual(choiceDrift, [], 'a field offers exactly the values poo lists');
+  assert.deepEqual(choiceDrift, [], 'a field offers exactly the values poon lists');
 
-  // Every subcommand poo lists is run by some view, or LEFT_OUT_SUBS says
-  // why not. An action select is a copy of poo's list of subcommands, and
+  // Every subcommand poon lists is run by some view, or LEFT_OUT_SUBS says
+  // why not. An action select is a copy of poon's list of subcommands, and
   // a new action would carry flags the family already has, so the flag
-  // check alone would miss it (GUI-GREEN-045). The lists come from poo
-  // help ("poo peer timeout|block|…", "poo policy export …") and from the
-  // help of each command that has its own (poo grind help, poo wallet help).
+  // check alone would miss it (GUI-GREEN-045). The lists come from poon
+  // help ("poon peer timeout|block|…", "poon policy export …") and from the
+  // help of each command that has its own (poon grind help, poon wallet help).
   const LEFT_OUT_SUBS = {
     'completion bash': 'sets up a shell, not the GUI', 'completion zsh': 'sets up a shell, not the GUI', 'completion fish': 'sets up a shell, not the GUI',
   };
-  const helpOf = args => { const r = spawnSync(bin, ['poo', ...args], { env }); return `${r.stdout}${r.stderr}`; };
+  const helpOf = args => { const r = spawnSync(bin, ['poon', ...args], { env }); return `${r.stdout}${r.stderr}`; };
   const subs = new Set();
-  for (const m of helpOf(['help']).matchAll(/^ {2}poo ([a-z]+) ([a-z][a-z|-]*)(?= |$)/gm)) {
+  for (const m of helpOf(['help']).matchAll(/^ {2}poon ([a-z]+) ([a-z][a-z|-]*)(?= |$)/gm)) {
     for (const sub of m[2].split('|')) subs.add(`${m[1]} ${sub}`);
   }
   for (const cmd of ['grind', 'wallet']) {
     for (const m of helpOf([cmd, 'help']).matchAll(/^ {2}([a-z]+)(?= )/gm)) subs.add(`${cmd} ${m[1]}`);
   }
-  assert.ok(subs.has('peer block') && subs.has('grind schedule') && subs.has('wallet pay'), 'the subcommands were read from poo help');
+  assert.ok(subs.has('peer block') && subs.has('grind schedule') && subs.has('wallet pay'), 'the subcommands were read from poon help');
   const ranSubs = new Set([...seen.keys()].map(c => c.split(' ').slice(0, 2).join(' ')).concat([...panelCmds]));
-  const missingSubs = [...subs].filter(c => !ranSubs.has(c) && !LEFT_OUT_SUBS[c]).map(c => `poo ${c}`);
-  assert.deepEqual(missingSubs, [], 'every subcommand poo lists is run by a view, or LEFT_OUT_SUBS says why not');
+  const missingSubs = [...subs].filter(c => !ranSubs.has(c) && !LEFT_OUT_SUBS[c]).map(c => `poon ${c}`);
+  assert.deepEqual(missingSubs, [], 'every subcommand poon lists is run by a view, or LEFT_OUT_SUBS says why not');
 
   const gaps = [];
   for (const [cmd, sent] of seen) {
     if (!cmd) continue;
-    // poo prints a command's flags to standard error for -h.
-    const r = spawnSync(bin, ['poo', ...cmd.split(' '), '-h'], { env });
+    // poon prints a command's flags to standard error for -h.
+    const r = spawnSync(bin, ['poon', ...cmd.split(' '), '-h'], { env });
     const help = `${r.stdout}${r.stderr}`;
     const listed = [...help.matchAll(/^ {2}-([a-z][a-z0-9-]*)/gm)].map(m => m[1]);
     const words = cmd.split(' ');
@@ -227,9 +227,9 @@ try {
     if (FAMILIES.includes(words[0])) {
       for (const [c, fl] of seen) if (c.split(' ')[0] === words[0]) fl.forEach(f => sent.add(f));
     }
-    for (const fl of listed) if (!sent.has(fl) && !EVERYWHERE[fl] && !left[fl]) gaps.push(`poo ${cmd} -${fl}`);
+    for (const fl of listed) if (!sent.has(fl) && !EVERYWHERE[fl] && !left[fl]) gaps.push(`poon ${cmd} -${fl}`);
   }
-  assert.deepEqual(gaps, [], 'every flag poo lists is sent by a form, or LEFT_OUT says why not');
+  assert.deepEqual(gaps, [], 'every flag poon lists is sent by a form, or LEFT_OUT says why not');
   assert.deepEqual(errors, [], 'no page errors');
   console.log(`gui parity e2e: ok (${seen.size} commands)`);
 } finally {

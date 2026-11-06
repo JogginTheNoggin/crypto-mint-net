@@ -38,7 +38,7 @@ func (b repeatReader) Read(p []byte) (int, error) {
 }
 
 func TestBlue035LedgerHeaderBounded(t *testing.T) {
-	const fields = `"kind":"poo-ledger","format":1,"series":"0000000000000000000000000000000000000000000000000000000000000001","pool":7`
+	const fields = `"kind":"poon-ledger","format":1,"series":"0000000000000000000000000000000000000000000000000000000000000001","pool":7`
 	const entries = `"entries":[{"height":1,"item":"AQI="}]`
 	head := func(ledgerFile) error { return nil }
 	item := func(ledgerFileItem) error { return nil }
@@ -75,7 +75,7 @@ func TestBlue035LedgerHeaderBounded(t *testing.T) {
 // bound and dropped, so this release still imports the file; at most
 // MaxLedgerUnknownKeys of them.
 func TestLedgerHeaderSkipsUnknownKeys(t *testing.T) {
-	const fields = `"kind":"poo-ledger","format":1,"series":"0000000000000000000000000000000000000000000000000000000000000001","pool":7`
+	const fields = `"kind":"poon-ledger","format":1,"series":"0000000000000000000000000000000000000000000000000000000000000001","pool":7`
 	const entries = `"entries":[{"height":1,"item":"AQI="}]`
 	var got ledgerFile
 	n := 0

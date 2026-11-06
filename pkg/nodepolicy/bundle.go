@@ -27,7 +27,7 @@ import (
 // change to node.json.
 //
 //	{
-//	  "kind": "poo-node-policies",
+//	  "kind": "poon-node-policies",
 //	  "format": 1,
 //	  "scope": "series" | "policy" | "node" | "settings",
 //	  "exported": "2026-11-02T21:00:00Z",
@@ -54,7 +54,7 @@ const (
 	ScopeNode = "node"
 	// ScopeSettings holds one node policy's settings and nothing it
 	// follows: how the node runs, to carry to another machine, back up
-	// or share (D155). poo settings export writes it, poo settings
+	// or share (D155). poon settings export writes it, poon settings
 	// import reads it (ExportSettings, MergeOptions.SettingsOnly).
 	ScopeSettings = "settings"
 )
@@ -330,7 +330,7 @@ func ReadBundle(r io.Reader) (Bundle, error) {
 		if head.Format != nil {
 			f = *head.Format
 		}
-		return Bundle{}, fmt.Errorf("%w: format %d; this node reads format %d: a newer poo made it", ErrBundle, f, BundleFormat)
+		return Bundle{}, fmt.Errorf("%w: format %d; this node reads format %d: a newer poon made it", ErrBundle, f, BundleFormat)
 	}
 	var bd Bundle
 	if err := strictJSON(b, &bd); err != nil {
@@ -446,7 +446,7 @@ type MergeOptions struct {
 	// issuers: how a series bundle is imported.
 	SeriesOnly bool `json:"series_only,omitempty"`
 	// SettingsOnly takes only the node settings, never what to follow:
-	// how poo settings import works (D155). It implies Settings. With
+	// how poon settings import works (D155). It implies Settings. With
 	// Replace the file's settings take the place of the node's, and what
 	// the node follows stays its own.
 	SettingsOnly bool `json:"settings_only,omitempty"`

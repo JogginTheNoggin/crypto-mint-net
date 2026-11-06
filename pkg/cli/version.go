@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 )
 
-// BuildInfo is what poo version -v prints: enough for a bug report to say
+// BuildInfo is what poon version -v prints: enough for a bug report to say
 // exactly which code ran (GREEN-013).
 type BuildInfo struct {
 	Version  string            `json:"version"`
@@ -50,8 +50,8 @@ func buildInfo() BuildInfo {
 
 // releaseCommit is the commit the node reports as its release: Commit
 // when a release build sets it with -X, or else the VCS revision a dev
-// build records ("+modified" when its tree had changes), so poo status
-// and poo doctor name the code a dev build runs too (GREEN-059).
+// build records ("+modified" when its tree had changes), so poon status
+// and poon doctor name the code a dev build runs too (GREEN-059).
 func releaseCommit() string {
 	if Commit != "" {
 		return Commit
@@ -85,7 +85,7 @@ func vcsCommit(settings []debug.BuildSetting) string {
 func versionCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("version", out)
 	verbose := fs.Bool("v", false, "also the Go version, platform, commit and dependencies")
-	// Accepted and ignored, as poo version took any arguments before -v:
+	// Accepted and ignored, as poon version took any arguments before -v:
 	// scripts and tests pass the node-location flags to every command.
 	addWhere(fs)
 	o := addOutput(fs)

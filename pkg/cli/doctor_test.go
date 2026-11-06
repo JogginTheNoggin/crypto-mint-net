@@ -50,7 +50,7 @@ func TestDoctorNoPolicy(t *testing.T) {
 		t.Fatal("ok without a policy")
 	}
 	wantResults(t, r, map[string]string{"policy": checkFail, "rpc": checkSkip, "p2p": checkSkip})
-	if !strings.Contains(r.Checks[0].Fix, "poo init") {
+	if !strings.Contains(r.Checks[0].Fix, "poon init") {
 		t.Errorf("fix %q", r.Checks[0].Fix)
 	}
 }
@@ -64,7 +64,7 @@ func TestDoctorBadPolicy(t *testing.T) {
 
 func TestDoctorStoppedNode(t *testing.T) {
 	dir := t.TempDir()
-	os.Chmod(dir, 0o700) // as poo init makes it under -root
+	os.Chmod(dir, 0o700) // as poon init makes it under -root
 	cli(t, nil, "init", "-example", "-dir", dir, "-p2p", "off")
 	r := doctor(io.Discard, dir)
 	if !r.OK {
@@ -136,7 +136,7 @@ func TestDoctorRunningNode(t *testing.T) {
 
 	// A schedule change applies at once and leaves the check ok; a follow
 	// change made with -no-reload waits for a reload, which the check
-	// says, with poo reload as the fix (GREEN-037).
+	// says, with poon reload as the fix (GREEN-037).
 	cli(t, nil, "grind", "schedule", "add", "pending", "-dir", dir)
 	b.Reset()
 	_ = run([]string{"doctor", "-dir", dir, "-json"}, &b)
@@ -234,7 +234,7 @@ func TestDoctorLoweredHasFixArgs(t *testing.T) {
 	if strings.Join(lowered.FixArgs, " ") != strings.Join(want, " ") || !strings.Contains(lowered.Detail, "layer_rate 1000") {
 		t.Fatalf("lowered check %+v", lowered)
 	}
-	// Run as poo doctor -dir DIR prints it, the fix names DIR, so it
+	// Run as poon doctor -dir DIR prints it, the fix names DIR, so it
 	// changes the policy that was checked (GREEN-036).
 	var rep DoctorReport
 	cli(t, &rep, "doctor", "-dir", dir, "-o", "json")

@@ -12,7 +12,7 @@ import (
 )
 
 // A command that takes the data directory's lock in the gap of a reload,
-// as an offline poo policy limits -set can, no longer stops the node: it
+// as an offline poon policy limits -set can, no longer stops the node: it
 // waits for the lock and comes back up (GREEN-050).
 func TestReloadWaitsForTheLock(t *testing.T) {
 	s := testutil.ExampleSeries()

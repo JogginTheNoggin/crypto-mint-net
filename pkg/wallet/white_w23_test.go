@@ -46,7 +46,7 @@ func TestWalletKeepsUnknownFields(t *testing.T) {
 // later format and another kind are refused; a file with neither reads.
 func TestPaymentFileKindFormatAndUnknownFields(t *testing.T) {
 	const legs = `"legs":[{"serial":5,"tx":"00","inputs":[{"policy":"00"}],"leg_note":{"x":1}}]`
-	src := `{"kind":"poo-payment","format":1,"series":"` + strings.Repeat("0", 64) + `","hash":"sha256","later":[1,2],` + legs + `}`
+	src := `{"kind":"poon-payment","format":1,"series":"` + strings.Repeat("0", 64) + `","hash":"sha256","later":[1,2],` + legs + `}`
 	var u wallet.Unsigned
 	must(t, json.Unmarshal([]byte(src), &u))
 	if u.Kind != wallet.PaymentFileKind || u.Format != wallet.PaymentFormat || len(u.Legs) != 1 {
@@ -62,7 +62,7 @@ func TestPaymentFileKindFormatAndUnknownFields(t *testing.T) {
 		t.Fatalf("unknown fields not written back:\n%s", b)
 	}
 
-	old := strings.Replace(src, `"kind":"poo-payment","format":1,`, ``, 1)
+	old := strings.Replace(src, `"kind":"poon-payment","format":1,`, ``, 1)
 	if err := json.Unmarshal([]byte(old), &u); err != nil {
 		t.Fatalf("a file from before W-23: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestPaymentFileKindFormatAndUnknownFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(two), &u); err == nil || !strings.Contains(err.Error(), "format 2") {
 		t.Fatalf("format 2: %v", err)
 	}
-	other := strings.Replace(src, `"poo-payment"`, `"poo-ledger"`, 1)
+	other := strings.Replace(src, `"poon-payment"`, `"poon-ledger"`, 1)
 	if err := json.Unmarshal([]byte(other), &u); err == nil || !strings.Contains(err.Error(), "not a payment") {
 		t.Fatalf("another kind: %v", err)
 	}

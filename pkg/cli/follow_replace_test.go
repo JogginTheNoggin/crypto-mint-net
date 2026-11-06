@@ -9,7 +9,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 )
 
-// GREEN-038: poo follow -replace does what POST /v1/follow's replace does
+// GREEN-038: poon follow -replace does what POST /v1/follow's replace does
 // for the GUI (GUI-018): the series' rule becomes exactly the pools and
 // mints given, in one change.
 func TestFollowReplace(t *testing.T) {

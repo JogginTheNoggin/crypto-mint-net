@@ -1,5 +1,5 @@
-// Package jobs runs poo command lines for the GUI. A job is one call of
-// cli.Main, the function the poo binary runs, with its own context, input
+// Package jobs runs poon command lines for the GUI. A job is one call of
+// cli.Main, the function the poon binary runs, with its own context, input
 // and output: the GUI's terminal, views and forms all run commands this
 // way and no other (docs/gui.md).
 package jobs
@@ -238,7 +238,7 @@ func (r *Runner) List() []*Job {
 }
 
 // Close cancels every job and waits for them to return, at most timeout.
-// A cancelled poo node closes its stores before it returns, so callers
+// A cancelled poon node closes its stores before it returns, so callers
 // should give it a few seconds.
 func (r *Runner) Close(timeout time.Duration) error {
 	r.mu.Lock()

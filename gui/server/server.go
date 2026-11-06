@@ -1,5 +1,5 @@
 // Package server serves the GUI: the embedded page and an API that runs
-// poo command lines as jobs. It listens only on a loopback address, and
+// poon command lines as jobs. It listens only on a loopback address, and
 // every request needs a session cookie, which a browser gets by opening a
 // one-time sign-in address (docs/gui.md, Security).
 //
@@ -18,9 +18,9 @@
 //	GET  /api/split?line=                         the args a typed line is: {args, command}
 //	GET  /api/grammar                             the terminal's grammar: {grammar}, posix or windows
 //	GET  /api/info                                {grammar, viewOnly, secretFlags, version}: viewOnly when jobs
-//	                                              run in the core's view-only mode (poo-gui -view-only);
+//	                                              run in the core's view-only mode (poon-gui -view-only);
 //	                                              secretFlags are shell.SecretFlags; version is
-//	                                              Server.Version, the release poo and poo-gui share
+//	                                              Server.Version, the release poon and poon-gui share
 //
 // A job's args and command are shown with secret flag values hidden
 // (shell.Redact), and redacted is set.
@@ -48,7 +48,7 @@ import (
 )
 
 // CookieName is the session cookie a sign-in sets.
-const CookieName = "poo_gui"
+const CookieName = "poon_gui"
 
 // Header must be sent with every POST; a cross-site page cannot send it
 // without a preflight, which the server never answers.
@@ -71,7 +71,7 @@ type Server struct {
 	Heartbeat time.Duration
 	// MaxStreams bounds the event streams open at once.
 	MaxStreams int
-	// Version is the release poo-gui and poo share (cli.Version), given
+	// Version is the release poon-gui and poon share (cli.Version), given
 	// to the page through /api/info so it can show it (GUI White G4,
 	// GUI-GREEN-058). The server takes no version of its own.
 	Version string
@@ -203,7 +203,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if c, ok := s.signIn(t); ok {
 			http.SetCookie(w, &http.Cookie{Name: CookieName, Value: c, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
 		} else if !s.authed(r) {
-			http.Error(w, "This sign-in address was already used or has expired. Press Enter in the window running poo-gui for a new one.", http.StatusForbidden)
+			http.Error(w, "This sign-in address was already used or has expired. Press Enter in the window running poon-gui for a new one.", http.StatusForbidden)
 			return
 		}
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -211,10 +211,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !s.authed(r) {
 		if len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api/" {
-			writeErr(w, http.StatusUnauthorized, "not signed in: open a sign-in address from poo-gui")
+			writeErr(w, http.StatusUnauthorized, "not signed in: open a sign-in address from poon-gui")
 			return
 		}
-		http.Error(w, "Not signed in. Press Enter in the window running poo-gui to print a sign-in address, and open it.", http.StatusUnauthorized)
+		http.Error(w, "Not signed in. Press Enter in the window running poon-gui to print a sign-in address, and open it.", http.StatusUnauthorized)
 		return
 	}
 	s.mux.ServeHTTP(w, r)
@@ -540,7 +540,7 @@ type joined struct {
 }
 
 // coalesce joins adjacent chunks of the same stream, up to MaxEventData
-// each, so output written in many small writes (poo watch writes one per
+// each, so output written in many small writes (poon watch writes one per
 // event) is a few events for the browser to handle, not one per write
 // (ORANGE-002). The text is unchanged.
 func coalesce(cs []jobs.Chunk) []joined {

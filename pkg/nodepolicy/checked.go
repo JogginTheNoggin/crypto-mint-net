@@ -13,7 +13,7 @@ import (
 // CheckedFileName is the node's own cache of the releases it checked in
 // full, beside node.json (RED-075, D167). Checking the release of part k
 // takes k hashes; with this cache, the next process (a reload, a restart,
-// any poo command) checks only the release's witness. It is never part of
+// any poon command) checks only the release's witness. It is never part of
 // a policy export, so a release another node wrote is always checked in
 // full. A cache that is missing, damaged or does not match the release
 // node.json keeps is not used: it costs time, never a result.

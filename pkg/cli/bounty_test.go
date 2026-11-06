@@ -46,7 +46,7 @@ func editPolicy(t *testing.T, dir string, f func(*nodepolicy.Policy)) {
 func TestBountyMarket(t *testing.T) {
 	createIterations = 1
 	defer func() { createIterations = 0 }()
-	t.Setenv("POO_PASSPHRASE", "pw")
+	t.Setenv("POON_PASSPHRASE", "pw")
 	payer, grinder := t.TempDir(), t.TempDir()
 	pr, gr := []string{"-root", payer}, []string{"-root", grinder}
 	gAddr := freeAddr(t)
@@ -119,6 +119,9 @@ func TestBountyMarket(t *testing.T) {
 	}
 	if len(seen.Held) != 1 || seen.Held[0].ID != posted.Offer.ID {
 		t.Fatalf("held %+v", seen.Held)
+	}
+	if seen.Asked == nil || *seen.Asked != 1 { // GUI-GREEN-065
+		t.Fatalf("asked %v, want 1 peer", seen.Asked)
 	}
 	gw := append([]string{"-wallet", filepath.Join(grinder, "w.json")}, gr...)
 	cli(t, nil, append([]string{"wallet", "create"}, gw...)...)

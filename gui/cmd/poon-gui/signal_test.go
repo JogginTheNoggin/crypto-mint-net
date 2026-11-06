@@ -50,17 +50,17 @@ func TestIsTerminal(t *testing.T) {
 	}
 }
 
-// TestMainProcess is poo-gui's main, run in a child process by the tests
+// TestMainProcess is poon-gui's main, run in a child process by the tests
 // below.
 func TestMainProcess(t *testing.T) {
-	if os.Getenv("POO_GUI_TEST_MAIN") != "1" {
+	if os.Getenv("POON_GUI_TEST_MAIN") != "1" {
 		t.Skip("run by the signal tests")
 	}
-	os.Args = []string{"poo-gui", "-no-open"}
+	os.Args = []string{"poon-gui", "-no-open"}
 	main()
 }
 
-// gui is poo-gui's main in a child process, started from stdin, with
+// gui is poon-gui's main in a child process, started from stdin, with
 // SIGHUP ignored first if ignoreHUP, as nohup does.
 type gui struct {
 	t    *testing.T
@@ -75,7 +75,7 @@ func startGUI(t *testing.T, stdin *os.File, ignoreHUP bool) *gui {
 		self = append([]string{"sh", "-c", `trap '' HUP; exec "$@"`, "sh"}, self...)
 	}
 	cmd := exec.Command(self[0], self[1:]...)
-	cmd.Env = append(os.Environ(), "POO_GUI_TEST_MAIN=1", "HOME="+t.TempDir())
+	cmd.Env = append(os.Environ(), "POON_GUI_TEST_MAIN=1", "HOME="+t.TempDir())
 	cmd.Stdin = stdin
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -102,7 +102,7 @@ func startGUI(t *testing.T, stdin *os.File, ignoreHUP bool) *gui {
 	case <-up:
 	case <-time.After(20 * time.Second):
 		cmd.Process.Kill()
-		t.Fatal("poo-gui did not start")
+		t.Fatal("poon-gui did not start")
 	}
 	go func() { g.done <- cmd.Wait() }()
 	t.Cleanup(func() { cmd.Process.Kill() })
@@ -116,26 +116,26 @@ func (g *gui) stopsCleanly(sig syscall.Signal) {
 	select {
 	case err := <-g.done:
 		if err != nil {
-			g.t.Errorf("%v: poo-gui ended with %v, want a clean exit 0", sig, err)
+			g.t.Errorf("%v: poon-gui ended with %v, want a clean exit 0", sig, err)
 		}
 	case <-time.After(20 * time.Second):
-		g.t.Fatalf("%v: poo-gui did not stop", sig)
+		g.t.Fatalf("%v: poon-gui did not stop", sig)
 	}
 }
 
-// survives sends sig and requires poo-gui to keep running.
+// survives sends sig and requires poon-gui to keep running.
 func (g *gui) survives(sig syscall.Signal) {
 	g.t.Helper()
 	g.cmd.Process.Signal(sig)
 	select {
 	case err := <-g.done:
-		g.t.Fatalf("%v: poo-gui ended (%v), want it to keep running", sig, err)
+		g.t.Fatalf("%v: poon-gui ended (%v), want it to keep running", sig, err)
 	case <-time.After(time.Second):
 	}
 }
 
 // TestHangupStopsCleanly is GUI-010: started from a terminal, SIGHUP (the
-// terminal closing) ends poo-gui through its cancel path, exit 0, as
+// terminal closing) ends poon-gui through its cancel path, exit 0, as
 // SIGTERM does.
 func TestHangupStopsCleanly(t *testing.T) {
 	tty := openTTY(t)
@@ -147,7 +147,7 @@ func TestHangupStopsCleanly(t *testing.T) {
 }
 
 // TestHangupNohup is GUI-011: started with SIGHUP ignored, as nohup does,
-// poo-gui leaves it ignored and outlives the session, terminal or not.
+// poon-gui leaves it ignored and outlives the session, terminal or not.
 func TestHangupNohup(t *testing.T) {
 	if _, err := exec.LookPath("sh"); err != nil {
 		t.Skip("no sh")
@@ -165,7 +165,7 @@ func TestHangupNohup(t *testing.T) {
 }
 
 // TestHangupNoTerminal is GUI-011: without a terminal, SIGHUP is a
-// daemon's reload; it neither stops poo-gui nor kills it the way Go's
+// daemon's reload; it neither stops poon-gui nor kills it the way Go's
 // default would, so a node the GUI hosts can reload on it.
 func TestHangupNoTerminal(t *testing.T) {
 	r, w, _ := os.Pipe()

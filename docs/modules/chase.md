@@ -62,7 +62,7 @@ raises the evidence.
 
 Each `yield` or `stall` records its reason in the group's `waiting`, and
 when it first stopped for that reason in `waiting_since` (`Note`), so
-`poo chases` shows a chase that waits, such as one waiting for disk space
+`poon chases` shows a chase that waits, such as one waiting for disk space
 (D124). `Outcome.Keeps` says which outcomes keep the chase's progress.
 
 `IsBad` lets `p2p` ignore pushed items and offers naming a known-bad hash.

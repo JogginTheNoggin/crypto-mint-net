@@ -50,7 +50,7 @@ type PathMap struct {
 	To   string `json:"to"`
 }
 
-// ParsePathMap reads OLD=NEW, as poo settings import -map-path takes it.
+// ParsePathMap reads OLD=NEW, as poon settings import -map-path takes it.
 func ParsePathMap(s string) (PathMap, error) {
 	from, to, ok := strings.Cut(s, "=")
 	if !ok || from == "" || to == "" {
@@ -191,7 +191,7 @@ func fitLines(p Policy, m Machine) []string {
 		if id == "" || id == "auto" || len(m.Devices) == 0 || slices.Contains(m.Devices, id) {
 			return
 		}
-		out = append(out, fmt.Sprintf("%s: no device %q here (poo grind devices lists them)", field, id))
+		out = append(out, fmt.Sprintf("%s: no device %q here (poon grind devices lists them)", field, id))
 	}
 	threads := func(field string, n int) {
 		if m.CPUs > 0 && n > m.CPUs {
@@ -263,7 +263,7 @@ func networkPath(p string) bool {
 }
 
 // KeepPeer adds addr to p's p2p.peers, the addresses always dialled, or
-// with keep false takes it out (poo peer add -keep and poo peer remove,
+// with keep false takes it out (poon peer add -keep and poon peer remove,
 // D157). It reports whether p changed.
 func KeepPeer(p *Policy, addr string, keep bool) bool {
 	i := slices.Index(p.P2P.Peers, addr)

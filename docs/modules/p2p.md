@@ -151,7 +151,7 @@ naming a known-bad hash are ignored. Each chase, from cheap to costly:
    the entry sent at its place. An entry larger than `PartsOver` comes in
    parts (`fetchParts`, D117): each part holds at least a byte, the first
    starts with the expected parent, and the parts go to a temporary file in
-   `PartsDir` (`poo node` sets it to `parts/` in the data directory and
+   `PartsDir` (`poon node` sets it to `parts/` in the data directory and
    empties it of a crash's leftovers on start, GREEN-033), not memory, until the entry is whole; past its slice the
    fetch yields and the next slice goes on from the offset it reached
    (RED-016, D120). Before each part the free space of that disk is
@@ -277,7 +277,7 @@ the slice it is measured in (Black's note on Round 13, D143). The progress
 itself goes once no chase has taken it up for `ProgressTTL` (an hour),
 counted from the end of its sender's backoff, so it always outlasts the
 wait for its next turn (Black's C-6, D129). A chase that waits for disk space logs a warning and
-shows as waiting in `poo chases` and `poo doctor` (D124). An entry pushed over the
+shows as waiting in `poon chases` and `poon doctor` (D124). An entry pushed over the
 sender's revert budget is not dropped for good: its branch goes to the
 chase queue (D116). Only hashes shown false go on the known-bad list: an
 entry hash below the minimum strength, an invalid entry, or a listed hash

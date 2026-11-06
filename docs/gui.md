@@ -2,16 +2,16 @@
 
 ## Summary
 
-The GUI (`poo-gui`) is a visual way to use the same headless node and the
-same `poo` commands. It has no logic of its own. The headless code is the
+The GUI (`poon-gui`) is a visual way to use the same headless node and the
+same `poon` commands. It has no logic of its own. The headless code is the
 source, and the GUI is built on top of it:
 
-- Everything the GUI does, it does by running a `poo` command line through
-  `cli.Main`, the function the `poo` binary runs. A button builds a command
+- Everything the GUI does, it does by running a `poon` command line through
+  `cli.Main`, the function the `poon` binary runs. A button builds a command
   line, and a view runs a command and renders what it prints. Each view and
   form shows the command it runs, so the user can copy it to a shell.
 - The GUI has a terminal that is the headless tool. A line typed there goes
-  to `cli.Main` exactly as the same line typed after `poo` in a shell would.
+  to `cli.Main` exactly as the same line typed after `poon` in a shell would.
   Anything the views do not cover yet is one line away.
 - The GUI is its own Go module under `gui/`. It may import only the
   standard library and `pkg/cli`, and a test enforces that. The core module
@@ -24,21 +24,21 @@ source, and the GUI is built on top of it:
   step, so it builds for every platform the headless tool builds for.
 - The terminal splits a line exactly as the platform's shell would, or
   refuses it. A browser signs in through a one-time sign-in address. A
-  passphrase or seed is masked exactly when `poo` reads one, because the
+  passphrase or seed is masked exactly when `poon` reads one, because the
   core tells the GUI (cli.Stdio.Secret, D101). The GUI Red team's
   findings GUI-001 to GUI-005 (security/gui/findings/) led to these rules.
-- `poo-gui -view-only` runs every command in the core's view-only mode
+- `poon-gui -view-only` runs every command in the core's view-only mode
   (D101): reads use the node's view token and anything that changes
-  something is refused by `poo` itself. The GUI adds only a "view only"
+  something is refused by `poon` itself. The GUI adds only a "view only"
   badge.
 
 Decisions D85 to D89 record these choices.
 
 ## TLDR
 
-`poo-gui` is a window onto `poo`. Each click runs a `poo` command, the
-terminal tab is `poo`, and the code makes it impossible for the GUI to do
-anything `poo` can't.
+`poon-gui` is a window onto `poon`. Each click runs a `poon` command, the
+terminal tab is `poon`, and the code makes it impossible for the GUI to do
+anything `poon` can't.
 
 ## Goals
 
@@ -64,12 +64,12 @@ graph LR
     views[Views and forms]
     term[Terminal]
   end
-  subgraph guibin[poo-gui process]
+  subgraph guibin[poon-gui process]
     server[gui/server: HTTP, auth, static pages]
     jobs[gui/jobs: one job per command line]
     cli[pkg/cli: cli.Main]
   end
-  node[(poo node: in this process or another)]
+  node[(poon node: in this process or another)]
   views -- "argv" --> server
   term -- "line → argv" --> server
   server --> jobs
@@ -80,10 +80,10 @@ graph LR
 Here is how a request flows:
 
 1. A view, a form or the terminal produces an argv, which is a list of
-   strings such as `["status", "-root", "/home/a/.poo"]`. The terminal gets
+   strings such as `["status", "-root", "/home/a/.poon"]`. The terminal gets
    its argv by splitting the typed line the way the platform's shell would
-   (see [The terminal's grammar](#the-terminals-grammar)). A leading `poo`
-   is dropped, so both `status` and `poo status` work.
+   (see [The terminal's grammar](#the-terminals-grammar)). A leading `poon`
+   is dropped, so both `status` and `poon status` work.
 2. The server starts a **job**, which is one run of `cli.Main` with its own
    context, its own input and its own output buffer.
 3. The browser follows the job's output as a stream of events: output
@@ -95,12 +95,12 @@ Here is how a request flows:
    input does what Ctrl-D does in a shell: the command reads what was
    sent, then the end. The terminal binds Ctrl-D to it, and so do its End
    input button and a form's "Send and end input", which a command that
-   reads a paste to its end needs (`poo submit entry -f -`). Cancelling does
+   reads a paste to its end needs (`poon submit entry -f -`). Cancelling does
    what Ctrl-C does in a shell, and the terminal binds Ctrl-C and Stop to
    it. A cancelled job's read fails. It is never an end of input, so a
    command never acts on what was sent before Stop (GUI-021).
 
-The node itself is a job too. "Start node" runs `poo node` in the GUI
+The node itself is a job too. "Start node" runs `poon node` in the GUI
 process, and closing the GUI (Ctrl-C, SIGTERM, or closing the terminal it
 was started from; see Signals below) cancels it and every other job cleanly. If a node is already
 running, for example as a service, the client commands find it through
@@ -109,21 +109,21 @@ need to know which case it is in.
 
 ### Signals
 
-Ctrl-C (SIGINT) and SIGTERM always stop poo-gui through its cancel path:
+Ctrl-C (SIGINT) and SIGTERM always stop poon-gui through its cancel path:
 every job is interrupted as Cancel would interrupt it, so a followed
-`grind run` stops the node's job and a hosted `poo node` shuts down,
-before poo-gui exits 0. SIGHUP depends on how poo-gui was started
+`grind run` stops the node's job and a hosted `poon node` shuts down,
+before poon-gui exits 0. SIGHUP depends on how poon-gui was started
 (GUI-010, GUI-011):
 
 | Started | SIGHUP |
 | --- | --- |
-| From a terminal (standard input is a terminal) | The terminal closed: poo-gui stops, as with SIGTERM |
-| With SIGHUP ignored, as `nohup poo-gui` does | Stays ignored: poo-gui outlives the session it was started from |
-| Without a terminal, for example by a service manager | A reload, as for `poo node`: poo-gui keeps running, and a node it hosts reloads its node policy |
+| From a terminal (standard input is a terminal) | The terminal closed: poon-gui stops, as with SIGTERM |
+| With SIGHUP ignored, as `nohup poon-gui` does | Stays ignored: poon-gui outlives the session it was started from |
+| Without a terminal, for example by a service manager | A reload, as for `poon node`: poon-gui keeps running, and a node it hosts reloads its node policy |
 
-A GUI-hosted node can also be reloaded with `poo reload`, from the
-terminal or a shell, whichever way poo-gui was started. Windows sends no
-SIGHUP. Headless `poo node` also reloads on SIGHUP.
+A GUI-hosted node can also be reloaded with `poon reload`, from the
+terminal or a shell, whichever way poon-gui was started. Windows sends no
+SIGHUP. Headless `poon node` also reloads on SIGHUP.
 
 ### Views
 
@@ -142,7 +142,7 @@ with a button that runs it in the terminal.
 | Getting started | First steps, each a command line run in the terminal |
 | Node | `node` (start and stop it in the GUI), `status`, `follow` (with `-replace`), `unfollow`, `reload`, `init`, `series followed` (the Followed series and Variable series panels), `series add-release` (a path or a picked file) |
 | Watch | `watch` with the filter flags: live events, newest first, with pause, counts and each event in full. It keeps running when you switch views, and its tab shows a dot; Stop ends it |
-| Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poo` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job (one schedule change at a time: Remove, Add and Set are off while one runs and until the table is read again), `grind schedule add` and `grind schedule set` (device, threads, layer floor and rate). It keeps running when you switch views, and a reload takes a running job up again with its Stop |
+| Work | `grind devices`, `grind jobs`, `grind run` followed live (the plan `poon` picked, the rate, each layer or entry found; Stop interrupts it), `grind start`, `grind stop`, `grind bench`, and the schedule: `grind schedule` as a table with Remove on each job (one schedule change at a time: Remove, Add and Set are off while one runs and until the table is read again), `grind schedule add` and `grind schedule set` (device, threads, layer floor and rate). It keeps running when you switch views, and a reload takes a running job up again with its Stop |
 | Bounty market | `bounty list` (this node's offers with their claims, unpaid counted, Pay and Cancel on each; the offers peers sent, Work on each; how to turn the market on when it is off), `bounty list -ask`, `bounty post`, `bounty work` (with a line on what the payer answered), `bounty pay` (from the Wallet view's wallet file), `bounty cancel` (D196, GUI-GREEN-062) |
 | Explore | `pools`, `ledger` (page by page), `pending`, `unspent`, `tx`, `address`, with the same filter flags |
 | Pools and payments | `status`, `holdings`, `payment`, `build` (with `-parent`), `claim -parent` (a rival claim to grind; the seed in the masked field), `work` (with `-bytes`), `submit` (hex or `-f`) |
@@ -159,7 +159,7 @@ one note saying so, with a link to the Node view, and each such panel
 folds its error behind "Show the error". The error and its next step are
 unchanged, and the note comes only from those commands' own results.
 Transaction ids and addresses in results link to Explore, which runs
-`poo tx` or `poo address` on them.
+`poon tx` or `poon address` on them.
 
 Each view is one file in `gui/web/static/views/`, an object `{ id, title,
 mount }` built from the panel and form helpers in
@@ -169,7 +169,7 @@ every view read that one list (GUI-GREEN-044).
 
 When a running command reads input, such as a passphrase prompt, the view
 shows an input field next to it. The field is masked when, and only when,
-`poo` is reading a passphrase or seed: the core reads every secret through
+`poon` is reading a passphrase or seed: the core reads every secret through
 `cli.Stdio.Secret` (D101), and the job's state says so. Show unmasks it on
 request. The GUI never guesses from the output. Actions that move funds or delete something ask for
 confirmation first, and the confirmation shows the command line. The
@@ -195,7 +195,7 @@ package imports a package from the core module other than `pkg/cli`.
 
 The layers also keep to their own files: source teams do not change
 `gui/` (AGENTS.md). One recorded exception is Source commit `0cc9428`
-(D190, W-15), which renamed the ledger file kind to `poo-ledger` and
+(D190, W-15), which renamed the ledger file kind to `poon-ledger` and
 changed the matching strings in `gui/` (`views/pools.js` and two e2e checks) in the
 same commit, so that no commit had the GUI and the node disagree. GUI Grey
 accepted it after the fact (GUI White R34D, note N1). A later rename of a
@@ -207,7 +207,7 @@ D192) did the same for the `-reserve` to `-default-series` rename and the
 ### The terminal's grammar
 
 The terminal splits a typed line into an argv exactly as the shell that
-runs `poo` on that platform would, or refuses the line. It never gives a
+runs `poon` on that platform would, or refuses the line. It never gives a
 line a meaning the shell would not give it. `gui/shell` holds both
 grammars, and table tests pin them.
 
@@ -216,11 +216,11 @@ grammars, and table tests pin them.
   only `$`, `` ` ``, `"` and `\`. Outside quotes, a backslash escapes any
   character, so `C:\new` is `C:new`, as in a shell. Quote a Windows path,
   as in `'C:\Users\a'`. A `#` at the start of a word begins a comment.
-- **Windows, as `cmd.exe` passes a line to `poo.exe`.** Spaces and tabs
+- **Windows, as `cmd.exe` passes a line to `poon.exe`.** Spaces and tabs
   separate words. `"..."` groups, and `""` inside quotes is a quote.
   Backslashes are literal except before a quote, so `C:\Users\a` works
   unquoted. Single quotes are ordinary characters, as they are in `cmd`.
-- **Refused.** A real shell would run anything that is not a single poo
+- **Refused.** A real shell would run anything that is not a single poon
   command, or would expand it first, so the terminal refuses it with an
   error that says to quote it. On POSIX that is unquoted `| & ; < > ( ) $`,
   `` ` ``, `* ? [`, a leading `~`, and `$` or `` ` `` inside `"..."`. On
@@ -228,17 +228,17 @@ grammars, and table tests pin them.
   too, because a shell would end the command there.
 - **Not modeled.** Some features belong to interactive shells and not to
   `sh`, such as bash's `!` history and `{a,b}` brace expansion and
-  PowerShell's own quoting. Those characters pass to `poo` literally.
-- **One convenience.** A leading `poo` word is dropped, because the prompt
-  already reads `poo`. In a shell, `poo` followed by a second `poo` would
+  PowerShell's own quoting. Those characters pass to `poon` literally.
+- **One convenience.** A leading `poon` word is dropped, because the prompt
+  already reads `poon`. In a shell, `poon` followed by a second `poon` would
   be an unknown command anyway.
 
 Ctrl-D, while a command runs, sends any text on the line, as a shell
 does. On an empty line it ends the command's input.
 
 Clearing the screen is the Clear button and Ctrl-L, which are display
-controls. `clear` typed as a line goes to `poo` like any other line, as
-typing `clear` after `poo` would in a shell. `GET /api/grammar` tells the page which
+controls. `clear` typed as a line goes to `poon` like any other line, as
+typing `clear` after `poon` would in a shell. `GET /api/grammar` tells the page which
 grammar the server uses, so the command lines that views show split back
 into the same argv. A test checks that the page's quoting matches
 `shell.Quote`.
@@ -254,7 +254,7 @@ and exit codes.
 
 ### Commands that stream
 
-Long-running commands, such as `poo node` and `poo watch`, work the same
+Long-running commands, such as `poon node` and `poon watch`, work the same
 way. A job streams their output while they run. Streaming commands print
 one JSON object per line, so a view can render each event as it arrives
 (docs/modules/watch.md).
@@ -271,17 +271,17 @@ ORANGE-003). `gui/perf` has the kit Orange measured with.
 
 ### Security
 
-A process that can run `poo` commands can spend from a wallet, so the GUI
+A process that can run `poon` commands can spend from a wallet, so the GUI
 server is locked down:
 
 - **Loopback only.** The server listens on `127.0.0.1`. It refuses to
   listen on any other address. With no `-listen` it comes back on the port
-  it used last, kept as a bare number in `poo-gui/last-port` under the
+  it used last, kept as a bare number in `poon-gui/last-port` under the
   user's config directory, and takes any free port when that one is busy.
   The browser keeps the GUI's saved settings (node policy, wallet file,
   theme, terminal history) per origin, port included, so a stable port
   keeps them across restarts (GUI White G1). The token still changes on
-  every start. A second poo-gui started while one runs finds the port busy, takes
+  every start. A second poon-gui started while one runs finds the port busy, takes
   another and keeps that one, so the next start comes back there. To run
   two at once and keep each one's settings, give each its own `-listen`.
 - **One-time sign-in addresses.** A browser signs in by opening
@@ -290,14 +290,14 @@ server is locked down:
   separate random value, not derived from the token, and is HttpOnly and
   SameSite=Strict. Then it redirects to a clean URL. Every request needs
   that cookie. A token works once, and only within a short time: one
-  minute for the address poo-gui opens itself, and five minutes for one it
+  minute for the address poon-gui opens itself, and five minutes for one it
   prints. So an address left in a process list (the browser's arguments),
-  in the browser's history or in a log signs nobody in. By default poo-gui
+  in the browser's history or in a log signs nobody in. By default poon-gui
   opens the browser and does not print the token it used. With `-no-open`
-  it prints an address. Press Enter in poo-gui's window for a new address,
+  it prints an address. Press Enter in poon-gui's window for a new address,
   for example to sign in a second browser or after one expires. The
   server keeps only hashes of tokens and cookies.
-- **Residual exposure.** The address poo-gui opens is in the browser's
+- **Residual exposure.** The address poon-gui opens is in the browser's
   process arguments until the browser spends it, which is usually under a
   second. On a host shared with users you do not trust, use `-no-open`
   and paste the address yourself, so no token ever appears in a process
@@ -309,7 +309,7 @@ server is locked down:
   without a preflight, and the server answers no preflight.
 - **A strict Content-Security-Policy.** Only the GUI's own scripts and
   styles run, and no third-party code is loaded.
-- **Secrets stay out of the scrollback.** When `poo` reads a passphrase
+- **Secrets stay out of the scrollback.** When `poon` reads a passphrase
   or seed, it asks through `cli.Stdio.Secret` (D101), so the GUI knows
   exactly which line is a secret. That line is masked and not echoed,
   unless the user clicks Show typing. Other input shows as typed, as in a
@@ -318,7 +318,7 @@ server is locked down:
   sent to a running command was masked (GUI-003).
 - **Secrets on the command line.** A seed can also be passed as an
   argument: `wallet create -restore HEX`, `keygen -seed HEX`. The GUI runs
-  `poo` in its own process, so no other process sees that argument. It
+  `poon` in its own process, so no other process sees that argument. It
   keeps the seed out of two places that last (GUI-006). The terminal saves
   its history in the browser's storage, and it does not save a line that
   holds a secret flag (`shell.SecretFlags`: `-restore`, `-seed`, except
@@ -341,16 +341,16 @@ server is locked down:
   with `dropped` and `withheld: true`. A result box shows a `seed` field,
   or the whole text output of such a command, hidden until Show, and it
   never copies it on click (GUI-009).
-- **View-only mode.** `poo-gui -view-only` passes the core's view-only
+- **View-only mode.** `poon-gui -view-only` passes the core's view-only
   switch to every job, so commands dial the node with `rpc.view-token`
   and the core refuses every command not in its read table. The GUI has
   no list of its own; it only shows a badge. Write forms still render,
-  and running one prints the core's refusal, as `poo -view-only` would.
+  and running one prints the core's refusal, as `poon -view-only` would.
   Passphrases are never stored, and a job's unread input is discarded
   when the job ends.
 - **Authority.** The session cookie, like a sign-in address before it is
   spent, gives full control of the node. Whoever holds it can run any
-  `poo` command, including spending from the wallet and changing its
+  `poon` command, including spending from the wallet and changing its
   passphrase, just as a shell can. Treat a printed sign-in address like
   the wallet passphrase, and do not paste it into tickets or chats. View
   forms that move funds or delete something ask for confirmation, but
@@ -403,15 +403,15 @@ can read the GUI's code in place.
 
 ## Packaging and the downloader (D88)
 
-- `poo` stays the headless binary and never contains GUI code.
-- `poo-gui` contains `pkg/cli`, so it is the headless tool plus the GUI.
-  `poo-gui poo ARGS...` runs a command exactly as `poo ARGS...` would, for
+- `poon` stays the headless binary and never contains GUI code.
+- `poon-gui` contains `pkg/cli`, so it is the headless tool plus the GUI.
+  `poon-gui poon ARGS...` runs a command exactly as `poon ARGS...` would, for
   scripts and for checking that the two agree.
-- Release archives ship `poo` always, and `poo-gui` in a separate archive
-  per platform: `poo-gui-VERSION-OS-ARCH.tar.gz` (`.zip` on Windows),
+- Release archives ship `poon` always, and `poon-gui` in a separate archive
+  per platform: `poon-gui-VERSION-OS-ARCH.tar.gz` (`.zip` on Windows),
   listed in `SHA256SUMS` (`scripts/release.sh VERSION`). From a checkout,
-  `go -C gui build -o poo-gui ./cmd/poo-gui` builds the same program.
-  `go install github.com/JogginTheNoggin/crypto-mint-net/gui/cmd/poo-gui@TAG` does not work while `gui/go.mod`
+  `go -C gui build -o poon-gui ./cmd/poon-gui` builds the same program.
+  `go install github.com/JogginTheNoggin/crypto-mint-net/gui/cmd/poon-gui@TAG` does not work while `gui/go.mod`
   replaces the core module with this tree, so build from a checkout of the
   tag. The downloader offers the headless tool, with the GUI as
   an option. Both come from one source tree at one version.
@@ -428,5 +428,5 @@ The GUI is built in stacked pull requests:
 | G1 (#10) | `pkg/cli`: the commands as a library, behind `cli.Main` (D84) |
 | G2 | The `gui` module: server, security, job runner, terminal, the import rule and identity tests, and CI |
 | G3 (this) | Views: node (start and stop, status), pools, peers, tracking, chases, node policies, series and crypto, and wallet (create, addresses, balance, pay, request, receive, status) |
-| G4 (done) | Watch and filter views on the node thread's `poo watch` and filter flags: live transactions, a series' or policy's ledger, and pending items |
-| G5 (done) | Packaging: `poo-gui` in the release script and the tag workflow |
+| G4 (done) | Watch and filter views on the node thread's `poon watch` and filter flags: live transactions, a series' or policy's ledger, and pending items |
+| G5 (done) | Packaging: `poon-gui` in the release script and the tag workflow |

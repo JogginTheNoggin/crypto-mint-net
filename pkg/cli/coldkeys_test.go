@@ -9,7 +9,7 @@ import (
 )
 
 // D193: a key kept off the node. A watch-only wallet holds no private key;
-// it watches the key's address, makes the payment unsigned, poo sign adds
+// it watches the key's address, makes the payment unsigned, poon sign adds
 // the signature with no node and no wallet, and the wallet submits it.
 // The change goes back to the key's address.
 func TestColdKeyPayment(t *testing.T) {
@@ -38,7 +38,7 @@ func TestColdKeyPayment(t *testing.T) {
 		t.Fatalf("keygen -raw %+v, want public key %s and no seed printed", raw, k.PublicKey)
 	}
 
-	t.Setenv("POO_PASSPHRASE", "") // a watch-only wallet asks for none
+	t.Setenv("POON_PASSPHRASE", "") // a watch-only wallet asks for none
 	ww := append([]string{"-wallet", filepath.Join(root, "watch.json")}, r...)
 	wcmd := func(v any, sub string, args ...string) {
 		t.Helper()
@@ -85,7 +85,7 @@ func TestColdKeyPayment(t *testing.T) {
 		t.Fatalf("pay: %s", out)
 	}
 
-	// poo sign: -show signs nothing; a wrong key is refused; the right one
+	// poon sign: -show signs nothing; a wrong key is refused; the right one
 	// signs, with no node or wallet named.
 	var shown SignReport
 	cli(t, &shown, "sign", u, "-key-file", keyFile, "-show")

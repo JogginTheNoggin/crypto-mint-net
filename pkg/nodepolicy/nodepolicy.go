@@ -83,7 +83,7 @@ type Policy struct {
 	// above it (D170). Declining is a lack of information, never a
 	// verdict on a ledger, and it never drops a series already listed.
 	// 0 declines none. It is a bounded setting (BoundSeriesCeiling), so
-	// poo policy limits shows and sets it; poo init writes CeilingLimit
+	// poon policy limits shows and sets it; poon init writes CeilingLimit
 	// in a new node.json (RED-083, D171).
 	SeriesCeiling int `json:"series_ceiling,omitempty"`
 	// Follow lists the mint policies this node follows.
@@ -132,7 +132,7 @@ type Policy struct {
 // Grind configures the node's grinding (package grind, decision D109).
 type Grind struct {
 	// Device is the device grinding uses unless a job names one: "auto"
-	// (the default) or an id from poo grind devices ("cpu", "gpu:0").
+	// (the default) or an id from poon grind devices ("cpu", "gpu:0").
 	Device string `json:"device,omitempty"`
 	// Threads is how many threads a search takes (0: the device's
 	// default, every CPU core but one).
@@ -444,7 +444,7 @@ type P2P struct {
 	AllowLocalPeers bool `json:"allow_local_peers,omitempty"`
 	// NoDialImported stops the node trying, when it is short of peers,
 	// the unlisted addresses an imported peer file gave it; they are then
-	// tried only by poo peer connect (D157).
+	// tried only by poon peer connect (D157).
 	NoDialImported bool `json:"no_dial_imported,omitempty"`
 	// MaxInbound caps the connections other nodes open to this one; by
 	// default MaxPeers less MaxOutbound, -1 for no separate cap.
@@ -688,7 +688,7 @@ func isLoopback(host string) bool {
 // on the series (PoO section 16.8), so without it no mint of the series is
 // released at this node. Missing information, never a series found
 // invalid (D166).
-var ErrNoPartOne = errors.New("a variable supply series' mints are released by its issuer witness, and node.json has none for it: add the issuer_witness its issuer published (poo series sign)")
+var ErrNoPartOne = errors.New("a variable supply series' mints are released by its issuer witness, and node.json has none for it: add the issuer_witness its issuer published (poon series sign)")
 
 // Accepted is a known series the node accepts.
 type Accepted struct {
@@ -783,9 +783,9 @@ func EncodeWitness(w policy.Witness) string {
 	return hex.EncodeToString(enc.Bytes())
 }
 
-// CeilingLimit is the largest witness ceiling poo series new and poo init
-// take without being forced, and the line above which an import, poo
-// series info and poo doctor warn (D170, D171): one witness up to 4 MiB
+// CeilingLimit is the largest witness ceiling poon series new and poon init
+// take without being forced, and the line above which an import, poon
+// series info and poon doctor warn (D170, D171): one witness up to 4 MiB
 // checks in about 3 s of one core. series_ceiling is off (0) unless the
 // node sets it; nothing writes it by default (jerry, 2026-11-04).
 const CeilingLimit = 4 << 20
@@ -853,8 +853,8 @@ func (p *Policy) lower() []Lowered {
 
 // Lowered is one value Load brought down to a bound lowered since the
 // file was written: the field, as named in node.json, the value written
-// and the value used. FixArgs, when set, is the poo command line that
-// writes the value used, for `poo doctor`'s fix_args (GREEN-035).
+// and the value used. FixArgs, when set, is the poon command line that
+// writes the value used, for `poon doctor`'s fix_args (GREEN-035).
 type Lowered struct {
 	Field   string   `json:"field"`
 	Was     int      `json:"was"`
@@ -945,7 +945,7 @@ type ReleaseAdded struct {
 }
 
 // ErrSeriesNotListed: a release names a series the policy does not list.
-var ErrSeriesNotListed = errors.New("the node policy does not list that series (add it with poo init -series FILE)")
+var ErrSeriesNotListed = errors.New("the node policy does not list that series (add it with poon init -series FILE)")
 
 // CheckRelease checks r in full against the series p lists, changing
 // nothing. It can take r.Part hashes the first time in a process, so a

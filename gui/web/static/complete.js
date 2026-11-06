@@ -1,11 +1,11 @@
-// Tab completion for the terminal. The words come from poo's own help
+// Tab completion for the terminal. The words come from poon's own help
 // output, read through the same commands a user could type, so the list
-// can never name a command poo does not have.
+// can never name a command poon does not have.
 import * as api from './api.js';
 
 const cache = new Map(); // help argv joined by spaces -> Promise<words>
 
-// helpWords reads "poo help" (or "poo CMD help") once and returns the
+// helpWords reads "poon help" (or "poon CMD help") once and returns the
 // command words it lists.
 function helpWords(prefix) {
   const key = prefix.join(' ');
@@ -18,12 +18,12 @@ function helpWords(prefix) {
   return cache.get(key);
 }
 
-// parseTop reads the "  poo NAME ..." lines of poo help. A line such as
-// "poo policy list|use|delete" also gives policy's subcommands.
+// parseTop reads the "  poon NAME ..." lines of poon help. A line such as
+// "poon policy list|use|delete" also gives policy's subcommands.
 export function parseTop(text) {
   const top = new Set();
   const subs = {};
-  for (const m of text.matchAll(/^ {2}poo ([a-z][a-z-]*)(?: ([a-z]+(?:\|[a-z]+)+))?/gm)) {
+  for (const m of text.matchAll(/^ {2}poon ([a-z][a-z-]*)(?: ([a-z]+(?:\|[a-z]+)+))?/gm)) {
     top.add(m[1]);
     if (m[2]) subs[m[1]] = m[2].split('|');
   }
@@ -48,7 +48,7 @@ function commonPrefix(ws) {
 // with the word under completion extended, options the candidates when
 // there is more than one.
 export async function complete(line) {
-  const body = line.replace(/^\s*poo\s+/, '');
+  const body = line.replace(/^\s*poon\s+/, '');
   const lead = line.slice(0, line.length - body.length);
   const words = body.split(/\s+/);
   const word = words.pop();

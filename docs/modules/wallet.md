@@ -16,13 +16,13 @@ receiver's rule of sections 7.4 and 7.6. None of it is a protocol rule:
 the protocol sees only transactions and witnesses, and the wallet never
 decides validity. It talks to a full node through the `Node` interface, so
 it runs against a local node (`rpc.WalletNode`), a remote one, or an
-engine in a test. `poo wallet` is its command line ([poo.md](poo.md)).
+engine in a test. `poon wallet` is its command line ([poon.md](poon.md)).
 **Light mode** is a full node whose node policy follows only the pools the
-wallet watches (`poo wallet follow`).
+wallet watches (`poon wallet follow`).
 
 ## The wallet file
 
-`wallet.json` (default in `$POO_HOME` or `~/.poo`, written with mode 0600,
+`wallet.json` (default in `$POON_HOME` or `~/.poon`, written with mode 0600,
 atomically and synced) holds:
 
 | Field | What |
@@ -44,7 +44,7 @@ so a command left waiting at its passphrase prompt never undoes another
 command's change, such as a new passphrase. A new wallet whose file
 appeared meanwhile returns `ErrExists` (GUI-019, D145).
 
-A command that acts on the node and then saves (`poo wallet pay`,
+A command that acts on the node and then saves (`poon wallet pay`,
 `claim`, `submit`, `resend`) first calls `Hold`, after its passphrase
 prompt: it takes the same lock until the command ends and reads the file
 again, so what another command saved meanwhile is kept and the change
@@ -71,7 +71,7 @@ stale `passwd` never re-seals over it (GUI-022, D149).
 holds it only to save the legs whose state changed, each only where the
 file still has the state it read, and `receive` only to note the
 transactions `-tid` names. A command that must wait for the lock says so
-on its error output ("waiting for another poo wallet command (or the GUI)
+on its error output ("waiting for another poon wallet command (or the GUI)
 to finish with ..."), in the GUI's terminal too, then waits for as long
 as the holder needs: a holder is sending a payment and saving its record,
 and giving up would leave a change or a record unsaved (`OnBusy`, RED-042,
@@ -97,14 +97,14 @@ new address, and showing the seed need the passphrase.
   make an unlock exhaust memory. The additional data `PoO-wallet-seed-v1`
   binds the ciphertext to its purpose. A wrong passphrase fails
   authentication: `ErrPassphrase`. `Rekey` seals the same seed under a
-  new passphrase, moving a PBKDF2 wallet to Argon2id. When `poo wallet
-  create` or `poo wallet passwd` reads a new passphrase as it is typed (a
+  new passphrase, moving a PBKDF2 wallet to Argon2id. When `poon wallet
+  create` or `poon wallet passwd` reads a new passphrase as it is typed (a
   hidden terminal, or the GUI's masked field), it asks for it again and
   changes nothing if the two differ; one piped on standard input, or
-  given by `$POO_PASSPHRASE`, `$POO_NEW_PASSPHRASE` or a file, is read
+  given by `$POON_PASSPHRASE`, `$POON_NEW_PASSPHRASE` or a file, is read
   once (GUI-020, D145).
 - **Key algorithm (decision D81).** Every key of a wallet uses the
-  algorithm chosen at creation (`Options.Alg`, `poo wallet create -alg`),
+  algorithm chosen at creation (`Options.Alg`, `poon wallet create -alg`),
   Ed25519 by default. It cannot change later. A series must allow it, or
   `NewAddress` refuses to give out an address there.
 - **Derivation (decisions D63, D81).** Key *i*'s 32-byte key seed is
@@ -160,8 +160,8 @@ spend. A request without a policy is paid as a bare address, unchecked.
 watches the mint. `ClaimUnsigned(series, serial, name)` prepares a claim
 to the address of the wallet policy `name`, unsigned, records it so
 `Submit` takes it once signed, and watches the mint: how a watch-only
-wallet claims with a key kept off the node (`poo wallet claim
--to-policy NAME -out FILE`, then `poo sign`, GREEN-060). A claim needs a
+wallet claims with a key kept off the node (`poon wallet claim
+-to-policy NAME -out FILE`, then `poon sign`, GREEN-060). A claim needs a
 witness per output, not per input, so its unsigned leg lists one policy
 for its one output; `SignWith` and `Finish` count witnesses that way.
 
@@ -175,7 +175,7 @@ It is plain JSON, passed between co-signers as a file.
   public keys against each input's policy) and reports how many.
 - `Missing()` says how many signatures each input still needs.
 - `SignWith(unsigned, hash, alg, signer)` adds one key's signatures with
-  no wallet at all (`poo sign`); `Unsigned.Hash` names the series' hash so
+  no wallet at all (`poon sign`); `Unsigned.Hash` names the series' hash so
   it needs no node (D193), and `Unsigned.Variable` marks a variable-supply
   series so its transactions are read with their part (RED-105).
   `DecodeLeg(i)` reads a leg and refuses one whose series is not the
@@ -224,13 +224,13 @@ above.
 
 ## Light mode
 
-A light node is a full node that follows less: `poo wallet follow` writes
+A light node is a full node that follows less: `poon wallet follow` writes
 the node policy's follow list for the series as only the pools of the
 wallet's watched mints. The node still checks every rule for what it
 follows, so the wallet trusts no one for the pools it uses. Verifying only
 some mints of a pool is not done: a pool's entries carry every mint of the
 pool, so the pool is the smallest unit a node can follow on its own.
-When the node is running, `poo wallet follow` makes it apply the new list
+When the node is running, `poon wallet follow` makes it apply the new list
 at once ([daemon.md](daemon.md)), in one replace request, so the series is
 never off the node's list in between (GUI-018, D139); otherwise the node
 applies it when it starts.
@@ -253,7 +253,7 @@ applies it when it starts.
   address, an unknown policy type.
 
 `select_test.go` checks coin selection. `pkg/cli/wallet_test.go` runs the
-whole flow through `poo wallet` against a running node, co-signing
+whole flow through `poon wallet` against a running node, co-signing
 included, restores from the seed, and checks `follow`.
 
 ## Extending

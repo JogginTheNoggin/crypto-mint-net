@@ -92,17 +92,17 @@ func TestReadBundleRefuses(t *testing.T) {
 	for _, c := range []struct{ name, in string }{
 		{"not json", `{`},
 		{"other kind", `{"kind":"x","format":1}`},
-		{"newer format", `{"kind":"poo-node-policies","format":2,"scope":"policy","policies":[]}`},
-		{"unknown field", `{"kind":"poo-node-policies","format":1,"scope":"policy","policies":[{"policy":{"format":1,"issuers":{"any":true},"rpc":{},"p2p":{},"surprise":1}}]}`},
-		{"unknown scope", `{"kind":"poo-node-policies","format":1,"scope":"all","policies":[{"policy":{"format":1,"issuers":{"any":true}}}]}`},
-		{"empty", `{"kind":"poo-node-policies","format":1,"scope":"policy","policies":[]}`},
-		{"two in a policy bundle", `{"kind":"poo-node-policies","format":1,"scope":"policy","policies":[{"policy":{"format":1}},{"policy":{"format":1}}]}`},
-		{"node bundle needs names", `{"kind":"poo-node-policies","format":1,"scope":"node","policies":[{"policy":{"format":1}}]}`},
-		{"same name twice", `{"kind":"poo-node-policies","format":1,"scope":"node","policies":[{"name":"a","policy":{"format":1}},{"name":"a","policy":{"format":1}}]}`},
-		{"bad name", `{"kind":"poo-node-policies","format":1,"scope":"node","policies":[{"name":"../x","policy":{"format":1}}]}`},
-		{"invalid policy", `{"kind":"poo-node-policies","format":1,"scope":"policy","policies":[{"policy":{"format":1,"k":-5}}]}`},
-		{"remote rpc", `{"kind":"poo-node-policies","format":1,"scope":"policy","policies":[{"policy":{"format":1,"rpc":{"listen":"0.0.0.0:1"}}}]}`},
-		{"series bundle without a series", `{"kind":"poo-node-policies","format":1,"scope":"series","policies":[{"policy":{"format":1}}]}`},
+		{"newer format", `{"kind":"poon-node-policies","format":2,"scope":"policy","policies":[]}`},
+		{"unknown field", `{"kind":"poon-node-policies","format":1,"scope":"policy","policies":[{"policy":{"format":1,"issuers":{"any":true},"rpc":{},"p2p":{},"surprise":1}}]}`},
+		{"unknown scope", `{"kind":"poon-node-policies","format":1,"scope":"all","policies":[{"policy":{"format":1,"issuers":{"any":true}}}]}`},
+		{"empty", `{"kind":"poon-node-policies","format":1,"scope":"policy","policies":[]}`},
+		{"two in a policy bundle", `{"kind":"poon-node-policies","format":1,"scope":"policy","policies":[{"policy":{"format":1}},{"policy":{"format":1}}]}`},
+		{"node bundle needs names", `{"kind":"poon-node-policies","format":1,"scope":"node","policies":[{"policy":{"format":1}}]}`},
+		{"same name twice", `{"kind":"poon-node-policies","format":1,"scope":"node","policies":[{"name":"a","policy":{"format":1}},{"name":"a","policy":{"format":1}}]}`},
+		{"bad name", `{"kind":"poon-node-policies","format":1,"scope":"node","policies":[{"name":"../x","policy":{"format":1}}]}`},
+		{"invalid policy", `{"kind":"poon-node-policies","format":1,"scope":"policy","policies":[{"policy":{"format":1,"k":-5}}]}`},
+		{"remote rpc", `{"kind":"poon-node-policies","format":1,"scope":"policy","policies":[{"policy":{"format":1,"rpc":{"listen":"0.0.0.0:1"}}}]}`},
+		{"series bundle without a series", `{"kind":"poon-node-policies","format":1,"scope":"series","policies":[{"policy":{"format":1}}]}`},
 	} {
 		if _, err := nodepolicy.ReadBundle(strings.NewReader(c.in)); !errors.Is(err, nodepolicy.ErrBundle) {
 			t.Errorf("%s: %v, want ErrBundle", c.name, err)

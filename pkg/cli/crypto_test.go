@@ -93,7 +93,7 @@ func TestSeriesNew(t *testing.T) {
 func TestWalletCreateAlg(t *testing.T) {
 	createIterations = 1
 	defer func() { createIterations = 0 }()
-	t.Setenv("POO_PASSPHRASE", "pass")
+	t.Setenv("POON_PASSPHRASE", "pass")
 	path := filepath.Join(t.TempDir(), "w.json")
 	if err := run([]string{"wallet", "create", "-wallet", path, "-alg", "schnorr-secp256k1-bip340"}, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)

@@ -8,9 +8,9 @@ import (
 )
 
 // The cold-key steps of running-a-node.md with the key never on the
-// node's machine: poo keygen -out makes the key file and prints no seed,
+// node's machine: poon keygen -out makes the key file and prints no seed,
 // the watch-only wallet prepares the claim (wallet claim -to-policy),
-// poo sign signs it with no node, and wallet submit sends it (GREEN-060).
+// poon sign signs it with no node, and wallet submit sends it (GREEN-060).
 func TestColdClaimWithoutTheKeyOnTheNode(t *testing.T) {
 	createIterations = 1
 	defer func() { createIterations = 0 }()
@@ -49,7 +49,7 @@ func TestColdClaimWithoutTheKeyOnTheNode(t *testing.T) {
 	}
 
 	// On the node's machine: a watch-only wallet, claim prepared unsigned.
-	t.Setenv("POO_PASSPHRASE", "")
+	t.Setenv("POON_PASSPHRASE", "")
 	ww := append([]string{"-wallet", filepath.Join(root, "watch.json")}, r...)
 	wcmd := func(v any, sub string, args ...string) {
 		t.Helper()

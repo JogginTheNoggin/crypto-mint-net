@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds release archives of poo, and of poo-gui, for every supported platform into dist/,
+# Builds release archives of poon, and of poon-gui, for every supported platform into dist/,
 # with a SHA256SUMS file. Usage: scripts/release.sh VERSION (e.g. 0.1.0).
 #
 # Builds are reproducible: the same source, toolchain (go.mod's toolchain
@@ -16,7 +16,7 @@ platforms="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windo
 stamp=$(git log -1 --format=%ct 2>/dev/null || echo 0)
 out=$(cd "$out" && pwd)
 # The commit goes in by -X, since -buildvcs=false (for reproducible
-# builds) leaves it out of the build info; poo version -v prints it.
+# builds) leaves it out of the build info; poon version -v prints it.
 commit=$(git rev-parse HEAD 2>/dev/null || echo "")
 # archive PROGRAM MODULE_DIR PACKAGE OS ARCH builds one archive.
 archive() {
@@ -40,12 +40,12 @@ archive() {
 	fi
 	rm -rf "$dir"
 }
-# poo is the headless tool and never contains GUI code; poo-gui (the gui
+# poon is the headless tool and never contains GUI code; poon-gui (the gui
 # module) is the same tool plus the GUI, shipped as its own archive so the
 # GUI stays optional (docs/gui.md, D88).
 for p in $platforms; do
-	archive poo . ./cmd/poo "${p%/*}" "${p#*/}"
-	archive poo-gui gui ./cmd/poo-gui "${p%/*}" "${p#*/}"
+	archive poon . ./cmd/poon "${p%/*}" "${p#*/}"
+	archive poon-gui gui ./cmd/poon-gui "${p%/*}" "${p#*/}"
 done
 (cd "$out" && sha256sum -- *.tar.gz *.zip >SHA256SUMS)
 cat "$out/SHA256SUMS"

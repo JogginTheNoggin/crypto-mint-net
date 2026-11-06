@@ -1,7 +1,7 @@
 // End-to-end check of the GUI's views in a real browser: each runs its
-// poo command and renders the output; forms build the command they show.
+// poon command and renders the output; forms build the command they show.
 //
-//   node gui/e2e/views.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
+//   node gui/e2e/views.mjs PATH/TO/poon-gui [SCREENSHOT_DIR]
 import { join } from 'node:path';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -29,11 +29,11 @@ try {
   await init.locator('label', { hasText: 'worked example' }).locator('input').check();
   await fill(init, 'RPC address', '127.0.0.1:0');
   await fill(init, 'P2P address', 'off');
-  // With no series poo follows the built-in reserve series; these say
+  // With no series poon follows the built-in reserve series; these say
   // otherwise (D170).
   await init.locator('input[name=noSeries]').check();
   await init.locator('input[name=anyCeiling]').check();
-  assert.equal(await init.locator('.cmd code').innerText(), `poo init -root ${home} -example -listen 127.0.0.1:0 -p2p off -no-series -any-ceiling`);
+  assert.equal(await init.locator('.cmd code').innerText(), `poon init -root ${home} -example -listen 127.0.0.1:0 -p2p off -no-series -any-ceiling`);
   await init.locator('input[name=noSeries]').uncheck();
   await init.locator('input[name=anyCeiling]').uncheck();
   // Port mapping is opt-in (D182): off by default, -port-map once chosen,
@@ -42,7 +42,7 @@ try {
   assert.match(await init.locator('.cmd code').innerText(), / -p2p off -port-map auto$/);
   assert.match(await init.innerText(), /peers learn this network's public IP address/);
   await init.locator('select[name=portMap]').selectOption('');
-  assert.equal(await init.locator('.cmd code').innerText(), `poo init -root ${home} -example -listen 127.0.0.1:0 -p2p off`);
+  assert.equal(await init.locator('.cmd code').innerText(), `poon init -root ${home} -example -listen 127.0.0.1:0 -p2p off`);
   await init.locator('button[type=submit]').click();
   await init.locator('.result', { hasText: '1 series' }).waitFor();
 
@@ -63,20 +63,20 @@ try {
     await page.waitForTimeout(250);
   }
   await shot('node');
-  // The 5 s refresh asks poo for totals per series (-counts, D177): one
+  // The 5 s refresh asks poon for totals per series (-counts, D177): one
   // row for the example's series with its 2 pools, no row per pool.
-  assert.match(await pools.locator('.cmd code').innerText(), /^poo status -counts /);
+  assert.match(await pools.locator('.cmd code').innerText(), /^poon status -counts /);
   assert.doesNotMatch(await pools.innerText(), /"pools": \[/, 'no pool rows in the timed panel');
-  // One totals row: the example's series is not built into poo, so it has
+  // One totals row: the example's series is not built into poon, so it has
   // no name (D179), and it has 2 pools.
   assert.match(await pools.locator('table.series-totals tbody tr').first().innerText(), /^\td0b927f79f[0-9a-f]{6}…\t2\t/);
-  // Snapshots (D178), as poo sums them up: a fresh node has no logs yet.
+  // Snapshots (D178), as poon sums them up: a fresh node has no logs yet.
   await pools.locator('.snapshots', { hasText: /^Snapshots: \d+ of \d+ pools with a log have one.*snapshot_every/ }).waitFor();
   await pools.locator('.replay', { hasText: /^This start: \d+ pools? from (its snapshot|their snapshots)/ }).waitFor();
-  // Each pool runs the full poo status only when Show is pressed
+  // Each pool runs the full poon status only when Show is pressed
   // (GUI-GREEN-056): not on opening the view.
   const each = section('Each pool');
-  assert.match(await each.locator('.cmd code').innerText(), /^poo status -root /);
+  assert.match(await each.locator('.cmd code').innerText(), /^poon status -root /);
   await each.locator('.not-run').waitFor();
   assert.equal(await each.locator('.panel-head button').innerText(), 'Show');
   for (let i = 0; !(await each.locator('table.data, dl.kv').count()); i++) {
@@ -96,7 +96,7 @@ try {
   assert.equal(await folPools.locator('table').count(), 0, 'the pools are not drawn until opened');
   await folPools.locator('summary').click();
   await folPools.locator('table.data tbody tr').first().waitFor();
-  // The entry cache line comes from poo status's bodies (D172).
+  // The entry cache line comes from poon status's bodies (D172).
   await pools.locator('.entry-cache', { hasText: /Entry cache: [0-9.]+ of [0-9]+ MiB \(entry_cache_mib\).*older ones \(outside recent_window\)/ }).waitFor();
   // A partial status reply (only max_bytes) is drawn with "?" for what
   // is missing, not thrown on, so the lines after it still draw (GUI/Red
@@ -119,7 +119,7 @@ try {
   // The node's release beside the GUI's (D184, GUI White S1): the same
   // binary here, so a plain line; another release is a note; an older
   // node that reports none is said so. Capped lists are counted from
-  // poo's count fields (GUI White S2).
+  // poon's count fields (GUI White S2).
   await pools.locator('.node-release:not(.differs)', { hasText: /^The node runs v\S+/ }).waitFor();
   const relv = await page.evaluate(async () => {
     const m = await import(new URL('views/node.js', location.href).href);
@@ -134,7 +134,7 @@ try {
   assert.deepEqual(relv[1], [['hint node-release', 'The node did not report its release (an older node).']]);
   assert.match(relv[2][0][1], /; 1024 snapshots not used: p0: other build; p1: other build; …\.$/);
   assert.deepEqual(relv[2][1], ['hint reverify-not-compared', 'Not compared: 3 pools: p2: no snapshot; ….']);
-  // The port mapping line (D182): a failure is an alert with poo's error;
+  // The port mapping line (D182): a failure is an alert with poon's error;
   // off draws nothing.
   const pmv = await page.evaluate(async () => {
     const m = await import(new URL('views/node.js', location.href).href);
@@ -149,15 +149,15 @@ try {
   assert.deepEqual(pmv[3], [['alert', 'Port mapping (auto): unconfirmed via pcp, the router reports 198.51.100.4:7733. dial timed out.']]);
   assert.deepEqual(rv[1], [[null, 'Checked every record again: the full replay of all 3 pools matched their snapshots.']]);
   // Followed series: one row for the worked example's series, which is
-  // not built into poo, so it has no name (GUI-GREEN-054).
+  // not built into poon, so it has no name (GUI-GREEN-054).
   const fs = section('Followed series');
   await fs.locator('button:has-text("Refresh")').click();
   await fs.locator('table.followed-series tbody tr').first().waitFor();
   assert.match(await fs.locator('table.followed-series tbody tr').first().innerText(), /^\t[0-9a-f]{16}…\tfixed\t/);
-  // Its warning column has poo's ceiling warning, as a warning only.
+  // Its warning column has poon's ceiling warning, as a warning only.
   await fs.locator('table.followed-series tbody tr .series-warning', { hasText: 'no witness ceiling' }).first().waitFor();
-  // Follow more offers Replace (poo follow -replace) only once a series is
-  // named, as poo takes it only with -series.
+  // Follow more offers Replace (poon follow -replace) only once a series is
+  // named, as poon takes it only with -series.
   const more = section('Follow more');
   const replace = more.locator('label', { hasText: 'Replace what the series follows' });
   assert.ok(!(await replace.isVisible()), 'Replace is hidden without a series');
@@ -167,9 +167,9 @@ try {
   await fill(more, 'Series id', '');
   assert.ok(!(await replace.isVisible()), 'Replace hides again with the series');
   assert.doesNotMatch(await more.locator('.cmd code').innerText(), /-replace/);
-  // poo submit: an entry or layer made elsewhere, by its hex.
+  // poon submit: an entry or layer made elsewhere, by its hex.
   await page.click('nav a[data-id=pools]');
-  // poo pools prints every pool, so the view's pool list runs only when
+  // poon pools prints every pool, so the view's pool list runs only when
   // Show is pressed (GUI-GREEN-057).
   const plist = page.locator('#main section.panel', { has: page.locator('h2', { hasText: 'Followed pools' }) });
   await plist.locator('.not-run').waitFor();
@@ -179,14 +179,14 @@ try {
   await submit.locator('select[name=kind]').selectOption('layer');
   await fill(submit, 'Pool', '1');
   await fill(submit, 'Hex', 'abcd');
-  assert.equal(await submit.locator('.cmd code').innerText(), `poo submit layer -root ${home} -pool 1 abcd`);
+  assert.equal(await submit.locator('.cmd code').innerText(), `poon submit layer -root ${home} -pool 1 abcd`);
   await fill(submit, 'From a file', '-');
   assert.ok(!(await submit.locator('label', { hasText: 'Hex' }).isVisible()), 'Hex hides when a file is named');
-  assert.equal(await submit.locator('.cmd code').innerText(), `poo submit layer -root ${home} -pool 1 -f -`);
-  // GUI-021: with -f -, poo reads what is pasted to its end. Stop is
-  // Ctrl-C and sends nothing: poo fails on the stopped read, before it
+  assert.equal(await submit.locator('.cmd code').innerText(), `poon submit layer -root ${home} -pool 1 -f -`);
+  // GUI-021: with -f -, poon reads what is pasted to its end. Stop is
+  // Ctrl-C and sends nothing: poon fails on the stopped read, before it
   // decodes or hands anything to the node. "Send and end input" is
-  // Ctrl-D: poo reads the paste and acts on it (here, refuses "zz").
+  // Ctrl-D: poon reads the paste and acts on it (here, refuses "zz").
   const submitRun = async () => {
     page.once('dialog', d => d.accept());
     await submit.locator('button[type=submit]').click();
@@ -199,7 +199,7 @@ try {
   let paste = await submitRun();
   await paste.locator('input').fill('abcd');
   await paste.locator('button[type=submit]').click();
-  await paste.locator('input').waitFor(); // poo reads on, for more
+  await paste.locator('input').waitFor(); // poon reads on, for more
   await submit.locator('.run-bar button', { hasText: 'Stop' }).click();
   await submit.locator('.run-status.bad').waitFor({ timeout: 10000 });
   const stopped = await submit.locator('.area').innerText();
@@ -209,31 +209,31 @@ try {
   await paste.locator('input').fill('zz');
   await paste.locator('button.end-input').click();
   await submit.locator('.run-status.bad').waitFor({ timeout: 10000 });
-  assert.match(await submit.locator('.area').innerText(), /the layer is not hex/, 'the ended paste reached poo');
+  assert.match(await submit.locator('.area').innerText(), /the layer is not hex/, 'the ended paste reached poon');
   const build = section('Build an entry');
   await build.locator('label', { hasText: 'Also print the hex' }).locator('input').check();
   assert.match(await build.locator('.cmd code').innerText(), / -bytes$/);
-  // Build and Add a layer take poo grind's device, threads and for, and a
+  // Build and Add a layer take poon grind's device, threads and for, and a
   // serial in place of a pool (GUI-GREEN-041).
   await build.locator('input[name=serial]').fill('5');
   await build.locator('input[name=device]').fill('cpu');
   await build.locator('input[name=threads]').fill('2');
   await build.locator('input[name=for]').fill('5s');
-  assert.equal(await build.locator('.cmd code').innerText(), `poo build -root ${home} -serial 5 -device cpu -threads 2 -for 5s -bytes`);
+  assert.equal(await build.locator('.cmd code').innerText(), `poon build -root ${home} -serial 5 -device cpu -threads 2 -for 5s -bytes`);
   const layer = section('Add a layer');
   await layer.locator('input[name=start]').fill('7');
   await layer.locator('input[name=device]').fill('cpu');
-  assert.equal(await layer.locator('.cmd code').innerText(), `poo work -root ${home} -device cpu -start 7`);
+  assert.equal(await layer.locator('.cmd code').innerText(), `poon work -root ${home} -device cpu -start 7`);
   // Building on a chosen parent, and a rival claim built to grind (D161).
   await build.locator('input[name=parent]').fill('before-claim');
-  assert.equal(await build.locator('.cmd code').innerText(), `poo build -root ${home} -serial 5 -parent before-claim -device cpu -threads 2 -for 5s -bytes`);
+  assert.equal(await build.locator('.cmd code').innerText(), `poon build -root ${home} -serial 5 -parent before-claim -device cpu -threads 2 -for 5s -bytes`);
   const rival = section('Build a rival claim');
   await rival.locator('input[name=serial]').fill('5');
   await rival.locator('input[name=parent]').fill('before-claim');
   await rival.locator('input[name=work]').fill('64');
-  assert.equal(await rival.locator('.cmd code').innerText(), `poo claim -root ${home} -seed-file - -serial 5 -parent before-claim -work 64`);
+  assert.equal(await rival.locator('.cmd code').innerText(), `poon claim -root ${home} -seed-file - -serial 5 -parent before-claim -work 64`);
   // GUI-026: a required field left empty runs nothing. Without Parent,
-  // poo claim would submit the claim to the node and its peers, not build
+  // poon claim would submit the claim to the node and its peers, not build
   // it. The browser refuses the empty field; with its check off, the form
   // refuses it itself. Neither starts a job or asks for the seed.
   await rival.locator('input[name=parent]').fill('');
@@ -253,33 +253,33 @@ try {
   // A field required only in another form is not required where it is
   // optional: Where a payment stands takes no serial.
   assert.equal(await section('Where a payment stands').locator('input[name=serial]').getAttribute('required'), null, 'In mint serial is optional');
-  // A pool's ledger out to a file and back in (D188): poo's reply says
+  // A pool's ledger out to a file and back in (D188): poon's reply says
   // what was kept and known; the export shown here has Save as file.
   const lexp = section('Export a pool\'s ledger');
   const lfile = join(home, 'pool-0-ledger.json');
   await fill(lexp, 'Pool', '0');
   await fill(lexp, 'From height', '1');
-  assert.equal(await lexp.locator('.cmd code').innerText(), `poo ledger export -root ${home} -pool 0 -from 1`);
+  assert.equal(await lexp.locator('.cmd code').innerText(), `poon ledger export -root ${home} -pool 0 -from 1`);
   await lexp.locator('button[type=submit]').click();
-  // The file is said in a line, with Save as file; poo's output is
+  // The file is said in a line, with Save as file; poon's output is
   // folded under Output as printed and drawn only when opened
   // (GUI-GREEN-059).
   await lexp.locator('.ledger-exported', { hasText: /^A ledger file of pool 0 (with no entries|: \d+ entr)/ }).waitFor();
   await lexp.locator('button', { hasText: 'Save as file' }).waitFor();
   assert.equal(await lexp.locator('details.raw .result table, details.raw .result dl').count(), 0, 'the ledger is not drawn before Output as printed is opened');
   await lexp.locator('details.raw summary').click();
-  await lexp.locator('details.raw .result', { hasText: 'poo-ledger' }).waitFor();
+  await lexp.locator('details.raw .result', { hasText: 'poon-ledger' }).waitFor();
   await fill(lexp, 'To a file', lfile);
   await lexp.locator('button[type=submit]').click();
   await lexp.locator('.result', { hasText: 'wrote 0 entries' }).waitFor();
   const limp = section('Import a ledger');
   await fill(limp, 'Ledger file', lfile);
-  assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} ${lfile}`);
+  assert.equal(await limp.locator('.cmd code').innerText(), `poon ledger import -root ${home} ${lfile}`);
   page.once('dialog', d => d.accept());
   await limp.locator('button[type=submit]').click();
   await limp.locator('.ledger-imported', { hasText: /^Kept 0 entries and 0 layers; 0 entries and 0 layers were already known\.$/ }).waitFor();
   assert.equal(await limp.locator('.ledger-import-partial').count(), 0, 'a finished import has no "did not finish" alert');
-  // An import that fails before sending anything prints no totals: poo's
+  // An import that fails before sending anything prints no totals: poon's
   // error alone, no partial alert (GUI-031).
   await fill(limp, 'Ledger file', `${lfile}.missing`);
   page.once('dialog', d => d.accept());
@@ -287,7 +287,7 @@ try {
   await limp.locator('.run-status.bad').waitFor();
   assert.equal(await limp.locator('.ledger-import-partial').count(), 0, 'nothing was sent, so no partial alert');
   assert.equal(await limp.locator('.ledger-imported').count(), 0);
-  // A stopped import prints poo's totals so far (sent, stopped), drawn as
+  // A stopped import prints poon's totals so far (sent, stopped), drawn as
   // an alert; a failure before any batch prints none, so no line.
   const notes = await page.evaluate(async () => {
     const m = await import(new URL('views/pools.js', location.href).href);
@@ -302,20 +302,20 @@ try {
   // -dry-run reads the file without the node (D189).
   await fill(limp, 'Ledger file', lfile);
   await limp.locator('input[name=dryRun]').check();
-  assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} -dry-run ${lfile}`);
+  assert.equal(await limp.locator('.cmd code').innerText(), `poon ledger import -root ${home} -dry-run ${lfile}`);
   page.once('dialog', d => d.accept());
   await limp.locator('button[type=submit]').click();
   await limp.locator('.ledger-checked', { hasText: /^Checked without the node: pool 0, 0 of 0 entries read; no problems found\. Nothing was kept\.$/ }).waitFor();
   await limp.locator('input[name=dryRun]').uncheck();
-  // A file picked in the browser goes to poo as its input (-).
+  // A file picked in the browser goes to poon as its input (-).
   await limp.locator('input[type=file]').setInputFiles(lfile);
-  assert.equal(await limp.locator('.cmd code').innerText(), `poo ledger import -root ${home} -`);
+  assert.equal(await limp.locator('.cmd code').innerText(), `poon ledger import -root ${home} -`);
   await page.click('nav a[data-id=node]');
 
   // Wallet: create one; the passphrase prompt is a masked field.
   await page.click('nav a[data-id=wallet]');
   const create = section('Create or restore a wallet');
-  // Restoring never puts the seed on the command line: poo asks for it.
+  // Restoring never puts the seed on the command line: poon asks for it.
   const restore = create.locator('label', { hasText: 'Restore from a seed' }).locator('input');
   await restore.check();
   assert.match(await create.locator('.cmd code').innerText(), / -restore -$/);
@@ -330,7 +330,7 @@ try {
   for (let i = 0; i < 6; i++) await create.locator('form.fields').evaluate(f => f.requestSubmit());
   const waiting = await page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => !j.done && j.args[0] === 'wallet').length);
   assert.equal(waiting, 1, 'one wallet job, not one per press');
-  // poo asks for a new passphrase twice (GUI-020), each in the masked
+  // poon asks for a new passphrase twice (GUI-020), each in the masked
   // field.
   for (const n of [1, 2]) {
     await create.locator(`form.ask:not([hidden]) input`).waitFor();
@@ -351,33 +351,33 @@ try {
   await addrs.locator('.result table.data, .result dl.kv').first().waitFor();
   await shot('wallet');
 
-  // Bounty market (GUI-GREEN-062): on a node with the market off, poo
+  // Bounty market (GUI-GREEN-062): on a node with the market off, poon
   // refuses and Offers says how to turn it on; each form previews its
-  // poo bounty line.
+  // poon bounty line.
   await page.click('nav a[data-id=bounty]');
-  // Off comes from poo status's bounty field (W-30), not the error text.
+  // Off comes from poon status's bounty field (W-30), not the error text.
   await section('Offers').locator('.bounty-off', { hasText: /^The market is off on this node\. In Node policies, Set limits: bounty\.post on/ }).waitFor();
-  assert.equal(await section('Offers').locator('.cmd code').innerText(), `poo bounty list -root ${home}`);
+  assert.equal(await section('Offers').locator('.cmd code').innerText(), `poon bounty list -root ${home}`);
   const bwork = section('Work an offer');
   await fill(bwork, 'Offer id', 'ab12');
   await fill(bwork, 'Pay to address', 'cd34');
-  assert.equal(await bwork.locator('.cmd code').innerText(), `poo bounty work ab12 -root ${home} -to cd34`);
+  assert.equal(await bwork.locator('.cmd code').innerText(), `poon bounty work ab12 -root ${home} -to cd34`);
   // -max-strength (D202): work no offer stronger than this.
   await fill(bwork, 'Strongest offer (bits)', '30');
-  assert.equal(await bwork.locator('.cmd code').innerText(), `poo bounty work ab12 -root ${home} -to cd34 -max-strength 30`);
+  assert.equal(await bwork.locator('.cmd code').innerText(), `poon bounty work ab12 -root ${home} -to cd34 -max-strength 30`);
   await fill(bwork, 'Strongest offer (bits)', '');
   await fill(section('Ask peers for offers'), 'Strongest offer (bits)', '24');
-  assert.equal(await section('Ask peers for offers').locator('.cmd code').innerText(), `poo bounty list -root ${home} -ask -max-strength 24`);
+  assert.equal(await section('Ask peers for offers').locator('.cmd code').innerText(), `poon bounty list -root ${home} -ask -max-strength 24`);
   await fill(section('Ask peers for offers'), 'Strongest offer (bits)', '');
   await fill(section('Pay a claim'), 'Offer id', 'ab12');
-  // No wallet file chosen in the Wallet view: poo's default, wallet.json.
-  assert.equal(await section('Pay a claim').locator('.cmd code').innerText(), `poo bounty pay ab12 -root ${home}`);
+  // No wallet file chosen in the Wallet view: poon's default, wallet.json.
+  assert.equal(await section('Pay a claim').locator('.cmd code').innerText(), `poon bounty pay ab12 -root ${home}`);
 
   // Peers, policies and crypto render their commands' output.
   await page.click('nav a[data-id=peers]');
   await section('Peers').locator('.run-status').first().waitFor();
   // The timed panel leaves the book out (ORANGE-017); Find peers prints it.
-  assert.equal(await section('Peers').locator('.cmd code').first().innerText(), `poo peers -root ${home} -counts`);
+  assert.equal(await section('Peers').locator('.cmd code').first().innerText(), `poon peers -root ${home} -counts`);
   // Claimed releases (D186, GUI White S3): "" is "not shared", and a
   // peer's release is said to be its own claim.
   const rn = await page.evaluate(async () => {
@@ -391,7 +391,7 @@ try {
   const addPeer = section('Add, remove, label or connect a peer');
   await fill(addPeer, 'Peer address', '1.0.0.9:7000');
   await addPeer.locator('input[name=label]').fill('friend box');
-  assert.equal(await addPeer.locator('.cmd code').innerText(), `poo peer add -root ${home} -label 'friend box' 1.0.0.9:7000`);
+  assert.equal(await addPeer.locator('.cmd code').innerText(), `poon peer add -root ${home} -label 'friend box' 1.0.0.9:7000`);
   assert.ok(!(await addPeer.locator('label', { hasText: 'every unlisted address' }).isVisible()), 'Imported is for connect only');
   page.once('dialog', d => d.accept());
   await addPeer.locator('button[type=submit]').click();
@@ -399,18 +399,18 @@ try {
   await addPeer.locator('select[name=action]').selectOption('connect');
   await fill(addPeer, 'Peer address', '');
   await addPeer.locator('label', { hasText: 'every unlisted address' }).locator('input').check();
-  assert.equal(await addPeer.locator('.cmd code').innerText(), `poo peer connect -root ${home} -imported`);
+  assert.equal(await addPeer.locator('.cmd code').innerText(), `poon peer connect -root ${home} -imported`);
   const find = section('Find peers');
   await fill(find, 'Label holds', 'friend');
-  assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -label friend`);
+  assert.equal(await find.locator('.cmd code').innerText(), `poon peers -root ${home} -label friend`);
   // The book states are boxes, as Watch's kinds are (GUI-GREEN-048).
   for (const c of ['unlisted', 'candidate']) await find.locator(`fieldset[data-flag=category] input[value=${c}]`).check();
-  assert.equal(await find.locator('.cmd code').innerText(), `poo peers -root ${home} -category candidate,unlisted -label friend`);
+  assert.equal(await find.locator('.cmd code').innerText(), `poon peers -root ${home} -category candidate,unlisted -label friend`);
   await find.locator('button[type=submit]').click();
   await find.locator('.result', { hasText: '1.0.0.9' }).waitFor();
   const trk = section('Tracking records');
   await trk.locator('label', { hasText: 'Only blocked' }).locator('input').check();
-  assert.equal(await trk.locator('.cmd code').innerText(), `poo tracking -root ${home} -blocked`);
+  assert.equal(await trk.locator('.cmd code').innerText(), `poon tracking -root ${home} -blocked`);
   const pexp = section('Export peers');
   const pfile = join(home, 'peers.json');
   await fill(pexp, 'To a file', pfile);
@@ -419,14 +419,14 @@ try {
   const pimp = section('Import peers');
   await fill(pimp, 'File', pfile);
   await pimp.locator('label', { hasText: 'address blocks too' }).locator('input').check();
-  assert.equal(await pimp.locator('.cmd code').innerText(), `poo peers import -root ${home} -blocks -json ${pfile}`);
+  assert.equal(await pimp.locator('.cmd code').innerText(), `poon peers import -root ${home} -blocks -json ${pfile}`);
   await pimp.locator('button[type=submit]').click();
   await pimp.locator('.peers-plan', { hasText: 'already the same' }).waitFor();
   let pasked = '';
   page.once('dialog', d => { pasked = d.message(); d.accept(); });
   await pimp.locator('button.danger:has-text("Apply")').click();
   await pimp.locator('.area .area .peers-plan').waitFor();
-  assert.match(pasked, /^Run poo peers import .* -apply -if-digest [0-9a-f]{64} /);
+  assert.match(pasked, /^Run poon peers import .* -apply -if-digest [0-9a-f]{64} /);
   // GUI-025: a file's blocks are read first, above the table and leading
   // it, however many addresses come with them; the notes count them.
   {
@@ -444,7 +444,7 @@ try {
     assert.equal(await plan.locator('tbody tr').first().getAttribute('class'), 'plan-block', 'the table starts with the block');
     {
       const notes = await plan.locator("p.hint").last().innerText();
-      assert.match(notes, /^Once applied, .* takes them all out\. 1 block\. /, "poo's notes are sentences, and count the blocks");
+      assert.match(notes, /^Once applied, .* takes them all out\. 1 block\. /, "poon's notes are sentences, and count the blocks");
       assert.equal(notes.split("1 block.").length, 2, "the blocks are counted once");
     }
   }
@@ -454,7 +454,7 @@ try {
   // file; export this one to a file; preview its import, then Apply.
   const exp = section('Export node policies');
   await exp.locator('select[name=scope]').selectOption('all');
-  assert.equal(await exp.locator('.cmd code').innerText(), `poo policy export -all -root ${home}`);
+  assert.equal(await exp.locator('.cmd code').innerText(), `poon policy export -all -root ${home}`);
   await exp.locator('button[type=submit]').click();
   await exp.locator('.run-status.ok').waitFor();
   const [dl] = await Promise.all([page.waitForEvent('download'), exp.locator('button.save-as').click()]);
@@ -462,15 +462,15 @@ try {
   const bundle = join(home, 'shared-policy.json');
   await exp.locator('select[name=scope]').selectOption('policy');
   await fill(exp, 'To a file', bundle);
-  assert.equal(await exp.locator('.cmd code').innerText(), `poo policy export -root ${home} -out ${bundle}`);
+  assert.equal(await exp.locator('.cmd code').innerText(), `poon policy export -root ${home} -out ${bundle}`);
   await exp.locator('button[type=submit]').click();
   await exp.locator('.result', { hasText: 'exported 1 node policy' }).waitFor();
   const imp = section('Import node policies');
   await fill(imp, 'File', bundle);
-  assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json ${bundle}`);
-  // A plan that changes nothing has no digest (poo leaves it out, Source
+  assert.equal(await imp.locator('.cmd code').innerText(), `poon policy import -root ${home} -json ${bundle}`);
+  // A plan that changes nothing has no digest (poon leaves it out, Source
   // R30), so there is nothing to apply and no Apply. The test blanks the
-  // digest too, so this holds whichever poo prints.
+  // digest too, so this holds whichever poon prints.
   const noDigest = async route => {
     const res = await route.fetch();
     const body = (await res.text()).replace(/(\\"digest\\": *\\")[0-9a-f]{64}/g, '$1');
@@ -497,22 +497,22 @@ try {
   writeFileSync(every, (await dl.path().then(f => readFileSync(f, 'utf8'))).replace('"name": "default"', '"name": "copy"').replace('"current": true', '"current": false'));
   await fill(imp, 'File', every);
   await imp.locator('label', { hasText: 'holds every saved policy' }).locator('input').check();
-  assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json ${every}`);
+  assert.equal(await imp.locator('.cmd code').innerText(), `poon policy import -root ${home} -json ${every}`);
   await imp.locator('button[type=submit]').click();
   await imp.locator('.import-plan', { hasText: 'A new node policy.' }).waitFor();
   // The worked example's series sets no witness ceiling, so the new
-  // policy's plan warns first, with poo's reason (D171). Apply stays.
+  // policy's plan warns first, with poon's reason (D171). Apply stays.
   assert.match(await imp.locator('.import-plan .plan-unbounded').innerText(), /d0b927f7: the series sets no witness ceiling/);
   page.once('dialog', d => d.accept());
   await imp.locator('button.danger:has-text("Apply")').click();
   await imp.locator('.area .area .import-plan', { hasText: 'Saved.' }).waitFor();
   await section('Policies').locator('button:has-text("Refresh")').click();
   await section('Policies').locator('.result', { hasText: 'copy' }).waitFor();
-  // A file picked in the browser is sent on poo's input: FILE is -.
+  // A file picked in the browser is sent on poon's input: FILE is -.
   await imp.locator('label', { hasText: 'holds every saved policy' }).locator('input').uncheck();
   await imp.locator('input[type=file]').setInputFiles(fileA);
   await imp.locator('.cmd code', { hasText: / -json -$/ }).waitFor();
-  assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -json -`);
+  assert.equal(await imp.locator('.cmd code').innerText(), `poon policy import -root ${home} -json -`);
   await imp.locator('button[type=submit]').click();
   await imp.locator('.import-plan', { hasText: 'Nothing changed yet' }).waitFor();
   // GUI-023: Apply runs what was previewed, and only that. Picking
@@ -555,10 +555,10 @@ try {
   await imp.locator('button[type=submit]').click();
   await imp.locator('.import-plan', { hasText: 'Node settings left alone' }).waitFor();
   await imp.locator('label', { hasText: 'node settings too' }).locator('input').check();
-  assert.equal(await imp.locator('.cmd code').innerText(), `poo policy import -root ${home} -settings -json ${fileB}`);
+  assert.equal(await imp.locator('.cmd code').innerText(), `poon policy import -root ${home} -settings -json ${fileB}`);
   await imp.locator('button[type=submit]').click();
   await imp.locator('.import-plan .plan-defences', { hasText: 'p2p.peers' }).waitFor();
-  // The file changes on disk after its preview: poo refuses it by its
+  // The file changes on disk after its preview: poon refuses it by its
   // digest, and nothing is applied.
   b.policies[0].policy.p2p.peers = ['198.51.100.9:7000'];
   writeFileSync(fileB, JSON.stringify(b, null, 2));
@@ -568,7 +568,7 @@ try {
   await imp.locator('.area .area', { hasText: 'not the one previewed' }).waitFor();
   assert.doesNotMatch(readFileSync(join(home, 'policies', 'default', 'node.json'), 'utf8'), /198\.51\.100\.9|203\.0\.113\.7/, 'a changed file is never applied');
   // A preview that prints no digest gets no Apply, so Apply is never run
-  // unpinned (GUI/Red R20B hardening). poo always prints one; the test
+  // unpinned (GUI/Red R20B hardening). poon always prints one; the test
   // blanks it in the preview's output on its way to the page.
   await fill(imp, 'File', fileB);
   await page.route('**/api/jobs/*/events*', noDigest);
@@ -594,12 +594,12 @@ try {
   for (let i = 0; i < 2; i++) await imp.locator('.plan-more button').click();
   await imp.locator('.plan-more').waitFor({ state: 'detached' });
   assert.equal(await imp.locator('.import-plan tbody tr').count(), 2000);
-  // Settings export and import (D155): the same form over poo settings,
+  // Settings export and import (D155): the same form over poon settings,
   // with -map-path for registry files from another machine.
   const sexp = section('Export node settings');
   const sfile = join(home, 'node-settings.json');
   await fill(sexp, 'To a file', sfile);
-  assert.equal(await sexp.locator('.cmd code').innerText(), `poo settings export -root ${home} -out ${sfile}`);
+  assert.equal(await sexp.locator('.cmd code').innerText(), `poon settings export -root ${home} -out ${sfile}`);
   await sexp.locator('button[type=submit]').click();
   await sexp.locator('.result', { hasText: 'exported the settings' }).waitFor();
   // One setting changed, so the plan has something to apply: a plan that
@@ -610,7 +610,7 @@ try {
   const simp = section('Import node settings');
   await fill(simp, 'File', sfile);
   await fill(simp, 'Registry paths', '/old/home=/new/home');
-  assert.equal(await simp.locator('.cmd code').innerText(), `poo settings import -root ${home} -map-path /old/home=/new/home -json ${sfile}`);
+  assert.equal(await simp.locator('.cmd code').innerText(), `poon settings import -root ${home} -map-path /old/home=/new/home -json ${sfile}`);
   await simp.locator('button[type=submit]').click();
   await simp.locator('.import-plan', { hasText: 'entry_cache_mib' }).waitFor();
   let sasked = '';
@@ -618,7 +618,7 @@ try {
   await simp.locator('button.danger:has-text("Apply")').click();
   await simp.locator('.area .area .import-plan', { hasText: 'Saved' }).waitFor();
   assert.match(readFileSync(join(home, 'policies', 'default', 'node.json'), 'utf8'), /"entry_cache_mib": 300/);
-  assert.match(sasked, /^Run poo settings import .* -apply -if-digest [0-9a-f]{64} /);
+  assert.match(sasked, /^Run poon settings import .* -apply -if-digest [0-9a-f]{64} /);
   // A long "Read first" line (ORANGE-016): 30 new peers are 30 defences.
   // The line names 20 and how many more; Show all lists every one.
   const speers = join(home, 'many-peers.json');
@@ -636,73 +636,73 @@ try {
   // click returns: wait for it rather than read the details at once.
   await sdef.locator('details.plan-all p').waitFor();
   for (const pr of peers30) assert.ok((await sdef.locator('details').innerText()).includes(pr), `Show all lists ${pr}`);
-  // The settable limits (D159-D161): poo lists them; Set limits saves
+  // The settable limits (D159-D161): poon lists them; Set limits saves
   // them, checked against each range, and the list shows the new value.
   const lim = section('Settable limits');
   await lim.locator('table.data', { hasText: 'p2p.max_book' }).waitFor();
   const setLim = section('Set limits');
-  // A field for each limit poo listed, showing the value in effect, its
+  // A field for each limit poon listed, showing the value in effect, its
   // range and default, so no name is typed (GUI-GREEN-049).
   const maxBook = setLim.locator('input[data-limit="p2p.max_book"]');
   await maxBook.waitFor();
   assert.equal(await maxBook.getAttribute('placeholder'), '4096', 'the field shows the value in effect');
   assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /256 to 65536, default 4096/);
-  // Whether a running node takes it at once is poo's in_place (D170).
+  // Whether a running node takes it at once is poon's in_place (D170).
   assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /a running node takes it (at once|on reload)/);
   await maxBook.fill('8192');
   await setLim.locator('input[data-limit="tracking.log_size"]').fill('512');
-  // Refresh redraws the fields from poo's list and keeps what was typed
+  // Refresh redraws the fields from poon's list and keeps what was typed
   // and not yet saved (ORANGE-018 note).
   await setLim.locator('input[data-limit="p2p.max_book"]').evaluate(i => i.setAttribute('data-old', ''));
   await lim.locator('button', { hasText: 'Refresh' }).click();
   await setLim.locator('input[data-limit="p2p.max_book"]:not([data-old])').waitFor();
   assert.equal(await setLim.locator('input[data-limit="p2p.max_book"]').inputValue(), '8192', 'a refresh keeps an unsaved value');
-  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home} -set p2p.max_book=8192 -set tracking.log_size=512`);
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poon policy limits -root ${home} -set p2p.max_book=8192 -set tracking.log_size=512`);
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
   await setLim.locator('.run-status.ok').waitFor();
   // Both limits are ones a running node applies in place (D168), and the
-  // line over the result says so, from poo's in_place (GUI-GREEN-053).
+  // line over the result says so, from poon's in_place (GUI-GREEN-053).
   assert.equal(await setLim.locator('.result .applied').innerText(), 'Saved to node.json; the running node applied it at once, with no reload.');
   await lim.locator('table.data tr', { hasText: 'p2p.max_book' }).filter({ hasText: '8192' }).first().waitFor();
   // Redrawn from the new list: empty again, showing the new value.
   await setLim.locator('input[data-limit="p2p.max_book"][placeholder="8192"]').waitFor();
-  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home}`, 'nothing is sent again after a save');
-  // A limit poo marks as a switch (D198) is on, off or unchanged.
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poon policy limits -root ${home}`, 'nothing is sent again after a save');
+  // A limit poon marks as a switch (D198) is on, off or unchanged.
   const sw = setLim.locator('select[data-limit="bounty.post"]');
   assert.equal(await sw.inputValue(), '');
   assert.match(await setLim.locator('label:has(select[data-limit="bounty.post"])').innerText(), /unchanged \(off\)[\s\S]*on or off, default off/);
   await sw.selectOption('on');
-  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home} -set bounty.post=on`);
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poon policy limits -root ${home} -set bounty.post=on`);
   await sw.selectOption('');
-  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home}`);
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poon policy limits -root ${home}`);
   // A save reloads the running node, which restarts its RPC; wait until
-  // poo status answers with the saved node.json loaded before asking it
+  // poon status answers with the saved node.json loaded before asking it
   // again, as a person would see on the Node view.
   for (let i = 0; ; i++) {
-    const r = spawnSync(bin, ['poo', 'status', '-root', home], { env: { ...process.env, POO_HOME: home } });
+    const r = spawnSync(bin, ['poon', 'status', '-root', home], { env: { ...process.env, POON_HOME: home } });
     let st = null;
     try { st = r.status === 0 && JSON.parse(String(r.stdout)); } catch (_) { st = null; }
     if (st && !st.policy_changed) break;
     assert.ok(i < 100, 'the node came back from its reload');
     await page.waitForTimeout(100);
   }
-  // A name the list lacks can still be typed, and poo checks it.
+  // A name the list lacks can still be typed, and poon checks it.
   await fill(setLim, 'Other limits', 'p2p.max_book=1');
   page.once('dialog', d => d.accept());
   await setLim.locator('button[type=submit]').click();
   await setLim.locator('.run-status.bad').waitFor();
-  assert.match(await setLim.locator('.area').innerText(), /p2p\.max_book/, 'poo names the limit out of range');
+  assert.match(await setLim.locator('.area').innerText(), /p2p\.max_book/, 'poon names the limit out of range');
   await page.click('nav a[data-id=crypto]');
   await section('Hashes, key algorithms').locator('table.data', { hasText: 'blake3' }).waitFor();
   await shot('crypto');
   // Variable supply series (D163): the definition, signing, parts and a
-  // release, each a poo series command; poo works out every range.
+  // release, each a poon series command; poon works out every range.
   const vseed = 'cd'.repeat(32);
-  const penv = { env: { ...process.env, POO_HOME: home } };
-  const issuer = JSON.parse(String(spawnSync(bin, ['poo', 'keygen', '-seed', vseed], penv).stdout)).address;
+  const penv = { env: { ...process.env, POON_HOME: home } };
+  const issuer = JSON.parse(String(spawnSync(bin, ['poon', 'keygen', '-seed', vseed], penv).stdout)).address;
   const sn = section('New series parameters');
-  // A whole number above 2^53 is shown digit for digit, as poo printed
+  // A whole number above 2^53 is shown digit for digit, as poon printed
   // it: JSON.parse alone would show 100000000000000000 (GUI-GREEN-055).
   await sn.locator('input[name=mints]').fill('32');
   await sn.locator('input[name=poolSize]').fill('32');
@@ -718,27 +718,27 @@ try {
   await sn.locator('input[name=variable]').check();
   await sn.locator('input[name=partSize]').fill('4');
   await sn.locator('input[name=maxParts]').fill('5');
-  assert.equal(await sn.locator('.cmd code').innerText(), `poo series new -mints 8 -issuer ${issuer} -variable -part-size 4 -max-parts 5`);
+  assert.equal(await sn.locator('.cmd code').innerText(), `poon series new -mints 8 -issuer ${issuer} -variable -part-size 4 -max-parts 5`);
   await sn.locator('input[name=maxWitness]').fill('4096');
-  assert.equal(await sn.locator('.cmd code').innerText(), `poo series new -mints 8 -max-witness 4096 -issuer ${issuer} -variable -part-size 4 -max-parts 5`);
+  assert.equal(await sn.locator('.cmd code').innerText(), `poon series new -mints 8 -max-witness 4096 -issuer ${issuer} -variable -part-size 4 -max-parts 5`);
   await sn.locator('input[name=maxWitness]').fill('');
   await sn.locator('button[type=submit]').click();
   await sn.locator('.run-status.ok').waitFor();
   await sn.locator('.result', { hasText: 'variable' }).waitFor();
   await sn.locator('button.save-as').waitFor();
   const vfile = join(home, 'variable-series.json');
-  writeFileSync(vfile, spawnSync(bin, ['poo', 'series', 'new', '-mints', '8', '-issuer', issuer, '-variable', '-part-size', '4', '-max-parts', '5'], penv).stdout);
-  // poo, not the GUI, refuses a part size that is not a multiple of the pool size.
+  writeFileSync(vfile, spawnSync(bin, ['poon', 'series', 'new', '-mints', '8', '-issuer', issuer, '-variable', '-part-size', '4', '-max-parts', '5'], penv).stdout);
+  // poon, not the GUI, refuses a part size that is not a multiple of the pool size.
   await sn.locator('input[name=partSize]').fill('3');
   await sn.locator('button[type=submit]').click();
   await sn.locator('.run-status.bad').waitFor();
   assert.match(await sn.locator('.area').innerText(), /whole multiples of the pool size/);
-  // The pool size poo names is a field of the form, so the definition can
+  // The pool size poon names is a field of the form, so the definition can
   // be fixed there (GUI-GREEN-051): with P = 3, N = 9 and M = 3 fit.
   await sn.locator('input[name=poolSize]').fill('3');
   await sn.locator('input[name=mints]').fill('9');
   await sn.locator('input[name=supply]').fill('50');
-  assert.equal(await sn.locator('.cmd code').innerText(), `poo series new -mints 9 -supply 50 -pool-size 3 -issuer ${issuer} -variable -part-size 3 -max-parts 5`);
+  assert.equal(await sn.locator('.cmd code').innerText(), `poon series new -mints 9 -supply 50 -pool-size 3 -issuer ${issuer} -variable -part-size 3 -max-parts 5`);
   await sn.locator('button[type=submit]').click();
   await sn.locator('.run-status.ok').waitFor();
   await sn.locator('input[name=poolSize]').fill('');
@@ -755,7 +755,7 @@ try {
   const sign = section('Sign a series');
   await fill(sign, 'Series file', vfile);
   await sign.locator('input[name=alg]').fill('ed25519');
-  assert.equal(await sign.locator('.cmd code').innerText(), `poo series sign ${vfile} -alg ed25519 -seed-file -`);
+  assert.equal(await sign.locator('.cmd code').innerText(), `poon series sign ${vfile} -alg ed25519 -seed-file -`);
   await sign.locator('button[type=submit]').click();
   await masked(sign, vseed);
   await sign.locator('.run-status.ok').waitFor();
@@ -763,10 +763,10 @@ try {
   const parts = section('Parts of a variable series');
   await fill(parts, 'Series file', vfile);
   await parts.locator('input[name=from]').fill('2');
-  assert.equal(await parts.locator('.cmd code').innerText(), `poo series parts ${vfile} -from 2`);
+  assert.equal(await parts.locator('.cmd code').innerText(), `poon series parts ${vfile} -from 2`);
   await parts.locator('button[type=submit]').click();
   await parts.locator('.run-status.ok').waitFor();
-  const wantParts = JSON.parse(String(spawnSync(bin, ['poo', 'series', 'parts', vfile, '-from', '2'], penv).stdout));
+  const wantParts = JSON.parse(String(spawnSync(bin, ['poon', 'series', 'parts', vfile, '-from', '2'], penv).stdout));
   for (const pt of wantParts.parts) await parts.locator('.result', { hasText: pt.part_id.slice(0, 8) }).first().waitFor();
   // GUI-027: Release a part previews the serials it brings into being
   // before it asks for the seed; Sign signs only the part previewed, and
@@ -774,7 +774,7 @@ try {
   const rel = section('Release a part');
   await fill(rel, 'Series file', vfile);
   await rel.locator('input[name=part]').fill('2');
-  assert.equal(await rel.locator('.cmd code').innerText(), `poo series parts ${vfile} -from 2 -to 2`, 'the form runs the preview');
+  assert.equal(await rel.locator('.cmd code').innerText(), `poon series parts ${vfile} -from 2 -to 2`, 'the form runs the preview');
   assert.match(await rel.locator('p.hint').first().innerText(), /Preview first shows which serials.*permanent.*every part before it/);
   await rel.locator('button[type=submit]').click();
   const range = rel.locator('.release-range');
@@ -791,17 +791,17 @@ try {
   let relAsked = '';
   page.once('dialog', d => { relAsked = d.message(); d.accept(); });
   await rel.locator('button', { hasText: 'Sign part 2' }).click();
-  assert.match(relAsked, /^Release part 2 of series [0-9a-f]{12}: serials 8 to 11, .*serials 0 to 11: 12 mints\? This runs poo series release .* -part 2 -alg ed25519 -seed-file - and cannot be taken back\.$/);
+  assert.match(relAsked, /^Release part 2 of series [0-9a-f]{12}: serials 8 to 11, .*serials 0 to 11: 12 mints\? This runs poon series release .* -part 2 -alg ed25519 -seed-file - and cannot be taken back\.$/);
   await masked(rel, vseed);
   await rel.locator('.release-made').waitFor();
   assert.match(await rel.locator('.area .area').first().innerText(), /previous/i, 'the release is printed');
   await rel.locator('.area .area button.save-as').first().waitFor();
-  // poo checks the release just signed, sent on its input (-check -).
+  // poon checks the release just signed, sent on its input (-check -).
   await rel.locator('.release-check .result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
   // A series with no most parts takes any part: part 50 of an 8-mint
   // series is named as serials 0 to 203 before anything is signed.
   const open = join(home, 'open-series.json');
-  writeFileSync(open, spawnSync(bin, ['poo', 'series', 'new', '-mints', '8', '-issuer', issuer, '-variable', '-part-size', '4'], penv).stdout);
+  writeFileSync(open, spawnSync(bin, ['poon', 'series', 'new', '-mints', '8', '-issuer', issuer, '-variable', '-part-size', '4'], penv).stdout);
   await fill(rel, 'Series file', open);
   await rel.locator('input[name=part]').fill('50');
   await rel.locator('button[type=submit]').click();
@@ -809,24 +809,24 @@ try {
   const rfile = join(home, 'release-2.json');
   const sf = join(home, 'issuer-seed');
   writeFileSync(sf, vseed);
-  writeFileSync(rfile, spawnSync(bin, ['poo', 'series', 'release', vfile, '-part', '2', '-seed-file', sf], penv).stdout);
+  writeFileSync(rfile, spawnSync(bin, ['poon', 'series', 'release', vfile, '-part', '2', '-seed-file', sf], penv).stdout);
   const chk = section('Check a release');
   await fill(chk, 'Series file', vfile);
   await fill(chk, 'Release file', rfile);
-  assert.equal(await chk.locator('.cmd code').innerText(), `poo series release ${vfile} -check ${rfile}`);
+  assert.equal(await chk.locator('.cmd code').innerText(), `poon series release ${vfile} -check ${rfile}`);
   await chk.locator('button[type=submit]').click();
   await chk.locator('.result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
   // The release file can be picked in the browser too, sent as -check -,
   // as Add a release and the imports take theirs (GUI-GREEN-052).
   await chk.locator('input[name=pick-check]').setInputFiles({ name: 'release-2.json', mimeType: 'application/json', buffer: readFileSync(rfile) });
-  assert.equal(await chk.locator('.cmd code').innerText(), `poo series release ${vfile} -check -`);
+  assert.equal(await chk.locator('.cmd code').innerText(), `poon series release ${vfile} -check -`);
   await chk.locator('button[type=submit]').click();
   await chk.locator('.run-status.ok').waitFor();
   await chk.locator('.result', { hasText: 'releases part 2, serials 8 to 11' }).waitFor();
-  // GUI-028: a far part is asked about first, with its cost, as poo
+  // GUI-028: a far part is asked about first, with its cost, as poon
   // hashes every part id before it and Stop cannot end that. Declined,
   // nothing runs. Run, then Stopped, the job says it is still working and
-  // holds a job slot, rather than "running…", until poo ends it.
+  // holds a job slot, rather than "running…", until poon ends it.
   {
     const partsJobs = () => page.evaluate(async () => (await (await fetch('/api/jobs')).json()).filter(j => j.args[0] === 'series' && j.args[1] === 'parts').length);
     const before = await partsJobs();
@@ -834,14 +834,14 @@ try {
     let asked = '';
     page.once('dialog', d => { asked = d.message(); d.dismiss(); });
     await rel.locator('button[type=submit]').click();
-    assert.match(asked, /^Part 50000000000 takes poo about 50000000000 hashes to work out.*Stop cannot end it.*job slots.*Run it\?$/);
+    assert.match(asked, /^Part 50000000000 takes poon about 50000000000 hashes to work out.*Stop cannot end it.*job slots.*Run it\?$/);
     await page.waitForTimeout(300);
     assert.equal(await partsJobs(), before, 'a declined far part runs nothing');
     // Run in terminal on the same line asks the same (GUI/Red R28B).
     asked = '';
     page.once('dialog', d => { asked = d.message(); d.dismiss(); });
     await rel.locator('.cmd button', { hasText: 'Run in terminal' }).click();
-    assert.match(asked, /^Part 50000000000 takes poo about/, 'Run in terminal asks about a far part too');
+    assert.match(asked, /^Part 50000000000 takes poon about/, 'Run in terminal asks about a far part too');
     await page.waitForTimeout(300);
     assert.ok(!page.url().includes('#/terminal'), 'declined, the terminal is not opened');
     assert.equal(await partsJobs(), before, 'and nothing runs');
@@ -859,7 +859,7 @@ try {
     // it does, the job ends at Stop. Either way the page says which.
     await rel.locator('.run-status.stop-pending, .run-status.bad').first().waitFor({ timeout: 10000 });
     const st = await rel.locator('.run-status').first().innerText();
-    assert.match(st, /^Stop asked; poo is still working and will end on its own\. .*job slots|^exit /, 'Stop says what happened');
+    assert.match(st, /^Stop asked; poon is still working and will end on its own\. .*job slots|^exit /, 'Stop says what happened');
   }
 
   // Stop the node from the Node view.

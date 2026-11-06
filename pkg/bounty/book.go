@@ -720,7 +720,7 @@ const (
 
 // Done returns the last n offers of the done file, oldest first, and how
 // many lines it skipped (too long, or not an offer this release reads):
-// the offers that needed nothing more and left poo bounty list
+// the offers that needed nothing more and left poon bounty list
 // (GREEN-063). The file streams, so it costs one line at a time.
 func (b *Book) Done(n int) ([]Mine, int, error) {
 	n = min(max(n, 0), MaxDoneList)
@@ -1030,10 +1030,10 @@ func (b *Book) Post(o Offer) (Mine, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !b.cfg.Post {
-		return Mine{}, fmt.Errorf("%w: poo policy limits -set bounty.post=on posts offers", ErrOff)
+		return Mine{}, fmt.Errorf("%w: poon policy limits -set bounty.post=on posts offers", ErrOff)
 	}
 	if missing := unsetSpend(b.cfg); missing != "" {
-		return Mine{}, fmt.Errorf("%w: %s not set, so this node posts no offer; poo policy limits -set bounty.max_amount=N -set bounty.budget=N", ErrOff, missing)
+		return Mine{}, fmt.Errorf("%w: %s not set, so this node posts no offer; poon policy limits -set bounty.max_amount=N -set bounty.budget=N", ErrOff, missing)
 	}
 	b.expire()
 	total, over := mulCheck(o.Amount, uint64(o.Count))
@@ -1316,7 +1316,7 @@ func (b *Book) Paid(id hash.Hash, nonce uint64, tids []hash.Hash) (Ack, string, 
 	if err := b.save(); err != nil {
 		if b.mine[id] == m {
 			// Not written: memory says what the file says, unpaid, so a
-			// restart and this run agree, and poo bounty pay finds the
+			// restart and this run agree, and poon bounty pay finds the
 			// payment in the wallet and records it (RED-119).
 			m.Claims[i].Paid = nil
 			return Ack{}, "", err
@@ -1462,6 +1462,18 @@ func (b *Book) Acked(peer string, a Ack) {
 	switch a.Outcome {
 	case Accepted:
 		h.Lease = nil
+		// Every layer the offer asks for accepted from this node: it is
+		// filled for this grinder too, without asking again
+		// (GUI-GREEN-065, D204).
+		seen := map[uint64]bool{}
+		for _, x := range h.Acks {
+			if x.Outcome == Accepted {
+				seen[x.Nonce] = true
+			}
+		}
+		if len(seen) >= int(h.Offer.Count) {
+			h.ended = StateFilled
+		}
 	case Filled:
 		h.ended = StateFilled
 	case Closed:

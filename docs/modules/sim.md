@@ -13,7 +13,7 @@ exists to run the design's "tests to run". It found a real bug in its
 first week (a pending payment stuck after a partition, decision D72), and
 another when run at larger sizes (a heavier ledger pruned while it was
 being fetched, decision D79).
-`poo sim` runs its scenarios from the command line, and
+`poon sim` runs its scenarios from the command line, and
 [../simulation.md](../simulation.md) records what they measured.
 
 ## The network
@@ -100,15 +100,15 @@ public until the receiver's node drops the payment or `GiveUp` passes.
   with `-short`);
 - the sizing sweep, config errors, and a private node's release.
 
-The scenarios run in seconds. `pkg/cli/sim_test.go` drives `poo sim`.
+The scenarios run in seconds. `pkg/cli/sim_test.go` drives `poon sim`.
 
 ## Extending
 
 - **A new scenario** is a function building a `Sim`, a workload and its
-  measures, returning a JSON-friendly report. Add it to `poo sim` and to
+  measures, returning a JSON-friendly report. Add it to `poon sim` and to
   [../simulation.md](../simulation.md) with its numbers.
 - **Another network behaviour** (say, a node that drops entries, or a
   different catch-up) belongs in `node.go`. Keep each message's handling in
   `receive`.
-- **A different series**: every scenario takes a `*series.Series`. `poo
+- **A different series**: every scenario takes a `*series.Series`. `poon
   sim` uses the worked example's.
