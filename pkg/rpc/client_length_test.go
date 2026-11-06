@@ -13,7 +13,7 @@ import (
 
 // RED-040 (D148): Client.SubmitEntryHex sends its body's length, not a
 // chunked body, so the node sizes its buffer once (ORANGE-025, D147). It
-// goes through the client itself, as poo submit does.
+// goes through the client itself, as poon submit does.
 func TestSubmitEntryHexSendsItsLength(t *testing.T) {
 	var length int64
 	var chunked bool

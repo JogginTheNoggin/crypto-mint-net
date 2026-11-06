@@ -1,6 +1,6 @@
 // The Bounty view: the bounty market (D196, GUI-GREEN-062). A node pays
-// peers to grind layers on its entries; every action is a poo bounty
-// command, and the tables only lay out what poo bounty list prints. The
+// peers to grind layers on its entries; every action is a poon bounty
+// command, and the tables only lay out what poon bounty list prints. The
 // market is off until the bounty.post or bounty.take limit turns it on
 // (Node policies, Set limits).
 import * as where from '../where.js';
@@ -12,7 +12,7 @@ import { walletFile } from './wallet.js';
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const short = h => (typeof h === 'string' && h.length > 16 ? `${h.slice(0, 10)}…${h.slice(-6)}` : String(h ?? ''));
 
-// marketNote says, from poo bounty list's post and take, what this node
+// marketNote says, from poon bounty list's post and take, what this node
 // does in the market.
 export function marketNote(o) {
   if (!o || typeof o.post !== 'boolean' || typeof o.take !== 'boolean') return null;
@@ -20,12 +20,12 @@ export function marketNote(o) {
 }
 
 // offNote is the line under a refusal of bounty list (other than no node
-// answering). It never reads poo's error text (GUI White S5): st is what
-// poo status printed, whose bounty {post, take} says whether the market
+// answering). It never reads poon's error text (GUI White S5): st is what
+// poon status printed, whose bounty {post, take} says whether the market
 // is on (W-30). Both off gives the steps to turn it on, as settable
 // limits (D159); a status without the field gives a fixed line that
-// says the same if that is what poo said; a market that is on gives
-// nothing, as poo's error says why.
+// says the same if that is what poon said; a market that is on gives
+// nothing, as poon's error says why.
 export function offNote(r, st) {
   if (r.code === 0 || needsNode(r)) return null;
   const how = 'In Node policies, Set limits: bounty.post on to pay peers for layers (it also needs bounty.max_amount and bounty.budget), bounty.take on to grind for peers. Saving reloads a running node to apply it.';
@@ -34,16 +34,16 @@ export function offNote(r, st) {
     if (b.post || b.take) return null;
     return el('p', { class: 'next-step bounty-off', role: 'status' }, `The market is off on this node. ${how}`);
   }
-  return el('p', { class: 'next-step bounty-off', role: 'status' }, `If poo says the market is off: ${how}`);
+  return el('p', { class: 'next-step bounty-off', role: 'status' }, `If poon says the market is off: ${how}`);
 }
 
-// STATES says what each offer state poo prints means (D197): this node's
+// STATES says what each offer state poon prints means (D197): this node's
 // offers, then a peer's.
 const STATES = { open: 'open', filled: 'filled', closed: 'closed', expired: 'expired', leased: 'leased to a grinder', taken: 'taken' };
 const stateText = s => (typeof s === 'string' ? STATES[s] || s : '');
 
-// when shows a time poo printed (RFC 3339, to the nanosecond) in the
-// reader's own time zone and words, with poo's text in the tooltip and
+// when shows a time poon printed (RFC 3339, to the nanosecond) in the
+// reader's own time zone and words, with poon's text in the tooltip and
 // the datetime attribute (GUI-GREEN-063). Text that is not a time is
 // shown as printed.
 // One formatter for every time cell: toLocaleString with options builds
@@ -56,8 +56,8 @@ export function when(s) {
   fmt = fmt || new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   return el('time', { datetime: s, title: s }, fmt.format(d));
 }
-// open says an offer can still take layers: poo says open, or (an older
-// node) says nothing. Cancel and Work are offered only then; poo still
+// open says an offer can still take layers: poon says open, or (an older
+// node) says nothing. Cancel and Work are offered only then; poon still
 // decides (GUI-GREEN-063).
 const isOpen = st => st === undefined || st === 'open';
 
@@ -65,13 +65,13 @@ const isOpen = st => st === undefined || st === 'open';
 const unpaid = m => (Array.isArray(m.claims) ? m.claims.filter(c => !(Array.isArray(c.paid) && c.paid.length)).length : 0);
 
 
-// marketView draws poo bounty list: this node's offers with their claims,
+// marketView draws poon bounty list: this node's offers with their claims,
 // and the offers peers sent. act(kind, values) fills a form below.
 export function marketView(o, act = () => {}) {
   const out = [];
   const note = marketNote(o);
   if (note) out.push(note);
-  // poo's notes on settings that will not work as most likely meant, such
+  // poon's notes on settings that will not work as most likely meant, such
   // as posting on with no max_amount or budget (D202), each as printed.
   if (o && Array.isArray(o.notes)) out.push(...o.notes.map(n => el('p', { class: 'next-step bounty-note', role: 'status' }, String(n))));
   const mine = Array.isArray(o && o.mine) ? o.mine : [];
@@ -95,8 +95,8 @@ export function marketView(o, act = () => {}) {
     out.push(el('h3', {}, `Offers from peers (${held.length})`));
     out.push(rowsTable(held, h => {
       const f = h.offer || {};
-      // Work is offered on an open offer (or one poo gives no state for);
-      // poo still decides if a lease is granted.
+      // Work is offered on an open offer (or one poon gives no state for);
+      // poon still decides if a lease is granted.
       const workable = isOpen(h.state);
       return [render(h.id), render(h.from), String(f.pool ?? ''), String(f.strength ?? ''), render(f.amount), render(f.count), when(h.received), stateText(h.state), when(h.closes),
         workable ? el('button', { type: 'button', class: 'small', onclick: () => act('work', { id: h.id }) }, 'Work') : ''];
@@ -110,7 +110,7 @@ export function marketView(o, act = () => {}) {
   return out;
 }
 
-// workNote is the line over poo bounty work's reply.
+// workNote is the line over poon bounty work's reply.
 export function workNote(o) {
   if (!o || typeof o.found !== 'boolean') return null;
   if (!o.found) return el('p', { class: 'next-step bounty-work', role: 'status' }, `No layer found in ${o.tried ?? 0} tries before the lease or the time ran out; work the offer again for a new lease.`);
@@ -118,7 +118,7 @@ export function workNote(o) {
     `Found a layer of strength ${o.strength} in ${o.tried} tries; the payer answered: ${o.outcome}.${o.outcome === 'accepted' ? ' The payer pays when it presses Pay; the payment goes to the address you gave.' : ''}`);
 }
 
-// payNote is the line over poo bounty pay's reply.
+// payNote is the line over poon bounty pay's reply.
 export function payNote(o) {
   if (!o || typeof o.amount !== 'number' || typeof o.pay_to !== 'string') return null;
   return el('p', { class: 'hint bounty-paid', role: 'status' }, `Paid ${o.amount} to ${short(o.pay_to)} for the layer with nonce ${o.nonce}; the grinder ${o.told ? 'was told' : 'was not told (it is not connected now); Payments sent in the Wallet view shows the payment'}.`);
@@ -144,7 +144,7 @@ export const bountyView = {
     const draw = async (r, area) => {
       if (r.code !== 0) {
         if (needsNode(r)) return;
-        // Whether the market is on comes from poo status (W-30), never
+        // Whether the market is on comes from poon status (W-30), never
         // from the error's words (GUI White S5).
         let st = null;
         try { const s = await api.run(['status', '-counts', ...where.flags()]); st = s.code === 0 ? JSON.parse(s.out) : null; } catch (_) { /* no status */ }

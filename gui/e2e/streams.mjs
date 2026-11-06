@@ -1,11 +1,11 @@
 // End-to-end check that leaving a view closes its event streams
-// (ORANGE-010). A browser opens at most six connections to poo-gui; a
+// (ORANGE-010). A browser opens at most six connections to poon-gui; a
 // view that left one stream open per visit stalled the whole GUI after a
 // few visits to the Node view while a node ran. It also checks that
-// focus moving through key fields asks poo crypto once (ORANGE-011), and
+// focus moving through key fields asks poon crypto once (ORANGE-011), and
 // that a long paste reaches the command whole (ORANGE-013).
 //
-//   node gui/e2e/streams.mjs PATH/TO/poo-gui
+//   node gui/e2e/streams.mjs PATH/TO/poon-gui
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { launch, nodeStopped } from './lib.mjs';
@@ -21,7 +21,7 @@ page.on('request', r => {
 for (const ev of ['requestfinished', 'requestfailed']) page.on(ev, r => open.delete(r));
 
 try {
-  // Focus in and out of a key field eight times before poo answers.
+  // Focus in and out of a key field eight times before poon answers.
   await page.click('nav a[data-id=wallet]');
   await page.locator('input[list=crypto-algs]').first().waitFor();
   await page.evaluate(() => {
@@ -29,7 +29,7 @@ try {
     for (let i = 0; i < 8; i++) { key.focus(); nav.focus(); }
   });
   await page.waitForTimeout(1000);
-  assert.equal(cryptoRuns, 1, `poo crypto ran ${cryptoRuns} times for eight focuses`);
+  assert.equal(cryptoRuns, 1, `poon crypto ran ${cryptoRuns} times for eight focuses`);
 
   // A pasted entry longer than one request (1 MiB) reaches the command
   // whole: sent in parts, then the input ended (ORANGE-013).
@@ -47,7 +47,7 @@ try {
   const said = await submit.locator('.area').innerText();
   assert.ok(!said.includes('request body too large'), `a 1.5 MiB paste did not arrive whole: ${said.slice(0, 200)}`);
 
-  execFileSync(bin, ['poo', 'init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off'], { env });
+  execFileSync(bin, ['poon', 'init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off'], { env });
   await page.click('nav a[data-id=node]');
   await page.click('button:has-text("Start node")');
   await page.locator('.live-out', { hasText: 'rpc: listening' }).waitFor();

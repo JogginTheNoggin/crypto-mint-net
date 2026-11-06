@@ -1,7 +1,7 @@
-// End-to-end check of Watch and Explore: live events from poo watch with a
+// End-to-end check of Watch and Explore: live events from poon watch with a
 // filter, and the views, against a real node.
 //
-//   node gui/e2e/watch.mjs PATH/TO/poo-gui [SCREENSHOT_DIR]
+//   node gui/e2e/watch.mjs PATH/TO/poon-gui [SCREENSHOT_DIR]
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -10,7 +10,7 @@ import { launch, nodeStopped } from './lib.mjs';
 const bin = process.argv[2];
 const shots = process.argv[3];
 const { home, env, page, errors, close } = await launch(bin);
-const poo = (args, extra = {}) => execFileSync(bin, ['poo', ...args], { env: { ...env, ...extra } }).toString();
+const poon = (args, extra = {}) => execFileSync(bin, ['poon', ...args], { env: { ...env, ...extra } }).toString();
 const section = title => page.locator('section.panel', { has: page.locator('h2', { hasText: title }) }).first();
 const until = async (cond, what, ms = 20000) => {
   for (const end = Date.now() + ms; !(await cond());) {
@@ -33,10 +33,10 @@ const watchStreams = () => page.evaluate(() => window.__streams
   .map(s => ({ url: s.url, open: s.readyState !== EventSource.CLOSED })));
 
 try {
-  poo(['init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off']);
+  poon(['init', '-example', '-listen', '127.0.0.1:0', '-p2p', 'off']);
   await page.click('nav a[data-id=node]');
   // The health check finds the policy and no running node, and offers
-  // its fix, "poo node", as a command to run.
+  // its fix, "poon node", as a command to run.
   const health = section('Health check');
   await health.locator('ul.doctor li.doctor-ok', { has: page.locator('strong', { hasText: /^policy$/ }) }).waitFor();
   assert.equal(await health.locator('li.doctor-warn', { has: page.locator('strong', { hasText: /^rpc$/ }) }).locator('button', { hasText: 'Run in terminal' }).count(), 1);
@@ -48,15 +48,15 @@ try {
   const live = section('Live events');
   await live.locator('fieldset.kinds input[value=tx]').check();
   await live.locator('fieldset.kinds input[value=selected]').check();
-  assert.match(await live.locator('.cmd code').innerText(), /^poo watch -kind tx,selected$/);
+  assert.match(await live.locator('.cmd code').innerText(), /^poon watch -kind tx,selected$/);
   await live.locator('button:has-text("Start watching")').click();
   await live.locator('.run-status', { hasText: 'watching' }).waitFor();
   await page.waitForTimeout(300); // the stream is open before the claim
-  const claim = JSON.parse(poo(['claim', '-serial', '5'], { POO_SEED: 'a1'.repeat(32) }));
+  const claim = JSON.parse(poon(['claim', '-serial', '5'], { POON_SEED: 'a1'.repeat(32) }));
   const tid = claim.tid;
   assert.ok(tid, 'claim printed its tid');
   await live.locator('tr.ev-tx').first().waitFor();
-  poo(['build', '-pool', '1', '-work', '4000']); // a layer gives the entry weight, so it is selected
+  poon(['build', '-pool', '1', '-work', '4000']); // a layer gives the entry weight, so it is selected
   await live.locator('tr.ev-selected').first().waitFor();
   // The filter left out entries and layers.
   assert.equal(await live.locator('tr.ev-entry, tr.ev-layer').count(), 0);
@@ -72,7 +72,7 @@ try {
   await page.click('nav a[data-id=jobs]');
   await until(async () => !(await watchStreams()).some(s => s.open && s.url.includes(`/jobs/${watchJob}/`)), 'the stream closed while away');
   assert.equal(await page.locator('nav a[data-id=watch].busy').count(), 1, 'the watch still runs');
-  poo(['claim', '-serial', '6'], { POO_SEED: 'b2'.repeat(32) });
+  poon(['claim', '-serial', '6'], { POON_SEED: 'b2'.repeat(32) });
   await page.waitForTimeout(500);
   await page.click('nav a[data-id=watch]');
   await until(async () => (await live.locator('tr.ev-tx').count()) === txRows + 1, 'the event from while away');
@@ -102,19 +102,19 @@ try {
   if (shots) await page.screenshot({ path: join(shots, 'ledger-picture.png'), fullPage: true });
   await page.click('nav a[data-id=watch]');
 
-  // The tid in a row links to Explore, which runs poo tx on it.
+  // The tid in a row links to Explore, which runs poon tx on it.
   await live.locator(`tr.ev-tx a.lookup[href*="${tid}"]`).first().click();
   const looked = section('A transaction');
   await looked.locator('.run-status.ok').waitFor();
-  assert.equal(await looked.locator('.cmd code').innerText(), `poo tx ${tid}`);
-  // The Pools view's lookups run poo unspent and poo tx (Source GREEN-008).
+  assert.equal(await looked.locator('.cmd code').innerText(), `poon tx ${tid}`);
+  // The Pools view's lookups run poon unspent and poon tx (Source GREEN-008).
   await page.click('nav a[data-id=pools]');
   const pay = section('Where a payment stands');
   await pay.locator('label', { hasText: 'Transaction id' }).locator('input').fill(tid);
-  assert.equal(await pay.locator('.cmd code').innerText(), `poo tx ${tid}`);
+  assert.equal(await pay.locator('.cmd code').innerText(), `poon tx ${tid}`);
   const hold = section('Holdings of a mint');
   await hold.locator('label', { hasText: 'Mint serial' }).locator('input').fill('5');
-  assert.equal(await hold.locator('.cmd code').innerText(), 'poo unspent -serial 5');
+  assert.equal(await hold.locator('.cmd code').innerText(), 'poon unspent -serial 5');
   await hold.locator('button[type=submit]').click();
   await hold.locator('.run-status.ok').waitFor();
   // Its address links to Explore's address lookup.
@@ -129,7 +129,7 @@ try {
   await ledger.locator('.run-status.ok').waitFor();
   const tx = section('A transaction');
   await tx.locator('label', { hasText: 'Transaction id' }).locator('input').fill(tid);
-  assert.equal(await tx.locator('.cmd code').innerText(), `poo tx ${tid}`);
+  assert.equal(await tx.locator('.cmd code').innerText(), `poon tx ${tid}`);
   await tx.locator('button[type=submit]').click();
   await tx.locator('.run-status.ok').waitFor();
   await until(async () => (await tx.locator('.result').innerText()).includes('selected'), 'the transaction rendered');

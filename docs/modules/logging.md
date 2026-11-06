@@ -4,7 +4,7 @@
 
 Makes the node's logger: the standard library's `log/slog` with a level
 and a format from the node policy's `log` section, or from
-`poo node -log-level` and `-log-format` for one run (GREEN-006). `pkg/node`
+`poon node -log-level` and `-log-format` for one run (GREEN-006). `pkg/node`
 builds the logger when it opens, `pkg/p2p`, `pkg/rpc` (through the daemon)
 and `pkg/daemon` log through `node.Logger()`, each under its own
 `component`. Consensus packages never log.
@@ -36,7 +36,7 @@ came from a peer.
 - `New(w, level, format) (*slog.Logger, error)`: an empty level or format
   means the default; a nil `w` discards.
 - `Check(level, format) error` and `ParseLevel(s)`: used by
-  `nodepolicy.Validate` and `poo node`.
+  `nodepolicy.Validate` and `poon node`.
 - `Component` is the attribute key that `plain` prints as a prefix.
 - `node.Options{Log, LogLevel, LogFormat, Logger}` and
   `p2p.Config{Log, Logger}`: the older `Log io.Writer` alone still works

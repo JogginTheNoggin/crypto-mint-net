@@ -74,7 +74,7 @@ func TestWaitingCommandKeepsAnotherChange(t *testing.T) {
 	root := t.TempDir()
 	cli(t, nil, "init", "-example", "-root", root)
 	w := []string{"-root", root}
-	t.Setenv("POO_PASSPHRASE", "one")
+	t.Setenv("POON_PASSPHRASE", "one")
 	cli(t, nil, append([]string{"wallet", "create"}, w...)...)
 	ctx := context.Background()
 	var out bytes.Buffer
@@ -88,7 +88,7 @@ func TestWaitingCommandKeepsAnotherChange(t *testing.T) {
 	if err := Run(ctx, append([]string{"wallet", "passwd"}, w...), io); err != nil {
 		t.Fatalf("passwd after another command saved: %v\n%s", err, out.String())
 	}
-	t.Setenv("POO_PASSPHRASE", "two")
+	t.Setenv("POON_PASSPHRASE", "two")
 	var addrs []struct{ Label string }
 	cli(t, &addrs, append([]string{"wallet", "addresses"}, w...)...)
 	found := false

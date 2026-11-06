@@ -104,21 +104,21 @@ func TestExportCategories(t *testing.T) {
 // unknown field is refused whole.
 func TestReadRefuses(t *testing.T) {
 	for name, doc := range map[string]string{
-		"escape in addr":  `{"kind":"poo-peers","format":1,"peers":[{"addr":"a\u001b[8A.example:1","policies":[{"section":"*/*/*/*"}]}]}`,
-		"escape in label": `{"kind":"poo-peers","format":1,"peers":[{"addr":"a.example:1","policies":[{"section":"*/*/*/*"}],"label":"\u001b[J"}]}`,
-		"no port":         `{"kind":"poo-peers","format":1,"peers":[{"addr":"a.example","policies":[{"section":"*/*/*/*"}]}]}`,
-		"no policy":       `{"kind":"poo-peers","format":1,"peers":[{"addr":"a.example:1","policies":[]}]}`,
-		"unknown field":   `{"kind":"poo-peers","format":1,"peers":[],"points":1}`,
-		"block both":      `{"kind":"poo-peers","format":1,"peers":[],"blocks":[{"addr":"1.2.3.4","range":"v4:1.2","until":"2030-01-01T00:00:00Z"}]}`,
-		"bad range":       `{"kind":"poo-peers","format":1,"peers":[],"blocks":[{"range":"v4:300.2","until":"2030-01-01T00:00:00Z"}]}`,
-		"other kind":      `{"kind":"poo-node-policies","format":1}`,
-		"newer format":    `{"kind":"poo-peers","format":2,"peers":[]}`,
+		"escape in addr":  `{"kind":"poon-peers","format":1,"peers":[{"addr":"a\u001b[8A.example:1","policies":[{"section":"*/*/*/*"}]}]}`,
+		"escape in label": `{"kind":"poon-peers","format":1,"peers":[{"addr":"a.example:1","policies":[{"section":"*/*/*/*"}],"label":"\u001b[J"}]}`,
+		"no port":         `{"kind":"poon-peers","format":1,"peers":[{"addr":"a.example","policies":[{"section":"*/*/*/*"}]}]}`,
+		"no policy":       `{"kind":"poon-peers","format":1,"peers":[{"addr":"a.example:1","policies":[]}]}`,
+		"unknown field":   `{"kind":"poon-peers","format":1,"peers":[],"points":1}`,
+		"block both":      `{"kind":"poon-peers","format":1,"peers":[],"blocks":[{"addr":"1.2.3.4","range":"v4:1.2","until":"2030-01-01T00:00:00Z"}]}`,
+		"bad range":       `{"kind":"poon-peers","format":1,"peers":[],"blocks":[{"range":"v4:300.2","until":"2030-01-01T00:00:00Z"}]}`,
+		"other kind":      `{"kind":"poon-node-policies","format":1}`,
+		"newer format":    `{"kind":"poon-peers","format":2,"peers":[]}`,
 	} {
 		if _, err := peerport.Read(strings.NewReader(doc)); err == nil {
 			t.Errorf("%s: taken", name)
 		}
 	}
-	good := `{"kind":"poo-peers","format":1,"peers":[{"addr":"a.example:1","policies":[{"section":"*/*/*/*"}],"label":"ok"}],"blocks":[{"range":"v4:1.2","until":"2030-01-01T00:00:00Z"},{"addr":"1.2.3.4","until":"2030-01-01T00:00:00Z"}]}`
+	good := `{"kind":"poon-peers","format":1,"peers":[{"addr":"a.example:1","policies":[{"section":"*/*/*/*"}],"label":"ok"}],"blocks":[{"range":"v4:1.2","until":"2030-01-01T00:00:00Z"},{"addr":"1.2.3.4","until":"2030-01-01T00:00:00Z"}]}`
 	if _, err := peerport.Read(strings.NewReader(good)); err != nil {
 		t.Fatalf("a good file: %v", err)
 	}

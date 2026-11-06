@@ -19,7 +19,7 @@ export const jobsView = {
       el('label', { title: 'Views refresh their panels, so the same command runs many times. Show it once, with a count.' }, repeats, ' Group repeats'));
     for (const i of [filter, failed, repeats]) i.addEventListener('input', () => draw());
     root.append(el('h1', {}, 'Jobs'),
-      el('p', { class: 'hint' }, 'Every command the GUI has run, from views, forms and the terminal. Each is the poo command line shown.'),
+      el('p', { class: 'hint' }, 'Every command the GUI has run, from views, forms and the terminal. Each is the poon command line shown.'),
       tools, list, detail);
     let unfollow = null;
     let js = [];
@@ -57,11 +57,11 @@ export const jobsView = {
           // A finished command that printed a secret keeps no output to
           // show again (GUI-009).
           j.done && j.secretOutput
-            ? el('span', { class: 'hint', title: 'Its output held a secret, such as a seed, so poo-gui gave it out once and did not keep it' }, 'output not kept (it held a secret)')
+            ? el('span', { class: 'hint', title: 'Its output held a secret, such as a seed, so poon-gui gave it out once and did not keep it' }, 'output not kept (it held a secret)')
             : el('button', { type: 'button', onclick: () => showJob(j) }, 'Output'),
           j.done ? null : el('button', { type: 'button', onclick: () => api.cancel(j.id).then(refresh) }, 'Stop'),
           // A line with a hidden secret cannot be run again as shown.
-          j.redacted ? null : el('button', { type: 'button', onclick: () => ctx.openInTerminal(j.command.replace(/^poo /, '')) }, 'Run again in terminal')));
+          j.redacted ? null : el('button', { type: 'button', onclick: () => ctx.openInTerminal(j.command.replace(/^poon /, '')) }, 'Run again in terminal')));
       }
     }
     function showJob(j) {

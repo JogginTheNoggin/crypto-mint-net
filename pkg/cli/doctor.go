@@ -21,7 +21,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
 
-// poo doctor checks a node's setup and says what to fix (GREEN-004). It
+// poon doctor checks a node's setup and says what to fix (GREEN-004). It
 // only reads: it never writes a file, takes the data directory's lock or
 // dials anything but the node's own local addresses, so it is safe to run
 // beside a running node.
@@ -40,12 +40,12 @@ type Check struct {
 	Result string `json:"result"`
 	Detail string `json:"detail"`
 	Fix    string `json:"fix,omitempty"`
-	// FixArgs is the fix as a poo command line, when the fix is one
+	// FixArgs is the fix as a poon command line, when the fix is one
 	// command, so a front end can offer to run exactly that (GREEN-022).
 	FixArgs []string `json:"fix_args,omitempty"`
 }
 
-// DoctorReport is what poo doctor -json prints.
+// DoctorReport is what poon doctor -json prints.
 type DoctorReport struct {
 	Dir    string  `json:"dir"`
 	OK     bool    `json:"ok"` // no check failed
@@ -68,7 +68,7 @@ func doctorCmd(args []string, out io.Writer) error {
 	rep := doctor(out, w.resolve())
 	// A fix run as printed must change the node policy that was checked:
 	// when -root, -policy or -dir chose it, each fix_args names it by
-	// -dir, or "poo grind schedule set" would change the current one
+	// -dir, or "poon grind schedule set" would change the current one
 	// (GREEN-036).
 	chosen := false
 	fs.Visit(func(f *flag.Flag) {
@@ -135,11 +135,11 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		add(Check{Name: "policy", Result: checkFail, Detail: "no node policy at " + path,
-			Fix: "poo init (or poo init -example to try the worked example), or pick one with -policy or -dir", FixArgs: []string{"init"}})
+			Fix: "poon init (or poon init -example to try the worked example), or pick one with -policy or -dir", FixArgs: []string{"init"}})
 		skipRest("files", "series", "grind", "rpc", "p2p")
 		return rep
 	case err != nil:
-		add(Check{Name: "policy", Result: checkFail, Detail: err.Error(), Fix: "correct " + path + "; poo node refuses it as it is"})
+		add(Check{Name: "policy", Result: checkFail, Detail: err.Error(), Fix: "correct " + path + "; poon node refuses it as it is"})
 		skipRest("files", "series", "grind", "rpc", "p2p")
 		return rep
 	}
@@ -149,7 +149,7 @@ func doctor(out io.Writer, dir string) DoctorReport {
 		// none), so the fix names the value to write (GREEN-044).
 		fix := fmt.Sprintf("set %s to %d in %s", n.Field, n.Now, path)
 		if len(n.FixArgs) > 0 {
-			fix = "poo " + strings.Join(n.FixArgs, " ") + " (or edit " + path + ")"
+			fix = "poon " + strings.Join(n.FixArgs, " ") + " (or edit " + path + ")"
 		}
 		add(Check{Name: "policy", Result: checkWarn, Detail: n.String(), Fix: fix, FixArgs: n.FixArgs})
 	}
@@ -186,7 +186,7 @@ func doctor(out io.Writer, dir string) DoctorReport {
 			Fix: fix})
 	case len(accepted) == 0:
 		add(Check{Name: "series", Result: checkWarn, Detail: "the policy lists no series, so the node follows nothing",
-			Fix: "add a series with poo init -series FILE, then poo follow"})
+			Fix: "add a series with poon init -series FILE, then poon follow"})
 	default:
 		add(Check{Name: "series", Result: checkOK, Detail: fmt.Sprintf("%d accepted", len(accepted))})
 	}
@@ -201,7 +201,7 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	}
 	if len(loose) > 0 {
 		add(Check{Name: "ceiling", Result: checkWarn, Detail: strings.Join(loose, "; "),
-			Fix: "follow such a series only on purpose; poo policy limits -set series_ceiling=N declines new ones on import"})
+			Fix: "follow such a series only on purpose; poon policy limits -set series_ceiling=N declines new ones on import"})
 	}
 
 	// One store file per pool in use, and room for peers: a limit below
@@ -225,7 +225,7 @@ func doctor(out io.Writer, dir string) DoctorReport {
 	}
 	if len(bad) > 0 {
 		add(Check{Name: "releases", Result: checkWarn, Detail: "not used: " + strings.Join(bad, "; "),
-			Fix: "give the node a valid release with poo series add-release FILE; it replaces the one kept"})
+			Fix: "give the node a valid release with poon series add-release FILE; it replaces the one kept"})
 	}
 
 	// 4. Grinding: the devices, and the grind section's.
@@ -285,7 +285,7 @@ func unknownSettingsChecks(p nodepolicy.Policy) []Check {
 	return out
 }
 
-// releaseCheck compares the running node's release with this poo's
+// releaseCheck compares the running node's release with this poon's
 // (W-10, D184): after an upgrade the node keeps running the old binary
 // until it restarts (GREEN-057).
 func releaseCheck(st rpc.StatusReply) Check {
@@ -301,15 +301,15 @@ func releaseCheck(st rpc.StatusReply) Check {
 	switch {
 	case theirs.Version == "":
 		c.Result = checkWarn
-		c.Detail = "the node does not say its release, so it runs one older than this poo " + show(mine)
+		c.Detail = "the node does not say its release, so it runs one older than this poon " + show(mine)
 		c.Fix = "restart the node so it runs this release"
 	case theirs.Version != mine.Version || (theirs.Commit != "" && mine.Commit != "" && theirs.Commit != mine.Commit):
 		c.Result = checkWarn
-		c.Detail = "the node runs " + show(theirs) + ", but this poo is " + show(mine)
-		c.Fix = "if this poo is the upgrade, restart the node so it runs it; otherwise use the poo that matches the node"
+		c.Detail = "the node runs " + show(theirs) + ", but this poon is " + show(mine)
+		c.Fix = "if this poon is the upgrade, restart the node so it runs it; otherwise use the poon that matches the node"
 	default:
 		c.Result = checkOK
-		c.Detail = "the node runs " + show(theirs) + ", as this poo does"
+		c.Detail = "the node runs " + show(theirs) + ", as this poon does"
 	}
 	return c
 }
@@ -349,7 +349,7 @@ func snapshotsCheck(st rpc.StatusReply) Check {
 	case r.Differed > 0:
 		c.Result = checkWarn
 		c.Detail = fmt.Sprintf("-reverify found %d pool snapshots that differ from a full replay of their logs; the node runs on the replay", r.Differed)
-		c.Fix = "please report this as a bug, with poo version -v; the node keeps working, and the next stop writes snapshots from the replayed pools"
+		c.Fix = "please report this as a bug, with poon version -v; the node keeps working, and the next stop writes snapshots from the replayed pools"
 	case len(r.NotCompared) > 0:
 		// -reverify was asked for and compared nothing for these pools;
 		// that is never "ok" (RED-088, D181).
@@ -436,7 +436,7 @@ func portMapCheck(st rpc.StatusReply) (Check, bool) {
 			asked = "asked the router at " + pm.Gateway
 		}
 		c.Detail = "the router gave no mapping (" + asked + "): " + pm.Error + nextTry(pm)
-		c.Fix = "turn on NAT-PMP, PCP or UPnP in the router, or set p2p.port_map_gateway if that is not your router; otherwise forward the port by hand and set p2p.advertise. The node keeps trying, and poo reload tries again at once"
+		c.Fix = "turn on NAT-PMP, PCP or UPnP in the router, or set p2p.port_map_gateway if that is not your router; otherwise forward the port by hand and set p2p.advertise. The node keeps trying, and poon reload tries again at once"
 	}
 	return c, true
 }
@@ -496,7 +496,7 @@ func grindCheck(p nodepolicy.Policy, accepted []nodepolicy.Accepted) Check {
 	}
 	if len(slow) > 0 {
 		return Check{Name: "grind", Result: checkWarn, Detail: strings.Join(slow, "; "),
-			Fix: "grinding works but slower; poo grind bench shows how fast"}
+			Fix: "grinding works but slower; poon grind bench shows how fast"}
 	}
 	jobs := 0
 	if p.Grind != nil {
@@ -531,7 +531,7 @@ func filesCheck(dir string) Check {
 func rpcCheck(out io.Writer, dir string) (Check, bool) {
 	addrPath := filepath.Join(dir, rpc.AddrFile)
 	if _, err := os.Stat(addrPath); errors.Is(err, fs.ErrNotExist) {
-		return Check{Name: "rpc", Result: checkWarn, Detail: "the node is not running (no " + rpc.AddrFile + ")", Fix: "poo node", FixArgs: []string{"node"}}, false
+		return Check{Name: "rpc", Result: checkWarn, Detail: "the node is not running (no " + rpc.AddrFile + ")", Fix: "poon node", FixArgs: []string{"node"}}, false
 	}
 	cl, err := dialNode(out, dir)
 	if errors.Is(err, rpc.ErrNoProof) {
@@ -541,7 +541,7 @@ func rpcCheck(out io.Writer, dir string) (Check, bool) {
 	var dial *net.OpError
 	if errors.As(err, &dial) {
 		return Check{Name: "rpc", Result: checkFail, Detail: rpc.AddrFile + " is left over: nothing answers at its address (" + dial.Error() + ")",
-			Fix: "the node stopped without cleaning up; start it with poo node, which rewrites the file"}, false
+			Fix: "the node stopped without cleaning up; start it with poon node, which rewrites the file"}, false
 	}
 	if err != nil {
 		return Check{Name: "rpc", Result: checkFail, Detail: err.Error(), Fix: "restart the node; it writes a new token if " + rpc.TokenFile + " is missing"}, false
@@ -553,14 +553,14 @@ func rpcCheck(out io.Writer, dir string) (Check, bool) {
 	switch {
 	case err == nil && st.PolicyChanged:
 		return Check{Name: "rpc", Result: checkWarn, Detail: fmt.Sprintf("the node answers, following %d pools, but %s has changed since it loaded it, and the change waits for a reload", len(st.Pools), nodepolicy.FileName),
-			Fix: "poo reload", FixArgs: []string{"reload"}}, true
+			Fix: "poon reload", FixArgs: []string{"reload"}}, true
 	case err == nil:
 		return Check{Name: "rpc", Result: checkOK, Detail: fmt.Sprintf("the node answers, following %d pools", len(st.Pools))}, true
 	case errors.As(err, &re) && re.Code == rpc.CodeUnauthorized:
 		return Check{Name: "rpc", Result: checkFail, Detail: "the node refuses " + rpc.TokenFile, Fix: "another node may be listening on that address; check " + addrPath}, false
 	case errors.As(err, &oe) && oe.Op == "dial", errors.As(err, &ne):
 		return Check{Name: "rpc", Result: checkFail, Detail: rpc.AddrFile + " is left over: nothing answers at its address (" + err.Error() + ")",
-			Fix: "the node stopped without cleaning up; start it with poo node, which rewrites the file"}, false
+			Fix: "the node stopped without cleaning up; start it with poon node, which rewrites the file"}, false
 	default:
 		return Check{Name: "rpc", Result: checkFail, Detail: err.Error()}, false
 	}
@@ -571,7 +571,7 @@ func rpcCheck(out io.Writer, dir string) (Check, bool) {
 func p2pCheck(out io.Writer, dir string, p nodepolicy.Policy) Check {
 	if p.P2PListenAddr() == "" && len(p.P2P.Peers) == 0 && len(p.P2P.Registries) == 0 {
 		return Check{Name: "p2p", Result: checkWarn, Detail: "p2p listen is off and no peers or registries are set, so the node is alone",
-			Fix: "add p2p.peers or p2p.registries (poo init -peer ADDR), or set p2p.listen"}
+			Fix: "add p2p.peers or p2p.registries (poon init -peer ADDR), or set p2p.listen"}
 	}
 	cl, err := dialNode(out, dir)
 	if err != nil {

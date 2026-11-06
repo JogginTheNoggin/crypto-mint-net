@@ -1,6 +1,6 @@
-// Getting started: the first steps with poo as a list of command lines.
+// Getting started: the first steps with poon as a list of command lines.
 // Each step only types its line into the terminal; the terminal runs it
-// exactly as poo would, so the guide teaches the headless tool too. Steps
+// exactly as poon would, so the guide teaches the headless tool too. Steps
 // marked policy get the -root and -policy from Settings, so they act on
 // the same node policy as the views; with none set, the line is unchanged.
 import { el } from './views.js';
@@ -15,7 +15,7 @@ const steps = [
   { title: 'See the cryptographic choices', line: 'crypto',
     text: 'Lists the hashes, key algorithms and policy types a series can choose from.' },
   { title: 'Write a node policy', line: 'init', policy: true, view: 'node',
-    text: 'Writes a node policy that follows the built-in default series, the one every node follows out of the box, and makes it current; poo prints the series\' full id. Add -p2p and -peer to join other nodes, or use -example to try the documents\' small worked example instead.' },
+    text: 'Writes a node policy that follows the built-in default series, the one every node follows out of the box, and makes it current; poon prints the series\' full id. Add -p2p and -peer to join other nodes, or use -example to try the documents\' small worked example instead.' },
   { title: 'Run the node', line: 'node', policy: true,
     text: 'Starts the full node. Use "Run in background" in the terminal to keep it going while you do the next steps.' },
   { title: 'Look at the node', line: 'status', policy: true, view: 'node',
@@ -42,20 +42,20 @@ export const startView = {
   title: 'Getting started',
   mount(root, ctx) {
     const list = el('ol', { class: 'steps' });
-    const flags = api.quote(where.flags()).replace(/^poo ?/, '');
+    const flags = api.quote(where.flags()).replace(/^poon ?/, '');
     for (const st of steps) {
       const s = { ...st, line: st.policy && flags ? `${st.line} ${flags}` : st.line };
       list.append(el('li', {},
         el('h2', {}, s.title),
         el('p', {}, s.text),
         el('div', { class: 'step-cmd' },
-          el('code', {}, `poo ${s.line}`),
+          el('code', {}, `poon ${s.line}`),
           el('button', { type: 'button', class: 'primary', onclick: () => ctx.openInTerminal(s.line) }, 'Run in terminal'),
           // The view that runs the same command with forms (GREEN-036).
           s.view ? el('a', { href: `#/${s.view}`, class: 'step-view' }, `Open the ${viewTitle(s.view)} view`) : null)));
     }
     root.append(el('h1', {}, 'Getting started'),
-      el('p', { class: 'hint' }, 'Each step is one poo command. Running it here is the same as typing it after poo in a shell.'),
+      el('p', { class: 'hint' }, 'Each step is one poon command. Running it here is the same as typing it after poon in a shell.'),
       list);
   },
 };

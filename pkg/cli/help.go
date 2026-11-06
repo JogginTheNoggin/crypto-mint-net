@@ -14,7 +14,7 @@ func commandNames() []string {
 	var names []string
 	seen := map[string]bool{}
 	for _, line := range strings.Split(usage, "\n") {
-		rest, ok := strings.CutPrefix(line, "  poo ")
+		rest, ok := strings.CutPrefix(line, "  poon ")
 		if !ok {
 			continue
 		}
@@ -33,7 +33,7 @@ func commandUsage(name string) string {
 	var b strings.Builder
 	in := false
 	for _, line := range strings.Split(usage, "\n") {
-		if rest, ok := strings.CutPrefix(line, "  poo "); ok {
+		if rest, ok := strings.CutPrefix(line, "  poon "); ok {
 			n, _, _ := strings.Cut(rest, " ")
 			in = n == name
 		} else if !strings.HasPrefix(line, "    ") {
@@ -58,7 +58,7 @@ func helpCmd(args []string, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "Usage:\n%s", u)
 	if args[0] == "wallet" || args[0] == "sim" {
-		fmt.Fprintf(out, "\nMore: poo %s help\n", args[0])
+		fmt.Fprintf(out, "\nMore: poon %s help\n", args[0])
 	}
 	return nil
 }
@@ -67,9 +67,9 @@ func helpCmd(args []string, out io.Writer) error {
 // with the nearest commands when the name looks like a typo of one.
 func unknownCommand(name string) error {
 	if s := suggest(name, commandNames()); len(s) > 0 {
-		return fmt.Errorf("unknown command %q; did you mean %s? (poo help lists every command)", name, strings.Join(s, " or "))
+		return fmt.Errorf("unknown command %q; did you mean %s? (poon help lists every command)", name, strings.Join(s, " or "))
 	}
-	return fmt.Errorf("unknown command %q (poo help lists every command)", name)
+	return fmt.Errorf("unknown command %q (poon help lists every command)", name)
 }
 
 // suggest returns the names within a small edit distance of s, nearest

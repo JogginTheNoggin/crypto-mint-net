@@ -1,6 +1,6 @@
 // Package daemon runs a full node: it opens the node in a data directory,
 // runs its p2p host and its local interface, and stops them together. It
-// is the one place that starts a node, so the command line (poo node) and
+// is the one place that starts a node, so the command line (poon node) and
 // any graphical front end run exactly the same thing.
 //
 // A running node applies a changed node policy without a restart of the
@@ -66,7 +66,7 @@ func Run(ctx context.Context, dir string, o Options) error {
 		again, err := runOnce(ctx, dir, log, o)
 		// A reload closes the node, which lets go of the data directory's
 		// lock, then opens it again. A command that takes the lock in that
-		// gap (an offline poo policy limits -set or series add-release,
+		// gap (an offline poon policy limits -set or series add-release,
 		// which found no node answering) made the node stop for good.
 		// After a reload the node waits for the lock instead, for up to
 		// reloadLockWait (GREEN-050). The first start still refuses a

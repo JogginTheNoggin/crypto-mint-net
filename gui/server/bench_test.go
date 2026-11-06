@@ -62,7 +62,7 @@ func BenchmarkRunCommand(b *testing.B) {
 		main jobs.MainFunc
 	}{
 		{"noop", func(ctx context.Context, args []string, s cli.Stdio) int { fmt.Fprintln(s.Out, "{}"); return 0 }},
-		{"poo-crypto", cli.Main},
+		{"poon-crypto", cli.Main},
 	} {
 		b.Run(c.name, func(b *testing.B) {
 			srv, ck := benchServer(b, c.main)
@@ -75,7 +75,7 @@ func BenchmarkRunCommand(b *testing.B) {
 }
 
 // BenchmarkStream is a job printing lines as fast as it can, read
-// through GET /api/jobs/{id}/events, as the Watch view reads poo watch.
+// through GET /api/jobs/{id}/events, as the Watch view reads poon watch.
 func BenchmarkStream(b *testing.B) {
 	line := `{"seq":1,"kind":"tx","pool":0,"tid":"` + strings.Repeat("ab", 32) + `","weight":"1000","origin":"peer"}` + "\n"
 	for _, n := range []int{10000} {

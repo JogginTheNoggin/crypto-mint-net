@@ -25,9 +25,9 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
-// Ledger files (D188): poo ledger export writes a stretch of a pool's
+// Ledger files (D188): poon ledger export writes a stretch of a pool's
 // selected ledger, oldest first, as raw entry items with a readable
-// summary of each; poo ledger import hands the items to the node, which
+// summary of each; poon ledger import hands the items to the node, which
 // checks every one as it checks an entry a peer sent. Nothing in a ledger
 // file is trusted.
 
@@ -81,14 +81,14 @@ func ledgerExportCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("poo ledger export takes flags only")
+		return errors.New("poon ledger export takes flags only")
 	}
 	// Pools are numbered from 0, so ask whether -pool was given rather
 	// than whether it is 0.
 	gotPool := false
 	fs.Visit(func(f *flag.Flag) { gotPool = gotPool || f.Name == "pool" })
 	if !gotPool {
-		return errors.New("poo ledger export needs -pool")
+		return errors.New("poon ledger export needs -pool")
 	}
 	if *from < 1 || (*to != 0 && *to < *from) {
 		return fmt.Errorf("-from %d -to %d: from is at least 1 and to, when given, is at least from", *from, *to)
@@ -205,7 +205,7 @@ func writeLedgerFile(dst io.Writer, cl ledgerExporter, sid *hash.Hash, pool uint
 	switched := errors.New("the node switched ledgers during the export; run it again")
 	for {
 		if page.Unreadable > 0 {
-			return n, fmt.Errorf("the entry at height %d cannot be read back from the node's log; poo doctor says more", from+len(page.Items))
+			return n, fmt.Errorf("the entry at height %d cannot be read back from the node's log; poon doctor says more", from+len(page.Items))
 		}
 		for i, b := range page.Items {
 			line, err := json.Marshal(ledgerFileItem{ExportEntry: page.Entries[i], Item: b})
@@ -258,7 +258,7 @@ func importErr(err error, f ledgerFile, done int, so node.ImportResult) error {
 	case strings.Contains(msg, engine.ErrUnknownSeries.Error()):
 		err = fmt.Errorf("%w: the file is for series %s, which this node does not know; add the series to the node policy, follow pool %d, then import again", err, f.Series, f.Pool)
 	case strings.Contains(msg, engine.ErrNotFollowed.Error()):
-		err = fmt.Errorf("%w: the file is for pool %d of series %s; poo follow -series %s -pool %d, then import again", err, f.Pool, f.Series, f.Series, f.Pool)
+		err = fmt.Errorf("%w: the file is for pool %d of series %s; poon follow -series %s -pool %d, then import again", err, f.Pool, f.Series, f.Series, f.Pool)
 	}
 	if done > 0 {
 		// The file is read as it streams, so how many entries it holds in
@@ -268,7 +268,7 @@ func importErr(err error, f ledgerFile, done int, so node.ImportResult) error {
 	return err
 }
 
-// LedgerImportReply is what poo ledger import prints: the node's totals
+// LedgerImportReply is what poon ledger import prints: the node's totals
 // over every batch sent, how many entries were sent, and, when the import
 // stopped before the end of the file, why. Batches sent before a stop
 // are kept and may have switched the selected ledger, so the totals are
@@ -281,7 +281,7 @@ type LedgerImportReply struct {
 	Stopped string `json:"stopped,omitempty"`
 }
 
-// LedgerDryRun is what poo ledger import -dry-run prints: the file read
+// LedgerDryRun is what poon ledger import -dry-run prints: the file read
 // and checked against itself, with nothing sent to the node (RED-098).
 type LedgerDryRun struct {
 	Series hash.Hash `json:"series"`
@@ -324,7 +324,7 @@ func ledgerImportCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: poo ledger import [-dry-run] FILE|-")
+		return errors.New("usage: poon ledger import [-dry-run] FILE|-")
 	}
 	var r io.Reader
 	if pos[0] == "-" {
@@ -456,7 +456,7 @@ func ledgerDryRun(r io.Reader, dir string, o *outputFlags, out io.Writer) error 
 		case !rep.SeriesKnown:
 			rep.Note = fmt.Sprintf("this node does not know series %s, so a real import is refused; add the series to the node policy and follow pool %d first", h.Series, h.Pool)
 		case !rep.PoolFollowed:
-			rep.Note = fmt.Sprintf("this node does not follow pool %d, so a real import is refused; poo follow -series %s -pool %d first", h.Pool, h.Series, h.Pool)
+			rep.Note = fmt.Sprintf("this node does not follow pool %d, so a real import is refused; poon follow -series %s -pool %d first", h.Pool, h.Series, h.Pool)
 		}
 		return nil
 	}

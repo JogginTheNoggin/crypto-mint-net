@@ -8,7 +8,7 @@ import (
 )
 
 // flagsFor refuses a flag given to a subcommand it does nothing for, such
-// as poo peer unblock -range or poo sim load -share, which were silently
+// as poon peer unblock -range or poon sim load -share, which were silently
 // ignored and so looked as if they had taken effect (GREEN-015). owners
 // maps a flag to the subcommands that read it; flags it does not name
 // apply to every subcommand.

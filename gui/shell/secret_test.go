@@ -38,7 +38,7 @@ func TestRedact(t *testing.T) {
 	}
 }
 
-// TestSecretFlagsExist fails if poo renames a secret flag, so the list
+// TestSecretFlagsExist fails if poon renames a secret flag, so the list
 // cannot silently go stale.
 func TestSecretFlagsExist(t *testing.T) {
 	for _, c := range []struct {
@@ -51,7 +51,7 @@ func TestSecretFlagsExist(t *testing.T) {
 		var out bytes.Buffer
 		cli.Main(context.Background(), c.args, cli.Stdio{Out: &out, Err: &out})
 		if !strings.Contains(out.String(), c.flag+" ") && !strings.Contains(out.String(), c.flag+"\n") {
-			t.Errorf("poo %s has no %s flag:\n%s", strings.Join(c.args, " "), c.flag, out.String())
+			t.Errorf("poon %s has no %s flag:\n%s", strings.Join(c.args, " "), c.flag, out.String())
 		}
 	}
 }
@@ -65,7 +65,7 @@ func TestSecretOutput(t *testing.T) {
 		{[]string{"keygen"}, true},
 		{[]string{"keygen", "-alg", "ed25519"}, true},
 		{[]string{"wallet", "seed"}, true},
-		{[]string{"wallet", "-wallet", "w.json", "seed"}, false}, // -wallet's value reads as a word; poo takes flags after the subcommand
+		{[]string{"wallet", "-wallet", "w.json", "seed"}, false}, // -wallet's value reads as a word; poon takes flags after the subcommand
 		{[]string{"wallet", "seed", "-wallet", "w.json"}, true},
 		{[]string{"wallet", "balance"}, false},
 		{[]string{"status"}, false},

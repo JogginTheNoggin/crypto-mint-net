@@ -32,8 +32,8 @@ func TestSeriesIDTextIsQuoted(t *testing.T) {
 	}
 }
 
-// RED-074: a release file with a key poo does not write is refused; the
-// keys poo series release adds for people are read.
+// RED-074: a release file with a key poon does not write is refused; the
+// keys poon series release adds for people are read.
 func TestReleaseFileKeys(t *testing.T) {
 	base := `{"series":"` + strings.Repeat("00", 32) + `","part":2,"previous":"` + strings.Repeat("00", 32) + `","witness":"00"`
 	var r series.Release
@@ -41,6 +41,6 @@ func TestReleaseFileKeys(t *testing.T) {
 		t.Fatalf("unknown key: %v", err)
 	}
 	if err := json.Unmarshal([]byte(base+`,"part_id":"x","first_serial":1,"last_serial":2,"first_pool":0,"last_pool":0,"mints":4,"units":4}`), &r); errors.Is(err, series.ErrUnknownKey) {
-		t.Fatalf("poo's own keys: %v", err)
+		t.Fatalf("poon's own keys: %v", err)
 	}
 }

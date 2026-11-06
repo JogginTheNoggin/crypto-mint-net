@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -45,7 +46,7 @@ func editPolicy(t *testing.T, dir string, f func(*nodepolicy.Policy)) {
 func TestBountyMarket(t *testing.T) {
 	createIterations = 1
 	defer func() { createIterations = 0 }()
-	t.Setenv("POO_PASSPHRASE", "pw")
+	t.Setenv("POON_PASSPHRASE", "pw")
 	payer, grinder := t.TempDir(), t.TempDir()
 	pr, gr := []string{"-root", payer}, []string{"-root", grinder}
 	gAddr := freeAddr(t)
@@ -119,6 +120,9 @@ func TestBountyMarket(t *testing.T) {
 	if len(seen.Held) != 1 || seen.Held[0].ID != posted.Offer.ID {
 		t.Fatalf("held %+v", seen.Held)
 	}
+	if seen.Asked == nil || *seen.Asked != 1 { // GUI-GREEN-065
+		t.Fatalf("asked %v, want 1 peer", seen.Asked)
+	}
 	gw := append([]string{"-wallet", filepath.Join(grinder, "w.json")}, gr...)
 	cli(t, nil, append([]string{"wallet", "create"}, gw...)...)
 	var addr struct{ Address string }
@@ -148,6 +152,22 @@ func TestBountyMarket(t *testing.T) {
 		t.Fatalf("a failed record: %v\n%s", err, out)
 	}
 	if err := os.Remove(donePath); err != nil {
+		t.Fatal(err)
+	}
+	// The wallet then reads its leg as dropped (as after a refresh while
+	// the node had lost it). Pay asks the node again and sends it again
+	// rather than paying anew (RED-120); the node holds it, so it is
+	// recorded as it is.
+	wpath := filepath.Join(payer, "w.json")
+	wraw, err := os.ReadFile(wpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`"state":\s*"pending"`)
+	if !re.Match(wraw) {
+		t.Fatalf("no pending leg in the wallet:\n%s", wraw)
+	}
+	if err := os.WriteFile(wpath, re.ReplaceAll(wraw, []byte(`"state": "dropped"`)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var paid BountyPayReply

@@ -271,7 +271,7 @@ func (p *Policy) setFollowWith(fs []Follow, look func(hash.Hash) (*series.Series
 		}
 	}
 	if n > MaxSections {
-		return fmt.Errorf("%w: the follow list would need %d separate sections, and a node announces at most %d: follow the whole series and take the pools you do not want off it (poo unfollow -pool)", ErrInvalid, n, MaxSections)
+		return fmt.Errorf("%w: the follow list would need %d separate sections, and a node announces at most %d: follow the whole series and take the pools you do not want off it (poon unfollow -pool)", ErrInvalid, n, MaxSections)
 	}
 	p.Follow = fs
 	return nil
@@ -327,7 +327,7 @@ func waitingNote(s *series.Series, serial uint64) string {
 	if err != nil {
 		return ""
 	}
-	return fmt.Sprintf(": it is in part %d, which this node does not know released yet (waiting for a release; give it one with poo series add-release)", k)
+	return fmt.Sprintf(": it is in part %d, which this node does not know released yet (waiting for a release; give it one with poon series add-release)", k)
 }
 
 // series returns a listed series by id, with the parts its kept release
@@ -400,7 +400,7 @@ func intersect(a, b []uint64) []uint64 {
 // among the accepted series, as the node applies them at start: a rule
 // for its issuer or for the whole series, one that lists the pool or a
 // mint in it, or a whole-series rule that does not except it. A command
-// that runs without the node, such as poo ledger import -dry-run, uses
+// that runs without the node, such as poon ledger import -dry-run, uses
 // it to say whether an import would be taken (GREEN-059).
 func (p Policy) FollowsPool(accepted []Accepted, id hash.Hash, k uint64) bool {
 	var s *series.Series

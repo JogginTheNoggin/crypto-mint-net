@@ -3,8 +3,8 @@
 // Each view is one file in this directory that exports an object
 // { id, title, mount(root, ctx) }. mount draws the view into root, using
 // the panel and form helpers in ../views.js, and returns a function that
-// stops what it started (or nothing). Every action is a poo command line
-// those helpers show and run; a view computes nothing poo does not print.
+// stops what it started (or nothing). Every action is a poon command line
+// those helpers show and run; a view computes nothing poon does not print.
 //
 // To add a view: write views/NAME.js, add it below, and add a row to
 // docs/FEATURES.md. The navigation, the narrow-window menu and the e2e

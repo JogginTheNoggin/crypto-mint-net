@@ -11,7 +11,7 @@ import (
 // TestMain keeps every test's remembered port out of the user's own
 // config directory.
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "poo-gui-config-")
+	dir, err := os.MkdirTemp("", "poon-gui-config-")
 	if err != nil {
 		panic(err)
 	}
@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// TestListenRemembersPort checks that with no -listen poo-gui comes back
+// TestListenRemembersPort checks that with no -listen poon-gui comes back
 // on the port it used last, so the browser's saved settings (kept per
 // origin, port included) survive a restart (GUI White G1).
 func TestListenRemembersPort(t *testing.T) {

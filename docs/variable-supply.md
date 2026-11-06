@@ -35,7 +35,7 @@ built only as those documents specify. Anything else needs his permission.
 
 | Phase | Round | What | State |
 | --- | --- | --- | --- |
-| 1 | 24 | The definition, parts and releases: params, byte form v2, validation, part ranges and ids, release records and checks, issuer tools (`poo series new -variable`, `sign`, `release`, `parts`), vectors. A node refuses to follow a variable series: it is unreadable at this node, never invalid. | Built (D163) |
+| 1 | 24 | The definition, parts and releases: params, byte form v2, validation, part ranges and ids, release records and checks, issuer tools (`poon series new -variable`, `sign`, `release`, `parts`), vectors. A node refuses to follow a variable series: it is unreadable at this node, never invalid. | Built (D163) |
 | 2 | 25 | Mints and transactions: a mint names its part, the tid covers it, claims and spends on released parts, a node keeps the newest release it knows for each series, and a transaction past it waits instead of failing. Pools past part 1. A node follows variable series. | Built (D166) |
 | 3 | 26 | Passing releases on: nodes hand releases to their peers and through the RPC, the GUI shows parts and releases, and Red and Black test the whole path. | Built (D168); the GUI and the Red and Black passes follow in Round 26 |
 
@@ -55,11 +55,11 @@ run on fixed series only.
   ignores keys it does not know, so with `hash` it would read the JSON as a
   fixed series with the same mints and another id. Without it, that node
   finds hash 0, which names no hash, and says the series is unreadable:
-  `poo series info` fails, and a node lists it as not accepted. A fixed
+  `poon series info` fails, and a node lists it as not accepted. A fixed
   series' JSON is unchanged. This node also reads D163's first form (with
   `hash`), and refuses any key it does not know (`series.ErrUnknownKey`),
   so a later extension is unreadable here instead of misread. Compare the
-  `series_id` that `poo series info` prints with the one you were given: a
+  `series_id` that `poon series info` prints with the one you were given: a
   series with another id is not the series.
 - **Byte form.** A fixed series is written in format version 1, unchanged.
   A variable series is written in format version 2: version 1's fields,
@@ -107,12 +107,12 @@ run on fixed series only.
   This is the "unknown means unreadable" rule (PoO 16.7). Until phase 2 the
   node never decides anything about a variable mint.
 - **Tools.**
-  - `poo series new -variable -part-size M [-max-parts K] -issuer ADDR`.
-  - `poo series sign FILE` prints the `issuer_witness` for node.json.
-  - `poo series release FILE -part K` signs a release as the issuer, and
+  - `poon series new -variable -part-size M [-max-parts K] -issuer ADDR`.
+  - `poon series sign FILE` prints the `issuer_witness` for node.json.
+  - `poon series release FILE -part K` signs a release as the issuer, and
     refuses a key that is not the issuer's.
-  - `poo series release FILE -check RELEASE` checks one.
-  - `poo series parts FILE` lists the parts' serials, pools and ids.
+  - `poon series release FILE -check RELEASE` checks one.
+  - `poon series parts FILE` lists the parts' serials, pools and ids.
 - **Vectors.** `pkg/vectors/testdata/variable.json` holds the document's
   example series (N = 50,000, M = 10,000, S = 1, P = 1,000), its part ids
   and a release of part 2. It sits beside the frozen v1 file.
@@ -145,16 +145,16 @@ run on fixed series only.
   Every command that reads a listed series builds it with its kept release
   (`SeriesInfo.Build`, D167), so `follow`, `unfollow` and policy import
   see the same parts as the node. A kept release that does not check is
-  left out, never the series. `poo series add-release` checks every
+  left out, never the series. `poon series add-release` checks every
   release, also one of a known part. A node keeps its own record of the
   releases it checked (`releases-checked.json`), so the next process
   checks only the witness, not the chain.
-- **Tools.** `poo series add-release RELEASE` (and `POST
+- **Tools.** `poon series add-release RELEASE` (and `POST
   /v1/series/release`) checks a release, saves it and reloads the node
   (since D168, takes it in place).
-  `poo series followed` (and `GET /v1/series`) shows `variable{released,
-  next_part, mints, units, release}`. `poo series sign` prints a signed
-  series file that `poo init -series` and `poo series info` read.
+  `poon series followed` (and `GET /v1/series`) shows `variable{released,
+  next_part, mints, units, release}`. `poon series sign` prints a signed
+  series file that `poon init -series` and `poon series info` read.
 - **Tests.** `TestFixedTxUnchanged` (2,000 random fixed transactions against
   a frozen v1 body), `TestVariableMints`, `TestVariableSeriesWaitsForRelease`,
   `TestVariableFollowed`, `TestVariableSeriesOnANode`, and a part 2 claim in
@@ -196,7 +196,7 @@ run on fixed series only.
   a start gives, the node reloads onto the saved node.json instead: a
   series followed by a list of pools (its coverage can change), or one
   followed whole that the release makes large enough to be indexed by the
-  pools in use (D154). `poo series add-release` takes the same path and
+  pools in use (D154). `poon series add-release` takes the same path and
   replies `in_place`, or `reloading` when it cannot.
 - **A series is built before its transactions are read** (Black, Round 25).
   A release names a series the node already built at start; a release of

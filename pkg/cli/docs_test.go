@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// TestDocsNameRealCommands checks that every poo command line in the docs
+// TestDocsNameRealCommands checks that every poon command line in the docs
 // names a command the tool has and only flags that command defines, so
 // the docs cannot drift from the code (GREEN-010). Proposals are left
 // out: they describe commands that do not exist yet, and typos on
@@ -33,7 +33,7 @@ func TestDocsNameRealCommands(t *testing.T) {
 		}
 		return nil
 	})
-	line := regexp.MustCompile("(?:^|`|\\$ |\\./|\\s)poo ([a-z][^`|\\n#]*)")
+	line := regexp.MustCompile("(?:^|`|\\$ |\\./|\\s)poon ([a-z][^`|\\n#]*)")
 	flagWord := regexp.MustCompile(`^-[a-z][a-z0-9-]*$`)
 	names := commandNames()
 	cache := map[string]map[string]bool{}
@@ -47,7 +47,7 @@ func TestDocsNameRealCommands(t *testing.T) {
 			for _, m := range line.FindAllStringSubmatch(text, -1) {
 				words := strings.Fields(m[1])
 				if !slices.Contains(names, words[0]) {
-					t.Errorf("%s:%d: poo %s: no such command", f, i+1, words[0])
+					t.Errorf("%s:%d: poon %s: no such command", f, i+1, words[0])
 					continue
 				}
 				path := []string{words[0]}
@@ -63,7 +63,7 @@ func TestDocsNameRealCommands(t *testing.T) {
 				}
 				for _, w := range words[len(path):] {
 					if flagWord.MatchString(w) && !cache[key][w] {
-						t.Errorf("%s:%d: poo %s: no flag %s", f, i+1, key, w)
+						t.Errorf("%s:%d: poon %s: no flag %s", f, i+1, key, w)
 					}
 				}
 				checked++

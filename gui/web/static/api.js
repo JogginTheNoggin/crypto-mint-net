@@ -1,5 +1,5 @@
-// The GUI's only way to do anything: run a poo command line on the server,
-// which passes it to cli.Main exactly as the poo binary would.
+// The GUI's only way to do anything: run a poon command line on the server,
+// which passes it to cli.Main exactly as the poon binary would.
 
 const HEADERS = { 'Content-Type': 'application/json', 'X-Poo-GUI': '1' };
 
@@ -73,14 +73,14 @@ export function follow(id, h, from = 0) {
 }
 
 // grammar is how the server splits a typed line (shell.Native): posix,
-// or windows for cmd.exe and poo.exe. viewOnly is true when every job
-// runs in poo's view-only mode (poo-gui -view-only). loadInfo asks the
-// server once. secretFlags are the poo flags whose value is a secret
+// or windows for cmd.exe and poon.exe. viewOnly is true when every job
+// runs in poon's view-only mode (poon-gui -view-only). loadInfo asks the
+// server once. secretFlags are the poon flags whose value is a secret
 // (shell.SecretFlags).
 let grammar = 'posix';
 export let viewOnly = false;
 let secretFlags = ['restore', 'seed'];
-// version is the release poo-gui and poo share (cli.Version), empty when
+// version is the release poon-gui and poon share (cli.Version), empty when
 // the server did not say (GUI White G4, GUI-GREEN-058).
 export let version = '';
 export async function loadInfo() {
@@ -91,12 +91,12 @@ export async function loadInfo() {
 }
 
 // secretLine reports whether a typed line may hold a secret: a secret
-// flag such as -restore or -seed (except in poo sim, where -seed is a
+// flag such as -restore or -seed (except in poon sim, where -seed is a
 // random-number seed). It errs toward true, since it only keeps a line
 // out of saved history (GUI-006 in security/gui/findings).
 //
-// A secret flag whose value is - (standard input) holds no secret: poo
-// asks for it in a masked field, so poo wallet create -restore - is not
+// A secret flag whose value is - (standard input) holds no secret: poon
+// asks for it in a masked field, so poon wallet create -restore - is not
 // one (GUI-GREEN-047).
 //
 // A key file flag (-key-file, -seed-file) takes a path, which is no
@@ -106,7 +106,7 @@ export async function loadInfo() {
 // flag is tried.
 export function secretLine(text) {
   const words = text.trim().split(/\s+/).map(w => w.replace(/^['"]+|['"]+$/g, ''));
-  if (words[0] === 'poo') words.shift();
+  if (words[0] === 'poon') words.shift();
   if (words.find(w => !w.startsWith('-')) === 'sim') return false;
   if (words.some((w, i) => secretFlags.some(f => {
     const m = new RegExp(`^--?${f}(=(.*))?$`).exec(w);
@@ -141,7 +141,7 @@ const KEY_RUN = 512;
 // digits in a row once the separators a key is often printed with are
 // taken out (colons as openssl prints it, spaces, dashes, a dot at the
 // end), and no / or \ or other dot in it (GUI-032). The Wallet view's
-// sign form, the terminal's history (secretLine) and poo-gui's
+// sign form, the terminal's history (secretLine) and poon-gui's
 // shell.LooksLikeKey use the same test.
 export function looksLikeKey(s) {
   if (typeof s !== 'string') return false;
@@ -149,11 +149,11 @@ export function looksLikeKey(s) {
   return !/[/\\.]/.test(t) && /[0-9a-fA-F]{32,}/.test(t.replace(/[\s:-]/g, ''));
 }
 
-// quote shows args as the poo command line the platform's shell would
+// quote shows args as the poon command line the platform's shell would
 // take, and that the terminal splits back into args. It is shell.Quote in
 // gui/shell/shell.go, which the tests pin.
 export function quote(args) {
-  return ['poo', ...args.map(grammar === 'windows' ? quoteWindows : quotePOSIX)].join(' ');
+  return ['poon', ...args.map(grammar === 'windows' ? quoteWindows : quotePOSIX)].join(' ');
 }
 
 // copyLine is the line Copy puts on the clipboard, to be pasted into a
@@ -167,7 +167,7 @@ export function quote(args) {
 export function copyLine(args) {
   if (grammar !== 'windows') return quote(args);
   const words = args.map(copyWordWindows);
-  return words.includes(null) ? null : ['poo', ...words].join(' ');
+  return words.includes(null) ? null : ['poon', ...words].join(' ');
 }
 
 function copyWordWindows(a) {

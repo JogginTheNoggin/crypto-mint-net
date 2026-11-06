@@ -56,7 +56,7 @@ func TestHelpCommand(t *testing.T) {
 	if err := run([]string{"help", "ledger"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "poo ledger -pool K") || strings.Contains(out.String(), "poo pending") {
+	if !strings.Contains(out.String(), "poon ledger -pool K") || strings.Contains(out.String(), "poon pending") {
 		t.Fatalf("help ledger:\n%s", out.String())
 	}
 	out.Reset()

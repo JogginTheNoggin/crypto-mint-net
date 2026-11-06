@@ -17,7 +17,7 @@ const (
 )
 
 // allowed are the only core packages the GUI may import. Everything the
-// GUI does goes through the poo commands, so it cannot re-implement or
+// GUI does goes through the poon commands, so it cannot re-implement or
 // bypass them (docs/gui.md, D86).
 var allowed = map[string]bool{core + "/pkg/cli": true}
 

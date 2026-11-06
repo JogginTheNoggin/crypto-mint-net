@@ -1,6 +1,6 @@
 // Package rpc is the node's local control interface: JSON over HTTP, on a
 // loopback address by default, for the node's owner and their tools (a
-// wallet, a script, the poo command). It is not the peer-to-peer protocol;
+// wallet, a script, the poon command). It is not the peer-to-peer protocol;
 // that is package p2p, and this interface only reports on it.
 //
 // Every request must carry the node's token, "Authorization: Bearer
@@ -107,7 +107,7 @@ const MaxBody = 8 << 20
 // MaxImportBody bounds a node policy import sent with the full token: any
 // node policy a bundle the node reads can hold (nodepolicy.MaxBundleSize),
 // even if encoding it again escapes every byte (six bytes each), and the
-// options, so poo policy import never reads a file the node then refuses
+// options, so poon policy import never reads a file the node then refuses
 // (RED-045, D150).
 const MaxImportBody = 6*nodepolicy.MaxBundleSize + MaxBody
 
@@ -363,7 +363,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/entry":
 		// An entry has no size bound: the node takes one of any size from
 		// a peer, in parts (D117), so the full token may hand it one of
-		// any size too, as poo submit and the GUI do (RED-038, D144).
+		// any size too, as poon submit and the GUI do (RED-038, D144).
 	case full && r.Method == http.MethodPost && r.URL.Path == "/v1/ledger/import":
 		// Entry items, like /v1/entry, have no size bound; the call holds
 		// at most node.MaxImportItems of them (D188), and past its first
@@ -487,7 +487,7 @@ type StatusReply struct {
 	Replay  node.ReplayStats `json:"replay"`
 	// PolicyChanged says node.json now differs from the policy the node
 	// runs, outside the grind section it applies at once: a change made
-	// with -no-reload or by hand waits for poo reload (GREEN-037). Limits
+	// with -no-reload or by hand waits for poon reload (GREEN-037). Limits
 	// applied in place count as applied (D168).
 	PolicyChanged bool `json:"policy_changed,omitempty"`
 	// Bodies is where the node's entry bodies are: the cache bounded by
@@ -576,7 +576,7 @@ func Builtin(id hash.Hash) string {
 }
 
 // VariableInfo is what a node knows of a variable series' parts, worked out
-// by poo so a front end holds no rule of its own (GUI-GREEN-050).
+// by poon so a front end holds no rule of its own (GUI-GREEN-050).
 type VariableInfo struct {
 	// Released is the newest part released at this node.
 	Released uint64 `json:"released"`
@@ -952,7 +952,7 @@ func WorkTriesFor(s *series.Series) uint64 {
 	return n
 }
 
-// DefaultWorkTries is the nonces poo work tries when neither -tries nor
+// DefaultWorkTries is the nonces poon work tries when neither -tries nor
 // -for is given: 65,536, or 2^(floor+2) for a series whose floor needs
 // more (about a 98% chance of a layer at the floor), within WorkTriesFor.
 func DefaultWorkTries(s *series.Series) uint64 {
@@ -1070,7 +1070,7 @@ type PaymentReply struct {
 	Rivals []RivalInfo `json:"rivals,omitempty"`
 	// Unreadable is set when the payment is selected but its entry's body
 	// cannot be read back from the node's log, so tx is missing; rivals
-	// are still complete (RED-084, D173). poo doctor reports the damage.
+	// are still complete (RED-084, D173). poon doctor reports the damage.
 	Unreadable bool `json:"unreadable,omitempty"`
 }
 

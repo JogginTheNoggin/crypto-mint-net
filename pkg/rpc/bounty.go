@@ -41,6 +41,9 @@ type BountyReply struct {
 	// Notes say what in the settings will not work as most likely meant,
 	// such as posting on with no spending limits (GUI-GREEN-064, D202).
 	Notes []string `json:"notes,omitempty"`
+	// Asked is how many peers poon bounty list -ask asked, given only
+	// with -ask (GUI-GREEN-065, D204).
+	Asked *int `json:"asked,omitempty"`
 }
 
 // BountyPostRequest posts an offer.
@@ -184,7 +187,7 @@ func (h *Handler) bountyPost(w http.ResponseWriter, r *http.Request) {
 		ks := h.host.BountyPools(req.Series, req.Entry)
 		switch len(ks) {
 		case 0:
-			writeError(w, &Error{Message: "no followed pool of the series holds entry " + req.Entry.String() + " (poo build prints an entry's hash; poo pools shows each pool's tip)", Code: CodeNotFound, Status: http.StatusNotFound})
+			writeError(w, &Error{Message: "no followed pool of the series holds entry " + req.Entry.String() + " (poon build prints an entry's hash; poon pools shows each pool's tip)", Code: CodeNotFound, Status: http.StatusNotFound})
 			return
 		case 1:
 			req.Pool = ks[0]
@@ -290,7 +293,7 @@ func (h *Handler) bountyWork(w http.ResponseWriter, r *http.Request) {
 	}
 	held, ok := b.HeldOffer(req.ID)
 	if !ok {
-		writeError(w, badRequest("no offer with that id was received; poo bounty list -ask asks peers for theirs"))
+		writeError(w, badRequest("%s", p2p.NotReceived(b.Config())))
 		return
 	}
 	s, ok := h.n.Engine().Series(held.Offer.Series)

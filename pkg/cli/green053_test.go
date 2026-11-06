@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// poo doctor's text keeps its columns in line with a name longer than
+// poon doctor's text keeps its columns in line with a name longer than
 // eight letters, such as open-files (GREEN-053).
 func TestDoctorColumnsLineUp(t *testing.T) {
 	root := t.TempDir()

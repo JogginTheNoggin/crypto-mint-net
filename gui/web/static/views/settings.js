@@ -7,7 +7,7 @@ export const settingsView = {
   title: 'Settings',
   mount(root) {
     const cur = where.get();
-    const r = el('input', { value: cur.root, placeholder: '$POO_HOME or ~/.poo', spellcheck: 'false' });
+    const r = el('input', { value: cur.root, placeholder: '$POON_HOME or ~/.poon', spellcheck: 'false' });
     const p = el('input', { value: cur.policy, placeholder: 'the current policy', spellcheck: 'false' });
     const theme = el('select', {}, ...['system', 'light', 'dark'].map(t => el('option', { value: t }, t)));
     theme.value = where.theme();

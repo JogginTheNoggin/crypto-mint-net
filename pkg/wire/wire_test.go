@@ -122,7 +122,7 @@ func TestFrameLimit(t *testing.T) {
 }
 
 func TestHello(t *testing.T) {
-	h := wire.Hello{Protocol: 1, NodeID: hash.Hash{8}, Agent: "poo/test"}
+	h := wire.Hello{Protocol: 1, NodeID: hash.Hash{8}, Agent: "poon/test"}
 	got, err := wire.DecodeHello(h.Encode())
 	if err != nil || !reflect.DeepEqual(got, h) {
 		t.Fatalf("%+v %v", got, err)
@@ -257,7 +257,7 @@ func FuzzDecode(f *testing.F) {
 
 func FuzzBodies(f *testing.F) {
 	f.Add(uint16(wire.TypeHello), wire.Hello{Agent: "x"}.Encode())
-	f.Add(uint16(wire.TypeHello), wire.Hello{Agent: "poo", Release: "0.1.0", Features: wire.OwnFeatures, Ext: []wire.Ext{{Tag: 1, Value: []byte("v")}}}.Encode())
+	f.Add(uint16(wire.TypeHello), wire.Hello{Agent: "poon", Release: "0.1.0", Features: wire.OwnFeatures, Ext: []wire.Ext{{Tag: 1, Value: []byte("v")}}}.Encode())
 	f.Add(uint16(wire.TypePing), wire.Ping{Nonce: 1, Ext: []wire.Ext{{Tag: 3}}}.Encode())
 	f.Add(uint16(wire.TypePong), wire.PongReply{Ext: []wire.Ext{{Tag: 3}}}.Encode())
 	f.Add(uint16(wire.TypeFollowReq), wire.FollowReq{Contact: wire.Contact{Addr: "a:1"}}.Encode())

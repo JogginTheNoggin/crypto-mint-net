@@ -21,7 +21,7 @@ directory.
 | Priority | Verified and relied on: asked, forwarded to, pinged often | `Verify(addr, s, Priority, now)` |
 | Backup | Verified and kept ready: forwarded to, pinged less, asked as a fallback | `Verify(addr, s, Backup, now)` |
 | Archived | Not in use; kept as a starting point | `Archive` (silence, a dropped policy, its own address) |
-| Unlisted | Known only from a peer file the owner imported; in no category and not a candidate | `AddUnlisted` (`poo peers import`, D157); `PromoteImported` makes it a candidate |
+| Unlisted | Known only from a peer file the owner imported; in no category and not a candidate | `AddUnlisted` (`poon peers import`, D157); `PromoteImported` makes it a candidate |
 
 `Delete` removes a node from the book. It may come back as a new
 candidate; keeping an address out is a block in the tracker, which the
@@ -75,7 +75,7 @@ beyond the slots become candidates. Peers this node dialled win ties.
 - `MaxUnlisted` (a quarter of `MaxRecords` by default) bounds the
   records known only from an imported file: from `import`, unlisted for
   every policy. `AddUnlisted` refuses one more with `ErrUnlistedFull`.
-  `ForgetImported` takes them all out (`poo peer remove -imported`), and
+  `ForgetImported` takes them all out (`poon peer remove -imported`), and
   `Unlisted` counts them (RED-058, D158).
 - **Giving way** (RED-064, D160). When the book or the new address's range
   is full, one record gives way to an address added any way but an
@@ -138,7 +138,7 @@ is. `Pick` never returns it. `PromoteImported(s, n)` makes up to `n`
 unlisted nodes for policies overlapping `s` candidates, the longest known
 first; `n <= 0` promotes all. The connection manager does this when a
 policy is short of peers, unless the node policy sets `no_dial_imported`,
-and `poo peer connect -imported` does it for all of them.
+and `poon peer connect -imported` does it for all of them.
 
 ## API
 

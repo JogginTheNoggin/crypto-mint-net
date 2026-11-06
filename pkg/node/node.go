@@ -71,7 +71,7 @@ type Options struct {
 	// (0: DefaultCompactMin).
 	CompactMin int
 	// Reverify ignores the pool snapshots and replays every log whole,
-	// checking every record again (poo node -reverify, D178). Where a
+	// checking every record again (poon node -reverify, D178). Where a
 	// snapshot covered the whole log, the pool the replay builds is
 	// compared with it and the result reported (ReplayStats).
 	Reverify bool
@@ -239,7 +239,7 @@ func (n *Node) configure() error {
 	byIssuer := map[hash.Hash][]hash.Hash{}
 	for _, a := range accepted {
 		if a.ReleaseErr != nil {
-			n.logger().Warn("release in node.json not used; the series is followed with the parts proven without it (give it a valid one with poo series add-release)", "series", a.Series.ID().Short(), "err", a.ReleaseErr)
+			n.logger().Warn("release in node.json not used; the series is followed with the parts proven without it (give it a valid one with poon series add-release)", "series", a.Series.ID().Short(), "err", a.ReleaseErr)
 		}
 		n.eng.AddSeries(a.Series)
 		if a.Issuer != nil {

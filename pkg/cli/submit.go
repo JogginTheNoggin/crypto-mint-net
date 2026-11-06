@@ -22,13 +22,13 @@ import (
 // the same call (GREEN-038, D143). The node checks it as it checks one
 // from a peer: submitting adds no rule and skips none.
 func submitCmd(args []string, out io.Writer) error {
-	const usage = "usage: poo submit entry|layer [-series ID] -pool K | -serial N HEX | -f FILE | -"
+	const usage = "usage: poon submit entry|layer [-series ID] -pool K | -serial N HEX | -f FILE | -"
 	if len(args) == 0 {
 		return errors.New(usage)
 	}
 	what := args[0]
 	if what != "entry" && what != "layer" {
-		return fmt.Errorf("poo submit: unknown %q; %s", what, usage)
+		return fmt.Errorf("poon submit: unknown %q; %s", what, usage)
 	}
 	fs := newFlagSet("submit "+what, out)
 	c := addClient(fs)
@@ -42,12 +42,12 @@ func submitCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if text, err = fromReply(text, what); err != nil {
-		return fmt.Errorf("poo submit %s: %w", what, err)
+		return fmt.Errorf("poon submit %s: %w", what, err)
 	}
 	b := make([]byte, hex.DecodedLen(len(text)))
 	_, err = hex.Decode(b, text)
 	if err != nil {
-		return fmt.Errorf("poo submit %s: the %s is not hex: %w", what, what, err)
+		return fmt.Errorf("poon submit %s: the %s is not hex: %w", what, what, err)
 	}
 	// Decoded here so a malformed one is refused before the node is asked.
 	var e *entry.Entry
@@ -58,7 +58,7 @@ func submitCmd(args []string, out io.Writer) error {
 		l, err = layer.Decode(b)
 	}
 	if err != nil {
-		return fmt.Errorf("poo submit %s: %w", what, err)
+		return fmt.Errorf("poon submit %s: %w", what, err)
 	}
 	cl, err := c.dial(out)
 	if err != nil {
@@ -84,7 +84,7 @@ func submitCmd(args []string, out io.Writer) error {
 			// Say which entry is missing, so the person knows what to
 			// hand in first (GREEN-039).
 			if strings.Contains(err.Error(), ledger.ErrUnknownParent.Error()) {
-				return fmt.Errorf("%w: submit its parent %s first (poo build -bytes printed it on the node that made it), or let this node take the pool from a peer", err, parent)
+				return fmt.Errorf("%w: submit its parent %s first (poon build -bytes printed it on the node that made it), or let this node take the pool from a peer", err, parent)
 			}
 			return err
 		}
@@ -99,7 +99,7 @@ func submitCmd(args []string, out io.Writer) error {
 	return writeJSON(out, r)
 }
 
-// submitHex returns the hex poo submit was given: the one argument, or,
+// submitHex returns the hex poon submit was given: the one argument, or,
 // with -f FILE or the argument "-", a file's or standard input's whole
 // text, trimmed. One argument may be at most 128 KiB on Linux, so an
 // entry over 64 KiB is handed in through a file or standard input, as the
@@ -128,8 +128,8 @@ func submitHex(out io.Writer, file string, args []string, usage string) ([]byte,
 	return bytes.TrimSpace(b), nil
 }
 
-// fromReply takes the hex out of a reply of poo build -bytes or poo work
-// -bytes, so one can be piped into poo submit as it is printed
+// fromReply takes the hex out of a reply of poon build -bytes or poon work
+// -bytes, so one can be piped into poon submit as it is printed
 // (GREEN-040): an entry is the reply's "entry"; a layer is a work reply's
 // "layer", or a build reply's "layer"."layer". Text that is not a JSON
 // object is returned as it is.

@@ -6,18 +6,18 @@ import (
 )
 
 // The default reserve series (D170), adopted by jerry on 2026-11-04 from
-// the "Reserve Currency Default Series" document: what poo init follows
+// the "Reserve Currency Default Series" document: what poon init follows
 // when it is given no series. It is node policy, not a consensus rule:
 // any node may follow any series, and every value below is inside the
 // series id, so none can change.
 const (
 	// ReserveMaxWitness is the reserve series' witness ceiling, 128 KiB,
-	// and the ceiling poo series new and poo crypto use when none is given.
+	// and the ceiling poon series new and poon crypto use when none is given.
 	ReserveMaxWitness = 128 * 1024
 
 	// ReserveID is the reserve series' id, pinned: a test checks that
 	// Reserve() still builds it, so the series can never change by
-	// accident, and poo names this id "the built-in reserve series" only
+	// accident, and poon names this id "the built-in reserve series" only
 	// when it matches in full (look-alike ids share a prefix).
 	ReserveID = "fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f139"
 )

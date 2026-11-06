@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// poo keygen gives the key's address in each series the node policy lists:
+// poon keygen gives the key's address in each series the node policy lists:
 // under the default reserve series (SHA-512/256) the sha256 "address" is
 // not the key's, so a note says to use series_addresses. A node policy
 // whose series use the -hash gives no note, and no node policy gives
@@ -50,11 +50,11 @@ func TestKeygenSeriesAddresses(t *testing.T) {
 	}
 }
 
-// poo crypto -o table lists the key algorithms one row each (GREEN-052).
+// poon crypto -o table lists the key algorithms one row each (GREEN-052).
 func TestCryptoTable(t *testing.T) {
 	out := runOut(t, "crypto", "-o", "table")
 	if !strings.Contains(out, "MAX_SIGNATURES_PER_WITNESS") || !strings.Contains(out, "slh-dsa-sha2-256s") || strings.Contains(out, "{") {
-		t.Fatalf("poo crypto -o table:\n%s", out)
+		t.Fatalf("poon crypto -o table:\n%s", out)
 	}
 	if _, err := runErr("crypto", "-o", "yaml"); err == nil {
 		t.Error("-o yaml taken")

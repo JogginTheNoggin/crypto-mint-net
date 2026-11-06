@@ -42,11 +42,11 @@ func cli(t *testing.T, v any, args ...string) {
 	t.Helper()
 	var out bytes.Buffer
 	if err := run(args, &out); err != nil {
-		t.Fatalf("poo %s: %v\n%s", strings.Join(args, " "), err, out.String())
+		t.Fatalf("poon %s: %v\n%s", strings.Join(args, " "), err, out.String())
 	}
 	if v != nil {
 		if err := json.Unmarshal(out.Bytes(), v); err != nil {
-			t.Fatalf("poo %s: %v\n%s", strings.Join(args, " "), err, out.String())
+			t.Fatalf("poon %s: %v\n%s", strings.Join(args, " "), err, out.String())
 		}
 	}
 }
@@ -179,7 +179,7 @@ func TestPolicyCommands(t *testing.T) {
 		{"claim", "-root", root, "-seed-file", seedFile(t, "00")},
 	} {
 		if err := run(args, &out); err == nil {
-			t.Errorf("poo %v succeeded", args)
+			t.Errorf("poon %v succeeded", args)
 		}
 	}
 }
@@ -290,26 +290,26 @@ func seedFile(t *testing.T, seedHex string) string {
 }
 
 // RED-005: claim and pay never take the seed from the command line; they
-// read it from POO_SEED, a file or standard input.
+// read it from POON_SEED, a file or standard input.
 func TestSeedNotOnCommandLine(t *testing.T) {
 	seed := strings.Repeat("ab", 32)
 	var out bytes.Buffer
 	for _, cmd := range []string{"claim", "pay"} {
 		err := run([]string{cmd, "-seed", seed, "-serial", "5"}, &out)
-		if err == nil || !strings.Contains(err.Error(), "POO_SEED") {
+		if err == nil || !strings.Contains(err.Error(), "POON_SEED") {
 			t.Errorf("%s -seed: %v", cmd, err)
 		}
-		t.Setenv("POO_SEED", "")
+		t.Setenv("POON_SEED", "")
 		if err := run([]string{cmd, "-root", t.TempDir(), "-serial", "5"}, &out); err == nil || !strings.Contains(err.Error(), "seed") {
-			t.Errorf("%s with an empty POO_SEED: %v", cmd, err)
+			t.Errorf("%s with an empty POON_SEED: %v", cmd, err)
 		}
 	}
 	// Every source gives the same key: the signer is read before the node
 	// is dialled, so a missing node shows the seed was taken.
 	f := &seedFlags{file: new(string), flag: new(string)}
-	t.Setenv("POO_SEED", seed)
+	t.Setenv("POON_SEED", seed)
 	if s, err := f.read(&out, true); err != nil || s != seed {
-		t.Fatalf("POO_SEED: %q %v", s, err)
+		t.Fatalf("POON_SEED: %q %v", s, err)
 	}
 	*f.file = seedFile(t, seed)
 	if s, err := f.read(&out, true); err != nil || s != seed {

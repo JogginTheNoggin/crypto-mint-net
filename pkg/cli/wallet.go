@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
@@ -22,9 +23,9 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/weight"
 )
 
-const walletUsage = `poo wallet: keys, payments and requests from one seed
+const walletUsage = `poon wallet: keys, payments and requests from one seed
 
-Usage: poo wallet COMMAND [flags]
+Usage: poon wallet COMMAND [flags]
 
   create [-restore -|HEX] [-gap N] make a wallet (or restore one from its seed;
                                   - reads it hidden)
@@ -57,7 +58,7 @@ Usage: poo wallet COMMAND [flags]
   submit FILE                      send a payment whose signatures are complete
 
 The wallet file is -wallet, default wallet.json in -root. The passphrase
-comes from $POO_PASSPHRASE, -passphrase-file, or a line on standard input.
+comes from $POON_PASSPHRASE, -passphrase-file, or a line on standard input.
 The series and node come from the node policy flags, as for other commands.
 `
 
@@ -89,7 +90,7 @@ func (f *walletFlags) file() string {
 
 // passphrase reads the passphrase; prompt is shown when reading stdin.
 func (f *walletFlags) passphrase(out io.Writer, prompt string) (string, error) {
-	if p, ok := os.LookupEnv("POO_PASSPHRASE"); ok {
+	if p, ok := os.LookupEnv(brand.EnvPrefix + "PASSPHRASE"); ok {
 		return p, nil
 	}
 	if *f.passFile != "" {
@@ -101,7 +102,7 @@ func (f *walletFlags) passphrase(out io.Writer, prompt string) (string, error) {
 	}
 	p, err := readSecret(out, prompt)
 	if errors.Is(err, errNoInput) {
-		return "", errors.New("no passphrase: set POO_PASSPHRASE or use -passphrase-file")
+		return "", errors.New("no passphrase: set POON_PASSPHRASE or use -passphrase-file")
 	}
 	return p, err
 }
@@ -109,12 +110,12 @@ func (f *walletFlags) passphrase(out io.Writer, prompt string) (string, error) {
 // newPassphrase reads a new wallet's passphrase as passphrase does,
 // asking for it twice when it is typed (GUI-020, D145).
 func (f *walletFlags) newPassphrase(out io.Writer) (string, error) {
-	if _, ok := os.LookupEnv("POO_PASSPHRASE"); ok || *f.passFile != "" {
+	if _, ok := os.LookupEnv(brand.EnvPrefix + "PASSPHRASE"); ok || *f.passFile != "" {
 		return f.passphrase(out, "")
 	}
 	p, err := readNewSecret(out, "new passphrase: ")
 	if errors.Is(err, errNoInput) {
-		return "", errors.New("no passphrase: set POO_PASSPHRASE or use -passphrase-file")
+		return "", errors.New("no passphrase: set POON_PASSPHRASE or use -passphrase-file")
 	}
 	return p, err
 }
@@ -123,7 +124,7 @@ func (f *walletFlags) open() (*wallet.Wallet, error) {
 	w, err := wallet.Open(f.file())
 	if errors.Is(err, os.ErrNotExist) {
 		// Say what to do, not only which file is missing (GREEN-040).
-		return nil, fmt.Errorf("no wallet (%w): make one with poo wallet create (or -restore), or name another with -wallet", err)
+		return nil, fmt.Errorf("no wallet (%w): make one with poon wallet create (or -restore), or name another with -wallet", err)
 	}
 	return w, err
 }
@@ -252,8 +253,8 @@ func walletCmd(args []string, out io.Writer) error {
 func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
 	restore := fs.String("restore", "", "restore from a seed: - to type it hidden (or read a line of standard input), or 64 hex digits, which other users can read on the command line")
 	gap := fs.Int("gap", 0, fmt.Sprintf("unused keys to keep ahead (default %d)", wallet.DefaultGap))
-	algName := fs.String("alg", "ed25519", "key algorithm of every key, by name or number (poo crypto); fixed for the wallet's life")
-	watchOnly := fs.Bool("watch-only", false, "hold no private key at all: add keys kept elsewhere with poo wallet policy -k 1 -key ALG:HEX, pay with -out, sign with poo sign, then submit (D193)")
+	algName := fs.String("alg", "ed25519", "key algorithm of every key, by name or number (poon crypto); fixed for the wallet's life")
+	watchOnly := fs.Bool("watch-only", false, "hold no private key at all: add keys kept elsewhere with poon wallet policy -k 1 -key ALG:HEX, pay with -out, sign with poon sign, then submit (D193)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -303,7 +304,7 @@ func walletCreate(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	}
 	fmt.Fprintf(out, "wrote %s\n", f.file())
 	if *restore == "" {
-		fmt.Fprintln(out, "back up the seed (poo wallet seed): it restores every key")
+		fmt.Fprintln(out, "back up the seed (poon wallet seed): it restores every key")
 	}
 	return nil
 }
@@ -325,7 +326,7 @@ func walletSeed(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) 
 }
 
 func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
-	newFile := fs.String("new-passphrase-file", "", "read the new passphrase from this file (default: $POO_NEW_PASSPHRASE or standard input)")
+	newFile := fs.String("new-passphrase-file", "", "read the new passphrase from this file (default: $POON_NEW_PASSPHRASE or standard input)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -338,7 +339,7 @@ func walletPasswd(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 		return fmt.Errorf("%w: it holds no seed, so it has no passphrase to change", wallet.ErrWatchOnly)
 	}
 	var p string
-	switch v, ok := os.LookupEnv("POO_NEW_PASSPHRASE"); {
+	switch v, ok := os.LookupEnv(brand.EnvPrefix + "NEW_PASSPHRASE"); {
 	case *newFile != "":
 		b, err := os.ReadFile(*newFile)
 		if err != nil {
@@ -405,7 +406,7 @@ func walletAddress(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	return writeJSON(out, map[string]any{"address": o.Address, "key": o.Key, "public": public, "policy": hex.EncodeToString(o.Policy.Encode())})
 }
 
-// ownerInfo is one row of poo wallet addresses.
+// ownerInfo is one row of poon wallet addresses.
 type ownerInfo struct {
 	Address hash.Hash `json:"address"`
 	Key     *uint32   `json:"key,omitempty"`
@@ -461,7 +462,7 @@ func walletWatch(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	var tids stringList
 	fs.Var(&serials, "serial", "a mint to watch (repeatable)")
 	fs.Var(&pools, "pool", "watch every mint of this pool (repeatable)")
-	fs.Var(&tids, "tid", "watch the mint of this transaction, such as a payment's tid from poo bounty list (repeatable; asks the node)")
+	fs.Var(&tids, "tid", "watch the mint of this transaction, such as a payment's tid from poon bounty list (repeatable; asks the node)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -545,7 +546,7 @@ func walletFollow(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 	}
 	pools := w.Pools(s)
 	if len(pools) == 0 {
-		return errors.New("the wallet watches no mints of this series (poo wallet watch)")
+		return errors.New("the wallet watches no mints of this series (poon wallet watch)")
 	}
 	dir := f.c.w.resolve()
 	path := filepath.Join(dir, nodepolicy.FileName)
@@ -623,13 +624,13 @@ func walletBalance(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 
 func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
 	serial := fs.Uint64("serial", 0, "the mint's serial")
-	polName := fs.String("to-policy", "", "claim to this wallet policy's address, unsigned, for poo sign where its keys are (with -out; how a watch-only wallet claims)")
+	polName := fs.String("to-policy", "", "claim to this wallet policy's address, unsigned, for poon sign where its keys are (with -out; how a watch-only wallet claims)")
 	outFile := fs.String("out", "", "with -to-policy: write the claim waiting for signatures here")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if (*polName == "") != (*outFile == "") {
-		return errors.New("-to-policy and -out go together: the claim is written unsigned for poo sign, then sent with poo wallet submit")
+		return errors.New("-to-policy and -out go together: the claim is written unsigned for poon sign, then sent with poon wallet submit")
 	}
 	s, err := f.series()
 	if err != nil {
@@ -641,7 +642,7 @@ func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 	}
 	if *polName != "" {
 		// A claim to a policy whose keys are elsewhere: prepared here,
-		// signed with poo sign, sent with poo wallet submit (GREEN-060).
+		// signed with poon sign, sent with poon wallet submit (GREEN-060).
 		release, err := holdWallet(w, out)
 		if err != nil {
 			return err
@@ -657,7 +658,7 @@ func walletClaim(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer)
 		return writeOut(out, *outFile, u)
 	}
 	if w.WatchOnly() {
-		return fmt.Errorf("%w; to claim with a key kept off the node: poo wallet claim -serial %d -to-policy NAME -out claim.json, poo sign claim.json -key-file KEY, poo wallet submit claim.json", wallet.ErrWatchOnly, *serial)
+		return fmt.Errorf("%w; to claim with a key kept off the node: poon wallet claim -serial %d -to-policy NAME -out claim.json, poon sign claim.json -key-file KEY, poon wallet submit claim.json", wallet.ErrWatchOnly, *serial)
 	}
 	n, err := f.node(out, s)
 	if err != nil {
@@ -766,7 +767,7 @@ func errPayNeedsOut(missing [][]int) error {
 	if missing != nil {
 		what = fmt.Sprintf("this payment needs signatures this wallet cannot give (missing per leg, per input: %v)", missing)
 	}
-	return fmt.Errorf("%s; nothing was recorded or held: run it again with -out FILE, add the signatures (poo sign, or the co-signers), then poo wallet submit FILE", what)
+	return fmt.Errorf("%s; nothing was recorded or held: run it again with -out FILE, add the signatures (poon sign, or the co-signers), then poon wallet submit FILE", what)
 }
 
 func walletRequest(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer) error {
@@ -885,7 +886,7 @@ func walletReceive(fs *flag.FlagSet, f *walletFlags, args []string, out io.Write
 	}{rc, rc.Settled(th)})
 }
 
-// sentStatus is one row of poo wallet status.
+// sentStatus is one row of poon wallet status.
 type sentStatus struct {
 	To      hash.Hash          `json:"to"`
 	Amount  uint64             `json:"amount"`
@@ -1084,7 +1085,7 @@ func walletCosign(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 		return err
 	}
 	if fs.NArg() != 1 {
-		return errors.New("usage: poo wallet cosign FILE")
+		return errors.New("usage: poon wallet cosign FILE")
 	}
 	file := fs.Arg(0)
 	var u wallet.Unsigned
@@ -1112,7 +1113,7 @@ func walletSubmit(fs *flag.FlagSet, f *walletFlags, args []string, out io.Writer
 		return err
 	}
 	if fs.NArg() != 1 {
-		return errors.New("usage: poo wallet submit FILE")
+		return errors.New("usage: poon wallet submit FILE")
 	}
 	var u wallet.Unsigned
 	if err := readJSON(fs.Arg(0), &u); err != nil {
@@ -1184,7 +1185,7 @@ func saveSent(w *wallet.Wallet, out io.Writer, what string, p *wallet.Sent, send
 // command, the GUI's terminal included, is never silent (RED-042, D148).
 func holdWallet(w *wallet.Wallet, out io.Writer) (func(), error) {
 	w.OnBusy(func() {
-		fmt.Fprintf(errOf(out), "waiting for another poo wallet command (or the GUI) to finish with %s\n", w.Path())
+		fmt.Fprintf(errOf(out), "waiting for another poon wallet command (or the GUI) to finish with %s\n", w.Path())
 	})
 	return w.Hold()
 }

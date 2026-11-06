@@ -11,8 +11,8 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 )
 
-// RED-071, D165: a variable series' JSON leaves "hash" out, so a poo from
-// before D163 finds no hash and refuses it; this poo reads it, and D163's
+// RED-071, D165: a variable series' JSON leaves "hash" out, so a poon from
+// before D163 finds no hash and refuses it; this poon reads it, and D163's
 // first form, back to the same series. A fixed series' JSON is unchanged.
 func TestVariableJSONIsUnreadableToOlderReaders(t *testing.T) {
 	p := testutil.ExampleParams()
@@ -20,7 +20,7 @@ func TestVariableJSONIsUnreadableToOlderReaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	type old struct { // the fields a poo from before D163 knows
+	type old struct { // the fields a poon from before D163 knows
 		HashID hash.ID `json:"hash"`
 		Mints  uint64  `json:"mints"`
 	}
@@ -52,7 +52,7 @@ func TestVariableJSONIsUnreadableToOlderReaders(t *testing.T) {
 	if err := json.Unmarshal([]byte(first), &f); err != nil || f.HashID != p.HashID {
 		t.Fatalf("the first form: %v", err)
 	}
-	// A key this poo does not know is an error, not ignored.
+	// A key this poon does not know is an error, not ignored.
 	for _, bad := range []string{
 		strings.Replace(string(v), `"mints"`, `"supply_curve":7,"mints"`, 1),
 		strings.Replace(string(fixed), `"mints"`, `"later_rule":true,"mints"`, 1),

@@ -15,7 +15,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 )
 
-// D170: poo init with no series follows the built-in reserve series, and
+// D170: poon init with no series follows the built-in reserve series, and
 // says so; -no-series follows none.
 func TestInitWritesTheReserveSeries(t *testing.T) {
 	root := t.TempDir()
@@ -56,7 +56,7 @@ func TestInitWritesTheReserveSeries(t *testing.T) {
 }
 
 // D170, Red's condition 1 as tool policy: a series with no witness ceiling,
-// or one above 4 MiB, is refused by poo series new and poo init -series
+// or one above 4 MiB, is refused by poon series new and poon init -series
 // unless -any-ceiling forces it.
 func TestToolsRefuseAMissingOrHugeCeiling(t *testing.T) {
 	var p series.Params
@@ -80,7 +80,7 @@ func TestToolsRefuseAMissingOrHugeCeiling(t *testing.T) {
 	runOut(t, "init", "-series", file, "-any-ceiling", "-root", t.TempDir(), "-p2p", "off")
 }
 
-// D170, Red's condition 5: poo crypto shows each algorithm's largest k under
+// D170, Red's condition 5: poon crypto shows each algorithm's largest k under
 // a ceiling, the reserve series' by default.
 func TestCryptoMaxK(t *testing.T) {
 	type alg struct {
@@ -114,7 +114,7 @@ func TestCryptoMaxK(t *testing.T) {
 	}
 }
 
-// D170: poo series info names the built-in reserve series on its full id.
+// D170: poon series info names the built-in reserve series on its full id.
 func TestSeriesInfoNamesTheReserve(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "r.json")
 	b, err := json.Marshal(series.Reserve())
@@ -139,7 +139,7 @@ func TestSeriesInfoNamesTheReserve(t *testing.T) {
 	}
 }
 
-// GUI-028: poo series parts and poo series release on a far part stop when
+// GUI-028: poon series parts and poon series release on a far part stop when
 // the command's context is done, as a GUI job's Cancel does.
 func TestFarPartIsCancellable(t *testing.T) {
 	var key struct {

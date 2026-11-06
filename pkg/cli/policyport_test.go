@@ -17,7 +17,7 @@ func runOut(t *testing.T, args ...string) string {
 	t.Helper()
 	var out bytes.Buffer
 	if err := run(args, &out); err != nil {
-		t.Fatalf("poo %s: %v\n%s", strings.Join(args, " "), err, out.String())
+		t.Fatalf("poon %s: %v\n%s", strings.Join(args, " "), err, out.String())
 	}
 	return out.String()
 }
@@ -179,7 +179,7 @@ func TestPolicyImportKeepsRunningRPC(t *testing.T) {
 	}
 }
 
-// D149: "-" reads the bundle from standard input, as poo submit -f -
+// D149: "-" reads the bundle from standard input, as poon submit -f -
 // does, so the GUI can hand over a file picked in the browser.
 func TestPolicyImportFromStdin(t *testing.T) {
 	src, dst := t.TempDir(), t.TempDir()

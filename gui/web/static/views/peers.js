@@ -3,11 +3,11 @@ import * as where from '../where.js';
 import { el, flag, form, mountAll, panel, rawFold } from '../views.js';
 import { allOf, count, importForm, planTable, saveAs, someOf } from './policies.js';
 
-// The peer book's states, as poo peers -category takes them; export also
-// takes blocked and timed-out. parity.mjs holds both lists to poo -h.
+// The peer book's states, as poon peers -category takes them; export also
+// takes blocked and timed-out. parity.mjs holds both lists to poon -h.
 const CATEGORIES = ['candidate', 'priority', 'backup', 'archived', 'unlisted'];
 
-// releaseNotes says, from poo peers' answer, which releases the connected
+// releaseNotes says, from poon peers' answer, which releases the connected
 // peers claim (counts.releases, D186), with "" as "not shared", and that a
 // peer's release and claimed features are its own claim, which the node
 // never uses to choose, rank or refuse a peer (GUI White S3).
@@ -38,7 +38,7 @@ export const peersView = {
       // The timed panel leaves the book out (-counts, ORANGE-017): a book
       // can hold 65,536 addresses. Find peers prints it when asked.
       panel(ctx, { title: 'Peers', about: 'Connected peers, their categories and points, and how many addresses the peer book holds in each state. Find peers below shows the book itself.', args: () => ['peers', ...where.flags(), '-counts'], refresh: 10000, onResult: withReleaseNotes }),
-      // The book filtered as poo peers filters it (D157).
+      // The book filtered as poon peers filters it (D157).
       form(ctx, { title: 'Find peers', about: 'The peer book, only the addresses that match every field filled in.', fields: [
         { name: 'category', label: 'Categories (none ticked: all)', type: 'choices', options: CATEGORIES, flag: 'category' },
         { name: 'policy', label: 'Mint policy', placeholder: 'a series id, or a part of one' },
@@ -46,7 +46,7 @@ export const peersView = {
         { name: 'addr', label: 'Address holds' }],
       args: v => ['peers', ...where.flags(), ...flag('category', v.category), ...flag('mint-policy', v.policy), ...flag('label', v.label), ...flag('addr', v.addr)], submit: 'Find', onResult: withReleaseNotes }),
       // Adding a peer by hand, taking one out, labelling it and connecting
-      // to it now (D157). Which action takes which flag is poo peer's own
+      // to it now (D157). Which action takes which flag is poon peer's own
       // rule; Connect with no address and Imported tries every address an
       // imported peer file gave.
       form(ctx, { title: 'Add, remove, label or connect a peer', fields: [
@@ -60,7 +60,7 @@ export const peersView = {
       form(ctx, { title: 'Act on a peer', fields: [
         { name: 'action', label: 'Action', type: 'select', options: ['timeout', 'block', 'unblock', 'clear', 'template', 'delete'] },
         { name: 'addr', label: 'Peer address', placeholder: 'host:port' },
-        // Which action takes which flag is poo peer's own rule (pkg/cli/node.go).
+        // Which action takes which flag is poon peer's own rule (pkg/cli/node.go).
         { name: 'seconds', label: 'Seconds', type: 'number', placeholder: '-1 blocks until unblocked', only: { field: 'action', values: ['timeout', 'block'] } },
         { name: 'range', label: 'Whole range', type: 'check', only: { field: 'action', values: ['block'] } },
         { name: 'what', label: 'Clear', type: 'select', options: ['', 'flags', 'measures', 'all'], flag: 'what', only: { field: 'action', values: ['clear'] } },
@@ -96,9 +96,9 @@ const PEERS_IMPORT = {
   show: showPeerPlan,
 };
 
-// showPeerPlan draws poo peers import -json: one table of what the import
+// showPeerPlan draws poon peers import -json: one table of what the import
 // adds, and a line for what it leaves alone or refuses. The blocks come
-// first, as poo prints them under "read first": each refuses an address,
+// first, as poon prints them under "read first": each refuses an address,
 // or a network range, on this node. They are named above the table and
 // lead it, so no number of added addresses pushes them out of sight
 // (GUI-025).
@@ -115,14 +115,14 @@ function showPeerPlan(r, area, applied) {
   }
   const text = n => typeof n === 'string' ? n : [n.addr, n.detail].filter(Boolean).join(': ');
   const blocks = (p.blocks || []).map(c => [c.addr, c.detail].filter(Boolean).join(' '));
-  // poo's notes are phrases, as its text plan prints one a line; here
-  // they run on in one line, so each is made a sentence. poo counts the
-  // blocks in them; an older poo that does not gets the GUI's count.
+  // poon's notes are phrases, as its text plan prints one a line; here
+  // they run on in one line, so each is made a sentence. poon counts the
+  // blocks in them; an older poon that does not gets the GUI's count.
   const sentence = t => { const x = t.trim(); return x && x[0].toUpperCase() + x.slice(1) + (/[.!?]$/.test(x) ? '' : '.'); };
-  const pooNotes = (p.notes || o.notes || []).map(text);
+  const poonNotes = (p.notes || o.notes || []).map(text);
   const notes = [
-    ...pooNotes.map(sentence),
-    blocks.length && !pooNotes.some(t => /^\d+ blocks?\b/.test(t)) ? `${count(blocks, 'block')}.` : null,
+    ...poonNotes.map(sentence),
+    blocks.length && !poonNotes.some(t => /^\d+ blocks?\b/.test(t)) ? `${count(blocks, 'block')}.` : null,
     `${p.same || 0} already the same.`,
     o.applied ? 'Applied.' : applied ? 'Nothing needed changing.' : 'Nothing changed yet: press Apply to make this change.',
   ].filter(Boolean).join(' ');

@@ -1,32 +1,35 @@
 package cli
 
 import (
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wallet"
 )
 
-// poo bounty: the bounty market (D196). A node posts offers to pay for
+// poon bounty: the bounty market (D196). A node posts offers to pay for
 // layers on its entries; a peer leases one, grinds the layer and claims
 // it; the payer pays with an ordinary wallet payment. The market is off
 // until node.json's bounty section turns it on.
 
 const bountyUsage = `usage:
-  poo bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
-  poo bounty list [-ask] [-max-strength S] [-done N]
-  poo bounty work ID -to ADDR [-max-seconds N] [-max-strength S]
-  poo bounty pay ID [-claim NONCE] [-wallet FILE]
-  poo bounty cancel ID`
+  poon bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
+  poon bounty list [-ask] [-max-strength S] [-done N]
+  poon bounty work ID -to ADDR [-max-seconds N] [-max-strength S]
+  poon bounty pay ID [-claim NONCE] [-wallet FILE]
+  poon bounty cancel ID`
 
-// BountyAskWait is how long poo bounty list -ask waits for peers'
+// BountyAskWait is how long poon bounty list -ask waits for peers'
 // answers.
 var BountyAskWait = 2 * time.Second
 
@@ -63,14 +66,14 @@ func bountyPost(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("poo bounty post takes flags only")
+		return errors.New("poon bounty post takes flags only")
 	}
 	e, err := hash.Parse(*entry)
 	if err != nil {
 		return fmt.Errorf("-entry: %w", err)
 	}
 	if *strength == 0 || *strength > 255 || *amount == 0 || *count == 0 || *count > 65535 || *open > 1<<31 {
-		return errors.New("poo bounty post needs -strength 1 to 255, -amount above 0 and -count 1 to 65535")
+		return errors.New("poon bounty post needs -strength 1 to 255, -amount above 0 and -count 1 to 65535")
 	}
 	cl, err := c.dial(out)
 	if err != nil {
@@ -100,18 +103,19 @@ func bountyList(args []string, out io.Writer) error {
 	fs := newFlagSet("bounty list", out)
 	c := addClient(fs)
 	ask := fs.Bool("ask", false, "first ask connected peers for their open offers, and wait a moment for answers")
-	maxStr := fs.Uint("max-strength", 0, "with -ask, ask only for offers of at most this strength in bits (default: bounty.max_strength, else any)")
+	maxStr := fs.Uint("max-strength", 0, "ask only for, and list only, peers' offers of at most this strength in bits (with -ask the default is bounty.max_strength, else any)")
 	done := fs.Int("done", 0, "also list this node's last N finished offers (filled or closed, every layer paid; at most 256), which leave the list")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("poo bounty list takes flags only")
+		return errors.New("poon bounty list takes flags only")
 	}
 	cl, err := c.dial(out)
 	if err != nil {
 		return err
 	}
+	var asked *int
 	if *ask {
 		if viewOnlyOf(out) {
 			return errors.New("-ask sends a request to peers, which view-only mode does not do")
@@ -119,9 +123,11 @@ func bountyList(args []string, out io.Writer) error {
 		if *maxStr > 255 {
 			return errors.New("-max-strength is 1 to 255")
 		}
-		if _, err := cl.BountyAsk(hash.Hash{}, uint8(*maxStr)); err != nil {
+		a, err := cl.BountyAsk(hash.Hash{}, uint8(*maxStr))
+		if err != nil {
 			return err
 		}
+		asked = &a.Asked
 		time.Sleep(BountyAskWait)
 	}
 	var rep rpc.BountyReply
@@ -132,6 +138,17 @@ func bountyList(args []string, out io.Writer) error {
 	}
 	if err != nil {
 		return err
+	}
+	if asked != nil {
+		rep.Asked = asked
+		if *asked == 0 {
+			rep.Notes = append(rep.Notes, "no connected peer has the bounty market on, so no peer was asked; poon peers lists the connected peers")
+		}
+	}
+	if *maxStr > 0 {
+		// List what was asked for: offers held from an earlier, wider
+		// ask stay held but are not shown (GREEN-064).
+		rep.Held = slices.DeleteFunc(rep.Held, func(h bounty.Held) bool { return uint(h.Offer.Strength) > *maxStr })
 	}
 	return writeJSON(out, rep)
 }
@@ -144,7 +161,7 @@ func bountyID(fs *flag.FlagSet, args []string, what string) (hash.Hash, error) {
 		return hash.Hash{}, err
 	}
 	if len(pos) != 1 {
-		return hash.Hash{}, fmt.Errorf("usage: poo bounty %s ID", what)
+		return hash.Hash{}, fmt.Errorf("usage: poon bounty %s ID", what)
 	}
 	id, err := hash.Parse(pos[0])
 	if err != nil {
@@ -156,7 +173,7 @@ func bountyID(fs *flag.FlagSet, args []string, what string) (hash.Hash, error) {
 func bountyWork(args []string, out io.Writer) error {
 	fs := newFlagSet("bounty work", out)
 	c := addClient(fs)
-	to := fs.String("to", "", "the address to be paid (needed): a fresh one from poo wallet address")
+	to := fs.String("to", "", "the address to be paid (needed): a fresh one from poon wallet address")
 	maxSec := fs.Int("max-seconds", 0, "stop grinding after this long (default and most: 240; the lease may end it sooner)")
 	maxStr := fs.Uint("max-strength", 0, "work no offer stronger than this many bits; the payer is told and refuses a lease above it (default: bounty.max_strength, else any)")
 	id, err := bountyID(fs, args, "work")
@@ -199,7 +216,7 @@ func bountyCancel(args []string, out io.Writer) error {
 	return writeJSON(out, m)
 }
 
-// BountyPayReply is what poo bounty pay did.
+// BountyPayReply is what poon bounty pay did.
 type BountyPayReply struct {
 	Offer  hash.Hash    `json:"offer"`
 	Nonce  uint64       `json:"nonce"`
@@ -213,14 +230,17 @@ type BountyPayReply struct {
 	Recorded bool `json:"recorded,omitempty"`
 }
 
-// sentFor finds the wallet's payment of claim c of offer m: its memo,
-// address and amount, every leg sent, and no leg already recorded on
-// another claim. An earlier payment sent only in part is an error, as
-// paying again would pay more than once (RED-119).
 // BountyMemo starts the memo of a bounty payment, followed by the offer's
-// short id. Frozen (W-34, D202): a later release may add to the memo
-// after it, and readers match on its start.
+// memo id (BountyMemoID). Frozen (W-34, D202): a later release may add to
+// the memo after it, and readers match on its start.
 const BountyMemo = "bounty "
+
+// BountyMemoID is how a bounty memo names the offer: the first 16 bytes
+// of its id in hex, so two offers do not share a memo by chance (RED-121,
+// D203). A memo is BountyMemo + BountyMemoID(id). The memo id is frozen
+// at 16 bytes; a later release may write more of the id, never less, so
+// matching on the memo's start keeps working (W-36, D204).
+func BountyMemoID(id hash.Hash) string { return hex.EncodeToString(id[:16]) }
 
 // legSent says a leg in this state went out: pending or selected, or a
 // state a later release added, which is never read as unsent, so a
@@ -234,34 +254,46 @@ func legSent(state string) bool {
 	return true
 }
 
-func sentFor(w *wallet.Wallet, m *bounty.Mine, c *bounty.ClaimRecord) (*wallet.Sent, error) {
+// sentFor finds the wallet's payment of claim c of offer m: its memo,
+// address and amount, and no leg already recorded on another claim. It
+// returns a payment whose every leg is sent or dropped; resend says some
+// are dropped, which are sent again, never replaced: a dropped leg's
+// inputs are unspent, and poon wallet resend would send it later anyway
+// (RED-120). A payment whose legs are all void or unsigned is not found,
+// and one with some legs dead and others sent or dropped is an error, as
+// paying again would pay more than once (RED-119).
+func sentFor(w *wallet.Wallet, m *bounty.Mine, c *bounty.ClaimRecord) (p *wallet.Sent, resend bool, err error) {
 	used := map[hash.Hash]bool{}
 	for _, r := range m.Claims {
 		for _, t := range r.Paid {
 			used[t] = true
 		}
 	}
-	memo := BountyMemo + m.ID.Short()
+	memo := BountyMemo + BountyMemoID(m.ID)
 	for _, p := range w.Sent() {
 		if p.Claim || !strings.HasPrefix(p.Memo, memo) || p.Series != m.Offer.Series || p.To != c.PayTo || p.Amount != m.Offer.Amount || len(p.Legs) == 0 {
 			continue
 		}
-		sent, mine := 0, false
+		live, dropped, mine := 0, 0, false
 		for _, l := range p.Legs {
-			if legSent(l.State) {
-				sent++
+			switch {
+			case legSent(l.State):
+				live++
+			case l.State == wallet.StateDropped:
+				live++
+				dropped++
 			}
 			mine = mine || used[l.TID]
 		}
 		switch {
-		case mine || sent == 0:
-		case sent < len(p.Legs):
-			return nil, fmt.Errorf("an earlier payment of this claim (tid %s) was sent only in part: settle it by hand before paying again", p.Legs[0].TID.Short())
+		case mine || live == 0:
+		case live < len(p.Legs):
+			return nil, false, fmt.Errorf("an earlier payment of this claim (tid %s) was sent only in part: settle it by hand before paying again", p.Legs[0].TID.Short())
 		default:
-			return p, nil
+			return p, dropped > 0, nil
 		}
 	}
-	return nil, nil
+	return nil, false, nil
 }
 
 func bountyPay(args []string, out io.Writer) error {
@@ -307,7 +339,7 @@ func bountyPay(args []string, out io.Writer) error {
 	case pick == nil:
 		return errors.New("no unpaid accepted claim to pay on that offer")
 	case !gotClaim && unpaid > 1:
-		return fmt.Errorf("%d claims are unpaid; name one with -claim NONCE (poo bounty list shows them)", unpaid)
+		return fmt.Errorf("%d claims are unpaid; name one with -claim NONCE (poon bounty list shows them)", unpaid)
 	}
 	s, err := f.series()
 	if err != nil {
@@ -321,7 +353,7 @@ func bountyPay(args []string, out io.Writer) error {
 		return err
 	}
 	if w.WatchOnly() {
-		return errors.New("poo bounty pay needs a wallet that signs: a watch-only wallet cannot pay a bounty yet")
+		return errors.New("poon bounty pay needs a wallet that signs: a watch-only wallet cannot pay a bounty yet")
 	}
 	n, err := f.node(out, s)
 	if err != nil {
@@ -335,9 +367,22 @@ func bountyPay(args []string, out io.Writer) error {
 	// The wallet's own record comes first: a payment it sent that the
 	// node did not record (a failed save, a stop in between, a restart)
 	// is recorded now, never paid twice (RED-119).
-	if prev, err := sentFor(w, mine, pick); err != nil {
+	prev, resend, err := sentFor(w, mine, pick)
+	if err == nil && resend {
+		// Dropped legs are sent again, not replaced (RED-120): first
+		// asked about, as the node may hold them after all, or one of
+		// their inputs may be spent (void), then resent.
+		if prev, err = resendPayment(w, s, n, prev, out); err == nil {
+			prev, resend, err = sentFor(w, mine, pick)
+		}
+		if err == nil && resend {
+			err = fmt.Errorf("an earlier payment of this claim (tid %s) was dropped by the node and is still not held after sending it again: run poon wallet sent, and settle it by hand before paying again", prev.Legs[0].TID.Short())
+		}
+	}
+	if err != nil {
 		return err
-	} else if prev != nil {
+	}
+	if prev != nil {
 		var tids []hash.Hash
 		for _, l := range prev.Legs {
 			tids = append(tids, l.TID)
@@ -348,7 +393,7 @@ func bountyPay(args []string, out io.Writer) error {
 		}
 		return writeJSON(out, BountyPayReply{Offer: id, Nonce: pick.Nonce, PayTo: pick.PayTo, Amount: mine.Offer.Amount, Sent: prev, Told: paid.Told, Recorded: true})
 	}
-	sent, u, err := w.Pay(s, n, pick.PayTo, mine.Offer.Amount, wallet.PayOptions{Memo: BountyMemo + id.Short()})
+	sent, u, err := w.Pay(s, n, pick.PayTo, mine.Offer.Amount, wallet.PayOptions{Memo: BountyMemo + BountyMemoID(id)})
 	if err == nil && u != nil {
 		return errPayNeedsOut(u.Missing())
 	}
@@ -361,7 +406,7 @@ func bountyPay(args []string, out io.Writer) error {
 		// A payer with several claims meets this at once: the change of
 		// the last payment is spendable only once an entry holds it
 		// (GUI-GREEN-062).
-		return fmt.Errorf("%w; the change of an earlier payment is spendable once an entry holds that payment: wait for one (or build one with poo build), then pay again", err)
+		return fmt.Errorf("%w; the change of an earlier payment is spendable once an entry holds that payment: wait for one (or build one with poon build), then pay again", err)
 	}
 	if err != nil {
 		return err
@@ -375,4 +420,20 @@ func bountyPay(args []string, out io.Writer) error {
 		return fmt.Errorf("paid, but the node did not record it: %w", err)
 	}
 	return writeJSON(out, BountyPayReply{Offer: id, Nonce: pick.Nonce, PayTo: pick.PayTo, Amount: mine.Offer.Amount, Sent: sent, Told: paid.Told})
+}
+
+// resendPayment refreshes p's legs from the node and sends its dropped
+// legs again, saving the wallet either way.
+func resendPayment(w *wallet.Wallet, s *series.Series, n wallet.Node, p *wallet.Sent, out io.Writer) (*wallet.Sent, error) {
+	if _, err := w.Refresh(s, n, p); err != nil {
+		return nil, err
+	}
+	_, rerr := w.Resend(s, n, p)
+	if err := saveSent(w, out, "payment", p, rerr); err != nil {
+		return nil, err
+	}
+	if rerr != nil {
+		return nil, fmt.Errorf("an earlier payment of this claim (tid %s) was dropped by the node, and sending it again failed: %w", p.Legs[0].TID.Short(), rerr)
+	}
+	return p, nil
 }

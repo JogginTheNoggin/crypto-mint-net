@@ -122,7 +122,7 @@ func TestLedgerExportImport(t *testing.T) {
 		t.Fatal("a missing file imported")
 	}
 	notLedger := filepath.Join(t.TempDir(), "x.json")
-	os.WriteFile(notLedger, []byte(`{"kind":"poo peers","format":1}`), 0o600)
+	os.WriteFile(notLedger, []byte(`{"kind":"poon peers","format":1}`), 0o600)
 	if out, err := runErr("ledger", "import", notLedger, "-root", dst); err == nil || !strings.Contains(err.Error(), "not a ledger file") {
 		t.Fatalf("a peers file imported: %v %s", err, out)
 	}

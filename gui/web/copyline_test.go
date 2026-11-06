@@ -21,10 +21,10 @@ func TestCopyLineWindows(t *testing.T) {
 	}
 	s := func(v string) *string { return &v }
 	cases := []tc{
-		{[]string{"status"}, s("poo status")},
-		{[]string{"address", "-root", `C:\Users\me\.poo`, "abc123"}, s(`poo address -root C:\Users\me\.poo abc123`)},
-		{[]string{"policy", "export", "-out", `C:\My Files\p.json`}, s(`poo policy export -out "C:\My Files\p.json"`)},
-		{[]string{"tx", "-in-serial", "5", "-pool=1"}, s("poo tx -in-serial 5 -pool=1")},
+		{[]string{"status"}, s("poon status")},
+		{[]string{"address", "-root", `C:\Users\me\.poon`, "abc123"}, s(`poon address -root C:\Users\me\.poon abc123`)},
+		{[]string{"policy", "export", "-out", `C:\My Files\p.json`}, s(`poon policy export -out "C:\My Files\p.json"`)},
+		{[]string{"tx", "-in-serial", "5", "-pool=1"}, s("poon tx -in-serial 5 -pool=1")},
 		// Red's link: PowerShell runs $(...) in a bare word.
 		{[]string{"address", "x$(calc)"}, nil},
 		// cmd.exe ends a quoted word at \" and runs what follows &.

@@ -13,7 +13,7 @@ import (
 func TestWalletEndToEnd(t *testing.T) {
 	createIterations = 1
 	defer func() { createIterations = 0 }()
-	t.Setenv("POO_PASSPHRASE", "correct horse")
+	t.Setenv("POON_PASSPHRASE", "correct horse")
 	root := t.TempDir()
 	r := []string{"-root", root}
 	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "127.0.0.1:0"}, r...)...)
@@ -120,11 +120,11 @@ func TestWalletEndToEnd(t *testing.T) {
 	}
 
 	// A wrong passphrase is refused.
-	t.Setenv("POO_PASSPHRASE", "wrong")
+	t.Setenv("POON_PASSPHRASE", "wrong")
 	if err := run(append([]string{"wallet", "address"}, aw...), &out); err == nil {
 		t.Fatal("wrong passphrase accepted")
 	}
-	t.Setenv("POO_PASSPHRASE", "correct horse")
+	t.Setenv("POON_PASSPHRASE", "correct horse")
 
 	// A 2-of-2 policy with bob: a payment from it waits for his signature.
 	var bobKey struct{ Public string }

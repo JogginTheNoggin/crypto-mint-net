@@ -7,7 +7,7 @@ milestone 7, re-run in full at milestone 8 on networks of up to 128 nodes. All r
 units, pool size 4 unless swept, minimum layer strength 0. The network
 has 16 nodes, 4 of them builders, each trying 64 nonces per pool every
 500 ms, with link delays of 20 to 200 ms. Every number can be reproduced
-with the `poo sim` command beside it. The findings:
+with the `poon sim` command beside it. The findings:
 
 - Agreement and conservation held in every run (30 seeds each of load and
   partition).
@@ -35,7 +35,7 @@ These are measurements of this model, not of a real network: see
 
 ## Agreement, conservation and partitions
 
-`poo sim load -runs 30` and `poo sim partition -runs 30`:
+`poon sim load -runs 30` and `poon sim partition -runs 30`:
 
 - Every node ended on the same tip with the same weight.
 - Every claimed mint's portions summed to its supply.
@@ -49,7 +49,7 @@ deterministic, and D79 changes nothing at this size.
 
 ## Attacks with a head start
 
-`poo sim attack -runs 30 -share Q -threshold T`, with a 2 s head start and
+`poon sim attack -runs 30 -share Q -threshold T`, with a 2 s head start and
 60 s to keep trying after the goods are released. The attacker's share is
 of all the network's work, all of it put on the attacked pool. Each cell
 is the share of released payments it reversed. The last column is the
@@ -76,7 +76,7 @@ How to read it:
 
 ## Sizing sweep
 
-`poo sim sizing -runs 30 -share 0.3 -threshold 5000`: the same 8 mints,
+`poon sim sizing -runs 30 -share 0.3 -threshold 5000`: the same 8 mints,
 payment rate and total builder power, with the pool size swept.
 
 | Pool size | Pools | Settled | Mean wait | Sibling share | Attack won |
@@ -96,7 +96,7 @@ How to read it:
 
 ## Latency and sibling work
 
-`poo sim load -runs 5 -pay-every 100 -min-latency A -max-latency B`:
+`poon sim load -runs 5 -pay-every 100 -min-latency A -max-latency B`:
 
 | Link delay | Mean wait | Sibling share | Settled of sent |
 | --- | --- | --- | --- |
@@ -111,7 +111,7 @@ cost, and it grows quickly once delays approach the build period (2 s).
 
 ## K under partitions
 
-`poo sim partition -runs 20 -k K`, before and after decision D79:
+`poon sim partition -runs 20 -k K`, before and after decision D79:
 
 | K | Agreed (M7) | Uncontested lost (M7) | Agreed (M8) | Uncontested lost (M8) |
 | --- | --- | --- | --- | --- |

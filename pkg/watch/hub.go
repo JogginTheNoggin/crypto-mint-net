@@ -281,7 +281,7 @@ func (h *Hub) switchEvents(s *series.Series, k engine.PoolKey, base Event, sw *l
 	h.eng.Ledger(k, func(p *ledger.Pool) {
 		for _, eh := range sw.Applied {
 			// A body that cannot be read back is a damaged log, which
-			// poo doctor reports; the switch's events leave it out
+			// poon doctor reports; the switch's events leave it out
 			// (RED-084, D173).
 			en, err := p.Entry(eh)
 			if err != nil {

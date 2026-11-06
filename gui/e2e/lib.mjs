@@ -1,5 +1,5 @@
-// Shared set-up for the end-to-end checks: start poo-gui in a fresh
-// POO_HOME and open it in Chromium.
+// Shared set-up for the end-to-end checks: start poon-gui in a fresh
+// POON_HOME and open it in Chromium.
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,11 +9,11 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
-// flags are extra poo-gui flags, such as -view-only.
+// flags are extra poon-gui flags, such as -view-only.
 export async function launch(bin, flags = []) {
-  const home = mkdtempSync(join(tmpdir(), 'poo-gui-e2e-'));
-  const env = { ...process.env, POO_HOME: home };
-  delete env.POO_PASSPHRASE;
+  const home = mkdtempSync(join(tmpdir(), 'poon-gui-e2e-'));
+  const env = { ...process.env, POON_HOME: home };
+  delete env.POON_PASSPHRASE;
   const gui = spawn(bin, ['-no-open', ...flags], { env, stdio: ['ignore', 'pipe', 'inherit'] });
   const url = await new Promise((resolve, reject) => {
     let buf = '';
@@ -22,7 +22,7 @@ export async function launch(bin, flags = []) {
       const m = buf.match(/open (http:\/\/127\.0\.0\.1:\d+\/\?t=[0-9a-f]+)/);
       if (m) resolve(m[1]);
     });
-    gui.on('exit', c => reject(new Error(`poo-gui exited ${c}`)));
+    gui.on('exit', c => reject(new Error(`poon-gui exited ${c}`)));
     setTimeout(() => reject(new Error('no address printed')), 20000);
   });
   const browser = await chromium.launch();

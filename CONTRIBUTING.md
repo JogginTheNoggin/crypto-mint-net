@@ -32,7 +32,7 @@ Read [docs/architecture.md](docs/architecture.md) first. In short, packages
 form layers, and a package only imports packages below it:
 
 ```
-cmd/poo (only calls cli)  cli
+cmd/poon (only calls cli)  cli
   sim
   rpc
     wallet
@@ -95,7 +95,7 @@ consensus; otherwise it belongs to the series.
   path.
 - A change to how nodes agree (selection, switching, pending
   transactions, catch-up) should also pass `go test ./pkg/sim` and, for
-  confidence, a few hundred seeds of `poo sim partition -runs 200`.
+  confidence, a few hundred seeds of `poon sim partition -runs 200`.
 
 ## Style
 

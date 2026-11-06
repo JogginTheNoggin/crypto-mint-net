@@ -28,7 +28,7 @@ func cryptoCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 || *maxWitness > 1<<32-1 {
-		return fmt.Errorf("usage: poo crypto [-max-witness BYTES] [-o json|table]")
+		return fmt.Errorf("usage: poon crypto [-max-witness BYTES] [-o json|table]")
 	}
 	type named struct {
 		ID   uint32 `json:"id"`
@@ -70,14 +70,14 @@ func number(kind, v string, byName func(string) (uint32, bool)) (uint32, error) 
 	if n, ok := byName(v); ok {
 		return n, nil
 	}
-	return 0, fmt.Errorf("unknown %s %q (poo crypto lists them)", kind, v)
+	return 0, fmt.Errorf("unknown %s %q (poon crypto lists them)", kind, v)
 }
 
 func parseHash(v string) (hash.ID, error) {
 	n, err := number("hash", v, func(s string) (uint32, bool) { id, ok := hash.ByName(s); return uint32(id), ok })
 	if err == nil {
 		if _, lerr := hash.Lookup(hash.ID(n)); lerr != nil {
-			return 0, fmt.Errorf("unknown hash %q (poo crypto lists them)", v)
+			return 0, fmt.Errorf("unknown hash %q (poon crypto lists them)", v)
 		}
 	}
 	return hash.ID(n), err
@@ -86,7 +86,7 @@ func parseHash(v string) (hash.ID, error) {
 func parseAlg(v string) (policy.AlgID, error) {
 	n, err := number("key algorithm", v, func(s string) (uint32, bool) { id, ok := policy.Default().AlgByName(s); return uint32(id), ok })
 	if err == nil && !policy.Default().HasAlg(policy.AlgID(n)) {
-		return 0, fmt.Errorf("unknown key algorithm %q (poo crypto lists them)", v)
+		return 0, fmt.Errorf("unknown key algorithm %q (poon crypto lists them)", v)
 	}
 	return policy.AlgID(n), err
 }
@@ -94,7 +94,7 @@ func parseAlg(v string) (policy.AlgID, error) {
 func parseType(v string) (policy.TypeID, error) {
 	n, err := number("policy type", v, func(s string) (uint32, bool) { id, ok := policy.Default().TypeByName(s); return uint32(id), ok })
 	if err == nil && !policy.Default().HasType(policy.TypeID(n)) {
-		return 0, fmt.Errorf("unknown policy type %q (poo crypto lists them)", v)
+		return 0, fmt.Errorf("unknown policy type %q (poon crypto lists them)", v)
 	}
 	return policy.TypeID(n), err
 }
@@ -141,7 +141,7 @@ func seriesNew(args []string, out io.Writer) error {
 	credit := fs.Bool("entry-hash-credit", false, "an entry's own hash adds its credit")
 	maxWitness := fs.Uint("max-witness", series.ReserveMaxWitness, "largest witness in bytes, the series' witness ceiling (0: not set, which needs -any-ceiling)")
 	anyCeiling := fs.Bool("any-ceiling", false, "allow a witness ceiling of 0 (not set) or above 4 MiB (D170)")
-	issuer := fs.String("issuer", "", "the issuer's address (hex), who signs the series (poo series sign) and, for a variable series, releases its parts")
+	issuer := fs.String("issuer", "", "the issuer's address (hex), who signs the series (poon series sign) and, for a variable series, releases its parts")
 	variable := fs.Bool("variable", false, "a variable supply series: the issuer releases more parts of -part-size mints later (D163); needs -issuer")
 	partSize := fs.Uint64("part-size", 0, "with -variable: mints in every part after the first, a whole multiple of -pool-size")
 	maxParts := fs.Uint64("max-parts", 0, "with -variable: the largest number of parts ever, the first included (0: no limit)")
@@ -188,7 +188,7 @@ func seriesNew(args []string, out io.Writer) error {
 	return writeJSON(out, p)
 }
 
-// CeilingLimit is the largest witness ceiling poo series new and poo init
+// CeilingLimit is the largest witness ceiling poon series new and poon init
 // take without -any-ceiling (Red's condition 1 as tool policy, D170).
 const CeilingLimit = nodepolicy.CeilingLimit
 

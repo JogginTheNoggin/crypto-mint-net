@@ -37,7 +37,7 @@ func policyExportCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("poo policy export takes flags only")
+		return errors.New("poon policy export takes flags only")
 	}
 	m := w.manager()
 	cur, _ := m.Current()
@@ -153,7 +153,7 @@ func plural(n int, one, many string) string {
 	return many
 }
 
-// importResult is what poo policy import did, or would do, to one node
+// importResult is what poon policy import did, or would do, to one node
 // policy.
 type importResult struct {
 	Name    string `json:"name,omitempty"`
@@ -179,7 +179,7 @@ func policyImportCmd(args []string, out io.Writer) error {
 	return importBundleCmd(args, out, false)
 }
 
-// importBundleCmd is poo policy import, and with settingsOnly poo
+// importBundleCmd is poon policy import, and with settingsOnly poon
 // settings import (D155): the same reading, plan, digest and apply, the
 // settings import taking only the node settings.
 func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
@@ -206,7 +206,7 @@ func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
 	noReload := fs.Bool("no-reload", false, "change node.json only; a running node applies it on its next reload or start")
 	asJSON := fs.Bool("json", false, "print the plan as JSON")
 	ifDigest := fs.String("if-digest", "", "apply only if the import digest (hex, as the preview prints it: the file, the options and the plan) is this one: so what is applied is what was previewed")
-	// The file may come before the flags: poo policy import FILE -apply.
+	// The file may come before the flags: poon policy import FILE -apply.
 	var file string
 	if len(args) > 0 && (args[0] == "-" || !strings.HasPrefix(args[0], "-")) {
 		file, args = args[0], args[1:]
@@ -218,9 +218,9 @@ func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
 		file = fs.Arg(0)
 	} else if fs.NArg() != 0 || file == "" {
 		if settingsOnly {
-			return errors.New("usage: poo settings import FILE|- [-apply] [-prefer-file] [-replace] [-full] [-map-path OLD=NEW]... [-if-digest D] [-policy NAME | -dir DIR]")
+			return errors.New("usage: poon settings import FILE|- [-apply] [-prefer-file] [-replace] [-full] [-map-path OLD=NEW]... [-if-digest D] [-policy NAME | -dir DIR]")
 		}
-		return errors.New("usage: poo policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-map-path OLD=NEW]... [-if-digest D] [-policy NAME | -dir DIR]")
+		return errors.New("usage: poon policy import FILE|- [-apply] [-prefer-file] [-replace] [-settings] [-full] [-map-path OLD=NEW]... [-if-digest D] [-policy NAME | -dir DIR]")
 	}
 	var pathMaps []nodepolicy.PathMap
 	for _, m := range maps {
@@ -248,7 +248,7 @@ func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
 	var b nodepolicy.Bundle
 	var err error
 	if file == "-" {
-		// Standard input, as poo submit -f - reads it: how the GUI hands
+		// Standard input, as poon submit -f - reads it: how the GUI hands
 		// over a file picked in the browser.
 		b, err = nodepolicy.ReadBundle(inputOf(out))
 		if cerr := contextOf(out).Err(); cerr != nil {
@@ -267,11 +267,11 @@ func importBundleCmd(args []string, out io.Writer, settingsOnly bool) error {
 	}
 	switch {
 	case settingsOnly && b.Scope == nodepolicy.ScopeSeries:
-		return errors.New("this file holds a series, not settings: poo policy import adds it")
+		return errors.New("this file holds a series, not settings: poon policy import adds it")
 	case settingsOnly && b.Scope == nodepolicy.ScopeNode:
-		return errors.New("this file holds several node policies: export the settings of one with poo settings export, or import it whole with poo policy import")
+		return errors.New("this file holds several node policies: export the settings of one with poon settings export, or import it whole with poon policy import")
 	case !settingsOnly && b.Scope == nodepolicy.ScopeSettings:
-		return errors.New("this file holds settings only: poo settings import takes them")
+		return errors.New("this file holds settings only: poon settings import takes them")
 	}
 	opt := nodepolicy.MergeOptions{PreferFile: *prefer, Replace: *replace, Settings: *settings, Full: *full,
 		SeriesOnly: b.Scope == nodepolicy.ScopeSeries, SettingsOnly: settingsOnly, MapPaths: pathMaps}
@@ -554,7 +554,7 @@ func printPlan(out io.Writer, r importResult, apply, settingsOnly bool) {
 		fmt.Fprintf(out, "  warning: %s; it is listed but unused until accepted (issuers)\n", termSafe(s))
 	}
 	for _, s := range p.Declined {
-		fmt.Fprintf(out, "  declined: series %s; poo policy limits -set series_ceiling=N changes which series an import adds\n", termSafe(s))
+		fmt.Fprintf(out, "  declined: series %s; poon policy limits -set series_ceiling=N changes which series an import adds\n", termSafe(s))
 	}
 	for _, s := range p.Unbounded {
 		fmt.Fprintf(out, "  warning: series %s\n", termSafe(s))

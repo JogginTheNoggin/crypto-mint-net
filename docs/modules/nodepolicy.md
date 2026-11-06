@@ -42,7 +42,7 @@ D25). Nothing here changes what is valid.
     "chunk_size": 1048576, "entry_limit": 512, "hash_limit": 4096, "layer_limit": 65536,
     "no_notices": false,
     "check_seconds": 60,
-    "registries": ["https://registry.example/poo.json"],
+    "registries": ["https://registry.example/poon.json"],
     "max_outbound": 8,
     "max_inbound": 24,
     "allow_local_peers": false,
@@ -99,12 +99,12 @@ not only the strongest of each search: several times the credit for the
 same work, and more layers sent (ORANGE-010, D118). 0 keeps today's
 behaviour. `grind.layer_rate` bounds the layers a second the floor adds,
 strongest first, so peers' layer budgets take every one: 0 means 10, and
-at most 50, half of the 100 a second peers take from one node by default (ORANGE-016, D122; GUI-015, D127). Both are set by `poo grind schedule set
+at most 50, half of the 100 a second peers take from one node by default (ORANGE-016, D122; GUI-015, D127). Both are set by `poon grind schedule set
 -layer-floor S -layer-rate R`. A node.json written while a bound was
 higher still opens: `Load` brings the value down to the bound and notes
 it in `Policy.Lowered` (a `Lowered` each: the field, the value written,
 the value used and `FixArgs`, the command that writes the value used),
-which the node logs as a warning and `poo doctor` shows with that command
+which the node logs as a warning and `poon doctor` shows with that command
 as its fix_args (GREEN-035, D135); every write (Save, the RPC, the CLI, the GUI) refuses it. A bound
 may only be lowered this way, so an older file never stops a node from
 starting (RED-025, D128). `p2p.fast_catch_up` and `p2p.depth_limit` are no longer used: a
@@ -128,7 +128,7 @@ machine-local, like `listen` and `advertise`. `announce_version`
 (machine-local too) is `release` (the default, also when empty) to name
 the running release in the hello, or `none` to send an empty release
 (D186). The default ports are `127.0.0.1:7732` for `rpc.listen` and
-`:7733` for `p2p.listen`, and `poo init` writes them into a new file
+`:7733` for `p2p.listen`, and `poon init` writes them into a new file
 (D187). The p2p defaults are in
 `p2p.DefaultConfig` (decisions D37, D47, D62). `unlisted_conns: -1` keeps
 no unlisted connections; `review_seconds: -1` never reviews.
@@ -139,13 +139,18 @@ learned from peers and registries be loopback, private, link-local or
 otherwise not public; turn it on only for a network on one machine or LAN.
 Addresses in `peers` are always dialled. `no_dial_imported` (off by
 default, D157) keeps the unlisted addresses an imported peer file gave
-out of the connection manager, so only `poo peer connect -imported`
+out of the connection manager, so only `poon peer connect -imported`
 tries them.
 
 The peer book, tracker and discovery limits, and the engine's memory
 limits, are the user's to set (D159, D160). Left out or 0, each is its default; any other value must lie in
 its range, or `Validate` refuses the policy and names the setting
 (`nodepolicy.Bounds`):
+
+`poon policy limits` lists each one with `zero`, what 0 (or leaving it
+out) means for it: its default, or for the limits in the bounty rows and
+`series_ceiling`, a word of its own such as off or not set
+(GUI-GREEN-065, D204).
 
 | Setting | Default | Range | What it bounds |
 | --- | --- | --- | --- |
@@ -176,11 +181,11 @@ its range, or `Validate` refuses the policy and names the setting
 | `bounty.max_strength` | 0 (any: 255 is sent) | 0 to 255 | the strongest peer offer this grinder lists, keeps and leases; sent in every bounty list request and take, and a payer lists and leases only offers at or under it (D202) |
 
 `Policy.Limits` lists them with the value node.json sets and the value used,
-from the one list `Validate` checks; `poo policy limits` prints it
+from the one list `Validate` checks; `poon policy limits` prints it
 (GREEN-047). Each limit's `in_place` says whether a running node applies a
 change of it without a reload, from the `InPlace` list below
 (GUI-GREEN-053, D170).
-`poo policy limits -set NAME=VALUE` (`Policy.SetLimits`,
+`poon policy limits -set NAME=VALUE` (`Policy.SetLimits`,
 `POST /v1/policy/limits`) changes them, checked whole first (D161).
 A running node applies the ones `InPlace` names without a reload (D168):
 `p2p.max_book`, `p2p.book_per_range`, `p2p.retry_seconds`,
@@ -212,7 +217,7 @@ priority, backup, candidate, unlisted, inbound or outbound (see
 [tracking.md](tracking.md)). `peers_per_policy`, from milestone 4, is ignored:
 the slots replace it. `log.level` is `debug`, `info` (default), `warn` or
 `error`, and `log.format` is `plain` (default), `text` or `json`
-([logging.md](logging.md)); `poo node -log-level` and `-log-format` override
+([logging.md](logging.md)); `poon node -log-level` and `-log-format` override
 them for one run. `grind` ([grind.md](grind.md), D109) sets the device
 (`auto`, `cpu`, `gpu:0`, ...) and threads (0: every core but one) that
 grinding uses unless told otherwise, and up to 16 jobs the node runs by
@@ -220,7 +225,7 @@ itself from start to stop: `target` is `tip`, `pending`, `tx:TID` or an
 entry hash, with optional `series`, `pools`, `device`, `threads`, `hours`
 (local, such as `22-06`) and, for an entry or `tx:`, `until_from` (which
 `tx:` needs). `Validate` checks the section, so a reload onto a bad one
-is refused (D106). `poo grind schedule` edits it, and a running node
+is refused (D106). `poon grind schedule` edits it, and a running node
 applies the change at once without a reload (D113).
 
 ## API
@@ -255,7 +260,7 @@ applies the change at once without a reload (D113).
   list. Removing mints takes them off the listed mints, and a mint
   followed only through its pool cannot be removed alone, since a mint is
   checked with its whole pool. Both refuse a series not listed in
-  `series`. `poo follow`, `poo unfollow`, `poo wallet follow` and
+  `series`. `poon follow`, `poon unfollow`, `poon wallet follow` and
   `POST /v1/follow` all use them, so the file and the running node always
   agree. A change after which the follow list would need more than
   `MaxSections` (4096) separate sections, the wire's limit on what a node
@@ -263,7 +268,7 @@ applies the change at once without a reload (D113).
   with or without `except`, is one section (RED-050, D154).
 - `ReplaceFollow(f)` puts f's pools and mints (or the whole series, when
   f names none) in place of the series' rule in one change, leaving other
-  rules alone; `poo wallet follow` uses it through `POST /follow` with
+  rules alone; `poon wallet follow` uses it through `POST /follow` with
   `replace` (GUI-018, D139).
 - `GrindEdit{Remove, RemoveAll, Add, Set, Version}.Apply(g)` changes a
   grind section where it is kept, so two changes made at once both apply.
@@ -271,7 +276,7 @@ applies the change at once without a reload (D113).
   number is refused with `ErrGrindChanged` rather than removing another
   job. `Grind.Version()` names a section's content, for `If-Match` and
   `GrindEdit.Version` (GUI-014, D125). The node applies edits under its
-  lock (`POST /v1/grind/schedule/edit`); `poo grind schedule` applies the
+  lock (`POST /v1/grind/schedule/edit`); `poon grind schedule` applies the
   same edit to node.json when no node runs, under `Lock(dir)`, so it is
   refused while a node or another command holds the directory (GUI-017,
   D134).
@@ -293,7 +298,7 @@ by dotted path, and the node warns at start. Exports and bundles carry
 only known settings, and a bundle with an unknown field is still refused.
 An unknown setting inside a list entry or a map value cannot be kept:
 `UnknownDropped` names those (such as `series[0].x`), the node warns at
-start that the next save drops them, and `poo doctor` warns too
+start that the next save drops them, and `poon doctor` warns too
 (GREEN-057). Doctor also notes the kept ones, since a misspelt key is
 kept in the same way.
 
@@ -304,7 +309,7 @@ Since D185:
   with U+017F. `encoding/json` reads such a key as the setting, so
   "unknown" is decided by the same folding (`fieldFor`). `Load` applies
   the key, and `Save` writes the setting under its own name instead.
-  `FoldedSettings` names these keys, and the node and `poo doctor` warn.
+  `FoldedSettings` names these keys, and the node and `poon doctor` warn.
   A kept setting is never written beside a key that folds to its own.
 - **What is kept has limits.** At most `MaxKeptSettings` (256) settings
   are kept, each at most `MaxKeptBytes` (64 KiB) compacted and
@@ -325,7 +330,7 @@ D149). It is JSON:
 
 ```json
 {
-  "kind": "poo-node-policies",
+  "kind": "poon-node-policies",
   "format": 1,
   "scope": "series | policy | node | settings",
   "exported": "2026-11-02T21:00:00Z",
@@ -472,7 +477,7 @@ A new setting is a new optional field with a documented default. Bump
 (as Go raised it at start; unknown off Unix) with the followed pools plus
 `FileRoom` (256). `Policy.FollowedPools(accepted)` counts, at most, the
 pools the follow rules take on without starting a node. A node logs a
-warning at `Open` and `poo doctor` adds an `open-files` check when the
+warning at `Open` and `poon doctor` adds an `open-files` check when the
 limit is low.
 
 ## Series witness ceilings (D170)
@@ -485,16 +490,16 @@ plan's `declined` with the reason (`Policy.DeclinesSeries`). It never
 drops a series the policy already lists. Declining a series is a lack of
 information, not a verdict on any ledger, so it cannot split nodes that
 have the same information. It is a node setting, so an import takes it
-only with `-settings`. `poo init` and `poo series new` refuse such a
+only with `-settings`. `poon init` and `poon series new` refuse such a
 series on their own, unless `-any-ceiling` forces it.
 
 Since D171 (RED-083) it is a bounded setting like the others (0, or 1,024
-bytes to 1 GiB): `poo policy limits -set series_ceiling=N`. It stays 0 for
+bytes to 1 GiB): `poon policy limits -set series_ceiling=N`. It stays 0 for
 a new node, because the documents' example series sets no ceiling. An
 import plan also lists in `unbounded` each series it adds, or whose
 follow it changes, that sets no ceiling or one above 4 MiB
 (`CeilingWarning`), and the text plan prints both lists, with the number
-of follow rules a declined series took with it. `poo series info`,
-`poo series followed` and `poo doctor` (check `ceiling`) show the same
+of follow rules a declined series took with it. `poon series info`,
+`poon series followed` and `poon doctor` (check `ceiling`) show the same
 warning for series the node already follows. A warning changes nothing
 a node accepts.

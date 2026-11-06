@@ -57,7 +57,7 @@ func TestPeerImportUsesPolicyLimits(t *testing.T) {
 	}
 }
 
-// poo policy limits shows each settable limit's range, default and value,
+// poon policy limits shows each settable limit's range, default and value,
 // reads only, and works in view-only mode (GREEN-047).
 func TestPolicyLimitsCmd(t *testing.T) {
 	root := t.TempDir()

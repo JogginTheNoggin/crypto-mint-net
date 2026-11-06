@@ -1,6 +1,6 @@
 // Watch and Explore: the node's live events and its views, selected by the
-// same filter flags as poo watch, poo pools, poo ledger and the rest. The
-// filter is only turned into flags here; poo applies it (pkg/filter).
+// same filter flags as poon watch, poon pools, poon ledger and the rest. The
+// filter is only turned into flags here; poon applies it (pkg/filter).
 import * as api from '../api.js';
 import { el, choices, cmdLine, panel, form, flag, mountAll } from '../views.js';
 import { parseJSON, render } from '../render.js';
@@ -17,8 +17,8 @@ const MAX_ERR = 64 << 10;
 const MAX_LINE = 1 << 20;
 
 // filterFields are the form fields of a filter (Watch adds the kinds as
-// boxes); filterFlags turns their values into poo's filter flags (comma
-// lists, as poo takes them).
+// boxes); filterFlags turns their values into poon's filter flags (comma
+// lists, as poon takes them).
 const filterFields = () => [
   { name: 'series', label: 'Series ids', placeholder: 'comma list' },
   { name: 'pool', label: 'Pools', placeholder: 'comma list' },
@@ -35,7 +35,7 @@ const filterFlags = v => [
 
 const short = h => (typeof h === 'string' && h.length > 16) ? `${h.slice(0, 10)}…${h.slice(-6)}` : (h ?? '');
 
-// clock shows poo's UTC time as local time to the millisecond, like the
+// clock shows poon's UTC time as local time to the millisecond, like the
 // Jobs view; the time exactly as printed is in the tooltip.
 function clock(t) {
   const d = new Date(t);
@@ -44,7 +44,7 @@ function clock(t) {
   return el('time', { datetime: t, title: t }, `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`);
 }
 
-// eventRow is one line of the live table: what poo watch printed, laid out.
+// eventRow is one line of the live table: what poon watch printed, laid out.
 function eventRow(ev) {
   const what = ev.kind === 'switch' && ev.switch ? `to ${short(ev.switch.to)} at ${ev.switch.fork_height}`
     : ev.entry ? `entry ${short(ev.entry.hash)} h${ev.entry.height ?? ''}`
@@ -69,7 +69,7 @@ function eventRow(ev) {
 // look-up link from an event to Explore does not lose the stream. Stop
 // stays explicit, and the Watch tab shows a dot while it runs.
 //
-// While the view is away the poo watch job keeps running on the server,
+// While the view is away the poon watch job keeps running on the server,
 // but the page closes its event stream and remembers the next output
 // sequence number; coming back follows again from there (?from=), so the
 // browser holds no stream and parses nothing in the background, and no
@@ -234,7 +234,7 @@ function buildWatch(ctx) {
       dropped: d => {
         next = d.next;
         buf = '';
-        state.textContent = 'some events were dropped while the view was away (poo-gui keeps the newest 4 MiB of output)';
+        state.textContent = 'some events were dropped while the view was away (poon-gui keeps the newest 4 MiB of output)';
         tally['dropped while away'] = (tally['dropped while away'] || 0) + 1;
         showCounts();
       },
@@ -263,7 +263,7 @@ function buildWatch(ctx) {
 
   const sec = el('section', { class: 'panel' },
     el('div', { class: 'panel-head' }, el('h2', {}, 'Live events')),
-    el('p', { class: 'hint' }, 'Runs poo watch with these filters and shows each event as it arrives, newest first. Empty fields match everything; within a field, any listed value matches. Click an event for all of it.'),
+    el('p', { class: 'hint' }, 'Runs poon watch with these filters and shows each event as it arrives, newest first. Empty fields match everything; within a field, any listed value matches. Click an event for all of it.'),
     f, line, state, counts, errOut, rowsNote, el('div', { class: 'table-wrap events-wrap' }, table), detail);
   return sec;
 }
@@ -280,10 +280,10 @@ export const watchView = {
   },
 };
 
-// ledgerPicture draws one page of poo ledger: each entry a bar, oldest on
+// ledgerPicture draws one page of poon ledger: each entry a bar, oldest on
 // the left, linked to its parent, its height under it and its own weight
 // on it. Bar heights are scaled to the largest own weight on the page, and
-// every number shown is a field poo ledger printed (the tooltip has the
+// every number shown is a field poon ledger printed (the tooltip has the
 // rest). It computes nothing about the ledger itself. fromTip marks the
 // newest bar as the tip.
 const SVG = 'http://www.w3.org/2000/svg';
@@ -335,7 +335,7 @@ export const exploreView = {
       args: v => ['ledger', ...where.flags(), ...flag('pool', v.pool1), ...flag('below', v.below), ...flag('limit', v.limit), ...filterFlags(v)],
       submit: 'Show ledger',
       // "Older" asks for the next page with -below set to the page's
-      // next, read from poo ledger's JSON rather than from the page.
+      // next, read from poon ledger's JSON rather than from the page.
       onResult: (r, area) => {
         if (r.code !== 0) return;
         let page, next;
@@ -351,7 +351,7 @@ export const exploreView = {
     });
     const txForm = form(ctx, { title: 'A transaction', about: 'One transaction and where it stands.', fields: [{ name: 'tid1', label: 'Transaction id' }, series, { name: 'inSerial', label: 'In mint serial', type: 'number', placeholder: 'optional' }],
       args: v => ['tx', ...where.flags(), ...flag('series', v.series1), ...flag('in-serial', v.inSerial), ...(v.tid1 ? [v.tid1] : [])], submit: 'Look up' });
-    // Below and Transaction ids are poo address's -below and -tid, which
+    // Below and Transaction ids are poon address's -below and -tid, which
     // the parity check found no form sent (GUI-GREEN-042).
     const addrForm = form(ctx, { title: 'An address', about: 'Balance, holdings, history and pending.', fields: [{ name: 'addr', label: 'Address' }, series, { name: 'limit', label: 'History entries', type: 'number', placeholder: '50' }, { name: 'below', label: 'Below height', type: 'number', placeholder: 'default: the tip' }, ...filt.slice(1, 3), filt[5]],
       args: v => ['address', ...where.flags(), ...flag('series', v.series1), ...flag('limit', v.limit), ...flag('below', v.below), ...flag('pool', v.pool), ...flag('serial', v.serial), ...flag('tid', (v.tid || '').replace(/\s+/g, '')), ...(v.addr ? [v.addr] : [])], submit: 'Look up' });
@@ -360,7 +360,7 @@ export const exploreView = {
     const p = ctx.params || new URLSearchParams();
     if (p.get('tid')) setTimeout(() => txForm.run({ tid1: p.get('tid') }));
     else if (p.get('address')) setTimeout(() => addrForm.run({ addr: p.get('address') }));
-    return mountAll(root, 'Explore', 'What the node holds, selected with the same filters as Watch. Each is one poo command.', [
+    return mountAll(root, 'Explore', 'What the node holds, selected with the same filters as Watch. Each is one poon command.', [
       form(ctx, { title: 'Pools', about: 'Followed pools: tip, height, weight, pending.', fields: filt,
         args: v => ['pools', ...where.flags(), ...filterFlags(v)], submit: 'Show pools' }),
       ledger,

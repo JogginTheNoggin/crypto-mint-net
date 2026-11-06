@@ -327,7 +327,7 @@ func TestSnapshotEvery(t *testing.T) {
 // the next stop writes one for this build.
 func TestSnapshotOtherBuild(t *testing.T) {
 	f := newFixture(t)
-	undo := node.SetBuildID("poo older")
+	undo := node.SetBuildID("poon older")
 	n := f.open()
 	f.history(n)
 	want := f.full(n)
@@ -335,7 +335,7 @@ func TestSnapshotOtherBuild(t *testing.T) {
 	undo()
 	n = f.open()
 	rs := n.Replayed()
-	if rs.Snapshots != 0 || len(rs.Unused) != 1 || !strings.Contains(rs.Unused[0], `written by "poo older"`) {
+	if rs.Snapshots != 0 || len(rs.Unused) != 1 || !strings.Contains(rs.Unused[0], `written by "poon older"`) {
 		t.Fatalf("stats %+v", rs)
 	}
 	if got := f.full(n); got != want {

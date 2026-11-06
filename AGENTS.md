@@ -157,7 +157,7 @@ White's rules:
 - A flag, setting, endpoint or command is deprecated (still works, warns)
   for a release before it is removed. A moved default is a release note.
 - Releases: White signs off the release checklist in its README and hands
-  it to the owner, who alone tags and publishes. `poo` and `poo-gui`
+  it to the owner, who alone tags and publishes. `poon` and `poon-gui`
   carry one version from one tag.
 - Source/White is the primary White (the owner, 2026-11-05). The two
   Whites talk and cooperate, but GUI/White consults Source/White on
@@ -227,7 +227,7 @@ way, in the same format, as
 `docs/proposals/<layer>/ORANGE-<NNN>-<short-slug>.md`, listed in the same
 index. An Orange proposal adds a **Measurements** section after Problem:
 what was measured, how (the `go test -bench` or `pprof` command, the
-`poo sim` scenario, the machine), and the numbers before and, with a
+`poon sim` scenario, the machine), and the numbers before and, with a
 prototype, after. A claim without a measurement is not a proposal yet.
 Orange keeps every behaviour and every test result the same: a change
 that would alter what the node accepts, selects or sends is a design
@@ -364,9 +364,9 @@ fixes, what changed, the tests added, and how Grey can check it.
 | What a node records about a peer's behaviour, offences and points | `pkg/tracking` (a setting bit, a measure, an offence rule) |
 | Which heavier ledger to check next | `pkg/chase` (the queue); the steps of a chase are in `pkg/p2p/chase.go` |
 | A new policy type or key algorithm | `pkg/policy` (register it; never reuse a number) |
-| How a holder chooses coins, derives keys, pays or follows a payment | `pkg/wallet` (a decision for each habit), `poo wallet` in `pkg/cli/wallet.go` |
-| A network experiment, or one of the design's "tests to run" | `pkg/sim` (a scenario returning a report), `poo sim`, and its numbers in `docs/simulation.md` |
+| How a holder chooses coins, derives keys, pays or follows a payment | `pkg/wallet` (a decision for each habit), `poon wallet` in `pkg/cli/wallet.go` |
+| A network experiment, or one of the design's "tests to run" | `pkg/sim` (a scenario returning a report), `poon sim`, and its numbers in `docs/simulation.md` |
 | A new series setting | `pkg/series` (changes the byte form and so the vectors) |
 | Whether a change keeps older files, data folders and peers working, or a release is ready | `docs/white/<layer>/` (White's checklist, baseline and reviews), `docs/releasing.md` |
 | A consensus review, or whether a change is consensus | `docs/consensus/<layer>/` (Black's checklist and reviews), `docs/consensus-audit.md` (the baseline) |
-| The command-line tool | `pkg/cli` (every command; the GUI runs it too), `cmd/poo` (the process around it) |
+| The command-line tool | `pkg/cli` (every command; the GUI runs it too), `cmd/poon` (the process around it) |

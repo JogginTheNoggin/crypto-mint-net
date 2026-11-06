@@ -13,7 +13,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
 
-// grindLines decodes the JSON lines poo grind run printed.
+// grindLines decodes the JSON lines poon grind run printed.
 func grindLines(t *testing.T, out string) []grind.Event {
 	t.Helper()
 	var evs []grind.Event
@@ -35,7 +35,7 @@ func kindsOf(evs []grind.Event) map[string]int {
 	return m
 }
 
-// TestGrindCommands drives M11 through poo against a running node: the
+// TestGrindCommands drives M11 through poon against a running node: the
 // devices, a pending job that builds an entry, a tip job that selects it,
 // work for a time on a chosen device, start, jobs and stop, an
 // interrupted run, view-only mode and the metrics.
@@ -227,7 +227,7 @@ func TestGrindCommands(t *testing.T) {
 
 func itoa(n int) string { b, _ := json.Marshal(n); return string(b) }
 
-// TestGrindScheduleOffline: without a running node, poo grind schedule
+// TestGrindScheduleOffline: without a running node, poon grind schedule
 // edits node.json, which the node applies when it starts.
 func TestGrindScheduleOffline(t *testing.T) {
 	root := t.TempDir()

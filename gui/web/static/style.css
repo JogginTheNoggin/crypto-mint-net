@@ -220,7 +220,7 @@ button.copy-out { margin-top: 6px; }
 .ledger-pic .lp-h, .ledger-pic .lp-tx { fill: var(--muted); }
 .ledger-pic .lp-link { stroke: var(--muted); stroke-width: 2; }
 
-/* Node: the poo doctor checklist */
+/* Node: the poon doctor checklist */
 ul.doctor { list-style: none; margin: 4px 0; padding: 0; }
 ul.doctor li { padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 ul.doctor strong { margin-right: 4px; }

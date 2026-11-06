@@ -187,16 +187,39 @@ type Limit struct {
 	// bounty.take), so a front end can draw it as a tick box
 	// (GUI-GREEN-063, D200).
 	Switch bool `json:"switch,omitempty"`
+	// Zero says what 0 (or leaving the limit out) means for this limit,
+	// so a reader need not know it per limit (GUI-GREEN-065, D204).
+	Zero string `json:"zero"`
+}
+
+// zeroMeans says what 0 means for each limit whose default is not
+// simply used in its place.
+var zeroMeans = map[string]string{
+	"series_ceiling":      "no ceiling: every series is added",
+	"bounty.post":         "off",
+	"bounty.take":         "off",
+	"bounty.max_amount":   "not set: posting is refused",
+	"bounty.budget":       "not set: posting is refused",
+	"bounty.min_price":    "no least price: offers at any price are kept",
+	"bounty.max_strength": "any strength (255 is sent)",
+}
+
+// zero says what 0 means for b.
+func (b Bound) zero() string {
+	if z, ok := zeroMeans[b.Name]; ok {
+		return z
+	}
+	return fmt.Sprintf("the default, %d", b.Default)
 }
 
 // Limits lists every bounded setting of p with its value, in the order
 // of Bounds. It is the one list checkBounds checks, so a new bound added
-// here is both checked and shown by poo policy limits (GREEN-047).
+// here is both checked and shown by poon policy limits (GREEN-047).
 func (p Policy) Limits() []Limit {
 	var out []Limit
 	for _, b := range Bounds() {
 		v, _ := p.limitGet(b.Name)
-		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v), InPlace: InPlace[b.Name], Switch: bountyBools[b.Name]})
+		out = append(out, Limit{Name: b.Name, Min: b.Min, Max: b.Max, Default: b.Default, Set: v, Used: b.Or(v), InPlace: InPlace[b.Name], Switch: bountyBools[b.Name], Zero: b.zero()})
 	}
 	return out
 }
@@ -305,7 +328,7 @@ func (p *Policy) limitSet(name string, v int) error {
 	return p.setBountyLimit(name, v)
 }
 
-// SetLimits sets bounded settings by name (D161; poo policy limits -set):
+// SetLimits sets bounded settings by name (D161; poon policy limits -set):
 // 0 puts one back to its default. The result is checked whole, so a
 // setting that goes with another (p2p.book_per_range and p2p.max_book)
 // may be set in the same call; on an error p is unchanged. It reports
@@ -320,7 +343,7 @@ func (p *Policy) SetLimits(set map[string]int) (bool, error) {
 	for name, v := range set {
 		old, ok := q.limitGet(name)
 		if !ok {
-			return false, fmt.Errorf("%w: %q is not a settable limit (poo policy limits lists them)", ErrInvalid, name)
+			return false, fmt.Errorf("%w: %q is not a settable limit (poon policy limits lists them)", ErrInvalid, name)
 		}
 		if old != v {
 			if err := q.limitSet(name, v); err != nil {

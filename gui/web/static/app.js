@@ -1,5 +1,5 @@
 // The GUI's shell: navigation between views. Every view is a way to build
-// and run poo command lines (views/); the terminal runs typed ones.
+// and run poon command lines (views/); the terminal runs typed ones.
 import * as api from './api.js';
 import * as terminal from './terminal.js';
 import { views } from './views/index.js';
@@ -66,7 +66,7 @@ function show() {
     a.classList.toggle('active', a.dataset.id === v.id);
     if (a.dataset.id === v.id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
-  document.title = `${v.title} · poo GUI`;
+  document.title = `${v.title} · poon GUI`;
   menu.value = v.id;
   if (stopView) { stopView(); stopView = null; }
   const isTerm = v.id === 'terminal';
@@ -86,7 +86,7 @@ document.querySelector('.skip').addEventListener('click', ev => {
 window.addEventListener('hashchange', show);
 api.loadInfo().then(() => {
   document.getElementById('view-only').hidden = !api.viewOnly;
-  // The release this GUI runs, as poo version prints it (GUI White G4,
+  // The release this GUI runs, as poon version prints it (GUI White G4,
   // GUI-GREEN-058): for a bug report, and to compare with a node's.
   const ver = document.getElementById('version');
   if (typeof api.version === 'string' && api.version) { ver.textContent = `v${api.version}`; ver.hidden = false; }

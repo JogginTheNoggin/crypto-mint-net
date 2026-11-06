@@ -40,7 +40,7 @@ Series, pools, addresses and witnesses (threshold policy, Ed25519),
 transactions and their validity, entries and canonical order, layers and
 credit, pool state with undo and overlays, the per-pool ledger tree with
 selection, switching, displaced transactions and top K pruning, the pending
-pool, the engine, published test vectors, and the `poo` CLI with a 4-node
+pool, the engine, published test vectors, and the `poon` CLI with a 4-node
 demo. Tests reproduce the design's worked example (Appendix A) and compare
 the ledger against a brute-force model on random histories.
 
@@ -54,7 +54,7 @@ the ledger against a brute-force model on random histories.
   operations for node policies.
 - `pkg/node`: the engine with a data directory, a lock and a store per pool.
 - `pkg/rpc`: a local JSON-over-HTTP interface on loopback with a token.
-- `poo init`, `poo node` and client commands (status, claim, pay, build,
+- `poon init`, `poon node` and client commands (status, claim, pay, build,
   work, payment, holdings, policy). See
   [running-a-node.md](running-a-node.md).
 
@@ -72,7 +72,7 @@ Left open, as the design leaves them: expiry of entries and layers by age
   requests from the active ledger, and catching up: full ledger for a new
   pool, extensions on connect, on regular checks and on a higher stated
   weight, and hash chains to find a deep split.
-- The node policy's `p2p` section, `poo init -p2p/-peer`, `poo peers` and
+- The node policy's `p2p` section, `poon init -p2p/-peer`, `poon peers` and
   `/v1/peers`. Tests run several nodes over loopback TCP.
 
 Left for later milestones: peer discovery (M4), choosing which peer to ask,
@@ -89,8 +89,8 @@ the optional full ledger with top K request (M5).
 - `pkg/p2p`: peers verified by follow requests, relaying of broadcasts with
   return paths, rate and hop limits, peer lists, pings, dropped policies,
   and a connection manager that keeps enough verified peers per policy.
-- The node policy's `registries`, `advertise` and discovery limits, `poo
-  init -advertise -registry`, and the peer book in `poo peers`.
+- The node policy's `registries`, `advertise` and discovery limits, `poon
+  init -advertise -registry`, and the peer book in `poon peers`.
 
 Left open, as the design leaves them: registry signing and updates to the
 default registry list (there is no project registry yet), and announcing
@@ -115,8 +115,8 @@ dropped policies while running.
   checks, and chases that confirm with a priority peer, find the common
   entry, check the work with provisional layers, and only then fetch the
   entries; served bytes and repeated requests count against the asker.
-- The node policy's slots, chasing settings and `tracking` section; `poo
-  peer`, `poo tracking`, `poo chases` and their RPC endpoints.
+- The node policy's slots, chasing settings and `tracking` section; `poon
+  peer`, `poon tracking`, `poon chases` and their RPC endpoints.
 
 Left for later milestones: tuning the provisional values (M7). Sharing
 what a node records with other nodes is not planned: the design keeps it
@@ -133,8 +133,8 @@ on the node that recorded it.
   void, with from(e), known rivals and the receiver's settled rule.
 - `Ledger.Rivals`, and the engine and `GET /v1/payment` returning the
   transaction and its rivals; `rpc.WalletNode` for a running node.
-- `poo wallet` with every command, and light mode as a node policy that
-  follows only the wallet's pools (`poo wallet follow`).
+- `poon wallet` with every command, and light mode as a node policy that
+  follows only the wallet's pools (`poon wallet follow`).
 
 Left for later milestones: verifying only some mints of a pool (not
 planned, decision D70), hardware signers (the unsigned file is the
@@ -145,7 +145,7 @@ hand-off), and a wallet over a remote node with TLS.
 - `pkg/sim`: real engines over a simulated network in virtual time, with
   latency, partitions and heals, flooding, fetching, notices and stated
   weights; scenarios for load, partitions, attacks with a head start and
-  the sizing sweep; `poo sim`. Results in
+  the sizing sweep; `poon sim`. Results in
   [simulation.md](simulation.md).
 - A bug it found, fixed: a pending payment waiting on a carried parent
   could stay waiting forever (decision D72).
@@ -193,8 +193,8 @@ BLAKE2b-256, BLAKE3; D80), nine signature algorithms (Ed25519, ECDSA over
 P-256, P-384, P-521 and secp256k1, BIP-340 Schnorr, ML-DSA-44, -65 and -87;
 D81) and three address types (threshold, hashlock, nested k-of-policies;
 D82). Keys of every algorithm derive from a seed, wallets pick their
-algorithm at creation, and `poo crypto`, `poo keygen -alg -hash` and
-`poo series new` expose the choice. Known-answer tests, end-to-end wallet
+algorithm at creation, and `poon crypto`, `poon keygen -alg -hash` and
+`poon series new` expose the choice. Known-answer tests, end-to-end wallet
 tests for every algorithm, and fuzz targets for every verifier and the new
 types cover it. [cryptography.md](cryptography.md) lists every option and
 those advised against (RSA, SLH-DSA, Ed448, Falcon, a lone hashlock).
@@ -209,26 +209,26 @@ headless tool, built on its exact code, with a terminal that works
 identically ([gui.md](gui.md)). The plan is a set of stacked PRs:
 
 - G1: the commands as a library, `pkg/cli` (D84).
-- G2: the `gui` module with `poo-gui`, the job runner, the terminal, the
+- G2: the `gui` module with `poon-gui`, the job runner, the terminal, the
   Jobs view, the locked-down loopback server, the import rule and identity
   tests, and a browser end-to-end test (D85 to D88).
 - G3: views for the node, pools, peers, tracking, chases, node policies,
   series and wallet.
-- G4: Watch (live events from `poo watch`) and Explore (pools, ledger,
+- G4: Watch (live events from `poon watch`) and Explore (pools, ledger,
   pending, unspent, tx, address) with the same filter flags, and follow,
   unfollow and reload on the Node view.
-- G5: `poo-gui` in the release archives.
+- G5: `poon-gui` in the release archives.
 
 ### M10: Viewing, watching and live following (done)
 
 The owner asked whether nodes configure and filter what they follow, set
 and forget, and for comprehensive views and watching per series or
 policy. A node already followed what `node.json` said; now it also
-changes what it follows while running (`poo follow`, `poo unfollow`,
+changes what it follows while running (`poon follow`, `poon unfollow`,
 `POST /v1/follow`, a reload in place; D92, D93). One filter (series,
 pool, mint, address, address policy, transaction, kind; D90) selects
 items in every view (pools, ledger pages, pending, unspent, a
-transaction, an address; D94) and in a live event stream (`poo watch`,
+transaction, an address; D94) and in a live event stream (`poon watch`,
 `GET /v1/watch`; D91). The GUI uses the same packages through `pkg/cli`
 and `pkg/rpc` (D84).
 
@@ -251,13 +251,13 @@ made it Source/Grey's priority for Round 5 Part A. What it must do:
   through a registry like `pkg/hash`'s, so a new hash type (a new
   `hash.ID`) gets a grinder by adding one, without touching the callers.
   A hash with no fast grinder falls back to a generic CPU one.
-- **Same code everywhere.** It lives in a library package that `poo`, the
+- **Same code everywhere.** It lives in a library package that `poon`, the
   RPC and the GUI all use, as every other feature does.
 
 Built in Source Round 5 (D109, [modules/grind.md](modules/grind.md)):
 `pkg/grind` with device probes, a grinder registry, plans and jobs;
-`poo grind` (devices, bench, start, run, jobs, stop), `/v1/grind/*`,
-`-device`, `-threads` and `-for` on `poo build` and `poo work`, the
+`poon grind` (devices, bench, start, run, jobs, stop), `/v1/grind/*`,
+`-device`, `-threads` and `-for` on `poon build` and `poon work`, the
 `grind` section of `node.json`, watch kind `grind` and metrics. The CPU
 has a fast grinder for every hash; GPUs are detected and listed, and
 get used once a GPU grinder is registered. Nothing about consensus

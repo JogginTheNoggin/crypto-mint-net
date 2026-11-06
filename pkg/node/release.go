@@ -18,11 +18,11 @@ import (
 func (n *Node) PolicyMu() *sync.Mutex { return &n.policyMu }
 
 // ErrNotKnown: a release names a series the running node does not know.
-var ErrNotKnown = fmt.Errorf("%w (or the node has not taken it: poo reload)", nodepolicy.ErrSeriesNotListed)
+var ErrNotKnown = fmt.Errorf("%w (or the node has not taken it: poon reload)", nodepolicy.ErrSeriesNotListed)
 
 // AddRelease gives the running node r, a release of a variable series it
 // knows, in place (variable supply phase 3, D168): it checks r in full,
-// witness first, keeps it in node.json under PolicyMu as poo series
+// witness first, keeps it in node.json under PolicyMu as poon series
 // add-release does, and adds it to the series the engine runs, so the
 // part's pools exist at once, as after a reload onto the same node.json.
 // A release of a part already known is checked as well (RED-074); the

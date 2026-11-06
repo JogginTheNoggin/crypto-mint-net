@@ -45,4 +45,4 @@ together. When you change a package, update its page.
 | `pkg/wallet` | [wallet.md](wallet.md) | Wallet (holder's habits) |
 | `pkg/sim` | [sim.md](sim.md) | Tooling (network simulator) |
 | `pkg/vectors`, `pkg/testutil` | [vectors-and-testutil.md](vectors-and-testutil.md) | Tooling |
-| `pkg/cli`, `cmd/poo` | [poo.md](poo.md) | Tooling |
+| `pkg/cli`, `cmd/poon` | [poon.md](poon.md) | Tooling |

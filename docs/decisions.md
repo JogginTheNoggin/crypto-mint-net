@@ -5714,3 +5714,78 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/cli/green062_test.go` (the `=on` text)
   - `gui/e2e/parity.mjs`: `-max-strength` left out until GUI Grey adds
     its field (`bounty.max_strength` in Set limits applies meanwhile).
+
+### D203. Round 39 fixes: a dropped bounty payment sent again instead of replaced, and the bounty memo naming the offer by 16 bytes (BLUE-040)
+
+- **Merged first:** Green's #343 (GREEN-064: max-strength rough edges
+  and `grind bench` `minute_strength`). Orange's #340 (ORANGE-049) is
+  docs only and asks nothing of Blue.
+- **Decision:**
+  - **RED-120.** `sentFor` now returns a payment of the claim whose legs
+    are each sent or dropped, and says when some are dropped. `poo
+    bounty pay` then refreshes that payment from the node and resends its
+    dropped legs (the wallet's own `Refresh` and `Resend`), saves the
+    wallet, and looks again. When every leg is sent, it records the
+    payment; when a leg is still dropped, or a leg is void beside a live
+    or dropped one, it stops for the payer to settle by hand. A payment
+    whose legs are all void or unsigned is still replaced. No new leg
+    state: Red's "abandoned" idea is not needed when a dropped payment
+    is never replaced.
+  - **RED-121.** `BountyMemoID` is the first 16 bytes of the offer's id
+    in hex. The memo is `bounty ` + that (the frozen start, W-34, is
+    unchanged), and `sentFor` matches on it. A memo with only 4 bytes
+    (written before this, never in a release) no longer matches. The
+    done file's tids are not read by `sentFor`: with 16 bytes a chance
+    match needs about 2^64 offers.
+- **Why:** a payer must never pay one claim twice, whether a payment was
+  dropped and resent later or two offers' ids begin alike.
+- **Consensus:** None. The market is outside the ledger (D196).
+- **Tier:** Bounty, CLI, wallet use.
+  - `pkg/cli/blue040_test.go`: `TestBlue040MemoID`,
+    `TestBlue040DroppedIsResent`.
+  - `pkg/cli/white034_test.go`: `dropped` is now found, to be resent;
+    a 4-byte memo is not found.
+  - `pkg/cli/bounty_test.go`: `TestBountyMarket` marks the payment's leg
+    dropped; pay asks the node, finds it held, records it, and the
+    grinder holds one amount.
+
+### D204. Round 40: the tool is renamed poon, the memo id frozen at 16 bytes, and GUI-GREEN-065's notes (jerry, W-36)
+- **Decision.** Merged first: Blue's #346 (BLUE-040, D203, with Green's
+  #343 GREEN-064), Red's #342 (RED-120, RED-121), Orange's #340
+  (ORANGE-049, measured), White's #347, Black's #351 (all clear).
+  - **poo is now poon (jerry):** proof of ownership network, or node.
+    Entries before this one keep the name they were written with.
+    - The command and binary: `poon` (`cmd/poon`); the GUI: `poon-gui`
+      (`gui/cmd/poon-gui`). Error lines start `poon:`.
+    - The data folder: `~/.poon`. Environment variables start `POON_`
+      (`POON_HOME`, `POON_PASSPHRASE`, `POON_NEW_PASSPHRASE`, `POON_SEED`,
+      `POON_VIEW_ONLY`), read through `brand.EnvPrefix`.
+    - Shared files' kinds start `poon-` (`poon-ledger`, `poon-payment`,
+      `poon-peers`, `poon-node-policies`, `poon-bounties`,
+      `poon-bounties-done`); temporary files start `poon-`; metrics start
+      `poon_`; the hello's agent is `poon`; the release signers' principal
+      is `poon-release`.
+    - Unchanged, as `pkg/brand` lists: the wallet key label `PoO-wallet-`,
+      the RPC hello label `poo-rpc-hello`, every byte form and hash label.
+      No consensus byte, id or hash changes.
+    - Nothing is released, so nothing reads the old names.
+    - A later rename changes `brand.Name` and `brand.EnvPrefix` and then
+      replaces the whole word in the living code and docs; `pkg/brand`
+      says how.
+  - **W-36.** The memo id is frozen at 16 bytes; a later release may
+    write more of the id, never less, so prefix matching keeps working.
+  - **GUI-GREEN-065.**
+    - `-ask -max-strength` above `bounty.max_strength` is refused
+      (already in GREEN-064).
+    - `poon bounty list -ask` gives `asked`, the peers asked, with a note
+      when there were none.
+    - A grinder's held offer reads `filled` once the payer has accepted as
+      many of its layers as the offer asks for.
+    - `poon policy limits` gives each limit's `zero`: what 0 means.
+- **Why:** jerry's name; the rest so a user reads what a setting or a
+  held offer means without guessing.
+- **Consensus:** None.
+- **Tier:** CLI, GUI, node policy, bounty, docs.
+  - `pkg/bounty/green065_test.go`: `TestGUIGreen065HeldFilledByAccepts`
+  - `pkg/nodepolicy/limits_test.go`: `TestLimitsSayWhatZeroMeans`
+  - `pkg/cli/bounty_test.go`: `TestBountyMarket` (`asked`)

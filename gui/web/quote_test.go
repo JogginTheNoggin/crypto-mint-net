@@ -29,7 +29,7 @@ func TestQuoteMatchesShell(t *testing.T) {
 	}
 	for _, c := range got {
 		for i, g := range []shell.Grammar{shell.POSIX, shell.Windows} {
-			if want := g.Quote([]string{c[0]}); "poo "+c[1+i] != want {
+			if want := g.Quote([]string{c[0]}); "poon "+c[1+i] != want {
 				t.Errorf("%v: api.js quotes %q as %s, shell.Quote as %s", g, c[0], c[1+i], want)
 			}
 		}

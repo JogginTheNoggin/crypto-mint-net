@@ -16,16 +16,16 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wallet"
 )
 
-// poo sign (D193): adds a key's signatures to a payment waiting for them
-// (the file poo wallet pay -out writes), with no node, no wallet and no
+// poon sign (D193): adds a key's signatures to a payment waiting for them
+// (the file poon wallet pay -out writes), with no node, no wallet and no
 // node policy, so it can run on a machine that is never online. The key
-// comes from a file, never the command line, and is either a poo seed (as
-// poo keygen makes) or, with -raw, the private key in its algorithm's
+// comes from a file, never the command line, and is either a poon seed (as
+// poon keygen makes) or, with -raw, the private key in its algorithm's
 // usual form as another tool keeps it.
 
-// SignReport is what poo sign prints.
+// SignReport is what poon sign prints.
 type SignReport struct {
-	// Series is the payment's series, the same in every leg (poo sign
+	// Series is the payment's series, the same in every leg (poon sign
 	// refuses a file where they differ), and every amount is in its
 	// units; Hash is the hash function each tid is worked out with, and
 	// Variable says the series is variable supply (RED-104, RED-105).
@@ -57,7 +57,7 @@ type SignLeg struct {
 	// with what the watch-only wallet says it spends (RED-104).
 	Spends []string `json:"spends,omitempty"`
 	// Claim marks a leg that claims a whole mint, which spends no input
-	// (poo wallet claim -to-policy, GREEN-060).
+	// (poon wallet claim -to-policy, GREEN-060).
 	Claim   bool        `json:"claim,omitempty"`
 	Outputs []tx.Output `json:"outputs"`
 }
@@ -65,8 +65,8 @@ type SignLeg struct {
 func signCmd(args []string, out io.Writer) error {
 	fs := newFlagSet("sign", out)
 	keyFile := fs.String("key-file", "", "file holding the key in hex, - to type it hidden (needed)")
-	algFlag := fs.String("alg", "ed25519", "the key's algorithm, by name or number (poo crypto)")
-	raw := fs.Bool("raw", false, "the key file holds the private key in its algorithm's usual form, as other tools keep it, not a poo seed")
+	algFlag := fs.String("alg", "ed25519", "the key's algorithm, by name or number (poon crypto)")
+	raw := fs.Bool("raw", false, "the key file holds the private key in its algorithm's usual form, as other tools keep it, not a poon seed")
 	hashName := fs.String("hash", "", "the series' hash, when the file does not name it")
 	outFile := fs.String("out", "", "write the signed payment here (default: back into FILE)")
 	show := fs.Bool("show", false, "only show what the payment pays and what this key would sign; sign nothing")
@@ -75,11 +75,11 @@ func signCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: poo sign FILE|- -key-file KEYFILE [-alg NAME] [-raw] [-hash NAME] [-out FILE] [-show]")
+		return errors.New("usage: poon sign FILE|- -key-file KEYFILE [-alg NAME] [-raw] [-hash NAME] [-out FILE] [-show]")
 	}
 	file := pos[0]
 	if *keyFile == "" {
-		return errors.New("poo sign needs -key-file (see poo keygen); a key is never taken on the command line")
+		return errors.New("poon sign needs -key-file (see poon keygen); a key is never taken on the command line")
 	}
 	if file == "-" && *keyFile == "-" {
 		return errors.New("the payment and the key cannot both come from standard input")
@@ -102,7 +102,7 @@ func signCmd(args []string, out io.Writer) error {
 	}
 	var u wallet.Unsigned
 	if err := json.Unmarshal(b, &u); err != nil {
-		return fmt.Errorf("not a payment waiting for signatures (poo wallet pay -out): %w", err)
+		return fmt.Errorf("not a payment waiting for signatures (poon wallet pay -out): %w", err)
 	}
 	if len(u.Legs) == 0 {
 		return errors.New("the payment has no transactions")
@@ -112,7 +112,7 @@ func signCmd(args []string, out io.Writer) error {
 		hn = *hashName
 	}
 	if hn == "" {
-		return errors.New("the payment does not name its series' hash; give -hash (poo series info names it)")
+		return errors.New("the payment does not name its series' hash; give -hash (poon series info names it)")
 	}
 	hid, err := parseHash(hn)
 	if err != nil {
@@ -133,7 +133,7 @@ func signCmd(args []string, out io.Writer) error {
 	if *raw {
 		signer, err = policy.NewRawSigner(alg, key)
 	} else if len(key) != policy.SeedSize {
-		err = fmt.Errorf("a poo seed is %d hex digits; for a key made by another tool, add -raw", 2*policy.SeedSize)
+		err = fmt.Errorf("a poon seed is %d hex digits; for a key made by another tool, add -raw", 2*policy.SeedSize)
 	} else {
 		signer, err = policy.NewSigner(alg, key)
 	}

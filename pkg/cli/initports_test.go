@@ -7,7 +7,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 )
 
-// poo init writes the default ports into node.json (W-7, D187), so a later
+// poon init writes the default ports into node.json (W-7, D187), so a later
 // release that moves a default leaves this node where it is. The defaults
 // are jerry's choice: 7732 for local commands, 7733 for peers.
 func TestInitWritesPorts(t *testing.T) {

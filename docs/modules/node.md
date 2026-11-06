@@ -105,7 +105,7 @@ before it. It is written to `.tmp`, synced and renamed.
 - `Options.Reverify` ignores them and compares a full replay with any
   snapshot that covered the whole log (`ReplayStats.Reverified`,
   `Differed`); one that does not reach the end of the log is listed in
-  `NotCompared`, which `poo doctor` warns of (RED-088). Since every
+  `NotCompared`, which `poon doctor` warns of (RED-088). Since every
   normal start checks a restore against the same fingerprint, the two
   together compare a replay with what the snapshot restores. `Snapshots` and `SnapshotSummary` report them.
 

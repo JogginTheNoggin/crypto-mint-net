@@ -20,7 +20,7 @@ schedule, or come from the node policy:
 - `pending` builds entries from pending transactions.
 - An entry hash adds layers to that one entry.
 
-The same code serves `poo build`, `poo work` and `poo grind`, the RPC and
+The same code serves `poon build`, `poon work` and `poon grind`, the RPC and
 the GUI. Grinding is outside consensus: every search finds what the
 plain one-goroutine search finds for the same nonces.
 
@@ -103,7 +103,7 @@ A `Spec`:
 | `lease` | Stop unless renewed (`Renew`, `POST /v1/grind/{id}/renew`) within this long, 1s to 10m: a job its follower started ends when the follower is gone |
 
 A **`tx:TID` job** (GREEN-019) follows one payment with the node's own
-`Engine.Payment`, the call `poo tx` reads, so the two always agree. While
+`Engine.Payment`, the call `poon tx` reads, so the two always agree. While
 the payment is pending the job builds an entry for it, then adds layers
 to that entry (or to the best branch, if the entry was built before).
 Once it is selected the job adds layers to its entry until from(e)
@@ -151,11 +151,11 @@ random nonce, so slices and jobs never repeat each other.
   search reads those (GREEN-036). It returns the running job of
   each scheduled job, kept or new, in the schedule's order (GREEN-035,
   D135), so `PUT /v1/grind/schedule`
-  and `poo grind schedule` need no reload and leave user jobs running.
+  and `poon grind schedule` need no reload and leave user jobs running.
   Calls run one at a time, so two never leave both policies' jobs
   running (RED-013).
-- **Totals:** these feed the `poo_grind_tries_total{device,hash}` and
-  `poo_grind_jobs{state}` metrics.
+- **Totals:** these feed the `poon_grind_tries_total{device,hash}` and
+  `poon_grind_jobs{state}` metrics.
 
 ## Extending
 
@@ -193,7 +193,7 @@ random nonce, so slices and jobs never repeat each other.
   work replies, bad options, the view token, and the metrics.
 - `pkg/daemon/grind_test.go`: policy jobs run by themselves, put events on
   the watch stream, and wait outside their hours.
-- `pkg/cli/grind_test.go`: every `poo grind` command, `poo work -for`
+- `pkg/cli/grind_test.go`: every `poon grind` command, `poon work -for`
   with a device, an interrupted `run` that stops its job and exits 0, a
   lapsed lease, and the schedule with and without a running node.
 - `pkg/watch`'s `TestGrindJobEvents`: job-wide events reach a watcher of

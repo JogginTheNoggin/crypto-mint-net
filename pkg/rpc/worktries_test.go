@@ -7,7 +7,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/testutil"
 )
 
-// poo work's limit and default follow the series' minimum layer strength,
+// poon work's limit and default follow the series' minimum layer strength,
 // so a high floor still finds a layer that counts (D168).
 func TestWorkTriesFollowTheFloor(t *testing.T) {
 	for _, c := range []struct {

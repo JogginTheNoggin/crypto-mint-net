@@ -8,7 +8,7 @@ categories, with the mint policies each serves, the owner's labels and
 the blocks the node holds. An import adds the addresses to another
 node's book as unlisted, and takes the blocks only when asked. A user can
 give a new node somewhere to start, keep a backup, or share a block
-list. `poo peers export` and `poo peers import` are the commands; a
+list. `poon peers export` and `poon peers import` are the commands; a
 running node imports through `POST /v1/peers/import`.
 
 Nothing here is consensus: the peer book and the tracker are node policy,
@@ -18,7 +18,7 @@ local to one node.
 
 ```json
 {
-  "kind": "poo-peers",
+  "kind": "poon-peers",
   "format": 1,
   "exported": "2026-11-03T05:00:00Z",
   "categories": ["priority", "backup"],
@@ -71,7 +71,7 @@ and a range. A bad entry refuses the whole file.
   - that the node will try the imported addresses when it is short of
     peers, before registries, unless `p2p.no_dial_imported`;
   - how many of the book's places for imported addresses they take, and
-    that `poo peer remove -imported` takes them out;
+    that `poon peer remove -imported` takes them out;
   - how many blocks and ranges there are, and how much of IPv4 the
     ranges cover;
   - that a listed host name is protected by name only.

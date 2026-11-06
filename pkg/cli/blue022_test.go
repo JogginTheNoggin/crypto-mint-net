@@ -8,7 +8,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/peers"
 )
 
-// RED-058, D158: poo peer remove -imported takes out every
+// RED-058, D158: poon peer remove -imported takes out every
 // address known only from an imported file, and the import's preview
 // names it and says the addresses will be dialled.
 func TestPeersForgetImported(t *testing.T) {
@@ -18,7 +18,7 @@ func TestPeersForgetImported(t *testing.T) {
 	seedBook(t, filepath.Join(src, "policies", "default"))
 	file := filepath.Join(t.TempDir(), "peers.json")
 	runOut(t, "peers", "export", "-root", src, "-out", file)
-	if out := runOut(t, "peers", "import", file, "-root", dst); !strings.Contains(out, "note: once applied, the node tries these addresses when it is short of peers") || !strings.Contains(out, "poo peer remove -imported") {
+	if out := runOut(t, "peers", "import", file, "-root", dst); !strings.Contains(out, "note: once applied, the node tries these addresses when it is short of peers") || !strings.Contains(out, "poon peer remove -imported") {
 		t.Fatalf("preview:\n%s", out)
 	}
 	runOut(t, "peers", "import", file, "-apply", "-root", dst)

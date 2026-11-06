@@ -22,14 +22,14 @@ import (
 // a release is published outside the network, as a series is (PoO section
 // 16.8).
 
-// readSeriesFile reads a series' params from a JSON file, as poo series new
+// readSeriesFile reads a series' params from a JSON file, as poon series new
 // prints them, and builds the series.
 func readSeriesFile(file string) (*series.Series, error) {
 	b, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
-	// A params file or a signed series file (poo series sign) both read.
+	// A params file or a signed series file (poon series sign) both read.
 	info, err := readSeriesInfo(b)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", file, err)
@@ -43,7 +43,7 @@ func readSeriesFile(file string) (*series.Series, error) {
 func issuerSigner(seed *seedFlags, s *series.Series, out io.Writer) (policy.Signer, error) {
 	iss := s.Params().Issuer
 	if iss == nil {
-		return nil, errors.New("the series names no issuer (poo series new -issuer ADDR)")
+		return nil, errors.New("the series names no issuer (poon series new -issuer ADDR)")
 	}
 	signer, err := seed.signer(out)
 	if err != nil {
@@ -66,7 +66,7 @@ func issuerSigner(seed *seedFlags, s *series.Series, out io.Writer) (policy.Sign
 	return signer, nil
 }
 
-// seriesSign is poo series sign: the issuer witness over the series'
+// seriesSign is poon series sign: the issuer witness over the series'
 // issuer message, in the hex node.json takes as issuer_witness.
 func seriesSign(args []string, out io.Writer) error {
 	fs := newFlagSet("series sign", out)
@@ -76,7 +76,7 @@ func seriesSign(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: poo series sign FILE [-seed-file F] [-alg NAME]")
+		return errors.New("usage: poon series sign FILE [-seed-file F] [-alg NAME]")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {
@@ -87,12 +87,12 @@ func seriesSign(args []string, out io.Writer) error {
 		return err
 	}
 	w := policy.SingleKeyWitness(signer, s.IssuerMessageTID())
-	// The series with its witness: poo init -series takes this file, and
+	// The series with its witness: poon init -series takes this file, and
 	// node.json's issuer_witness is the witness.
 	return writeJSON(out, signedSeries{ID: s.ID().String(), Params: s.Params(), IssuerWitness: nodepolicy.EncodeWitness(w)})
 }
 
-// seriesRelease is poo series release: sign part K of a variable series as
+// seriesRelease is poon series release: sign part K of a variable series as
 // its issuer, or check a release file.
 func seriesRelease(args []string, out io.Writer) error {
 	fs := newFlagSet("series release", out)
@@ -104,7 +104,7 @@ func seriesRelease(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 || (*part == 0) == (*check == "") {
-		return errors.New("usage: poo series release FILE -part K [-seed-file F] [-alg NAME], or poo series release FILE -check RELEASE|-")
+		return errors.New("usage: poon series release FILE -part K [-seed-file F] [-alg NAME], or poon series release FILE -check RELEASE|-")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {
@@ -153,7 +153,7 @@ func seriesRelease(args []string, out io.Writer) error {
 	return writeJSON(out, o)
 }
 
-// releaseOut is a release as poo series release prints it: the release's
+// releaseOut is a release as poon series release prints it: the release's
 // own fields, which are what -check and a node read, then the part's id and
 // ranges for people and the GUI's preview. A reader ignores the extra keys
 // and works them out again from the series.
@@ -211,7 +211,7 @@ func releaseReport(s *series.Series, r series.Release) releaseInfo {
 		Summary: fmt.Sprintf("releases part %d, serials %d to %d, and with it every part before: serials 0 to %d exist", r.Part, first, last, n-1)}
 }
 
-// seriesParts is poo series parts: the parts of a variable series, worked
+// seriesParts is poon series parts: the parts of a variable series, worked
 // out from the series alone, released or not.
 func seriesParts(args []string, out io.Writer) error {
 	fs := newFlagSet("series parts", out)
@@ -226,7 +226,7 @@ func seriesParts(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 || *from == 0 {
-		return errors.New("usage: poo series parts FILE [-from K] [-to K] [-o json|table] (parts count from 1)")
+		return errors.New("usage: poon series parts FILE [-from K] [-to K] [-o json|table] (parts count from 1)")
 	}
 	s, err := readSeriesFile(pos[0])
 	if err != nil {
@@ -317,7 +317,7 @@ func partRows(ctx context.Context, s *series.Series, from, last uint64) ([]partR
 	return rows, nil
 }
 
-// seriesAddRelease is poo series add-release: give the node a release of a
+// seriesAddRelease is poon series add-release: give the node a release of a
 // variable series (D166). A running node checks it, keeps it in node.json
 // when it is newer than the release kept, and reloads to follow the new
 // parts; with the node stopped, node.json is changed under its lock.
@@ -330,7 +330,7 @@ func seriesAddRelease(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return errors.New("usage: poo series add-release RELEASE (a file poo series release printed, - for standard input)")
+		return errors.New("usage: poon series add-release RELEASE (a file poon series release printed, - for standard input)")
 	}
 	if err := o.check(); err != nil {
 		return err
@@ -394,7 +394,7 @@ func seriesAddRelease(args []string, out io.Writer) error {
 	return o.write(out, releaseNote(rep))
 }
 
-// seriesFollowed is poo series followed: the series the running node
+// seriesFollowed is poon series followed: the series the running node
 // follows, as GET /v1/series gives them. A variable series carries what
 // this node has released: the newest part, the next part the issuer can
 // release, the mints and units so far, and the newest release (D166). It
@@ -408,7 +408,7 @@ func seriesFollowed(args []string, out io.Writer) error {
 		return err
 	}
 	if len(pos) != 0 {
-		return errors.New("usage: poo series followed [-o json|table] (the series the running node follows)")
+		return errors.New("usage: poon series followed [-o json|table] (the series the running node follows)")
 	}
 	if err := o.check(); err != nil {
 		return err
@@ -438,7 +438,7 @@ func seriesFollowed(args []string, out io.Writer) error {
 	}{known})
 }
 
-// followedRow is one followed series in poo series followed -o table.
+// followedRow is one followed series in poon series followed -o table.
 type followedRow struct {
 	ID       hash.Hash `json:"id"`
 	Supply   string    `json:"supply"`
@@ -465,7 +465,7 @@ func followedRows(known []rpc.SeriesInfo) []followedRow {
 	return rows
 }
 
-// releaseOut is poo series add-release's reply, with a note when the
+// releaseOut is poon series add-release's reply, with a note when the
 // release changed nothing, so "added": false is not read as a refusal
 // (GREEN-050).
 type addedOut struct {

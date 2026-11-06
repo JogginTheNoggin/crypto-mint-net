@@ -19,8 +19,8 @@ func TestSplitPOSIX(t *testing.T) {
 		{"", nil},
 		{"   ", nil},
 		{"status", []string{"status"}},
-		{"poo status", []string{"status"}},
-		{"poo", nil},
+		{"poon status", []string{"status"}},
+		{"poon", nil},
 		{"  peer  block\t1.2.3.4:5 ", []string{"peer", "block", "1.2.3.4:5"}},
 		{`wallet pay -memo 'for lunch' -amount 5`, []string{"wallet", "pay", "-memo", "for lunch", "-amount", "5"}},
 		{`-memo "say \"hi\" \\ ok"`, []string{"-memo", `say "hi" \ ok`}},
@@ -29,12 +29,12 @@ func TestSplitPOSIX(t *testing.T) {
 		{`a\ b c`, []string{"a b", "c"}},
 		// Outside quotes a backslash escapes any character, as in sh.
 		{`foo C:\new`, []string{"foo", "C:new"}},
-		{`-dir 'C:\Users\a\.poo'`, []string{"-dir", `C:\Users\a\.poo`}},
+		{`-dir 'C:\Users\a\.poon'`, []string{"-dir", `C:\Users\a\.poon`}},
 		{`\|\$\*`, []string{"|$*"}},
 		{`-memo ''`, []string{"-memo", ""}},
 		{`x"y z"w`, []string{"xy zw"}},
 		{`it'"'s`, []string{`it"s`}},
-		{"status poo", []string{"status", "poo"}},
+		{"status poon", []string{"status", "poon"}},
 		{"status # the rest is a comment", []string{"status"}},
 		{"a#b", []string{"a#b"}},
 		{"-memo a~b", []string{"-memo", "a~b"}},
@@ -56,7 +56,7 @@ func TestSplitPOSIX(t *testing.T) {
 			t.Errorf("Split(%q) = %v, want ErrNewline", bad, err)
 		}
 	}
-	// What a shell would run as more than one poo command, or expand, is
+	// What a shell would run as more than one poon command, or expand, is
 	// refused.
 	for _, bad := range []string{"a | b", "a;b", "a & b", "a>f", "a<f", "(a)", "$HOME", "`id`", "a*", "a?", "[ab]", "~/x", `"$HOME"`, "\"`id`\""} {
 		var ue *UnsupportedError
@@ -71,8 +71,8 @@ func TestSplitWindows(t *testing.T) {
 		line string
 		want []string
 	}{
-		{"poo status", []string{"status"}},
-		{`-dir C:\Users\a\.poo`, []string{"-dir", `C:\Users\a\.poo`}},
+		{"poon status", []string{"status"}},
+		{`-dir C:\Users\a\.poon`, []string{"-dir", `C:\Users\a\.poon`}},
 		{`-dir \\server\share`, []string{"-dir", `\\server\share`}},
 		{`-memo "for lunch"`, []string{"-memo", "for lunch"}},
 		{`-memo 'for lunch'`, []string{"-memo", "'for", "lunch'"}},
@@ -111,8 +111,8 @@ var roundTrip = [][]string{
 	{"-dir", `C:\dir\`},
 	{"-memo", ""},
 	{"-memo", "a | b; $HOME `id` * ? [x] ~ # & < > ( ) ^ %"},
-	{"poo"},
-	{"poo", "poo"},
+	{"poon"},
+	{"poon", "poon"},
 }
 
 func TestQuoteRoundTrip(t *testing.T) {
@@ -124,7 +124,7 @@ func TestQuoteRoundTrip(t *testing.T) {
 			}
 		}
 	}
-	if q := POSIX.Quote([]string{"status", "-root", "/home/a/.poo"}); q != "poo status -root /home/a/.poo" {
+	if q := POSIX.Quote([]string{"status", "-root", "/home/a/.poon"}); q != "poon status -root /home/a/.poon" {
 		t.Errorf("plain args are quoted: %s", q)
 	}
 }

@@ -10,14 +10,14 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/nodepolicy"
 )
 
-// settingsCmd is poo settings: a node's settings, everything in its node
+// settingsCmd is poon settings: a node's settings, everything in its node
 // policy but what it follows, written to one file and read back, to carry
 // them to another machine, keep a backup or share a setup (D155). The
-// file is a bundle (nodepolicy.ScopeSettings), and import is poo policy
+// file is a bundle (nodepolicy.ScopeSettings), and import is poon policy
 // import's, taking only the settings.
 func settingsCmd(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: poo settings export|import (poo help settings)")
+		return errors.New("usage: poon settings export|import (poon help settings)")
 	}
 	switch args[0] {
 	case "export":
@@ -25,7 +25,7 @@ func settingsCmd(args []string, out io.Writer) error {
 	case "import":
 		return importBundleCmd(args[1:], out, true)
 	}
-	return fmt.Errorf("poo settings: no subcommand %q: export or import", args[0])
+	return fmt.Errorf("poon settings: no subcommand %q: export or import", args[0])
 }
 
 // settingsExportCmd writes one node policy's settings to a settings
@@ -40,7 +40,7 @@ func settingsExportCmd(args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("poo settings export takes flags only")
+		return errors.New("poon settings export takes flags only")
 	}
 	p, err := nodepolicy.Load(filepath.Join(w.resolve(), nodepolicy.FileName))
 	if err != nil {

@@ -14,7 +14,7 @@ import (
 
 // Variable supply phase 3 (D168): nodes pass on the newest release of
 // each variable series they follow, so a part's pools open at every node
-// that follows the series, not only where the owner ran poo series
+// that follows the series, not only where the owner ran poon series
 // add-release. A release is information: one a node has not seen yet
 // only leaves the part's transactions waiting there (D166), never
 // refused, so passing them on changes how soon a node knows, never what

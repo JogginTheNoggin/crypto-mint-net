@@ -21,7 +21,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/watch"
 )
 
-const grindUsage = `poo grind: the node's hash work (package grind, M11)
+const grindUsage = `poon grind: the node's hash work (package grind, M11)
 
   devices [-o FORMAT]       the devices, what each grinds fast, and which
                             one auto picks for each hash
@@ -59,7 +59,7 @@ else auto), -threads N (default: every core but one), -for 30s,
 22-06 (only within those local hours). SCHEDULE FLAGS are the same but
 -for: a scheduled job runs whenever its hours allow.
 
-poo build and poo work take -device, -threads and -for too.
+poon build and poon work take -device, -threads and -for too.
 `
 
 func grindCmd(args []string, out io.Writer) error {
@@ -80,7 +80,7 @@ func grindCmd(args []string, out io.Writer) error {
 		return grindSchedule(fs, rest, out)
 	case "jobs":
 		w, o := addWhere(fs), addOutput(fs)
-		// Flags may follow the id, as in "poo grind jobs 3 -o table"
+		// Flags may follow the id, as in "poon grind jobs 3 -o table"
 		// (GREEN-039).
 		pos, err := parseMixed(fs, rest)
 		if err != nil {
@@ -90,7 +90,7 @@ func grindCmd(args []string, out io.Writer) error {
 			return err
 		}
 		if len(pos) > 1 {
-			return errors.New("usage: poo grind jobs [ID]")
+			return errors.New("usage: poon grind jobs [ID]")
 		}
 		cl, err := dialNode(out, w.resolve())
 		if err != nil {
@@ -100,7 +100,7 @@ func grindCmd(args []string, out io.Writer) error {
 			// One job by id, as the GUI's job view asks (GREEN-038, D143).
 			id, err := strconv.Atoi(pos[0])
 			if err != nil || id < 0 {
-				return fmt.Errorf("poo grind jobs: the job id %q is not a number", pos[0])
+				return fmt.Errorf("poon grind jobs: the job id %q is not a number", pos[0])
 			}
 			job, err := cl.GrindJob(id)
 			if err != nil {
@@ -120,7 +120,7 @@ func grindCmd(args []string, out io.Writer) error {
 			return err
 		}
 		if *all == (fs.NArg() == 1) || fs.NArg() > 1 {
-			return errors.New("usage: poo grind stop ID | -all")
+			return errors.New("usage: poon grind stop ID | -all")
 		}
 		cl, err := dialNode(out, w.resolve())
 		if err != nil {
@@ -143,7 +143,7 @@ func grindCmd(args []string, out io.Writer) error {
 		}
 		return writeJSON(out, j)
 	}
-	return fmt.Errorf("poo grind %s: unknown; see poo grind help", sub)
+	return fmt.Errorf("poon grind %s: unknown; see poon grind help", sub)
 }
 
 // parseOutput parses flags with an output flag and n arguments.
@@ -155,12 +155,12 @@ func parseOutput(fs *flag.FlagSet, o *outputFlags, args []string, n int) error {
 		return err
 	}
 	if fs.NArg() != n {
-		return fmt.Errorf("poo %s takes flags only", fs.Name())
+		return fmt.Errorf("poon %s takes flags only", fs.Name())
 	}
 	return nil
 }
 
-// DevicesReply is what poo grind devices prints.
+// DevicesReply is what poon grind devices prints.
 type devicesReply struct {
 	Devices []grind.Device `json:"devices"`
 	// Local is true when no node answered and the devices were detected
@@ -243,7 +243,7 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 		}
 	}
 	if *device != "" && len(rows) == 0 {
-		return fmt.Errorf("no device %q (poo grind devices lists them)", *device)
+		return fmt.Errorf("no device %q (poon grind devices lists them)", *device)
 	}
 	// Nothing measured is an error, not an empty list: -threads 2000 used
 	// to print [] (GREEN-035).
@@ -253,7 +253,7 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 	return o.write(out, rows)
 }
 
-// jobFlags are the flags of poo grind start and run.
+// jobFlags are the flags of poon grind start and run.
 type jobFlags struct {
 	c       *clientFlags
 	pf      *poolFlags
@@ -308,7 +308,7 @@ func (j *jobFlags) spec(fs *flag.FlagSet, cl *rpc.Client, target string) (grind.
 	return s, grind.Check(s)
 }
 
-// runLease is the lease of a job poo grind run follows; it renews it three
+// runLease is the lease of a job poon grind run follows; it renews it three
 // times as often.
 const runLease = 15 * time.Second
 
@@ -345,7 +345,7 @@ func renew(ctx context.Context, cl renewer, id int, every time.Duration, warn io
 				return // the lease has run out on the node anyway
 			case !warned:
 				warned = true
-				fmt.Fprintf(warn, "poo: renewing job %d failed, trying again: %v\n", id, err)
+				fmt.Fprintf(warn, "poon: renewing job %d failed, trying again: %v\n", id, err)
 			}
 		}
 	}
@@ -356,7 +356,7 @@ var errJobEnded = errors.New("the job ended")
 
 func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) error {
 	j := addJob(fs, !follow)
-	// TARGET comes first, as poo grind help writes it, or after the flags.
+	// TARGET comes first, as poon grind help writes it, or after the flags.
 	target := ""
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		target, args = args[0], args[1:]
@@ -370,7 +370,7 @@ func grindStart(fs *flag.FlagSet, follow bool, args []string, out io.Writer) err
 		target = ""
 	}
 	if target == "" {
-		return fmt.Errorf("usage: poo %s TARGET [flags]; TARGET is tip, pending, tx:TID or an entry hash", fs.Name())
+		return fmt.Errorf("usage: poon %s TARGET [flags]; TARGET is tip, pending, tx:TID or an entry hash", fs.Name())
 	}
 	cl, err := j.c.dial(out)
 	if err != nil {
@@ -471,11 +471,11 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		floor = fs.Int("layer-floor", 0, "keep every layer the node's grinding finds at or above this strength, 0 to 256 (0: only the strongest of each search)")
 		rate = fs.Int("layer-rate", 0, "the most layers a second layer-floor adds, strongest first (0: the default, 10)")
 	default:
-		return fmt.Errorf("poo grind schedule %s: unknown; it is add, remove or set", op)
+		return fmt.Errorf("poon grind schedule %s: unknown; it is add, remove or set", op)
 	}
 	var ifVersion *string
 	if op != "" {
-		ifVersion = fs.String("if-version", "", "change only the section with this version, as poo grind schedule printed it (GREEN-034)")
+		ifVersion = fs.String("if-version", "", "change only the section with this version, as poon grind schedule printed it (GREEN-034)")
 	}
 	pos, err := parseMixed(fs, args)
 	if err != nil {
@@ -524,7 +524,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 	}
 	if op == "" {
 		if len(pos) != 0 {
-			return errors.New("usage: poo grind schedule [add|remove|set]")
+			return errors.New("usage: poon grind schedule [add|remove|set]")
 		}
 		return o.write(out, rpc.ScheduleReply{Grind: cur, Version: cur.Version(), Limits: nodepolicy.Limits()})
 	}
@@ -544,7 +544,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 			*target = ""
 		}
 		if *target == "" {
-			return errors.New("usage: poo grind schedule add TARGET [flags]")
+			return errors.New("usage: poon grind schedule add TARGET [flags]")
 		}
 		j := nodepolicy.GrindJob{Target: *target, Device: *device, Threads: *threads, Hours: *hours, UntilFrom: *until}
 		set := map[string]bool{}
@@ -576,7 +576,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		edit.Add = []nodepolicy.GrindJob{j}
 	case "remove":
 		if *all == (len(pos) > 0) {
-			return errors.New("usage: poo grind schedule remove N... | -all")
+			return errors.New("usage: poon grind schedule remove N... | -all")
 		}
 		if *all {
 			edit.RemoveAll = true
@@ -594,7 +594,7 @@ func grindSchedule(fs *flag.FlagSet, args []string, out io.Writer) error {
 		}
 	case "set":
 		if len(pos) != 0 {
-			return errors.New("poo grind schedule set takes flags only")
+			return errors.New("poon grind schedule set takes flags only")
 		}
 		gs := &nodepolicy.GrindSet{}
 		fs.Visit(func(f *flag.Flag) {

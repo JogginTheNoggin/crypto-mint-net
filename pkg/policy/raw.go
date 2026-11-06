@@ -47,7 +47,7 @@ func SelfTest(s Signer) error {
 	if !ok {
 		return fmt.Errorf("%w: %d", ErrUnknownSigner, s.Alg())
 	}
-	msg := []byte("poo key self-test")
+	msg := []byte("poon key self-test")
 	if !a.Verify(s.Public(), msg, s.Sign(msg)) {
 		return fmt.Errorf("policy: the %s key's public half does not match its private key; it would give an address no signature can spend", a.Name())
 	}

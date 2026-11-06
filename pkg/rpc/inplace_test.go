@@ -16,7 +16,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tracking"
 )
 
-// poo policy limits -set applies the peer book's limits, the tracker's
+// poon policy limits -set applies the peer book's limits, the tracker's
 // retention and the seen list's size to the running node with no reload,
 // and leaves every part as a reload would (D168): the book and the
 // tracker hold the new bounds, the seen list its new size, and the

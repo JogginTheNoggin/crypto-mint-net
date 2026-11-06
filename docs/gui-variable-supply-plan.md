@@ -24,7 +24,7 @@ series that exist now.
 | Series and keys: Release a part | The next part number by default and the issuer's seed in the masked field. A preview shows the part id, serials and pools the headless command prints, then a confirmed Release. Save as file, so the issuer can publish the release | The release command |
 | Series and keys: Import a release | A path or a file picked in the browser, sent as `-`. A preview, then Apply, the same way the other imports work | The release import command |
 | Node | Follow a variable series as today. If Source adds node policy for how many parts a node follows or stores, it is a settable limit (D159 style), never a validity rule | Source's node policy, if any |
-| Explore, Pools and payments, Wallet | A mint named (series, part, serial) wherever a mint is shown or asked for. A part field only where the headless command takes one, otherwise worked out by poo. Claim forms are unchanged apart from that | The mint name in the JSON outputs |
+| Explore, Pools and payments, Wallet | A mint named (series, part, serial) wherever a mint is shown or asked for. A part field only where the headless command takes one, otherwise worked out by poon. Claim forms are unchanged apart from that | The mint name in the JSON outputs |
 | Explore: pending and tx | A transaction past the highest known release shown as "waiting for a release", never as invalid | The pending and tx output |
 | Watch | A "release" event kind, if Source adds one; the kind boxes come from `-kind`'s list (GUI-GREEN-048) | The watch event kind |
 
@@ -45,7 +45,7 @@ of these is built once it reaches main:
 
 | Where | What the GUI will show or run | Waits on |
 | --- | --- | --- |
-| Sign a series, Release a part, Build a rival claim | A Key algorithm field, with suggestions from the list `poo crypto` prints (the same list Make a key uses). Release a part keeps the algorithm in what it previewed, so Sign signs with the key previewed | `-alg` on `series sign`, `series release`, `claim` |
-| Settable limits | Per-series size limits show up as fields in Set limits by themselves, since the fields come from `poo policy limits` (GUI-GREEN-049). If Source puts them on each series instead, they go on a per-series form, with the floors and ceilings the headless output gives | Source's per-series limits |
+| Sign a series, Release a part, Build a rival claim | A Key algorithm field, with suggestions from the list `poon crypto` prints (the same list Make a key uses). Release a part keeps the algorithm in what it previewed, so Sign signs with the key previewed | `-alg` on `series sign`, `series release`, `claim` |
+| Settable limits | Per-series size limits show up as fields in Set limits by themselves, since the fields come from `poon policy limits` (GUI-GREEN-049). If Source puts them on each series instead, they go on a per-series form, with the floors and ceilings the headless output gives | Source's per-series limits |
 | Node, Series and keys | The default reserve series, shown as the headless output gives it, with no rule of its own in the GUI | Source's reserve series |
-| Make a key | SLH-DSA-SHA2-128s (`slh-dsa-sha2-128s`) appears in the algorithm suggestions by itself, because they come from `poo crypto` | Already covered |
+| Make a key | SLH-DSA-SHA2-128s (`slh-dsa-sha2-128s`) appears in the algorithm suggestions by itself, because they come from `poon crypto` | Already covered |

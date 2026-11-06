@@ -189,7 +189,7 @@ invalid.
 ## Test vectors
 
 `go test ./pkg/vectors` recomputes these from the example series
-(`poo series example`) and keys whose Ed25519 seeds are
+(`poon series example`) and keys whose Ed25519 seeds are
 `SHA-256("PoO-test-key:" ∥ label)`:
 
 | Vector | Value |

@@ -84,7 +84,7 @@ U64  serial
 This table gives the example series of the variable supply document:
 N = 50,000, M = 10,000, S = 1 and P = 1,000. Its issuer is the test key
 `issuer`, and the hash, types and algorithms are those of
-`poo series example`.
+`poon series example`.
 
 | Value | Hex |
 | --- | --- |

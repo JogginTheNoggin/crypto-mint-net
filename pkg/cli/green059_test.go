@@ -36,7 +36,7 @@ func TestVCSCommit(t *testing.T) {
 	}
 }
 
-// poo ledger import -dry-run says whether node.json follows the file's
+// poon ledger import -dry-run says whether node.json follows the file's
 // pool, and what a real import needs when it does not (GREEN-059).
 func TestDryRunSaysPoolFollowed(t *testing.T) {
 	root := t.TempDir()
@@ -63,7 +63,7 @@ func TestDryRunSaysPoolFollowed(t *testing.T) {
 	cli(t, nil, "unfollow", "-series", ser[0].ID, "-pool", "0", "-no-reload", "-root", root)
 	rep = LedgerDryRun{}
 	cli(t, &rep, "ledger", "import", "-dry-run", file(0), "-root", root)
-	if rep.PoolFollowed || !strings.Contains(rep.Note, "poo follow -series "+ser[0].ID+" -pool 0") {
+	if rep.PoolFollowed || !strings.Contains(rep.Note, "poon follow -series "+ser[0].ID+" -pool 0") {
 		t.Fatalf("pool 0 unfollowed: %+v", rep)
 	}
 	rep = LedgerDryRun{}

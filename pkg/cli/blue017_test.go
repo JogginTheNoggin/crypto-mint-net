@@ -19,7 +19,7 @@ import (
 func TestHeldWalletWaitersSayWhy(t *testing.T) {
 	createIterations = 1
 	defer func() { createIterations = 0 }()
-	t.Setenv("POO_PASSPHRASE", "pw")
+	t.Setenv("POON_PASSPHRASE", "pw")
 	root := t.TempDir()
 	r := []string{"-root", root}
 	cli(t, nil, append([]string{"init", "-example", "-listen", "127.0.0.1:0", "-p2p", "127.0.0.1:0"}, r...)...)
@@ -66,7 +66,7 @@ func TestHeldWalletWaitersSayWhy(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		mu.Lock()
-		said := strings.Contains(errOut.String(), "waiting for another poo wallet command")
+		said := strings.Contains(errOut.String(), "waiting for another poon wallet command")
 		mu.Unlock()
 		if said {
 			break

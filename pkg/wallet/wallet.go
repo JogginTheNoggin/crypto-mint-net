@@ -44,7 +44,7 @@ var (
 	// ErrWatchOnly: the wallet holds no seed, so it cannot sign, derive a
 	// key or show a seed; it watches addresses whose keys are kept
 	// elsewhere (D193).
-	ErrWatchOnly = errors.New("wallet: watch-only (it holds no private key); sign elsewhere, with poo sign, and submit the signed file")
+	ErrWatchOnly = errors.New("wallet: watch-only (it holds no private key); sign elsewhere, with poon sign, and submit the signed file")
 	ErrExists    = errors.New("wallet: file exists")
 	ErrNoFunds   = errors.New("wallet: not enough spendable units")
 	// ErrChanged: the wallet file changed since it was read, so Save

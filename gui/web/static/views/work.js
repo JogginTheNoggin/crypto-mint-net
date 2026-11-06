@@ -1,7 +1,7 @@
-// Work: the node's hash grinding (M11, poo grind). Devices, benchmarks,
-// the node's jobs and a job run and followed live are all poo grind
+// Work: the node's hash grinding (M11, poon grind). Devices, benchmarks,
+// the node's jobs and a job run and followed live are all poon grind
 // commands; the view only turns fields into flags and draws what the
-// commands print. Which device and grinder run, and why, is the plan poo
+// commands print. Which device and grinder run, and why, is the plan poon
 // prints, never a guess here.
 import * as api from '../api.js';
 import { el, cmdLine, panel, form, flag, mountAll, gate, rawFold } from '../views.js';
@@ -15,11 +15,11 @@ const RATE_POINTS = 120;
 const MAX_LINE = 1 << 20;
 const MAX_ERR = 64 << 10;
 
-// noUntil are the targets poo grind refuses -until-from with (an empty
+// noUntil are the targets poon grind refuses -until-from with (an empty
 // target is tip), so the job forms hide that field for them (GREEN-032).
 const noUntil = ['', 'tip', 'pending'];
 
-// jobFields are poo grind's JOB FLAGS; jobFlags turns their values into
+// jobFields are poon grind's JOB FLAGS; jobFlags turns their values into
 // the flags.
 const jobFields = () => [
   { name: 'series', label: 'Series id', placeholder: 'default: every followed series' },
@@ -31,7 +31,7 @@ const jobFields = () => [
   { name: 'untilFrom', label: 'Until from reaches', placeholder: 'a weight; a tx:TID target needs one', only: { field: 'target', not: noUntil } },
   { name: 'hours', label: 'Only in hours', placeholder: 'for example 22-06 (local time)' },
 ];
-// scheduled words a job field as poo grind schedule add documents it: a
+// scheduled words a job field as poon grind schedule add documents it: a
 // scheduled job's device and threads default to the section's, the
 // Schedule defaults below, not to a one-off job's (GUI-GREEN-043).
 const scheduled = fd => ({
@@ -42,10 +42,10 @@ const jobFlags = v => [...flag('series', v.series), ...flag('pool', v.pool), ...
   ...flag('device', v.device), ...flag('threads', v.threads), ...flag('for', v.for),
   ...flag('until-from', v.untilFrom), ...flag('hours', v.hours)];
 
-// jobsTable lays out poo grind jobs as one row per job: what it works on,
-// its state and the reason poo gives, the device and grinder of its plans,
+// jobsTable lays out poon grind jobs as one row per job: what it works on,
+// its state and the reason poon gives, the device and grinder of its plans,
 // its counts and rate, and a Stop button for a job still going. Stop runs
-// poo grind stop ID, as the Stop a job form does. Every value is printed.
+// poon grind stop ID, as the Stop a job form does. Every value is printed.
 function jobsTable(list, ctx, refresh) {
   if (!Array.isArray(list) || !list.length) return el('p', { class: 'hint empty' }, 'No jobs yet. Run one below, or let node.json\'s grind section start them.');
   const body = el('tbody');
@@ -72,10 +72,10 @@ function jobsTable(list, ctx, refresh) {
     el('thead', {}, el('tr', {}, ...['id', 'works on', 'state', 'device and grinder', 'tries', 'rate', 'layers / entries', ''].map(h => el('th', {}, h)))), body));
 }
 
-// scheduleTable lays out poo grind schedule's reply: the defaults, and
-// one row per job node.json starts, numbered as poo numbers them, each
-// with a Remove that runs poo grind schedule remove -if-version V
-// -target T N. A running node applies the change at once; without one poo
+// scheduleTable lays out poon grind schedule's reply: the defaults, and
+// one row per job node.json starts, numbered as poon numbers them, each
+// with a Remove that runs poon grind schedule remove -if-version V
+// -target T N. A running node applies the change at once; without one poon
 // edits node.json.
 function scheduleTable(reply, edits, reload, say) {
   const g = (reply && reply.grind) || {};
@@ -90,14 +90,14 @@ function scheduleTable(reply, edits, reload, say) {
   const body = el('tbody');
   jobs.forEach((j, i) => {
     // A Remove holds the view's schedule gate, so every Remove, Add and
-    // Set is off until the table is drawn again from the schedule poo then
+    // Set is off until the table is drawn again from the schedule poon then
     // reads: no click goes by a number the removal has already shifted
     // (GUI-013), and no change starts from a schedule another is about to
-    // replace (GUI-014). -target makes poo refuse a number that no longer
+    // replace (GUI-014). -target makes poon refuse a number that no longer
     // names this row's job, and -if-version one that changed at all since
     // this table was read (GREEN-031, GREEN-034); the table is read again
     // either way. A refusal is shown above the table drawn again, with
-    // poo's own words, so the row still listed is explained (GUI-016).
+    // poon's own words, so the row still listed is explained (GUI-016).
     const remove = edits.add(el('button', { type: 'button', class: 'small danger', onclick: async () => {
       if (!edits.take()) return;
       let why = '';
@@ -144,9 +144,9 @@ function tableResult(r, area, draw) {
   area.append(rawFold(raw));
 }
 
-// deviceChoices offers the device ids poo grind devices printed, plus
+// deviceChoices offers the device ids poon grind devices printed, plus
 // auto, to every Device field in the view. A field still takes any text:
-// poo decides what is valid.
+// poon decides what is valid.
 function deviceChoices(root, out) {
   let devs;
   try { devs = JSON.parse(out).devices || []; } catch (_) { return; }
@@ -183,8 +183,8 @@ function rateChart() {
 // the view is away and followed again from where it stopped (GUI-008).
 let livePanel = null;
 
-// liveJob finds the poo grind run this GUI is running, if any, the way the
-// Node view finds poo node.
+// liveJob finds the poon grind run this GUI is running, if any, the way the
+// Node view finds poon node.
 async function liveJob() {
   const js = await api.jobs();
   return js.reverse().find(j => !j.done && j.args[0] === 'grind' && j.args[1] === 'run');
@@ -320,7 +320,7 @@ function buildLive(ctx) {
     state.textContent = `running: ${job.command}`;
     follow();
   });
-  // Stop is the job's interrupt: poo grind run stops the node's job and
+  // Stop is the job's interrupt: poon grind run stops the node's job and
   // exits 0, as Ctrl-C does in a shell.
   stopBtn.onclick = () => { if (job) api.cancel(job.id).catch(() => {}); };
   // A grind run this GUI is already running, started before the page was
@@ -344,7 +344,7 @@ function buildLive(ctx) {
   };
   return el('section', { class: 'panel' },
     el('div', { class: 'panel-head' }, el('h2', {}, 'Run a job')),
-    el('p', { class: 'hint' }, 'Starts a job in the running node with poo grind run and follows it: the plan poo picked and why, the rate, and each layer or entry found. It keeps running when you switch views; Stop ends it.'),
+    el('p', { class: 'hint' }, 'Starts a job in the running node with poon grind run and follows it: the plan poon picked and why, the rate, and each layer or entry found. It keeps running when you switch views; Stop ends it.'),
     f, line, state, plan, stats, chart, errOut, el('div', { class: 'table-wrap' }, foundTable));
 }
 
@@ -358,10 +358,10 @@ export const workView = {
     // going; the output as printed stays under a fold.
     const jobsPanel = panel(ctx, { title: 'Jobs', about: 'The node\'s grind jobs, running and recently ended: yours and the ones node.json schedules.', args: () => ['grind', 'jobs', ...where.flags()], refresh: 5000,
       onResult: (r, area) => tableResult(r, area, list => jobsTable(list, ctx, () => jobsPanel.el.querySelector('.panel-head button').click())) });
-    // The schedule is node.json's grind section, edited only through poo
+    // The schedule is node.json's grind section, edited only through poon
     // grind schedule (GREEN-026): the GUI never writes node.json itself.
     // One schedule change runs at a time, and the next waits until the
-    // table shows its result: poo grind schedule reads the section, edits
+    // table shows its result: poon grind schedule reads the section, edits
     // it and writes it whole, so two at once would lose one (GUI-014).
     const edits = gate();
     const reloadSchedule = () => schedulePanel.reload();
@@ -372,7 +372,7 @@ export const workView = {
     // The defaults form shows what is set now, as each field's placeholder:
     // a field left empty keeps it (GREEN-033).
     const nowDefaults = v => {
-      // The ranges are poo's own limits, from the same reply.
+      // The ranges are poon's own limits, from the same reply.
       const g = (v && v.grind) || {}, l = (v && v.limits) || {};
       const upTo = n => n ? ` (up to ${n})` : '';
       defaultsForm.hint('device', `now ${g.device || 'auto'}`);
@@ -381,19 +381,19 @@ export const workView = {
       defaultsForm.hint('rate', `now ${g.layer_rate || `0: the default${l.default_layer_rate ? `, ${l.default_layer_rate}` : ''}`} layers a second at most${upTo(l.max_layer_rate)}`);
     };
     const afterSchedule = () => reloadSchedule();
-    const defaultsForm = form(ctx, { title: 'Schedule defaults', about: 'The device and threads every job takes unless it names its own, and which layers grinding keeps: poo grind schedule set.', fields: [{ name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0' }, { name: 'threads', label: 'Threads', type: 'number', placeholder: '0: every core but one' },
+    const defaultsForm = form(ctx, { title: 'Schedule defaults', about: 'The device and threads every job takes unless it names its own, and which layers grinding keeps: poon grind schedule set.', fields: [{ name: 'device', label: 'Device', placeholder: 'auto, cpu, gpu:0' }, { name: 'threads', label: 'Threads', type: 'number', placeholder: '0: every core but one' },
         { name: 'floor', label: 'Layer floor', type: 'number', placeholder: '0 to 256; 0: only the strongest of each search' }, { name: 'rate', label: 'Layer rate', type: 'number', placeholder: 'most layers a second the floor adds (0: default)',
-          // The limit is poo's (nodepolicy.MaxLayerRate, D127): the form
-          // says why there is one and leaves the number to poo, which
+          // The limit is poon's (nodepolicy.MaxLayerRate, D127): the form
+          // says why there is one and leaves the number to poon, which
           // names the range when it refuses a value (GUI-015).
-          help: 'Peers take only so many layers a second from one node, and time out and then block a node that keeps sending more. poo keeps this rate well inside that by default and refuses a higher one, naming the range it allows.' }],
+          help: 'Peers take only so many layers a second from one node, and time out and then block a node that keeps sending more. poon keeps this rate well inside that by default and refuses a higher one, naming the range it allows.' }],
         args: v => ['grind', 'schedule', 'set', ...where.flags(), ...flag('device', v.device), ...flag('threads', v.threads), ...flag('layer-floor', v.floor), ...flag('layer-rate', v.rate)], submit: 'Set', onResult: afterSchedule, gate: edits });
-    return mountAll(root, 'Work', 'The node\'s hash grinding: which devices it has, how fast each is, and the jobs it runs. Each part is a poo grind command; node.json\'s grind section sets the defaults and the jobs the node runs by itself.', [
+    return mountAll(root, 'Work', 'The node\'s hash grinding: which devices it has, how fast each is, and the jobs it runs. Each part is a poon grind command; node.json\'s grind section sets the defaults and the jobs the node runs by itself.', [
       panel(ctx, { title: 'Devices', about: 'Each device, what it grinds fast, and which one auto picks for each hash.', args: () => ['grind', 'devices', ...where.flags()],
         onResult: r => { if (r.code === 0) deviceChoices(root, r.out); } }),
       jobsPanel,
       schedulePanel,
-      form(ctx, { title: 'Schedule a job', about: 'Adds a job to node.json\'s grind section with poo grind schedule add. It has no For: it runs whenever its hours allow.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields().filter(fd => fd.name !== 'for').map(scheduled)],
+      form(ctx, { title: 'Schedule a job', about: 'Adds a job to node.json\'s grind section with poon grind schedule add. It has no For: it runs whenever its hours allow.', fields: [{ name: 'target', label: 'Target', value: 'tip', placeholder: 'tip, pending, tx:TID or an entry hash' }, ...jobFields().filter(fd => fd.name !== 'for').map(scheduled)],
         args: v => ['grind', 'schedule', 'add', ...where.flags(), v.target || 'tip', ...jobFlags(v)], submit: 'Add', onResult: afterSchedule, gate: edits }),
       defaultsForm,
       { el: livePanel, stop: () => { liveHooks.detach(); livePanel.remove(); } },

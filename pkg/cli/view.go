@@ -25,8 +25,8 @@ type viewFlags struct {
 	w      *where
 	filter func() (filter.Filter, error)
 	f      filter.Filter
-	// pos are the words that are not flags, wherever they stand: poo tx
-	// TID -o table works as poo tx -o table TID does (GREEN-054).
+	// pos are the words that are not flags, wherever they stand: poon tx
+	// TID -o table works as poon tx -o table TID does (GREEN-054).
 	pos []string
 }
 
@@ -88,10 +88,10 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	}
 	if name == "tx" || name == "address" {
 		if len(v.pos) != 1 {
-			return fmt.Errorf("usage: poo %s [flags] %s", name, map[string]string{"tx": "TID", "address": "ADDRESS"}[name])
+			return fmt.Errorf("usage: poon %s [flags] %s", name, map[string]string{"tx": "TID", "address": "ADDRESS"}[name])
 		}
 	} else if len(v.pos) != 0 {
-		return fmt.Errorf("poo %s takes flags only", name)
+		return fmt.Errorf("poon %s takes flags only", name)
 	}
 	cl, err := v.dial(out)
 	if err != nil {
@@ -124,7 +124,7 @@ func viewCmd(name string, args []string, out io.Writer) error {
 	switch name {
 	case "ledger":
 		if len(v.f.Pools) != 1 {
-			return errors.New("poo ledger needs one -pool")
+			return errors.New("poon ledger needs one -pool")
 		}
 		f := v.f
 		f.Pools = nil
@@ -249,12 +249,12 @@ func followCmd(remove bool, args []string, out io.Writer) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return fmt.Errorf("poo %s takes flags only", name)
+		return fmt.Errorf("poon %s takes flags only", name)
 	}
 	dir := w.resolve()
 	if *issuer == "" && *seriesID == "" {
 		if remove {
-			return errors.New("poo unfollow needs -issuer or -series")
+			return errors.New("poon unfollow needs -issuer or -series")
 		}
 		// No change: show what is followed.
 		if cl, err := dialNode(out, dir); err == nil {

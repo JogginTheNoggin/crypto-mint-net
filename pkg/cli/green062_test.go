@@ -8,7 +8,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
 )
 
-// GREEN-062: turning the bounty market on with poo policy limits -set as
+// GREEN-062: turning the bounty market on with poon policy limits -set as
 // a new user. bounty.post=on was refused as "want NAME=VALUE"; posting
 // with no spending limits said "over bounty.max_amount 0" and -set gave
 // no warning; a node that only posts asked peers for offers it then
@@ -31,7 +31,7 @@ func TestBountyTurnedOnWithLimits(t *testing.T) {
 
 	// Off: the error names the command, not node.json.
 	stop := startNode(t, filepath.Join(root, "policies", "default"))
-	if _, err := runErr(append([]string{"bounty", "list"}, r...)...); err == nil || !strings.Contains(err.Error(), "poo policy limits -set bounty.take=on") {
+	if _, err := runErr(append([]string{"bounty", "list"}, r...)...); err == nil || !strings.Contains(err.Error(), "poon policy limits -set bounty.take=on") {
 		t.Fatalf("market off: %v", err)
 	}
 	stop()

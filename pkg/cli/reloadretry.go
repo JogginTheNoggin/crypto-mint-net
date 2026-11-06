@@ -29,7 +29,7 @@ func dropped(err error) bool {
 }
 
 // callThroughReload makes call to the running node, and when the
-// connection drops because the node is reloading (an earlier poo policy
+// connection drops because the node is reloading (an earlier poon policy
 // limits -set or add-release, say), dials it again and makes the call
 // again, for up to reloadWait. Only calls that may be made twice use it:
 // setting values and adding a release both are. Before, the second of two
