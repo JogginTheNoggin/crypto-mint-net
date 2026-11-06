@@ -650,6 +650,8 @@ try {
   await maxBook.waitFor();
   assert.equal(await maxBook.getAttribute('placeholder'), '4096', 'the field shows the value in effect');
   assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /256 to 65536, default 4096/);
+  // What 0 means for the limit, as poon prints it (D204).
+  assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /default 4096; 0: \S/);
   // Whether a running node takes it at once is poon's in_place (D170).
   assert.match(await setLim.locator('label:has(input[data-limit="p2p.max_book"])').innerText(), /a running node takes it (at once|on reload)/);
   await maxBook.fill('8192');
