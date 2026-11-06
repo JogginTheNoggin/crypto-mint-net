@@ -534,7 +534,7 @@ export function pickFile(f, { field = 'file', onPick } = {}) {
     fileIn.dispatchEvent(new Event('input', { bubbles: true }));
   };
   fileIn.addEventListener('input', () => { if (fileIn.value.trim() !== '-') { picked = null; pick.value = ''; } });
-  fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Sent to poon as its input (- above); nothing is stored by the GUI')));
+  fileIn.closest('label').after(el('label', {}, el('span', {}, 'Or pick a file'), pick, el('small', {}, 'Read in place of a path: the field above then shows -, which means the picked file. The GUI keeps no copy.')));
   return {
     get: () => picked,
     feed: (j, file = picked) => { if (file && fileIn.value.trim() === '-') api.inputFile(j.id, file).catch(() => {}); },
