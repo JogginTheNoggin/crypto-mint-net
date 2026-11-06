@@ -12,6 +12,7 @@
 import { nodeView } from './node.js';
 import { watchView, exploreView } from './watch.js';
 import { workView } from './work.js';
+import { bountyView } from './bounty.js';
 import { poolsView } from './pools.js';
 import { walletView } from './wallet.js';
 import { peersView } from './peers.js';
@@ -20,4 +21,4 @@ import { cryptoView } from './crypto.js';
 import { jobsView } from './jobs.js';
 import { settingsView } from './settings.js';
 
-export const views = [nodeView, watchView, exploreView, workView, poolsView, walletView, peersView, policiesView, cryptoView, jobsView, settingsView];
+export const views = [nodeView, watchView, exploreView, workView, bountyView, poolsView, walletView, peersView, policiesView, cryptoView, jobsView, settingsView];

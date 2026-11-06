@@ -351,6 +351,20 @@ try {
   await addrs.locator('.result table.data, .result dl.kv').first().waitFor();
   await shot('wallet');
 
+  // Bounty market (GUI-GREEN-062): on a node with the market off, poo
+  // refuses and Offers says how to turn it on; each form previews its
+  // poo bounty line.
+  await page.click('nav a[data-id=bounty]');
+  await section('Offers').locator('.bounty-off', { hasText: /^The market is off until the node policy file \(node\.json/ }).waitFor();
+  assert.equal(await section('Offers').locator('.cmd code').innerText(), `poo bounty list -root ${home}`);
+  const bwork = section('Work an offer');
+  await fill(bwork, 'Offer id', 'ab12');
+  await fill(bwork, 'Pay to address', 'cd34');
+  assert.equal(await bwork.locator('.cmd code').innerText(), `poo bounty work ab12 -root ${home} -to cd34`);
+  await fill(section('Pay a claim'), 'Offer id', 'ab12');
+  // No wallet file chosen in the Wallet view: poo's default, wallet.json.
+  assert.equal(await section('Pay a claim').locator('.cmd code').innerText(), `poo bounty pay ab12 -root ${home}`);
+
   // Peers, policies and crypto render their commands' output.
   await page.click('nav a[data-id=peers]');
   await section('Peers').locator('.run-status').first().waitFor();
