@@ -17,12 +17,17 @@ const grindFlags = v => [...flag('device', v.device), ...flag('threads', v.threa
 // ledgerSummary says what a ledger file poo printed holds, or returns
 // null when the text is not one whole ledger file: one that does not
 // parse, is not poo's ledger kind, or holds fewer entries than its own
-// from and to say (GUI-GREEN-059). It only reads poo's fields; the file
+// from and to say (GUI-GREEN-059). A format other than 1 gets a neutral
+// line (White R34D N2). It only reads poo's fields; the file
 // is checked in full by the node that imports it.
 export function ledgerSummary(text) {
   let f;
   try { f = JSON.parse(text); } catch (_) { return null; }
-  if (!f || f.kind !== 'poo-ledger' || !Array.isArray(f.entries)) return null;
+  if (!f || f.kind !== 'poo-ledger') return null;
+  // A later format may lay the file out differently: say so plainly and
+  // still offer it to save, rather than call a good file cut (White N2).
+  if (Number.isInteger(f.format) && f.format !== 1) return `A ledger file in format ${f.format}, which this poo-gui does not read; poo checks it in full on import.`;
+  if (!Array.isArray(f.entries)) return null;
   const n = f.entries.length;
   if (n !== (f.to >= f.from ? f.to - f.from + 1 : 0)) return null;
   return n ? `A ledger file of pool ${f.pool}: ${n} ${n === 1 ? 'entry' : 'entries'}, heights ${f.from} to ${f.to} of ${f.height}.`

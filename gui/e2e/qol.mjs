@@ -348,9 +348,10 @@ try {
     const entry = h => `{"height":${h},"hash":"${'a'.repeat(64)}","item":"AAAA"}`;
     const file = (from, to, n, kind = 'poo-ledger') => `{\n  "kind": "${kind}",\n  "format": 1,\n  "pool": 3,\n  "from": ${from},\n  "to": ${to},\n  "height": 9,\n  "entries":[${Array.from({ length: n }, (_, i) => '\n    ' + entry(from + i)).join(',')}\n  ]\n}\n`;
     const whole = file(2, 4, 3);
-    return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poo settings')), ledgerSummary('wrote 3 entries to x')];
+    return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poo settings')), ledgerSummary('wrote 3 entries to x'), ledgerSummary('{"kind":"poo-ledger","format":2,"pages":[]}')];
   });
-  assert.deepEqual(ls, ['A ledger file of pool 3: 3 entries, heights 2 to 4 of 9.', 'A ledger file of pool 3: 1 entry, heights 1 to 1 of 9.', 'A ledger file of pool 3 with no entries: the selected ledger\'s height is 9.', null, null, null, null, null]);
+  assert.deepEqual(ls, ['A ledger file of pool 3: 3 entries, heights 2 to 4 of 9.', 'A ledger file of pool 3: 1 entry, heights 1 to 1 of 9.', 'A ledger file of pool 3 with no entries: the selected ledger\'s height is 9.', null, null, null, null, null,
+    'A ledger file in format 2, which this poo-gui does not read; poo checks it in full on import.'], 'a later format gets a neutral line, not the cut-file alert (White N2)');
   // A ledger export that is not one whole file is folded under Output as
   // printed, not drawn, and gets one alert: its own, or ORANGE-026's when
   // poo-gui dropped part of the output (GUI/Orange R34B notes).
