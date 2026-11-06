@@ -528,7 +528,7 @@ func followedAddresses(w *where, pol policy.Policy, alg policy.AlgID, hid hash.I
 		}
 		a := seriesAddress{Series: s.ID().String(), Hash: si.Params.HashID.Name(), Allowed: s.AllowsKeyAlg(alg), Address: s.Address(pol).String()}
 		if s.ID().String() == series.ReserveID {
-			a.Builtin = "reserve"
+			a.Builtin = rpc.BuiltinDefault
 		}
 		matched = matched || si.Params.HashID == hid
 		fa = append(fa, a)

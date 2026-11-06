@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"net/url"
 	"sort"
@@ -36,7 +37,7 @@ import (
 //	}
 
 // BundleKind marks a bundle file.
-const BundleKind = "poo-node-policies"
+const BundleKind = brand.KindPrefix + "node-policies"
 
 // BundleFormat is the version of the bundle layout this code reads and
 // writes.

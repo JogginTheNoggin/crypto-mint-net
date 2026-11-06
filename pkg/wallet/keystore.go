@@ -216,6 +216,7 @@ func derive(seed []byte, alg policy.AlgID, index uint32) (policy.Signer, error) 
 		return nil, fmt.Errorf("wallet: unknown key algorithm %d", alg)
 	}
 	m := hmac.New(sha256.New, seed)
+	// The label never follows a rename (see pkg/brand): it fixes every key.
 	m.Write([]byte("PoO-wallet-" + a.Name() + "-v1"))
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], index)

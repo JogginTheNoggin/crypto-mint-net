@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"net/http"
 	"sort"
@@ -48,7 +49,9 @@ func labelValue(s string) string {
 }
 
 func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
-	g := func(name, help string) *metric { return &metric{name: "poo_" + name, help: help, kind: "gauge"} }
+	g := func(name, help string) *metric {
+		return &metric{name: brand.MetricPrefix + name, help: help, kind: "gauge"}
+	}
 	height := g("pool_height", "Height of the selected ledger of a followed pool.")
 	weight := g("pool_weight", "Weight of the selected ledger (a float: exact weights are in /v1/status).")
 	entries := g("pool_entries", "Entries the pool's ledger keeps.")
@@ -83,7 +86,9 @@ func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
 	cacheMax.add("", float64(bs.MaxBytes))
 	inMem := g("entry_bodies_in_memory", "Held entries whose bodies are in the pool, not yet dropped to the log.")
 	inMem.add("", float64(bs.InMemory))
-	c := func(name, help string) *metric { return &metric{name: "poo_" + name, help: help, kind: "counter"} }
+	c := func(name, help string) *metric {
+		return &metric{name: brand.MetricPrefix + name, help: help, kind: "counter"}
+	}
 	loads := c("entry_body_loads_total", "Entry bodies read back from the logs.")
 	loads.add("", float64(bs.Loads))
 	loadErrs := c("entry_body_load_errors_total", "Entry body reads from the logs that failed.")
@@ -94,8 +99,8 @@ func (h *Handler) metrics(w http.ResponseWriter, r *http.Request) {
 		conn := g("peers_connected", "Connected peers, by direction.")
 		var in, out float64
 		cats := map[string]float64{}
-		sent := &metric{name: "poo_peer_sent_total", help: "Messages sent to connected peers.", kind: "counter"}
-		recv := &metric{name: "poo_peer_received_total", help: "Messages received from connected peers.", kind: "counter"}
+		sent := &metric{name: brand.MetricPrefix + "peer_sent_total", help: "Messages sent to connected peers.", kind: "counter"}
+		recv := &metric{name: brand.MetricPrefix + "peer_received_total", help: "Messages received from connected peers.", kind: "counter"}
 		var s, rc float64
 		for _, p := range ps {
 			if p.Outbound {

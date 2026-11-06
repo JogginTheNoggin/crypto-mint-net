@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,7 +33,7 @@ import (
 
 // LedgerFileKind and LedgerFileFormat name a ledger file.
 const (
-	LedgerFileKind   = "poo-ledger"
+	LedgerFileKind   = brand.KindPrefix + "ledger"
 	LedgerFileFormat = 1
 )
 
@@ -581,7 +582,7 @@ func readLedgerFile(r io.Reader, head func(ledgerFile) error, item func(ledgerFi
 			started = true
 		} else {
 			// Spool the entries until the header is read.
-			if spool, err = os.CreateTemp("", "poo-ledger-*.spool"); err != nil {
+			if spool, err = os.CreateTemp("", brand.TempPrefix+"ledger-*.spool"); err != nil {
 				return err
 			}
 			enc := json.NewEncoder(spool)

@@ -40,6 +40,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"log/slog"
 	"net"
@@ -278,7 +279,7 @@ func DefaultConfig() Config {
 		Redial:         2 * time.Second,
 		MaxRedial:      5 * time.Minute,
 		QueueSize:      4096,
-		Agent:          "poo",
+		Agent:          brand.Agent,
 
 		MaxOutbound:     8,
 		ManageEvery:     30 * time.Second,

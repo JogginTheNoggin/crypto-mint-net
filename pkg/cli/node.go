@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"os"
 	"os/signal"
@@ -41,9 +42,9 @@ func defaultRoot() string {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".poo"
+		return brand.DataDir
 	}
-	return filepath.Join(home, ".poo")
+	return filepath.Join(home, brand.DataDir)
 }
 
 // where holds the flags that pick a data directory.
@@ -90,8 +91,8 @@ func initCmd(args []string, out io.Writer) error {
 	var files stringList
 	fs.Var(&files, "series", "series parameters JSON file to know and follow (repeatable)")
 	example := fs.Bool("example", false, "know and follow the worked example's series")
-	reserve := fs.Bool("reserve", false, "know and follow the default reserve series (what init does when given no series, D170)")
-	noSeries := fs.Bool("no-series", false, "follow no series, not even the default reserve series")
+	reserve := fs.Bool("default-series", false, "know and follow the built-in default series (what init does when given no series, D170)")
+	noSeries := fs.Bool("no-series", false, "follow no series, not even the built-in default series")
 	anyCeiling := fs.Bool("any-ceiling", false, "accept a -series file whose witness ceiling is not set or above 4 MiB (D170)")
 	listen := fs.String("listen", "", "RPC listen address (default "+nodepolicy.DefaultListen+"; \"off\" to disable)")
 	p2pListen := fs.String("p2p", "", "address for peers (default "+nodepolicy.DefaultP2PListen+"; \"off\" to accept none)")
@@ -120,7 +121,7 @@ func initCmd(args []string, out io.Writer) error {
 	p.P2P.Advertise = *advertise
 	p.P2P.PortMap = *portMap
 	if *noSeries && (*example || *reserve || len(files) > 0) {
-		return errors.New("-no-series goes with no -series, -example or -reserve")
+		return errors.New("-no-series goes with no -series, -example or -default-series")
 	}
 	var infos []nodepolicy.SeriesInfo
 	if *reserve || (!*noSeries && !*example && len(files) == 0) {
@@ -179,7 +180,7 @@ func initCmd(args []string, out io.Writer) error {
 	fmt.Fprintf(out, "wrote %s (%d series)\n", path, len(p.Series))
 	for _, si := range infos {
 		if s, err := series.New(si.Params); err == nil && series.IsReserve(s.ID()) {
-			fmt.Fprintf(out, "following series %s, the built-in reserve series\n", s.ID())
+			fmt.Fprintf(out, "following series %s, the built-in default series\n", s.ID())
 		}
 		if si.Params.SupplyType == series.Variable && si.IssuerWitness == "" {
 			s, _ := series.New(si.Params)

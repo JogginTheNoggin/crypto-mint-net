@@ -147,7 +147,9 @@ Each release also ships `poo-gui-VERSION-OS-ARCH` archives (`.tar.gz`, or
 
 ## Status
 
-Pre-release. The consensus core, a node with storage and a local RPC, and
+Alpha. The first public release will be `v0.1.0-alpha.1`: for testing,
+with no promise yet that files or the network carry over to later
+releases unchanged. The consensus core, a node with storage and a local RPC, and
 the wire protocol between full nodes (forwarding, ledger data requests and
 catch-up), peer discovery, and peer ranking, tracking and chasing are
 implemented and tested, with a wallet. Every decoder is fuzzed, the hot

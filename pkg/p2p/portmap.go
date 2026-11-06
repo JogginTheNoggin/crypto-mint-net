@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"io"
 	"net"
 	"net/netip"
@@ -326,7 +327,7 @@ var pmConfirmWait = helloTimeout
 
 // selfProbeAgent starts the Agent of a dial-back hello; a random token
 // follows it (RED-090).
-const selfProbeAgent = "poo-self-check/"
+const selfProbeAgent = brand.Name + "-self-check/"
 
 // confirmSelf dials addr and reports nil once this node's own listener
 // has received the dial: the mapped address leads here. The hello it

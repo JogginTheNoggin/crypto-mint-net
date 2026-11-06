@@ -20,7 +20,7 @@ import (
 func TestInitWritesTheReserveSeries(t *testing.T) {
 	root := t.TempDir()
 	out := runOut(t, "init", "-root", root, "-p2p", "off")
-	if !strings.Contains(out, series.ReserveID) || !strings.Contains(out, "the built-in reserve series") {
+	if !strings.Contains(out, series.ReserveID) || !strings.Contains(out, "the built-in default series") {
 		t.Fatalf("init:\n%s", out)
 	}
 	p, err := nodepolicy.Load(filepath.Join(root, "policies", "default", nodepolicy.FileName))
@@ -47,11 +47,11 @@ func TestInitWritesTheReserveSeries(t *testing.T) {
 
 	// -example alone is the worked example only; -reserve adds the reserve.
 	root = t.TempDir()
-	runOut(t, "init", "-example", "-reserve", "-root", root, "-p2p", "off")
+	runOut(t, "init", "-example", "-default-series", "-root", root, "-p2p", "off")
 	p, err = nodepolicy.Load(filepath.Join(root, "policies", "default", nodepolicy.FileName))
 	must(t, err)
 	if len(p.Series) != 2 {
-		t.Fatalf("-example -reserve: %d series", len(p.Series))
+		t.Fatalf("-example -default-series: %d series", len(p.Series))
 	}
 }
 
@@ -125,7 +125,7 @@ func TestSeriesInfoNamesTheReserve(t *testing.T) {
 		Builtin string `json:"builtin"`
 	}
 	must(t, json.Unmarshal([]byte(runOut(t, "series", "info", file)), &info))
-	if info.ID != series.ReserveID || info.Builtin != "reserve" {
+	if info.ID != series.ReserveID || info.Builtin != "default" {
 		t.Fatalf("%+v", info)
 	}
 	p := series.Reserve()

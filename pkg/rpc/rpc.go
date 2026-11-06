@@ -537,19 +537,22 @@ type SeriesInfo struct {
 	// Variable is set for a variable series: what this node knows released
 	// (D166). A fixed series' reply is as before.
 	Variable *VariableInfo `json:"variable,omitempty"`
-	// Builtin is "reserve" when the series is the built-in default reserve
-	// series, matched on its full id (D170).
+	// Builtin is "default" when the series is the built-in default series,
+	// matched on its full id (D170; "reserve" before D192).
 	Builtin string `json:"builtin,omitempty"`
 	// Warning says the series sets no witness ceiling, or one above
 	// nodepolicy.CeilingLimit (RED-083); left out otherwise.
 	Warning string `json:"warning,omitempty"`
 }
 
-// Builtin returns "reserve" for the built-in reserve series' full id and
-// "" for any other (D170).
+// BuiltinDefault is what Builtin names the built-in default series.
+const BuiltinDefault = "default"
+
+// Builtin returns BuiltinDefault for the built-in default series' full id
+// and "" for any other (D170, D192).
 func Builtin(id hash.Hash) string {
 	if series.IsReserve(id) {
-		return "reserve"
+		return BuiltinDefault
 	}
 	return ""
 }

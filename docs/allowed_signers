@@ -1,0 +1,5 @@
+# Release signers for poo (docs/releasing.md, "Signing"; W-21, D192).
+# One line per maintainer key, all under the principal poo-release:
+#   poo-release namespaces="file" ssh-ed25519 AAAA... NAME
+# A retired key keeps its line with valid-before="YYYYMMDD".
+# No key yet: the first maintainer adds theirs before the first signed release.
