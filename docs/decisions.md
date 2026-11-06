@@ -5910,6 +5910,15 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     is `grind.ErrNoGrinder` ("gpu:1 has no grinder for sha3-256", with the
     device's note), not "no such device"; `poon grind bench -device ID`
     with no series measures the hashes the device grinds.
+  - **Measured on jerry's RTX 2070 SUPER:** SHA-256 layers at about
+    4.55 G/s and SHA-512/256 at about 1.55 G/s, against 37.1 M/s and
+    13.3 M/s on its CPU; a 10-second `poon work` tried 45.2 G nonces and
+    kept a strength-35 layer. The run also gave fixes made here:
+    `poon build -work` checks its tries before building (finding 18) and
+    names the entry if the layer fails; `poon grind devices` says when the
+    list comes from the node (`from_node`); the bench names why a device
+    measured nothing; CLI tests turn the GPU off so they pass the same on
+    a GPU machine.
 - **Why:** GPUs grind layers many times faster than CPUs, and jerry wants
   them used.
 - **Consensus:** None. A grinder only finds nonces; every result is
