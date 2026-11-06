@@ -51,7 +51,7 @@ func TestBlue037LeasesPerAddress(t *testing.T) {
 	if granted != b.cfg.MaxLeasesPerGrinder {
 		t.Fatalf("one address took %d leases, want %d", granted, b.cfg.MaxLeasesPerGrinder)
 	}
-	if n := len(b.Listable(hash.Hash{})); n != 8-granted {
+	if n := len(b.Listable(hash.Hash{}, 0)); n != 8-granted {
 		t.Fatalf("listable %d", n)
 	}
 }

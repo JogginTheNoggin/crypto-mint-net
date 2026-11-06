@@ -161,18 +161,38 @@ func DecodeOffer(b []byte) (Offer, error) {
 // Series is zero).
 type ListReq struct {
 	Series hash.Hash
+	// MaxStrength is the strongest offer the asker will work: only offers
+	// asking at most this many bits are listed (jerry, D202). Every list
+	// request carries it; 255 takes any, and 0 here is written as 255.
+	MaxStrength uint8
+}
+
+// AnyStrength is the max strength of a grinder that takes any offer.
+const AnyStrength = 255
+
+func orAny(s uint8) uint8 {
+	if s == 0 {
+		return AnyStrength
+	}
+	return s
 }
 
 // Encode returns the request's bytes.
-func (q ListReq) Encode() []byte { return encoding.NewWriter(32).Raw(q.Series[:]).Bytes() }
+func (q ListReq) Encode() []byte {
+	return encoding.NewWriter(33).Raw(q.Series[:]).U8(orAny(q.MaxStrength)).Bytes()
+}
 
 // DecodeListReq reads a list request.
 func DecodeListReq(b []byte) (ListReq, error) {
 	r := encoding.NewReader(b)
 	var q ListReq
 	r.Into(q.Series[:])
+	q.MaxStrength = r.U8()
 	if err := r.Err(); err != nil {
 		return ListReq{}, fmt.Errorf("%w: list request: %v", ErrMalformed, err)
+	}
+	if q.MaxStrength == 0 {
+		return ListReq{}, fmt.Errorf("%w: list request: max strength 0", ErrMalformed)
 	}
 	return q, nil
 }
@@ -216,11 +236,15 @@ type Take struct {
 	Offer hash.Hash `json:"offer"`
 	Rate  uint64    `json:"rate"`
 	PayTo hash.Hash `json:"pay_to"`
+	// MaxStrength is the strongest offer the grinder will work; the payer
+	// refuses a lease on an offer above it (jerry, D202). Every take
+	// carries it; 255 takes any, and 0 here is written as 255.
+	MaxStrength uint8 `json:"max_strength,omitempty"`
 }
 
 // Encode returns the take's bytes.
 func (t Take) Encode() []byte {
-	return encoding.NewWriter(72).Raw(t.Offer[:]).U64(t.Rate).Raw(t.PayTo[:]).Bytes()
+	return encoding.NewWriter(73).Raw(t.Offer[:]).U64(t.Rate).Raw(t.PayTo[:]).U8(orAny(t.MaxStrength)).Bytes()
 }
 
 // DecodeTake reads a take.
@@ -230,8 +254,12 @@ func DecodeTake(b []byte) (Take, error) {
 	r.Into(t.Offer[:])
 	t.Rate = r.U64()
 	r.Into(t.PayTo[:])
+	t.MaxStrength = r.U8()
 	if err := r.Err(); err != nil {
 		return Take{}, fmt.Errorf("%w: take: %v", ErrMalformed, err)
+	}
+	if t.MaxStrength == 0 {
+		return Take{}, fmt.Errorf("%w: take: max strength 0", ErrMalformed)
 	}
 	return t, nil
 }

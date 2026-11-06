@@ -34,8 +34,13 @@ type BountyReply struct {
 	// Done are the last finished offers (filled or closed, every layer
 	// paid), from bounties-done.jsonl, when asked for with ?done=N; and
 	// DoneSkipped the lines there that could not be read (GREEN-063).
-	Done        []bounty.Mine `json:"done,omitempty"`
+	// Asked for, it is always given, [] when there are none, so a client
+	// can tell none from an older node that ignores the query (W-35).
+	Done        []bounty.Mine `json:"done,omitzero"`
 	DoneSkipped int           `json:"done_skipped,omitempty"`
+	// Notes say what in the settings will not work as most likely meant,
+	// such as posting on with no spending limits (GUI-GREEN-064, D202).
+	Notes []string `json:"notes,omitempty"`
 }
 
 // BountyPostRequest posts an offer.
@@ -65,6 +70,9 @@ type BountyIDRequest struct {
 // BountyAskRequest asks peers for their open offers.
 type BountyAskRequest struct {
 	Series hash.Hash `json:"series,omitempty"`
+	// MaxStrength is the strongest offer to ask for (0: the node's
+	// bounty.max_strength, or any; D202).
+	MaxStrength uint8 `json:"max_strength,omitempty"`
 }
 
 // BountyAskReply says how many peers were asked.
@@ -80,6 +88,9 @@ type BountyWorkRequest struct {
 	// MaxSeconds bounds the grinding (default and most: MaxBountyWork);
 	// the lease may end it sooner.
 	MaxSeconds int `json:"max_seconds,omitempty"`
+	// MaxStrength is the strongest offer this grinder works (0: the
+	// node's bounty.max_strength, or any; D202).
+	MaxStrength uint8 `json:"max_strength,omitempty"`
 }
 
 // MaxBountyWork bounds one work call, under the client's timeout.
@@ -142,7 +153,7 @@ func (h *Handler) bountyList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := b.Config()
-	out := BountyReply{Post: c.Post, Take: c.Take, Mine: b.Mine(), Held: b.HeldOffers(), Payers: b.Payers()}
+	out := BountyReply{Post: c.Post, Take: c.Take, Mine: b.Mine(), Held: b.HeldOffers(), Payers: b.Payers(), Notes: h.n.Running().BountyNotes()}
 	if q := r.URL.Query().Get("done"); q != "" {
 		n, err := strconv.Atoi(q)
 		if err != nil || n < 0 {
@@ -152,6 +163,9 @@ func (h *Handler) bountyList(w http.ResponseWriter, r *http.Request) {
 		if out.Done, out.DoneSkipped, err = b.Done(n); err != nil {
 			writeError(w, classify(err))
 			return
+		}
+		if out.Done == nil {
+			out.Done = []bounty.Mine{}
 		}
 	}
 	writeJSON(w, out)
@@ -216,7 +230,7 @@ func (h *Handler) bountyAsk(w http.ResponseWriter, r *http.Request) {
 	if !h.needHost(w) {
 		return
 	}
-	n, err := h.host.AskBounties(req.Series)
+	n, err := h.host.AskBounties(req.Series, req.MaxStrength)
 	if err != nil {
 		writeError(w, bountyErr(err))
 		return
@@ -292,7 +306,7 @@ func (h *Handler) bountyWork(w http.ResponseWriter, r *http.Request) {
 		writeError(w, badRequest("could not measure this node's rate"))
 		return
 	}
-	g, err := h.host.TakeBounty(ctx, req.ID, out.Rate, req.PayTo)
+	g, err := h.host.TakeBounty(ctx, req.ID, out.Rate, req.PayTo, req.MaxStrength)
 	if err != nil {
 		writeError(w, bountyErr(err))
 		return
@@ -364,9 +378,9 @@ func (c *Client) BountyCancel(id hash.Hash) (bounty.Mine, error) {
 }
 
 // BountyAsk asks peers for their open offers.
-func (c *Client) BountyAsk(series hash.Hash) (BountyAskReply, error) {
+func (c *Client) BountyAsk(series hash.Hash, maxStrength uint8) (BountyAskReply, error) {
 	var out BountyAskReply
-	return out, c.do(http.MethodPost, "/v1/bounty/ask", BountyAskRequest{Series: series}, &out)
+	return out, c.do(http.MethodPost, "/v1/bounty/ask", BountyAskRequest{Series: series, MaxStrength: maxStrength}, &out)
 }
 
 // BountyWork leases, grinds and claims an offer.

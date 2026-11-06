@@ -134,9 +134,9 @@ the clock skew (2 minutes) ahead.
 | 63 | partial yes | Follow reply |
 | 64 | peer list | `List<Peer>` |
 | 70 | bounty offer | Offer: `U8` kind (1 layer) ∥ `Hash` series ∥ `U64` pool ∥ `Hash` entry ∥ `U8` strength ∥ `U64` amount ∥ `U16` count ∥ `U32` open seconds ∥ `U64` salt ∥ fields a later bounty v1 adds; at most 1,024 bytes in all, frozen with bounty version 1 (D199, D200) |
-| 71 | bounty list request | `Hash` series (zero: all) |
+| 71 | bounty list request | `Hash` series (zero: all) ∥ `U8` max strength (required: the strongest offer the asker works, 255 for any; 0 is malformed; D202) |
 | 72 | bounty list | `List<Bytes>` offers, at most 64, each at most 1,024 bytes (frozen with bounty version 1) |
-| 73 | bounty take | `Hash` offer id ∥ `U64` rate (tries a second) ∥ `Hash` pay-to address |
+| 73 | bounty take | `Hash` offer id ∥ `U64` rate (tries a second) ∥ `Hash` pay-to address ∥ `U8` max strength (required, as in 71; an offer stronger than it is refused; D202) |
 | 74 | bounty grant | `Hash` offer id ∥ `U32` seconds (0: refused) ∥ `Bytes` reason (at most 200) |
 | 75 | bounty claim | `Hash` offer id ∥ `U64` nonce ∥ `Hash` pay-to address |
 | 76 | bounty ack | `Hash` offer id ∥ `U64` nonce ∥ `U8` outcome ∥ `List<Hash>` tids (at most 16) |

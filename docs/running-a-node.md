@@ -330,9 +330,9 @@ or in node.json's `bounty` section:
 
 ```sh
 # the payer: post offers, paying at most 5000 for one and 20000 in all
-./poo policy limits -set bounty.post=1 -set bounty.max_amount=5000 -set bounty.budget=20000
+./poo policy limits -set bounty.post=on -set bounty.max_amount=5000 -set bounty.budget=20000
 # the grinder: take peers' offers
-./poo policy limits -set bounty.take=1
+./poo policy limits -set bounty.take=on
 ```
 
 `poo status` says whether the market is on (`bounty`). `on` and `off`
@@ -350,6 +350,7 @@ the pool that holds it), and the grinder finds, works and claims it:
 # on the grinder: ask peers for offers, then work one
 ./poo wallet create                     # once, if it has no wallet yet
 ./poo wallet address                    # a fresh address to be paid to
+./poo policy limits -set bounty.max_strength=30   # optional: the strongest offer this machine works
 ./poo bounty list -ask
 ./poo bounty work OFFER_ID -to ADDRESS
 # on the payer: see the accepted claim and pay it from the wallet

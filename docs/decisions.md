@@ -5662,3 +5662,55 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     - `TestBlue039PaidSaveFails`
   - `pkg/cli/bounty_test.go`: `TestBountyMarket` (a failed record, then
     pay again).
+
+### D202. Round 39: a grinder states the strongest offer it works, the bounty memo and leg states frozen, `done` always returned, and notes when posting cannot work (jerry, W-33 to W-35, GUI-GREEN-064)
+- **Decision.** Merged first: Blue's #332 (BLUE-039, D201, with Green's
+  #328 GREEN-063), Red's #326 (RED-118, RED-119), Orange's #329
+  (ORANGE-048, measured), White's #334, Black's #335 (all clear, Round 37
+  condition met).
+  - **Max strength (jerry).** A payer with offers of many strengths
+    cannot tell which grinder can finish which, and expected time
+    depends on the grinder's hardware. So the grinder says it:
+    - `bounty.max_strength` (0 to 255; 0, unset, sends 255: any) and
+      `-max-strength S` on `poo bounty list -ask` and `poo bounty work`
+      (over 255 refused). The flag wins over the limit.
+    - Message 71 (list request) and 73 (take) carry a `U8` max strength.
+      It is a required field of bounty version 1, not a trailing extra:
+      nothing has been released, so there is no older peer to serve. A
+      decoder refuses a message without it, and 0 is malformed.
+    - A payer lists only its offers at or under the asker's max strength,
+      and refuses a lease on a stronger one ("the offer asks strength S,
+      over the M this grinder works"). A grinder refuses locally before
+      asking, and drops received offers above its own setting.
+    - Node policy only; no consensus change.
+  - **W-34.** The memo start `bounty ` (`cli.BountyMemo`) and the leg
+    state names in `pkg/wallet/pay.go` are frozen with the first release.
+    `sentFor` treats a leg state it does not know as sent: only no state,
+    `unsigned`, `dropped` and `void` count as unsent, so a later release's
+    state can never make a paid claim look unpaid and be paid twice.
+  - **W-35.** `?done=N` (and `poo bounty list -done N`) always returns
+    `done`, `[]` when nothing is finished; without it `done` is left out.
+  - **W-33 (rule only).** A kept field that describes other data (such as
+    `done_size` or `done_last`) is a hint: it is checked against that
+    data before use, and a wrong hint costs time, never correctness.
+  - **GUI-GREEN-064.**
+    - `poo bounty list` and `poo status` (`bounty.notes`) carry the
+      limits notes when `bounty.post` is on but `bounty.max_amount` or
+      `bounty.budget` is not set, so `post: true` is not read as "posting
+      works".
+    - The amount limits (`max_amount`, `budget`, `min_price`) and the
+      on-off switches have Min 0, so their default 0 (not set, off) is
+      inside the listed range.
+    - The market-off and take-off errors say `=on`, not `=1`.
+- **Why:** a payer must hand each offer to a grinder that says it can do
+  it, and a grinder's statement must reach every payer it asks; frozen
+  names must never turn a payment into an unpaid claim.
+- **Consensus:** None. The market is outside the ledger (D196); the new
+  byte is in bounty messages 71 and 73 only.
+- **Tier:** Bounty, P2P, RPC, CLI, node policy.
+  - `pkg/bounty/white037_test.go`: `TestMaxStrengthChoosesOffers`
+  - `pkg/bounty/book_test.go`: `TestCodecRoundTrip` (max strength)
+  - `pkg/cli/white034_test.go`: `TestW34UnknownLegStateIsSent`
+  - `pkg/cli/green062_test.go` (the `=on` text)
+  - `gui/e2e/parity.mjs`: `-max-strength` left out until GUI Grey adds
+    its field (`bounty.max_strength` in Set limits applies meanwhile).

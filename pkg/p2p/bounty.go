@@ -42,12 +42,12 @@ type bountyAckKey struct {
 }
 
 // ErrNoBounty is a market call on a node whose policy has the market off.
-var ErrNoBounty = errors.New("the bounty market is off: poo policy limits -set bounty.take=1 takes peers' offers; -set bounty.post=1 with bounty.max_amount and bounty.budget posts them")
+var ErrNoBounty = errors.New("the bounty market is off: poo policy limits -set bounty.take=on takes peers' offers; -set bounty.post=on with bounty.max_amount and bounty.budget posts them")
 
 // ErrNoTake is asking for or working peers' offers on a node that only
 // posts: it keeps no peer's offer, so the answers would be dropped
 // (GREEN-062).
-var ErrNoTake = fmt.Errorf("%w: this node does not take peers' offers; poo policy limits -set bounty.take=1 turns it on", bounty.ErrOff)
+var ErrNoTake = fmt.Errorf("%w: this node does not take peers' offers; poo policy limits -set bounty.take=on turns it on", bounty.ErrOff)
 
 // ErrPayerGone is a take or claim whose payer is not connected.
 var ErrPayerGone = errors.New("the peer that sent the offer is not connected")
@@ -189,16 +189,22 @@ func (h *Host) BountyPools(series, e hash.Hash) []uint64 {
 // AskBounties asks every connected peer that takes part for its open
 // offers in series (all when zero); the answers arrive as they come. It
 // returns how many peers were asked.
-func (h *Host) AskBounties(series hash.Hash) (int, error) {
+//
+// maxStrength is the strongest offer to list (0: this node's
+// bounty.max_strength, or any).
+func (h *Host) AskBounties(series hash.Hash, maxStrength uint8) (int, error) {
 	if h.cfg.Bounty == nil {
 		return 0, ErrNoBounty
 	}
 	if !h.cfg.Bounty.Config().Take {
 		return 0, ErrNoTake
 	}
+	if maxStrength == 0 {
+		maxStrength = h.cfg.Bounty.Config().MaxStrength
+	}
 	n := 0
 	for _, p := range h.bountyPeers() {
-		p.send(bountyMsg(wire.TypeBountyListReq, bounty.ListReq{Series: series}.Encode()))
+		p.send(bountyMsg(wire.TypeBountyListReq, bounty.ListReq{Series: series, MaxStrength: maxStrength}.Encode()))
 		n++
 	}
 	return n, nil
@@ -206,7 +212,11 @@ func (h *Host) AskBounties(series hash.Hash) (int, error) {
 
 // TakeBounty asks the payer of an offer this node holds for a lease, and
 // waits for the answer.
-func (h *Host) TakeBounty(ctx context.Context, id hash.Hash, rate uint64, payTo hash.Hash) (bounty.Grant, error) {
+//
+// maxStrength is the strongest offer this grinder works (0: this node's
+// bounty.max_strength, or any); an offer above it is refused here and by
+// the payer (D202).
+func (h *Host) TakeBounty(ctx context.Context, id hash.Hash, rate uint64, payTo hash.Hash, maxStrength uint8) (bounty.Grant, error) {
 	b := h.cfg.Bounty
 	if b == nil {
 		return bounty.Grant{}, ErrNoBounty
@@ -218,12 +228,18 @@ func (h *Host) TakeBounty(ctx context.Context, id hash.Hash, rate uint64, payTo 
 	if !ok {
 		return bounty.Grant{}, errors.New("no offer with that id was received; poo bounty list -ask asks peers for theirs")
 	}
+	if maxStrength == 0 {
+		maxStrength = b.Config().MaxStrength
+	}
+	if maxStrength > 0 && held.Offer.Strength > maxStrength {
+		return bounty.Grant{}, fmt.Errorf("the offer asks strength %d, over the %d this node works (bounty.max_strength, or -max-strength)", held.Offer.Strength, maxStrength)
+	}
 	p := h.bountyPeer(held.From)
 	if p == nil {
 		return bounty.Grant{}, ErrPayerGone
 	}
 	ch := make(chan bounty.Grant, 1)
-	t := bounty.Take{Offer: id, Rate: rate, PayTo: payTo}
+	t := bounty.Take{Offer: id, Rate: rate, PayTo: payTo, MaxStrength: maxStrength}
 	w := &h.bwait
 	w.mu.Lock()
 	if w.grants == nil {
@@ -336,7 +352,7 @@ func (h *Host) handleBounty(p *peer, m wire.Message) error {
 			return bad(err)
 		}
 		if b.Config().Post {
-			p.send(bountyMsg(wire.TypeBountyList, bounty.EncodeList(b.Listable(q.Series))))
+			p.send(bountyMsg(wire.TypeBountyList, bounty.EncodeList(b.Listable(q.Series, q.MaxStrength))))
 		}
 	case wire.TypeBountyList:
 		os, err := bounty.DecodeList(m.Body)

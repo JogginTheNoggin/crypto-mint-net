@@ -50,6 +50,10 @@ type Config struct {
 	PerPeer int
 	// MinPrice: offers paying less per layer are not kept.
 	MinPrice uint64
+	// MaxStrength, when above 0, is the strongest offer this node will
+	// work as a grinder: a stronger one is not kept, it is asked of
+	// payers when listing, and it goes with each take (jerry, D202).
+	MaxStrength uint8
 }
 
 // Defaults for the zero fields of Config.
@@ -1026,7 +1030,7 @@ func (b *Book) Post(o Offer) (Mine, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !b.cfg.Post {
-		return Mine{}, fmt.Errorf("%w: poo policy limits -set bounty.post=1 posts offers", ErrOff)
+		return Mine{}, fmt.Errorf("%w: poo policy limits -set bounty.post=on posts offers", ErrOff)
 	}
 	if missing := unsetSpend(b.cfg); missing != "" {
 		return Mine{}, fmt.Errorf("%w: %s not set, so this node posts no offer; poo policy limits -set bounty.max_amount=N -set bounty.budget=N", ErrOff, missing)
@@ -1138,7 +1142,10 @@ func (b *Book) clone(m *Mine) Mine {
 // Listable returns the offers a peer may take now, in series (all when
 // zero): open, with a layer neither handed in nor leased. A leased offer
 // is not listed, so only its grinder works on it.
-func (b *Book) Listable(series hash.Hash) []Offer {
+//
+// maxStrength, when above 0, leaves out offers asking more bits than the
+// asker said it will work (jerry, D202).
+func (b *Book) Listable(series hash.Hash, maxStrength uint8) []Offer {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.expire()
@@ -1146,6 +1153,9 @@ func (b *Book) Listable(series hash.Hash) []Offer {
 	for _, id := range b.order {
 		m := b.mine[id]
 		if m.Closed || m.free() <= 0 || (series != hash.Hash{} && m.Offer.Series != series) {
+			continue
+		}
+		if maxStrength > 0 && m.Offer.Strength > maxStrength {
 			continue
 		}
 		out = append(out, m.Offer)
@@ -1184,6 +1194,8 @@ func (b *Book) TakeFrom(peer, addr string, t Take) Grant {
 		return refuse("no such open offer")
 	case t.Rate == 0:
 		return refuse("no rate stated")
+	case t.MaxStrength > 0 && m.Offer.Strength > t.MaxStrength:
+		return refuse(fmt.Sprintf("the offer asks strength %d, over the %d this grinder works", m.Offer.Strength, t.MaxStrength))
 	}
 	exp := ExpectedSeconds(m.Offer.Strength, t.Rate)
 	dur := time.Duration(math.Min(3*exp, b.cfg.LeaseCeiling.Seconds()) * float64(time.Second))
@@ -1332,6 +1344,9 @@ func (b *Book) ReceiveFrom(peer, addr string, o Offer) bool {
 	defer b.mu.Unlock()
 	if !b.cfg.Take || o.Amount < b.cfg.MinPrice {
 		return false
+	}
+	if b.cfg.MaxStrength > 0 && o.Strength > b.cfg.MaxStrength {
+		return false // stronger than this node works (D202)
 	}
 	b.expire()
 	id := o.ID()

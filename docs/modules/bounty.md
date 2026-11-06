@@ -37,7 +37,15 @@ The package has two parts:
 2. **Find.** `poo bounty list -ask` asks those peers for their open
    offers. Offers paying less than `min_price` per layer are not kept;
    at most `held_offers` are kept.
-3. **Work.** `poo bounty work ID -to ADDR` measures this node's rate,
+3. **Work.** A grinder states the strongest offer it will work, as
+   `bounty.max_strength` (1 to 255; unset sends 255, any) or
+   `-max-strength S` on `poo bounty list -ask` and `poo bounty work`.
+   Every list request and lease carries it (a required byte in bounty
+   version 1), and a payer lists and leases only offers at or under it,
+   so a payer with offers of many strengths gives each to a grinder that
+   says it can work it; a fast machine states a higher one. A grinder
+   also drops peers' offers above its own setting (D202).
+   `poo bounty work ID -to ADDR` measures this node's rate,
    asks the payer for a lease, grinds from a random nonce (so two
    grinders, or two calls, find different layers; RED-109) until it finds a layer, the lease
    ends or `-max-seconds` (at most 240) passes, and claims the layer to
@@ -96,7 +104,7 @@ wraps (RED-114).
 ## Settings
 
 Each is a settable limit: `poo policy limits` lists it and `poo policy
-limits -set bounty.post=1` sets it (D198); a running node takes a change
+limits -set bounty.post=on` sets it (D198); a running node takes a change
 on reload. `bounty.post` and `bounty.take` also take `on` and `off`, and
 the reply's `notes` name a setting that cannot work as set: posting on
 without `max_amount` and `budget`, or `max_amount` over `budget`. A node

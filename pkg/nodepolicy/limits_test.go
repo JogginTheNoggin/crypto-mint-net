@@ -80,6 +80,7 @@ func TestLimitsBounds(t *testing.T) {
 		"bounty.lease_ceiling_seconds": func(p *Policy, v int) { p.Bounty = &Bounty{LeaseCeilingSeconds: v} },
 		"bounty.held_offers":           func(p *Policy, v int) { p.Bounty = &Bounty{HeldOffers: v} },
 		"bounty.min_price":             func(p *Policy, v int) { p.Bounty = &Bounty{MinPrice: uint64(v)} },
+		"bounty.max_strength":          func(p *Policy, v int) { p.Bounty = &Bounty{MaxStrength: v} },
 	}
 	// The on-off settings hold only 0 and 1, so SetLimits refuses
 	// anything else before it is stored (D198).

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
@@ -20,8 +21,8 @@ import (
 
 const bountyUsage = `usage:
   poo bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
-  poo bounty list [-ask] [-done N]
-  poo bounty work ID -to ADDR [-max-seconds N]
+  poo bounty list [-ask] [-max-strength S] [-done N]
+  poo bounty work ID -to ADDR [-max-seconds N] [-max-strength S]
   poo bounty pay ID [-claim NONCE] [-wallet FILE]
   poo bounty cancel ID`
 
@@ -99,6 +100,7 @@ func bountyList(args []string, out io.Writer) error {
 	fs := newFlagSet("bounty list", out)
 	c := addClient(fs)
 	ask := fs.Bool("ask", false, "first ask connected peers for their open offers, and wait a moment for answers")
+	maxStr := fs.Uint("max-strength", 0, "with -ask, ask only for offers of at most this strength in bits (default: bounty.max_strength, else any)")
 	done := fs.Int("done", 0, "also list this node's last N finished offers (filled or closed, every layer paid; at most 256), which leave the list")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -114,7 +116,10 @@ func bountyList(args []string, out io.Writer) error {
 		if viewOnlyOf(out) {
 			return errors.New("-ask sends a request to peers, which view-only mode does not do")
 		}
-		if _, err := cl.BountyAsk(hash.Hash{}); err != nil {
+		if *maxStr > 255 {
+			return errors.New("-max-strength is 1 to 255")
+		}
+		if _, err := cl.BountyAsk(hash.Hash{}, uint8(*maxStr)); err != nil {
 			return err
 		}
 		time.Sleep(BountyAskWait)
@@ -153,6 +158,7 @@ func bountyWork(args []string, out io.Writer) error {
 	c := addClient(fs)
 	to := fs.String("to", "", "the address to be paid (needed): a fresh one from poo wallet address")
 	maxSec := fs.Int("max-seconds", 0, "stop grinding after this long (default and most: 240; the lease may end it sooner)")
+	maxStr := fs.Uint("max-strength", 0, "work no offer stronger than this many bits; the payer is told and refuses a lease above it (default: bounty.max_strength, else any)")
 	id, err := bountyID(fs, args, "work")
 	if err != nil {
 		return err
@@ -165,7 +171,10 @@ func bountyWork(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	rep, err := cl.BountyWork(rpc.BountyWorkRequest{ID: id, PayTo: payTo, MaxSeconds: *maxSec})
+	if *maxStr > 255 {
+		return errors.New("-max-strength is 1 to 255")
+	}
+	rep, err := cl.BountyWork(rpc.BountyWorkRequest{ID: id, PayTo: payTo, MaxSeconds: *maxSec, MaxStrength: uint8(*maxStr)})
 	if err != nil {
 		return err
 	}
@@ -208,6 +217,23 @@ type BountyPayReply struct {
 // address and amount, every leg sent, and no leg already recorded on
 // another claim. An earlier payment sent only in part is an error, as
 // paying again would pay more than once (RED-119).
+// BountyMemo starts the memo of a bounty payment, followed by the offer's
+// short id. Frozen (W-34, D202): a later release may add to the memo
+// after it, and readers match on its start.
+const BountyMemo = "bounty "
+
+// legSent says a leg in this state went out: pending or selected, or a
+// state a later release added, which is never read as unsent, so a
+// payment is not made twice (W-34, D202). Only unsigned, dropped and void
+// (and no state) are unsent.
+func legSent(state string) bool {
+	switch state {
+	case "", wallet.StateUnsigned, wallet.StateDropped, wallet.StateVoid:
+		return false
+	}
+	return true
+}
+
 func sentFor(w *wallet.Wallet, m *bounty.Mine, c *bounty.ClaimRecord) (*wallet.Sent, error) {
 	used := map[hash.Hash]bool{}
 	for _, r := range m.Claims {
@@ -215,14 +241,14 @@ func sentFor(w *wallet.Wallet, m *bounty.Mine, c *bounty.ClaimRecord) (*wallet.S
 			used[t] = true
 		}
 	}
-	memo := "bounty " + m.ID.Short()
+	memo := BountyMemo + m.ID.Short()
 	for _, p := range w.Sent() {
-		if p.Claim || p.Memo != memo || p.Series != m.Offer.Series || p.To != c.PayTo || p.Amount != m.Offer.Amount || len(p.Legs) == 0 {
+		if p.Claim || !strings.HasPrefix(p.Memo, memo) || p.Series != m.Offer.Series || p.To != c.PayTo || p.Amount != m.Offer.Amount || len(p.Legs) == 0 {
 			continue
 		}
 		sent, mine := 0, false
 		for _, l := range p.Legs {
-			if l.State == wallet.StatePending || l.State == wallet.StateSelected {
+			if legSent(l.State) {
 				sent++
 			}
 			mine = mine || used[l.TID]
@@ -322,7 +348,7 @@ func bountyPay(args []string, out io.Writer) error {
 		}
 		return writeJSON(out, BountyPayReply{Offer: id, Nonce: pick.Nonce, PayTo: pick.PayTo, Amount: mine.Offer.Amount, Sent: prev, Told: paid.Told, Recorded: true})
 	}
-	sent, u, err := w.Pay(s, n, pick.PayTo, mine.Offer.Amount, wallet.PayOptions{Memo: "bounty " + id.Short()})
+	sent, u, err := w.Pay(s, n, pick.PayTo, mine.Offer.Amount, wallet.PayOptions{Memo: BountyMemo + id.Short()})
 	if err == nil && u != nil {
 		return errPayNeedsOut(u.Missing())
 	}

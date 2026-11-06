@@ -252,6 +252,17 @@ built.
     offer this node has a lease on is kept when the held list is full.
   - The bounty done file is read a line's start at a time, and an offer
     left out for being done is reported.
+- **Round 39 (D202):**
+  - A grinder states the strongest offer it works (`bounty.max_strength`,
+    `-max-strength` on `poo bounty list -ask` and `work`); every bounty
+    list request and lease carries it, and a payer lists and leases only
+    offers at or under it.
+  - `poo bounty list` and `poo status` carry notes when posting cannot
+    work yet; `-done N` always returns `done`, empty or not; the
+    market-off error says `=on`; amount limits and the on-off switches
+    accept 0.
+  - The `bounty ` memo start and the wallet's leg state names are frozen;
+    a leg state a later release adds counts as sent, never as unpaid.
 - **Round 38 fixes (D201):**
   - `poo bounty pay` looks in the wallet first: a payment it sent that
     the node did not record is recorded, never paid twice. A failed save
