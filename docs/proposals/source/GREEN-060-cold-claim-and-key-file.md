@@ -64,9 +64,10 @@ the cold address, and `-show` before signing.
   - The cold-key block in running-a-node.md now runs from `keygen -out`
     through a cold claim to payment.
   - The poo.md rows for keygen and sign, and wallet.md.
-- **GUI parity.** Two LEFT_OUT lines: `keygen -out`, and `wallet claim
-  -to-policy` and `-out`. Like `-raw` and `-watch-only`, they stay in
-  the terminal for now.
+- **GUI parity.** LEFT_OUT lines for `keygen -out`, and for `wallet
+  claim -to-policy` and `-out`. GUI Round 35 Part A, merged in here,
+  gave `-raw`, `-watch-only` and `-change` their forms. The two new
+  ones stay in the terminal until the GUI adds them.
 
 ## For Black
 
