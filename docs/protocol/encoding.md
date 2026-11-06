@@ -65,16 +65,16 @@ Bool has issuer
 [Hash issuer address]        only when "has issuer" is 1
 ```
 
-- `series_id = H("PoO-series" ∥ params)`
+- `series_id = H("PoON-series" ∥ params)`
 - Pool k holds serials `k·P` to `min((k+1)·P, N) − 1`.
-- `pool_id(k) = H("PoO-pool" ∥ series_id ∥ U64(k))`. It is the parent of the
+- `pool_id(k) = H("PoON-pool" ∥ series_id ∥ U64(k))`. It is the parent of the
   first entry of pool k.
 
 ## Policies and addresses
 
 ```
 policy  = U32(4) ∥ U32(type) ∥ Bytes(params)
-address = H("PoO-address" ∥ policy)
+address = H("PoON-address" ∥ policy)
 ```
 
 The type is written as a 4-byte field preceded by its length, 4.
@@ -130,14 +130,14 @@ received.
 
 ```
 witness = policy ∥ Bytes(data)
-message = "PoO-witness-v1" ∥ tid
+message = "PoON-witness-v1" ∥ tid
 ```
 
 Each signature in the witness data signs `message`. The witness ceiling of a
 series limits the size of `witness`.
 
 The issuer witness of a series signs the message for the pseudo-tid
-`H("PoO-issuer-v1" ∥ series_id)`.
+`H("PoON-issuer-v1" ∥ series_id)`.
 
 ## Transactions
 
@@ -150,7 +150,7 @@ body =
 
 tx = body ∥ List<witness>
 
-tid = H("PoO-tx" ∥ body)
+tid = H("PoON-tx" ∥ body)
 ```
 
 Witnesses are outside the tid. A claim has no inputs, outputs summing to the
@@ -168,7 +168,7 @@ Transactions are in canonical order: by serial, then by tid, strictly
 increasing.
 
 ```
-entry hash = H("PoO-entry" ∥ parent ∥ tid₁ ∥ … ∥ tidₙ [∥ U64 nonce])
+entry hash = H("PoON-entry" ∥ parent ∥ tid₁ ∥ … ∥ tidₙ [∥ U64 nonce])
 ```
 
 The nonce is part of the hash only when the series' minimum entry strength
@@ -190,15 +190,15 @@ invalid.
 
 `go test ./pkg/vectors` recomputes these from the example series
 (`poon series example`) and keys whose Ed25519 seeds are
-`SHA-256("PoO-test-key:" ∥ label)`:
+`SHA-256("PoON-test-key:" ∥ label)`:
 
 | Vector | Value |
 | --- | --- |
-| series_id | `d0b927f79fe74b0847926ed4100392567f03e0385dfd882431f527a59973095a` |
-| pool 1 id | `6e74e48d255d935693158206df47a570ecef406706d2c200ed3aaf651032ca58` |
-| alice's address | `d5d7664bc63d648778205f80e8f26d5c09ac7a9d79954f7d178edf61fb160feb` |
-| claim of serial 4 to alice | `bfc4fde63152de9ba7c110552753bcebd72a9dae943fffa58ba782ed57594b53` |
-| entry 1 (that claim) | `4e34297461fcdc21e897a1dc9ea70d135b084d960e4392ee4c071ebe53b17228` |
+| series_id | `9d7f095da805d59ec8aa667a24ce07d618dd3dbdd95a8a7d97318f5bcfbbe3f1` |
+| pool 1 id | `e4016d16603ba8217dfedf52cc5bf05ac87c1d2d1a60400e029a55e7ed973566` |
+| alice's address | `e3a25c3e0a1b0830c33d3b9371924a24a8d23ccbdcc6b9b025393d3e29c84e2a` |
+| claim of serial 4 to alice | `9a0afc5e0497f9fbad66f8d95c3770f00a3329b415d911a2e3084632594f0bd0` |
+| entry 1 (that claim) | `9254af12b08451267a6425371cc7331d9e52390fe870ea50ed40682f3ea72490` |
 | best layer on entry 1, nonces 0–3999 | nonce 1649, strength 12 |
 
 The JSON file also holds the full encodings of the series, alice's policy

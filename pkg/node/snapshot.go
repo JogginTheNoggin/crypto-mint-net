@@ -52,7 +52,7 @@ import (
 // a new one after, and Close writes one when the log grew since the last;
 // while running, one is written every snapshot_every records.
 
-var snapMagic = []byte("PoO-snap\x01")
+var snapMagic = []byte("PoON-snap\x01")
 
 // Record kinds of a snapshot file.
 const (

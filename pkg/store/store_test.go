@@ -124,7 +124,7 @@ func TestCorruptRecordStopsReplay(t *testing.T) {
 
 func TestHugeLengthIsNotAllocated(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "p.log")
-	b := append([]byte("PoO-log\x01"), 1, 0xff, 0xff, 0xff, 0xff)
+	b := append([]byte("PoON-log\x01"), 1, 0xff, 0xff, 0xff, 0xff)
 	os.WriteFile(path, b, 0o600)
 	l, op := open(t, path)
 	defer l.Close()

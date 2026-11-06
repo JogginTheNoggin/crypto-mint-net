@@ -104,7 +104,7 @@ From 64 up:
 1. The size, address and allowed checks run on every witness, in order.
    A failure there is noted, and only the witnesses before it go on.
 2. If all pass the cheap checks, a set key is looked up:
-   `SHA-256("PoO-verified-set-v1" ∥ tid ∥ count ∥ each witness encoded)`.
+   `SHA-256("PoON-verified-set-v1" ∥ tid ∥ count ∥ each witness encoded)`.
    If `v` holds it, the item passes.
 3. The satisfaction functions run on `GOMAXPROCS` workers over contiguous
    ranges, with `Message(tid)` built once. They stop when one fails.

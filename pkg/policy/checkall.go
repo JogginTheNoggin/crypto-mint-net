@@ -113,7 +113,7 @@ func (r *Registry) CheckAll(h hash.Func, rules Rules, ws []Witness, addrs []hash
 // not remembered: they run on every witness every time.
 func setKey(ws []Witness, tid hash.Hash) [sha256.Size]byte {
 	d := sha256.New()
-	d.Write([]byte("PoO-verified-set-v1"))
+	d.Write([]byte("PoON-verified-set-v1"))
 	d.Write(tid[:])
 	enc := encoding.NewWriter(256)
 	enc.U64(uint64(len(ws)))

@@ -12,7 +12,7 @@
 ## What is wrong
 
 D163 says "a node from before this change reads a variable series as
-unreadable, never as invalid" (PoO section 16.7), and that holds for the
+unreadable, never as invalid" (PoON section 16.7), and that holds for the
 byte form: format version 2 is refused by an older `DecodeParams`.
 
 The JSON form does not have that property. A series travels as JSON in

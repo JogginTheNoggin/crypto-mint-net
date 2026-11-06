@@ -11,7 +11,7 @@ them through the engine, which checks everything again (decision D21).
 ## Format
 
 ```
-header : "PoO-log" 0x01
+header : "PoON-log" 0x01
 record : U8 kind ∥ U32 length ∥ data ∥ U32 CRC-32C(kind ∥ length ∥ data)
 ```
 

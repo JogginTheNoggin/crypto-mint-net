@@ -89,9 +89,9 @@ entry "Superseded by Dn".
 
 ### D3. Domain tags on every hash
 
-- **Decision:** Each kind of hash starts with an ASCII tag: `PoO-address`,
-  `PoO-tx`, `PoO-entry`, `PoO-pool`, `PoO-series`, `PoO-witness-v1`,
-  `PoO-issuer-v1`. The tid is `H("PoO-tx" ∥ body)`. Layers have no tag
+- **Decision:** Each kind of hash starts with an ASCII tag: `PoON-address`,
+  `PoON-tx`, `PoON-entry`, `PoON-pool`, `PoON-series`, `PoON-witness-v1`,
+  `PoON-issuer-v1`. The tid is `H("PoON-tx" ∥ body)`. Layers have no tag
   (D6).
 - **Why:** The documents tag addresses, entries and pools. Tagging the tid
   and series_id too means no byte string can be read as two kinds of
@@ -100,7 +100,7 @@ entry "Superseded by Dn".
 
 ### D4. series_id
 
-- **Decision:** `series_id = H("PoO-series" ∥ encode(series params))`, with
+- **Decision:** `series_id = H("PoON-series" ∥ encode(series params))`, with
   the hash named in the params. The issuer witness is not part of it.
 - **Why:** The id must commit to every rule. Leaving the issuer witness out
   lets the issuer sign the id itself.
@@ -137,7 +137,7 @@ entry "Superseded by Dn".
 ### D8. What the issuer witness signs
 
 - **Decision:** The issuer's witness signs the message for
-  `H("PoO-issuer-v1" ∥ series_id)`, built the same way as a transaction's
+  `H("PoON-issuer-v1" ∥ series_id)`, built the same way as a transaction's
   witness message.
 - **Why:** Reusing the witness machinery means any policy type can be an
   issuer, and the tag keeps an issuer signature from being reusable as a
@@ -146,7 +146,7 @@ entry "Superseded by Dn".
 
 ### D9. Witness message
 
-- **Decision:** A witness signs `"PoO-witness-v1" ∥ tid`.
+- **Decision:** A witness signs `"PoON-witness-v1" ∥ tid`.
 - **Why:** The tag stops a signature over a tid from being valid in any
   other context, and the version lets a later witness form coexist.
 - **Tier:** Consensus.
@@ -798,7 +798,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 ### D63. Keys from one seed, with a gap limit
 
 - **Decision:** A wallet holds one random 32-byte seed. Key *i* is the
-  Ed25519 key with seed HMAC-SHA256(seed, `PoO-wallet-ed25519-v1` ∥
+  Ed25519 key with seed HMAC-SHA256(seed, `PoON-wallet-ed25519-v1` ∥
   U32(i)), and its address is the 1-of-1 threshold policy of that key.
   Each payment, request and change output takes the next unused key. The
   wallet derives and watches 20 unused keys past the last one used (the
@@ -818,7 +818,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 - **Decision:** The wallet file holds the seed encrypted with AES-256-GCM
   under a key from PBKDF2-HMAC-SHA256 of the passphrase with a random
   16-byte salt and 600,000 iterations, with the additional data
-  `PoO-wallet-seed-v1`. The work factor and salt are stored in the file.
+  `PoON-wallet-seed-v1`. The work factor and salt are stored in the file.
   Public keys, labels, watched mints and payments are kept in the clear,
   so a locked wallet lists addresses and follows payments. The file is
   written atomically with mode 0600.
@@ -1091,9 +1091,9 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   half is refused. `policy.NewSigner(alg, seed)` derives any algorithm's
   key from a 32-byte seed: Ed25519 and ML-DSA use it as their standard
   seed, the others take the first valid scalar from HKDF-SHA512 with info
-  `"PoO-key-v1 <name> <attempt>"`. A wallet's keys all use one algorithm,
+  `"PoON-key-v1 <name> <attempt>"`. A wallet's keys all use one algorithm,
   fixed at creation; key *i* comes from `HMAC-SHA256(seed,
-  "PoO-wallet-<name>-v1" ∥ U32 i)`, which for Ed25519 is D63's derivation
+  "PoON-wallet-<name>-v1" ∥ U32 i)`, which for Ed25519 is D63's derivation
   unchanged. Public keys are at most 4096 bytes and signatures 8192.
   *(Replaced by D170, 2026-11-04: there is no network-wide size limit;
   each key and signature is read at its algorithm's exact size, and the
@@ -3565,9 +3565,9 @@ a chase takes in after checking their work are not charged.
     and M as multiples of P, and has a cap whose serials fit in 64 bits.
     A fixed series may not set M or a cap.
   - **Parts.** `PartRange`, `PartOf`, `MintsThrough` and `PartID`
-    (`H("PoO-part" ∥ series_id ∥ U64(k) ∥ part_id(k − 1))`).
+    (`H("PoON-part" ∥ series_id ∥ U64(k) ∥ part_id(k − 1))`).
   - **Releases.** `Release` has a byte form and a JSON form.
-    `CheckRelease` checks the issuer's witness over `H("PoO-part-v1" ∥
+    `CheckRelease` checks the issuer's witness over `H("PoON-part-v1" ∥
     part_id)` first, then the previous part id.
   - **Not followed yet.** `nodepolicy.ErrVariableNotFollowed` wraps
     `series.ErrUnreadable`. A node refuses to follow a variable series
@@ -3581,8 +3581,8 @@ a chase takes in after checking their work are not charged.
     asks for any extension. A node from before this change reads a
     variable series as unreadable, never as invalid.
   - The part number is written as U64, like a pool index.
-  - The release message tag is "PoO-part-v1", from the documents. It is
-    used the way the issuer message "PoO-issuer-v1" is, as a pseudo-tid
+  - The release message tag is "PoON-part-v1", from the documents. It is
+    used the way the issuer message "PoON-issuer-v1" is, as a pseudo-tid
     under the witness message.
   - `MaxParts` counts part 1.
   - A serial whose part would hold serials past 64 bits is in no part.
@@ -3695,7 +3695,7 @@ a chase takes in after checking their work are not charged.
 
 - **Decision:** a node follows a variable series and its released parts,
   built to the six requirements in Black's Round 24 review
-  ([ROUND-24.md](consensus/source/ROUND-24.md)) and to PoO 16.8. Fixed
+  ([ROUND-24.md](consensus/source/ROUND-24.md)) and to PoON 16.8. Fixed
   series are unchanged.
   - **A mint names its part.** `series.MintID` gains `Part`, set only for a
     variable series (0, left out, for a fixed one). A transaction's body is
@@ -3767,7 +3767,7 @@ a chase takes in after checking their work are not charged.
     at once, and Black should see a design first. Passing releases between
     nodes is phase 3.
 - **Consensus:** this is the consensus change jerry approved on
-  2026-11-04 (PoO 16.8 and the variable supply document), phase 2 of 3.
+  2026-11-04 (PoON 16.8 and the variable supply document), phase 2 of 3.
   Nothing outside those documents is added. For fixed series nothing
   changes: `TestFixedTxUnchanged` checks 2,000 random fixed transactions
   against a frozen copy of the version 1 body, and the v1 vectors are
@@ -3912,7 +3912,7 @@ a chase takes in after checking their work are not charged.
     205, pure form, empty context, randomised signing, through
     `github.com/cloudflare/circl/sign/slhdsa` (v1.6.3). A 32-byte key and
     a 7,856-byte signature, under `MaxSigSize` (8,192). Keys come from a
-    seed as every algorithm's do (HKDF-SHA512, info `"PoO-key-v1
+    seed as every algorithm's do (HKDF-SHA512, info `"PoON-key-v1
     slh-dsa-sha2-128s 0"`, three 16-byte seeds). The larger sets (192s,
     256s and the "f" sets) do not fit `MaxSigSize`, a decode limit every
     node shares; adding them means raising it, which is for jerry and
@@ -4050,7 +4050,7 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
       node allocates stays in proportion to what it was sent (as D117).
       Decoding needs no series, so a node that has not built a series
       still frames its transactions and never judges them: an unknown
-      series is unreadable, never invalid (Red's condition 3, PoO 16.7).
+      series is unreadable, never invalid (Red's condition 3, PoON 16.7).
       `tx.DecodeFrom`, a series part's issuer witness, a node policy's
       issuer witness, the wallet and the fuzz targets all go through the
       same `policy.DecodeWitness`.
@@ -4062,7 +4062,7 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
       read at its exact size too. The verdict is the one the exact checks
       at verify time gave before; it only comes sooner.
     - Series with a ceiling at or below 64 KiB decide exactly as before.
-      Series with no ceiling ("Not set", still valid under PoO 16.1) or a
+      Series with no ceiling ("Not set", still valid under PoON 16.1) or a
       larger one become looser: ML-DSA-87 16-of-16 and SLH-DSA-128s
       16-of-16 now fit the reserve series' 128 KiB.
   - **The cross-version test** (Black's condition 2, Red's condition 4).
@@ -4108,7 +4108,7 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
   - **SLH-DSA-SHA2-256s, key algorithm 11** (Red's revised list, jerry
     20:21). FIPS 205 category 5: 64-byte keys, 29,792-byte signatures,
     through circl's `SHA2_256s`, derived from a seed as algorithm 10 is
-    (HKDF-SHA512, info `"PoO-key-v1 slh-dsa-sha2-256s 0"`, three 32-byte
+    (HKDF-SHA512, info `"PoON-key-v1 slh-dsa-sha2-256s 0"`, three 32-byte
     seeds). A series allows it only by listing it. The 192-bit set is left
     out on purpose. The known-answer vectors gained its entry.
   - **The default reserve series** (adopted 2026-11-04).
@@ -4117,7 +4117,7 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
     floor 24 with no entry credit, threshold and hashlock, Ed25519,
     ML-DSA-65, ML-DSA-87, SLH-DSA-SHA2-128s and SLH-DSA-SHA2-256s, a
     131,072-byte ceiling, no issuer.
-    - Its id is pinned: `fe52c1ac4178cc691c871524e53c4d1d2614a06b9dc68da13a19376b6591f139`
+    - Its id is pinned: `45772e75a4670fd7c37dd66898550c2e657fb2c35b547335be2ce7a64466f4c5`
       (`series.ReserveID`). `pkg/series/testdata/reserve.json` holds its
       params, their canonical byte form and the id;
       `TestReserveSeriesPinned` checks all three.
@@ -5203,7 +5203,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     the data folder, the user agent and the prefixes of metric names,
     file kinds and temporary files; the code takes them from there, so a
     rename is one edit plus the strings brand.go lists as frozen (the
-    wallet key label `PoO-wallet-` and the RPC label `poon-rpc-hello`,
+    wallet key label `PoON-wallet-` and the RPC label `poon-rpc-hello`,
     which old keys and tokens depend on). The name is not changed.
   - **Registry URL.** There is no built-in registry URL yet. When one is
     added it is a single default in the code that `poon init` does not
@@ -5765,10 +5765,10 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
       `poon-bounties-done`); temporary files start `poon-`; metrics start
       `poon_`; the hello's agent is `poon`; the release signers' principal
       is `poon-release`.
-    - Unchanged, as `pkg/brand` lists: the wallet key label `PoO-wallet-`,
+    - Unchanged, as `pkg/brand` lists: the wallet key label `PoON-wallet-`,
       the RPC hello label, every byte form and hash label. D205 then
-      renamed the RPC hello label too.
-      No consensus byte, id or hash changes.
+      renamed the RPC hello label too, and D206 the protocol's labels.
+      No consensus byte, id or hash changes in D204 itself.
     - Nothing is released, so nothing reads the old names.
     - A later rename changes `brand.Name` and `brand.EnvPrefix` and then
       replaces the whole word in the living code and docs; `pkg/brand`
@@ -5800,13 +5800,46 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     findings, proposals, reviews, the changelog and the file names that
     carried the old name (renamed with `git mv`, so their history
     follows). Only the name changed; no record lost any other text.
-  - Kept: `PoO`, the protocol's own name (Proof of Ownership), in the
-    consensus hash labels from the design documents (`PoO-tx`,
-    `PoO-entry`, `PoO-pool`, ...), the wallet key labels (`PoO-wallet-`)
-    and the snapshot magic. It is not the tool's name, and changing a hash
-    label changes every id, so it would need jerry's approval as a
-    consensus change.
+  - Kept here: the protocol's own labels, in the consensus hash labels,
+    the wallet key labels and the snapshot magic, as a consensus change
+    needs jerry's approval. He gave it, and D206 renamed them.
 - **Why:** jerry's call: one name everywhere before the first release.
 - **Consensus:** None. The RPC label is local between `poon` and its own
   node.
 - **Tier:** RPC, docs.
+
+### D206. Round 40 follow-up: the protocol's labels are PoON, a consensus label change approved by jerry
+- **Decision.** jerry ("i said everything", 2026-11-06) approved renaming
+  the protocol's own labels to match `poon`, knowing every id and key
+  changes. Nothing is released, so there is no migration and no fallback:
+  files, ids, wallets and data folders made before this change are not
+  read as before, and a node is set up fresh.
+  - Every label that started `PoO-` now starts `PoON-`:
+    - consensus hash labels: `PoON-address`, `PoON-tx`, `PoON-entry`,
+      `PoON-pool`, `PoON-series`, `PoON-witness-v1`, `PoON-issuer-v1`,
+      `PoON-part`, `PoON-part-v1`, `PoON-request-v1`, `PoON-verified-v1`,
+      `PoON-verified-set-v1`;
+    - key labels: `PoON-key-v1`, `PoON-wallet-<name>-v1`,
+      `PoON-wallet-seed-v1`, `PoON-test-key:`;
+    - files: the snapshot magic `PoON-snap`, the store's `PoON-log` tag.
+  - "PoON" also replaces the protocol's short name in the docs and in
+    citations of the design document (`PoON 16.7` is section 16.7 of
+    Proof of Ownership).
+  - Every fixed value made again from the code, never by hand:
+    `testdata/vectors.json` and its frozen digest, `variable.json`,
+    `known.json`, `reserve.json`, the pinned base series id
+    (`9d7f095d…e3f1`), and the default reserve series id, now
+    `45772e75a4670fd7c37dd66898550c2e657fb2c35b547335be2ce7a64466f4c5`
+    (`series.ReserveID`). The cross-version vectors were rewritten and the
+    old build's verdicts made again from 439b369 with the same label change:
+    every verdict is as before.
+- **Byte form v1 (D76).** The layouts, field orders and rules are
+  unchanged; only the label bytes inside the hashed messages changed, once,
+  before the first release. Byte form v1 is frozen from the tag with
+  these labels.
+- **Consensus:** A label change, approved by jerry. No rule is added,
+  removed or changed: two nodes of this build with the same information
+  agree on the same ledger. A build from before this change shares no
+  series id or address with one after it, which is a separate network,
+  not a fork.
+- **Tier:** Hash, series, policy, wallet, store, vectors, docs.

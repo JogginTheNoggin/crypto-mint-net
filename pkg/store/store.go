@@ -9,7 +9,7 @@
 //
 // File format, all integers big-endian:
 //
-//	header : "PoO-log" 0x01                   (8 bytes)
+//	header : "PoON-log" 0x01                   (8 bytes)
 //	record : U8 kind ∥ U32 length ∥ data ∥ U32 CRC-32C(kind ∥ length ∥ data)
 //
 // An item larger than MaxRecordSize is written as several records: parts
@@ -105,12 +105,12 @@ const MaxRecordSize = 64 << 20
 // pieceSize is the most data written in one record; a test lowers it.
 var pieceSize = MaxRecordSize
 
-var magic = []byte("PoO-log\x01")
+var magic = []byte("PoON-log\x01")
 
 var castagnoli = crc32.MakeTable(crc32.Castagnoli)
 
 // ErrNotLog is returned for a file that does not start with the log header.
-var ErrNotLog = errors.New("store: not a PoO log file")
+var ErrNotLog = errors.New("store: not a PoON log file")
 
 // Log is an open log file. It is not safe for concurrent use; the node
 // serializes access. The one exception is Durable, which may run beside

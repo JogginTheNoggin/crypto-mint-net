@@ -59,7 +59,7 @@ The 64-node simulation (same report, identical to the last digit):
 
 - `policy.Verified` is a fixed-size ring (default 16,384 keys, grown on
   demand, safe for concurrent use) of SHA-256 keys over
-  `"PoO-verified-v1" ∥ encode(witness) ∥ tid`. The witness encoding holds
+  `"PoON-verified-v1" ∥ encode(witness) ∥ tid`. The witness encoding holds
   the policy (type and parameters) and the witness data, and the tid
   fixes the message, so the key covers everything `Satisfy` reads.
 - `Registry.CheckCached` is `Check` with a `*Verified`: the size, address

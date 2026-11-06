@@ -94,7 +94,7 @@ new address, and showing the seed need the passphrase.
   be raised later). Wallets made before D95 use PBKDF2-HMAC-SHA256 at
   600,000 iterations and still open; `Options.KDF` can still choose it.
   Opening refuses settings outside fixed limits, so a damaged file cannot
-  make an unlock exhaust memory. The additional data `PoO-wallet-seed-v1`
+  make an unlock exhaust memory. The additional data `PoON-wallet-seed-v1`
   binds the ciphertext to its purpose. A wrong passphrase fails
   authentication: `ErrPassphrase`. `Rekey` seals the same seed under a
   new passphrase, moving a PBKDF2 wallet to Argon2id. When `poon wallet
@@ -108,9 +108,9 @@ new address, and showing the seed need the passphrase.
   Ed25519 by default. It cannot change later. A series must allow it, or
   `NewAddress` refuses to give out an address there.
 - **Derivation (decisions D63, D81).** Key *i*'s 32-byte key seed is
-  HMAC-SHA256(seed, `PoO-wallet-<algorithm name>-v1` ∥ U32(i)), and
+  HMAC-SHA256(seed, `PoON-wallet-<algorithm name>-v1` ∥ U32(i)), and
   `policy.NewSigner` makes the key from it. For Ed25519 the label is
-  `PoO-wallet-ed25519-v1`, so wallets made before there was a choice keep
+  `PoON-wallet-ed25519-v1`, so wallets made before there was a choice keep
   their keys. Each key's address is its 1-of-1 threshold policy's address
   in the series.
 - **Gap limit.** The wallet always derives `gap` keys past the last one

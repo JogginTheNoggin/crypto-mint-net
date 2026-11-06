@@ -4,13 +4,13 @@
 
 A series: the published rules every mint in it follows. `Params` is the
 human-editable form (also JSON); `New` validates it into a `*Series`, whose
-id is `H("PoO-series" ∥ encode(params))` (decision D4). The series answers
+id is `H("PoON-series" ∥ encode(params))` (decision D4). The series answers
 every series-tier question the other packages ask: which hash, how many
 mints, which pool a serial is in, pool ids, minimum strengths, whether entry
 hashes count as credit, which policies are allowed, and the issuer.
 
 A series is fixed, which is the series of the first documents, or
-variable (PoO section 16.8, D163). A variable series adds a part size M
+variable (PoON section 16.8, D163). A variable series adds a part size M
 and an optional largest number of parts. Its issuer releases parts of M
 more mints, in order. Each part's id names the part before it, and the
 issuer's witness on a release sits outside the id. A fixed series is

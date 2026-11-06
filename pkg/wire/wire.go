@@ -397,7 +397,7 @@ func (s Section) String() string {
 }
 
 // tagRequest prefixes the hash that names a request.
-var tagRequest = []byte("PoO-request-v1")
+var tagRequest = []byte("PoON-request-v1")
 
 // RequestID returns the id of a request: SHA-256 of a tag, the type, the
 // section and the body. The body holds a nonce and a time, so no two

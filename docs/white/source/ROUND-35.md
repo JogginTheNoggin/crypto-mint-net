@@ -49,7 +49,7 @@ signature). Nothing needs the owner.
 | D192: README alpha | compatible | Done |
 | D192 RED-W-021: RPC client refuses an empty token | compatible | Client side only; a node set up normally has a non-empty token, so only a misconfigured client is refused, with a clear error |
 | D192: `poon init -default-series` (was `-reserve`), `"builtin": "default"` | compatible | A renamed flag and output value, both before any release, both in the changelog. After the tag, a rename like this keeps the old name working for a release (W-8). One stale comment still says `"reserve"` (`pkg/cli/node.go:412`) |
-| D192: `pkg/brand` | compatible | The frozen strings are right: `PoO-wallet-` and `poon-rpc-hello` must never follow a rename. **Note:** `KindPrefix`, `DataDir` and `$POON_HOME` *do* follow it, which is right before the first release and needs W-26 after it |
+| D192: `pkg/brand` | compatible | The frozen strings are right: `PoON-wallet-` and `poon-rpc-hello` must never follow a rename. **Note:** `KindPrefix`, `DataDir` and `$POON_HOME` *do* follow it, which is right before the first release and needs W-26 after it |
 | D192: no built-in registry URL yet; one default in code, never written to node.json | compatible | Matches what White asked for |
 | D193: `poon keygen -raw -seed-file F` | compatible | Reads each algorithm's standard raw private key (RFC 8032 seed, FIPS 204 seed, FIPS 205 key, SEC1 scalar), so keys from other tools keep working across releases. New flag only |
 | D193 + GREEN-060: `poon keygen -out` | compatible | Writes a seed in hex, the same form `-seed-file` already reads |

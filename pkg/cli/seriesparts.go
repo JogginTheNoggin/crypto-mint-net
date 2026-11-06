@@ -19,7 +19,7 @@ import (
 
 // An issuer's tools for a series (D163): sign it, and for a variable
 // series list its parts and release the next one. All of them are offline:
-// a release is published outside the network, as a series is (PoO section
+// a release is published outside the network, as a series is (PoON section
 // 16.8).
 
 // readSeriesFile reads a series' params from a JSON file, as poon series new

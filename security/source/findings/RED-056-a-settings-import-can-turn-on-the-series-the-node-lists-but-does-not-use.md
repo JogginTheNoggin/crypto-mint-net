@@ -23,7 +23,7 @@ default node says `true`.
 ## How I checked it
 
 Node b: `issuers.any: false`, one listed series followed and unused
-("warning: series d0b927f7: issuer not accepted; it is listed but
+("warning: series 9d7f095d: issuer not accepted; it is listed but
 unused"). Settings exported from a default node (`any: true`):
 
 ```

@@ -4,7 +4,7 @@
 
 Entries: bundles of transactions of one pool, each pointing to its parent
 entry (or the pool_id). The entry hash is
-`H("PoO-entry" ∥ parent ∥ tids [∥ nonce])`, with the nonce only when the
+`H("PoON-entry" ∥ parent ∥ tids [∥ nonce])`, with the nonce only when the
 series sets a minimum entry strength (decision D5). Transactions are in
 canonical order, by serial and then tid, and no transaction may depend on
 another in the same entry.

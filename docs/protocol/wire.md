@@ -82,7 +82,7 @@ pool it follows, and replies "not held" otherwise.
 
 ### Request ids
 
-    request id = SHA-256("PoO-request-v1" ∥ U16 type ∥ section ∥ body)
+    request id = SHA-256("PoON-request-v1" ∥ U16 type ∥ section ∥ body)
 
 SHA-256 always, whatever the series' hash. The hop count is left out
 because it changes at each relay. The body holds a random nonce and the

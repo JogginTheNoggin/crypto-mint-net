@@ -4,15 +4,16 @@
 //
 // The tool was renamed poon (proof of ownership network, or node) in
 // Source Round 40 (D204), and every use of the old name went with it,
-// labels included (D205), since nothing was released.
+// labels included (D205); the protocol's labels became "PoON-" (D206,
+// jerry's approval), since nothing was released.
 //
 // Some strings must never follow a later rename, because a change would
 // break what earlier releases made or would split nodes:
 //   - the RPC hello proof label "poon-rpc-hello" (pkg/rpc): a client and
 //     node of different releases would no longer prove each other;
-//   - the "PoO-" labels (wallet keys, hashes, snapshots): PoO is the
-//     protocol's name, Proof of Ownership, not the tool's, and a new wallet
-//     label gives every wallet new keys;
+//   - the "PoON-" labels (wallet keys, hashes, snapshots): a new hash label
+//     changes every id, which is a consensus change, and a new wallet label
+//     gives every wallet new keys;
 //   - every byte form and wire layout (frozen, D76, D186).
 //
 // Those stay where they are, written out, with a comment pointing here.

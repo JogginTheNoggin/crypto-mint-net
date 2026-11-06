@@ -13,7 +13,7 @@ the design left open, the matching decision is linked.
 | **Mint** | One unit of a series, named by (series_id, serial). Its supply S is split into portions. |
 | **Serial** | A mint's number within its series, 0 to N−1. |
 | **Pool** | P consecutive mints that share one ledger. Pool k holds serials kP to (k+1)P−1. |
-| **pool_id** | `H("PoO-pool" ∥ series_id ∥ k)`, the root that the first entry of a pool points to. |
+| **pool_id** | `H("PoON-pool" ∥ series_id ∥ k)`, the root that the first entry of a pool points to. |
 | **Portion** | One unspent output: an amount of one mint held by one address. Spent whole. |
 | **Claim** | The first transaction of a mint: no inputs, outputs summing to the supply. |
 | **Transaction / tid** | A transfer within one mint, spending whole portions and creating new ones of the same total. The tid is the hash of its body, without witnesses. |
@@ -21,7 +21,7 @@ the design left open, the matching decision is linked.
 | **Address** | The hash of a policy. |
 | **Witness** | The policy plus the data that satisfies it (signatures). Outside the tid. |
 | **Entry** | A bundle of transactions of one pool plus the hash of its parent entry. |
-| **Entry hash** | `H("PoO-entry" ∥ parent ∥ tids [∥ nonce])`. |
+| **Entry hash** | `H("PoON-entry" ∥ parent ∥ tids [∥ nonce])`. |
 | **Layer** | An entry hash plus a nonce; unsigned work attached to an entry. |
 | **Strength** | Leading zero bits of a hash. Always computed, never declared. |
 | **Credit** | 2^strength, what one layer (or a counted entry hash) adds. |

@@ -11,7 +11,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 )
 
-// What a node knows of a variable series' releases (PoO section 16.8,
+// What a node knows of a variable series' releases (PoON section 16.8,
 // D166). A node keeps only the newest valid release it has seen, since a
 // release of part k proves every part before it. Which serials exist at a
 // node grows with what it knows and never shrinks: nothing withdraws a
@@ -22,7 +22,7 @@ var (
 	// ErrWrongPart: the mint names a part that does not hold its serial,
 	// or a fixed series' mint names a part. Invalid at every node, released
 	// or not: PartOf follows from the series alone, so each mint has one
-	// name (PoO section 16.8).
+	// name (PoON section 16.8).
 	ErrWrongPart = errors.New("series: the mint names a part that does not hold its serial")
 	// ErrNoSerial: no part of the series can ever hold the serial (a fixed
 	// series' serial at or above N, or past the largest number of parts).

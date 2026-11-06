@@ -195,18 +195,18 @@ func ByName(name string) (ID, bool) {
 // Domain tags. Each kind of hashed object starts with its own tag, so a hash
 // of one kind can never be confused with a hash of another.
 var (
-	TagAddress = []byte("PoO-address")
-	TagTx      = []byte("PoO-tx")
-	TagEntry   = []byte("PoO-entry")
-	TagPool    = []byte("PoO-pool")
-	TagSeries  = []byte("PoO-series")
-	TagWitness = []byte("PoO-witness-v1")
-	TagIssuer  = []byte("PoO-issuer-v1")
+	TagAddress = []byte("PoON-address")
+	TagTx      = []byte("PoON-tx")
+	TagEntry   = []byte("PoON-entry")
+	TagPool    = []byte("PoON-pool")
+	TagSeries  = []byte("PoON-series")
+	TagWitness = []byte("PoON-witness-v1")
+	TagIssuer  = []byte("PoON-issuer-v1")
 	// TagPart names a part of a variable series: part_id(k) =
-	// H("PoO-part" ∥ series_id ∥ k ∥ part_id(k − 1)) (PoO section 16.8).
-	TagPart = []byte("PoO-part")
+	// H("PoON-part" ∥ series_id ∥ k ∥ part_id(k − 1)) (PoON section 16.8).
+	TagPart = []byte("PoON-part")
 	// TagRelease is what an issuer's release of a part signs in place of
-	// a tid: H("PoO-part-v1" ∥ part_id), so a release is never valid as a
+	// a tid: H("PoON-part-v1" ∥ part_id), so a release is never valid as a
 	// transaction witness or as the issuer witness on a series.
-	TagRelease = []byte("PoO-part-v1")
+	TagRelease = []byte("PoON-part-v1")
 )

@@ -6,7 +6,7 @@
 //	    bundle : [ Tx ]    // full transactions, canonical order
 //	    nonce  : u64       // only where the series sets a minimum entry strength
 //	}
-//	entry hash = H("PoO-entry" ∥ parent ∥ tid_1 ∥ ... ∥ tid_n [∥ nonce])
+//	entry hash = H("PoON-entry" ∥ parent ∥ tid_1 ∥ ... ∥ tid_n [∥ nonce])
 //
 // The canonical order sorts by mint serial, then by tid as a big-endian
 // number. Because no transaction in an entry may depend on another in the

@@ -10,7 +10,7 @@ import (
 )
 
 // Variable are the vectors of a variable supply series (format version 2,
-// PoO section 16.8, D163), kept beside the frozen version 1 vectors in
+// PoON section 16.8, D163), kept beside the frozen version 1 vectors in
 // testdata/variable.json: the series, its part ids and a release of part
 // 2 by its issuer.
 type Variable struct {
