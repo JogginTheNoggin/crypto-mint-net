@@ -42,6 +42,9 @@ built.
   node takes, and a switch reads on or off where node.json sets it
   (GUI-GREEN-064). Ask says its strongest offer can only narrow
   `bounty.max_strength`, and to ask again after a reload (GUI-GREEN-065).
+  Ask gives the number of peers asked only when there were some, as
+  poon's note covers none, and the page's request header is `X-Poon-GUI`
+  (GUI-GREEN-066).
 - **Cryptographic choice:** a series can use SHA-256, SHA-512/256,
   SHA3-256, BLAKE2b-256 or BLAKE3; allow Ed25519, ECDSA (P-256, P-384,
   P-521, secp256k1), BIP-340 Schnorr and ML-DSA-44/65/87 keys; and allow

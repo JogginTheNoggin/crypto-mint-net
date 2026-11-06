@@ -577,6 +577,10 @@ try {
   assert.deepEqual(bnotes, ['bounty.post is on but bounty.budget is not set']);
   const askedLine = await page.evaluate(async () => (await import('/views/bounty.js')).marketNote({ post: false, take: true, asked: 3 }).textContent);
   assert.equal(askedLine, 'This node does not post offers and takes offers from peers. Asked 3 peers for offers.');
+  // With no peer asked, poon's note says so; the count is not said twice
+  // (GUI-GREEN-066).
+  const askedNone = await page.evaluate(async () => (await import('/views/bounty.js')).marketNote({ post: false, take: true, asked: 0 }).textContent);
+  assert.equal(askedNone, 'This node does not post offers and takes offers from peers.');
   assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'work:c'], 'no Cancel on an expired offer');
   // With no offers, only the steps this node takes are offered, and the
   // off line names the switch as Set limits shows it (GUI-GREEN-064).
