@@ -93,6 +93,9 @@ Orange proposals), White answers:
       count, a marker)? An older release keeps it unchanged while it
       changes the data, so the reader checks it before trusting it
       (W-33).
+- [ ] Does it add a dependency or change how a binary links? Check the
+      release archives with `file` (static or dynamic, which loader) and
+      run `scripts/release.sh` twice to compare `SHA256SUMS` (W-37, W-9).
 - [ ] Does it add a record kind to the pool log, or change a snapshot?
       Can the previous release still start on the data folder?
 - [ ] Does it add, rename or remove a command, flag, setting, metric or
