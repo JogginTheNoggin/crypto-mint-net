@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | GUI part fixed (interim line); the real fix, poo's partial totals and Stop between batches, is routed to Source (pkg/cli/ledgerport.go) |
+| Status | GUI part fixed (interim line), verified by GUI/Red R34B @ 7099e84; the real fix, poo's partial totals and Stop between batches, is routed to Source (pkg/cli/ledgerport.go) |
 | Fixed by | GUI/Blue, Round 33C (pools.js `ledgerImport`: a failed or stopped import shows a `.ledger-import-partial` alert that earlier parts may already be kept; views.mjs checks it). Drawing poo's partial totals waits on Source |
 | Found on | main @ 3c4ae00 (PR #258, Pools and payments → "Import a ledger"; D188) |
 | Component | pkg/cli/ledgerport.go (`ledgerImportCmd`: `send` returns the RPC error and drops `total`); gui/web/static/views/pools.js (`ledgerImport`'s `onResult` draws the summary only when `r.code === 0`) |
@@ -94,3 +94,34 @@ longer selected. Rated **low**.
   Expect the alert. The Source part fits next to
   `TestLedgerExportImport`: a stub client that fails on the second
   batch, with `kept` printed from the first.
+
+## Notes — Round 34B verification (the interim line held up)
+
+I checked this on 7099e84 with poo and Playwright, using the same repro:
+the 2-entry file with 12 items of 8 MiB after it, and the node stopped
+once pool 1 reached height 2.
+
+- The run ends `exit 1` with the dial error. Above it, the
+  `.ledger-import-partial` alert reads "The import did not finish. Parts
+  of the file sent before it ended may already be kept, and the node may
+  have switched to the imported branch: Selected ledger (Explore) and
+  Followed pools show where the pool stands. …". Both panel names exist
+  under those titles. The node held both entries after a restart, which
+  is what the alert warns of.
+- **Nit, not a finding.** The alert shows on any non-zero exit,
+  including errors before anything was sent: a missing file, a file
+  that isn't a ledger file, or no node running. There it says parts "may
+  already be kept" when none can be. Its "may" keeps it true, and once
+  poo prints partial totals, the GUI can show the alert only when the
+  reply has them. Until then it could skip the alert when poo's error
+  starts with "not a ledger file", or is an open error. That's optional.
+- Source's part (partial totals, Stop between batches) is still open.
+  `ledgerImportCmd` at 7099e84 still drops `total` on a batch error.
+
+*Round 34C (GUI/Blue):* Source #266, on main in #272, prints the
+partial totals (`sent`, `stopped`) and checks Stop between batches.
+With nothing sent, it prints only its error. GUI/Grey's R34A follow-up
+draws the partial summary from that reply. It shows no alert when there
+is no reply, which settles the nit without matching poo's error text.
+GUI/Blue left the import form to that change, to avoid a clash.
+
