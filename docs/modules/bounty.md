@@ -44,7 +44,12 @@ The package has two parts:
    be paid to `ADDR`.
 4. **Pay.** `poo bounty list` on the payer shows each accepted claim.
    `poo bounty pay ID [-claim NONCE]` pays it from the wallet and tells
-   the grinder the payment's tids.
+   the grinder the payment's tids. It looks in the wallet first: a
+   payment of that claim the wallet sent (memo `bounty <short id>`, the
+   claim's address and amount, every leg sent, its tids on no other
+   claim) that the node never recorded is recorded now, and nothing is
+   sent again (`"recorded": true`). A payment sent only in part is
+   refused, to settle by hand (RED-119, D201).
 5. **Cancel.** `poo bounty cancel ID` closes an offer; accepted claims
    stay owed.
 
@@ -131,6 +136,16 @@ with a message to run that release or move the file aside.
 only part that can repeat an offer still in `bounties.json` after a crash
 (ORANGE-047 P1). An offer that finished while the node was stopped, or by
 the clock while it runs, moves to the done file too (GUI-GREEN-063).
+
+`bounties.json` also records the id on the line that ends at `done_size`
+(`done_last`). A start reads from `done_size` only when that line is still
+there; a done file trimmed, rotated or edited since is read in full, and
+the log says so (RED-118, D201). A file written before `done_last` existed
+is read in full once. When the done file's last line was cut short by a
+stop, the start says so and the next record begins on a new line; a write
+that fails part way is taken back. A payment whose save fails is not kept
+in memory either, so the node and a restart agree the claim is unpaid,
+and `poo bounty pay` then records the wallet's payment (RED-119).
 
 ## Finished offers
 

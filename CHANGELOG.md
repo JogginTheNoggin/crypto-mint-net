@@ -252,6 +252,13 @@ built.
     offer this node has a lease on is kept when the held list is full.
   - The bounty done file is read a line's start at a time, and an offer
     left out for being done is reported.
+- **Round 38 fixes (D201):**
+  - `poo bounty pay` looks in the wallet first: a payment it sent that
+    the node did not record is recorded, never paid twice. A failed save
+    of a payment is not kept in memory either.
+  - A start reads the bounty done file from where `bounties.json` left
+    it only when the line there is the one it named; a done file cut
+    short by a stop is reported, and the next record starts a new line.
 - **Round 38 (D200):**
   - The bounty done file's layout and the 1,024-byte offer size are
     frozen for this release; a later done file format is refused

@@ -198,6 +198,44 @@ type BountyPayReply struct {
 	Amount uint64       `json:"amount"`
 	Sent   *wallet.Sent `json:"sent"`
 	Told   bool         `json:"told"`
+	// Recorded says the wallet had sent this payment already, and the
+	// node had not recorded it: it was recorded now, and nothing was sent
+	// again (RED-119).
+	Recorded bool `json:"recorded,omitempty"`
+}
+
+// sentFor finds the wallet's payment of claim c of offer m: its memo,
+// address and amount, every leg sent, and no leg already recorded on
+// another claim. An earlier payment sent only in part is an error, as
+// paying again would pay more than once (RED-119).
+func sentFor(w *wallet.Wallet, m *bounty.Mine, c *bounty.ClaimRecord) (*wallet.Sent, error) {
+	used := map[hash.Hash]bool{}
+	for _, r := range m.Claims {
+		for _, t := range r.Paid {
+			used[t] = true
+		}
+	}
+	memo := "bounty " + m.ID.Short()
+	for _, p := range w.Sent() {
+		if p.Claim || p.Memo != memo || p.Series != m.Offer.Series || p.To != c.PayTo || p.Amount != m.Offer.Amount || len(p.Legs) == 0 {
+			continue
+		}
+		sent, mine := 0, false
+		for _, l := range p.Legs {
+			if l.State == wallet.StatePending || l.State == wallet.StateSelected {
+				sent++
+			}
+			mine = mine || used[l.TID]
+		}
+		switch {
+		case mine || sent == 0:
+		case sent < len(p.Legs):
+			return nil, fmt.Errorf("an earlier payment of this claim (tid %s) was sent only in part: settle it by hand before paying again", p.Legs[0].TID.Short())
+		default:
+			return p, nil
+		}
+	}
+	return nil, nil
 }
 
 func bountyPay(args []string, out io.Writer) error {
@@ -268,6 +306,22 @@ func bountyPay(args []string, out io.Writer) error {
 		return err
 	}
 	defer release()
+	// The wallet's own record comes first: a payment it sent that the
+	// node did not record (a failed save, a stop in between, a restart)
+	// is recorded now, never paid twice (RED-119).
+	if prev, err := sentFor(w, mine, pick); err != nil {
+		return err
+	} else if prev != nil {
+		var tids []hash.Hash
+		for _, l := range prev.Legs {
+			tids = append(tids, l.TID)
+		}
+		paid, err := cl.BountyPaid(rpc.BountyPaidRequest{ID: id, Nonce: pick.Nonce, TIDs: tids})
+		if err != nil {
+			return fmt.Errorf("the wallet paid this claim already (tid %s), and the node did not record it: %w", tids[0].Short(), err)
+		}
+		return writeJSON(out, BountyPayReply{Offer: id, Nonce: pick.Nonce, PayTo: pick.PayTo, Amount: mine.Offer.Amount, Sent: prev, Told: paid.Told, Recorded: true})
+	}
 	sent, u, err := w.Pay(s, n, pick.PayTo, mine.Offer.Amount, wallet.PayOptions{Memo: "bounty " + id.Short()})
 	if err == nil && u != nil {
 		return errPayNeedsOut(u.Missing())
