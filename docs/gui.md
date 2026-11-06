@@ -202,7 +202,7 @@ accepted it after the fact (GUI White R34D, note N1). A later rename of a
 string the GUI reads should go to GUI Grey as a finding, landing in the
 same round, rather than as a Source patch to `gui/`. Source R35A (#284,
 D192) did the same for the `-reserve` to `-default-series` rename and the
-`sign` entries in the e2e checks; GUI Grey accepted that too. Source R40A (#353, D204) renamed `poo` to `poon` across `gui/` in the same PR, so main kept building (the e2e checks set the environment variables and match the error prefix); GUI Grey reviewed and accepted it.
+`sign` entries in the e2e checks; GUI Grey accepted that too. Source R40A (#353, D204) renamed the tool to `poon` across `gui/` in the same PR, so main kept building (the e2e checks set the environment variables and match the error prefix); GUI Grey reviewed and accepted it.
 
 ### The terminal's grammar
 
