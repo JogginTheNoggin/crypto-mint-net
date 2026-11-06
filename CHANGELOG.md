@@ -40,7 +40,8 @@ built.
   offers Cancel only on an open offer and shows each time in the reader's
   own words (GUI-GREEN-063). With no offers it offers only the steps the
   node takes, and a switch reads on or off where node.json sets it
-  (GUI-GREEN-064).
+  (GUI-GREEN-064). Ask says its strongest offer can only narrow
+  `bounty.max_strength`, and to ask again after a reload (GUI-GREEN-065).
 - **Cryptographic choice:** a series can use SHA-256, SHA-512/256,
   SHA3-256, BLAKE2b-256 or BLAKE3; allow Ed25519, ECDSA (P-256, P-384,
   P-521, secp256k1), BIP-340 Schnorr and ML-DSA-44/65/87 keys; and allow

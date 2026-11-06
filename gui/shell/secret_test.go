@@ -107,3 +107,44 @@ func TestRedactKeyFile(t *testing.T) {
 		}
 	}
 }
+
+// TestRedactKeyFileWords is GUI-035: a key typed after -key-file as
+// several words (several args) is hidden whole, up to the next flag or a
+// word that marks a path or a file; what follows stays.
+func TestRedactKeyFileWords(t *testing.T) {
+	groups := strings.Fields(strings.Repeat("abcdef01 ", 8))
+	lines := []string{strings.Repeat("ab", 15), strings.Repeat("cd", 15), strings.Repeat("ef", 2)} // openssl pkey -text: 15 bytes a line
+	half := strings.Repeat("ab", 16)
+	hide := func(n int) []string {
+		h := make([]string, n)
+		for i := range h {
+			h[i] = Hidden
+		}
+		return h
+	}
+	join := func(parts ...[]string) []string {
+		var out []string
+		for _, p := range parts {
+			out = append(out, p...)
+		}
+		return out
+	}
+	cases := []struct {
+		args, want []string
+		redacted   bool
+	}{
+		{join([]string{"sign", "-key-file"}, groups, []string{"x.json"}), join([]string{"sign", "-key-file"}, hide(len(groups)), []string{"x.json"}), true},
+		{join([]string{"sign", "x.json", "-key-file"}, lines, []string{"-alg", "ed25519"}), join([]string{"sign", "x.json", "-key-file"}, hide(len(lines)), []string{"-alg", "ed25519"}), true},
+		{[]string{"sign", "x.json", "-key-file", half, half}, []string{"sign", "x.json", "-key-file", Hidden, Hidden}, true},
+		{join([]string{"sign", "--key-file=" + groups[0]}, groups[1:]), join([]string{"sign", "--key-file=" + Hidden}, hide(len(groups)-1)), true},
+		{[]string{"sign", "-key-file", half[:16], half[:16] + "."}, []string{"sign", "-key-file", Hidden, Hidden}, true},
+		{[]string{"sign", "-key-file", "cold", "key", "x.json"}, []string{"sign", "-key-file", "cold", "key", "x.json"}, false},
+		{[]string{"sign", "-key-file", "-", "x.json"}, []string{"sign", "-key-file", "-", "x.json"}, false},
+	}
+	for _, c := range cases {
+		got, red := Redact(c.args)
+		if !reflect.DeepEqual(got, c.want) || red != c.redacted {
+			t.Errorf("Redact(%q) = %q, %v; want %q, %v", c.args, got, red, c.want, c.redacted)
+		}
+	}
+}

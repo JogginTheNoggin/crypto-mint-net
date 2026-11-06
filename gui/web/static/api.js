@@ -124,7 +124,7 @@ export function secretLine(text) {
     for (let j = m[2] !== undefined ? i : i + 1; j < words.length; j++) {
       const x = j === i ? m[3] : words[j];
       const w = v ? `${v} ${x}` : x;
-      if (w.length > KEY_RUN) break;
+      if (v && w.length > KEY_RUN) break; // the first word is always tested (GUI/Red R39B)
       if (/[/\\.]/.test(x)) return looksLikeKey(v) || looksLikeKey(w);
       v = w;
     }
