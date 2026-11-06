@@ -356,7 +356,7 @@ try {
   // poo bounty line.
   await page.click('nav a[data-id=bounty]');
   // Off comes from poo status's bounty field (W-30), not the error text.
-  await section('Offers').locator('.bounty-off', { hasText: /^The market is off on this node\. In Node policies, Set limits: bounty\.post 1/ }).waitFor();
+  await section('Offers').locator('.bounty-off', { hasText: /^The market is off on this node\. In Node policies, Set limits: bounty\.post on/ }).waitFor();
   assert.equal(await section('Offers').locator('.cmd code').innerText(), `poo bounty list -root ${home}`);
   const bwork = section('Work an offer');
   await fill(bwork, 'Offer id', 'ab12');

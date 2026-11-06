@@ -28,7 +28,7 @@ export function marketNote(o) {
 // nothing, as poo's error says why.
 export function offNote(r, st) {
   if (r.code === 0 || needsNode(r)) return null;
-  const how = 'In Node policies, Set limits: bounty.post 1 to pay peers for layers (it also needs bounty.max_amount and bounty.budget), bounty.take 1 to grind for peers. Saving reloads a running node to apply it.';
+  const how = 'In Node policies, Set limits: bounty.post on to pay peers for layers (it also needs bounty.max_amount and bounty.budget), bounty.take on to grind for peers. Saving reloads a running node to apply it.';
   const b = st && st.bounty;
   if (b && typeof b.post === 'boolean' && typeof b.take === 'boolean') {
     if (b.post || b.take) return null;
@@ -96,7 +96,9 @@ export function marketView(o, act = () => {}) {
     }, { headers: ['offer', 'from', 'pool', 'strength', 'per layer', 'layers', 'received', 'state', 'closes', ''], cls: 'bounty-held', more: 'bounty-more', noun: 'offers' }));
   }
   if (!mine.length && !held.length && note) {
-    out.push(el('p', { class: 'hint empty' }, o.take ? 'No offers yet. Ask peers for offers below, or post one.' : 'No offers yet. Post one below.'));
+    // Only the steps this node takes are offered (GUI-GREEN-064).
+    const next = o.post && o.take ? ' Ask peers for offers below, or post one.' : o.take ? ' Ask peers for offers below.' : o.post ? ' Post one below.' : '';
+    out.push(el('p', { class: 'hint empty' }, `No offers yet.${next}`));
   }
   return out;
 }
