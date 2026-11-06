@@ -242,6 +242,38 @@ try {
   await wpay.locator('input[name=change]').fill('cc11');
   assert.match(await wpay.locator('.cmd code').innerText(), / -change cc11$/);
   await wpay.locator('input[name=change]').fill('');
+  // Pay's one confirm warns when no co-signing file is filled in, and
+  // only then; poo's "signatures missing" with no file gets a line that
+  // says nothing was sent or written (GUI-GREEN-061).
+  await wpay.locator('input[name=to]').fill('ab12');
+  await wpay.locator('input[name=amount]').fill('5');
+  const asked = [];
+  const onDialog = d => { asked.push(d.message()); d.dismiss(); };
+  page.on('dialog', onDialog);
+  await wpay.locator('form.fields button[type=submit]').click();
+  await wpay.locator('input[name=out]').fill('pay.json');
+  await wpay.locator('form.fields button[type=submit]').click();
+  await until(async () => asked.length === 2, 'two Pay confirms');
+  page.off('dialog', onDialog);
+  assert.match(asked[0], /^Run poo wallet pay -wallet w2\.json -to ab12 -amount 5\?\n\nNo co-signing file is filled in\. If this wallet is watch-only, or pays from a shared policy, fill one in first/);
+  assert.equal(asked[1], 'Run poo wallet pay -wallet w2.json -to ab12 -amount 5 -out pay.json?');
+  assert.equal(await wpay.locator('.run-status').count(), 0, 'a dismissed confirm runs nothing');
+  for (const n of ['to', 'amount', 'out']) await wpay.locator(`input[name=${n}]`).fill('');
+  const un = await page.evaluate(async () => {
+    const { unsignedNote } = await import('/views/wallet.js');
+    const out = 'signatures missing (per leg, per input): [[1]]\npass -out FILE to write the payment for co-signers (or for poo sign, with a key kept off the node)\n';
+    return [unsignedNote({ code: 0, out }, '')?.textContent, unsignedNote({ code: 0, out }, 'pay.json'), unsignedNote({ code: 0, out: '{"legs": []}' }, ''), unsignedNote({ code: 1, out }, '')];
+  });
+  assert.deepEqual(un, ['Nothing was sent, and no file was written for the key to sign. The wallet has recorded this payment and holds its units: Payments sent lists it as unsigned. Next time, fill in Co-signing file before you press Pay.', null, null, null]);
+  // The seven cold-key steps are folded; each step's button goes to its
+  // form, and the first links to Make a key.
+  const cold = page.locator('section.cold-key');
+  assert.equal(await cold.locator('details.cold').evaluate(d => d.open), false, 'the steps start folded');
+  await cold.locator('summary').click();
+  assert.equal(await cold.locator('.cold-steps li').count(), 7);
+  assert.equal(await cold.locator('.cold-steps a').first().getAttribute('href'), '#/crypto');
+  await cold.locator('.cold-steps button', { hasText: 'Sign with a key kept elsewhere' }).click();
+  assert.equal(await page.evaluate(() => document.activeElement.tagName + ':' + document.activeElement.textContent), 'H2:Sign with a key kept elsewhere');
   const wcr = wsec('Create or restore a wallet');
   await wcr.locator('label', { hasText: 'Watch-only' }).locator('input').check();
   assert.equal(await wcr.locator('.cmd code').innerText(), 'poo wallet create -wallet w2.json -watch-only');
@@ -260,7 +292,7 @@ try {
     completion: 'sets up a shell, not this GUI',
     holdings: 'older form of poo unspent, kept for scripts; Explore runs unspent',
     payment: 'older form of poo tx, kept for scripts; Explore runs tx',
-    claim: 'claims with a raw key file; the Wallet view claims from the wallet',
+    claim: 'claims with a key file, where the key is: a watch-only wallet claims this way (D193; the Wallet view\'s cold-key steps say so); the Wallet view claims from the wallet',
     pay: 'pays with a raw key file; the Wallet view pays from the wallet',
     settings: 'new in Source Round 20 (D155); GUI/Grey adds its export and import form next, and the terminal runs it until then',
   };

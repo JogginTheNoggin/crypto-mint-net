@@ -1,4 +1,5 @@
 // The Wallet view. Each view is one file here, listed in index.js (GUI-GREEN-044).
+import * as api from '../api.js';
 import * as where from '../where.js';
 import { el, flag, flags, form, mountAll } from '../views.js';
 
@@ -25,6 +26,50 @@ export function signNote(r) {
 }
 const setWalletSeries = v => { try { localStorage.setItem(WALLET_KEY + '-series', v); } catch (_) { /* storage off */ } };
 
+// payQuestion is Pay's one confirm. With no co-signing file it says what
+// happens when the payment needs a signature this wallet cannot give (a
+// watch-only wallet, a shared policy): poo records the payment and holds
+// its units, but writes nothing to sign, and nothing writes it later
+// (GUI-GREEN-061). The GUI cannot tell which wallet it is; poo can.
+export function payQuestion(line, out) {
+  return out ? `Run ${line}?` : `Run ${line}?\n\nNo co-signing file is filled in. If this wallet is watch-only, or pays from a shared policy, fill one in first: without it poo records the payment and holds its units, but writes no file for the key to sign.`;
+}
+
+// unsignedNote is the line over a payment poo recorded with signatures
+// missing and no co-signing file (poo's "signatures missing" line, exit
+// 0): nothing was sent and nothing was written (GUI-GREEN-061).
+export function unsignedNote(r, out) {
+  if (out || r.code !== 0 || !/^signatures missing/m.test(r.out)) return null;
+  return el('p', { class: 'next-step unsigned-note', role: 'alert' }, 'Nothing was sent, and no file was written for the key to sign. The wallet has recorded this payment and holds its units: Payments sent lists it as unsigned. Next time, fill in Co-signing file before you press Pay.');
+}
+
+// COLD_STEPS is a key kept off this machine from start to end (D193):
+// where each step runs, and the form or view that runs it.
+const COLD_STEPS = [
+  ['Where the key is', 'Make the key, or bring one made by another tool (-raw). Note its algorithm and public key; the key itself never comes here.', { view: 'crypto', label: 'Make a key (Series and keys)' }],
+  ['Here', 'Make a wallet that holds no private key.', { form: 'Create or restore a wallet', label: 'Create, with Watch-only ticked' }],
+  ['Here', 'Record the key: 1 signature needed, key ALG:PUBLIC (for example ed25519:d404…). Its address is where the coins go.', { form: 'Record a shared policy', label: 'Record a shared policy' }],
+  ['Here', 'Watch the mints the key holds. A claim is made where the key is, with poo claim -seed-file, since the wallet holds no key to claim with.', { form: 'Watch mints', label: 'Watch mints' }],
+  ['Here', 'Pay with a co-signing file, every time: it is what the key signs.', { form: 'Pay', label: 'Pay' }],
+  ['Where the key is', 'Sign the file. Show only first, to read what it pays. On an offline machine, copy the line and run it there.', { form: 'Sign with a key kept elsewhere', label: 'Sign with a key kept elsewhere' }],
+  ['Here', 'Send the signed file.', { form: 'Submit a co-signed payment', label: 'Submit a co-signed payment' }],
+];
+function coldSteps(root) {
+  const go = title => {
+    const h = [...root.querySelectorAll('section.panel h2')].find(x => x.textContent === title);
+    if (!h) return;
+    h.closest('section').scrollIntoView({ block: 'start' });
+    h.tabIndex = -1;
+    h.focus({ preventScroll: true });
+  };
+  const ol = el('ol', { class: 'cold-steps' }, ...COLD_STEPS.map(([where, text, to]) => el('li', {}, el('strong', {}, `${where}: `), text, ' ',
+    to.view ? el('a', { href: `#/${to.view}` }, to.label) : el('button', { type: 'button', class: 'small', onclick: () => go(to.form) }, to.label))));
+  const det = el('details', { class: 'cold' }, el('summary', {}, 'Seven steps, from making the key to a payment sent'), ol);
+  const sec = el('section', { class: 'panel cold-key' }, el('div', { class: 'panel-head' }, el('h2', {}, 'Keep the key off this machine')),
+    el('p', { class: 'hint' }, 'A watch-only wallet sees balances and prepares payments; the key that signs them stays on another machine, offline if you like (D193).'), det);
+  return { el: sec, stop: () => {} };
+}
+
 export const walletView = {
   id: 'wallet',
   title: 'Wallet',
@@ -50,8 +95,10 @@ export const walletView = {
     pick.addEventListener('input', changed);
     pickSeries.addEventListener('input', changed);
     const pass = 'The command asks for the passphrase when it needs it.';
+    const payArgs = v => ['wallet', 'pay', ...wf(v), ...flag('to', v.to), ...flag('amount', v.amount), ...flag('request', v.request), ...flags('mint', v.mint), ...flag('memo', v.memo), ...flag('out', v.out), ...flag('change', v.change)];
     return mountAll(root, 'Wallet', 'Keys from one seed, payments and requests, all through poo wallet. Passphrases go straight to the command and are never stored.', [
       { el: picker, stop: () => {} },
+      coldSteps(root),
       form(ctx, { title: 'Balance', about: 'Spendable units per watched mint. ' + pass, fields: [], args: v => ['wallet', 'balance', ...wf(v)], submit: 'Show balance' }),
       form(ctx, { title: 'Addresses', about: 'Every address, used or not, and shared ones. ' + pass, fields: [], args: v => ['wallet', 'addresses', ...wf(v)], submit: 'Show addresses' }),
       form(ctx, { title: 'New address', fields: [{ name: 'label', label: 'Label' }], args: v => ['wallet', 'address', ...wf(v), ...flag('label', v.label)], submit: 'Give out an address' }),
@@ -60,8 +107,12 @@ export const walletView = {
         { name: 'request', label: 'Or a request file' }, { name: 'mint', label: 'Only from mints', type: 'list', placeholder: 'serials …' },
         { name: 'memo', label: 'Memo' }, { name: 'out', label: 'Co-signing file', placeholder: 'for a shared policy, or a watch-only wallet' },
         { name: 'change', label: 'Change address', placeholder: 'default: a fresh address (watch-only: back where it came from)' }],
-      args: v => ['wallet', 'pay', ...wf(v), ...flag('to', v.to), ...flag('amount', v.amount), ...flag('request', v.request), ...flags('mint', v.mint), ...flag('memo', v.memo), ...flag('out', v.out), ...flag('change', v.change)],
-      submit: 'Pay', danger: true }),
+      args: payArgs,
+      // Its one confirm warns when no co-signing file is filled in
+      // (GUI-GREEN-061).
+      danger: true, dangerText: v => payQuestion(api.quote(payArgs(v)), v.out),
+      onResult: (r, area) => { const n = unsignedNote(r, area.closest('section').querySelector('[name=out]').value.trim()); if (n) area.prepend(n); },
+      submit: 'Pay' }),
       // A shared k-of-n payment from start to end (GREEN-039): Pay with a
       // co-signing file writes what co-signers sign; each runs cosign on
       // it, and submit sends it once enough have signed.
