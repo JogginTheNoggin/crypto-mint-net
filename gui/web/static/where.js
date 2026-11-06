@@ -1,7 +1,9 @@
 // The node policy the views run commands against: -root and -policy, kept
 // per browser. The terminal never adds them.
-const KEY = 'poon-gui-where';
-const THEME = 'poon-gui-theme';
+import * as store from './store.js';
+
+const KEY = store.WHERE;
+const THEME = store.THEME;
 const listeners = [];
 
 function load(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }

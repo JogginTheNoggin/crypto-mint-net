@@ -148,3 +148,60 @@ func TestRedactKeyFileWords(t *testing.T) {
 		}
 	}
 }
+
+// TestRedactSecretWords is GUI-036: a seed typed after -restore or -seed
+// as several words (in groups, as it was copied to paper) is hidden whole,
+// not only its first word.
+func TestRedactSecretWords(t *testing.T) {
+	seed := strings.Repeat("c0ffee", 10) + "beef"
+	split := func(n int) []string {
+		var out []string
+		for i := 0; i < len(seed); i += n {
+			out = append(out, seed[i:i+n])
+		}
+		return out
+	}
+	hide := func(n int) []string {
+		h := make([]string, n)
+		for i := range h {
+			h[i] = Hidden
+		}
+		return h
+	}
+	join := func(parts ...[]string) []string {
+		var out []string
+		for _, p := range parts {
+			out = append(out, p...)
+		}
+		return out
+	}
+	g8, g16, halves := split(8), split(16), split(32)
+	cases := []struct {
+		args, want []string
+	}{
+		// GUI/Red's three lines (GUI-036 Reproduction).
+		{join([]string{"wallet", "create", "-restore"}, g8), join([]string{"wallet", "create", "-restore"}, hide(len(g8)))},
+		{join([]string{"keygen", "-seed"}, g16), join([]string{"keygen", "-seed"}, hide(len(g16)))},
+		{[]string{"wallet", "create", "-restore=" + halves[0], halves[1]}, []string{"wallet", "create", "-restore=" + Hidden, Hidden}},
+		// The value ends at the next flag.
+		{join([]string{"wallet", "create", "-restore"}, g8, []string{"-wallet", "w.json"}), join([]string{"wallet", "create", "-restore"}, hide(len(g8)), []string{"-wallet", "w.json"})},
+		{join([]string{"keygen", "--seed"}, g16, []string{"-alg", "ed25519"}), join([]string{"keygen", "--seed"}, hide(len(g16)), []string{"-alg", "ed25519"})},
+		// The forms' stdin spelling keeps the rest of the line.
+		{[]string{"wallet", "create", "-restore", "-", "-wallet", "w.json"}, []string{"wallet", "create", "-restore", Hidden, "-wallet", "w.json"}},
+	}
+	for _, c := range cases {
+		got, red := Redact(c.args)
+		if !reflect.DeepEqual(got, c.want) || !red {
+			t.Errorf("Redact(%q) = %q, %v; want %q, true", c.args, got, red, c.want)
+		}
+		for _, w := range got {
+			if strings.Contains(w, "c0ffee") || strings.Contains(w, "ffeec0") || strings.Contains(w, "beef") {
+				t.Errorf("Redact(%q) shows part of the seed: %q", c.args, got)
+			}
+		}
+	}
+	// sim -seed is a random-number seed, not a secret.
+	if got, red := Redact([]string{"sim", "-seed", "7", "8"}); red || !reflect.DeepEqual(got, []string{"sim", "-seed", "7", "8"}) {
+		t.Errorf("Redact(sim -seed 7 8) = %q, %v", got, red)
+	}
+}

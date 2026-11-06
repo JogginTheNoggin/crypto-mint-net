@@ -120,6 +120,27 @@ func LooksLikeKey(s string) bool {
 	return false
 }
 
+// secretWords returns how many of the args after the secret flag
+// args[i] are its value. A seed may be typed as several words (in groups,
+// as it was copied to paper), so the value runs up to the next flag, not
+// one word (GUI-036). A secret flag's value is always a secret, so no
+// LooksLikeKey test is needed. When the value is not after "=", the next
+// arg is always the value, as poon's flag parser takes it, even "-" (read
+// from stdin) or a word that starts with "-".
+func secretWords(args []string, i int, inline bool) int {
+	n, j := 0, i+1
+	if !inline && j < len(args) {
+		n, j = 1, j+1
+	}
+	for ; j < len(args); j++ {
+		if x := args[j]; strings.HasPrefix(x, "-") && len(x) > 1 {
+			break
+		}
+		n++
+	}
+	return n
+}
+
 // command returns args' first word that is not a flag: the poon command.
 func command(args []string) string {
 	for _, a := range args {
@@ -139,11 +160,11 @@ func Redact(args []string) ([]string, bool) {
 	var out []string
 	for i := 0; i < len(args); i++ {
 		secret, inline := secretFlag(args[i])
-		more := 1
-		if !secret {
+		more := 0
+		if secret {
+			more = secretWords(args, i, inline)
+		} else {
 			secret, inline, more = keyFileFlag(args, i)
-		} else if inline {
-			more = 0
 		}
 		if !secret {
 			continue

@@ -577,6 +577,10 @@ try {
   assert.deepEqual(bnotes, ['bounty.post is on but bounty.budget is not set']);
   const askedLine = await page.evaluate(async () => (await import('/views/bounty.js')).marketNote({ post: false, take: true, asked: 3 }).textContent);
   assert.equal(askedLine, 'This node does not post offers and takes offers from peers. Asked 3 peers for offers.');
+  // With no peer asked, poon's note says so; the count is not said twice
+  // (GUI-GREEN-066).
+  const askedNone = await page.evaluate(async () => (await import('/views/bounty.js')).marketNote({ post: false, take: true, asked: 0 }).textContent);
+  assert.equal(askedNone, 'This node does not post offers and takes offers from peers.');
   assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'work:c'], 'no Cancel on an expired offer');
   // With no offers, only the steps this node takes are offered, and the
   // off line names the switch as Set limits shows it (GUI-GREEN-064).
@@ -675,6 +679,15 @@ try {
   await page.click('nav a[data-id=settings]');
   await page.locator('label', { hasText: 'Root' }).locator('input').fill('');
   await page.click('button:has-text("Save")');
+
+  // Every name the page keeps in the browser's storage comes from store.js
+  // (GUI-037), and starts with its prefix.
+  const keys = await page.evaluate(async () => {
+    const store = await import('/store.js');
+    return { prefix: store.PREFIX, names: [store.HISTORY, store.WHERE, store.THEME, store.WALLET, store.WALLET_SERIES], used: Object.keys(localStorage) };
+  });
+  assert.ok(keys.used.length > 0, 'the page saved something');
+  for (const k of keys.used) assert.ok(keys.names.includes(k) && k.startsWith(keys.prefix), `storage key ${k} is in store.js`);
 
   assert.deepEqual(errors, [], 'no page errors');
   console.log('gui qol e2e: ok');

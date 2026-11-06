@@ -16,8 +16,10 @@ const short = h => (typeof h === 'string' && h.length > 16 ? `${h.slice(0, 10)}â
 // does in the market.
 export function marketNote(o) {
   if (!o || typeof o.post !== 'boolean' || typeof o.take !== 'boolean') return null;
-  // -ask says how many peers it asked (D204).
-  const asked = typeof o.asked === 'number' ? ` Asked ${plural(o.asked, 'peer', 'peers')} for offers.` : '';
+  // -ask says how many peers it asked (D204); with none, poon's own note
+  // says so and what to check, so the count is not said twice
+  // (GUI-GREEN-066).
+  const asked = typeof o.asked === 'number' && o.asked > 0 ? ` Asked ${plural(o.asked, 'peer', 'peers')} for offers.` : '';
   return el('p', { class: 'hint bounty-on', role: 'status' }, `This node ${o.post ? 'posts offers' : 'does not post offers'} and ${o.take ? 'takes offers from peers' : 'does not take offers from peers'}.${asked}`);
 }
 

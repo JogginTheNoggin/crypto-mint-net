@@ -5,6 +5,49 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 40 Part B reviewed main @ a79be4b (#352, #354):
+- the poo → poon rename across `gui/` (D204), checked for anything it
+  broke;
+- Set limits' line on what 0 means for each limit;
+- the peers-asked count after Ask;
+- GUI/Blue's GUI-035 fix and the GUI-034 cap fix.
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol`, `variable` and `terminal` e2e tests pass.
+
+New: **GUI-036 (Low).** GUI-035's fix covers only `-key-file` and
+`-seed-file`. After the secret flags, `-restore` and `-seed`, `Redact`
+still hides one word. So a wallet seed typed in groups shows 7 of its 8
+groups in `/api/jobs` and Jobs, under `redacted: true`. Fix: hide every
+word after a secret flag, up to the next flag.
+
+New: **GUI-037 (Low).** The rename moved every localStorage key to
+`poon-gui-*` with no migration.
+- The old `poo-gui-history` is no longer read, so it is no longer
+  filtered by `saveable`, and Forget history can't remove it. Lines
+  saved before GUI-034's fix stay on disk.
+- The old Settings root and policy, wallet file and theme are dropped
+  quietly. Views then run against the default root.
+
+There is no release yet, so this reaches only earlier test profiles.
+Fix: migrate once on load, and remove the old keys.
+
+Fixed and verified: **GUI-035.** A key typed in groups, in openssl's
+lines, or in halves after `-key-file` shows as all `<hidden>` in Jobs.
+GUI-034's cap fix holds too: one hex word over 512 characters is kept
+out of history.
+
+Rename check, otherwise clean:
+- No `poo` is left in the GUI's code except the history and storage
+  keys above.
+- The `^poon ` strips in Jobs, node.js and views.js, the `Split` and
+  `secretLine` leading-word drop, and the error prefixes all match.
+- The cookie is now `poon_gui`. A cookie only lasts for one poon-gui
+  run anyway, so the rename loses nothing.
+
+Held up: the 0 note and the asked count are poon's own text and
+numbers, drawn with `el()`.
+
 Round 39 Part B reviewed main @ 21c34c8 (#338, #341):
 - `-max-strength` on Ask and Work in the Bounty view;
 - `bounty.max_strength` (0 to 255) in Set limits, and the switches'
@@ -1157,4 +1200,6 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-032](GUI-032-key-pasted-into-key-file-is-kept.md) | Low | A key pasted into "Key file" on Sign with a key kept elsewhere goes on the command line, into poon's error, and into the Jobs list and the job's replayable output | fixed (Blue R35C, Source #291; separators and shell.Redact, Blue R36C); verified R37B @ 7eb16ab |
 | [GUI-033](GUI-033-refused-form-never-follows-next-run.md) | Low | After a form refuses to run (GUI-032's refuse, or a missing required field), its next run is never followed: no masked prompt, Stop does nothing, and the job waits on input holding a slot | fixed (GUI/Blue R36C); verified R37B @ 7eb16ab |
 | [GUI-034](GUI-034-key-after-key-file-saved-in-terminal-history.md) | Low | A key typed after -key-file in the terminal is saved whole to the browser's history (localStorage), though Jobs now shows it as <hidden> | fixed (GUI/Blue R37C); verified R38B @ 1e71cf0 |
-| [GUI-035](GUI-035-key-split-over-words-shown-in-jobs.md) | Low | A key typed in the terminal as several words after -key-file (groups, or openssl's 15-byte lines) shows in clear in the Jobs list: shell.Redact reads only the next word | fixed (GUI/Blue R39C) |
+| [GUI-035](GUI-035-key-split-over-words-shown-in-jobs.md) | Low | A key typed in the terminal as several words after -key-file (groups, or openssl's 15-byte lines) shows in clear in the Jobs list: shell.Redact reads only the next word | fixed (GUI/Blue R39C); verified R40B @ a79be4b |
+| [GUI-036](GUI-036-seed-split-over-words-shown-in-jobs.md) | Low | A seed typed in the terminal as several words after -restore or -seed shows in the Jobs list except its first word: Redact hides one word after a secret flag | fixed (GUI/Blue R40C) |
+| [GUI-037](GUI-037-renamed-storage-keys-leave-old-history.md) | Low | The poon rename moved the browser storage keys with no migration: the old saved history is never filtered or forgotten, and Settings' root, the wallet file and theme are dropped | fixed (GUI/Blue R40C): fresh start by jerry's decision, no migration; key names now in store.js |
