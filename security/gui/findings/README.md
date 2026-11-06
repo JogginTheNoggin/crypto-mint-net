@@ -5,6 +5,51 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 37 Part B reviewed main @ 7eb16ab (#310, #315):
+- the Bounty market view, which reads `status` bounty {post, take} and
+  shows offer state and closing time;
+- the gui/jobs `KeepNew` race fix;
+- GUI/Blue's fixes for GUI-032's residual and for GUI-033.
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass.
+
+New: **GUI-034 (Low).** Round 37A made `shell.Redact` hide a
+`-key-file` or `-seed-file` value that looks like a key, so the Jobs
+list shows `<hidden>`. The terminal's saved history (localStorage
+`poo-gui-history`) still keeps such a line whole, across sessions,
+because `api.secretLine` checks only seed and restore. Fix: give
+`secretLine` the same `looksLikeKey` test.
+
+Fixed and verified: **GUI-032** (all four spellings are now refused,
+and Jobs hides them), and **GUI-033** (after a refusal, the next run
+shows its masked prompt, and Stop ends it).
+
+Held up:
+- **Bounty view.** Offer ids are hashes worked out by the node
+  (`Offer.ID()`, checked on receipt), so a peer can't put flags or text
+  where the form puts an id. Every table cell is drawn as text or
+  through `render`. Work, Pay and Cancel only fill the forms below, and
+  Post, Pay and Cancel keep their confirm. Whether the market is on
+  comes from `status` bounty {post, take}, never from the words of
+  poo's error.
+- **`KeepNew` (10 s).** A finished job started less than 10 s ago isn't
+  trimmed, so a quick refresh can still be followed. That can only hold
+  jobs over `MaxJobs` or `MaxTotalOutput` for 10 s, and running jobs
+  are still capped at 16. A session can't run up memory with it any
+  faster than it can start jobs.
+
+Notes, not filed:
+- **Pay a claim's confirm** shows only `poo bounty pay ID …`: neither
+  the amount nor the grinder's address. The row it came from shows the
+  amount per layer. The claim was checked and accepted by this node, so
+  this is the deal the offer made. Still, a confirm like Release a
+  part's (GUI-027) could say "Pay N units to ADDR for offer ID?" from
+  the row.
+- **An unknown state** prints as poo gave it (`STATES[s] || s`). A state
+  named `constructor` would show a function's text, but states come
+  from poo, not from peers.
+
 Round 36 Part B reviewed main @ d25f777 (#296, #298):
 - the watch-only Claim a mint (`-to-policy`, claim file);
 - Make a key with `-out`;
@@ -1034,5 +1079,6 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | fixed as a warning (Source D171 `unbounded`, GUI/Blue Read first; Apply stays, per jerry); verified R29B @ 4e1c601 |
 | [GUI-030](GUI-030-replace-import-ignores-series-ceiling.md) | Low | Import node policies with Replace never checks series_ceiling, so a series the node set a ceiling to decline is added anyway, and one listed twice is kept twice | fixed by Source (D176, #207); verified R30B @ 0ade046 |
 | [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | fixed: Source partial totals and Stop between batches, GUI alert; verified R35B @ 58273f7 |
-| [GUI-032](GUI-032-key-pasted-into-key-file-is-kept.md) | Low | A key pasted into "Key file" on Sign with a key kept elsewhere goes on the command line, into poo's error, and into the Jobs list and the job's replayable output | fixed (Blue R35C, Source #291; separators and shell.Redact, Blue R36C) |
-| [GUI-033](GUI-033-refused-form-never-follows-next-run.md) | Low | After a form refuses to run (GUI-032's refuse, or a missing required field), its next run is never followed: no masked prompt, Stop does nothing, and the job waits on input holding a slot | fixed (GUI/Blue R36C) |
+| [GUI-032](GUI-032-key-pasted-into-key-file-is-kept.md) | Low | A key pasted into "Key file" on Sign with a key kept elsewhere goes on the command line, into poo's error, and into the Jobs list and the job's replayable output | fixed (Blue R35C, Source #291; separators and shell.Redact, Blue R36C); verified R37B @ 7eb16ab |
+| [GUI-033](GUI-033-refused-form-never-follows-next-run.md) | Low | After a form refuses to run (GUI-032's refuse, or a missing required field), its next run is never followed: no masked prompt, Stop does nothing, and the job waits on input holding a slot | fixed (GUI/Blue R36C); verified R37B @ 7eb16ab |
+| [GUI-034](GUI-034-key-after-key-file-saved-in-terminal-history.md) | Low | A key typed after -key-file in the terminal is saved whole to the browser's history (localStorage), though Jobs now shows it as <hidden> | fixed (GUI/Blue R37C) |

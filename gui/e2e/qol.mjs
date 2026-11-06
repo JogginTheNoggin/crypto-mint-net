@@ -399,6 +399,16 @@ try {
     return ['poo keygen -seed ' + 'ab'.repeat(32), 'poo keygen -seed=ab', 'poo wallet create -restore -', 'poo wallet create -restore=-', 'poo keygen -seed-file -', 'poo sim -seed 3', 'poo keygen -seed'].map(secretLine);
   });
   assert.deepEqual(secret, [true, true, false, false, false, false, true], 'secretLine: a value of - is read in a masked field, not on the line');
+  // A key where a key file's path goes is a secret line too (GUI-034):
+  // plain, after =, with colons, quoted in groups, before a file name; a
+  // path or - is not.
+  const keyLines = await page.evaluate(async () => {
+    const { secretLine } = await import('/api.js');
+    const k = 'ab'.repeat(32);
+    return [`poo sign x.json -key-file ${k}`, `poo sign x.json --key-file=${k}`, `poo sign x.json -key-file ${Array(32).fill('ab').join(':')}`, `poo sign -key-file '${Array(8).fill('abcdef01').join(' ')}' x.json`,
+      `poo keygen -seed-file ${k}.`, 'poo sign x.json -key-file cold.key', 'poo sign x.json -key-file -', `poo sign x.json -key-file /keys/${k}`].map(secretLine);
+  });
+  assert.deepEqual(keyLines, [true, true, true, true, true, false, false, false], 'secretLine: a key typed as a key file');
   // A list longer than 500 says it was cut, as a table does (ORANGE-018).
   const cut = await page.evaluate(async () => {
     const { render } = await import('/render.js');
@@ -504,10 +514,10 @@ try {
   });
   assert.deepEqual(ex, [[1, 1, 0, true, 0, 0], [1, 0, 1, true, 0, 0]], 'a cut ledger export is folded and has one alert');
   // The Bounty view's tables lay out poo bounty list: an offer with an
-  // unpaid claim gets Pay, every offer Cancel, a peer's offer Work, and
-  // each fills its form (GUI-GREEN-062).
+  // unpaid claim gets Pay, an open offer of this node's Cancel, an open
+  // peer's offer Work, and each fills its form (GUI-GREEN-062, 063).
   const bm = await page.evaluate(async () => {
-    const { marketView, offNote, payNote, workNote } = await import('/views/bounty.js');
+    const { marketView, offNote, payNote, workNote, when } = await import('/views/bounty.js');
     const id1 = 'a'.repeat(64), id2 = 'b'.repeat(64), id3 = 'c'.repeat(64);
     const offer = { pool: 1, entry: 'e'.repeat(64), strength: 8, amount: 10, count: 2 };
     const acts = [];
@@ -522,6 +532,8 @@ try {
       off: (() => { const bad = { code: 1, out: '', err: 'poo: refused' }; const t = n => n && n.textContent.split('.')[0];
         return [t(offNote(bad, { bounty: { post: false, take: false } })), offNote(bad, { bounty: { post: true, take: false } }), t(offNote(bad, null)), t(offNote(bad, {})),
           offNote({ code: 1, out: '', err: 'poo: rpc: is the node running?' }, null), offNote({ code: 0, out: '{}', err: '' }, null)]; })(),
+      closes: (() => { const t = box.querySelector('.bounty-mine tbody tr:nth-child(2) time'); return t && [t.getAttribute('datetime'), t.title, t.textContent !== t.title && t.textContent.length > 0]; })(),
+      when: [when('not a time'), when(''), when(undefined)],
       pay: payNote({ offer: id1, nonce: 8, pay_to: 'f'.repeat(64), amount: 10, told: true }).textContent,
       work: [workNote({ found: true, strength: 19, tried: 1048576, outcome: 'accepted' }).textContent, workNote({ found: false, tried: 5 }).textContent] };
   });
@@ -529,7 +541,24 @@ try {
   assert.deepEqual(bm.unpaid, ['1', '0']);
   // Each offer's state from poo (D197); Work only on an open peer offer.
   assert.deepEqual(bm.states, ['', 'expired', 'open', 'filled']);
-  assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'cancel:b', 'work:c']);
+  // A long list of peers' offers draws 500 rows, then the rest on Show
+  // more (GUI/Orange R37B: 4,096 held offers were 70,000 elements).
+  const bigHeld = await page.evaluate(async () => {
+    const { marketView } = await import('/views/bounty.js');
+    const offer = { pool: 1, strength: 8, amount: 10, count: 1 };
+    const box = document.createElement('div');
+    box.append(...marketView({ post: false, take: true, mine: [], held: Array.from({ length: 600 }, (_, i) => ({ id: i.toString(16).padStart(64, '0'), from: 'f'.repeat(64), offer, state: 'open' })) }));
+    const rows = () => box.querySelectorAll('.bounty-held tbody tr').length;
+    const first = [rows(), box.querySelector('.bounty-more').textContent];
+    box.querySelector('.bounty-more button').click();
+    return [...first, rows(), box.querySelectorAll('.bounty-more').length];
+  });
+  assert.deepEqual(bigHeld, [500, 'Showing 500 of 600 offers. Show more', 600, 0]);
+  assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'work:c'], 'no Cancel on an expired offer');
+  // A time poo printed is shown in the reader's own words, poo's text in
+  // the tooltip (GUI-GREEN-063).
+  assert.deepEqual(bm.closes, ['2026-11-06T15:00:00Z', '2026-11-06T15:00:00Z', true]);
+  assert.deepEqual(bm.when, ['not a time', '', '']);
   assert.deepEqual(bm.off, ['The market is off on this node', null, 'If poo says the market is off: In Node policies, Set limits: bounty', 'If poo says the market is off: In Node policies, Set limits: bounty', null, null], 'off comes from status bounty (W-30); without it, a fixed line; error text is never read (S5)');
   assert.equal(bm.pay, 'Paid 10 to ffffffffff…ffffff for the layer with nonce 8; the grinder was told.');
   assert.deepEqual(bm.work, ['Found a layer of strength 19 in 1048576 tries; the payer answered: accepted. The payer pays when it presses Pay; the payment goes to the address you gave.', 'No layer found in 5 tries before the lease or the time ran out; work the offer again for a new lease.']);

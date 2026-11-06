@@ -63,8 +63,14 @@ try {
   const saved = await page.evaluate(() => localStorage.getItem('poo-gui-history') || '');
   assert.ok(!saved.includes(seed), 'the seed is not saved in history');
   assert.ok(!saved.includes(' version'), 'a line starting with a space is not saved');
-  await line.press('ArrowUp');
-  await line.press('ArrowUp');
+  // GUI-034: a key typed where -key-file wants a path is not saved either,
+  // plain or with colons; a path is.
+  const colonKey = Array(32).fill('cd').join(':');
+  for (const l of [`poo sign x.json -key-file ${'ef'.repeat(32)}`, `poo sign x.json -key-file ${colonKey}`, 'poo sign x.json -key-file cold.key']) { await type(l); await idle(); }
+  const saved2 = await page.evaluate(() => localStorage.getItem('poo-gui-history') || '');
+  assert.ok(!saved2.includes('ef'.repeat(32)) && !saved2.includes(colonKey), 'a key after -key-file is not saved in history');
+  assert.ok(saved2.includes('poo sign x.json -key-file cold.key'), 'a key file path is saved');
+  for (let i = 0; i < 5; i++) await line.press('ArrowUp');
   assert.equal(await line.inputValue(), `poo keygen -seed ${seed} -alg ed25519`, 'up-arrow recalls the line this session');
   await line.fill('');
   await page.click('nav a[data-id=jobs]');

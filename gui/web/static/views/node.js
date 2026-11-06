@@ -1,7 +1,7 @@
 // The Node view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
 import * as where from '../where.js';
-import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile, rawFold } from '../views.js';
+import { appliedNote, cmdLine, el, flag, flags, form, mountAll, panel, pickFile, rawFold, rowsTable } from '../views.js';
 import { scrollback } from '../scroll.js';
 import { parseJSON, render } from '../render.js';
 
@@ -239,12 +239,6 @@ export const nodeView = {
   },
 };
 
-// VARIABLE_ROWS is how many variable series the panel draws at first, and
-// then on each press of Show more. A node can follow up to 4,096 series
-// (pkg/p2p): drawn whole, 4,096 rows were 32,800 elements and doubled the
-// time the Node view took to open (ORANGE-019). Like render.js's tables,
-// 500 show at first.
-const VARIABLE_ROWS = 500;
 
 export function variableTable(vs, cells) {
   return rowsTable(vs, cells, { headers: ['series', 'parts released', 'next part', 'mints', 'units', 'newest release'], cls: 'variable-series', more: 'variable-more', noun: 'variable series' });
@@ -357,27 +351,3 @@ export function totalsTable(rows) {
   return rowsTable(rows, cells, { headers: ['name', 'series', 'pools', 'entries', 'branches', 'pending', 'waiting', 'stored records'], cls: 'series-totals', more: 'totals-more', noun: 'series' });
 }
 
-// rowsTable draws a list of rows ROWS at a time with Show more, as the
-// Variable series and Followed series panels do (ORANGE-019).
-function rowsTable(vs, cells, { headers, cls, more: moreCls, noun }) {
-  const body = el('tbody');
-  let shown = 0;
-  const more = () => {
-    const part = document.createDocumentFragment();
-    for (const end = Math.min(vs.length, shown + VARIABLE_ROWS); shown < end; shown++) part.append(el('tr', {}, ...cells(vs[shown]).map(c => el('td', {}, c))));
-    body.append(part);
-  };
-  more();
-  const wrap = el('div', { class: 'table-wrap' }, el('table', { class: `data ${cls}` },
-    el('thead', {}, el('tr', {}, ...headers.map(h => el('th', {}, h)))), body));
-  if (shown < vs.length) {
-    const text = document.createTextNode('');
-    const btn = el('button', { type: 'button' }, 'Show more');
-    const note = el('p', { class: `hint ${moreCls}` }, text, btn);
-    const label = () => { text.textContent = `Showing ${shown} of ${vs.length} ${noun}. `; };
-    label();
-    btn.onclick = () => { more(); if (shown < vs.length) label(); else note.remove(); };
-    wrap.append(note);
-  }
-  return wrap;
-}
