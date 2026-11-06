@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -100,7 +101,7 @@ func bountyList(args []string, out io.Writer) error {
 	fs := newFlagSet("bounty list", out)
 	c := addClient(fs)
 	ask := fs.Bool("ask", false, "first ask connected peers for their open offers, and wait a moment for answers")
-	maxStr := fs.Uint("max-strength", 0, "with -ask, ask only for offers of at most this strength in bits (default: bounty.max_strength, else any)")
+	maxStr := fs.Uint("max-strength", 0, "ask only for, and list only, peers' offers of at most this strength in bits (with -ask the default is bounty.max_strength, else any)")
 	done := fs.Int("done", 0, "also list this node's last N finished offers (filled or closed, every layer paid; at most 256), which leave the list")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -132,6 +133,11 @@ func bountyList(args []string, out io.Writer) error {
 	}
 	if err != nil {
 		return err
+	}
+	if *maxStr > 0 {
+		// List what was asked for: offers held from an earlier, wider
+		// ask stay held but are not shown (GREEN-064).
+		rep.Held = slices.DeleteFunc(rep.Held, func(h bounty.Held) bool { return uint(h.Offer.Strength) > *maxStr })
 	}
 	return writeJSON(out, rep)
 }
