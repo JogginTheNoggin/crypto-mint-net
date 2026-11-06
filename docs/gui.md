@@ -1,5 +1,8 @@
 # The GUI
 
+This is how the GUI is built. To learn how to use it, read the
+[GUI guide](guide/gui/index.md).
+
 ## Summary
 
 The GUI (`poon-gui`) is a visual way to use the same headless node and the
