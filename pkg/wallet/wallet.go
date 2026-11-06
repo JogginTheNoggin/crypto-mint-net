@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/keepjson"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -118,6 +119,37 @@ type File struct {
 	Watch    []Watch      `json:"watch,omitempty"`
 	Sent     []*Sent      `json:"sent,omitempty"`
 	Expected []*Expected  `json:"expected,omitempty"`
+	// kept holds the top-level fields a later release wrote that this one
+	// does not know; Save writes them back unchanged, so rolling back a
+	// release loses none of them (W-24, D195). A field that must not be
+	// ignored raises Format instead (W-25).
+	kept keepjson.Kept
+}
+
+// UnmarshalJSON reads a wallet file, keeping the fields it does not know.
+func (f *File) UnmarshalJSON(b []byte) error {
+	type plain File
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	kept, err := keepjson.Split(b, p)
+	if err != nil {
+		return err
+	}
+	*f = File(p)
+	f.kept = kept
+	return nil
+}
+
+// MarshalJSON writes a wallet file with the fields it kept.
+func (f File) MarshalJSON() ([]byte, error) {
+	type plain File
+	b, err := json.Marshal(plain(f))
+	if err != nil {
+		return nil, err
+	}
+	return keepjson.Join(b, f.kept)
 }
 
 // Wallet is an open wallet.

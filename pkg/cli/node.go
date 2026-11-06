@@ -409,7 +409,7 @@ func statusCmd(args []string, out io.Writer) error {
 type seriesStatus struct {
 	Series hash.Hash `json:"series"`
 	// Builtin names a series the code carries, as poo series followed
-	// does ("reserve"; GUI-GREEN-056).
+	// does ("default"; GUI-GREEN-056, D192).
 	Builtin  string `json:"builtin,omitempty"`
 	Pools    int    `json:"pools"`
 	Entries  int    `json:"entries"`

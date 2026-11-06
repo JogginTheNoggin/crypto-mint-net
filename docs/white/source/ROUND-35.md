@@ -71,7 +71,7 @@ signature). Nothing needs the owner.
 ## W-23: the unsigned payment file needs a kind and format
 
 The file `poo wallet pay -out` writes and `poo sign` reads is plain JSON
-with no `kind` and no `format`. Every other file poo writes for sharing
+with no `kind` and no `format`. Every other file the tool writes for sharing
 has both (`poo-ledger`, `poo-peers`, `poo-node-policies`). This file is
 the one most likely to cross releases. The signer is an offline machine
 that may stay on one release for years, while the wallet machine

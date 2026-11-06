@@ -2,12 +2,15 @@ package wallet
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"time"
 
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/brand"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/keepjson"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/policy"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/tx"
@@ -169,7 +172,7 @@ func (w *Wallet) Pay(s *series.Series, n Node, to hash.Hash, amount uint64, o Pa
 		return nil, nil, fmt.Errorf("%w: %d held, %d asked", ErrNoFunds, have, amount)
 	}
 	pay := &Sent{Series: s.ID(), To: to, Amount: amount, Memo: o.Memo, Created: now()}
-	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name(), Variable: s.IsVariable()}
+	u := newUnsigned(s)
 	for _, pl := range plans {
 		t := &tx.Tx{Mint: s.Mint(pl.serial)}
 		for _, in := range pl.inputs {
@@ -379,8 +382,8 @@ func (w *Wallet) ClaimUnsigned(s *series.Series, serial uint64, name string) (*S
 	pay := &Sent{Series: s.ID(), To: addr, Amount: s.Params().Supply, Claim: true, Created: now(),
 		Legs: []Leg{{Serial: serial, TID: tid, Tx: t.Encode(), Amount: s.Params().Supply, State: StateUnsigned}}}
 	w.f.Sent = append(w.f.Sent, pay)
-	u := &Unsigned{Series: s.ID(), Hash: s.Params().HashID.Name(), Variable: s.IsVariable(),
-		Legs: []UnsignedLeg{{Serial: serial, Tx: t.Encode(), Inputs: []PartialWitness{{Policy: p.Encode()}}}}}
+	u := newUnsigned(s)
+	u.Legs = []UnsignedLeg{{Serial: serial, Tx: t.Encode(), Inputs: []PartialWitness{{Policy: p.Encode()}}}}
 	return pay, u, nil
 }
 
@@ -398,6 +401,10 @@ func witnessCount(t *tx.Tx) int {
 // co-signers and back. Each leg holds its transaction (witnesses without
 // data) and, per input, the signatures gathered so far.
 type Unsigned struct {
+	// Kind and Format name the file (W-23, D195). A file with neither is
+	// format 1, as written before they were added.
+	Kind   string    `json:"kind,omitempty"`
+	Format int       `json:"format,omitempty"`
 	Series hash.Hash `json:"series"`
 	// Hash names the series' hash function, so a signer with no node and
 	// no series file can work out each leg's transaction id (D193).
@@ -406,6 +413,58 @@ type Unsigned struct {
 	// part; a signer with no series needs it to read them (RED-105).
 	Variable bool          `json:"variable,omitempty"`
 	Legs     []UnsignedLeg `json:"legs"`
+	// kept holds the fields a later release wrote that this one does not
+	// know, written back unchanged by poo sign and cosign (W-23).
+	kept keepjson.Kept
+}
+
+// PaymentFileKind and PaymentFormat name the file poo wallet pay -out
+// writes and poo sign reads (W-23, D195). A field an older signer must
+// not ignore raises PaymentFormat (W-25).
+const (
+	PaymentFileKind = brand.KindPrefix + "payment"
+	PaymentFormat   = 1
+)
+
+// newUnsigned starts a payment file for series s.
+func newUnsigned(s *series.Series) *Unsigned {
+	return &Unsigned{Kind: PaymentFileKind, Format: PaymentFormat, Series: s.ID(), Hash: s.Params().HashID.Name(), Variable: s.IsVariable()}
+}
+
+// UnmarshalJSON reads a payment file: it refuses another kind of file and
+// a format this release does not know, and keeps the fields it does not
+// know.
+func (u *Unsigned) UnmarshalJSON(b []byte) error {
+	type plain Unsigned
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	switch {
+	case p.Kind != "" && p.Kind != PaymentFileKind:
+		return fmt.Errorf("a %q file, not a payment (%s)", p.Kind, PaymentFileKind)
+	case p.Format > PaymentFormat:
+		return fmt.Errorf("the payment file is format %d, from a later release; this release reads format %d, so sign it with the release that wrote it or a later one", p.Format, PaymentFormat)
+	case p.Format < 0:
+		return fmt.Errorf("the payment file has format %d", p.Format)
+	}
+	kept, err := keepjson.Split(b, p)
+	if err != nil {
+		return fmt.Errorf("the payment file: %w", err)
+	}
+	*u = Unsigned(p)
+	u.kept = kept
+	return nil
+}
+
+// MarshalJSON writes a payment file with the fields it kept.
+func (u Unsigned) MarshalJSON() ([]byte, error) {
+	type plain Unsigned
+	b, err := json.Marshal(plain(u))
+	if err != nil {
+		return nil, err
+	}
+	return keepjson.Join(b, u.kept)
 }
 
 // UnsignedLeg is one transaction waiting for signatures.
@@ -413,6 +472,33 @@ type UnsignedLeg struct {
 	Serial uint64           `json:"serial"`
 	Tx     Hex              `json:"tx"`
 	Inputs []PartialWitness `json:"inputs"`
+	kept   keepjson.Kept
+}
+
+// UnmarshalJSON reads one leg, keeping the fields it does not know (W-23).
+func (l *UnsignedLeg) UnmarshalJSON(b []byte) error {
+	type plain UnsignedLeg
+	var p plain
+	if err := json.Unmarshal(b, &p); err != nil {
+		return err
+	}
+	kept, err := keepjson.Split(b, p)
+	if err != nil {
+		return fmt.Errorf("a payment leg: %w", err)
+	}
+	*l = UnsignedLeg(p)
+	l.kept = kept
+	return nil
+}
+
+// MarshalJSON writes one leg with the fields it kept.
+func (l UnsignedLeg) MarshalJSON() ([]byte, error) {
+	type plain UnsignedLeg
+	b, err := json.Marshal(plain(l))
+	if err != nil {
+		return nil, err
+	}
+	return keepjson.Join(b, l.kept)
 }
 
 // PartialWitness is the policy of one input and the signatures gathered.
