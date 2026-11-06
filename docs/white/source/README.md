@@ -89,6 +89,10 @@ Orange proposals), White answers:
       `format` goes up (W-25). A file that crosses machines needs a
       `kind` and `format`, and keeps unknown keys on write-back (W-23,
       W-24).
+- [ ] Does it add a kept field that describes other data (an offset, a
+      count, a marker)? An older release keeps it unchanged while it
+      changes the data, so the reader checks it before trusting it
+      (W-33).
 - [ ] Does it add a record kind to the pool log, or change a snapshot?
       Can the previous release still start on the data folder?
 - [ ] Does it add, rename or remove a command, flag, setting, metric or
