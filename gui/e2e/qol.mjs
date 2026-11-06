@@ -565,6 +565,14 @@ try {
     return [...first, rows(), box.querySelectorAll('.bounty-more').length];
   });
   assert.deepEqual(bigHeld, [500, 'Showing 500 of 600 offers. Show more', 600, 0]);
+  // poo's notes on the market's settings (D202) show over the tables.
+  const bnotes = await page.evaluate(async () => {
+    const { marketView } = await import('/views/bounty.js');
+    const box = document.createElement('div');
+    box.append(...marketView({ post: true, take: false, mine: [], held: [], notes: ['bounty.post is on but bounty.budget is not set'] }));
+    return [...box.querySelectorAll('.bounty-note')].map(n => n.textContent);
+  });
+  assert.deepEqual(bnotes, ['bounty.post is on but bounty.budget is not set']);
   assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'work:c'], 'no Cancel on an expired offer');
   // With no offers, only the steps this node takes are offered, and the
   // off line names the switch as Set limits shows it (GUI-GREEN-064).
