@@ -1,8 +1,8 @@
 // The Bounty view: the bounty market (D196, GUI-GREEN-062). A node pays
 // peers to grind layers on its entries; every action is a poo bounty
 // command, and the tables only lay out what poo bounty list prints. The
-// market is off until node.json's bounty section turns it on, which the
-// GUI does not edit.
+// market is off until the bounty.post or bounty.take limit turns it on
+// (Node policies, Set limits).
 import * as where from '../where.js';
 import * as api from '../api.js';
 import { el, flag, form, mountAll, panel, rawFold, needsNode, rowsTable } from '../views.js';
@@ -138,7 +138,7 @@ export const bountyView = {
         // Whether the market is on comes from poo status (W-30), never
         // from the error's words (GUI White S5).
         let st = null;
-        try { const s = await api.run(['status', ...where.flags()]); st = s.code === 0 ? JSON.parse(s.out) : null; } catch (_) { /* no status */ }
+        try { const s = await api.run(['status', '-counts', ...where.flags()]); st = s.code === 0 ? JSON.parse(s.out) : null; } catch (_) { /* no status */ }
         const off = offNote(r, st);
         if (off) area.append(off);
         return;

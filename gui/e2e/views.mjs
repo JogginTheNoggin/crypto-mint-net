@@ -661,6 +661,14 @@ try {
   // Redrawn from the new list: empty again, showing the new value.
   await setLim.locator('input[data-limit="p2p.max_book"][placeholder="8192"]').waitFor();
   assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home}`, 'nothing is sent again after a save');
+  // A limit poo marks as a switch (D198) is on, off or unchanged.
+  const sw = setLim.locator('select[data-limit="bounty.post"]');
+  assert.equal(await sw.inputValue(), '');
+  assert.match(await setLim.locator('label:has(select[data-limit="bounty.post"])').innerText(), /unchanged \(off\)[\s\S]*on or off, default off/);
+  await sw.selectOption('on');
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home} -set bounty.post=on`);
+  await sw.selectOption('');
+  assert.equal(await setLim.locator('.cmd code').innerText(), `poo policy limits -root ${home}`);
   // A save reloads the running node, which restarts its RPC; wait until
   // poo status answers with the saved node.json loaded before asking it
   // again, as a person would see on the Node view.
