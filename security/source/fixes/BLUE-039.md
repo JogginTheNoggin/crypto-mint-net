@@ -5,6 +5,7 @@
 | Fixes | RED-118 (low), RED-119 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `1e71cf0` (Source Round 38 Part C), with GREEN-063 (#328) merged in |
+| Code | `8ee7aa6` |
 | Decisions | D201 |
 | With | GREEN-063 (#328), carried: it changes the same `book.go` and `cli/bounty.go`. ORANGE-048 (#329) is measurements only, nothing to fix. |
 | Review | No consensus change: the market is outside the ledger (D196). For White: `bounties.json` gains `done_last` (an older release keeps it as a later field, W-28); `poo bounty pay` output gains `recorded`. No new flag or command. |

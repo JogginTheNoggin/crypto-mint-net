@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 38 Part B, on `main` @ `9c4dc92` (D196, D200; `bounty pay` and `Book.Paid`) |
 | Area | `pkg/cli/bounty.go` (`bountyPay`), `pkg/bounty/book.go` (`Paid`, `save`, `archive`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-039) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 8ee7aa6 (BLUE-039) |
 | For Black | Not a rule: the payment is an ordinary transaction. |
 
 ## What is wrong

@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found | Source Round 38 Part B, on `main` @ `9c4dc92` (D200, W-31, ORANGE-047 P1) |
 | Area | `pkg/bounty/book.go` (`doneIDs`, `archive`, `Open`, `file.DoneSize`) |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-039) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 8ee7aa6 (BLUE-039) |
 | For Black | Not a rule. |
 
 ## What is wrong
