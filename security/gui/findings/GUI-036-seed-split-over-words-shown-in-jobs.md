@@ -3,8 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
-| Fixed by | |
+| Status | fixed |
+| Fixed by | GUI/Blue, Round 40C (gui/shell `secretWords`: after `-restore` or `-seed`, the next arg is always the value, as poon's flag parser takes it, and every arg after it is hidden too, up to the next flag; after `-restore=` or `--seed=`, the args after it are hidden the same way. No `LooksLikeKey` test, since the value is always a secret. `sim -seed` is unchanged. TestRedactSecretWords covers the three lines above, the value ending at `-wallet` or `-alg`, and `wallet create -restore - -wallet w.json` keeping `w.json`, and fails on the old code) |
 | Found on | main @ a79be4b (#352, #354; GUI-035's fix in R39C) |
 | Component | gui/shell/secret.go (`Redact`: for a secret flag, `more := 1`, so only the next word is hidden; GUI-035's word-by-word read is only in `keyFileFlag`) |
 | Surface | local (the Jobs list and `/api/jobs`, for as long as the job is kept) |

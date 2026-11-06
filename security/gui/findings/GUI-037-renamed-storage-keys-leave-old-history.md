@@ -3,8 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
-| Fixed by | |
+| Status | fixed (fresh start, by jerry's decision: no migration) |
+| Fixed by | GUI/Blue, Round 40C. jerry's decision (R40, through the coordinator): nothing is released and he wants no fallback for old versions, and the rename covers "everything", so no old key names stay in the code and there is no migration. The rename started the browser's storage fresh. A test profile from before the rename keeps its old entries until the browser's site data for poon-gui's address is cleared. The "next rename" recommendation is built: every storage key name is now in gui/web/static/store.js (PREFIX plus HISTORY, WHERE, THEME, WALLET, WALLET_SERIES), used by terminal.js, where.js and views/wallet.js. TestStorageKeysInStore (gui/web) fails if any other page file names a key itself or an old name is left, and fails on the old code; qol.mjs checks that every key the page saves comes from store.js |
 | Found on | main @ a79be4b (#353, #354: the poo → poon rename, D204) |
 | Component | gui/web/static/terminal.js (`HISTORY_KEY` `poo-gui-history` → `poon-gui-history`), where.js (`poo-gui-where`, `poo-gui-theme` → `poon-gui-…`), views/wallet.js (`poo-gui-wallet` → `poon-gui-wallet`, and `-series`) |
 | Surface | local (the browser profile's storage for the GUI's origin) |

@@ -329,7 +329,10 @@ server is locked down:
   the seed from the masked field (D98, GUI-GREEN-047). Up-arrow still
   recalls such a line for the rest of the session, and Forget history clears what is saved. Jobs
   and `GET /api/jobs` show the flag's value as `<hidden>` and do not offer
-  the line to run again. The terminal still echoes the line as typed, as a
+  the line to run again. A seed typed as several words (in groups) is
+  hidden whole: every word up to the next flag (GUI-036). The names the
+  page keeps in the browser's storage are all in `static/store.js`
+  (GUI-037). The terminal still echoes the line as typed, as a
   shell does, and a form's preview shows it.
 - **Secrets in output.** `wallet seed` and `keygen` print a seed
   (`shell.SecretOutput`, until the core declares it as

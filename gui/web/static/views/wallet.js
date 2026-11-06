@@ -1,13 +1,14 @@
 // The Wallet view. Each view is one file here, listed in index.js (GUI-GREEN-044).
 import * as api from '../api.js';
+import * as store from '../store.js';
 import * as where from '../where.js';
 import { el, flag, flags, form, mountAll } from '../views.js';
 
 // The Wallet view's wallet file, kept per browser like the Settings flags.
-const WALLET_KEY = 'poon-gui-wallet';
+const WALLET_KEY = store.WALLET;
 export const walletFile = () => { try { return localStorage.getItem(WALLET_KEY) || ''; } catch (_) { return ''; } };
 const setWalletFile = v => { try { localStorage.setItem(WALLET_KEY, v); } catch (_) { /* storage off */ } };
-const walletSeries = () => { try { return localStorage.getItem(WALLET_KEY + '-series') || ''; } catch (_) { return ''; } };
+const walletSeries = () => { try { return localStorage.getItem(store.WALLET_SERIES) || ''; } catch (_) { return ''; } };
 // signNote is the line over poon sign's reply (D193): which key signed,
 // how many signatures it added and how many are still needed, read from
 // poon's own fields. null when poon printed no reply.
@@ -24,7 +25,7 @@ export function signNote(r) {
     : `This key (address ${o.address}) added ${o.added} ${o.added === 1 ? 'signature' : 'signatures'} to ${pays}${o.wrote ? `, written to ${o.wrote}` : ''}; ${still}.`;
   return el('p', { class: 'hint sign-note', role: 'status' }, text);
 }
-const setWalletSeries = v => { try { localStorage.setItem(WALLET_KEY + '-series', v); } catch (_) { /* storage off */ } };
+const setWalletSeries = v => { try { localStorage.setItem(store.WALLET_SERIES, v); } catch (_) { /* storage off */ } };
 
 // payQuestion is Pay's one confirm. With no co-signing file it says what
 // a payment that needs a signature this wallet cannot give (a watch-only
