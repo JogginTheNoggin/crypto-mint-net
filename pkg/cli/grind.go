@@ -249,8 +249,14 @@ func grindBench(fs *flag.FlagSet, args []string, out io.Writer) error {
 		}
 	}
 	if *device != "" && len(rows) == 0 {
-		if skipped != nil { // the device is there but grinds none of the hashes
-			return skipped
+		for _, d := range devs { // there, but it grinds none of the hashes
+			if d.ID == *device {
+				why := ""
+				if d.Note != "" {
+					why = ": " + d.Note
+				}
+				return fmt.Errorf("%s has no grinder for any hash%s", d.ID, why)
+			}
 		}
 		return fmt.Errorf("no device %q (poon grind devices lists them)", *device)
 	}

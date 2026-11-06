@@ -6,8 +6,9 @@ import (
 )
 
 // TestMain points the home folder and POON_HOME at an empty folder, so no
-// test reads the machine's own node policies (found on jerry's machine,
-// D208).
+// test reads the machine's own node policies, and turns the GPU grinder
+// off, so plans are the same with or without a GPU (found on jerry's
+// machine, D208).
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "poon-cli-test-")
 	if err != nil {
@@ -16,6 +17,8 @@ func TestMain(m *testing.M) {
 	os.Setenv("HOME", dir)
 	os.Setenv("USERPROFILE", dir)
 	os.Setenv("POON_HOME", dir+"/.poon")
+	// The machine's GPU would take auto's layer plans (D208).
+	os.Setenv("POON_OPENCL", "off")
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)

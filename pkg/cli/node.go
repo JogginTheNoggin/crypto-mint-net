@@ -802,6 +802,11 @@ func buildCmd(args []string, out io.Writer) error {
 		}
 		return buildOnParent(out, cl, ref, poolArgs(c, ref), *pf.serial, spec, nil, *tries, *work, g.options(), *keep)
 	}
+	// -work is checked before the entry is built: a refusal after it left
+	// the entry built with its hash shown nowhere (jerry's finding 18).
+	if most := rpc.WorkTriesFor(s); *work > most {
+		return fmt.Errorf("-work must be at most %d for this series; for more, build, then poon work -entry HASH -for DURATION", most)
+	}
 	r, err := cl.BuildWith(ref, *tries, g.options())
 	if err != nil {
 		return err
@@ -817,7 +822,7 @@ func buildCmd(args []string, out io.Writer) error {
 	if *work > 0 {
 		l, err := cl.WorkWith(ref, r.Hash, 0, *work, rpc.GrindOptions{Device: *g.device, Threads: *g.threads})
 		if err != nil {
-			return err
+			return fmt.Errorf("built entry %s, but adding a layer failed: %w (poon work %s -entry %s tries again)", r.Hash, err, poolArgs(c, ref), r.Hash)
 		}
 		if !*keep {
 			l.Layer = ""
