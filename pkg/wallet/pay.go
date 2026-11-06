@@ -262,6 +262,10 @@ func (w *Wallet) addSigs(s *series.Series, ul *UnsignedLeg, tid hash.Hash) (int,
 	}
 	msg := policy.Message(tid)
 	added := 0
+	// Every input of a leg signs the same message, so a key that owns
+	// several of them signs once and gives each the same signature
+	// (ORANGE-045).
+	sigs := map[uint32][]byte{}
 	for i := range ul.Inputs {
 		p, err := ul.Inputs[i].policy()
 		if err != nil {
@@ -279,11 +283,16 @@ func (w *Wallet) addSigs(s *series.Series, ul *UnsignedLeg, tid hash.Hash) (int,
 			if !ok {
 				continue
 			}
-			sg, err := w.signer(idx)
-			if err != nil {
-				return added, err
+			sig, ok := sigs[idx]
+			if !ok {
+				sg, err := w.signer(idx)
+				if err != nil {
+					return added, err
+				}
+				sig = sg.Sign(msg)
+				sigs[idx] = sig
 			}
-			ul.Inputs[i].Sigs = append(ul.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: sg.Sign(msg)})
+			ul.Inputs[i].Sigs = append(ul.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: sig})
 			added++
 		}
 	}
@@ -524,6 +533,7 @@ func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) 
 			return added, errors.New("wallet: unsigned leg has the wrong number of inputs")
 		}
 		msg := policy.Message(t.TID(h))
+		var sig []byte // one signature serves every input of the leg (ORANGE-045)
 		for i := range l.Inputs {
 			p, err := l.Inputs[i].policy()
 			if err != nil {
@@ -537,7 +547,10 @@ func SignWith(u *Unsigned, h hash.Func, alg policy.AlgID, signer policy.Signer) 
 				if k.Alg != alg || !bytes.Equal(k.Public, pub) || l.Inputs[i].has(uint16(ki)) {
 					continue
 				}
-				l.Inputs[i].Sigs = append(l.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: signer.Sign(msg)})
+				if sig == nil {
+					sig = signer.Sign(msg)
+				}
+				l.Inputs[i].Sigs = append(l.Inputs[i].Sigs, SigHex{Index: uint16(ki), Sig: sig})
 				added++
 			}
 		}

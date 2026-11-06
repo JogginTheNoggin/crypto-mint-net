@@ -104,3 +104,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-042](source/ORANGE-042-unknown-settings-and-status-size.md) | Source | Round 32 measured; saving unknown settings was quadratic, and the status reply after an upgrade | proposed |
 | [ORANGE-043](source/ORANGE-043-ledger-export-import-and-hello.md) | Source | Round 33 measured; ledger export and import, and the hello's cost | proposed |
 | [ORANGE-044](source/ORANGE-044-hello-ping-limits-and-peer-memory.md) | Source | Round 34 measured; the hello and ping at the new limits, and memory per connection | proposed |
+| [ORANGE-045](source/ORANGE-045-poo-sign-and-header-keys.md) | Source | Round 35 measured; `poo sign` signed each input apart, and skipped header keys | proposed |
