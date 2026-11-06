@@ -98,14 +98,39 @@ export async function loadInfo() {
 // A secret flag whose value is - (standard input) holds no secret: poo
 // asks for it in a masked field, so poo wallet create -restore - is not
 // one (GUI-GREEN-047).
+//
+// A key file flag (-key-file, -seed-file) takes a path, which is no
+// secret; but a key typed where the path goes is, so a line whose value
+// looksLikeKey is kept out too (GUI-034). The value may be split into
+// words (a quoted key printed in groups), so each run of words after the
+// flag is tried.
 export function secretLine(text) {
   const words = text.trim().split(/\s+/).map(w => w.replace(/^['"]+|['"]+$/g, ''));
   if (words[0] === 'poo') words.shift();
   if (words.find(w => !w.startsWith('-')) === 'sim') return false;
-  return words.some((w, i) => secretFlags.some(f => {
+  if (words.some((w, i) => secretFlags.some(f => {
     const m = new RegExp(`^--?${f}(=(.*))?$`).exec(w);
     return m && (m[1] !== undefined ? m[2] !== '-' : words[i + 1] !== '-');
-  }));
+  }))) return true;
+  return words.some((w, i) => {
+    const m = /^--?(key-file|seed-file)(=(.*))?$/.exec(w);
+    if (!m) return false;
+    const rest = [...(m[2] !== undefined ? [m[3]] : []), ...words.slice(i + 1)];
+    for (let k = 1; k <= rest.length; k++) if (looksLikeKey(rest.slice(0, k).join(' '))) return true;
+    return false;
+  });
+}
+
+// looksLikeKey says s, given where a path goes, is a key: 32 or more hex
+// digits in a row once the separators a key is often printed with are
+// taken out (colons as openssl prints it, spaces, dashes, a dot at the
+// end), and no / or \ or other dot in it (GUI-032). The Wallet view's
+// sign form, the terminal's history (secretLine) and poo-gui's
+// shell.LooksLikeKey use the same test.
+export function looksLikeKey(s) {
+  if (typeof s !== 'string') return false;
+  const t = s.trim().replace(/\.+$/, '');
+  return !/[/\\.]/.test(t) && /[0-9a-fA-F]{32,}/.test(t.replace(/[\s:-]/g, ''));
 }
 
 // quote shows args as the poo command line the platform's shell would

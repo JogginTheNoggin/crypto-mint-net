@@ -3,7 +3,8 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | open |
+| Status | fixed |
+| Fixed by | GUI/Blue, Round 37C (api.js: `secretLine` is also true when a `-key-file` or `-seed-file` value, as the next word or words, or after `=`, passes `looksLikeKey`, which now lives in api.js and is shared with the Wallet view's sign form; terminal.mjs and qol.mjs check it; lines saved before go on the next load, as `loadHistory` filters with `saveable`) |
 | Found on | main @ 7eb16ab (#310, #315: `shell.LooksLikeKey` in `shell.Redact`, GUI-032 R36B) |
 | Component | gui/web/static/api.js (`secretLine`: only the secret flags, seed and restore, keep a line out of saved history); gui/web/static/terminal.js (`saveable`, `saveHistory`: localStorage `poo-gui-history`) |
 | Surface | local (the browser profile's storage, kept across sessions) |

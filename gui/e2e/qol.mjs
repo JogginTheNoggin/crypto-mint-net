@@ -399,6 +399,16 @@ try {
     return ['poo keygen -seed ' + 'ab'.repeat(32), 'poo keygen -seed=ab', 'poo wallet create -restore -', 'poo wallet create -restore=-', 'poo keygen -seed-file -', 'poo sim -seed 3', 'poo keygen -seed'].map(secretLine);
   });
   assert.deepEqual(secret, [true, true, false, false, false, false, true], 'secretLine: a value of - is read in a masked field, not on the line');
+  // A key where a key file's path goes is a secret line too (GUI-034):
+  // plain, after =, with colons, quoted in groups, before a file name; a
+  // path or - is not.
+  const keyLines = await page.evaluate(async () => {
+    const { secretLine } = await import('/api.js');
+    const k = 'ab'.repeat(32);
+    return [`poo sign x.json -key-file ${k}`, `poo sign x.json --key-file=${k}`, `poo sign x.json -key-file ${Array(32).fill('ab').join(':')}`, `poo sign -key-file '${Array(8).fill('abcdef01').join(' ')}' x.json`,
+      `poo keygen -seed-file ${k}.`, 'poo sign x.json -key-file cold.key', 'poo sign x.json -key-file -', `poo sign x.json -key-file /keys/${k}`].map(secretLine);
+  });
+  assert.deepEqual(keyLines, [true, true, true, true, true, false, false, false], 'secretLine: a key typed as a key file');
   // A list longer than 500 says it was cut, as a table does (ORANGE-018).
   const cut = await page.evaluate(async () => {
     const { render } = await import('/render.js');
