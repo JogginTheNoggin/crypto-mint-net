@@ -1,11 +1,11 @@
-# ORANGE-051: Round 41 measured; the GPU grinder's chunk, its stop, and entries on every core but one
+# ORANGE-051: Round 41 measured; the GPU grinder's chunk and stop (RTX 2070 SUPER and PoCL), and entries on every core but one
 
 | Field | Value |
 | --- | --- |
 | Status | proposed |
 | Based on | `main` @ `6cf8002` |
 | Area | `pkg/grind` (`gpu-opencl`, `calibrate`, D208), `pkg/layer` (`GrindSearchChunk`), `pkg/entry` (`BuildWith`), `pkg/engine` (`EntryWorkers`) |
-| Effort | measurements only; two proposals |
+| Effort | measurements only; two proposals (one optional) |
 | Decided by | Grey |
 
 ## Summary
@@ -16,10 +16,48 @@ logical core but one. BASE.md asked for the chunk size and the stop
 latency with PoCL, and for the cost of entries ground on every core but
 one.
 
-Following jerry's rule, the GPU itself is measured only on jerry's
-computer. These figures are from PoCL, the CPU OpenCL driver, in the
-container. I have asked the node thread for the same runs on the RTX
-2070 SUPER, and I will add them here when they come back.
+Following jerry's rule, the GPU itself was measured only on jerry's
+computer (dev1, an RTX 2070 SUPER), through the node thread; that is
+Section 0. Sections 1 to 4 are from PoCL, the CPU OpenCL driver, in the
+container.
+
+**0. On the RTX 2070 SUPER, the calibrated chunk gives 99.5% of the
+GPU's rate, and a stop takes 5 ms typically, 14 ms at worst.**
+
+| chunk | SHA-256 | per call | SHA-512/256 | per call |
+| --- | --- | --- | --- | --- |
+| 2^14 | 149 M/s | 0.11 ms | 41 M/s | 0.40 ms |
+| 2^18 | 2,488 M/s | 0.11 ms | 659 M/s | 0.40 ms |
+| 2^20 | 3,365 M/s | 0.31 ms | 1,159 M/s | 0.90 ms |
+| 2^22 | 4,382 M/s | 0.96 ms | 1,512 M/s | 2.8 ms |
+| 2^24 | 4,500 M/s | 3.7 ms | 1,553 M/s | 10.8 ms |
+| 2^26 (calibrated for SHA-256) | 4,596 M/s | 14.6 ms | 1,564 M/s | 43 ms |
+| 2^28 | 4,611 M/s | 58 ms | 1,568 M/s | 171 ms |
+| 2^30 | 4,619 M/s | 232 ms | 1,571 M/s | 684 ms |
+
+| stop, threads 1 | median | worst |
+| --- | --- | --- |
+| SHA-256, 2^24 | 1.0 ms | 3.4 ms |
+| SHA-256, 2^26 (calibrated) | 5.2 ms | 14 ms |
+| SHA-256, 2^28 | 27 ms | 59 ms |
+| SHA-512/256, 2^23 | 2.7 ms | 5.5 ms |
+| SHA-512/256, 2^25 (calibrated) | 13 ms | 20 ms |
+| SHA-512/256, 2^27 | 37 ms | 86 ms |
+
+- `calibrate` picked 2^26 for SHA-256 and 2^25 for SHA-512/256 (not
+  timed alone; between the 2^24 and 2^26 rows).
+- Building and calibrating a kernel takes 93 ms for SHA-256 and 34 ms
+  for SHA-512/256.
+- A call costs about 0.1 ms whatever its size (0.4 ms for
+  SHA-512/256). So the 2^20 nonces that `calibrate` times are mostly
+  that fixed cost: 0.31 ms against 0.23 ms at the full rate. The chunk
+  it picks is therefore smaller than 50 ms, at 15 to 21 ms a call. It
+  still gets 99.5% of the plateau, and stops are faster for it.
+- The GPU grinds SHA-256 at 4.6 G/s, about 90 times the 51 M/s of the
+  CPU's 4 cores on that machine, and SHA-512/256 at 1.57 G/s, 86 times
+  its 18 M/s.
+- Go sees 4 logical CPUs on dev1 (an i5-12400 in a VM), so entries get
+  3 workers there.
 
 **1. With PoCL, the calibrated chunk loses about 5% of the throughput.**
 
@@ -109,20 +147,26 @@ beside a node taking distinct claims, on the 4 cores:
 - Plain `sha256.Sum256` on 4 goroutines does gain 4 times (9.6 to
   38.5 M/s). The profile shows the time in `blockSHANI` and
   `Digest.Sum`.
-- I parked the root cause. It matters more now: on jerry's 12 threads,
-  D208 gives entries 11 workers. The dev1 run includes entry scaling to
-  12 threads.
+- On dev1, the entry search gains 2.9 times from 4 workers (13.8 to
+  39.6 M/s with SHA-256) against 3.9 for layers (13.1 to 51.4 M/s), and
+  3.1 against 3.9 with SHA-512/256. So the loss is real but much
+  smaller there than in this container. Past the 4 CPUs Go sees, both
+  stop gaining, and 12 workers drop to 27 M/s.
+- I parked the root cause.
 
 ## Proposals
 
-**Proposal 1: keep the 50 ms chunk.** With PoCL it costs about 5% of the
-throughput and holds a stop under 50 ms. The dev1 figures will show
-whether a real GPU's per-call cost makes 2^20 nonces too short to time:
-at about 1 G/s, 2^20 nonces is 1 ms, close to the launch cost. If it is
-too short, `calibrate` could time a larger first search, for example
-until 10 ms have passed.
+**Proposal 1: keep the chunk as it is.** On the RTX 2070 SUPER it gets
+99.5% of the GPU's rate and stops within 14 ms (20 ms for SHA-512/256).
+With PoCL it gets about 95% and stops within 50 ms. The 2^20 nonces
+`calibrate` times are mostly a call's fixed cost on a fast GPU, so it
+picks chunks of 15 to 21 ms, not 50. That only makes stops faster.
+Nothing to change.
 
-**Proposal 2: find why the entry search does not scale.** Profile
+**Proposal 2 (optional): find why the entry search scales worse than
+the layer search.** It costs 25% at 4 workers on dev1, and 50% in this
+container. An entry takes a fraction of a second at the reserve's
+minimum, so this is low priority. Profile
 `entry.BuildWith` with several workers. If `Grinder.Hash` is the cause,
 the entry search could use the lane grinders, as the layer search does.
 The entry prefix differs from a layer's (the tag, the parent and the
@@ -156,8 +200,11 @@ commit, run with `POON_OPENCL_ALL=1`.
 - **Entry scaling:** `BuildWith` for 2 s with 1 to 4 workers. Then the
   round size changed by hand, padding between the `Grinder`s, and
   `sha256.Sum256` on its own.
-- **dev1:** the same harnesses are in `/mnt/project-files/node-testing/orange-r41/`
-  for the node thread to run.
+- **dev1:** the chunk, stop and entry scaling harnesses ran on jerry's
+  computer through the node thread. That run was at `main` `56c5e0a`,
+  which includes `6cf8002`, with NVIDIA driver 550.163.01 and
+  `POON_OPENCL_ALL=1`, and the chunks went up to 2^30. Its full output
+  is in `/mnt/project-files/node-testing/orange-r41/RESULTS-dev1.md`.
 
 ## What changed
 
@@ -166,7 +213,7 @@ Only this document and its row in the proposals README.
 ## Consensus impact
 
 None. This PR changes no code.
-- Proposal 1 changes how long a GPU call takes.
+- Proposal 1 changes nothing.
 - Proposal 2 changes how fast an entry is searched, not which nonce
   is found or what any entry or hash is.
 - No verdict changes and no depth limit is added.
