@@ -16,10 +16,10 @@ func testOffer(strength uint8, count uint16) Offer {
 func TestCodecRoundTrip(t *testing.T) {
 	o := testOffer(24, 2)
 	o.Salt = 9
-	if got, err := DecodeOffer(append(o.Encode(), 1, 2, 3)); err != nil || got != o {
+	if got, err := DecodeOffer(o.Encode()); err != nil || !got.Same(o) || got.ID() != o.ID() || got.Salt != 9 {
 		t.Fatalf("offer %+v %v", got, err)
 	}
-	if got, err := DecodeList(EncodeList([]Offer{o, o})); err != nil || len(got) != 2 || got[1] != o {
+	if got, err := DecodeList(EncodeList([]Offer{o, o})); err != nil || len(got) != 2 || !got[1].Same(o) {
 		t.Fatalf("list %+v %v", got, err)
 	}
 	tk := Take{Offer: o.ID(), Rate: 5, PayTo: hash.Hash{7}}
@@ -93,19 +93,19 @@ func TestBookLeasesAndClaims(t *testing.T) {
 	}
 	// Claims: another grinder is reserved out, the wrong address and a
 	// weak layer are refused, the right one is accepted.
-	if a := b.Claim("bob", Claim{Offer: m1.ID, Nonce: 1}, 30); a.Outcome != Reserved {
+	if a := b.Claim("bob", Claim{Offer: m1.ID, Nonce: 1}, 30, false); a.Outcome != Reserved {
 		t.Fatalf("bob's claim %s", OutcomeName(a.Outcome))
 	}
-	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 1, PayTo: hash.Hash{0xb}}, 30); a.Outcome != Mismatch {
+	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 1, PayTo: hash.Hash{0xb}}, 30, false); a.Outcome != Mismatch {
 		t.Fatalf("wrong address %s", OutcomeName(a.Outcome))
 	}
-	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 1, PayTo: hash.Hash{0xa}}, 19); a.Outcome != TooWeak {
+	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 1, PayTo: hash.Hash{0xa}}, 19, false); a.Outcome != TooWeak {
 		t.Fatalf("weak %s", OutcomeName(a.Outcome))
 	}
-	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 2, PayTo: hash.Hash{0xa}}, 21); a.Outcome != Accepted {
+	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 2, PayTo: hash.Hash{0xa}}, 21, false); a.Outcome != Accepted {
 		t.Fatalf("good %s", OutcomeName(a.Outcome))
 	}
-	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 2, PayTo: hash.Hash{0xa}}, 21); a.Outcome != Repeat {
+	if a := b.Claim("alice", Claim{Offer: m1.ID, Nonce: 2, PayTo: hash.Hash{0xa}}, 21, false); a.Outcome != Repeat {
 		t.Fatalf("again %s", OutcomeName(a.Outcome))
 	}
 	// Filling one earns a second lease.

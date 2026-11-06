@@ -176,7 +176,7 @@ public tag (W-17, D190).
 
 Feature names and extension tags are registered in `pkg/wire` (`hello.go`)
 and never reused. Registered features: `layers-from`, `many-layers`,
-`parts`, `release`, `bounty` (D196: listed only when node policy turns the bounty market on; messages 70 to 76 go only to a peer that lists it, and a node with the market off ignores them; the offer id is the SHA-256 of the offer's bytes; decoders ignore trailing bytes). No extension tag is registered yet. A node skips a
+`parts`, `release`, `bounty` (D196: listed only when node policy turns the bounty market on; messages 70 to 76 go only to a peer that lists it, and a node with the market off ignores them; decoders ignore trailing bytes). The offer id is the SHA-256 of the offer's bytes as received, trailing bytes included, and a node passes an offer on as the bytes it received, so nodes of every release name an offer alike (W-27, D198). Later bounty changes follow one rule (W-29): a trailing field older nodes may ignore stays at bounty version 1; a change older nodes must not ignore becomes bounty version 2, sent only to peers listing `bounty` at 2 or more; a new outcome must be safe for an older node to read as not paid; and relaying passes on the bytes received. No extension tag is registered yet. A node skips a
 feature or tag it does not know, and keeps no extension value of a tag
 it does not know.
 

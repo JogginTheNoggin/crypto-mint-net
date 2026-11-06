@@ -309,6 +309,20 @@ func (p *Pool) Layers(h hash.Hash) []layer.Layer {
 	return out
 }
 
+// HasLayer reports whether the held entry h has the layer of that nonce.
+func (p *Pool) HasLayer(h hash.Hash, nonce uint64) bool {
+	n, ok := p.nodes[h]
+	if !ok {
+		return false
+	}
+	for _, l := range n.layers {
+		if l.Nonce == nonce {
+			return true
+		}
+	}
+	return false
+}
+
 // LayerCount returns how many layers the entry holds.
 func (p *Pool) LayerCount(h hash.Hash) int {
 	if n, ok := p.nodes[h]; ok {

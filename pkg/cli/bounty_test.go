@@ -2,7 +2,9 @@ package cli
 
 import (
 	"net"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -168,9 +170,54 @@ func TestBountyMarket(t *testing.T) {
 		t.Fatalf("the grinder's address holds %d at the payer, want 10", held.Balance)
 	}
 
+	// An offer for two layers on the same entry is filled by two work
+	// calls: each starts at a random nonce, so the second finds another
+	// layer, and neither is one the payer holds (RED-109, RED-110).
+	var two rpc.BountyPostReply
+	cli(t, &two, append([]string{"bounty", "post", "-pool", "1", "-entry", built.Hash, "-strength", "8", "-amount", "10", "-count", "2"}, pr...)...)
+	for i := 0; i < 50; i++ {
+		cli(t, &seen, append([]string{"bounty", "list", "-ask"}, gr...)...)
+		if len(seen.Held) > 1 {
+			break
+		}
+	}
+	nonces := map[uint64]bool{worked.Nonce: true}
+	for i := range 2 {
+		var w rpc.BountyWorkReply
+		cli(t, &w, append([]string{"bounty", "work", two.Offer.ID.String(), "-to", addr.Address}, gr...)...)
+		if w.Outcome != "accepted" || nonces[w.Nonce] {
+			t.Fatalf("work %d on the two-layer offer: %+v (nonces so far %v)", i, w, nonces)
+		}
+		nonces[w.Nonce] = true
+	}
+
 	// A node with the market off refuses the commands.
 	if _, err := runErr(append([]string{"bounty", "cancel", posted.Offer.ID.String()}, gr...)...); err == nil {
 		t.Fatal("a grinder cancelled the payer's offer")
 	}
-	cli(t, nil, append([]string{"bounty", "cancel", posted.Offer.ID.String()}, pr...)...)
+	// The first offer, filled and paid, needs nothing more: it moved to
+	// the done file and is no longer listed (ORANGE-046 P1). The second is
+	// filled and unpaid, so it stays, says so, and cancelling it keeps
+	// its claims owed (GUI-GREEN-062).
+	var listed rpc.BountyReply
+	cli(t, &listed, append([]string{"bounty", "list"}, pr...)...)
+	if len(listed.Mine) != 1 || listed.Mine[0].ID != two.Offer.ID || listed.Mine[0].State != bounty.StateFilled || listed.Mine[0].Closes == nil {
+		t.Fatalf("listed %+v", listed.Mine)
+	}
+	if _, err := runErr(append([]string{"bounty", "cancel", posted.Offer.ID.String()}, pr...)...); err == nil {
+		t.Fatal("a done offer was cancelled")
+	}
+	var closed bounty.Mine
+	cli(t, &closed, append([]string{"bounty", "cancel", two.Offer.ID.String()}, pr...)...)
+	if closed.State != bounty.StateClosed || closed.Owed() != 20 {
+		t.Fatalf("cancelled %+v, owes %d", closed, closed.Owed())
+	}
+	var st rpc.StatusReply
+	cli(t, &st, append([]string{"status"}, pr...)...)
+	if done, err := os.ReadFile(filepath.Join(pdir, bounty.DoneFileName)); err != nil || !strings.Contains(string(done), posted.Offer.ID.String()) {
+		t.Fatalf("the done file: %v", err)
+	}
+	if !st.Bounty.Post || st.Bounty.Take {
+		t.Fatalf("status bounty %+v", st.Bounty)
+	}
 }

@@ -149,6 +149,9 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 		if cfg.Bounty, err = bounty.Open(bc, filepath.Join(dir, bounty.FileName)); err != nil {
 			return false, errors.Join(err, n.Close())
 		}
+		for _, why := range cfg.Bounty.Dropped() {
+			nlog.Warn("bounties.json: left out what the posting checks refuse", "what", why)
+		}
 	}
 	host, err := p2p.New(n, cfg)
 	if err != nil {
@@ -210,6 +213,10 @@ func runOnce(ctx context.Context, dir string, log io.Writer, o Options) (reload 
 	gm.Close()
 	hub.Close()
 	perr := <-herr
+	if cfg.Bounty != nil {
+		// A lease's save may still wait on its timer (ORANGE-046 P2).
+		perr = errors.Join(perr, cfg.Bounty.Close())
+	}
 	cerr := n.Close()
 	select {
 	case <-asked:

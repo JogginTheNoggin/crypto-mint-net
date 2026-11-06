@@ -86,6 +86,7 @@ decides whether to adopt each one and records the outcome in the file.
 | [GREEN-058](source/GREEN-058-ledger-export-pool-zero.md) | Source | Ledger export refuses a start past the tip; import errors name what the node needs | proposed |
 | [GREEN-059](source/GREEN-059-dev-commit-and-dry-run-follow.md) | Source | A dev build names its commit in release; the import dry run says whether the pool is followed | proposed |
 | [GREEN-060](source/GREEN-060-cold-claim-and-key-file.md) | Source | The cold-key steps work with the key never on the node: keygen -out, wallet claim -to-policy, poo sign signs claims | proposed |
+| [GREEN-061](source/GREEN-061-bounty-offer-finds-its-pool.md) | Source | A bounty offer goes to the pool that holds its entry; a pool that does not hold it is refused | proposed |
 | [ORANGE-026](source/ORANGE-026-entry-body-ends-at-its-size.md) | Source | Entry submit re-measured after D147; let the buffer end at the stated size | adopted (D149) |
 | [ORANGE-027](source/ORANGE-027-round-17-modularity-measured.md) | Source | Round 17 measured; the modular seams cost nothing worth an exception | measured; no exception needed (D151) |
 | [ORANGE-028](source/ORANGE-028-round-18-import-and-unlock-measured.md) | Source | Round 18 measured; imports are linear, Unlock's check is free | measured; no change needed (D153) |
@@ -106,3 +107,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-043](source/ORANGE-043-ledger-export-import-and-hello.md) | Source | Round 33 measured; ledger export and import, and the hello's cost | proposed |
 | [ORANGE-044](source/ORANGE-044-hello-ping-limits-and-peer-memory.md) | Source | Round 34 measured; the hello and ping at the new limits, and memory per connection | proposed |
 | [ORANGE-045](source/ORANGE-045-poo-sign-and-header-keys.md) | Source | Round 35 measured; `poo sign` signed each input apart, and skipped header keys | proposed |
+| [ORANGE-046](source/ORANGE-046-bounty-market-measured.md) | Source | Round 36 measured; the bounty market's messages are cheap, but its file only grows | proposed |

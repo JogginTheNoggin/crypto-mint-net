@@ -2,7 +2,10 @@ package rpc
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"net/http"
 	"runtime"
 	"time"
@@ -37,6 +40,9 @@ type BountyPostRequest struct {
 	Amount      uint64    `json:"amount"`
 	Count       uint16    `json:"count"`
 	OpenSeconds uint32    `json:"open_seconds,omitempty"`
+	// FindPool offers on the followed pool of the series that holds
+	// Entry, whatever Pool says (GREEN-061).
+	FindPool bool `json:"find_pool,omitempty"`
 }
 
 // BountyPostReply is the posted offer and how many peers it went to.
@@ -142,6 +148,19 @@ func (h *Handler) bountyPost(w http.ResponseWriter, r *http.Request) {
 	if !h.needHost(w) {
 		return
 	}
+	if req.FindPool {
+		ks := h.host.BountyPools(req.Series, req.Entry)
+		switch len(ks) {
+		case 0:
+			writeError(w, &Error{Message: "no followed pool of the series holds entry " + req.Entry.String() + " (poo build prints an entry's hash; poo pools shows each pool's tip)", Code: CodeNotFound, Status: http.StatusNotFound})
+			return
+		case 1:
+			req.Pool = ks[0]
+		default:
+			writeError(w, &Error{Message: fmt.Sprintf("pools %v all hold entry %s; name one with -pool", ks, req.Entry.Short()), Code: CodeConflict, Status: http.StatusConflict})
+			return
+		}
+	}
 	o := bounty.Offer{Kind: bounty.KindLayer, Series: req.Series, Pool: req.Pool, Entry: req.Entry,
 		Strength: req.Strength, Amount: req.Amount, Count: req.Count, OpenSeconds: req.OpenSeconds}
 	m, sent, err := h.host.PostBounty(o)
@@ -162,11 +181,11 @@ func (h *Handler) bountyCancel(w http.ResponseWriter, r *http.Request) {
 	if b == nil {
 		return
 	}
-	if err := b.Cancel(req.ID); err != nil {
+	m, err := b.Cancel(req.ID)
+	if err != nil {
 		writeError(w, bountyErr(err))
 		return
 	}
-	m, _ := b.Get(req.ID)
 	writeJSON(w, m)
 }
 
@@ -269,7 +288,11 @@ func (h *Handler) bountyWork(w http.ResponseWriter, r *http.Request) {
 	gctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	const chunk = 1 << 20
-	for start := uint64(0); gctx.Err() == nil; start += chunk {
+	// A random start, so two grinders, or two calls, find different
+	// layers (RED-109).
+	var sb [8]byte
+	_, _ = rand.Read(sb[:])
+	for start := binary.BigEndian.Uint64(sb[:]) >> 1; gctx.Err() == nil; start += chunk {
 		l, st, err := layer.GrindHash(id, held.Offer.Entry, start, chunk, workers)
 		if err != nil {
 			writeError(w, badRequest("%v", err))

@@ -2,6 +2,7 @@ package nodepolicy
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
@@ -61,6 +62,88 @@ func (b *Bounty) validate() error {
 		return fmt.Errorf("lease_ceiling_seconds is under lease_floor_seconds")
 	case b.HeldOffers < 0 || b.HeldOffers > MaxBountyHeld:
 		return fmt.Errorf("held_offers must be 0 to %d", MaxBountyHeld)
+	}
+	return nil
+}
+
+// bountyLimit returns the bounty setting named as a limit.
+func (p *Policy) bountyLimit(name string) (int, bool) {
+	var b Bounty
+	if p.Bounty != nil {
+		b = *p.Bounty
+	}
+	flag := func(on bool) int {
+		if on {
+			return 1
+		}
+		return 0
+	}
+	amount := func(v uint64) int { return int(min(v, math.MaxInt64)) }
+	switch name {
+	case BoundBountyPost.Name:
+		return flag(b.Post), true
+	case BoundBountyTake.Name:
+		return flag(b.Take), true
+	case BoundBountyMaxOpen.Name:
+		return b.MaxOpen, true
+	case BoundBountyMaxAmount.Name:
+		return amount(b.MaxAmount), true
+	case BoundBountyBudget.Name:
+		return amount(b.Budget), true
+	case BoundBountyMaxLeases.Name:
+		return b.MaxLeasesPerGrinder, true
+	case BoundBountyLeaseFloor.Name:
+		return b.LeaseFloorSeconds, true
+	case BoundBountyLeaseCeiling.Name:
+		return b.LeaseCeilingSeconds, true
+	case BoundBountyHeld.Name:
+		return b.HeldOffers, true
+	case BoundBountyMinPrice.Name:
+		return amount(b.MinPrice), true
+	}
+	return 0, false
+}
+
+// setBountyLimit sets the bounty setting named as a limit. A section left
+// with nothing set is removed, so node.json stays as it was.
+func (p *Policy) setBountyLimit(name string, v int) error {
+	if _, ok := p.bountyLimit(name); !ok {
+		return fmt.Errorf("%w: %q is not a settable limit (poo policy limits lists them)", ErrInvalid, name)
+	}
+	switch {
+	case bountyBools[name] && v != 0 && v != 1:
+		return fmt.Errorf("%w: %s is 1 (on) or 0 (off), not %d", ErrInvalid, name, v)
+	case v < 0:
+		return fmt.Errorf("%w: %s is %d; it is never negative", ErrInvalid, name, v)
+	}
+	if p.Bounty == nil {
+		p.Bounty = &Bounty{}
+	}
+	b := p.Bounty
+	switch name {
+	case BoundBountyPost.Name:
+		b.Post = v == 1
+	case BoundBountyTake.Name:
+		b.Take = v == 1
+	case BoundBountyMaxOpen.Name:
+		b.MaxOpen = v
+	case BoundBountyMaxAmount.Name:
+		b.MaxAmount = uint64(v)
+	case BoundBountyBudget.Name:
+		b.Budget = uint64(v)
+	case BoundBountyMaxLeases.Name:
+		b.MaxLeasesPerGrinder = v
+	case BoundBountyLeaseFloor.Name:
+		b.LeaseFloorSeconds = v
+	case BoundBountyLeaseCeiling.Name:
+		b.LeaseCeilingSeconds = v
+	case BoundBountyHeld.Name:
+		b.HeldOffers = v
+	case BoundBountyMinPrice.Name:
+		b.MinPrice = uint64(v)
+	}
+	if *b == (Bounty{}) {
+		p.Bounty = nil
 	}
 	return nil
 }

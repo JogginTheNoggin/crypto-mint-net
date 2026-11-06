@@ -13,9 +13,13 @@
 package bounty
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/encoding"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
@@ -55,10 +59,34 @@ type Offer struct {
 	OpenSeconds uint32 `json:"open_seconds"`
 	// Salt makes two otherwise equal offers different offers.
 	Salt uint64 `json:"salt"`
+	// Raw is the offer's bytes as received or posted, with any fields a
+	// later release added after Salt. The id is the hash of these bytes,
+	// and they are what is passed on, so nodes of every release name an
+	// offer alike (W-27). Empty for an offer built from its fields.
+	Raw Bytes `json:"raw,omitempty"`
 }
 
-// Encode returns the offer's bytes.
+// Bytes are bytes written in JSON as hex.
+type Bytes []byte
+
+// MarshalText writes b as hex.
+func (b Bytes) MarshalText() ([]byte, error) { return []byte(hex.EncodeToString(b)), nil }
+
+// UnmarshalText reads hex.
+func (b *Bytes) UnmarshalText(t []byte) error {
+	v, err := hex.DecodeString(string(t))
+	if err != nil {
+		return err
+	}
+	*b = v
+	return nil
+}
+
+// Encode returns the offer's bytes: Raw when it is set, else its fields.
 func (o Offer) Encode() []byte {
+	if len(o.Raw) > 0 {
+		return slices.Clone([]byte(o.Raw))
+	}
 	w := encoding.NewWriter(96)
 	o.encode(w)
 	return w.Bytes()
@@ -83,8 +111,17 @@ func decodeOffer(r *encoding.Reader) Offer {
 	return o
 }
 
-// ID is the offer's id: SHA-256 of its bytes.
-func (o Offer) ID() hash.Hash { return sha256.Sum256(o.Encode()) }
+// ID is the offer's id: SHA-256 of its bytes, as received when it was
+// received (W-27).
+func (o Offer) ID() hash.Hash {
+	if len(o.Raw) > 0 {
+		return sha256.Sum256(o.Raw)
+	}
+	return sha256.Sum256(o.Encode())
+}
+
+// Same reports whether o and p are the same offer: the same bytes.
+func (o Offer) Same(p Offer) bool { return bytes.Equal(o.Encode(), p.Encode()) }
 
 // Check refuses an offer no node should act on.
 func (o Offer) Check() error {
@@ -102,13 +139,15 @@ func (o Offer) Check() error {
 }
 
 // DecodeOffer reads one offer. Fields a later release adds after it are
-// ignored.
+// not read, but kept in Raw, so the id and what is passed on stay those of
+// the bytes received (W-27).
 func DecodeOffer(b []byte) (Offer, error) {
 	r := encoding.NewReader(b)
 	o := decodeOffer(r)
 	if err := r.Err(); err != nil {
 		return Offer{}, fmt.Errorf("%w: offer: %v", ErrMalformed, err)
 	}
+	o.Raw = slices.Clone(b)
 	return o, nil
 }
 
@@ -245,14 +284,16 @@ func DecodeClaim(b []byte) (Claim, error) {
 
 // Outcomes of a claim.
 const (
-	Accepted uint8 = 1 // the layer is good; payment follows
-	Paid     uint8 = 2 // paid: TIDs name the payment's legs
-	TooWeak  uint8 = 3 // below the target, or not on the entry
-	Filled   uint8 = 4 // the offer has all the layers it wanted
-	Closed   uint8 = 5 // no such open offer
-	Reserved uint8 = 6 // leased to another grinder
-	Mismatch uint8 = 7 // the address is not the one the lease named
-	Repeat   uint8 = 8 // this layer was claimed already
+	Accepted uint8 = 1  // the layer is good; payment follows
+	Paid     uint8 = 2  // paid: TIDs name the payment's legs
+	TooWeak  uint8 = 3  // below the target, or not on the entry
+	Filled   uint8 = 4  // the offer has all the layers it wanted
+	Closed   uint8 = 5  // no such open offer
+	Reserved uint8 = 6  // leased to another grinder
+	Mismatch uint8 = 7  // the address is not the one the lease named
+	Repeat   uint8 = 8  // this layer was claimed already
+	Known    uint8 = 9  // the payer's node holds this layer already (RED-110)
+	NoLease  uint8 = 10 // the grinder holds no lease on the offer (RED-110)
 )
 
 // OutcomeName names an outcome for output.
@@ -274,6 +315,10 @@ func OutcomeName(o uint8) string {
 		return "address mismatch"
 	case Repeat:
 		return "repeat"
+	case Known:
+		return "known"
+	case NoLease:
+		return "no lease"
 	}
 	return fmt.Sprintf("outcome %d", o)
 }
@@ -284,6 +329,16 @@ type Ack struct {
 	Nonce   uint64      `json:"nonce"`
 	Outcome uint8       `json:"outcome"`
 	TIDs    []hash.Hash `json:"tids,omitempty"`
+}
+
+// MarshalJSON writes the ack with its outcome's name beside its number
+// (GUI-GREEN-062).
+func (a Ack) MarshalJSON() ([]byte, error) {
+	type plain Ack
+	return json.Marshal(struct {
+		plain
+		Name string `json:"outcome_name"`
+	}{plain(a), OutcomeName(a.Outcome)})
 }
 
 // Encode returns the ack's bytes.

@@ -325,19 +325,27 @@ for 10 minutes or block it for a day. You can look and act yourself:
 ### Paying peers to grind layers (bounty market)
 
 Two nodes that are connected can trade grinding work (D196). It is off
-until each turns it on in node.json, then restarts:
+until each turns it on, with `poo policy limits -set` (the node reloads)
+or in node.json's `bounty` section:
 
-```json
-"bounty": {"post": true, "take": true, "max_amount": 5000, "budget": 20000}
+```sh
+# the payer: post offers, paying at most 5000 for one and 20000 in all
+./poo policy limits -set bounty.post=1 -set bounty.max_amount=5000 -set bounty.budget=20000
+# the grinder: take peers' offers
+./poo policy limits -set bounty.take=1
 ```
 
-The payer posts an offer on an entry it holds, and the grinder finds,
-works and claims it:
+`poo status` says whether the market is on (`bounty`).
+
+The payer posts an offer on an entry it holds (`ENTRY` is the `hash`
+that `poo build` prints, or a pool's `tip` in `poo pools`; the node finds
+the pool that holds it), and the grinder finds, works and claims it:
 
 ```sh
 # on the payer: pay 1000 units for each of 2 layers of strength 28
 ./poo bounty post -entry ENTRY -strength 28 -amount 1000 -count 2
 # on the grinder: ask peers for offers, then work one
+./poo wallet create                     # once, if it has no wallet yet
 ./poo wallet address                    # a fresh address to be paid to
 ./poo bounty list -ask
 ./poo bounty work OFFER_ID -to ADDRESS

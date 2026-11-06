@@ -21,8 +21,10 @@ func TestLimitsDefaults(t *testing.T) {
 		t.Errorf("retention %+v, want %+v", got, want)
 	}
 	for _, b := range Bounds() {
-		// series_ceiling defaults to 0, which is off (D171).
-		if (b.Default < b.Min || b.Default > b.Max) && !(b.Name == BoundSeriesCeiling.Name && b.Default == 0) {
+		// series_ceiling defaults to 0, which is off (D171), as do the
+		// bounty market's on-off settings and amounts (D198).
+		offByDefault := b.Name == BoundSeriesCeiling.Name || strings.HasPrefix(b.Name, "bounty.")
+		if (b.Default < b.Min || b.Default > b.Max) && !(offByDefault && b.Default == 0) {
 			t.Errorf("%s: default %d outside %d..%d", b.Name, b.Default, b.Min, b.Max)
 		}
 	}
@@ -68,11 +70,40 @@ func TestLimitsBounds(t *testing.T) {
 		"recent_window":                 func(p *Policy, v int) { p.RecentWindow = v },
 		"snapshot_every":                func(p *Policy, v int) { p.SnapshotEvery = v },
 		"p2p.port_map_seconds":          func(p *Policy, v int) { p.P2P.PortMapSeconds = v },
+		"bounty.max_open":               func(p *Policy, v int) { p.Bounty = &Bounty{MaxOpen: v} },
+		"bounty.max_amount":             func(p *Policy, v int) { p.Bounty = &Bounty{MaxAmount: uint64(v)} },
+		"bounty.budget":                 func(p *Policy, v int) { p.Bounty = &Bounty{Budget: uint64(v)} },
+		"bounty.max_leases_per_grinder": func(p *Policy, v int) { p.Bounty = &Bounty{MaxLeasesPerGrinder: v} },
+		"bounty.lease_floor_seconds": func(p *Policy, v int) {
+			p.Bounty = &Bounty{LeaseFloorSeconds: v, LeaseCeilingSeconds: MaxBountyLeaseSec}
+		},
+		"bounty.lease_ceiling_seconds": func(p *Policy, v int) { p.Bounty = &Bounty{LeaseCeilingSeconds: v} },
+		"bounty.held_offers":           func(p *Policy, v int) { p.Bounty = &Bounty{HeldOffers: v} },
+		"bounty.min_price":             func(p *Policy, v int) { p.Bounty = &Bounty{MinPrice: uint64(v)} },
 	}
-	if len(set) != len(Bounds()) {
+	// The on-off settings hold only 0 and 1, so SetLimits refuses
+	// anything else before it is stored (D198).
+	for _, name := range []string{"bounty.post", "bounty.take"} {
+		var p Policy
+		for _, v := range []int{-1, 2} {
+			if _, err := p.SetLimits(map[string]int{name: v}); err == nil || !strings.Contains(err.Error(), name) {
+				t.Errorf("%s = %d: %v", name, v, err)
+			}
+		}
+		if ok, err := p.SetLimits(map[string]int{name: 1}); err != nil || !ok || p.Bounty == nil {
+			t.Errorf("%s = 1: %v %v", name, ok, err)
+		}
+		if ok, err := p.SetLimits(map[string]int{name: 0}); err != nil || !ok || p.Bounty != nil {
+			t.Errorf("%s = 0 leaves %+v: %v %v", name, p.Bounty, ok, err)
+		}
+	}
+	if len(set)+len(bountyBools) != len(Bounds()) {
 		t.Fatalf("%d setters for %d bounds", len(set), len(Bounds()))
 	}
 	for _, b := range Bounds() {
+		if bountyBools[b.Name] {
+			continue
+		}
 		f := set[b.Name]
 		if f == nil {
 			t.Fatalf("no setter for %s", b.Name)
