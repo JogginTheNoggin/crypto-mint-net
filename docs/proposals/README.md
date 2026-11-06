@@ -108,3 +108,4 @@ decides whether to adopt each one and records the outcome in the file.
 | [ORANGE-044](source/ORANGE-044-hello-ping-limits-and-peer-memory.md) | Source | Round 34 measured; the hello and ping at the new limits, and memory per connection | proposed |
 | [ORANGE-045](source/ORANGE-045-poo-sign-and-header-keys.md) | Source | Round 35 measured; `poo sign` signed each input apart, and skipped header keys | proposed |
 | [ORANGE-046](source/ORANGE-046-bounty-market-measured.md) | Source | Round 36 measured; the bounty market's messages are cheap, but its file only grows | proposed |
+| [ORANGE-047](source/ORANGE-047-bounty-file-remeasured.md) | Source | Round 37 measured; the bounty book no longer grows with its history, and keepjson's remaining cost | proposed |
