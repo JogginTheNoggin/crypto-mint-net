@@ -6,6 +6,8 @@
 //
 // Needs the playwright package and a Chromium it can launch.
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { launch } from './lib.mjs';
@@ -233,8 +235,42 @@ try {
   assert.equal(await sg.locator('input[name=keyFile]').inputValue(), '');
   assert.equal((await page.evaluate(async () => (await import('/api.js')).jobs())).length, jobsBefore, 'a key-shaped Key file starts no job');
   assert.ok(!(await page.content()).includes(pasted), 'the pasted key is nowhere on the page');
-  const lk = await page.evaluate(async () => { const { looksLikeKey } = await import('/views/wallet.js'); return ['ab'.repeat(16), 'AB'.repeat(32), 'ab'.repeat(15), '/keys/' + 'ab'.repeat(32), 'cold.key', 'C:\\k\\' + 'ab'.repeat(32), ''].map(looksLikeKey); });
-  assert.deepEqual(lk, [true, true, false, false, false, false, false]);
+  // Written with the separators a key is often printed with, it is a key
+  // too: colons as openssl prints it, groups with spaces, a dot at the end
+  // (GUI/Red R36B).
+  const lk = await page.evaluate(async () => { const { looksLikeKey } = await import('/views/wallet.js'); return ['ab'.repeat(16), 'AB'.repeat(32), 'ab'.repeat(15), '/keys/' + 'ab'.repeat(32), 'cold.key', 'C:\\k\\' + 'ab'.repeat(32), '',
+    Array(32).fill('ab').join(':'), Array(5).fill('abcdef01').join(' '), 'ab'.repeat(32) + '.', 'ab-'.repeat(16), 'my.key.' + 'ab'.repeat(16)].map(looksLikeKey); });
+  assert.deepEqual(lk, [true, true, false, false, false, false, false, true, true, true, true, false]);
+  // After a refusal the form still follows its next run: unticked as the
+  // refusal says, Sign shows poo's masked prompt, and Stop ends the job
+  // (GUI-033). Before, the refusal left the result area marked gone, so
+  // the job was never followed: no prompt, no Stop, a job slot held.
+  const tmp = mkdtempSync(join(tmpdir(), 'poo-gui-qol-'));
+  const payFile = join(tmp, 'pay.json');
+  writeFileSync(payFile, '{"hash":"sha256","legs":[{"serial":1}]}');
+  await sg.locator('input[name=file]').fill(payFile);
+  await sg.locator('label', { hasText: 'The key is in a file' }).locator('input').uncheck();
+  await sg.locator('button[type=submit]').click();
+  await sg.locator('form.ask').waitFor({ state: 'visible', timeout: 10000 });
+  await sg.locator('button', { hasText: /^Stop$/ }).click();
+  await sg.locator('form.ask').waitFor({ state: 'hidden', timeout: 10000 });
+  const signJob = async () => (await page.evaluate(async () => (await import('/api.js')).jobs())).filter(j => j.args.includes('sign') && j.args.includes('-key-file') && !j.done);
+  for (let i = 0; i < 50 && (await signJob()).length; i++) await page.waitForTimeout(100);
+  assert.deepEqual(await signJob(), [], 'Stop ended the sign job');
+  // The same after the missing-field refusal (GUI-026).
+  await sg.locator('input[name=file]').fill('');
+  // The browser would refuse the empty field first; GUI-026's own check
+  // is what is tested here.
+  await sg.locator('input[name=file]').evaluate(i => i.removeAttribute('required'));
+  await sg.locator('button[type=submit]').click();
+  await sg.locator('.missing[role=alert]').waitFor();
+  await sg.locator('input[name=file]').fill(payFile);
+  await sg.locator('button[type=submit]').click();
+  await sg.locator('form.ask').waitFor({ state: 'visible', timeout: 10000 });
+  await sg.locator('button', { hasText: /^Stop$/ }).click();
+  await sg.locator('form.ask').waitFor({ state: 'hidden', timeout: 10000 });
+  await sg.locator('input[name=file]').fill('pay.json');
+  await sg.locator('label', { hasText: 'The key is in a file' }).locator('input').check();
   await sg.locator('input[name=keyFile]').fill('cold.key');
   await sg.locator('input[name=alg]').fill('ml-dsa-65');
   await sg.locator('label', { hasText: '(-raw)' }).locator('input').check();
@@ -312,7 +348,6 @@ try {
   const TERMINAL_ONLY = {
     help: 'the terminal\'s own help, and every form shows its line',
     completion: 'sets up a shell, not this GUI',
-    bounty: 'the bounty market is terminal-only in phase 1 (D196)',
     holdings: 'older form of poo unspent, kept for scripts; Explore runs unspent',
     payment: 'older form of poo tx, kept for scripts; Explore runs tx',
     claim: 'claims with a key file, where the key is: a watch-only wallet claims this way (D193; the Wallet view\'s cold-key steps say so); the Wallet view claims from the wallet',
@@ -468,6 +503,31 @@ try {
     });
   });
   assert.deepEqual(ex, [[1, 1, 0, true, 0, 0], [1, 0, 1, true, 0, 0]], 'a cut ledger export is folded and has one alert');
+  // The Bounty view's tables lay out poo bounty list: an offer with an
+  // unpaid claim gets Pay, every offer Cancel, a peer's offer Work, and
+  // each fills its form (GUI-GREEN-062).
+  const bm = await page.evaluate(async () => {
+    const { marketView, offNote, payNote, workNote } = await import('/views/bounty.js');
+    const id1 = 'a'.repeat(64), id2 = 'b'.repeat(64), id3 = 'c'.repeat(64);
+    const offer = { pool: 1, entry: 'e'.repeat(64), strength: 8, amount: 10, count: 2 };
+    const acts = [];
+    const box = document.createElement('div');
+    box.append(...marketView({ post: true, take: true, mine: [
+      { id: id1, offer, claims: [{ nonce: 7, pay_to: 'f'.repeat(64), paid: ['d'.repeat(64)] }, { nonce: 8, pay_to: 'f'.repeat(64) }] },
+      { id: id2, offer, claims: [] }],
+    held: [{ id: id3, from: '9'.repeat(64), offer, received: '2026-11-06T13:39:37Z' }] }, (k, v) => acts.push(`${k}:${v.id[0]}`)));
+    for (const b of box.querySelectorAll('button')) b.click();
+    return { text: [...box.querySelectorAll('h3, .bounty-on, .bounty-owed')].map(e => e.textContent), unpaid: [...box.querySelectorAll('.bounty-mine tbody tr')].map(r => r.children[7].textContent), acts,
+      off: [offNote({ code: 1, out: '', err: 'poo: the bounty market is off: set bounty.post or bounty.take in node.json\n' }) !== null, offNote({ code: 1, out: '', err: 'poo: some other refusal' }) !== null, offNote({ code: 1, out: '', err: 'poo: rpc: is the node running?' }), offNote({ code: 0, out: '{}', err: '' })],
+      pay: payNote({ offer: id1, nonce: 8, pay_to: 'f'.repeat(64), amount: 10, told: true }).textContent,
+      work: [workNote({ found: true, strength: 19, tried: 1048576, outcome: 'accepted' }).textContent, workNote({ found: false, tried: 5 }).textContent] };
+  });
+  assert.deepEqual(bm.text, ['This node posts offers and takes offers from peers.', 'Your offers (2)', '1 accepted claim waits to be paid: the node kept the layer, and pays only when you press Pay (no auto-pay in phase 1).', 'Offers from peers (1)']);
+  assert.deepEqual(bm.unpaid, ['1', '0']);
+  assert.deepEqual(bm.acts, ['pay:a', 'cancel:a', 'cancel:b', 'work:c']);
+  assert.deepEqual(bm.off, [true, true, null, null], 'any refusal but no node gets the fixed line; poo\'s error text is never read (S5)');
+  assert.equal(bm.pay, 'Paid 10 to ffffffffff…ffffff for the layer with nonce 8; the grinder was told.');
+  assert.deepEqual(bm.work, ['Found a layer of strength 19 in 1048576 tries; the payer answered: accepted. The payer pays when it presses Pay; the payment goes to the address you gave.', 'No layer found in 5 tries before the lease or the time ran out; work the offer again for a new lease.']);
   // The Followed series table names the reserve series by poo's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).
