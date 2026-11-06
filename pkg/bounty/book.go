@@ -118,7 +118,7 @@ func (c *ClaimRecord) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (c ClaimRecord) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, c.kept)
+	return keepjson.JoinValid(b, c.kept)
 }
 
 // Mine is an offer this node posted.
@@ -173,7 +173,7 @@ func (m *Mine) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return err
 	}
@@ -189,18 +189,20 @@ func (m Mine) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, m.kept)
+	return keepjson.JoinValid(b, m.kept)
 }
 
 // state works out the offer's state at now.
 func (m *Mine) state(now time.Time) string {
+	// Filled first: an offer with every layer handed in stays filled once
+	// its time runs out (GUI-GREEN-063).
 	switch {
+	case len(m.Claims) >= int(m.Offer.Count):
+		return StateFilled
 	case m.Closed && m.expired(now):
 		return StateExpired
 	case m.Closed:
 		return StateClosed
-	case len(m.Claims) >= int(m.Offer.Count):
-		return StateFilled
 	}
 	return StateOpen
 }
@@ -261,9 +263,11 @@ func (m *Mine) expired(now time.Time) bool {
 
 // Held is an offer from a peer this node keeps, with what it did with it.
 type Held struct {
-	ID       hash.Hash `json:"id"`
-	Offer    Offer     `json:"offer"`
-	From     string    `json:"from"`
+	ID    hash.Hash `json:"id"`
+	Offer Offer     `json:"offer"`
+	From  string    `json:"from"`
+	// Addr is the sender's network address key (RED-116).
+	Addr     string    `json:"addr,omitempty"`
 	Received time.Time `json:"received"`
 	// Lease is what the payer granted, if anything.
 	Lease *HeldLease `json:"lease,omitempty"`
@@ -319,10 +323,14 @@ type Book struct {
 	heldOrd  []hash.Hash
 	grinders map[string]*grinder
 	payers   map[string]*PayerRecord
-	// heldPer counts the held offers from each peer (ORANGE-046 P3).
-	heldPer map[string]int
+	// heldPer counts the held offers from each peer (ORANGE-046 P3), and
+	// heldAddr those from each network address (RED-116).
+	heldPer  map[string]int
+	heldAddr map[string]int
 	// heldSwept is when held offers were last checked for their time.
 	heldSwept time.Time
+	// doneSize is the done file's size as this book last knew it.
+	doneSize int64
 	// pending says a save is waiting on its timer (ORANGE-046 P2).
 	pending bool
 	// kept holds the file's fields a later release wrote (W-28).
@@ -345,7 +353,12 @@ type file struct {
 	Kind   string  `json:"kind"`
 	Format int     `json:"format"`
 	Offers []*Mine `json:"offers"`
-	kept   keepjson.Kept
+	// DoneSize is the done file's size when this file was written: only
+	// what lies past it can be an offer also still in Offers, after a
+	// crash between the two writes, so a start reads only that much of
+	// the done file (ORANGE-047 P1, D200).
+	DoneSize int64 `json:"done_size,omitempty"`
+	kept     keepjson.Kept
 }
 
 func (f *file) UnmarshalJSON(b []byte) error {
@@ -354,7 +367,7 @@ func (f *file) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return err
 	}
@@ -369,7 +382,7 @@ func (f file) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, f.kept)
+	return keepjson.JoinValid(b, f.kept)
 }
 
 // DoneFileName is the file, beside FileName, that offers which need
@@ -379,7 +392,12 @@ func (f file) MarshalJSON() ([]byte, error) {
 // bounties.json; an offer found in both is left out of bounties.json.
 const DoneFileName = "bounties-done.jsonl"
 
-// DoneFileKind and DoneFileFormat name the done file.
+// DoneFileKind and DoneFileFormat name the done file. Frozen with format
+// 1: the first line is {"kind": DoneFileKind, "format": 1}, and every
+// later line is one offer whose JSON begins {"id":"<64 hex digits>",
+// whatever fields follow. A reader takes the id from that prefix alone,
+// so a later release may add fields after it; a layout that moves the id
+// is a new format, which this release refuses (W-31, D200).
 const (
 	DoneFileKind   = brand.KindPrefix + "bounties-done"
 	DoneFileFormat = 1
@@ -394,7 +412,7 @@ var saveDelay = 200 * time.Millisecond
 func Open(cfg Config, path string) (*Book, error) {
 	cfg.fill()
 	b := &Book{cfg: cfg, now: time.Now, path: path, mine: map[hash.Hash]*Mine{}, held: map[hash.Hash]*Held{},
-		grinders: map[string]*grinder{}, payers: map[string]*PayerRecord{}, heldPer: map[string]int{}}
+		grinders: map[string]*grinder{}, payers: map[string]*PayerRecord{}, heldPer: map[string]int{}, heldAddr: map[string]int{}}
 	if path == "" {
 		return b, nil
 	}
@@ -418,9 +436,13 @@ func Open(cfg Config, path string) (*Book, error) {
 		return nil, fmt.Errorf("%s: format %d is not a format", path, f.Format)
 	}
 	b.kept = f.kept
-	done, err := doneIDs(b.donePath())
+	done, unread, size, err := doneIDs(b.donePath(), f.DoneSize)
 	if err != nil {
 		return nil, err
+	}
+	b.doneSize = size
+	if unread > 0 {
+		b.dropped = append(b.dropped, fmt.Sprintf("%s: %d lines with no offer id this release reads", DoneFileName, unread))
 	}
 	// The file is checked as an offer and a claim are when they are made:
 	// what fails is left out and reported, never paid (RED-114).
@@ -436,7 +458,11 @@ func Open(cfg Config, path string) (*Book, error) {
 			m.Offer = o
 		}
 		if m != nil && done[m.ID] {
-			continue // moved to the done file before a crash
+			// Moved to the done file before a crash. The done file's copy
+			// is the later one (its payment recorded), so this one is left
+			// out, and said, as every other drop is (RED-117).
+			b.dropped = append(b.dropped, fmt.Sprintf("offer %d: %s is in %s already, finished", i, m.ID.Short(), DoneFileName))
+			continue
 		}
 		if why := checkMine(m); why != "" {
 			b.dropped = append(b.dropped, fmt.Sprintf("offer %d: %s", i, why))
@@ -448,6 +474,15 @@ func Open(cfg Config, path string) (*Book, error) {
 		}
 		b.mine[m.ID] = m
 		b.order = append(b.order, m.ID)
+	}
+	// An offer that finished while the node was stopped (its time ran
+	// out, its last lease ended) moves to the done file now, not only at
+	// the next change (GUI-GREEN-063).
+	b.expire()
+	if slices.ContainsFunc(b.order, func(id hash.Hash) bool { return b.mine[id].done() }) {
+		if err := b.save(); err != nil {
+			return nil, err
+		}
 	}
 	return b, nil
 }
@@ -502,47 +537,103 @@ func (b *Book) donePath() string {
 	return filepath.Join(filepath.Dir(b.path), DoneFileName)
 }
 
-// doneIDs reads the ids of the offers in the done file.
-func doneIDs(path string) (map[hash.Hash]bool, error) {
+// doneIDs reads the ids of the offers in the done file. Only the start
+// of each line is read, where the id is, and the rest is skipped as it
+// streams, so a line of any length costs a few KiB (RED-117). It also
+// says how many lines it could not read an id from.
+func doneIDs(path string, from int64) (map[hash.Hash]bool, int, int64, error) {
 	ids := map[hash.Hash]bool{}
 	if path == "" {
-		return ids, nil
+		return ids, 0, 0, nil
 	}
 	f, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return ids, nil
+		return ids, 0, 0, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	defer f.Close()
-	dec := json.NewDecoder(bufio.NewReader(f))
+	st, err := f.Stat()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	size := st.Size()
+	r := bufio.NewReader(f)
+	first, _, err := linePrefix(r, maxDoneHead)
+	if len(first) == 0 && err != nil {
+		return ids, 0, size, nil // empty
+	}
 	var head struct {
 		Kind   string `json:"kind"`
 		Format int    `json:"format"`
 	}
-	if err := dec.Decode(&head); err != nil {
-		if errors.Is(err, io.EOF) {
-			return ids, nil
+	if json.Unmarshal(first, &head) != nil || head.Kind != DoneFileKind {
+		return nil, 0, 0, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
+	}
+	switch {
+	case head.Format > DoneFileFormat:
+		return nil, 0, 0, fmt.Errorf("%s is format %d, from a later release than this one (format %d): run that release, or move the file aside", path, head.Format, DoneFileFormat)
+	case head.Format < 1:
+		return nil, 0, 0, fmt.Errorf("%s: format %d is not a format", path, head.Format)
+	}
+	// Only the part past what bounties.json last saw can hold an offer in
+	// both files (ORANGE-047 P1). An offset the file does not reach, or
+	// none, reads it all.
+	if from > int64(len(first)) && from <= size {
+		if _, err := f.Seek(from, io.SeekStart); err != nil {
+			return nil, 0, 0, err
 		}
-		return nil, fmt.Errorf("%s: %w", path, err)
+		r.Reset(f)
 	}
-	if head.Kind != DoneFileKind {
-		return nil, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
-	}
+	bad := 0
 	for {
-		var m struct {
-			ID hash.Hash `json:"id"`
-		}
-		if err := dec.Decode(&m); err != nil {
-			if errors.Is(err, io.EOF) {
-				return ids, nil
+		line, whole, err := linePrefix(r, len(doneIDPrefix)+2*hash.Size+1)
+		if len(line) > 0 {
+			rest, ok := bytes.CutPrefix(line, []byte(doneIDPrefix))
+			var id hash.Hash
+			var perr error = errors.New("no id")
+			if ok && len(rest) > 2*hash.Size && rest[2*hash.Size] == '"' {
+				id, perr = hash.Parse(string(rest[:2*hash.Size]))
 			}
-			// A line cut short by a crash ends the file; what it held
-			// is still in bounties.json.
-			return ids, nil
+			switch {
+			case perr == nil:
+				ids[id] = true
+			case whole:
+				// Not a line this release writes; a line cut short by a
+				// crash at the end of the file is not counted.
+				bad++
+			}
 		}
-		ids[m.ID] = true
+		if err != nil {
+			return ids, bad, size, nil
+		}
+	}
+}
+
+// doneIDPrefix is how each done line begins: the offer's id comes first.
+const doneIDPrefix = `{"id":"`
+
+// maxDoneHead bounds the done file's first line.
+const maxDoneHead = 4 << 10
+
+// linePrefix reads one line from r and returns its first max bytes,
+// skipping the rest without holding it; whole says the line ended with a
+// newline. err is io.EOF at the end.
+func linePrefix(r *bufio.Reader, max int) (prefix []byte, whole bool, err error) {
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if room := max - len(prefix); room > 0 {
+			prefix = append(prefix, chunk[:min(len(chunk), room)]...)
+		}
+		switch {
+		case err == nil:
+			return bytes.TrimRight(prefix, "\r\n"), true, nil
+		case errors.Is(err, bufio.ErrBufferFull):
+			continue
+		default:
+			return prefix, false, err
+		}
 	}
 }
 
@@ -568,6 +659,10 @@ func (b *Book) archive() error {
 		return err
 	}
 	st, err := f.Stat()
+	at := int64(0)
+	if err == nil {
+		at = st.Size()
+	}
 	if err == nil && st.Size() == 0 {
 		head, _ := json.Marshal(map[string]any{"kind": DoneFileKind, "format": DoneFileFormat})
 		buf.Write(append(head, '\n'))
@@ -584,6 +679,9 @@ func (b *Book) archive() error {
 	}
 	if err == nil {
 		_, err = f.Write(buf.Bytes())
+	}
+	if err == nil {
+		b.doneSize = at + int64(buf.Len())
 	}
 	if err == nil {
 		err = f.Sync()
@@ -640,7 +738,7 @@ func (b *Book) save() error {
 	if err := b.archive(); err != nil {
 		return err
 	}
-	f := file{Kind: FileKind, Format: FileFormat, kept: b.kept}
+	f := file{Kind: FileKind, Format: FileFormat, DoneSize: b.doneSize, kept: b.kept}
 	for _, id := range b.order {
 		f.Offers = append(f.Offers, b.mine[id])
 	}
@@ -655,7 +753,9 @@ func (b *Book) save() error {
 // Called with mu held.
 func (b *Book) expire() {
 	now := b.now()
+	finished := false
 	for _, m := range b.mine {
+		n := len(m.Leases)
 		m.Leases = slices.DeleteFunc(m.Leases, func(l Lease) bool {
 			if now.After(l.Until) {
 				b.grinderOf(l.Peer).expired++
@@ -666,6 +766,14 @@ func (b *Book) expire() {
 		if !m.Closed && m.expired(now) {
 			m.Closed, m.Leases = true, nil
 		}
+		if len(m.Leases) != n || m.Closed {
+			finished = finished || m.done()
+		}
+	}
+	// An offer that finished by the clock moves to the done file too
+	// (GUI-GREEN-063).
+	if finished {
+		b.saveLater()
 	}
 	// Peers' offers are checked at most once a second, so a list of 64
 	// offers walks them once, not once an offer (ORANGE-046 P3).
@@ -677,10 +785,7 @@ func (b *Book) expire() {
 		h := b.held[id]
 		if h.Offer.OpenSeconds > 0 && now.After(h.Received.Add(time.Duration(h.Offer.OpenSeconds)*time.Second)) {
 			delete(b.held, id)
-			b.heldPer[h.From]--
-			if b.heldPer[h.From] <= 0 {
-				delete(b.heldPer, h.From)
-			}
+			b.uncount(h)
 			return true
 		}
 		return false
@@ -708,11 +813,16 @@ func (b *Book) forgetGrinder() {
 			leased[l.Peer] = true
 		}
 	}
-	for k := range b.grinders {
-		if !leased[k] {
-			delete(b.grinders, k)
-			return
+	// The record that earned least goes, so a grinder that earned more
+	// leases keeps them (RED-116).
+	drop, least := "", -1
+	for k, g := range b.grinders {
+		if !leased[k] && (least < 0 || g.filled < least) {
+			drop, least = k, g.filled
 		}
+	}
+	if least >= 0 {
+		delete(b.grinders, drop)
 	}
 }
 
@@ -741,7 +851,10 @@ func (b *Book) Post(o Offer) (Mine, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !b.cfg.Post {
-		return Mine{}, fmt.Errorf("%w: set bounty.post to post offers", ErrOff)
+		return Mine{}, fmt.Errorf("%w: poo policy limits -set bounty.post=1 posts offers", ErrOff)
+	}
+	if missing := unsetSpend(b.cfg); missing != "" {
+		return Mine{}, fmt.Errorf("%w: %s not set, so this node posts no offer; poo policy limits -set bounty.max_amount=N -set bounty.budget=N", ErrOff, missing)
 	}
 	b.expire()
 	total, over := mulCheck(o.Amount, uint64(o.Count))
@@ -773,6 +886,20 @@ func (b *Book) Post(o Offer) (Mine, error) {
 		return Mine{}, err
 	}
 	return b.clone(m), nil
+}
+
+// unsetSpend names the spending limits posting needs that cfg leaves
+// unset (GREEN-062): empty when both are set.
+func unsetSpend(cfg Config) string {
+	switch {
+	case cfg.MaxAmount == 0 && cfg.Budget == 0:
+		return "bounty.max_amount and bounty.budget are"
+	case cfg.MaxAmount == 0:
+		return "bounty.max_amount is"
+	case cfg.Budget == 0:
+		return "bounty.budget is"
+	}
+	return ""
 }
 
 func mulCheck(a, b uint64) (uint64, bool) {
@@ -1007,7 +1134,12 @@ func (b *Book) Paid(id hash.Hash, nonce uint64, tids []hash.Hash) (Ack, string, 
 
 // Receive keeps an offer a peer sent, if this node takes offers and the
 // offer pays at least MinPrice. It reports whether the offer was kept.
-func (b *Book) Receive(peer string, o Offer) bool {
+func (b *Book) Receive(peer string, o Offer) bool { return b.ReceiveFrom(peer, "", o) }
+
+// ReceiveFrom is Receive from a peer at network address addr: the offers
+// held from one address are bounded as one peer's are, since a node id
+// costs nothing (RED-116). An empty addr is not bounded.
+func (b *Book) ReceiveFrom(peer, addr string, o Offer) bool {
 	if o.Check() != nil {
 		return false
 	}
@@ -1033,21 +1165,46 @@ func (b *Book) Receive(peer string, o Offer) bool {
 			b.dropHeld(i)
 		}
 	}
-	if len(b.heldOrd) >= b.cfg.Held {
-		b.dropHeld(0)
+	if addr != "" && b.heldAddr[addr] >= b.cfg.PerPeer {
+		if i := slices.IndexFunc(b.heldOrd, func(hid hash.Hash) bool { return b.held[hid].Addr == addr }); i >= 0 {
+			b.dropHeld(i)
+		}
 	}
-	b.held[id] = &Held{ID: id, Offer: o, From: peer, Received: b.now()}
+	if len(b.heldOrd) >= b.cfg.Held {
+		// The oldest goes, but not one this node holds a lease on
+		// (RED-116).
+		now := b.now()
+		i := slices.IndexFunc(b.heldOrd, func(hid hash.Hash) bool {
+			l := b.held[hid].Lease
+			return l == nil || !l.Until.After(now)
+		})
+		b.dropHeld(max(i, 0))
+	}
+	b.held[id] = &Held{ID: id, Offer: o, From: peer, Addr: addr, Received: b.now()}
 	b.heldOrd = append(b.heldOrd, id)
 	b.heldPer[peer]++
+	if addr != "" {
+		b.heldAddr[addr]++
+	}
 	return true
 }
 
 func (b *Book) dropHeld(i int) {
-	from := b.held[b.heldOrd[i]].From
+	h := b.held[b.heldOrd[i]]
 	delete(b.held, b.heldOrd[i])
 	b.heldOrd = slices.Delete(b.heldOrd, i, i+1)
-	if b.heldPer[from]--; b.heldPer[from] <= 0 {
-		delete(b.heldPer, from)
+	b.uncount(h)
+}
+
+// uncount takes a dropped held offer out of the counts.
+func (b *Book) uncount(h *Held) {
+	if b.heldPer[h.From]--; b.heldPer[h.From] <= 0 {
+		delete(b.heldPer, h.From)
+	}
+	if h.Addr != "" {
+		if b.heldAddr[h.Addr]--; b.heldAddr[h.Addr] <= 0 {
+			delete(b.heldAddr, h.Addr)
+		}
 	}
 }
 

@@ -5525,3 +5525,97 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   the done file's kind and format, the W-29 text in wire.md, and that a
   node.json amount over 2^53 - 1 being refused is acceptable before the
   tag.
+
+### D199. Round 37 fixes: bounty offers bounded in bytes, held offers and leases per address and /64, the done file read in bounded pieces (BLUE-038)
+
+- **Merged first:** Green's #314 (GREEN-062: turning the bounty market
+  on with `poo policy limits -set`). Orange's #313 (ORANGE-047,
+  re-measurements and three proposals) is docs only and is not merged
+  here; its proposals are for Grey, and proposal 3 also needs White.
+- **Decision:**
+  - **RED-115.** `MaxOfferBytes` is 1,024. `DecodeOffer` refuses a
+    longer body, and a list item has the same bound, so a held offer's
+    `raw` is at most 1 KiB (2 KiB as hex). `raw` stays in the JSON,
+    because `bounties.json` names an offer by its bytes (W-27) and
+    `HeldOffer` hashes them for the id.
+  - **RED-116.**
+    - `Book.ReceiveFrom(peer, addr, offer)` bounds the offers held from
+      one address by the per-peer bound (64).
+    - When the held list is full, the oldest offer without a live
+      lease goes.
+    - p2p's address key is the IPv4 address, or the IPv6 /64.
+    - `forgetGrinder` drops the unleased record with the smallest
+      `filled`.
+    - Ending unused leases early is not taken.
+  - **RED-117.** `doneIDs` reads the first bytes of each line (the id
+    comes first) and skips the rest as it streams. Lines with no id are
+    counted. An offer found in both files is left out as before (the
+    done copy records its payment, so keeping it would owe it again),
+    but it is now reported in `Dropped` and logged. Orange's proposal 1
+    (read only the end of the file) is left for Grey.
+- **Why:** memory a peer can make a node hold must follow a small bound,
+  free node ids and addresses in one /64 must not multiply a limit, and a
+  start must not cost a line's length.
+- **Consensus:** None. The market is outside the ledger (D196).
+- **Tier:** Bounty, P2P.
+  - `pkg/bounty/blue038_test.go`:
+    - `TestBlue038OfferBytesBounded`
+    - `TestBlue038HeldPerAddress`
+    - `TestBlue038DoneFileBounded`
+  - `pkg/p2p/blue038_internal_test.go`: `TestBlue038AddressKey`.
+
+### D200. Round 38: the done file's format frozen and read from where bounties.json left it, the offer size frozen, wallet files checked once, filled offers stay filled
+
+- **Merged first:** Blue's #317 (BLUE-038, D199, with Green's #314), Red's
+  #312, Orange's #313 (ORANGE-047), White's #319 (ROUND-37), Black's #321
+  (Round 37: nine clear, one condition).
+- **Decision:**
+  - **W-31.** The done file refuses a format above 1 with the W-28
+    message. Format 1 is frozen: the first line names the file, and every
+    later line begins `{"id":"<hex>"`; a reader takes the id from that
+    prefix, so later fields after it are read past.
+  - **W-32 and Black's condition.** docs/protocol/wire.md freezes the
+    1,024-byte offer bound (D199) with bounty version 1, in rows 70 and
+    72 and in the W-29 rule: trailing fields must fit, a larger offer is
+    bounty version 2, and a phase 2 signature, key or proof travels
+    beside the offer's bytes (a new type or a version 2 list entry), sent
+    only to bounty version 2 peers, so the id never changes. Docs only;
+    `TestBlue038OfferBytesBounded` covers the bound.
+  - **ORANGE-047 P1.** `bounties.json` records the done file's size when
+    written (`done_size`); a start reads the done file's first line and
+    then only what lies past that size. A missing or impossible size
+    reads the whole file.
+  - **ORANGE-047 P2.** `keepjson.SplitValid` and `JoinValid` skip the
+    validity check for bytes encoding/json already checked or wrote; every
+    `UnmarshalJSON` and `MarshalJSON` in the tree uses them.
+  - **ORANGE-047 P3.** `wallet.Open` and `Save` decode and encode the file
+    directly (`decodeFile`, `encodeFile`), checking its bytes once; a test
+    compares both paths byte for byte, kept keys with HTML characters and
+    U+2028 included (White's condition).
+  - **GUI-GREEN-063.** (1) A filled offer stays filled after its time
+    runs out. (2) An offer that finishes by the clock moves to the done
+    file (the clock closed it without a save before), and a start moves
+    any that finished while the node was stopped. (3) `poo policy limits`
+    marks `bounty.post` and `bounty.take` with `"switch": true`.
+  - **GUI Orange R37B.** `poo status -counts` carries `bounty` too.
+  - Black's optional idea (spend a layer budget unit on a claimed layer)
+    is not taken: Black measured the claim lane at about 2% of the layer
+    budget, every layer in it checked in full.
+- **Why:** before the tag, later releases must not be able to make a
+  finished offer owed twice or time out older peers; starts and wallet
+  files must not grow slower with history; and a front end must read the
+  market's state as it is.
+- **Consensus:** None. Files, output and docs.
+- **Tier:** Bounty, wallet, files, node policy, CLI.
+  - `pkg/bounty/white037_test.go`: `TestW31DoneFileFormatAndStartMove`,
+    `TestGUIGreen062StateAndNames` (filled stays filled),
+    `TestOrange046DoneFileAndLaterSaves` (now through `done_size`).
+  - `pkg/keepjson/orange046_test.go`: the `SplitValid` and `JoinValid`
+    cases.
+  - `pkg/wallet/orange047_internal_test.go`:
+    `TestOrange047FileBytesUnchanged`.
+  - `pkg/nodepolicy/limits_test.go`: the switch marker.
+- **For Black (Part D):** please confirm the wire.md text meets your
+  Round 37 condition.
+- **For White (Part D):** please check W-31's freeze text, `done_size` in
+  `bounties.json`, and that the wallet bytes are unchanged.

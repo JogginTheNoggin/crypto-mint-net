@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 )
@@ -93,7 +94,7 @@ func TestBlue037FileChecked(t *testing.T) {
 	weak := testOffer(20, 1)
 	weak.Salt = 5
 	f := file{Kind: FileKind, Format: FileFormat, Offers: []*Mine{
-		{ID: good.ID(), Offer: good},
+		{ID: good.ID(), Offer: good, Posted: time.Now()},
 		{ID: zero.ID(), Offer: zero},
 		{ID: huge.ID(), Offer: huge},
 		{ID: weak.ID(), Offer: weak, Claims: []ClaimRecord{{Nonce: 1, Strength: 3}}},

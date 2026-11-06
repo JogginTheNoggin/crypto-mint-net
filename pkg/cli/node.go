@@ -431,10 +431,13 @@ type statusSummary struct {
 	FileLimit     nodepolicy.FileLimit `json:"file_limit"`
 	Snapshots     node.SnapshotSummary `json:"snapshots"`
 	PortMap       *p2p.PortMapStatus   `json:"port_map,omitempty"`
+	// Bounty is the status's own (W-30), so a view need not ask for every
+	// pool's row to read it (GUI ORANGE R37B, D200).
+	Bounty rpc.BountyStatus `json:"bounty"`
 }
 
 func statusBySeries(st rpc.StatusReply) statusSummary {
-	out := statusSummary{Release: st.Release, Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots, PortMap: st.PortMap}
+	out := statusSummary{Release: st.Release, Series: []seriesStatus{}, Replay: st.Replay, PolicyChanged: st.PolicyChanged, Bodies: st.Bodies, FileLimit: st.FileLimit, Snapshots: st.Snapshots, PortMap: st.PortMap, Bounty: st.Bounty}
 	at := map[hash.Hash]int{}
 	for _, p := range st.Pools {
 		i, ok := at[p.Series]
@@ -1260,13 +1263,16 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 	set := map[string]int{}
 	for _, kv := range sets {
 		name, val, ok := strings.Cut(kv, "=")
-		v, err := strconv.Atoi(strings.TrimSpace(val))
-		if !ok || err != nil {
+		if !ok {
 			return fmt.Errorf("-set %q: want NAME=VALUE, such as p2p.max_book=8192", kv)
 		}
 		name = strings.TrimSpace(name)
 		if hint := limitHint(name); hint != "" {
 			return fmt.Errorf("-set %q: %q is not a settable limit; did you mean %s? (poo policy limits lists them)", kv, name, hint)
+		}
+		v, err := limitValue(name, strings.TrimSpace(val))
+		if err != nil {
+			return fmt.Errorf("-set %q: %w", kv, err)
 		}
 		set[name] = v
 	}
@@ -1301,7 +1307,7 @@ func policyLimitsCmd(args []string, out io.Writer) error {
 			return err
 		}
 	}
-	return o.write(out, rpc.LimitsReply{Limits: p.Limits(), Saved: changed})
+	return o.write(out, rpc.LimitsReply{Limits: p.Limits(), Saved: changed, Notes: p.BountyNotes()})
 }
 
 // poolArgs names a pool as poo's commands take it, for a next step: the
@@ -1313,6 +1319,28 @@ func poolArgs(c *clientFlags, ref rpc.PoolRef) string {
 		a = "-series " + ref.Series.String() + " " + a
 	}
 	return a
+}
+
+// limitValue reads a -set value: a whole number, or for an on/off
+// setting such as bounty.post also on, off, true, false, yes or no
+// (GREEN-062).
+func limitValue(name, val string) (int, error) {
+	if v, err := strconv.Atoi(val); err == nil {
+		return v, nil
+	}
+	for _, b := range nodepolicy.Bounds() {
+		if b.Name != name || !b.OnOff() {
+			continue
+		}
+		switch strings.ToLower(val) {
+		case "on", "true", "yes":
+			return 1, nil
+		case "off", "false", "no":
+			return 0, nil
+		}
+		return 0, fmt.Errorf("%s is 1 (on) or 0 (off), not %q", name, val)
+	}
+	return 0, fmt.Errorf("the value %q is not a whole number", val)
 }
 
 // limitHint names the settable limits a mistyped -set name most likely

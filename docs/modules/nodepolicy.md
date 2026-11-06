@@ -166,7 +166,7 @@ its range, or `Validate` refuses the policy and names the setting
 | `entry_cache_mib` | 256 | 1 to 1048576 | MiB of entry bodies kept in memory across all pools, read back from the pool logs; every entry's skeleton stays in memory whatever this is (D172) |
 | `recent_window` | 10000 | 16 to 1073741824 | entries below each selected tip that keep their items and undo in memory; deeper ones are read back when a switch or view needs them (D175); applied on reload |
 | `snapshot_every` | 50000 | 1000 to 1073741824 | records a pool log takes between the snapshots a running node writes; a start replays at most about this many (D178); in place |
-| `bounty.post`, `bounty.take` | 0 (off) | 1 (on) | whether this node posts bounty offers, and holds and works peers' (D196, D198); on reload |
+| `bounty.post`, `bounty.take` | 0 (off) | 1 (on) | whether this node posts bounty offers, and holds and works peers' (D196, D198); on reload; listed with `"switch": true` (D200) |
 | `bounty.max_open` | 16 | 1 to 256 | this node's open offers |
 | `bounty.max_amount`, `bounty.budget` | 0 (posting refused) | 1 to 9007199254740991 | what one offer pays in all; what open offers and unpaid layers owe together |
 | `bounty.max_leases_per_grinder` | 4 | 1 to 64 | leases one grinder (or one network address) holds at once |

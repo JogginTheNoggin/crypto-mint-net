@@ -127,19 +127,53 @@ type File struct {
 }
 
 // UnmarshalJSON reads a wallet file, keeping the fields it does not know.
-func (f *File) UnmarshalJSON(b []byte) error {
+func (f *File) UnmarshalJSON(b []byte) error { return decodeFile(b, f) }
+
+// decodeFile reads a wallet file's bytes: its fields, then the keys it
+// does not know from the same bytes, which json.Unmarshal checked once.
+// Open calls it directly, so the bytes are not checked a second time on
+// the way into UnmarshalJSON (ORANGE-047 P3, D200).
+func decodeFile(b []byte, f *File) error {
 	type plain File
 	var p plain
 	if err := json.Unmarshal(b, &p); err != nil {
 		return err
 	}
-	kept, err := keepjson.Split(b, p)
+	kept, err := keepjson.SplitValid(b, p)
 	if err != nil {
 		return err
 	}
 	*f = File(p)
 	f.kept = kept
 	return nil
+}
+
+// encodeFile writes f exactly as json.MarshalIndent(f, "", "  ") does,
+// without the copy and check MarshalIndent makes of MarshalJSON's output
+// (ORANGE-047 P3, D200). The kept values are HTML-escaped as that copy
+// would escape them, so the bytes are the same.
+func encodeFile(f File) ([]byte, error) {
+	type plain File
+	b, err := json.Marshal(plain(f))
+	if err != nil {
+		return nil, err
+	}
+	if len(f.kept) > 0 {
+		esc := make(keepjson.Kept, len(f.kept))
+		for k, v := range f.kept {
+			var e bytes.Buffer
+			json.HTMLEscape(&e, v)
+			esc[k] = e.Bytes()
+		}
+		if b, err = keepjson.JoinValid(b, esc); err != nil {
+			return nil, err
+		}
+	}
+	var out bytes.Buffer
+	if err := json.Indent(&out, b, "", "  "); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }
 
 // MarshalJSON writes a wallet file with the fields it kept.
@@ -149,7 +183,7 @@ func (f File) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return keepjson.Join(b, f.kept)
+	return keepjson.JoinValid(b, f.kept)
 }
 
 // Wallet is an open wallet.
@@ -245,7 +279,7 @@ func Open(path string) (*Wallet, error) {
 		return nil, err
 	}
 	w := &Wallet{path: path, read: b}
-	if err := json.Unmarshal(b, &w.f); err != nil {
+	if err := decodeFile(b, &w.f); err != nil {
 		return nil, fmt.Errorf("wallet: %s: %w", path, err)
 	}
 	if w.f.Format != 1 {
@@ -356,7 +390,7 @@ func (w *Wallet) Rekey(passphrase string) error {
 // passphrase: it returns ErrChanged instead, and a new wallet whose file
 // appeared meanwhile returns ErrExists (GUI-019, D145).
 func (w *Wallet) Save() error {
-	b, err := json.MarshalIndent(w.f, "", "  ")
+	b, err := encodeFile(w.f)
 	if err != nil {
 		return err
 	}

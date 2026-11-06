@@ -335,7 +335,10 @@ or in node.json's `bounty` section:
 ./poo policy limits -set bounty.take=1
 ```
 
-`poo status` says whether the market is on (`bounty`).
+`poo status` says whether the market is on (`bounty`). `on` and `off`
+work as well as 1 and 0, and the reply's `notes` say when a setting
+cannot work yet, such as posting turned on before `bounty.budget` is
+set.
 
 The payer posts an offer on an entry it holds (`ENTRY` is the `hash`
 that `poo build` prints, or a pool's `tip` in `poo pools`; the node finds

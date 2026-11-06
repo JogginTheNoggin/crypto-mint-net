@@ -40,6 +40,9 @@ const (
 	MaxReason = 200
 	// MaxListed bounds the offers in one list reply.
 	MaxListed = 64
+	// MaxOfferBytes bounds one offer's bytes, alone or in a list: room
+	// for many later fields, while a held offer stays small (RED-115).
+	MaxOfferBytes = 1024
 	// MaxTIDs bounds the payment ids in one ack: one per leg.
 	MaxTIDs = 16
 )
@@ -142,6 +145,9 @@ func (o Offer) Check() error {
 // not read, but kept in Raw, so the id and what is passed on stay those of
 // the bytes received (W-27).
 func DecodeOffer(b []byte) (Offer, error) {
+	if len(b) > MaxOfferBytes {
+		return Offer{}, fmt.Errorf("%w: offer: %d bytes, over %d", ErrMalformed, len(b), MaxOfferBytes)
+	}
 	r := encoding.NewReader(b)
 	o := decodeOffer(r)
 	if err := r.Err(); err != nil {
@@ -187,7 +193,7 @@ func DecodeList(b []byte) ([]Offer, error) {
 	n := r.Count(MaxListed, 1)
 	out := make([]Offer, 0, n)
 	for i := 0; i < n && r.Err() == nil; i++ {
-		ob := r.VarBytes(1024)
+		ob := r.VarBytes(MaxOfferBytes)
 		if r.Err() != nil {
 			break
 		}

@@ -96,6 +96,12 @@ func TestOrange046ScanMatchesTheMap(t *testing.T) {
 		if (gerr != nil) != (werr != nil) || !reflect.DeepEqual(got, want) {
 			t.Fatalf("Split(%q) = %v, %v; the map gave %v, %v", in, got, gerr, want, werr)
 		}
+		if json.Valid([]byte(in)) {
+			// Bytes already checked give the same (ORANGE-047 P2).
+			if v, verr := SplitValid([]byte(in), rec{}); (verr != nil) != (werr != nil) || !reflect.DeepEqual(v, want) {
+				t.Fatalf("SplitValid(%q) = %v, %v", in, v, verr)
+			}
+		}
 	}
 	kept := Kept{"z": json.RawMessage(`1`), "a": json.RawMessage(`{"x":[1]}`), "name": json.RawMessage(`"dup"`)}
 	for _, b := range []string{`{}`, `{"name":"n"}`, `{"name":"n","items":[1,2],"Plain":0}`, "{\n  \"name\": \"n\"\n}"} {
@@ -103,6 +109,9 @@ func TestOrange046ScanMatchesTheMap(t *testing.T) {
 		want, werr := joinOld([]byte(b), kept)
 		if (gerr != nil) != (werr != nil) || !bytes.Equal(got, want) {
 			t.Fatalf("Join(%q) = %s, %v; the map gave %s, %v", b, got, gerr, want, werr)
+		}
+		if v, _ := JoinValid([]byte(b), kept); !bytes.Equal(v, want) {
+			t.Fatalf("JoinValid(%q) = %s", b, v)
 		}
 	}
 }

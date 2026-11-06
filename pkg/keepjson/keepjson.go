@@ -47,11 +47,18 @@ type Kept map[string]json.RawMessage
 // raw is scanned once, at its top level only: the values of known fields
 // are skipped, never copied or decoded (ORANGE-046 P4), so a large wallet
 // costs one pass over its bytes.
-func Split(raw []byte, v any) (Kept, error) {
+func Split(raw []byte, v any) (Kept, error) { return split(raw, v, true) }
+
+// SplitValid is Split for bytes known to be valid JSON, as an
+// UnmarshalJSON method receives them (encoding/json checks the whole input
+// first): it does not check them again (ORANGE-047 P2, D200).
+func SplitValid(raw []byte, v any) (Kept, error) { return split(raw, v, false) }
+
+func split(raw []byte, v any, check bool) (Kept, error) {
 	names := fieldNames(reflect.TypeOf(v))
 	var out Kept
 	var err error
-	ok := eachTop(raw, func(k string, val []byte) bool {
+	ok := eachTop(raw, check, func(k string, val []byte) bool {
 		if slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(n, k) }) {
 			return true
 		}
@@ -88,12 +95,18 @@ func Split(raw []byte, v any) (Kept, error) {
 
 // Join adds the kept keys, in name order, at the end of b, a JSON object
 // as json.Marshal writes it. A key b already holds is not added again.
-func Join(b []byte, k Kept) ([]byte, error) {
+func Join(b []byte, k Kept) ([]byte, error) { return join(b, k, true) }
+
+// JoinValid is Join for bytes known to be valid JSON, as json.Marshal
+// returns them: it does not check them again (ORANGE-047 P2, D200).
+func JoinValid(b []byte, k Kept) ([]byte, error) { return join(b, k, false) }
+
+func join(b []byte, k Kept, check bool) ([]byte, error) {
 	if len(k) == 0 {
 		return b, nil
 	}
 	have := map[string]bool{}
-	if !eachTop(b, func(key string, _ []byte) bool { have[key] = true; return true }) {
+	if !eachTop(b, check, func(key string, _ []byte) bool { have[key] = true; return true }) {
 		return nil, fmt.Errorf("keepjson: not an object")
 	}
 	end := bytes.LastIndexByte(b, '}')
@@ -118,8 +131,10 @@ func Join(b []byte, k Kept) ([]byte, error) {
 // eachTop calls f with each key of the JSON object b, decoded as
 // encoding/json decodes it, and the bytes of its value, in order, until f
 // returns false. It reports false when b is not a valid JSON object.
-func eachTop(b []byte, f func(key string, val []byte) bool) bool {
-	if !json.Valid(b) {
+//
+// With check false, b must be valid JSON already; it is not checked again.
+func eachTop(b []byte, check bool, f func(key string, val []byte) bool) bool {
+	if check && !json.Valid(b) {
 		return false
 	}
 	i := skipSpace(b, 0)

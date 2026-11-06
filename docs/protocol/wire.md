@@ -133,9 +133,9 @@ the clock skew (2 minutes) ahead.
 | 62 | yes | Follow reply |
 | 63 | partial yes | Follow reply |
 | 64 | peer list | `List<Peer>` |
-| 70 | bounty offer | Offer: `U8` kind (1 layer) ∥ `Hash` series ∥ `U64` pool ∥ `Hash` entry ∥ `U8` strength ∥ `U64` amount ∥ `U16` count ∥ `U32` open seconds ∥ `U64` salt |
+| 70 | bounty offer | Offer: `U8` kind (1 layer) ∥ `Hash` series ∥ `U64` pool ∥ `Hash` entry ∥ `U8` strength ∥ `U64` amount ∥ `U16` count ∥ `U32` open seconds ∥ `U64` salt ∥ fields a later bounty v1 adds; at most 1,024 bytes in all, frozen with bounty version 1 (D199, D200) |
 | 71 | bounty list request | `Hash` series (zero: all) |
-| 72 | bounty list | `List<Bytes>` offers, at most 64 |
+| 72 | bounty list | `List<Bytes>` offers, at most 64, each at most 1,024 bytes (frozen with bounty version 1) |
 | 73 | bounty take | `Hash` offer id ∥ `U64` rate (tries a second) ∥ `Hash` pay-to address |
 | 74 | bounty grant | `Hash` offer id ∥ `U32` seconds (0: refused) ∥ `Bytes` reason (at most 200) |
 | 75 | bounty claim | `Hash` offer id ∥ `U64` nonce ∥ `Hash` pay-to address |
@@ -176,7 +176,7 @@ public tag (W-17, D190).
 
 Feature names and extension tags are registered in `pkg/wire` (`hello.go`)
 and never reused. Registered features: `layers-from`, `many-layers`,
-`parts`, `release`, `bounty` (D196: listed only when node policy turns the bounty market on; messages 70 to 76 go only to a peer that lists it, and a node with the market off ignores them; decoders ignore trailing bytes). The offer id is the SHA-256 of the offer's bytes as received, trailing bytes included, and a node passes an offer on as the bytes it received, so nodes of every release name an offer alike (W-27, D198). Later bounty changes follow one rule (W-29): a trailing field older nodes may ignore stays at bounty version 1; a change older nodes must not ignore becomes bounty version 2, sent only to peers listing `bounty` at 2 or more; a new outcome must be safe for an older node to read as not paid; and relaying passes on the bytes received. No extension tag is registered yet. A node skips a
+`parts`, `release`, `bounty` (D196: listed only when node policy turns the bounty market on; messages 70 to 76 go only to a peer that lists it, and a node with the market off ignores them; decoders ignore trailing bytes). The offer id is the SHA-256 of the offer's bytes as received, trailing bytes included, and a node passes an offer on as the bytes it received, so nodes of every release name an offer alike (W-27, D198). Later bounty changes follow one rule (W-29): a trailing field older nodes may ignore stays at bounty version 1; a change older nodes must not ignore becomes bounty version 2, sent only to peers listing `bounty` at 2 or more; a new outcome must be safe for an older node to read as not paid; and relaying passes on the bytes received. Trailing fields must keep an offer within 1,024 bytes: an offer over it is malformed to a bounty version 1 node, so a larger offer is bounty version 2 (W-32, Black's Round 37 condition, D200). A signature, key or proof (phase 2) is never inside the offer's bytes, so the id stays the same: it travels beside them, in a new message type or a version 2 list entry (`Bytes` offer ∥ `Bytes` proof), sent only to peers listing `bounty` at 2 or more. Post-quantum signatures do not fit in 1,024 bytes in any case. No extension tag is registered yet. A node skips a
 feature or tag it does not know, and keeps no extension value of a tag
 it does not know.
 
