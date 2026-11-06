@@ -11,7 +11,7 @@
 
 ## What is wrong
 
-`poo build -parent HASH|root|before-claim` (and `POST /v1/build` with
+`poon build -parent HASH|root|before-claim` (and `POST /v1/build` with
 `parent` and no `txs`) passes **every ready pending transaction** to
 `ledger.Pool.CheckOn`, while `BuildEntryOn` holds `e.mu`, the engine lock
 that every message the node handles needs. `CheckOn`:
@@ -45,10 +45,10 @@ BuildEntryOn(Parent: pool_id) with 7000 pending:  126 ms  (a plain Build of the 
 ```
 
 Fine at the default, but `max_pending` now goes up to 1,048,576 and
-`poo policy limits -set max_pending=...` changes it on a live node (D160,
+`poon policy limits -set max_pending=...` changes it on a live node (D160,
 D161). A series with many mints lets a peer fill the pending pool with valid
 claims at no cost (a claim has no input and pays the claimer). Then the
-owner's `poo build -parent X`, or any `POST /v1/build` with a parent and
+owner's `poon build -parent X`, or any `POST /v1/build` with a parent and
 no `txs`, stops the whole node for the time above while it holds the lock.
 The explicit `txs` path is bounded by `MaxBuildTxs` (1,024) and costs little.
 

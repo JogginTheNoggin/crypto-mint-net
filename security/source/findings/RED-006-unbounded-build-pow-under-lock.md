@@ -72,9 +72,9 @@ func (h *Handler) work(...) {
     }
 ```
 
-The default makes this easy to hit by accident: `poo build` defaults
+The default makes this easy to hit by accident: `poon build` defaults
 `-max-tries` to `0` ("0: no limit", pkg/cli/node.go), so the ordinary
-`poo build` command on a series that sets a minimum entry strength starts an
+`poon build` command on a series that sets a minimum entry strength starts an
 unbounded search.
 
 ## Reproduction
@@ -83,7 +83,7 @@ unbounded search.
    nonce meeting it is rare), with at least one pending transaction so
    `Build` has something to assemble.
 2. Call `POST /v1/build {"series":…,"pool":…}` with no `max_tries` (or run
-   `poo build`).
+   `poon build`).
 3. The handler enters `entry.Build`'s loop and spins the CPU searching for a
    qualifying nonce, holding `n.mu` and `e.mu` the whole time.
 4. While it runs, every other endpoint that needs the node or engine lock —
@@ -93,7 +93,7 @@ unbounded search.
 
 ## Impact
 
-A single trivial request (the default `poo build`, or a GUI "build" action
+A single trivial request (the default `poon build`, or a GUI "build" action
 that omits `max_tries`) wedges the **whole node**, not just the caller: the
 engine lock is held, so peer-item handling, forwarding and chasing stall too,
 and the control API stops answering. It is reachable only with the token
@@ -106,7 +106,7 @@ be cancelled, its blast radius is the whole node.
 ## Recommendation
 
 - Bound `max_tries` on `/v1/build` the way `/v1/work` bounds `tries` (reject
-  `0` or clamp to a maximum), and change the `poo build` default from `0`
+  `0` or clamp to a maximum), and change the `poon build` default from `0`
   to a finite number with a documented meaning.
 - Do the proof-of-work **outside** the node and engine locks: assemble the
   transaction set under the lock, release it, search for the nonce, then
@@ -129,7 +129,7 @@ locks: `Engine.BuildEntry` reads the pool under the engine lock and
 releases it before searching, and `Node.Build`/`BuildContext` take the
 node lock only to store the result. `Node.Work` likewise grinds before
 locking. `entry.BuildContext` checks the context every 4,096 nonces.
-`poo build -max-tries 0` now means the node's limit. Tests:
+`poon build -max-tries 0` now means the node's limit. Tests:
 `TestBuildContextCancels` (`pkg/entry`), `TestBuildSearchHoldsNoLock`
 (`pkg/node`: a transaction goes in promptly during an endless search,
 and cancelling ends it), and an unbounded `max_tries` rejected in

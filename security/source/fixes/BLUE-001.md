@@ -13,7 +13,7 @@ The wallet seed was sealed under a PBKDF2-SHA256 key. PBKDF2 costs an
 attacker who has the wallet file only computation, which GPUs make cheap.
 New wallets now use Argon2id (RFC 9106: 3 passes, 64 MiB, 4 lanes), which
 also costs memory for every guess. Old PBKDF2 wallets still open, and
-`poo wallet passwd` moves them to Argon2id. While here, opening now
+`poon wallet passwd` moves them to Argon2id. While here, opening now
 checks the derivation settings in the file against fixed limits, so a
 damaged or crafted wallet file cannot make an unlock take gigabytes of
 memory or hours of work.
@@ -54,5 +54,5 @@ go test -race ./pkg/wallet ./pkg/cli
 go test -run 'Argon2id|PBKDF2|KDF' -v ./pkg/wallet
 ```
 
-A wallet made by `poo wallet create` now shows `"name": "argon2id"` with
+A wallet made by `poon wallet create` now shows `"name": "argon2id"` with
 `"memory": 65536` in its `kdf` block.

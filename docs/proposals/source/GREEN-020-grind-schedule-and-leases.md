@@ -10,7 +10,7 @@
 
 ## Summary
 
-Green ran a node and used `poo grind schedule`, `-lease` and `tx:TID`
+Green ran a node and used `poon grind schedule`, `-lease` and `tx:TID`
 targets as a person would. All three do what GREEN-017, GREEN-019 and
 GREEN-026 asked for. A `tx:TID` job ground the payment's entry until from(e)
 reached the goal, then ended `done`. An unknown TID waits with a useful
@@ -27,7 +27,7 @@ edges remain. Two of them are prototyped, with tests.
 
 ## Problem and idea
 
-**1. Waiting jobs start as `running` (prototyped).** `poo grind schedule
+**1. Waiting jobs start as `running` (prototyped).** `poon grind schedule
 add pending -hours 22-06` at 10:24 replied with the job in state
 `running`, and so did the `start` watch event. A moment later `grind jobs`
 showed it `waiting`, "outside its hours 22-06". A person reading the reply
@@ -44,7 +44,7 @@ after a short prefix (`tx:`) is now shortened like any hash
 the second. `-wide` and the JSON are unchanged. Test:
 `TestTablePrefixedHashAndTime`.
 
-**3. Number the schedule's jobs.** `poo grind schedule remove 2` removes
+**3. Number the schedule's jobs.** `poon grind schedule remove 2` removes
 "the jobs numbered from 1 as listed", but neither the JSON nor the table
 shows a number, so the person has to count. The table could add a `#`
 column. The JSON is `node.json`'s own `grind` section, so it should stay
@@ -52,9 +52,9 @@ as it is, and the numbers would appear only in the table.
 
 **4. A lease the command line cannot renew.** `grind start -lease 30s`
 starts a job that stops 30 seconds later unless something calls
-`POST /v1/grind/ID/renew`. No `poo` command does this, so from a shell
+`POST /v1/grind/ID/renew`. No `poon` command does this, so from a shell
 the flag only means "stop after 30 seconds", which `-for` already says.
-There are two ways to fix this. One is a `poo grind renew ID` command,
+There are two ways to fix this. One is a `poon grind renew ID` command,
 for scripts that follow a job themselves. The other is to keep `-lease`
 on the RPC and `grind run` only, and drop it from `grind start`. The
 help line also starts with a stray `start:`.

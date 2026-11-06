@@ -10,7 +10,7 @@ three things:
 - its series' witness ceiling.
 
 It also adds SLH-DSA-SHA2-256s as key algorithm 11, makes the reserve
-series the `poo init` default (D170), and moves the full check of a far
+series the `poon init` default (D170), and moves the full check of a far
 release off the peer's read loop (D171).
 
 **Result: 10 clear, 0 with conditions, 0 blocked.**
@@ -135,9 +135,9 @@ is refused by this build at the ceiling, or at the exact-size check.
 
 ### The tool refusals and `series_ceiling` add no rule
 
-- **The tools.** `poo series new` and `poo init -series` refuse a missing
+- **The tools.** `poon series new` and `poon init -series` refuse a missing
   ceiling, or one over 4 MiB, unless `-any-ceiling` is given. That is what
-  the tool writes, not what a node accepts. `poo init -example` is exempt.
+  the tool writes, not what a node accepts. `poon init -example` is exempt.
 - **The node setting.** `series_ceiling` (`Policy.DeclinesSeries`) acts
   only in a policy import.
   - It declines a series that would be *added*, together with its follow
@@ -161,7 +161,7 @@ is refused by this build at the ceiling, or at the exact-size check.
 
 ## The default reserve series (D170)
 
-- **What it is.** Node policy: what `poo init` follows when given nothing
+- **What it is.** Node policy: what `poon init` follows when given nothing
   else. Any node may follow any series.
 - **What Black checked.** That the pinned params match "Reserve Currency
   Default Series" (`/mnt/project-files/reserve-series/`). The document
@@ -215,7 +215,7 @@ is refused by this build at the ceiling, or at the exact-size check.
 | D170: cross-version vector | Sound. Its old half reproduces on `439b369` |
 | D170: SLH-DSA-SHA2-256s (algorithm 11) | Red's revised key list, chosen by the owner. Only for series that list it. Exact sizes, known answers pinned |
 | D170: tool ceiling refusals, `series_ceiling` | Tooling and node policy, as the owner chose. `max_witness` 0 stays valid |
-| D170: worst-case `CheckSpendable`, `poo crypto -max-witness` | Wallet and tooling |
+| D170: worst-case `CheckSpendable`, `poon crypto -max-witness` | Wallet and tooling |
 | D170: the default reserve series, `builtin` naming | Node policy. The id matches the document, worked out independently |
 | D170: `in_place`, cancellable far part ids (GUI-028) | Labels. Stopping says nothing about validity |
 | BLUE-028 (RED-082, RED-083) | Where and when a release is checked, and warnings. Never whether it is valid |

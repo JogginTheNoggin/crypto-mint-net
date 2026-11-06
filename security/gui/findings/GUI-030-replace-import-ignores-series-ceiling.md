@@ -12,7 +12,7 @@
 ## Summary
 
 `series_ceiling` is now a settable limit: Node policies → Settable
-limits, or `poo policy limits -set series_ceiling=N`. When it is set, a
+limits, or `poon policy limits -set series_ceiling=N`. When it is set, a
 policy import declines a series whose witness ceiling is not set, or is
 above that value. D170 says: "when set, a policy import declines a
 series it would add whose ceiling is not set or above it".
@@ -39,19 +39,19 @@ refuse it didn't apply.
 
 The same path also keeps a series the file lists twice as two entries
 in node.json. A merge dedupes by series id. The GUI then counts "2
-series" in the Read first line, and poo prints each warning twice.
+series" in the Read first line, and poon prints each warning twice.
 
 ## Reproduction
 
-poo and poo-gui at 4e1c601. imp.json lists `r25/series.json` (a variable
+poon and poon-gui at 4e1c601. imp.json lists `r25/series.json` (a variable
 series, `max_witness: 0`) twice, with no follow rules.
 
-1. `poo init -no-series`, then `poo policy limits -set
+1. `poon init -no-series`, then `poon policy limits -set
    series_ceiling=1024`.
-2. `poo policy import imp.json` (merge) prints "declined: series
+2. `poon policy import imp.json` (merge) prints "declined: series
    61d1cc6c: the series sets no witness ceiling, and series_ceiling is
    1024 …", then "nothing else to change".
-3. `poo policy import imp.json -replace` prints `+ series: 61d1cc6c`,
+3. `poon policy import imp.json -replace` prints `+ series: 61d1cc6c`,
    with the issuer and ceiling warnings, each twice. There is no
    declined line.
 4. In the GUI (Node policies → Import node policies), with Replace
@@ -81,9 +81,9 @@ first warning, and the series can be unfollowed again. Rated **low**.
   merge does, or refuse a file that lists a series twice. This is node
   policy only, and declining is a lack of information (D170), so there
   is no consensus change and no hard fork.
-- **GUI/Blue:** nothing more is needed once poo declines. The
+- **GUI/Blue:** nothing more is needed once poon declines. The
   declined-series note and GUI-029's Read first line already draw
-  poo's lists. Until then, the Replace box's label could say
+  poon's lists. Until then, the Replace box's label could say
   "(series_ceiling is not applied)".
 - e2e (views.mjs): with `series_ceiling=1024` set, import a file that
   lists a series with `max_witness: 0`, with Replace ticked. Expect
@@ -92,9 +92,9 @@ first warning, and the series can be unfollowed again. Rated **low**.
 
 ## Notes for Source (not part of this finding)
 
-- `nodepolicy.go` says `poo init` "writes CeilingLimit in a new
+- `nodepolicy.go` says `poon init` "writes CeilingLimit in a new
   node.json" (on `SeriesCeiling` and on `CeilingLimit`). It doesn't:
-  `poo init` and `poo init -no-series` at 4e1c601 write no
+  `poon init` and `poon init -no-series` at 4e1c601 write no
   `series_ceiling`, and `policy limits` shows `set 0`. D171's "Not done
   here" says that default was left to Grey and jerry, so the comments
   are the stale part.
@@ -103,20 +103,20 @@ first warning, and the series can be unfollowed again. Rated **low**.
 
 Source fixed this in D176 (#207) before Part C opened, so the GUI
 needs no change. The stopgap on the Replace label that this finding
-suggested was not added. poo declines the series now, and the plan
+suggested was not added. poon declines the series now, and the plan
 shows it under "Left out by this node's series ceiling", as for a merge.
 
 Red's R29B nit is fixed in the same Blue PR. `statusNotes`
 (gui/web/static/views/node.js) read `used_bytes` and the other cache
 figures without checking them, so a partial reply threw, and the
 policy-changed line after it was never drawn. Each figure is now read
-only if poo gave it as a number, and "?" is shown otherwise. e2e:
+only if poon gave it as a number, and "?" is shown otherwise. e2e:
 views.mjs calls `statusNotes` with only `max_bytes`. It expects one
 line with "?" for the rest, and no throw. On the old code it throws.
 
 ## Notes — Round 30B verification (held up)
 
-I checked this with poo and Playwright on 0ade046, using the same
+I checked this with poon and Playwright on 0ade046, using the same
 imp.json (one series with `max_witness: 0`, listed twice) and
 `series_ceiling=1024`.
 

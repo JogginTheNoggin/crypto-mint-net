@@ -13,19 +13,19 @@
 
 D120 writes the parts of a large entry to a temporary file in
 `p2p.Config.PartsDir`, so that a big entry does not sit in memory. But
-`poo node` never sets `PartsDir`, so the parts go to the system's
+`poon node` never sets `PartsDir`, so the parts go to the system's
 temporary directory (`/tmp`). That has two problems:
 
 - On many systems `/tmp` is a RAM disk (tmpfs) that is small and shared with other users, which works against the reason the parts go to disk.
-- A node that crashes or is killed leaves its `poo-parts-*` files there, and nothing removes them. An entry can be gigabytes (D117 sets no size limit).
+- A node that crashes or is killed leaves its `poon-parts-*` files there, and nothing removes them. An entry can be gigabytes (D117 sets no size limit).
 
-The prototype makes `poo node`, and the GUI, which runs the same daemon,
+The prototype makes `poon node`, and the GUI, which runs the same daemon,
 use `parts/` in the node's data directory (mode 0700, beside the store),
-and remove leftover `poo-parts-*` files there on start. Prototyped, with
+and remove leftover `poon-parts-*` files there on start. Prototyped, with
 a test.
 
 The same pass found that `grind.layer_rate` (D122) was in the code and in
-`poo.md`, but not in `nodepolicy.md`, which documents every node.json
+`poon.md`, but not in `nodepolicy.md`, which documents every node.json
 field. It is added there.
 
 ## Problem
@@ -41,17 +41,17 @@ and it can fill a disk that other programs share.
 
 ## Idea
 
-- `daemon.partsDir(dir)` makes `<data dir>/parts` with mode 0700 and removes the `poo-parts-*` files in it. Only that pattern is removed, never other files. It logs how many it removed.
+- `daemon.partsDir(dir)` makes `<data dir>/parts` with mode 0700 and removes the `poon-parts-*` files in it. Only that pattern is removed, never other files. It logs how many it removed.
 - `runOnce` sets `cfg.PartsDir` to it before `p2p.New`. A reload runs it again, which is safe, because the old host has stopped and removed its own files by then.
 - Docs: `p2p.md` says where the parts go, and `nodepolicy.md` adds `layer_rate` to the example and to the text about the floor.
 
-A later step could add a `poo doctor` check of the free space on the data
+A later step could add a `poon doctor` check of the free space on the data
 directory's disk. This proposal leaves that out.
 
 ## Testing
 
-- `TestPartsDir` (`pkg/daemon/parts_test.go`): a leftover `poo-parts-*` file is removed, another file is kept, and the directory is 0700.
-- By hand: `poo node` creates `parts/` beside `node.json`.
+- `TestPartsDir` (`pkg/daemon/parts_test.go`): a leftover `poon-parts-*` file is removed, another file is kept, and the directory is 0700.
+- By hand: `poon node` creates `parts/` beside `node.json`.
 - gofmt, vet, staticcheck, and `go test -race ./...` pass.
 
 ## Risks

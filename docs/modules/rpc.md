@@ -23,7 +23,7 @@ All under `/v1`, all requiring `Authorization: Bearer <token>`, except
 node that stops without cleaning up, and another process may then listen
 on its port. So `Dial` and `DialView` first send `GET /hello?nonce=N`
 (32 random bytes, no token) and check the reply, `{full, view}`, for
-HMAC-SHA256 with their token over `poo-rpc-hello`, the address in
+HMAC-SHA256 with their token over `poon-rpc-hello`, the address in
 `rpc.addr` and `N`. Only then do they send the token. A stranger knows
 neither token, and the node at another address signs that address, so
 neither passes. A failed proof is `*NotProvedError`, which wraps

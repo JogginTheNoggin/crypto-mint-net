@@ -12,7 +12,7 @@
 ## Summary
 
 Each row of the new Schedule panel has a Remove button that runs
-`poo grind schedule remove N`, where N is the row's number **when the table
+`poon grind schedule remove N`, where N is the row's number **when the table
 was drawn**. The core removes whatever job is at position N **now**. It loads
 the section again from the node or node.json, then drops index N-1. The panel
 does not refresh itself (no `refresh:` interval), and each Remove disables only
@@ -77,12 +77,12 @@ configuration, and it needs no attacker. Rated **low**.
   visits. The one gap left is re-running inside the same area: **GUI-012**.
 - **GUI-011 fix, verified.** `hangup(ignored, tty)`: under nohup (SIGHUP
   ignored) nothing is caught, so it stays ignored. With a terminal, SIGHUP
-  stops poo-gui through its cancel path. With no terminal, SIGHUP is absorbed,
+  stops poon-gui through its cancel path. With no terminal, SIGHUP is absorbed,
   so Go's default exit does not run, and a hosted node reloads on it as
-  `poo node` does. `cmd/poo` keeps SIGHUP as reload for `poo node`
+  `poon node` does. `cmd/poon` keeps SIGHUP as reload for `poon node`
   (`ReloadsOnHangup`), and as stop for other commands only when it is not
   ignored. `isTerminal` uses TCGETS/TIOCGETA. Windows never sends SIGHUP.
-- **GUI-010 core lease (Source 9972137), verified.** `poo grind run` starts its
+- **GUI-010 core lease (Source 9972137), verified.** `poon grind run` starts its
   job with a 15 s lease and renews it every 5 s. A follower that dies or
   freezes (SIGKILL, crash, sleep) lets the lease run out, and the node stops the
   job with the reason "its lease ran out". `MaxLease` is 10 minutes. The old
@@ -92,7 +92,7 @@ configuration, and it needs no attacker. Rated **low**.
   job is killed 15 s later while its follower is still alive. Retrying until
   the lease is nearly gone would avoid that.
 - **Schedule panel rendering and view-only, safe.** Every field from
-  `poo grind schedule` is drawn with `el`/`render` (`textContent`). View-only
+  `poon grind schedule` is drawn with `el`/`render` (`textContent`). View-only
   allows `grind schedule` only to show it; `add`, `remove` and `set` are refused
   by `grindSchedule` itself, and over RPC by the view token, which is GET-only.
   `schedule add` and `set` go through `grind.Check` and `nodepolicy.Validate`
@@ -104,14 +104,14 @@ configuration, and it needs no attacker. Rated **low**.
   hand-added keys vanish on the first rewrite. Neither is new in this round.
 - **GREEN-028/029, safe.** `only:` hides and *does not send* a field the
   chosen action does not take, which matches the core's `flagsFor`. The crypto
-  `<datalist>`s are filled from `poo crypto` with `el`, and the one-time
-  `focusin` lookup runs only the read-only `poo crypto`.
+  `<datalist>`s are filled from `poon crypto` with `el`, and the one-time
+  `focusin` lookup runs only the read-only `poon crypto`.
 
 ## Fix (GUI/Blue, Round 7C)
 
 - **Every Remove is off while one runs** (`gui/web/static/work.js`,
   `scheduleTable`). A Remove click disables every Remove button in the table.
-  The table is then drawn again from a fresh `poo grind schedule` (the
+  The table is then drawn again from a fresh `poon grind schedule` (the
   existing `refresh`), which gives new buttons with the new numbering. So two
   quick clicks can't both use numbers from the same drawing. The view also
   reads the schedule again each time it is shown, and the Add and Set forms
@@ -123,7 +123,7 @@ configuration, and it needs no attacker. Rated **low**.
   test fails at "every Remove is off while one runs".
 - **Left to the core.** A change made somewhere else (the terminal, another
   tab, a script) between the drawing and a click can still shift the
-  numbers. Only an identity check in `poo grind schedule remove` closes that,
+  numbers. Only an identity check in `poon grind schedule remove` closes that,
   for example `remove N -target T` as GREEN-031 proposes. Once the core takes
   it, the GUI will pass each row's target. As of this fix, no pushed branch
   has that flag, so the GUI doesn't send it yet. It goes to Source through

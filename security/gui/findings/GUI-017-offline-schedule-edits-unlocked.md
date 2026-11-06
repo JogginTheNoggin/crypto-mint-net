@@ -11,7 +11,7 @@
 
 ## Summary
 
-D125 closed GUI-014 for a running node. `poo grind schedule add|remove|set`
+D125 closed GUI-014 for a running node. `poon grind schedule add|remove|set`
 now sends a `GrindEdit` to `POST /v1/grind/schedule/edit`, and the node
 applies it under `policyMu`. That holds. Eight `add`s started at once
 against a running node kept all eight, in 5 runs out of 5.
@@ -47,16 +47,16 @@ unlocked window, so it does not close the race.
 
 ## Reproduction
 
-No node running, using `poo init -example` for the data directory:
+No node running, using `poon init -example` for the data directory:
 
 ```sh
-poo grind schedule add -dir D pending
-for h in 1 2 3 4 5 6 7 8; do poo grind schedule add -dir D -hours $h-$((h+1)) tip & done; wait
-poo grind schedule -dir D        # expect 9 jobs
+poon grind schedule add -dir D pending
+for h in 1 2 3 4 5 6 7 8; do poon grind schedule add -dir D -hours $h-$((h+1)) tip & done; wait
+poon grind schedule -dir D        # expect 9 jobs
 ```
 
 Across 20 runs, the schedule kept **3 to 6** of the 9 jobs. Every run lost
-some, and all `add`s exited 0. With `poo node -dir D` running, the same
+some, and all `add`s exited 0. With `poon node -dir D` running, the same
 script kept 9 in every run.
 
 ## Impact
@@ -71,7 +71,7 @@ attacker is needed. Rated **low**. This is node policy, not consensus.
 Source, so the GUI and headless are fixed together:
 
 - For the path without a node, hold a lock across `Load`, `Apply` and
-  `Save`. The data directory's `LOCK`, which `poo node` already holds through
+  `Save`. The data directory's `LOCK`, which `poon node` already holds through
   `nodepolicy.Lock(dir)`, fits:
   - Take it with `LOCK_NB`. If it is free, there is no node, so edit the file
     under it. Concurrent offline edits then queue, or retry briefly, rather
@@ -123,12 +123,12 @@ Source, so the GUI and headless are fixed together:
     second. `set -layer-rate 1000` exits 1 with "layer_rate must be 0 (the
     default, 10) to 50".
   - Old files: a node.json with `layer_rate` 1000 still opens. `Load`
-    clamps it to 50 (D128), and `poo doctor` warns "grind.layer_rate 1000
+    clamps it to 50 (D128), and `poon doctor` warns "grind.layer_rate 1000
     is over the most, 50: 50 is used". The schedule then shows 50, the rate
     actually used.
   - GUI: the Layer rate field explains peer time-outs and blocks, and its
     placeholder shows the range from the reply's `limits`, so it cannot
-    drift from the core. A refused value shows poo's error with the range,
+    drift from the core. A refused value shows poon's error with the range,
     and the schedule keeps its rate.
 - **GREEN-033 defaults as placeholders, safe.** The form sets only
   `placeholder` (`hint`), so an empty field still sends nothing. A stale
@@ -150,13 +150,13 @@ Source, so the GUI and headless are fixed together:
     matching 1 plus the number of adds that succeeded.
   - `follow`, `wallet follow` and `init -dir` use the same lock (D136).
     `wallet follow` changes a running node in two steps, which is GUI-018.
-  - A node hosted in poo-gui takes the lock on its own file descriptor, so
+  - A node hosted in poon-gui takes the lock on its own file descriptor, so
     the GUI's offline edits are refused while it runs, as they are for an
     outside node.
 - **Residual, Windows.** `nodepolicy.Lock` is a no-op off unix
   (`lock_other.go`). There, offline edits still lose each other, and a
   change can still be written behind a running node, exactly as before.
-  poo-gui supports Windows (its terminal has a Windows grammar). A
+  poon-gui supports Windows (its terminal has a Windows grammar). A
   `LockFileEx` lock on the same file would close it. This stays Low.
 - **Wording, optional.** When another *command* holds the lock, the
   wrapped error still ends "data directory in use by another node".

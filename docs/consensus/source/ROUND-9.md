@@ -12,8 +12,8 @@ Round 8's blocked items are fixed on the new base:
 - **B3.** Paging an entry's layers yields per page, and the order is
   checked.
 - **C-5.** Step 4 moves past counted entries only.
-- **RED-022's condition.** The disk wait is visible in `poo chases`,
-  `poo doctor` and a metric.
+- **RED-022's condition.** The disk wait is visible in `poon chases`,
+  `poon doctor` and a metric.
 
 Nothing is blocked this round.
 
@@ -44,7 +44,7 @@ so it is not a consensus matter, and Black prefers keeping pages.
 | B2, long chases restart for ever | Fixed (D124) | ORANGE-018's pace (480 a minute) is adopted. A timeout ends the chase as `Stalled`, which backs the sender off but keeps it in the group and keeps the progress (`Outcome.Keeps`). `TestHeavierLedgerLongBareRun` (100,000 bare entries, default budgets) and `TestChaseBelowSenderBudgetIsReached` cover it. See C-6 for how BLUE-010 interacts with it |
 | B3, `layersFrom` never yields | Fixed | It checks the slice and the pace before each page after the first, and saves the entry and offset in the progress. Every honest sequence passes the order check: within a page, stronger first and lower nonce among equals. Re-reads at a page start come only from layers that arrived meanwhile, so there are never more of them than the total grew by. A shrinking total, or a page past the total, can only come from a liar, since layers are never removed one at a time and an entry that leaves the selected ledger is answered "not held". A false sender is flagged and nothing is bad-listed |
 | C-5, early stop skipped uncounted entries | Fixed | `askLayers` reports how many hashes, from the first, it counted whole, and step 4 moves only past those. A stopped entry keeps its offset |
-| RED-022's disk wait must be visible | Met | A warning log, `waiting` and `waiting_since` in `poo chases`, a `poo doctor` warning and the `poo_chases_waiting_disk` metric |
+| RED-022's disk wait must be visible | Met | A warning log, `waiting` and `waiting_since` in `poon chases`, a `poon doctor` warning and the `poon_chases_waiting_disk` metric |
 
 ## Clear with conditions
 

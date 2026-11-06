@@ -18,7 +18,7 @@ remove -target`) as a person would. `remove -target` does what D119 says.
 1. A `grind` section that sets only `layer_floor` was dropped when it was saved, through the node (`PUT /v1/grind/schedule`, which the GUI uses) or offline. The reply still echoed the value, so the person believed it was set.
 2. For the same reason, such a section skipped validation, and the reply accepted `layer_floor: 300` when the limit is 256.
 3. No command sets it: `grind schedule set` takes `-device` and `-threads` but not `-layer-floor`, so the person had to edit `node.json`.
-4. `poo CMD -h` printed the usage, then `poo: flag: help requested`, and exited 1. Scripts and the GUI terminal saw asking for help as a failure.
+4. `poon CMD -h` printed the usage, then `poon: flag: help requested`, and exited 1. Scripts and the GUI terminal saw asking for help as a failure.
 
 All four are prototyped, with tests. GREEN-020 items 3 to 7 (schedule
 numbers, lease renewal, flag names in errors, a schedule-change reason,
@@ -38,7 +38,7 @@ is added to `IsZero`.
 
 **3. `grind schedule set -layer-floor S`.** This sets the section's
 `layer_floor` like the other defaults. The node checks it (0 to 256) and
-applies it without a reload. `docs/modules/poo.md` is updated.
+applies it without a reload. `docs/modules/poon.md` is updated.
 
 **4. `-h` exits 0.** `cli.Run` returns nil for `flag.ErrHelp`, so `Main`
 neither prints "flag: help requested" nor exits 1. Bad flags still fail.

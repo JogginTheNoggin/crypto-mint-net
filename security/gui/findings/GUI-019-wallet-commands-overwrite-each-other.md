@@ -11,7 +11,7 @@
 
 ## Summary
 
-Each `poo wallet` command does the same three things:
+Each `poon wallet` command does the same three things:
 
 1. `wallet.Open` reads the **whole** wallet.json into memory.
 2. It asks for the passphrase if it needs one (`f.unlocked`). In the GUI,
@@ -53,16 +53,16 @@ both. `Save` doesn't fsync before the rename either.
 
 ## Reproduction
 
-Both runs use the `poo` binary at 3a7a39c, a data directory from
-`poo init -example`, and a wallet made with passphrase `old`. Driving
+Both runs use the `poon` binary at 3a7a39c, a data directory from
+`poon init -example`, and a wallet made with passphrase `old`. Driving
 script: two processes, one waiting on its stdin prompt.
 
 **Passphrase reverted:**
 
-1. Start `poo wallet address -label slow` with no `POO_PASSPHRASE`. It reads
+1. Start `poon wallet address -label slow` with no `POON_PASSPHRASE`. It reads
    the wallet and waits at `passphrase:`. This is the GUI's "Get an address"
    form waiting at its masked field.
-2. Run `poo wallet passwd` with the old passphrase `old` and the new
+2. Run `poon wallet passwd` with the old passphrase `old` and the new
    passphrase `new`. It prints `passphrase changed`.
 3. Answer step 1's prompt with `old`. It gives out an address and saves.
 4. `wallet seed` with `new` fails with "wallet: wrong passphrase". With
@@ -70,9 +70,9 @@ script: two processes, one waiting on its stdin prompt.
 
 **Address lost:**
 
-1. Start `poo wallet passwd` (old passphrase from a file). It waits at
+1. Start `poon wallet passwd` (old passphrase from a file). It waits at
    `new passphrase:`.
-2. Meanwhile, `poo wallet address -label during` gives out `d38c799f…`,
+2. Meanwhile, `poon wallet address -label during` gives out `d38c799f…`,
    and `addresses` lists it as used.
 3. Answer `new` to step 1. `addresses` (with `new`) now lists only the
    `before` address as used. `d38c799f…` is unused again, and its label is
@@ -97,7 +97,7 @@ Source (pkg/wallet / pkg/cli), so the terminal and GUI are fixed together:
 - Make `Save` refuse to overwrite a file that changed since `Open` read it.
   Keep a hash of the bytes read, and under an exclusive lock on
   `wallet.json.lock`, re-read and compare before writing. On a mismatch,
-  fail with "the wallet changed meanwhile (another poo wallet command
+  fail with "the wallet changed meanwhile (another poon wallet command
   saved it): run this again". Then a stale copy can never write back an
   old seal or drop another command's keys or payments.
   - The lock is held only around compare-and-write, not across the
@@ -122,7 +122,7 @@ GUI/Blue makes no GUI change. The read-then-write-back is in pkg/wallet
 and pkg/cli, which the GUI's forms and terminal run as is. A GUI-only
 guard, such as letting only one wallet form run at a time, would leave the
 terminal and other shells open to the same race. It would also make the
-GUI act differently from headless poo, which the GUI must never do. So
+GUI act differently from headless poon, which the GUI must never do. So
 the fix belongs to Source. GUI/Blue passed it to Source through GUI/Grey.
 Once Source's fix lands, GUI/Blue can add a GUI e2e check: start two
 wallet forms, let one wait at its prompt, save the other, then expect the
@@ -146,7 +146,7 @@ waiting one to be refused.
   - `Create` over a file that appeared meanwhile returns `ErrExists`, and a
     save over a removed file returns `ErrChanged`.
   - The temporary file is still the fixed `wallet.json.tmp`. It is now
-    written only under the lock, so two poo commands can no longer mix
+    written only under the lock, so two poon commands can no longer mix
     their writes.
   - Windows has a real lock (`LockFileEx`). `GOOS=windows` builds.
   - `go test ./pkg/wallet -run 'Save|Concurrent' -count=3` passes.

@@ -18,7 +18,7 @@ say what an empty result means instead of "No output."
 ## Problem
 
 Opening the GUI without a running node fills most views with
-`poo: rpc: is the node running? open …/rpc.addr: no such file or
+`poon: rpc: is the node running? open …/rpc.addr: no such file or
 directory`. It is accurate, but a newcomer does not know that the fix is
 the Node view's "Start node" button. Without a node policy the wallet
 says `open …/node.json: no such file or directory`. Node policies with no
@@ -36,10 +36,10 @@ saved policy shows "No output."
   matches, because a message changed in `pkg/cli`, simply is not shown.
 - `panel()` takes an optional `empty` text. The Node policies panel uses
   it: "No saved node policies yet. Write one on the Node view."
-- The terminal is left alone, so it stays exactly like `poo` in a shell.
+- The terminal is left alone, so it stays exactly like `poon` in a shell.
 
 A sturdier version is for `pkg/cli` to print stable error codes, for
-example `poo: E_NO_NODE: …`, so hints match a code instead of text. That
+example `poon: E_NO_NODE: …`, so hints match a code instead of text. That
 is a headless change and Grey's call, so it is only noted here.
 
 ## Cost and risk
@@ -56,4 +56,4 @@ policies text shows).
 
 ## Decision
 
-Adopted. The command's error stays exactly as printed; the hint only links to a view. Hints match poo's error text, so a reworded error just drops its hint.
+Adopted. The command's error stays exactly as printed; the hint only links to a view. Hints match poon's error text, so a reworded error just drops its hint.

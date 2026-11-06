@@ -29,8 +29,8 @@
   - A variable series' JSON names its hash under `variable_hash` and
     leaves `hash` out. A node built before D163 ignores keys it does not
     know, finds hash 0, which names no hash, and calls the series
-    unreadable. Checked against `215d428`: `poo series info` fails with
-    "unknown hash function number: 0" and `poo doctor` lists it as not
+    unreadable. Checked against `215d428`: `poon series info` fails with
+    "unknown hash function number: 0" and `poon doctor` lists it as not
     accepted.
   - This node reads both forms (D163's first form had `hash`) and refuses
     a key it does not know (`series.ErrUnknownKey`), so a later extension

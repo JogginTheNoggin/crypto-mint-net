@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | proposed |
 | Based on | origin/main @ 4c0f708 |
-| Area | `pkg/wire` (hello, ping, pong), `pkg/p2p` (handshake, `PeerInfo`), `pkg/cli` (`poo peers`), `pkg/nodepolicy` (one setting), `docs/protocol/wire.md` |
+| Area | `pkg/wire` (hello, ping, pong), `pkg/p2p` (handshake, `PeerInfo`), `pkg/cli` (`poon peers`), `pkg/nodepolicy` (one setting), `docs/protocol/wire.md` |
 | Effort | medium |
 | Decided by | The owner chose the shape (2026-11-05: hello only, both extensible); Grey builds; Black to confirm it is not consensus |
 
@@ -36,7 +36,7 @@ selected, and a node never refuses or ranks a peer because of its version.
 
 Today a node learns nothing usable about a peer's software. The hello
 carries `Protocol` (always 1, never used to choose anything) and `Agent`
-(always `poo`, "for logs only"). When a later release adds a new request
+(always `poon`, "for logs only"). When a later release adds a new request
 or a new optional reply, it cannot tell whether a peer would understand
 it, so it has to send and wait for a timeout, or not use the new ability
 at all.
@@ -95,20 +95,20 @@ Ext   = U8 m ∥ m × (U16 Tag ∥ Bytes Value)
   defined yet. A tag number, like a type number, is never reused.
 - Decoders still refuse bytes after `Ext`, so strict decoding and the fuzz
   targets keep working. The new message is only a few bytes larger.
-- `Agent` stays `poo`, the dial-back hello keeps `poo-self-check/TOKEN`
+- `Agent` stays `poon`, the dial-back hello keeps `poon-self-check/TOKEN`
   (BLUE-032), and neither carries the release. `Protocol` stays 1; later
   versions raise it when a hello extension changes what peers may send.
 
 ### Showing it
 
-- `PeerInfo` and `poo peers -o json` get `release` (left out when the peer
-  sent none: never a guess) and `claimed_features`. `poo peers` and
-  `poo peer` label both as the peer's own claim ("says it runs", "says it
+- `PeerInfo` and `poon peers -o json` get `release` (left out when the peer
+  sent none: never a guess) and `claimed_features`. `poon peers` and
+  `poon peer` label both as the peer's own claim ("says it runs", "says it
   supports"). The GUI reads them from that JSON and parses nothing of its
   own (GUI/White).
-- `poo peers` table output strips control and invisible characters from
+- `poon peers` table output strips control and invisible characters from
   peer text (`plainText`).
-- A count of connected peers per release (in `poo peers -counts` or a
+- A count of connected peers per release (in `poon peers -counts` or a
   `-versions` view), so the owner can see what the network runs.
 - `p2p.announce_version`: `release` (default) or `none` (send an empty
   `Release`), for operators who do not want to tell peers which release

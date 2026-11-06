@@ -61,10 +61,10 @@ Neither changes `AddEntry`, `AddLayer`, `prune`, weight or selection. `chain`, `
   claim of a mint the selected ledger has claimed. A rival claim is
   passed directly as `Txs`, with the parent the owner chose.
 - **Pruning.** A lighter rival branch is pruned like any other when `k`
-  is small. The `poo claim` hint says to keep `k` high enough meanwhile.
+  is small. The `poon claim` hint says to keep `k` high enough meanwhile.
   This is the node's own information. A pruned branch can be given again,
   and is taken when it is heavier (as in Round 22's ties test).
-- **`poo policy limits -set` and `POST /v1/policy/limits`.** These write
+- **`poon policy limits -set` and `POST /v1/policy/limits`.** These write
   D159's and D160's bounded settings, checked whole by `Validate`. Round
   22 found that none of them can refuse a heavier ledger, at its floor or
   its ceiling. This is a new way to set them, not new settings.
@@ -100,7 +100,7 @@ input made in the same entry. They change nothing in the pool.
 ## The peer book and the RPC handshake (D162, RED-066, RED-067)
 
 - **RED-066.** `Dial` sends the full token only after `GET /v1/hello`
-  proves that the server knows it. This is a local channel between `poo`
+  proves that the server knows it. This is a local channel between `poon`
   and the node, and it has no part in what a node accepts.
 - **RED-067.**
   - The owner's own add may take the place of a learned record the node
@@ -117,7 +117,7 @@ input made in the same entry. They change nothing in the pool.
 | Item | Why it is clear |
 | --- | --- |
 | D161: build on a chosen parent; rival claims; `ClaimEntry`, `ParentOf`, `PoolID` | The entry is checked by `AddEntry` like any other, and weight selects. Read-only helpers |
-| D161: `poo policy limits -set`, `POST /v1/policy/limits` | Writes the bounded settings Round 22 cleared, checked whole |
+| D161: `poon policy limits -set`, `POST /v1/policy/limits` | Writes the bounded settings Round 22 cleared, checked whole |
 | BLUE-024 (RED-066): the node proves itself before the token is sent | Local RPC only |
 | BLUE-024 (RED-067): the owner's add finds a place; names count where they lead | Peer-book policy (information) |
 | BLUE-024 (RED-068): `CheckPendingOn` | A local pre-check whose result equals `CheckOn`'s. `AddEntry` checks in full |

@@ -37,7 +37,7 @@ its panel and moves focus to the panel's heading.
 
 ## Cost and risk
 
-- About 15 lines of JS and 2 lines of CSS. No poo command, and no state.
+- About 15 lines of JS and 2 lines of CSS. No poon command, and no state.
 - Tests that pick a button by text could now match a jump button with the
   same title. All eight e2e scripts still pass.
 

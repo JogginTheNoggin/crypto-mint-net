@@ -36,7 +36,7 @@ that shape in the JSON:
   runs when asked, with no timed refresh.
 
 This is about the output format only. It adds no consensus rule, and
-the GUI works nothing out itself: poo prints the ranges.
+the GUI works nothing out itself: poon prints the ranges.
 
 ## Problem
 
@@ -85,7 +85,7 @@ six parts in all:
 A single part drew quickly because `render.js` drew only its first 500
 serials. But it said nothing about the other 9,500, so the list seemed
 to end at the 500th serial. A table says "Showing 500 of N rows", but a
-plain list did not. This matters beyond parts: any list poo prints that
+plain list did not. This matters beyond parts: any list poon prints that
 is longer than 500 looked complete.
 
 What the numbers show:
@@ -104,7 +104,7 @@ What the numbers show:
 
 1. Source prints each part as ranges in the series info, release preview
    and release import JSON. This repeats what the design document's
-   table shows and costs Source nothing: poo already knows each part's
+   table shows and costs Source nothing: poon already knows each part's
    first and last serial.
 2. The GUI plan's tables use those fields as printed, with no GUI rule
    of its own (D84). `render.js` already caps rows at 500.
@@ -122,7 +122,7 @@ What the numbers show:
   cut list's note. The rest of this proposal is written before either
   side is built, so that the shape is chosen once.
 - Risk: none to consensus. It changes no rule and no part id, only how
-  poo prints what it already knows.
+  poon prints what it already knows.
 
 ## Prototype
 
@@ -136,14 +136,14 @@ again once Source prints real output.
 
 ## Measured after adoption (Round 25)
 
-Source built `poo series parts` (D163), which prints each part as
+Source built `poon series parts` (D163), which prints each part as
 `first_serial`, `last_serial`, `first_pool`, `last_pool` and `part_id`.
 It takes at most 1,000 parts a run (`-to` at most `-from` + 999). The
 Series and keys view runs it from the "Parts of a variable series" form,
 only when asked. Measured on main @ 88bd534 with the design document's
 example series (N = 50,000, M = 10,000, P = 1,000), twice each:
 
-| Run | poo prints, in | Shown in the page | Rows drawn | Long tasks |
+| Run | poon prints, in | Shown in the page | Rows drawn | Long tasks |
 | --- | --- | --- | --- | --- |
 | Default (parts 1 to 10) | 2.3 KB, 9 ms | 71 to 80 ms | 10 | none |
 | Parts 1 to 1,000, the most a run takes | 228 KB, 14 ms | 167 to 192 ms | 500, with "Showing 500 of 1000 rows" | none |

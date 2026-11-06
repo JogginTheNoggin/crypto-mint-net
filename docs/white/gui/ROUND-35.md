@@ -12,7 +12,7 @@ Checked locally (Actions has no runner) with #294 and #291 both merged
 onto `58273f7`, which merges cleanly: `go -C gui vet ./...`,
 `go -C gui test ./...`, the Windows amd64 and macOS arm64 cross-builds,
 and `gui/e2e/qol.mjs`, `views.mjs` and `parity.mjs` (77 commands) on a
-poo-gui built as `0.1.0-alpha.1`. All pass.
+poon-gui built as `0.1.0-alpha.1`. All pass.
 
 ## Items
 
@@ -20,14 +20,14 @@ poo-gui built as `0.1.0-alpha.1`. All pass.
 
 Verdict: **clear**
 
-- Line 4 and secrets: every new form runs poo's own flags (`keygen
+- Line 4 and secrets: every new form runs poon's own flags (`keygen
   -raw`, `sign -key-file - -alg -raw -hash -out -show`, `wallet create
   -watch-only`, `wallet pay -change`). A key typed for `-key-file -` is
-  read through poo's masked reader (`stdio.secret`), so the GUI masks
+  read through poon's masked reader (`stdio.secret`), so the GUI masks
   that line however the core words the prompt. Main says `seed: `, and #291
   says `key: `. The GUI does not match prompt text, so the rename needs
   nothing from it.
-- `signNote` reads only poo's JSON reply (`address`, `missing`, `legs`,
+- `signNote` reads only poon's JSON reply (`address`, `missing`, `legs`,
   `added`, `wrote`, `shown`) and draws nothing when a field is missing.
 - Line 5: parity passes (77 commands).
 
@@ -40,7 +40,7 @@ Verdict: **clear with notes** (S4)
   into history. This is page-only, with no API or storage change.
 - The steps panel and Pay's warning match #291: watch-only pay without
   `-out` is refused before anything is recorded.
-- Line 4, text coupling: `unsignedNote` reads poo's human text (a line
+- Line 4, text coupling: `unsignedNote` reads poon's human text (a line
   starting `signatures missing`, exit 0) rather than JSON. With #291
   merged, the core no longer does this. A payment that still needs
   signatures and has no `-out` is refused with an error (non-zero),
@@ -62,7 +62,7 @@ change.
 ## Suggestions to GUI Grey (R36A)
 
 - **S4 (after #291 merges):** remove `unsignedNote` and its call.
-  poo-gui always runs its own built-in poo, so no older core can reach
+  poon-gui always runs its own built-in poon, so no older core can reach
   the "recorded with signatures missing" state through the GUI. If
   you'd rather keep a note, key it on the error the core now returns (exit
   code non-zero), not on the text line, and say "nothing was recorded".
@@ -73,4 +73,4 @@ change.
 
 Unchanged from ROUND-34: R7 run on the tagged commit and the R10
 CHANGELOG group at tag time. R8 (signed `SHA256SUMS`) is Source White's,
-and the poo-gui archives are in the same file.
+and the poon-gui archives are in the same file.

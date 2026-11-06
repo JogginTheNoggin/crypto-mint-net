@@ -15,7 +15,7 @@ snapshots not used" when hundreds were (S2). Every PR merges cleanly on
 Checked locally (Actions has no runner): `go -C gui vet ./...` and
 `go -C gui test ./...` on main with #244 and #248 merged, Windows amd64
 and macOS arm64 cross-builds, and `gui/e2e/qol.mjs` and `views.mjs` on a
-poo-gui built with `-X ...cli.Version=0.1.0-alpha.1`. All pass, and the
+poon-gui built with `-X ...cli.Version=0.1.0-alpha.1`. All pass, and the
 header shows `v0.1.0-alpha.1`, so a pre-release version string works end
 to end.
 
@@ -25,19 +25,19 @@ to end.
 
 Verdict: **clear with notes**
 
-- Line 16 (settings survive an upgrade): G1 is done. poo-gui saves only
+- Line 16 (settings survive an upgrade): G1 is done. poon-gui saves only
   the port number, `0600` in a `0700` folder, and rebinds on 127.0.0.1
   only. `-listen` overrides it and saves nothing. Red's #243 checked the
   file handling.
 - Line 2: CHANGELOG and FEATURES are updated.
-- Note N1: running two poo-gui at once. The second gets a new port and
-  writes it to `last-port`, so next time poo-gui comes back on the
+- Note N1: running two poon-gui at once. The second gets a new port and
+  writes it to `last-port`, so next time poon-gui comes back on the
   second one's port and the first one's saved settings are not found.
   This is rare, and a sentence in docs/gui.md covers it ("run one
-  poo-gui, or give each its own `-listen`").
+  poon-gui, or give each its own `-listen`").
 - Note N2, for GUI Red to weigh, not a White item: the origin is now
   predictable. Any other local web page served later on that port (while
-  poo-gui is not running) shares the origin's browser storage: the node
+  poon-gui is not running) shares the origin's browser storage: the node
   policy path, wallet file path, theme and history (which already has no
   secret lines). Random ports allowed this too, only less often.
 
@@ -72,7 +72,7 @@ Verdict: **clear with notes**
 ### #248 GUI Orange R32B (ORANGE-024, ORANGE-025)
 
 Verdict: **clear**. ORANGE-025's `shortDetail` only shortens what is
-drawn: poo's JSON and the full text are unchanged (line 4), and "Show
+drawn: poon's JSON and the full text are unchanged (line 4), and "Show
 all" sets the text with a text node. No storage, API or packaging
 change.
 
@@ -101,10 +101,10 @@ the tagged commit.
 The GUI side of Source White's plan matches this team's:
 
 - one version from one tag;
-- archives named `poo-gui-0.1.0-alpha.1-OS-ARCH`;
-- poo-gui installed from the archives or with `go -C gui build` (R11);
+- archives named `poon-gui-0.1.0-alpha.1-OS-ARCH`;
+- poon-gui installed from the archives or with `go -C gui build` (R11);
 - the exact GUI check set in R7;
 - a GUI group in the CHANGELOG, and G1 in Known issues (R10). G1 is now
   fixed, so it can come out of Known issues;
-- each peer's `version` and claimed features in `poo peers -o json`,
+- each peer's `version` and claimed features in `poon peers -o json`,
   left out rather than guessed.

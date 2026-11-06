@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found on | `main` @ b17e892 (Source Round 17 Part B) |
 | Component | pkg/cli/policyport.go (`policyImportCmd`, `importOne`); pkg/rpc/policyimport.go (body cap) |
-| Surface | local operator (`poo policy import -apply` of a bundle of several policies) |
+| Surface | local operator (`poon policy import -apply` of a bundle of several policies) |
 | Fixed by | `claude/project-thread-ggo8dt` @ cfd1cbd (BLUE-018) |
 
 ## Summary
@@ -23,7 +23,7 @@ and the error names only the failing one.
 
 `TestRedNodeBundlePartialApply` (scratchpad `red_r17b_cli_test.go.txt`, goes
 in `pkg/cli`): a node bundle with policies `a` (new) and `b` (its node.json
-here is damaged), `poo policy import FILE -apply`:
+here is damaged), `poon policy import FILE -apply`:
 
 ```
 import: err=node policy "b": nodepolicy: invalid: .../policies/b/node.json: invalid character 'b' ...
@@ -60,7 +60,7 @@ Also untested (Windows only): `nameRE` allows a trailing dot and names like
 
 ## Resolution
 
-Fixed (D150). `poo policy import` plans every node policy of the bundle
+Fixed (D150). `poon policy import` plans every node policy of the bundle
 first, and applies only once every plan succeeded. A failure then says
 "nothing was changed". If saving one fails part way (a lock, a disk), the
 error names the node policies already saved and says that importing

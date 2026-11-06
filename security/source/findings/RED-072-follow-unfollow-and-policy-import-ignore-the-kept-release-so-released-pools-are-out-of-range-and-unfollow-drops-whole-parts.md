@@ -21,7 +21,7 @@ that edits what the node follows builds the series with
 - `ExportSeries` and the import merge (`bundle.go:266`, `:640`, `:862-875`),
   which check the file's follow rules and print "follows every pool (N)".
 
-The running node, `poo series followed` and the wallet use `Accepted()`, so
+The running node, `poon series followed` and the wallet use `Accepted()`, so
 they know the released parts. The two sides disagree about how many pools
 exist.
 
@@ -34,22 +34,22 @@ pools of 4, so part 1 is pools 0 to 9 and part 2 is pools 10 and 11. Node
 1. A pool or mint of a released part cannot be named:
 
 ```
-$ poo follow   -dir n2 -series 8dfdf9a3.. -pool 10     poo: nodepolicy: invalid: pool 10 out of range
-$ poo follow   -dir n2 -series 8dfdf9a3.. -mint 42     poo: nodepolicy: invalid: mint 42 out of range
-$ poo unfollow -dir n2 -series 8dfdf9a3.. -pool 10     poo: nodepolicy: invalid: pool 10 out of range
-$ poo wallet follow -dir n1 -wallet w.json              poo: nodepolicy: invalid: pool 10 out of range
+$ poon follow   -dir n2 -series 8dfdf9a3.. -pool 10     poon: nodepolicy: invalid: pool 10 out of range
+$ poon follow   -dir n2 -series 8dfdf9a3.. -mint 42     poon: nodepolicy: invalid: mint 42 out of range
+$ poon unfollow -dir n2 -series 8dfdf9a3.. -pool 10     poon: nodepolicy: invalid: pool 10 out of range
+$ poon wallet follow -dir n1 -wallet w.json              poon: nodepolicy: invalid: pool 10 out of range
 ```
 
-   (`poo series followed` on the same node says 12 pools; the wallet had
+   (`poon series followed` on the same node says 12 pools; the wallet had
    watched mint 43 of part 2.) So light mode cannot follow
    any mint past part 1.
 
 2. `unfollow` drops released parts. Running node, 12 pools followed whole:
 
 ```
-$ poo unfollow -dir n2 -series 8dfdf9a3.. -pool 0 -pool 1 -pool 2 -pool 3 -pool 4
-$ poo pools -dir n2      ->  pools [5, 6, 7, 8, 9]       (10 and 11 are gone)
-$ poo follow -dir n2 -series 8dfdf9a3..   ->  [0 .. 11]   (put back by hand)
+$ poon unfollow -dir n2 -series 8dfdf9a3.. -pool 0 -pool 1 -pool 2 -pool 3 -pool 4
+$ poon pools -dir n2      ->  pools [5, 6, 7, 8, 9]       (10 and 11 are gone)
+$ poon follow -dir n2 -series 8dfdf9a3..   ->  [0 .. 11]   (put back by hand)
 ```
 
    `unfollow` counts `PoolCount()` as 10, finds `left (5) <= len(except) (5)`,
@@ -59,12 +59,12 @@ $ poo follow -dir n2 -series 8dfdf9a3..   ->  [0 .. 11]   (put back by hand)
    follows **nothing**, with no message.
 
 3. A node's own export cannot be imported. `n3` follows pool 11 (part 2,
-   release kept). `poo policy export` writes the release with the series and
+   release kept). `poon policy export` writes the release with the series and
    the follow rule; then
 
 ```
-$ poo policy import -dir n7 pexp3.json      poo: follow in the file: nodepolicy: invalid: pool 11 out of range; nothing was changed
-$ poo policy import -dir n3 pexp3.json      (the same, into the node that wrote it)
+$ poon policy import -dir n7 pexp3.json      poon: follow in the file: nodepolicy: invalid: pool 11 out of range; nothing was changed
+$ poon policy import -dir n3 pexp3.json      (the same, into the node that wrote it)
 ```
 
    The plan of an import that works also counts pools without the release.
@@ -94,7 +94,7 @@ form for a series whose pool count never changes.
   `series.New(si.Params)` in `pkg/nodepolicy` and `pkg/cli` for the rest.
 - In `unfollow`, never write the "shorter form" for a variable series: keep
   `all` with `except`, or say so.
-- Tests: `poo unfollow` of five pools on a node at release 2 keeps a whole
+- Tests: `poon unfollow` of five pools on a node at release 2 keeps a whole
   follow with five exceptions; `follow -pool 10` and `-mint 42` work at
   release 2 and say "waiting for a release" at release 1; export then
   import of a policy that follows a pool of part 2; `wallet follow` with a

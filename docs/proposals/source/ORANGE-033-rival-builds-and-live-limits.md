@@ -10,8 +10,8 @@
 
 ## Summary
 
-D161 lets an owner build on a chosen parent (`poo build -parent`) and
-set limits on a running node (`poo policy limits -set`). I measured both.
+D161 lets an owner build on a chosen parent (`poon build -parent`) and
+set limits on a running node (`poon policy limits -set`). I measured both.
 
 **1. A build on a chosen parent checked pending payments pairwise,
 under the engine lock. Fixed here.**
@@ -134,7 +134,7 @@ How they were taken:
     called `Status`.
   - Allocation is the growth of `runtime.MemStats.TotalAlloc` across
     one change.
-  - The bare `poo` binary gave the same 20–25 ms for an empty node.
+  - The bare `poon` binary gave the same 20–25 ms for an empty node.
 
 The harnesses are not committed. The test and benchmark are.
 

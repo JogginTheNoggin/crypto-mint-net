@@ -42,7 +42,7 @@ for anything that could stop a heavier ledger being taken (D115):
 
 - **Same bytes, same checks.** `readEntryBody` reads the body whole and
   decodes it with the same JSON rules as before. The entry still goes
-  through `HandleEntry(..., Pushed)` with every check. `poo submit entry`
+  through `HandleEntry(..., Pushed)` with every check. `poon submit entry`
   now sends the hex as it was read instead of encoding it again
   (`SubmitEntryHex`); the node gets the same JSON.
 - **No size bound.**
@@ -72,7 +72,7 @@ depth is added, and a lost or old file only forgets peers.
 
 | Item | Why it is clear |
 | --- | --- |
-| D147: GREEN-040, `poo submit` reads a `-bytes` reply | CLI input only |
+| D147: GREEN-040, `poon submit` reads a `-bytes` reply | CLI input only |
 | D147: ORANGE-025 with the 64 MiB hint | Memory only, with no bound (see above) |
 | D147: GUI ORANGE-012, submit sends the hex as read | The node gets the same JSON and runs the same checks |
 | D147: `nodepolicy.Lock` on Windows | The local data-directory lock only. It refuses a second process, as on Unix |

@@ -10,14 +10,14 @@
 
 ## Summary
 
-Add `-o table` (and `-o json`, the default) to `poo status`, `pools`,
+Add `-o table` (and `-o json`, the default) to `poon status`, `pools`,
 `ledger`, `pending`, `unspent`, `address`, `peers` and `tracking`, so a
 person reading a terminal gets aligned columns with shortened hashes, while
 scripts keep the JSON they rely on. No prototype yet.
 
 ## Problem
 
-Every read command prints indented JSON. `poo status` for two pools is
+Every read command prints indented JSON. `poon status` for two pools is
 about 30 lines of 64-character hashes. It is good for scripts and the GUI,
 but hard to scan by eye.
 
@@ -30,7 +30,7 @@ but hard to scan by eye.
   digits, and `-wide` prints them in full.
 - One small formatter per reply type, beside the reply, tested with a
   golden file per command.
-- Optional later: `POO_OUTPUT=table` in the environment for people who
+- Optional later: `POON_OUTPUT=table` in the environment for people who
   always want tables.
 
 ## Cost and risk
@@ -44,7 +44,7 @@ so nothing breaks.
 On `claude/source-green`, based on `claude/m10-watch` @ `5ea6828`: `pkg/cli/table.go` and
 `pkg/cli/table_test.go`; `-o` and `-wide` on `status`, `pools`, `ledger`,
 `pending`, `unspent`, `tx`, `address`, `holdings`, `peers`, `tracking` and
-`chases`; a usage line and a paragraph in `docs/modules/poo.md`.
+`chases`; a usage line and a paragraph in `docs/modules/poon.md`.
 
 The prototype differs from the idea above in one way. It has no
 per-reply formatters. The table is built from the reply's JSON, read with
@@ -56,5 +56,5 @@ added to a reply shows up in the table with no change here, and the table
 can never disagree with the JSON. Golden tests per command were not needed:
 one exact-output test covers the renderer.
 
-Not done: `POO_OUTPUT`, and table output for `watch` (a stream) and the
+Not done: `POON_OUTPUT`, and table output for `watch` (a stream) and the
 wallet commands.

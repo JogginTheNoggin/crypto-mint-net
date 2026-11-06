@@ -15,7 +15,7 @@ Two small fixes found while exploring:
    with the theme and is hard to read in dark mode. All links in the
    content now use the accent colour.
 2. Every command result gets a "Copy output" button that copies stdout
-   exactly as poo printed it, for a script, a bug report or a co-signer.
+   exactly as poon printed it, for a script, a bug report or a co-signer.
 
 ## Problem
 
@@ -30,7 +30,7 @@ Two small fixes found while exploring:
 - In `showResult`, a small button after the rendered output. Copying is
   allowed to fail, and the button then says "Copy refused".
 - Copy is always user-initiated, and copies only what is already on
-  screen. Output that holds a secret, such as `poo wallet seed`, is
+  screen. Output that holds a secret, such as `poon wallet seed`, is
   copied only if the user clicks. Grey or Red may want such outputs to
   skip the button. That can be a per-form flag.
 

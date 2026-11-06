@@ -17,7 +17,7 @@ started), and removing one scheduled job stops only that job, with the
 reason "the schedule changed". Two problems remained, and both are
 prototyped with tests:
 
-1. **A doctor fix could change the wrong node policy.** `poo doctor -policy second` warned about `second`'s lowered `layer_rate` and offered `fix_args` `grind schedule set -layer-rate 50`. Run as printed, by a person or by a tool that runs `fix_args` (GREEN-022's purpose), that command changes the *current* policy (`default`), not `second`. Doctor then still warns about `second`, while `default` is changed. The same applies to the `init` and `node` fixes.
+1. **A doctor fix could change the wrong node policy.** `poon doctor -policy second` warned about `second`'s lowered `layer_rate` and offered `fix_args` `grind schedule set -layer-rate 50`. Run as printed, by a person or by a tool that runs `fix_args` (GREEN-022's purpose), that command changes the *current* policy (`default`), not `second`. Doctor then still warns about `second`, while `default` is changed. The same applies to the `init` and `node` fixes.
 2. **Changing the layer floor or rate restarted every scheduled job.** `schedule set -layer-rate 20` stopped all 15 running scheduled jobs and started them again, resetting their tries and rate. But `Manager.work` reads `m.def.Floor` and `m.def.Rate` at each search, so the running jobs would use the new values anyway.
 
 ## Idea
@@ -36,9 +36,9 @@ device or threads still restarts every job, because the plans change.
 
 ## Testing
 
-- `TestDoctorLoweredHasFixArgs` now runs `poo doctor -dir DIR -o json`, checks that `fix_args` ends in `-dir DIR`, runs the fix exactly as printed, and checks that the warning is gone. `TestDoctorOutputAndGrind` expects `init -dir DIR` when `-dir` was given.
+- `TestDoctorLoweredHasFixArgs` now runs `poon doctor -dir DIR -o json`, checks that `fix_args` ends in `-dir DIR`, runs the fix exactly as printed, and checks that the warning is gone. `TestDoctorOutputAndGrind` expects `init -dir DIR` when `-dir` was given.
 - `TestScheduleAppliesTheDifference` now checks that a new `layer_floor` or `layer_rate` keeps both job IDs and updates the defaults.
-- By hand: `poo doctor -policy second`'s fix changed `second` and left `default` alone.
+- By hand: `poon doctor -policy second`'s fix changed `second` and left `default` alone.
 - gofmt, vet, staticcheck, and `go test -race ./...` pass.
 
 ## Risks

@@ -6,7 +6,7 @@
 | Status | fixed; verified by GUI/Red R38B @ 1e71cf0 |
 | Fixed by | GUI/Blue, Round 37C (api.js: `secretLine` is also true when a `-key-file` or `-seed-file` value, as the next word or words, or after `=`, passes `looksLikeKey`, which now lives in api.js and is shared with the Wallet view's sign form; terminal.mjs and qol.mjs check it; lines saved before go on the next load, as `loadHistory` filters with `saveable`) |
 | Found on | main @ 7eb16ab (#310, #315: `shell.LooksLikeKey` in `shell.Redact`, GUI-032 R36B) |
-| Component | gui/web/static/api.js (`secretLine`: only the secret flags, seed and restore, keep a line out of saved history); gui/web/static/terminal.js (`saveable`, `saveHistory`: localStorage `poo-gui-history`) |
+| Component | gui/web/static/api.js (`secretLine`: only the secret flags, seed and restore, keep a line out of saved history); gui/web/static/terminal.js (`saveable`, `saveHistory`: localStorage `poon-gui-history`) |
 | Surface | local (the browser profile's storage, kept across sessions) |
 
 ## Summary
@@ -15,40 +15,40 @@ GUI-006 keeps a terminal line that may hold a secret out of the history
 the browser saves. `saveable` asks `api.secretLine`, which looks only
 for `-seed` and `-restore` with a value other than `-`.
 
-Round 37A taught poo-gui that a key pasted where a key file's path goes
+Round 37A taught poon-gui that a key pasted where a key file's path goes
 is a secret too. `shell.Redact` now hides a `-key-file` or `-seed-file`
 value that `LooksLikeKey`, so the Jobs list shows `<hidden>`. The
 terminal's saved history wasn't given the same test. A line typed as
-`poo sign pay.json -key-file c0ffee…beef` (or the colon-separated form)
+`poon sign pay.json -key-file c0ffee…beef` (or the colon-separated form)
 is:
 - shown in Jobs as `-key-file <hidden>`, redacted, which is right;
-- saved, whole, to localStorage `poo-gui-history`. That history is kept
-  across poo-gui restarts and browser sessions (up to 200 lines), and
+- saved, whole, to localStorage `poon-gui-history`. That history is kept
+  across poon-gui restarts and browser sessions (up to 200 lines), and
   Up-arrow recalls it.
 
-Typing a key on a command line is a mistake. poo's own help says "a
+Typing a key on a command line is a mistake. poon's own help says "a
 key is never taken on the command line". But it is the mistake GUI-032
 guards against in the form, and GUI-006 guards against for seeds in the
-terminal. Here the one copy that outlives poo-gui is the one left
+terminal. Here the one copy that outlives poon-gui is the one left
 unguarded.
 
 ## Reproduction
 
-poo-gui at 7eb16ab, a fresh `POO_HOME`, Playwright. pay.json is
+poon-gui at 7eb16ab, a fresh `POON_HOME`, Playwright. pay.json is
 `{"hash":"sha256","legs":[{"serial":1}]}`.
 
 1. Terminal: type `sign pay.json -key-file <64 hex digits>`, then Enter.
    Then the same with the key colon-separated (`c0:ff:ee:…`).
 2. `/api/jobs`: both sign jobs show `<hidden>` for the key, with
    `redacted: true`.
-3. `localStorage.getItem('poo-gui-history')` holds both lines, keys and
+3. `localStorage.getItem('poon-gui-history')` holds both lines, keys and
    all.
 
 ## Impact
 
 The key ends up in the browser profile on disk, on the online machine,
 for as long as the history keeps it, and Up-arrow shows it to anyone at
-the screen. Getting there takes a typed mistake, which poo then refuses
+the screen. Getting there takes a typed mistake, which poon then refuses
 ("the key file does not exist; … never the key itself"). Nothing is
 sent anywhere. Forget history clears it. Rated **low**.
 
@@ -66,7 +66,7 @@ sent anywhere. Forget history clears it. Rated **low**.
   are dropped on the next load.
 - e2e (terminal.mjs or qol.mjs): type `sign x.json -key-file` followed
   by 64 hex digits, and also the colon form. Expect neither in
-  `localStorage['poo-gui-history']`, and expect a path such as
+  `localStorage['poon-gui-history']`, and expect a path such as
   `-key-file cold.key` to still be saved.
 
 ## Notes — Round 38B verification (fixed)
@@ -75,7 +75,7 @@ I checked this with Playwright on 1e71cf0.
 
 - **Typed in the terminal.** `sign pay.json -key-file <64 hex digits>`
   and the colon-separated form both run, show as `<hidden>` in
-  `/api/jobs`, and are not in localStorage `poo-gui-history`.
+  `/api/jobs`, and are not in localStorage `poon-gui-history`.
 - **`secretLine` directly.** These are true (not saved):
   - plain hex;
   - `--key-file=HEX`;
@@ -115,13 +115,13 @@ I checked this with Playwright on 21c34c8.
 - **Cost.** A line of 20,000 words after `-key-file` is now read in
   well under a second. Every spelling from R38B is still kept out of the
   history: plain, `=`, colon, quoted groups, `-seed-file`, a tab. Paths
-  are still saved. An SLH-DSA-256s key (the largest raw key poo takes)
+  are still saved. An SLH-DSA-256s key (the largest raw key poon takes)
   as colon hex is 383 characters, which fits under `KEY_RUN`.
 - **Regression, not filed (it came from my own R38B suggestion).** The
   512-character cap is checked before a word is tested. One word longer
   than 512 characters that is all hex is now saved whole. That covers
   600 hex digits, and `--key-file=` with the same. `looksLikeKey` says
-  true for that word, and the line was kept out at 1e71cf0. No key poo
+  true for that word, and the line was kept out at 1e71cf0. No key poon
   accepts is that long: the biggest is SLH-DSA-256s at 256 digits. But
   another tool's full ML-DSA-87 private key, 9,792 digits, pasted by
   mistake would now go into localStorage. Suggested: test the first

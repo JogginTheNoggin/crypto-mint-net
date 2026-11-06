@@ -1,7 +1,7 @@
 // The GUI's only way to do anything: run a poon command line on the server,
 // which passes it to cli.Main exactly as the poon binary would.
 
-const HEADERS = { 'Content-Type': 'application/json', 'X-Poo-GUI': '1' };
+const HEADERS = { 'Content-Type': 'application/json', 'X-Poon-GUI': '1' };
 
 async function post(path, body) {
   const r = await fetch(path, { method: 'POST', headers: HEADERS, body: body === undefined ? undefined : JSON.stringify(body) });

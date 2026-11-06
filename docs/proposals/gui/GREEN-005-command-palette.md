@@ -23,7 +23,7 @@ The views now hold more than thirty forms across eight screens. Finding
 
 - Index the titles the views already declare (`panel` and `form` titles)
   plus the nav entries. Fuzzy-match on typing, Enter to go there.
-- Typing a line that starts with `poo ` or `>` offers "Run in terminal",
+- Typing a line that starts with `poon ` or `>` offers "Run in terminal",
   so the palette is also a quick way to the terminal.
 
 ## Cost and risk

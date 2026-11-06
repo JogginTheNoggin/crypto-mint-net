@@ -16,8 +16,8 @@ seed entry onto the core's secret prompt (`wallet create -restore -`, D106), so 
 seed is no longer typed onto argv. But two commands print a seed in their
 **output**:
 
-- `poo wallet seed` prints the wallet seed, after the wallet passphrase is entered;
-- `poo keygen` prints the seed of the key it makes.
+- `poon wallet seed` prints the wallet seed, after the wallet passphrase is entered;
+- `poon keygen` prints the seed of the key it makes.
 
 The job runner keeps every job's output (up to 4 MiB per job, 64 MiB across
 finished jobs, 64 jobs) for the life of the process. Anyone holding the session
@@ -39,8 +39,8 @@ in Jobs → Output with nothing hidden.
 
 1. In the terminal run `wallet seed` and enter the passphrase in the masked field.
    The seed prints.
-2. Open Jobs, find `poo wallet seed`, and press Output. The seed shows again.
-   Equivalently, `curl -b poo_gui=<cookie> -H 'Host: 127.0.0.1:<port>'
+2. Open Jobs, find `poon wallet seed`, and press Output. The seed shows again.
+   Equivalently, `curl -b poon_gui=<cookie> -H 'Host: 127.0.0.1:<port>'
    'http://127.0.0.1:<port>/api/jobs/<id>/events?from=0'` returns it.
 3. The same works for any `keygen` job.
 
@@ -50,7 +50,7 @@ The wallet seed restores every key, and the passphrase is what guards it. A hold
 of the session cookie already has full command authority (GUI-005). Without the
 passphrase, though, they cannot run `wallet seed` themselves. Retained output lets
 them skip that barrier whenever the owner revealed the seed earlier in the
-session. It also leaves the seed one click away on screen for as long as poo-gui
+session. It also leaves the seed one click away on screen for as long as poon-gui
 runs (shoulder-surfing, screen share). Rated **low**: it needs the session or the
 screen, the owner has to have printed the seed, and it lasts only until the
 process exits. It does still turn a passphrase-guarded secret into an unguarded
@@ -87,7 +87,7 @@ one inside the session.
 - **Watch frame batching and scrollback.** `pending` is capped at 2×`MAX_EVENTS`
   even while the tab is hidden. `scrollback` keeps the newest 1 MiB of text and
   writes only `textContent`/`appendData`. `ledgerPicture` builds SVG with
-  `setAttribute`/`textContent` from fields poo printed, so there is no markup
+  `setAttribute`/`textContent` from fields poon printed, so there is no markup
   injection.
 - **`-restore -` / hidden seed.** Both the wallet form (a checkbox that runs
   `-restore -`) and the terminal read the seed through `cli.Stdio.Secret`, so the
@@ -103,5 +103,5 @@ one inside the session.
 - **Runner (`gui/jobs`).** Such a job is marked `SecretOutput`. Once it has ended, the first `Read` that reaches the end (the live terminal, form or panel following it), or `Outputs` (`/api/run`), gets the output. The job then drops its chunks and sets `Withheld`. A status probe (`Read` from past the end, as `info()` does) does not count as a read. Output that nobody reads is dropped after `SecretKeep` (1 minute). Live followers still see the output while the job runs.
 - **Server.** A later `GET /api/jobs/{id}/events`, whether `?from=0` or with `Last-Event-ID`, gets `dropped` with `withheld: true` and then `exit`, with no chunks. The `dropped` event no longer indexes an empty chunk list. `GET /api/jobs` reports `secretOutput` and `withheld`.
 - **Page.** For a finished secret job, Jobs shows "output not kept (it held a secret)" instead of Output. The terminal and Jobs print "[output not kept: it held a secret]" on a withheld read. `render` shows any `seed` field hidden until Show, with no click-to-copy (`secretValue`), and a secret command's plain-text output is shown the same way. "Copy output" was already left out for keygen.
-- The terminal still prints the seed when it runs, as headless `poo` does.
+- The terminal still prints the seed when it runs, as headless `poon` does.
 - Regression tests: `TestSecretOutput` (gui/shell); `TestSecretOutputGivenOnce`, `TestSecretOutputExpires` (gui/jobs); `TestSecretOutputNotReplayed` (gui/server, real keygen: `?from=0` and `Last-Event-ID` replay no seed, the jobs list marks it, `/api/run` gives it once). In gui/e2e/terminal.mjs: Jobs shows "output not kept" with no Output button, the stream replays no seed, and the Make a key result hides the seed until Show.

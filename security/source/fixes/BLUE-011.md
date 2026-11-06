@@ -81,7 +81,7 @@ passed.
   - Red's host-wide byte budget. It would let cheap worked progress make
     an honest chase that is still counting forget its count again and
     again (D115).
-  - Showing kept bytes in `poo chases`.
+  - Showing kept bytes in `poon chases`.
 - **Trickling sender.** A connected sender that sends one part each turn
   is not idle, and keeps its parts if it ranks above the waiting chase.
 - **Still open from earlier.** The per-sender disk budget and the

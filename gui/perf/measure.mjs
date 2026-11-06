@@ -195,7 +195,7 @@ if (want('command')) {
   // One short real command (poon crypto) through each path the page uses.
   const g = await launch();
   out.command = await g.page.evaluate(async () => {
-    const H = { 'Content-Type': 'application/json', 'X-Poo-GUI': '1' };
+    const H = { 'Content-Type': 'application/json', 'X-Poon-GUI': '1' };
     const time = async f => { const ts = []; for (let i = 0; i < 30; i++) { const t = performance.now(); await f(); ts.push(performance.now() - t); } ts.sort((a, b) => a - b); return { medianMs: +ts[15].toFixed(2), p90Ms: +ts[27].toFixed(2) }; };
     const run = () => fetch('/api/run', { method: 'POST', headers: H, body: JSON.stringify({ args: ['crypto'] }) }).then(r => r.json());
     const job = async () => {

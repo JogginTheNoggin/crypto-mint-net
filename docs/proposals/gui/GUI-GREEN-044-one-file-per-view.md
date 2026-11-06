@@ -40,7 +40,7 @@ This makes the GUI modular the way FEATURES.md's "Adding a feature" asks:
   Blue and Green all edit it each round, so merges collide on it.
 - The view list lived in three places. The e2e lists had already drifted:
   they named 9 of the 11 views and missed Jobs and Settings.
-- A contributor had no written path from "a new poo command" to "a new
+- A contributor had no written path from "a new poon command" to "a new
   form", beyond copying a neighbour.
 
 ## Idea
@@ -53,7 +53,7 @@ This makes the GUI modular the way FEATURES.md's "Adding a feature" asks:
   top. `watch.js` and `work.js` only had their paths changed (`../`).
 - `views/index.js` documents the contract. `mount(root, ctx)` draws the
   view and returns a function that stops what it started, or nothing.
-  Every action is a `poo` command line the helpers show and run.
+  Every action is a `poon` command line the helpers show and run.
 - No behaviour change. The served files are still embedded with
   `//go:embed static`, which includes the new directory. The CSP, which
   allows scripts from self only, is unchanged.

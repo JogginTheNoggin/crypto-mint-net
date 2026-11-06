@@ -14,7 +14,7 @@
 D184 keeps unknown settings through `Load` then `Save`. `clone` copies them
 (`q.unknown = p.unknown`), but the policy `Merge` returns does not carry
 them: for each of `Settings`, `Full` and `Settings+Full` the result of
-`Merge(local, file, …)` had `UnknownSettings() == []`. `poo policy import`
+`Merge(local, file, …)` had `UnknownSettings() == []`. `poon policy import`
 and the settings import then `Save` that result, so the first import that
 changes anything rewrites node.json without the settings a newer release
 wrote, and without a word. (An import that changes nothing does not save,

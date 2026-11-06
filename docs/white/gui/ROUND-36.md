@@ -13,7 +13,7 @@ Checked locally (Actions has no runner) with all four pending PRs
 merged onto `d25f777`, which merges cleanly: `go -C gui vet ./...`,
 `go -C gui test ./...`, the Windows amd64 and macOS arm64 cross-builds,
 and `gui/e2e/qol.mjs`, `views.mjs` and `parity.mjs` (82 commands) on a
-poo-gui built as `0.1.0-alpha.1`. All pass.
+poon-gui built as `0.1.0-alpha.1`. All pass.
 
 ## Items
 
@@ -26,10 +26,10 @@ Verdict: **clear**. `unsignedNote` is gone, so nothing reads the old
 
 Verdict: **clear**
 
-- Line 4/5: the forms send poo's own flags (`claim -to-policy -out`,
+- Line 4/5: the forms send poon's own flags (`claim -to-policy -out`,
   `keygen -out`), and parity lists the five `bounty` commands as
   terminal-only in phase 1, each with its reason.
-- Secrets: `keygen -out` writes the key to a file through poo, so the
+- Secrets: `keygen -out` writes the key to a file through poon, so the
   page never shows it, and `secretOutput` still covers the printing
   form.
 
@@ -48,13 +48,13 @@ Verdict: **clear**
 Verdict: **clear with notes** (S5), if Grey adopts it
 
 - Line 5: it takes the five bounty commands out of parity's left-out
-  list and gives each a form, sending poo's own flags. Parity passes.
+  list and gives each a form, sending poon's own flags. Parity passes.
 - Line 4: the view reads `bounty list` JSON. Source White's R36 review
   (#306) marks feature `bounty` version 1 and leaves room for a version
   2 (W-29). Fields a later phase adds at the end show up through the
   generic renderer, so the GUI needs nothing for them.
 - Line 4, text coupling: `offNote` decides that the market is off by
-  matching `the bounty market is off` in poo's error text. This is the
+  matching `the bounty market is off` in poon's error text. This is the
   same pattern S4 removed from Pay. See S5.
 
 ### #302 GUI Red R36B, #303 GUI Orange R36B
@@ -64,10 +64,10 @@ Verdict: **clear**. Findings, notes and measurements only.
 ## Suggestions to GUI Grey (R37A)
 
 - **S5 (if #305 is adopted):** do not key the "market is off" note on
-  error text. Either show poo's error as printed, under a fixed line
+  error text. Either show poon's error as printed, under a fixed line
   ("This node does not run the bounty market; see node policy
   `bounty`"), or, better, read a field. Source White has been asked
-  whether `poo status` (or `bounty list`) can report the market's state
+  whether `poon status` (or `bounty list`) can report the market's state
   in JSON. When that lands, use the field and keep the text match only
   as a fallback, with a test.
 

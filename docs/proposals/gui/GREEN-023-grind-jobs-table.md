@@ -10,14 +10,14 @@
 
 ## Summary
 
-The Work view's Jobs panel printed `poo grind jobs` as a generic tree, so
+The Work view's Jobs panel printed `poon grind jobs` as a generic tree, so
 a list of jobs became a long column of nested `spec`, `plans` and raw
 numbers. To stop one, the user read its id there and typed it into the
 "Stop a job" form further down. Now the panel draws one row per job:
 
 - id;
 - what it works on (target, pools, hours, `for`, and who started it);
-- a state pill with poo's reason under it;
+- a state pill with poon's reason under it;
 - the device and grinder of each plan;
 - tries, rate, and layers / entries found;
 - a Stop button on each job that is still running or waiting.
@@ -33,7 +33,7 @@ as a busy one unless you read the `state` line.
 
 - `panel`'s `onResult` (GREEN-020) replaces the generic rendering with
   `jobsTable` and keeps the output as printed under a fold.
-- Stop runs `poo grind stop ID` through `api.run`, which is the same
+- Stop runs `poon grind stop ID` through `api.run`, which is the same
   command as the form's, and then refreshes the panel. The form stays for
   `-all` and for ids not shown.
 - The pill colours follow doctor's: running is ok, waiting is warn,

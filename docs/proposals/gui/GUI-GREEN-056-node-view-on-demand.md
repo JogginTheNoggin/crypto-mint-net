@@ -10,15 +10,15 @@
 
 ## Summary
 
-Round 30 Part A moved Followed pools' 5 s refresh to `poo status -counts`
+Round 30 Part A moved Followed pools' 5 s refresh to `poon status -counts`
 (ORANGE-021), so the timer no longer fetches a row for every pool. On the
 reserve series (1,024 pools), though, the Node view still drew every pool
 row **each time it opened**:
 
-- **Each pool** ran `poo status` (350 KB) as soon as the view mounted.
+- **Each pool** ran `poon status` (350 KB) as soon as the view mounted.
   Its comment and help said it runs "only when shown or asked", but every
   panel runs once on opening.
-- **What the node follows** ran `poo follow`, which prints the follow
+- **What the node follows** ran `poon follow`, which prints the follow
   rules and then every pool they cover (410 KB on the reserve), all drawn
   as a table.
 
@@ -35,17 +35,17 @@ view four times:
 - **`panel(ctx, { start: false })`.** The panel does not run when it
   opens. It says "Not run yet: press Show.", and its button reads Show
   until the first run, then Refresh. Every other panel is unchanged.
-  **Each pool** uses it, so the full `poo status` runs only when a person
+  **Each pool** uses it, so the full `poon status` runs only when a person
   asks for it.
 - **What the node follows** still runs on opening, so the follow rules
   show at once. A new `followView` draws the rules as printed and folds
   the pools under "1024 pools followed", drawn only when opened. The raw
   output stays under "Output as printed", drawn lazily as before.
-- Nothing is computed: the count is the length of poo's own `pools` list.
+- Nothing is computed: the count is the length of poon's own `pools` list.
 
 ## Notes for others (not built here)
 
-- **Source:** the `poo status -counts` rows name the series by id only.
+- **Source:** the `poon status -counts` rows name the series by id only.
   On the reserve, the Followed pools row reads `fe52c1ac…` while
   Followed series, just above, says "the built-in reserve series".
   Adding `builtin` to each `-counts` row, as `series followed` has it,

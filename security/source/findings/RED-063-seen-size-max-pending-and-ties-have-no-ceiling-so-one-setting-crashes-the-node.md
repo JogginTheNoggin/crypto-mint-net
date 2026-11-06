@@ -23,12 +23,12 @@ once: `make([]hash.Hash, size)` and `make(map[hash.Hash]int, size)`.
 
 ## How I checked it
 
-1. A fresh `poo init -example -dir d`, then `seen_size` set to
+1. A fresh `poon init -example -dir d`, then `seen_size` set to
    `1000000000000000` in `d/node.json`:
 
    ```
-   $ poo doctor -dir d        # every line ok or skip, no complaint
-   $ poo node -dir d
+   $ poon doctor -dir d        # every line ok or skip, no complaint
+   $ poon node -dir d
    panic: runtime error: makeslice: len out of range
    goroutine 1 [running]:
    github.com/JogginTheNoggin/crypto-mint-net/pkg/engine.NewSeen(...)
@@ -42,12 +42,12 @@ once: `make([]hash.Hash, size)` and `make(map[hash.Hash]int, size)`.
    same node with `seen_size` 1e15, `max_pending` and `ties` 2e9:
 
    ```
-   $ poo settings import hs.json -dir e
+   $ poon settings import hs.json -dir e
      read first: these change how this node runs ... : max_pending, seen_size, ties
      + max_pending: 2000000000
      + seen_size: 1000000000000000
      + ties: 2000000000
-   $ poo settings import hs.json -dir e -apply
+   $ poon settings import hs.json -dir e -apply
      saved
    ```
 
@@ -72,7 +72,7 @@ peer sends. That is the protection the limit was for.
   three. The user previews, sees a number, applies. The node restarts into
   a panic or into swap, and cannot start again until node.json is edited
   by hand.
-- The same through `poo init`/`doctor` paths: `doctor` says everything is
+- The same through `poon init`/`doctor` paths: `doctor` says everything is
   fine for a value the node cannot run with.
 - A mild file that sets `max_pending` or `ties` very high turns off two
   limits that bound memory under a flood, and the "read first" line shows
@@ -105,8 +105,8 @@ Fixed (D160), with the D159 pattern Red suggested and Red's ranges.
 
 - `nodepolicy.BoundSeenSize` (65,536; 1,024 to 4,194,304),
   `BoundMaxPending` (10,000; 16 to 1,048,576) and `BoundTies` (64; 1 to
-  4,096). They are in `Bounds()` and checked by `Validate`, so `poo
-  doctor`, `poo settings import` ("does not fit") and the GUI's form
+  4,096). They are in `Bounds()` and checked by `Validate`, so `poon
+  doctor`, `poon settings import` ("does not fit") and the GUI's form
   refuse an out-of-range value and name the setting and its range. The
   old "must not be negative" check is gone; a negative value is out of
   range.

@@ -10,7 +10,7 @@
 
 ## Summary
 
-Every panel and form shows the exact `poo` line it runs, quoted the way
+Every panel and form shows the exact `poon` line it runs, quoted the way
 the platform's shell takes it (`api.quote`, pinned to `shell.Quote` by
 the tests). The only thing you could do with that line was "Run in
 terminal". This adds **Copy** next to it, so the line can go into a

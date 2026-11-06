@@ -12,7 +12,7 @@
 ## Summary
 
 D127 lowers `MaxLayerRate` from 1,000 to 50 and `Validate` refuses anything
-above it. `Load` validates, and `node.Open`, the daemon's reload, `poo doctor`
+above it. `Load` validates, and `node.Open`, the daemon's reload, `poon doctor`
 and every command that reads node.json use `Load`. A node.json written under
 Round 8 with a `layer_rate` of 51 to 1,000 (valid then, and shown in the
 GUI's form) now fails to load, so the node does not start and a SIGHUP
@@ -52,7 +52,7 @@ warning is logged; the same value written through the RPC is refused.
 Fixed by BLUE-010 (decision D128), as recommended. `nodepolicy.Load`
 brings a `grind.layer_rate` over `MaxLayerRate` down to it and says so in
 `Policy.Lowered` (not saved). `node.Open` logs each note as a warning and
-`poo doctor` shows it as a warn line. `Save`, and with it the RPC, CLI
+`poon doctor` shows it as a warn line. `Save`, and with it the RPC, CLI
 and GUI writes, still refuses the value. `docs/modules/nodepolicy.md`
 notes that a bound may only be lowered this way. Test:
 `TestLoadLowersAValueOverALoweredBound` (`pkg/nodepolicy`).

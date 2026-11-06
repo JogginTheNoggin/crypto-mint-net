@@ -10,10 +10,10 @@
 
 ## Summary
 
-Today a mistake in `node.json` followed by `poo reload` (or SIGHUP) stops
-the node for good. `poo reload` even prints "reloaded". With this change,
+Today a mistake in `node.json` followed by `poon reload` (or SIGHUP) stops
+the node for good. `poon reload` even prints "reloaded". With this change,
 both reload paths check the file first. On a mistake, the node logs an
-error and keeps running on the policy it has, and `poo reload` fails with
+error and keeps running on the policy it has, and `poon reload` fails with
 the reason. Prototyped, with a test.
 
 ## Problem
@@ -21,16 +21,16 @@ the reason. Prototyped, with a test.
 Reproduced at `7e68fe0`:
 1. Start a node.
 2. Set `"log": {"level": "loud"}` in its `node.json`.
-3. Run `poo reload`.
+3. Run `poon reload`.
 
-`poo reload` exits 0 and prints `reloaded`. The node logs `reloading its
+`poon reload` exits 0 and prints `reloaded`. The node logs `reloading its
 node policy`, fails to reopen with the validation error, and exits. Every
 later command says "is the node running?". The same happens with SIGHUP.
 Hand-editing `node.json` is the documented way to change most settings
 (`docs/modules/nodepolicy.md`), so one typo takes the node offline until
 someone notices, and nothing told the person who made the typo.
 
-`poo follow` and `unfollow` are not affected, because `nodepolicy.Save`
+`poon follow` and `unfollow` are not affected, because `nodepolicy.Save`
 validates before writing.
 
 ## Idea
@@ -65,4 +65,4 @@ On `claude/source-green`:
   paths, the node keeps serving, and the corrected file reloads
 - notes in `docs/modules/daemon.md` and `rpc.md`
 
-I also checked it by hand with `poo reload` and `kill -HUP`.
+I also checked it by hand with `poon reload` and `kill -HUP`.

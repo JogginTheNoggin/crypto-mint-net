@@ -12,12 +12,12 @@
 ## Summary
 
 The import form is built as a review gate for a file someone else wrote.
-**Preview** runs `poo policy import -json FILE`, which changes nothing,
+**Preview** runs `poon policy import -json FILE`, which changes nothing,
 and draws the plan. **Apply** then runs the same command with `-apply`.
 The form says "Nothing changes until you press Apply". The user is
 meant to apply exactly what they just reviewed.
 
-A file picked in the browser is sent to poo as `FILE = -`. The page
+A file picked in the browser is sent to poon as `FILE = -`. The page
 keeps its text in one variable for the whole form, `picked`, and
 `feed` sends `picked` to whichever job starts. The Apply button that a
 preview adds keeps the arguments of that preview (`last`, ending in `-`),
@@ -27,7 +27,7 @@ but **not** the text. So:
 2. Pick file B, in the same field or by mistake. The page sets `picked`
    to B's text. The preview of A and its Apply button stay on the page.
 3. Press Apply. The confirm dialog shows only
-   `poo policy import … -json -apply -`, so the two files can't be told
+   `poon policy import … -json -apply -`, so the two files can't be told
    apart. Accepting it imports **B**, which was never previewed.
 
 Two related gaps come from the same cause:
@@ -43,8 +43,8 @@ Two related gaps come from the same cause:
 
 ## Reproduction
 
-poo-gui at 3804c55, using `init -example` in a fresh home. A.json is
-`poo policy export` of an `init -example` root, so it changes nothing.
+poon-gui at 3804c55, using `init -example` in a fresh home. A.json is
+`poon policy export` of an `init -example` root, so it changes nothing.
 B.json is A.json plus `p2p.peers: ["203.0.113.7:7000"]`.
 
 1. In Policies → Import node policies, pick A.json and press Preview.
@@ -77,7 +77,7 @@ GUI/Blue:
 - Remove the Apply button, or disable it with "preview again", as soon
   as the file field, the picked file, or any checkbox changes.
 - For a path, or as defence in depth (Source, optional): have
-  `poo policy import -json` print a digest of the bundle it read, and add
+  `poon policy import -json` print a digest of the bundle it read, and add
   `-apply -if-digest D` that refuses a different file. The GUI then
   passes the previewed digest, and the terminal can do the same.
 - e2e test: preview A, pick B, then Apply. Expect either no Apply button
@@ -85,7 +85,7 @@ GUI/Blue:
 
 ## Fix (GUI/Blue, Round 18C)
 
-The fix is in `importForm` in gui/web/static/views.js. poo is unchanged.
+The fix is in `importForm` in gui/web/static/views.js. poon is unchanged.
 
 - When Preview starts, the form keeps that run's args and the picked
   file's text, read once as `{name, text}`. Apply uses only those. It
@@ -94,25 +94,25 @@ The fix is in `importForm` in gui/web/static/views.js. poo is unchanged.
   button: picking another file, typing a path, or ticking an option. To
   apply something else, you preview it first.
 - The confirm dialog names the previewed file:
-  `Run poo policy import … -apply - with the previewed file NAME?`.
+  `Run poon policy import … -apply - with the previewed file NAME?`.
 - Test: e2e `views.mjs` previews A, picks B and checks that Apply is
   gone. It then previews B and checks that the plan shows B's peer.
   Ticking an option removes Apply. Finally it previews A again, applies,
   and checks that the dialog names A and that node.json has no B peer.
   On the old code it fails at "picking another file takes Apply away".
 
-Still open for Source, optional: when FILE is a path, poo reads the file
+Still open for Source, optional: when FILE is a path, poon reads the file
 again at Apply, so the file could change on disk between Preview and
 Apply. The GUI can't see that without reading the file itself. Red's
 suggested bundle digest (`-expect DIGEST` on `-apply`) would close it in
-poo, for the terminal too.
+poon, for the terminal too.
 
 ## Notes — Round 19B verification (held up)
 
 - **The GUI, checked with Playwright on e71e317.**
   - Preview A, then pick B: the Apply button is gone.
   - Preview A again and press Apply. The dialog reads
-    `Run poo policy import -settings -json -apply -if-digest 3da1d4eb… -
+    `Run poon policy import -settings -json -apply -if-digest 3da1d4eb… -
     with the previewed file A.json?`.
   - node.json gets nothing from B.
 - **Apply sends the previewed file, pinned by digest.** It streams the
@@ -126,13 +126,13 @@ poo, for the terminal too.
 - **Any form change drops Apply.** That covers `input` or `change` on any
   field, checkbox or pick, so the options Apply runs with are the ones
   previewed.
-- The digest is read from poo's own `-json` plan, not from the file.
+- The digest is read from poon's own `-json` plan, not from the file.
 
 ## Hardening (GUI/Blue, Round 20C)
 
 GUI/Red's R20B note was not a finding. Apply added `-if-digest` only when
 the preview's JSON carried a digest, so a preview without one would have
-offered an unpinned Apply. poo always prints a digest today. The Import
+offered an unpinned Apply. poon always prints a digest today. The Import
 form now offers Apply only for a 64-hex digest. Otherwise it says "Apply
 is not offered: the preview printed no digest…". Test: e2e `views.mjs`
 blanks the digest in a preview's output on its way to the page and

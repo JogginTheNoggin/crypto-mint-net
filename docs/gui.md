@@ -304,7 +304,7 @@ server is locked down:
   list.
 - **Host and Origin checks.** Requests whose Host is not the loopback
   address and port are refused, which blocks DNS rebinding. API calls that
-  change something must be POSTs that carry the `X-Poo-GUI` header and, if
+  change something must be POSTs that carry the `X-Poon-GUI` header and, if
   present, a matching Origin. A cross-site page cannot send that header
   without a preflight, and the server answers no preflight.
 - **A strict Content-Security-Policy.** Only the GUI's own scripts and

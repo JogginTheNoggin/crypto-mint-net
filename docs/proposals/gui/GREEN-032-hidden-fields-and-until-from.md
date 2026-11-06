@@ -28,7 +28,7 @@ This fixes two things:
 - Peers, "Act on a peer": choosing unblock still shows Seconds, Whole
   range, Clear and Tracking template. They look usable but are dropped
   from the command, which is worse than not showing them.
-- `poo grind` refuses `-until-from` with tip or pending ("until_from
+- `poon grind` refuses `-until-from` with tip or pending ("until_from
   needs an entry or tx:TID as the target"). It also needs it for a
   tx:TID target. The forms showed the field for every target. The Run
   form's target hint also left out tx:TID, and the Start form's target
@@ -40,8 +40,8 @@ This fixes two things:
 - `only` takes `not` as well as `values`. With `only: {field, not}`, the
   field is hidden, and not sent, while the other field's trimmed text is
   one of `not`. The job forms use `not: ['', 'tip', 'pending']`. These are
-  poo's own target keywords, compared as text, so the GUI checks nothing
-  itself. poo still checks the command, for example that a tx: target
+  poon's own target keywords, compared as text, so the GUI checks nothing
+  itself. poon still checks the command, for example that a tx: target
   has an until-from.
 - The Run a job panel builds its own form, so it applies the same rule.
 - The three target fields share one hint: "tip, pending, tx:TID or an

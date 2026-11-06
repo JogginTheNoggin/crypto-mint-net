@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | adopted by Source as D147 (PR #70, Round 16); the GUI side merged only the docs, and the prototype is not merged on the GUI side, because the change is in `pkg/cli` and `pkg/rpc`. Source: the change is in `pkg/cli` and `pkg/rpc` |
 | Based on | claude/gui-4-watch @ 55cf745 |
-| Area | pkg/cli/submit.go (`poo submit entry`), pkg/rpc/client.go (`SubmitEntryHex`) |
+| Area | pkg/cli/submit.go (`poon submit entry`), pkg/rpc/client.go (`SubmitEntryHex`) |
 | Effort | small |
 | Decided by | |
 
@@ -15,9 +15,9 @@ files, the new state event for each ask, and the Wallet view with the
 wallet lock.
 
 - **Submit with `-f`.** A 128 MiB entry took about 12 s to the node's
-  reply. `poo submit` used about 1 GB of heap and allocated 2 GB, and the
-  node peaked at 1.3 GB. The GUI runs `poo` in its own process, so that
-  gigabyte is poo-gui's. Most of the client's share went into encoding
+  reply. `poon submit` used about 1 GB of heap and allocated 2 GB, and the
+  node peaked at 1.3 GB. The GUI runs `poon` in its own process, so that
+  gigabyte is poon-gui's. Most of the client's share went into encoding
   the entry again after decoding it, plus three copies of its hex. The
   prototype checks the entry, lets the decoded form go, and streams the
   hex it read into the request. It takes the 128 MiB entry to 5 to 7 s,
@@ -44,7 +44,7 @@ the re-check table in the README).
 
 A test made entries of 1 to 128 MiB of small transactions, wrote each as
 hex to a file, and ran `cli.Main(["submit", "entry", "-pool", "0", "-f",
-FILE])` in-process, as poo-gui does, against a real `poo node`. The node
+FILE])` in-process, as poon-gui does, against a real `poon node`. The node
 refuses these entries ("transaction of another series") only after
 decoding and checking them, so the whole path is measured. Heap is the
 client's, sampled every millisecond. Two runs each:
@@ -71,7 +71,7 @@ security issue.
 ## Change (prototype, on claude/project-thread-f0df7u)
 
 - `submitHex` returns the trimmed bytes it read, not a `string` copy.
-- `poo submit entry` decodes the hex into one buffer to check the entry,
+- `poon submit entry` decodes the hex into one buffer to check the entry,
   as before. It then keeps only the parent hash (for the GREEN-039
   message), lets the buffer and the decoded entry go, and sends with
   `SubmitEntryHex`.
@@ -86,16 +86,16 @@ security issue.
   `doHeader` now calls a new `doReader`, so every other call is
   unchanged.
 - `SubmitEntry` stays for library callers and is listed in the parity
-  test's `noCommandYet`, since `poo submit entry` now calls the hex form.
+  test's `noCommandYet`, since `poon submit entry` now calls the hex form.
 
-`poo submit layer` is unchanged: a layer is small.
+`poon submit layer` is unchanged: a layer is small.
 
 `go test ./pkg/cli ./pkg/rpc` passes, including `submit_test.go` and the
 parity test.
 
 ## For Source: the wallet lock under overlap
 
-| 16 `poo wallet address` at once | Round 14 (3a7a39c) | Round 15 (55cf745) |
+| 16 `poon wallet address` at once | Round 14 (3a7a39c) | Round 15 (55cf745) |
 | --- | --- | --- |
 | Succeeded | 16 | 1 |
 | Refused, "run the command again" | 0 | 15 |

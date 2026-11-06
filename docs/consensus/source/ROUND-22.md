@@ -112,7 +112,7 @@ decides whom a node knows, never which ledger it takes.
 | BLUE-023 (RED-064): learned candidates give way; `candidate_seconds`; `Book.Fit` | Peer-book policy. Reached and owner-given records stay |
 | BLUE-023 (RED-065): a refused add changes nothing | Peer-book bookkeeping |
 | ORANGE-032: per-range counts and the imported set kept up to date; the tracker's log trimmed without copying | Speed only. `TestBookCountsKept` checks the counts against a scan |
-| GREEN-047 part 1: `poo policy limits` | Read-only listing from the same list `Validate` checks |
+| GREEN-047 part 1: `poon policy limits` | Read-only listing from the same list `Validate` checks |
 | GREEN-047 part 2: the survey of other limits | A list, nothing built. See below |
 | Red (PR #134): RED-063 to RED-065 | Findings only; each is node policy, and each is fixed in PR #138 |
 

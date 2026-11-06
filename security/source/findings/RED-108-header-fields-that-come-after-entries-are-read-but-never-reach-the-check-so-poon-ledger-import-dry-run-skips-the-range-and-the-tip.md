@@ -1,4 +1,4 @@
-# RED-108: Header fields after `entries` are read and dropped, so `poo ledger import -dry-run` checks the range and tip against zero
+# RED-108: Header fields after `entries` are read and dropped, so `poon ledger import -dry-run` checks the range and tip against zero
 
 | Field | Value |
 | --- | --- |

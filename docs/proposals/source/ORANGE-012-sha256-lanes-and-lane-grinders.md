@@ -24,7 +24,7 @@ does two things:
    - `cpu-sha256-avx512`;
    - `cpu-blake3-avx512` (ORANGE-011's lanes).
 
-   Jobs, `poo work` and `poo grind bench` then use them through the
+   Jobs, `poon work` and `poon grind bench` then use them through the
    normal plan. A default build is unchanged: the lanes are only in an
    opt-in build. That keeps D112 (no experimental package in the default
    build) and makes the opt-in build useful now.
@@ -99,7 +99,7 @@ limit. More would need fewer ops, not better scheduling.
   grinders in `init` when `archsimd.X86.AVX512()` holds.
   - Each gets `New` (for entries) and a `Search` that hands multiples of
     16 nonces to the lanes, then hashes any left over one at a time.
-  - `poo grind devices` lists them as the CPU's fast grinders, and auto
+  - `poon grind devices` lists them as the CPU's fast grinders, and auto
     picks them.
 - **Grey's decision is whether to ship an opt-in build.** For example, a
   release asset built with `GOEXPERIMENT=simd`, or a `make simd` target.

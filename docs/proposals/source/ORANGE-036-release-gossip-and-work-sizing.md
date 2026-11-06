@@ -97,7 +97,7 @@ storage and bandwidth per spend grow by the same factor.
 **6. The work sizing at floors 20 and 24 is sound. One follow-up for higher
 floors.**
 
-`poo work`'s default of 2^(floor+2) tries finds a layer at the floor 98.2%
+`poon work`'s default of 2^(floor+2) tries finds a layer at the floor 98.2%
 of the time. The 2^(floor+4) cap is reached only with `-tries`.
 
 At floor 24, the default search takes:
@@ -113,7 +113,7 @@ request at the cap passes 5 minutes on 1 core:
 - from floor 28 with SHA-256 (2^32 tries, 519 s).
 
 Below the floors proposed, nothing is needed. If a series ever sets
-floors that high, `poo work -tries` at the cap should send `for` with a
+floors that high, `poon work -tries` at the cap should send `for` with a
 time limit, or the client's timeout should follow the tries. I leave
 that to Grey.
 
@@ -156,7 +156,7 @@ it.
 
 ### In-place limits
 
-These are `poo policy limits -set` calls through the RPC, on a node with a
+These are `poon policy limits -set` calls through the RPC, on a node with a
 running p2p host. Each figure includes loading and saving node.json.
 
 | change | time |

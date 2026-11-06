@@ -10,40 +10,40 @@
 
 ## Summary
 
-Since D170, `poo init` with no series follows the **built-in reserve
+Since D170, `poon init` with no series follows the **built-in reserve
 series**, the one every node follows out of the box. I walked a newcomer's
 first steps on it, headless and in the GUI, on a fresh home:
 
 - init, node, status and doctor;
 - a claim of a mint;
-- `poo build` of the entry: about 1 M tries at the entry floor of 20, in
+- `poon build` of the entry: about 1 M tries at the entry floor of 20, in
   0.2 s;
-- `poo work`: 2^26 tries, 7 s, for a layer at the floor of 24.
+- `poon work`: 2^26 tries, 7 s, for a layer at the floor of 24.
 
 All of it works and is quick on a CPU. Two things in the GUI still point a
 newcomer the wrong way, and one hides what they are on:
 
 1. **Getting started writes the worked example, not the default.** Its
-   "Write a node policy" step is `poo init -example`. A newcomer who
+   "Write a node policy" step is `poon init -example`. A newcomer who
    follows the guide ends up on the documents' small example series,
-   unlike every node set up by plain `poo init`, and unlike the network
+   unlike every node set up by plain `poon init`, and unlike the network
    they will want to join.
 2. **The Node view never says "reserve".** A newcomer sees a 64-hex id in
    two tables of 1,024 pool rows each (Followed pools, and What the node
-   follows). `poo series followed` already says `"builtin": "reserve"`,
+   follows). `poon series followed` already says `"builtin": "reserve"`,
    only when the full id matches (D170), but no panel showed it. The
    Variable series panel reads the same reply and says only "None of the
    1 followed series is variable."
 
 ## Idea
 
-- **Getting started → Write a node policy** runs `poo init` (with the
+- **Getting started → Write a node policy** runs `poon init` (with the
   Settings `-root` and `-policy`, as before). Its text says the command
-  follows the built-in reserve series, that poo prints the full id, and
+  follows the built-in reserve series, that poon prints the full id, and
   that `-example` tries the small worked example instead. The step links
   to the Node view, like the other steps that have one.
 - **Node → Followed series**, a new panel before Followed pools, runs
-  `poo series followed`. It draws one row per series:
+  `poon series followed`. It draws one row per series:
   - the name (from `builtin`: "the built-in reserve series", or
     "built in: X" for a later one);
   - the id, as 16 hex with the full id on hover;
@@ -51,7 +51,7 @@ newcomer the wrong way, and one hides what they are on:
   - pools, mints (for a variable series, the mints released so far);
   - units per mint, and the entry and layer floors.
 
-  Everything comes from poo's JSON. The GUI never compares ids itself,
+  Everything comes from poon's JSON. The GUI never compares ids itself,
   so a look-alike id is never named the reserve (Red's point, D170). The
   raw output stays one click away.
 - **`rowsTable`.** The Variable series table's code that draws 500 rows
@@ -75,14 +75,14 @@ newcomer the wrong way, and one hides what they are on:
 ## Cost and risk
 
 About 30 lines in node.js and one line in start.js. There is one more
-`poo series followed` call when the Node view opens, the same call the
+`poon series followed` call when the Node view opens, the same call the
 Variable series panel makes. No rule, consensus or policy change: the
-name is poo's `builtin` field.
+name is poon's `builtin` field.
 
 ## Prototype
 
 This PR.
-- qol.mjs checks the Getting started line (`poo init -root …`).
+- qol.mjs checks the Getting started line (`poon init -root …`).
 - qol.mjs draws `seriesTable` with a reserve row and a variable row, and
   checks the name, mints and floors.
 - views.mjs checks the Followed series row of the worked example's

@@ -1,4 +1,4 @@
-# BLUE-030: A cold read fault never leaves the engine locked; a revert's cost counts the bodies it reads; poo status -counts
+# BLUE-030: A cold read fault never leaves the engine locked; a revert's cost counts the bodies it reads; poon status -counts
 
 | Field | Value |
 | --- | --- |
@@ -7,7 +7,7 @@
 | Base | `main` @ `d1a9128` (Source Round 29 Part C) |
 | Code | `255f269` |
 | Decisions | D177 |
-| With | GUI ORANGE-021: `poo status -counts`. Not carried: Orange #212 (mempool only) and Green #209 (no overlap). |
+| With | GUI ORANGE-021: `poon status -counts`. Not carried: Orange #212 (mempool only) and Green #209 (no overlap). |
 | Review | No consensus change. For Black: (1) failing the engine on a read path stops the node, as D174 does on a change path; it decides nothing. (2) The view cost decides only when an entry from a peer is checked (the revert budget paces, and never refuses for good), never whether it is valid. |
 
 ## Summary
@@ -23,7 +23,7 @@
     spend from.
   - A cold revert reads at most one body for each.
 - **ORANGE-021 (GUI).**
-  - `poo status -counts` prints one row of totals per followed series,
+  - `poon status -counts` prints one row of totals per followed series,
     with the same notes.
 
 ## Consensus

@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | adopted (D153) |
 | Based on | `main` @ `533dbcd` |
-| Area | `pkg/cli` (`policy import` text plan, `poo help`), `docs/modules/poo.md` |
+| Area | `pkg/cli` (`policy import` text plan, `poon help`), `docs/modules/poon.md` |
 | Effort | small |
 | Consensus | none: help text and command-line text output only |
 | Decided by | Grey (Black may skip it) |
@@ -17,7 +17,7 @@ Green tried `policy import` with D150's `-settings` and `-full` and D151's
 - The "read first" and "skipped, node settings" notes still showed list items as `p2p.peers.[a.example:1]`. GREEN-042 had already changed the plan's own lines to show `p2p.peers: a.example:1`.
 - The "file digest ... (-if-digest applies only this file)" line was printed on every run. That included `-apply` and imports with nothing to change, where there is nothing left to preview.
 - "1 of the file's settings are already the same".
-- `poo help` listed `-full` but not `-settings` or `-if-digest`. The `poo.md` row had no `-if-digest`, and the usage error had no `-if-digest`.
+- `poon help` listed `-full` but not `-settings` or `-if-digest`. The `poon.md` row had no `-if-digest`, and the usage error had no `-if-digest`.
 
 All four are fixed on the branch. The `-json` output, which the GUI reads, is unchanged.
 
@@ -26,8 +26,8 @@ All four are fixed on the branch. The `-json` output, which the GUI reads, is un
 - `planFields(fields, short)` passes each name through `planLine` (GREEN-042). Both notes use it, so every part of the plan writes a list item the same way. A note that is not a list item, such as a registry file's "(a local file: only -full takes it)", is unchanged.
 - The digest line is printed only on a preview with something to apply. That is the one case where `-apply -if-digest D` is the next step. `-json` still carries `digest` on every row, as GUI-023 needs.
 - "is" for one setting, "are" for more.
-- `poo help`: `poo policy import FILE|- [-apply] [-settings | -full] [-if-digest D]`. The other flags are in `-h`, as for `export`.
-- `poo.md`: the import row gains `[-if-digest D]` and one sentence on it.
+- `poon help`: `poon policy import FILE|- [-apply] [-settings | -full] [-if-digest D]`. The other flags are in `-h`, as for `export`.
+- `poon.md`: the import row gains `[-if-digest D]` and one sentence on it.
 
 ## Testing
 

@@ -4,9 +4,9 @@
 
 This round adds cold keys: keys the node never holds (D193, jerry's
 request). It covers:
-- `poo keygen -raw` for a key made elsewhere;
+- `poon keygen -raw` for a key made elsewhere;
 - watch-only wallets;
-- `poo sign` on any machine, with no node;
+- `poon sign` on any machine, with no node;
 - `pay -change`;
 - `wallet claim -to-policy`.
 
@@ -35,7 +35,7 @@ transaction once per key.
     input's witness byte for byte, is accepted by `AddEntry`.
   - The control is refused: the same witness on a transaction with
     another tid fails "signature for key 0".
-- **Claims made through `poo sign` follow the claim rules.**
+- **Claims made through `poon sign` follow the claim rules.**
   `ClaimUnsigned` builds the same claim as `Wallet.Claim`:
   - `CheckMint` first;
   - one output of the whole supply to the policy's address;
@@ -96,24 +96,24 @@ appears in, at that input's own key index.
 
 ### The same transactions, made elsewhere
 
-- **`poo keygen -raw` and `NewRawSigner`.** These take a key in its
+- **`poon keygen -raw` and `NewRawSigner`.** These take a key in its
   algorithm's raw form. Since RED-106 every key is self-tested: it signs
   a fixed message, which must verify under the public key it gives. A key
   that couldn't spend its own address is refused before it is used.
-  Addresses come from the same policy encoding as `poo keygen`
+  Addresses come from the same policy encoding as `poon keygen`
   (`TestRawSignerIsTheSameKey`).
 - **Watch-only wallets.** These hold no seed. They prepare the same
-  unsigned payment `poo wallet pay -out` always wrote. The change goes
+  unsigned payment `poon wallet pay -out` always wrote. The change goes
   back to the first input's address, or to `-change ADDR`. Either way it
   is an ordinary output to an address the owner chose. It spends nothing
   beyond the inputs the payment already lists.
-- **`poo sign`.** It adds signatures to an unsigned file. Since RED-104
+- **`poon sign`.** It adds signatures to an unsigned file. Since RED-104
   and RED-106:
   - each leg must be in the file's series;
   - its transaction must spend the mint the leg names;
   - each signature is verified before it is written.
 
-  The signed file is submitted with `poo wallet submit` and checked by the
+  The signed file is submitted with `poon wallet submit` and checked by the
   node like any transaction.
 - **A file that lies costs only its owner.** A wrong `hash` or a wrong
   `variable` mark gives a tid that nodes don't compute. The signatures
@@ -133,7 +133,7 @@ appears in, at that input's own key index.
   (`PartOf`). So a leg read with `DecodeVariable` re-encodes to the same
   body, and the signer signs the tid the node will compute.
 
-### Claims through `poo sign` (GREEN-060, `wallet claim -to-policy`)
+### Claims through `poon sign` (GREEN-060, `wallet claim -to-policy`)
 
 `ClaimUnsigned` builds `tx.Tx{Mint: s.Mint(serial), Outputs: [{Address:
 s.Address(p), Amount: Supply}]}` with one witness slot for policy `p`,
@@ -163,9 +163,9 @@ any other, including the competing-claim rules (D161).
 | --- | --- |
 | D192 (W-18, W-19): 64 KiB extension total for ping and pong; `MaxHelloFrame` frozen in wire.md | Wire limits on optional fields. Over the total is `ErrBadExtras`, with no offence |
 | D192: W-20, W-21, empty token, neutral wording, `pkg/brand` | Tooling and names. The default series is unchanged |
-| D193: `poo keygen -raw`, `NewRawSigner` (self-tested since RED-106) | The same policies and addresses. A key that can't sign for its address is refused |
+| D193: `poon keygen -raw`, `NewRawSigner` (self-tested since RED-106) | The same policies and addresses. A key that can't sign for its address is refused |
 | D193: watch-only wallets, `pay -change` | The same unsigned payment. The change is an ordinary output |
-| D193, D194 (RED-104): `poo sign` shows and checks series, mint and each signature | The same witnesses, made on another machine. Nodes check them as ever |
+| D193, D194 (RED-104): `poon sign` shows and checks series, mint and each signature | The same witnesses, made on another machine. Nodes check them as ever |
 | ORANGE-045 (carried in #291): one signature per key per transaction | Every witness signs `Message(tid)`. Accepted by the pool's full checks (Black's test) |
 | GREEN-060 (carried in #291): `wallet claim -to-policy`, `keygen -out` | The same claim `Wallet.Claim` builds. Checked by the node as any claim |
 | D194 (RED-105): `Unsigned.Variable`, `tx.DecodeVariable` | Tool-side only. Node decoding is unchanged. The tid covers the same bytes |

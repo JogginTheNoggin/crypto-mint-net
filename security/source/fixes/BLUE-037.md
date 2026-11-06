@@ -12,7 +12,7 @@
 
 ## Summary
 
-- **RED-109.** Random start nonce in `poo bounty work`.
+- **RED-109.** Random start nonce in `poon bounty work`.
 - **RED-110.** Lease required; `known` for a layer the pool holds.
 - **RED-111.** (b) and (c) fixed; (a) is phase 2, now in the docs.
 - **RED-112.** Leases limited per network address.

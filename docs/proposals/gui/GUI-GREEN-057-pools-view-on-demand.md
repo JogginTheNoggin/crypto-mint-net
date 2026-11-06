@@ -17,14 +17,14 @@ opens. I then checked every panel that runs by itself when its view opens
 
 | View: panel | Command | Output on the reserve |
 | --- | --- | --- |
-| Pools and payments: Followed pools | `poo pools` | **381 KB, a row per pool** |
-| Peers: Peers | `poo peers -counts` | 283 bytes |
-| Peers: Tracking, Chases | `poo tracking`, `poo chases` | under 40 bytes |
-| Work: Jobs, Schedule, Devices | `poo grind …` | small |
-| Policies: Policies, Settable limits | `poo policy …` | small |
-| Series and keys: crypto | `poo crypto` | small |
+| Pools and payments: Followed pools | `poon pools` | **381 KB, a row per pool** |
+| Peers: Peers | `poon peers -counts` | 283 bytes |
+| Peers: Tracking, Chases | `poon tracking`, `poon chases` | under 40 bytes |
+| Work: Jobs, Schedule, Devices | `poon grind …` | small |
+| Policies: Policies, Settable limits | `poon policy …` | small |
+| Series and keys: crypto | `poon crypto` | small |
 
-Only one is left. **Pools and payments** runs `poo pools` as soon as it
+Only one is left. **Pools and payments** runs `poon pools` as soon as it
 opens and draws 500 rows before anyone can use the forms below it, which
 are what people open the view for (holdings, a payment, build, work,
 submit). Measured over four opens in Chromium:
@@ -37,7 +37,7 @@ submit). Measured over four opens in Chromium:
 ## Idea
 
 - **Pools and payments → Followed pools** uses `panel({ start: false })`
-  (GUI-GREEN-056): it says "Not run yet: press Show." and runs `poo
+  (GUI-GREEN-056): it says "Not run yet: press Show." and runs `poon
   pools` when asked. The forms are unchanged.
 - **Wording:** the Node view's replay line said "1 pools from their
   snapshots". It now says "1 pool from its snapshot", and the plural
@@ -48,7 +48,7 @@ submit). Measured over four opens in Chromium:
 - **A reserve-scale guard.** 056 and 057 were found by hand, by opening
   each view on a reserve node. A small e2e check could do it every
   round:
-  - start a node on `poo init` (the reserve), with p2p off;
+  - start a node on `poon init` (the reserve), with p2p off;
   - open every view in the navigation;
   - fail if any view draws more than a few thousand elements before a
     button is pressed.

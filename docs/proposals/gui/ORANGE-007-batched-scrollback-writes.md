@@ -16,7 +16,7 @@ lines a second caused 50 layouts a second and kept the main thread 11%
 to 13% busy. Now the first write after a quiet spell is drawn at once,
 so typing and short commands feel the same. Writes that follow within
 100 ms are queued and drawn together. The node log drops to 4% to 5%
-busy, and `poo watch` in the terminal finishes in 0.62 s instead of
+busy, and `poon watch` in the terminal finishes in 0.62 s instead of
 1.05 s.
 
 ## Idea
@@ -42,7 +42,7 @@ busy, and `poo watch` in the terminal finishes in 0.62 s instead of
 | before | 1.09 s | 1.12 s | 1.11 s | 1.25 s | 1.21 s | 1.35 s | 3001 |
 | after | 0.50 s | 0.42 s | 0.44 s | 0.46 s | 0.41 s | 0.43 s | **620** |
 
-**`poo watch` typed in the terminal, 20,000 events at full rate:**
+**`poon watch` typed in the terminal, 20,000 events at full rate:**
 
 | | before | after |
 | --- | --- | --- |

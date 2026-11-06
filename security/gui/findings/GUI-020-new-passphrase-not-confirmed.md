@@ -11,7 +11,7 @@
 
 ## Summary
 
-The new "Change the passphrase" form runs `poo wallet passwd`. poo asks for
+The new "Change the passphrase" form runs `poon wallet passwd`. poon asks for
 the old passphrase, then for `new passphrase:` **once**, in a masked field,
 and re-seals the seed under whatever was typed. `wallet create` does the
 same for a new wallet. Nothing asks for the new passphrase a second time.
@@ -35,10 +35,10 @@ seed was not backed up. No attacker is involved. Rated **low**.
 
 ## Recommendation
 
-Source, for both the terminal and the GUI, since the prompts come from poo:
+Source, for both the terminal and the GUI, since the prompts come from poon:
 
 - When the new passphrase is read interactively (`readSecret`, not
-  `-new-passphrase-file`, `$POO_NEW_PASSPHRASE` or `$POO_PASSPHRASE`), ask
+  `-new-passphrase-file`, `$POON_NEW_PASSPHRASE` or `$POON_PASSPHRASE`), ask
   `new passphrase again:` and refuse on a mismatch before re-sealing or
   creating. The GUI then shows the second masked field with no change of
   its own.
@@ -47,11 +47,11 @@ Source, for both the terminal and the GUI, since the prompts come from poo:
 
 ## Routing (GUI/Blue, Round 14C)
 
-GUI/Blue makes no GUI change. The prompt comes from poo, and the GUI shows
-each prompt poo asks for. A second field that only the GUI shows would
-make the GUI act differently from the terminal and headless poo. So the
+GUI/Blue makes no GUI change. The prompt comes from poon, and the GUI shows
+each prompt poon asks for. A second field that only the GUI shows would
+make the GUI act differently from the terminal and headless poon. So the
 fix belongs to Source. GUI/Blue passed it to Source through GUI/Grey.
-Once poo asks `new passphrase again:`, the GUI shows that second masked
+Once poon asks `new passphrase again:`, the GUI shows that second masked
 field unchanged, and GUI/Blue can add an e2e check that a mismatch is
 refused.
 
@@ -59,11 +59,11 @@ refused.
 
 - `create` and `passwd` now read a typed new passphrase through
   `readNewSecret`. When it comes through `Stdio.Secret` (the headless
-  terminal's hidden read, or the GUI's masked field), poo asks
+  terminal's hidden read, or the GUI's masked field), poon asks
   `new passphrase again:` and refuses a mismatch ("the two new passphrases
   differ, so nothing was changed") before it seals or creates anything.
-  Piped input, `-new-passphrase-file`, `$POO_NEW_PASSPHRASE` and
-  `$POO_PASSPHRASE` are read once, as scripts expect.
+  Piped input, `-new-passphrase-file`, `$POON_NEW_PASSPHRASE` and
+  `$POON_PASSPHRASE` are read once, as scripts expect.
 - **GUI, the second ask.** Each read that starts waiting raises
   `State.Asks`, and the event stream sends a new `state` event when
   `Asks` changes. So the form shows its field again for the second

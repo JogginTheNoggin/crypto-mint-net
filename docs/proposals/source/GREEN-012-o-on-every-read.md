@@ -12,14 +12,14 @@
 
 GREEN-003 gave `-o table` to the node's read commands. A sweep with the
 completion probe found four read commands still without it:
-`poo payment`, and `poo wallet addresses`, `balance` and `status`. This
+`poon payment`, and `poon wallet addresses`, `balance` and `status`. This
 change adds it to all four. Prototyped, with a test that lists every read
 command and checks each one takes `-o` and refuses an unknown form before
 doing anything.
 
 ## Problem
 
-`poo wallet addresses` prints 21 address objects (the gap of unused keys)
+`poon wallet addresses` prints 21 address objects (the gap of unused keys)
 as about 130 lines of JSON. With `-o table` it is 22 aligned lines.
 Wallet users are the people least likely to want raw JSON. Having `-o`
 on some read commands and not on others is the kind of mismatch that
@@ -47,6 +47,6 @@ On `claude/source-green`:
 - `-o` and `-wide` on `paymentCmd` (`node.go`) and on `walletAddresses`,
   `walletBalance` and `walletStatus` (`wallet.go`)
 - `TestEveryReadCommandTakesO` in `table_test.go`
-- the list in `docs/modules/poo.md`
+- the list in `docs/modules/poon.md`
 
 I checked `wallet addresses -o table` by hand.

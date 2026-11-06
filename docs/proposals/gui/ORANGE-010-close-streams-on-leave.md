@@ -33,7 +33,7 @@ responsive throughout, and its DOM and listener counts are flat.
 - `runJob` dropped its close function too. A panel or form left while
   its command still ran (a long command, or one waiting for input) kept
   its stream until the command ended.
-- On a page reload, Work's take-over of a running `poo grind run` (from
+- On a page reload, Work's take-over of a running `poon grind run` (from
   Round 6 Part A) followed the job even when the Work view was not
   showing.
 - `api.follow` uses `EventSource`. Over plain HTTP/1.1 to loopback (no
@@ -85,8 +85,8 @@ The `streams.mjs` e2e check fails on the base ("visit 6: the node log did not sh
 - ORANGE-009 on the merged base: the Work view at 200 lines/s is 13%
   busy, 2000/s is 23% busy, and 20,000 lines at full rate take 0.45 s
   at 36 fps. Watch at 200/s is 24% busy and takes 20,000 events in
-  0.51 s. `poo watch` in the terminal takes 0.9 s.
-- Reloading the page during a long `poo grind run` (40,000 lines, of
+  0.51 s. `poon watch` in the terminal takes 0.9 s.
+- Reloading the page during a long `poon grind run` (40,000 lines, of
   which the server keeps the last 4 MiB): the Work view takes it up and
   catches up in 0.25 s at 48 fps.
 - Server RSS in the soak rose from 14 MB to 41 MB over 5 minutes as

@@ -8,7 +8,7 @@
 
 ## What
 
-When a poo command reads a passphrase from stdin, the terminal is supposed to
+When a poon command reads a passphrase from stdin, the terminal is supposed to
 switch the input field to masked (`type=password`) and not echo it. The trigger
 is a pure client-side heuristic:
 
@@ -50,7 +50,7 @@ passphrase is rendered in clear text on a screen the user may be sharing.
 
 ## Reproduce
 
-- Run `poo wallet passwd` (or any passphrase-reading command) and have it emit
+- Run `poon wallet passwd` (or any passphrase-reading command) and have it emit
   a stderr warning line *after* `passphrase: ` but before the read — the field
   stays `type=text`.
 - Alternatively, simulate a command that prints `passphrase: ` followed by >64
@@ -79,6 +79,6 @@ history, and the server zeroes the unread input buffer on job completion
 
 - Masking no longer depends on the output. The terminal masks its input field (`type=password`, with the prompt reading "input (hidden)") for the whole time a command is running, and does not echo what is sent. A "Show typing" button reveals the input for that command only. Views' input fields (`runJob` in views.js) are masked by default the same way, with a Show button. Because it fails closed, a missed or reworded prompt, interleaved stderr, a >64-byte gap, or an event-ordering race can no longer expose a passphrase.
 - The core signal suggested in this finding, where `cli.Main` declares that it is reading a secret, would be a `pkg/cli` change, so it belongs to the Source teams. Passed to GUI/Grey to raise if wanted. Since the GUI now fails closed, the signal would only improve the UX (no masking on non-secret prompts).
-- Related, for Source: headless `poo` reads passphrases from stdin with echo on (`pkg/cli/wallet.go`), so in a real terminal the passphrase is visible as it is typed. Passed to GUI/Grey for the Source teams.
+- Related, for Source: headless `poon` reads passphrases from stdin with echo on (`pkg/cli/wallet.go`), so in a real terminal the passphrase is visible as it is typed. Passed to GUI/Grey for the Source teams.
 - Kept: input during a job stays out of localStorage history, and unread input is dropped when a job ends.
 - Regression tests: the e2e checks that the field is masked while `wallet create` waits and that the passphrase is not echoed (gui/e2e/terminal.mjs, gui/e2e/views.mjs).

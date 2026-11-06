@@ -12,7 +12,7 @@
 
 The refresh timers are cheap while you look at them. Left open, they
 run forever. The Node view makes 48 requests a minute and starts 12
-`poo status` jobs a minute, each with its own event stream. The Peers
+`poon status` jobs a minute, each with its own event stream. The Peers
 view makes 20 requests a minute. They keep doing this in a background
 tab, where nobody sees the result. With this change a panel skips its
 timed refresh while `document.hidden` is true, and refreshes once as
@@ -28,8 +28,8 @@ no node answering:
 
 | View | requests a minute | jobs started a minute | timers behind them |
 | --- | --- | --- | --- |
-| Node | 48 | 14 | `poo status` every 5 s, `GET /api/jobs` every 3 s |
-| Peers | 20 | 10 | `poo peers` every 10 s |
+| Node | 48 | 14 | `poon status` every 5 s, `GET /api/jobs` every 3 s |
+| Peers | 20 | 10 | `poon peers` every 10 s |
 | Pools | 4 | 2 | none (its panels run once on opening) |
 | Start | 0 | 0 | none |
 
@@ -41,7 +41,7 @@ runs on opening.
   is not a cost today. Skipping unchanged redraws mainly keeps a user's
   text selection and focus in the list from being reset every 3 s.
 - Per command, the GUI's own overhead is small. `POST /api/run` for
-  `poo crypto` takes 2.0 ms median (p90 2.9 ms) from the page.
+  `poon crypto` takes 2.0 ms median (p90 2.9 ms) from the page.
   Starting a job and streaming it to exit takes 3.4 ms (p90 4.4 ms), and
   `GET /api/jobs` takes 2.0 ms. In Go, `/api/run` costs 0.9–1.1 ms
   around `cli.Main`. Nothing here is worth changing.

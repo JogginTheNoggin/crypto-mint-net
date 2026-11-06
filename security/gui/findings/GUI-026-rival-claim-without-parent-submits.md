@@ -16,10 +16,10 @@ parent you choose … and prints its hash and the command to grind it". Its
 Parent field is marked `required: true`. It runs:
 
 ```
-poo claim -seed-file - -serial N [-parent P] [-series S] [-work W] [-max-tries T]
+poon claim -seed-file - -serial N [-parent P] [-series S] [-work W] [-max-tries T]
 ```
 
-`poo claim` does two different things, depending on `-parent`:
+`poon claim` does two different things, depending on `-parent`:
 - **With `-parent`**, it builds the claim into an entry on that parent
   and keeps it as a branch. Nothing is sent to peers.
 - **Without it**, it is the plain claim. It signs the claim and calls
@@ -32,29 +32,29 @@ The same is true of the import forms' File field and of Mint serial. So:
 
 1. Fill in Mint serial and leave Parent empty. The args drop `-parent`,
    since `flag('parent', '')` is nothing.
-2. Press "Build claim". poo asks for the seed in the masked field, as
+2. Press "Build claim". poon asks for the seed in the masked field, as
    intended.
 3. The claim is **submitted**. The result shows its tid and
    `forward: yes`. That claim can't be taken back.
 
 The command line shown above the button does read
-`poo claim -seed-file - -serial 5`, without `-parent`. But nothing else
+`poon claim -seed-file - -serial 5`, without `-parent`. But nothing else
 on the form says that this line claims the mint outright rather than
 building a rival entry. The button still reads "Build claim".
 
 ## Reproduction
 
-poo-gui at 2cacdd5, `init -example -listen 127.0.0.1:0 -p2p
+poon-gui at 2cacdd5, `init -example -listen 127.0.0.1:0 -p2p
 127.0.0.1:0`, a node run as a GUI job, and a test seed. The steps were
 run with Playwright, using the script kept outside the repository.
 
-1. `poo pending -serial 5` returns `[]`.
+1. `poon pending -serial 5` returns `[]`.
 2. In Pools → "Build a rival claim", fill in Mint serial `5` and leave
-   Parent empty. The line reads `poo claim -seed-file - -serial 5`.
+   Parent empty. The line reads `poon claim -seed-file - -serial 5`.
 3. Press "Build claim", type the seed into the masked field, and press
    Enter. The status reads "done", and the result shows a tid and
    `forward: yes`.
-4. `poo pending -serial 5` now lists the claim, tid `bdf62103…`,
+4. `poon pending -serial 5` now lists the claim, tid `bdf62103…`,
    serial 5.
 
 The form's seed handling held up. The seed went only through the masked
@@ -87,16 +87,16 @@ GUI/Blue:
   programmatic submit may skip constraint checks in some paths. That
   also fixes the import forms' File field and Mint serial.
 - **Belt and braces for this form.** Have the rival claim's `args` always
-  send `-parent`, even when it is empty (`['-parent', v.parent]`). poo
+  send `-parent`, even when it is empty (`['-parent', v.parent]`). poon
   then refuses an empty value, instead of the GUI falling back to the
   plain claim. Or make the form refuse in its own args when Parent is
   empty.
-- Optional (Source): `poo claim -parent ""` given explicitly could be
+- Optional (Source): `poon claim -parent ""` given explicitly could be
   refused with "-parent needs a value", as D152 did for `-if-digest`, so
   a script passing an unset variable doesn't submit by mistake. That's
   CLI behaviour and goes to Source/Grey, not here.
 - e2e (views.mjs): leave Parent empty on "Build a rival claim" and press
-  the button. Expect no job, or a refusal, and `poo pending -serial N`
+  the button. Expect no job, or a refusal, and `poon pending -serial N`
   still `[]`.
 
 ## Fix (GUI/Blue, Round 23C)
@@ -118,7 +118,7 @@ payment stands" reused the serial field spec with its `required: true`,
 but its In mint serial is optional (`-in-serial`). It is now marked
 `required: false`, so enforcing `required` doesn't break that form.
 
-Not done: always sending `-parent ''`. poo's `claim` reads an empty
+Not done: always sending `-parent ''`. poon's `claim` reads an empty
 `-parent` as no `-parent` (`*parent == ""`), so it would still submit.
 If an explicit empty `-parent` should be refused, that is a
 pkg/cli change for Source. The GUI never sends one.
@@ -135,11 +135,11 @@ serial 5 and Parent cleared, it checks the following:
 On the old code (2cacdd5 + Red's R23B docs) it fails at "Parent is
 required".
 
-The same PR takes Red's GUI-025 nit. The peer plan's notes are poo's
+The same PR takes Red's GUI-025 nit. The peer plan's notes are poon's
 phrases (`once applied, … takes them all out`, `2 blocks, 1 of them
 network range`), and the GUI ran them together. Each is now made a
 sentence, with a capital letter and a full stop. The GUI adds its own
-block count only when poo's notes have none, so the count isn't given
+block count only when poon's notes have none, so the count isn't given
 twice. The GUI-025 e2e check now asserts both.
 
 ## Notes — Round 24B verification (held up)
@@ -153,6 +153,6 @@ job and Mint serial 5 filled in.
   the form, which skips the browser's own `required` check, is also
   refused with the same message.
 - **Nothing was submitted.** No `claim` job appears in `/api/jobs`, and
-  `poo pending -serial 5` stays `[]`.
+  `poon pending -serial 5` stays `[]`.
 - **Hidden fields.** `required` follows `only`, so a hidden field can't
   block a form, and an empty hidden field is never sent.

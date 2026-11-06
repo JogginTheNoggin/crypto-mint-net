@@ -14,13 +14,13 @@
 Green ran D182 as a node runner, on a machine whose router speaks none
 of the three methods:
 
-1. `poo init -port-map bogus` is refused with the list of modes, and
+1. `poon init -port-map bogus` is refused with the list of modes, and
    `-port-map auto` writes `p2p.port_map`.
 2. With `-p2p off`, status shows `skipped` and doctor says ok.
 3. With peers on, every method fails. The node logs it, status shows
    `failed` with the full error, and doctor warns with a fix.
 4. Adding `"port_map": "auto"` to a running node's `node.json` and
-   running `poo reload` started the mapping. The new
+   running `poon reload` started the mapping. The new
    `snapshots.due` (ORANGE-040) shows in status.
 
 All of that behaved as D182 describes. Four loose ends showed up:
@@ -35,7 +35,7 @@ All of that behaved as D182 describes. Four loose ends showed up:
 3. **"The node keeps trying" did not say when.** The waits double from
    1 minute to 30. A runner who has just turned on UPnP in the router
    could not tell whether to wait or reload, and doctor did not mention
-   that `poo reload` asks again at once. Green checked that it does.
+   that `poon reload` asks again at once. Green checked that it does.
 4. **The retry wait never reset.** After a mapping had worked for days,
    then lapsed (a router reboot), the next try waited as long as the
    failures before it had built up, up to 30 minutes, rather than 1.
@@ -59,7 +59,7 @@ All of that behaved as D182 describes. Four loose ends showed up:
   - `skipped` names the one reason.
   - `failed` reads "the router gave no mapping (asked the router at
     192.0.2.1): ...; it asks again in 57s", or says "no gateway was
-    found", and the fix adds "poo reload tries again at once".
+    found", and the fix adds "poon reload tries again at once".
   - `unconfirmed` and `not_public` add when the node asks again.
   - Against an older node that sends no `reason`, the old text stays.
 - **Docs.** running-a-node.md says how to turn the mapping on for a
@@ -82,7 +82,7 @@ All of that behaved as D182 describes. Four loose ends showed up:
 - **By hand:**
   - Status gave `gateway: 192.0.2.1` and `next_try` a minute out.
   - Doctor printed the lines above.
-  - `poo reload` moved `since` and `next_try` forward at once.
+  - `poon reload` moved `since` and `next_try` forward at once.
 - **Checks run locally:**
   - gofmt, go vet and staticcheck;
   - `go test -race ./...`;
@@ -92,8 +92,8 @@ All of that behaved as D182 describes. Four loose ends showed up:
 
 - **Turning the mapping on.** For a node set up already, it is a hand
   edit of `node.json`, and the same holds for `p2p.advertise`. A small
-  `poo p2p set port_map=auto` (or `-set` on an existing command) could
-  cover the p2p settings that `poo policy limits` does not, since those
+  `poon p2p set port_map=auto` (or `-set` on an existing command) could
+  cover the p2p settings that `poon policy limits` does not, since those
   are not bounded numbers.
 - **The GUI's Node view** could show `gateway` and `next_try` next to the
   port-map state. That is GUI team work.

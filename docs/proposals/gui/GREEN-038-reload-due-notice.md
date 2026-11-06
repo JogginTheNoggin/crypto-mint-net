@@ -10,14 +10,14 @@
 
 ## Summary
 
-Source Green's GREEN-037 makes `poo status` report `"policy_changed":
+Source Green's GREEN-037 makes `poon status` report `"policy_changed":
 true` when node.json differs from the policy the running node uses
 (outside the grind section, which is applied at once). Doctor's rpc check
-also warns about it, with `poo reload` as the fix.
+also warns about it, with `poon reload` as the fix.
 
 The GUI shows doctor's warning already, through the Health check and its
 "Run in terminal" button. But the Health check runs only when asked,
-while Followed pools runs `poo status` every 5 seconds. So Followed pools
+while Followed pools runs `poon status` every 5 seconds. So Followed pools
 now shows a notice above its output: "The node policy file has changed
 since the node loaded it, and the change waits for a reload." The notice
 has a **Reload now** button.
@@ -34,27 +34,27 @@ has a **Reload now** button.
 
 ## Idea
 
-- An `onResult` on the Followed pools panel. When `poo status` printed
+- An `onResult` on the Followed pools panel. When `poon status` printed
   `policy_changed: true`, it puts a `p.next-step.policy-changed` (role
-  status) above the output. The GUI decides nothing: it shows what poo
+  status) above the output. The GUI decides nothing: it shows what poon
   reports, every 5 seconds as before.
 - **Reload now** runs the Node view's own "Reload the node policy" form
   (`form.run`). So the command, its output and its exit show where they
-  always do, as `poo reload`.
+  always do, as `poon reload`.
 - A successful Reload (from the notice or the form) reloads Followed
-  pools. The notice goes away as soon as poo stops reporting the field.
-- Without GREEN-037, `poo status` never prints the field, and nothing
+  pools. The notice goes away as soon as poon stops reporting the field.
+- Without GREEN-037, `poon status` never prints the field, and nothing
   changes.
 
 ## Cost and risk
 
-About 15 lines. One extra JSON.parse of `poo status`'s output every 5
+About 15 lines. One extra JSON.parse of `poon status`'s output every 5
 seconds, which is small next to drawing it.
 
 ## Prototype
 
 On `claude/gui-green`. `gui/e2e/work.mjs`, before Stop node, runs
-`poo unfollow -series S -pool 1 -no-reload`. If `poo status` then reports
+`poon unfollow -series S -pool 1 -no-reload`. If `poon status` then reports
 `policy_changed`, it checks three things: the notice shows, Reload now
 runs the Reload form to exit 0, and the notice goes away.
 

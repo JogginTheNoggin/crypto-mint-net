@@ -153,10 +153,10 @@ RED-034, GUI-018, GREEN-037 and the Round 11 adoptions (D138) are clear.
 | --- | --- |
 | D137, B5's turns | It closes B5 (the test passes). It is replaced by D139, and its own D115 case is ORANGE-022, above |
 | D138: ORANGE-021 adopted | Cleared in Round 11. Witnesses of the node's own store are warmed with the same check, and every check still runs on replay |
-| D138: GREEN-036 adopted | `poo doctor` advice, and the grinder reads the floor and rate at each search. Nothing a node accepts |
+| D138: GREEN-036 adopted | `poon doctor` advice, and the grinder reads the floor and rate at each search. Nothing a node accepts |
 | BLUE-013: RED-034, the probe halves | Only how fast this node asks one peer. It never goes below where the probe began, which is at least one request a window, and the learned pace still lapses. Nothing is refused |
 | BLUE-013: GUI-018, one follow replace | Which pools a node follows is its own choice, as before. The replace is one change under `policyMu` instead of a remove and an add |
-| GREEN-037, `policy_changed` | Status and a `poo doctor` warning only |
+| GREEN-037, `policy_changed` | Status and a `poon doctor` warning only |
 
 ## Items for the owner
 

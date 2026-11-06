@@ -117,7 +117,7 @@ On `claude/source-orange-r4`, commit `c4bfa0d` (shared with ORANGE-007):
 
 - **Hardware detection.** `golang.org/x/sys/cpu` is already a dependency.
   It reports SHA-NI, AVX2, AVX-512 and ARM SHA2/SHA3, which is enough to
-  pick a grinder per hash and to report it in `poo doctor`.
+  pick a grinder per hash and to report it in `poon doctor`.
 - **Multi-buffer SIMD.** A layer try is one block, so the next large step
   is hashing 8 (AVX2) or 16 (AVX-512) nonces at once in vector lanes. For
   BLAKE3 and BLAKE2b this is typically 4 to 8 times one-lane speed. It

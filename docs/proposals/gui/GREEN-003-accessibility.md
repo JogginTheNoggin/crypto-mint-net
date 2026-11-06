@@ -18,11 +18,11 @@ command ends instead of reading every chunk of output aloud.
 ## Problem
 
 - The terminal output was `aria-live="polite"`, so a screen reader would
-  read a streaming `poo node` log line by line, forever.
+  read a streaming `poon node` log line by line, forever.
 - The active view was shown only by colour and a bar.
 - There was no way to jump past the navigation, and buttons had no
   visible focus ring in some themes.
-- Every tab was titled "poo GUI", which is unhelpful with several open.
+- Every tab was titled "poon GUI", which is unhelpful with several open.
 
 ## Idea
 
@@ -30,7 +30,7 @@ command ends instead of reading every chunk of output aloud.
   region says "Command finished." or "Command failed with exit N." when a
   command ends.
 - The active nav link gets `aria-current="page"`, and `document.title`
-  becomes "View · poo GUI".
+  becomes "View · poon GUI".
 - A "Skip to content" link, visible on focus, moves focus to `main`
   without touching the hash the router uses.
 - `:focus-visible` gets a clear outline in the accent colour.

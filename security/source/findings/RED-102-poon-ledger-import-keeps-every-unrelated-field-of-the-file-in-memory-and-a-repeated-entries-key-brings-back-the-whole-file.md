@@ -1,4 +1,4 @@
-# RED-102: `poo ledger import` and its dry run keep every unrelated field of a file in memory (about six times its size), and a repeated or early `entries` key brings back reading the whole file
+# RED-102: `poon ledger import` and its dry run keep every unrelated field of a file in memory (about six times its size), and a repeated or early `entries` key brings back reading the whole file
 
 | Field | Value |
 | --- | --- |
@@ -19,7 +19,7 @@ key is accepted and kept, not refused. And where `entries` comes before the
 fields that name the file (`kind`, `format`, `series`, `pool`), or appears twice,
 the code reads that list whole into `held`, "as before". A file from someone
 else can use any of these, so the streaming that ORANGE-043 measured for the
-file `poo ledger export` writes does not hold for a file made to be large.
+file `poon ledger export` writes does not hold for a file made to be large.
 
 ## How I checked it
 
@@ -40,7 +40,7 @@ The held-entries path is read from the code, not run.
   holds more is not a format 1 file), and read each known header value with a
   small limit.
 - Treat a second `entries` key, and `entries` before the naming fields, as
-  an error ("not a ledger file written by poo ledger export"), or skip them
+  an error ("not a ledger file written by poon ledger export"), or skip them
   without holding them.
 - Give the reader an overall size limit that an owner can raise.
 

@@ -31,7 +31,7 @@ node's lock. No byte form, wire or consensus change.
   events keep their order.
 - `pkg/rpc`: `MaxBuildTries` (2^24); 0 means it, more is
   `bad_request`; the build passes `r.Context()`.
-- `pkg/cli`: `poo build -max-tries` help says 0 is the node's limit.
+- `pkg/cli`: `poon build -max-tries` help says 0 is the node's limit.
 - Docs: D99, `docs/modules/rpc.md`, `engine.md`, `node.md`.
 
 ## Tests added

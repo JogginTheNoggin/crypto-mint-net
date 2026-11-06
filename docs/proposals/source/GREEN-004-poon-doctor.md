@@ -1,4 +1,4 @@
-# GREEN-004: `poo doctor`, one command to say what is wrong
+# GREEN-004: `poon doctor`, one command to say what is wrong
 
 | Field | Value |
 | --- | --- |
@@ -19,18 +19,18 @@ followed series are known. No prototype yet.
 ## Problem
 
 When something is off, the errors arrive one at a time from different
-commands. For example, `poo status` with no node running says
+commands. For example, `poon status` with no node running says
 `rpc: is the node running? open .../rpc.addr: no such file or directory`.
 A new operator, or a GUI first-run screen, needs one place that answers
 "is my node set up right, and if not, what do I do?".
 
 ## Idea
 
-`poo doctor [-dir|-root|-policy] [-json]` runs checks in order and stops a
+`poon doctor [-dir|-root|-policy] [-json]` runs checks in order and stops a
 branch of checks when an earlier one fails:
 
 1. A current node policy exists, parses, and passes the same validation
-   `poo node` runs.
+   `poon node` runs.
 2. The data directory and `rpc.token` are not readable by others.
 3. `rpc.addr` exists only while a node is running; a leftover file from a
    crash is reported with how to clear it.
@@ -53,7 +53,7 @@ machine.
 
 On `claude/source-green`, based on `claude/m10-watch` @ `454cd3d`:
 `pkg/cli/doctor.go`, `pkg/cli/doctor_test.go`, the `doctor` case and usage line
-in `pkg/cli/main.go`, and a row in `docs/modules/poo.md`.
+in `pkg/cli/main.go`, and a row in `docs/modules/poon.md`.
 
 Checks, in order: `policy` (loads and validates), `files` (data directory
 and `rpc.token` not readable by others; skipped on Windows), `series`

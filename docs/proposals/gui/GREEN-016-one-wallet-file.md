@@ -41,5 +41,5 @@ with -root and -policy, it fits in Settings as a third field.
 
 `walletView` in `views.js`. `gui/e2e/qol.mjs` checks that there is one
 wallet field and that the Balance preview reads
-`poo wallet balance -wallet w2.json`. `views.mjs` still creates a wallet
+`poon wallet balance -wallet w2.json`. `views.mjs` still creates a wallet
 through the view.

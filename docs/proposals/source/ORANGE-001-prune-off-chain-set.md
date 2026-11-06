@@ -55,7 +55,7 @@ set: 1 to 8% slower on a switch, which is rare next to extensions.
 
 Simulator: a test-only benchmark running `sim.Load` with 64 nodes, 16
 builders, a payment every 100 ms for 120 s (seed 1), the same as
-`poo sim load -nodes 64 -builders 16 -pay-every 100 -duration 120000`.
+`poon sim load -nodes 64 -builders 16 -pay-every 100 -duration 120000`.
 CPU profile before: `offChainLeaves` 14.1% of all CPU (10.1% in the sort's
 `better`), `prune` 14.6%.
 

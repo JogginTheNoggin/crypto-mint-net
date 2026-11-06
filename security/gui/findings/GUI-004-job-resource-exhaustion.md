@@ -16,7 +16,7 @@ streams. A caller holding the secret can therefore:
 - `POST /api/jobs` repeatedly with a long-running command (e.g. a node that
   stays up) → unbounded concurrent `cli.Main` goroutines, each with its input
   goroutine and buffered output (up to `DefaultMaxOutput = 4 MiB` each), plus
-  whatever FDs/stores each poo command opens;
+  whatever FDs/stores each poon command opens;
 - open many `GET /api/jobs/{id}/events` streams → one goroutine + flusher each,
   held open with a 15s heartbeat.
 
@@ -27,7 +27,7 @@ before the node process is killed.
 ## Why it matters
 
 Low severity because it needs the launch secret, so the attacker is already a
-local principal who (per the threat model) can run poo directly. The value is
+local principal who (per the threat model) can run poon directly. The value is
 mostly robustness: a buggy page, a runaway script driving the API, or a
 curiosity-driven loop can wedge the node host. It is also a multiplier for
 GUI-001 — if the secret leaks, a remote-ish (same-host) attacker can cheaply
@@ -36,7 +36,7 @@ knock the node over rather than merely read it.
 ## Reproduce
 
 - Loop `POST /api/jobs {"args":["node", ...]}` (a command that blocks) a few
-  hundred times; watch goroutine/FD/memory of the poo-gui process climb with
+  hundred times; watch goroutine/FD/memory of the poon-gui process climb with
   no ceiling.
 
 ## Suggested fix (for GUI/Blue — do not implement here)

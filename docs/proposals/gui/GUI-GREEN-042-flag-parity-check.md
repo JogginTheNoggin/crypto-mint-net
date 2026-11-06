@@ -1,4 +1,4 @@
-# GUI-GREEN-042: A check that every flag poo lists is sent by a form, or left out for a reason
+# GUI-GREEN-042: A check that every flag poon lists is sent by a form, or left out for a reason
 
 | Field | Value |
 | --- | --- |
@@ -10,12 +10,12 @@
 
 ## Summary
 
-GREEN-040 fails when a `poo` command is missing from the GUI.
+GREEN-040 fails when a `poon` command is missing from the GUI.
 GUI-GREEN-041 closed the option gaps I found by hand. This adds the
 automatic check for options. `gui/e2e/parity.mjs` opens every view and
 fills every field of every form, trying each action of an action select.
 It reads the command line each form previews and compares the flags with
-the ones `poo CMD -h` lists. A flag no form can send fails the check,
+the ones `poon CMD -h` lists. A flag no form can send fails the check,
 unless it is in `EVERYWHERE` or `LEFT_OUT` with a one-line reason. It
 never presses a button, so nothing runs.
 
@@ -24,7 +24,7 @@ this proposal fixes in Explore:
 
 - **An address** had no `-below` (history paging) and no `-tid`.
 - **Pools** offered only series, pool and serial of the shared filter. It
-  had no `-address`, `-address-policy` or `-tid`, although poo pools
+  had no `-address`, `-address-policy` or `-tid`, although poon pools
   takes them.
 
 ## Idea
@@ -32,10 +32,10 @@ this proposal fixes in Explore:
 - **How it reads the forms.** The filling happens in the page, three
   passes per form, so fields that `only:` shows once another is filled
   get filled too. Other selects take their last choice. The Wallet view's
-  file and series boxes are filled as well. The `poo -h` text is read
-  from standard error, where poo prints it.
+  file and series boxes are filled as well. The `poon -h` text is read
+  from standard error, where poon prints it.
 - **Families.** `peer`, `policy` and `sim` subcommands share one flag set,
-  and each action shows only the flags poo takes for it (GREEN-028). For
+  and each action shows only the flags poon takes for it (GREEN-028). For
   these, the family's forms together must cover the family's flags.
 - **`EVERYWHERE`** lists flags set in one place or unused by the GUI:
   - `-root` and `-policy`: Settings sets them for every view.
@@ -61,9 +61,9 @@ this proposal fixes in Explore:
 
 ## Noted for Source
 
-`poo pools`, `pending`, `unspent`, `ledger`, `tx` and `address -h` all
-list `-kind`. But poo refuses it on every one of them ("-kind selects
-events and applies to poo watch only"). The help offers a flag the
+`poon pools`, `pending`, `unspent`, `ledger`, `tx` and `address -h` all
+list `-kind`. But poon refuses it on every one of them ("-kind selects
+events and applies to poon watch only"). The help offers a flag the
 command never accepts. Registering `-kind` only for `watch` would make
 the help match, and the entry in `LEFT_OUT` could then go. This is CLI
 help text only, not consensus.
@@ -79,6 +79,6 @@ help text only, not consensus.
 ## Prototype
 
 On `claude/gui-green`. I made sure it can fail: with Build's
-`grindFlags` removed, it reports `poo build -device`, `-for` and
+`grindFlags` removed, it reports `poon build -device`, `-for` and
 `-threads`. With the Explore fixes in place, all nine e2e scripts pass,
 including this one.

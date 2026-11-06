@@ -22,7 +22,7 @@ Two small asks and one rule:
   (W-28) but never updates it. Every such field must be checked against
   the data before it is trusted, as `done_last` is. D201 does this
   already. The rule makes it standard.
-- **W-34 (before the tag).** `poo bounty pay` finds an earlier payment
+- **W-34 (before the tag).** `poon bounty pay` finds an earlier payment
   of a claim by its wallet memo, `bounty <first 8 hex of the offer id>`,
   and by its leg states. That makes the memo text and the leg state
   names part of what one release relies on from another. If a later
@@ -49,9 +49,9 @@ bounty and GREEN-063 tests in `pkg/cli`, pass at `43a4df4`.
 | D200 ORANGE-047 P2: `keepjson.SplitValid`, `JoinValid` | compatible | The same bytes in and out. Only the validity check is skipped, and only for bytes `encoding/json` already checked |
 | D200 ORANGE-047 P3: wallet decoded and encoded directly | compatible | White's condition is met: the bytes are identical through both paths, including kept keys with HTML characters and U+2028 |
 | D200 GUI-GREEN-063: filled stays filled; finished-by-clock offers move to the done file; `"switch": true` in limits | compatible | Added output field. Moving offers at start is safe under W-31 |
-| D200: `poo status -counts` carries `bounty` | compatible | Added field |
-| GREEN-063 (#328): `poo wallet watch -tid` | compatible | A new flag. It asks the node through an existing call |
-| GREEN-063 (#328): `poo bounty list -done N`, `?done=N`, `done` and `done_skipped` in the reply | compatible with conditions | Optional query and fields. **Condition:** W-35 |
+| D200: `poon status -counts` carries `bounty` | compatible | Added field |
+| GREEN-063 (#328): `poon wallet watch -tid` | compatible | A new flag. It asks the node through an existing call |
+| GREEN-063 (#328): `poon bounty list -done N`, `?done=N`, `done` and `done_skipped` in the reply | compatible with conditions | Optional query and fields. **Condition:** W-35 |
 | BLUE-039 RED-118: `done_last`, newline check, cut last line ended before the next record | compatible | A file with no `done_last` is read in full. See W-33 |
 | BLUE-039 RED-119: `Paid` rolls back on a failed save; `pay` finds an earlier payment in the wallet first | compatible with conditions | It closes the double pay within one release. **Condition:** W-34 keeps it closed across releases |
 
@@ -99,7 +99,7 @@ list by:
 
 Suppose a later release:
 - **changes the memo** (a longer id, other wording). An older release
-  that retries `poo bounty pay` on that wallet finds no match and pays
+  that retries `poon bounty pay` on that wallet finds no match and pays
   again.
 - **adds a leg state** (for example a finer "confirmed"). An older
   release reads it as not sent and pays again.
@@ -125,7 +125,7 @@ Today `?done=N` on a node from before GREEN-063 is ignored, and the
 reply has no `done`. That looks the same as a node with no finished
 offers. **Ask:** when `done` is given, the reply always carries `done`,
 as `[]` when it is empty (drop `omitempty` for that case, or add
-`"done_listed": true`). The GUI and `poo bounty list -done` can then
+`"done_listed": true`). The GUI and `poon bounty list -done` can then
 say "this node can't list finished offers" instead of "none".
 
 ## What Grey should take into Round 39 Part A

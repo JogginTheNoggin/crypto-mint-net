@@ -80,7 +80,7 @@ Only on `Accepted` does it build `layer.Layer{Entry, Nonce}` and call
   strength`) is at least the series' layer floor, which `post` checks.
   Strength is a fact of the bytes, the same on every node, so the payer
   and the grinder agree on it.
-- **Payment is outside the ledger.** `poo bounty pay` makes an ordinary
+- **Payment is outside the ledger.** `poon bounty pay` makes an ordinary
   wallet payment, and the node tells the grinder its tids. Nothing about
   a bounty is in an entry, a layer or a transaction's rules.
 - **The market reads, never writes.** `holdsEntry` and `holdsLayer`
@@ -133,7 +133,7 @@ should say "is not passed on, since the pool holds it".
 same limits as node.json (256 keys, 64 KiB, depth 64). A payment file now
 carries `kind` and `format`.
 - These are tool files. A payment's transaction bytes are untouched, so
-  `poo sign` still signs the tid every node computes.
+  `poon sign` still signs the tid every node computes.
 - A newer format is refused with a message.
 
 ## Clear
@@ -144,7 +144,7 @@ carries `kind` and `format`.
 | D196: bounty offers, leases and claims; `bounty` node policy, off by default | Market state outside the ledger. Payment decides nothing about validity |
 | D196: an accepted claim goes to `HandleLayerFrom` as `Pushed` | The ordinary layer path with every check. The offer's target is at least the series' floor |
 | D196: wire types 70 to 76; the feature `bounty` | New types that older nodes ignore. An optional extra between peers that both list it (Round 33 terms) |
-| D196: `poo bounty pay` | An ordinary wallet payment |
+| D196: `poon bounty pay` | An ordinary wallet payment |
 | D197 (RED-109, RED-110): random start nonce; a claim needs a lease; a known layer not owed (`HasLayer`, a read) | Market rules. The pool is only read |
 | D197 (RED-111, RED-112, RED-113): payer fixed to the first sender; leases per address; bounded acks and records | Market and memory limits |
 | D197 (RED-114): `bounties.json` re-checked at start | A node's own file |

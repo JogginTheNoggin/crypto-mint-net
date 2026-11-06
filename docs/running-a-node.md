@@ -20,7 +20,7 @@ policy names. With `poon` on your `PATH`:
 
 ```sh
 source <(poon completion bash)                          # bash, this shell
-poon completion zsh > "${fpath[1]}/_poo"                # zsh
+poon completion zsh > "${fpath[1]}/_poon"                # zsh
 poon completion fish > ~/.config/fish/completions/poon.fish   # fish
 ```
 

@@ -42,10 +42,10 @@ first.
 
 About 50 lines. The links are plain anchors, so Back returns to the
 previous view. A link that points at a value Explore can't find just
-shows `poo tx`'s own error.
+shows `poon tx`'s own error.
 
 ## Prototype
 
 On the branch. `gui/e2e/watch.mjs` clicks a tid link in Watch and checks
-that Explore ran `poo tx TID`, and clicks an address link in an unspent
+that Explore ran `poon tx TID`, and clicks an address link in an unspent
 result and checks that the address lookup ran.

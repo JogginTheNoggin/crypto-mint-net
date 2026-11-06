@@ -10,7 +10,7 @@
 
 ## Summary
 
-Add `poo help -json` (and `poo CMD -h -json`) that prints every command,
+Add `poon help -json` (and `poon CMD -h -json`) that prints every command,
 subcommand and flag with its type, default and usage, from the same flag
 sets `cli.Main` parses. The GUI could then complete flags (GREEN-002) and
 even generate a basic form for any command the views do not cover, with

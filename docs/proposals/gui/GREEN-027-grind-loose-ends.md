@@ -10,14 +10,14 @@
 
 ## Summary
 
-Small things seen while using `poo grind` through the GUI, for
+Small things seen while using `poon grind` through the GUI, for
 Source/Grey to fix or leave:
 
 1. A `pending` job that built an entry reports `tries: 0` and `rate: 0`
-   in `poo grind jobs` (job 1 in the e2e run: 0 tries, 0 H/s, 0 layers,
+   in `poon grind jobs` (job 1 in the e2e run: 0 tries, 0 H/s, 0 layers,
    1 entry). Entry searches seem not to be counted, so the GUI shows a
    job that did work as if it did none.
-2. `poo grind run` prints two `start` lines. The first is
+2. `poon grind run` prints two `start` lines. The first is
    `{"job":2,"kind":"start","state":"running"}` with no plan, and the
    second has the series and plan. A reader that takes the first start
    as the plan gets none. One start line per plan, or a `kind` such as

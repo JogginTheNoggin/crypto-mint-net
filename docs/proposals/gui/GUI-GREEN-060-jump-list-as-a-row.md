@@ -50,15 +50,15 @@ background and the bottom border of the narrow-window tab bar.
   v0.1.0-alpha.1-dev: 1 peer". A peer's release is at most 64 bytes of
   `0-9 A-Z a-z . - +` (`wire.ValidRelease`), and the page draws it as
   text, so a peer cannot put anything else on the page.
-- **Install docs (R11):** `go -C gui build -o poo-gui ./cmd/poo-gui`
-  builds `gui/poo-gui`, as the README says.
+- **Install docs (R11):** `go -C gui build -o poon-gui ./cmd/poon-gui`
+  builds `gui/poon-gui`, as the README says.
 
 ## For Source (not built here)
 
 - **A dev build's release line has no commit.** `cli.Commit` is set only
   by `scripts/release.sh` (`-X`). A node built from a checkout reports
-  `"release": {"version": "0.1.0-alpha.1-dev"}` in `poo status`, with no
-  commit, although `poo version -v` on the same binary prints the commit
+  `"release": {"version": "0.1.0-alpha.1-dev"}` in `poon status`, with no
+  commit, although `poon version -v` on the same binary prints the commit
   from the build info (`vcs.revision`). Every alpha tester who builds
   from a checkout reads as the same release, so the Node view's "different
   releases" note can never tell two of them apart. `node.SetRelease` could

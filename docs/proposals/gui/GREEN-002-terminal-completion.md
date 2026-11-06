@@ -1,4 +1,4 @@
-# GREEN-002: Tab completion in the terminal, read from poo's help
+# GREEN-002: Tab completion in the terminal, read from poon's help
 
 | Field | Value |
 | --- | --- |
@@ -11,7 +11,7 @@
 ## Summary
 
 Tab in the terminal completes command and subcommand names. The words
-come from running `poo help` and `poo CMD help` through the normal job
+come from running `poon help` and `poon CMD help` through the normal job
 API, so the list can only name commands the headless tool has. A unique
 match completes; several are listed, like a shell's double Tab.
 
@@ -27,7 +27,7 @@ be worse than the shell it stands in for.
 - On Tab with the cursor at the end of the line, `complete.js` runs
   `help` once (and `CMD help` for a command that has its own), caches the
   result for the page's life, and parses the names out of the usage text.
-  `poo policy list|use|...` style lines give inline subcommands.
+  `poon policy list|use|...` style lines give inline subcommands.
 - Nothing typed is changed except the word under the cursor, and nothing
   runs until the user presses Enter.
 - No list of commands lives in the GUI. If `pkg/cli` gains a command, its
@@ -52,4 +52,4 @@ subcommand, and an ambiguous prefix).
 
 ## Decision
 
-Adopted. Words come only from poo help run as commands, so completion cannot drift from poo. The parsing of usage text is a stopgap until GREEN-004.
+Adopted. Words come only from poon help run as commands, so completion cannot drift from poon. The parsing of usage text is a stopgap until GREEN-004.

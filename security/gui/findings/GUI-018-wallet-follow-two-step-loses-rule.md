@@ -1,4 +1,4 @@
-# GUI-018: `poo wallet follow` changes a running node in two steps, so a failure in between drops the series' follow rule and says "nothing was changed"
+# GUI-018: `poon wallet follow` changes a running node in two steps, so a failure in between drops the series' follow rule and says "nothing was changed"
 
 | Field | Value |
 | --- | --- |
@@ -11,7 +11,7 @@
 
 ## Summary
 
-RED-030 (D136) made `poo wallet follow` change a running node through its
+RED-030 (D136) made `poon wallet follow` change a running node through its
 RPC instead of writing node.json behind it. That part holds. The change is
 sent as **two** requests, though:
 
@@ -46,12 +46,12 @@ shows up later, when the node stops following the wallet's series.
 
 1. Run a node that follows series S whole, and a wallet that watches some
    of S's mints.
-2. Run `poo wallet follow` (from a shell or the GUI terminal), and stop
+2. Run `poon wallet follow` (from a shell or the GUI terminal), and stop
    the node or drop its RPC connection right after the first
    `POST /v1/follow` returns. A debugger breakpoint, or a proxy that resets
    the second request, will do.
-3. The command fails with "nothing was changed". `poo follow -dir D`, or
-   node.json, no longer lists S. The next `poo node` start or reload stops
+3. The command fails with "nothing was changed". `poon follow -dir D`, or
+   node.json, no longer lists S. The next `poon node` start or reload stops
    following S.
 
 ## Impact
@@ -72,7 +72,7 @@ Source:
   under the lock.
 - Until then, if step 2 fails after step 1 succeeded, say so. Something
   like "the series' rule was removed but the pools were not added: run
-  poo follow -series S -pool …", rather than "nothing was changed". Or put
+  poon follow -series S -pool …", rather than "nothing was changed". Or put
   back the rule step 1 removed.
 - Test: an RPC handler that fails the second `Follow`. Then expect either
   node.json unchanged, or an error that names the removal.
@@ -106,10 +106,10 @@ GUI/Blue can add a GUI e2e check for the terminal path.
     - false right after start;
     - false after a `grind schedule add`, which is applied at once;
     - true after `unfollow -no-reload`;
-    - false again after `poo reload`;
-    - `poo doctor` warns with fix `reload`.
+    - false again after `poon reload`;
+    - `poon doctor` warns with fix `reload`.
   - The notice is fixed text. "Reload now" runs the Reload form's own
-    `poo reload`, which refuses an invalid file (GREEN-011) and is refused
+    `poon reload`, which refuses an invalid file (GREEN-011) and is refused
     in view-only mode.
   - `gui/e2e/work.mjs` passes locally on 376e964.
   - Each `status` call, including the Followed pools panel's 5 s refresh,
@@ -122,11 +122,11 @@ gui/e2e/terminal.mjs now runs `wallet watch -pool 0` and then
 background. It checks three things:
 
 - The command says the node applied the change.
-- `poo follow` then lists exactly one rule for the series, and that rule
+- `poon follow` then lists exactly one rule for the series, and that rule
   holds the wallet's pools.
 - The node follows only that pool.
 
 This covers the path a GUI user takes. A failure between two requests
-cannot be injected from the browser, because poo talks to the node
+cannot be injected from the browser, because poon talks to the node
 directly. The single-request guarantee is tested in Source's unit tests
 (pkg/rpc/view_test.go and pkg/nodepolicy/follow_test.go).

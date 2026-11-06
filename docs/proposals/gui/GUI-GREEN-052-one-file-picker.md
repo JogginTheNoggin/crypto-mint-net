@@ -14,13 +14,13 @@ Round 26 Part A added **Add a release** with an "Or pick a file" picker.
 It is a copy, line for line, of the one in `importForm` (policy, settings
 and peers import): the same file input, the same switch of the field to
 `-`, the same drop of the file when a path is typed again, and the same
-note. Two copies of how a picked file reaches poo can drift apart, and
+note. Two copies of how a picked file reaches poon can drift apart, and
 the next form that reads a file (a third import, a series file) would
 make a third.
 
 This proposal makes the picker one helper, `pickFile(form, {field,
 onPick})` in views.js, used by both. It also gives **Check a release**
-a picker: `poo series release FILE -check -` reads the release from its
+a picker: `poon series release FILE -check -` reads the release from its
 input (D166), so a release made elsewhere can now be checked from the
 browser before it is given to a node with Add a release.
 
@@ -53,20 +53,20 @@ browser before it is given to a node with Add a release.
 - **Check a release:** a picker on the Release file field, sent as
   `-check -`.
 
-This changes nothing in `poo` and adds no consensus rule.
+This changes nothing in `poon` and adds no consensus rule.
 
 ## For Source
 
 **A waiting refusal is told apart only by its words.** D166 makes a mint
-of a part this node has no release for "waiting", never invalid. poo
+of a part this node has no release for "waiting", never invalid. poon
 exits 1 for it, as for any error. To show "waiting for a release" rather
-than a failure, runJob matches poo's message text
-(`/waiting for a release/`). A script that runs `poo claim` or `poo pay`
+than a failure, runJob matches poon's message text
+(`/waiting for a release/`). A script that runs `poon claim` or `poon pay`
 has to do the same.
 
 A distinct exit code for a waiting refusal would let both the GUI and
 scripts tell it apart without reading prose, for example 3, documented in
-`poo help`. Exit codes are not consensus, so this is a CLI choice for
+`poon help`. Exit codes are not consensus, so this is a CLI choice for
 Source to make.
 
 ## Note for Grey (no change made)
@@ -75,8 +75,8 @@ Release a part's preview says "with every part before it, serials 0 to
 L: L + 1 mints". It works that total out in the page from part K's last
 serial. That is true by the design, because serials run from 0 with no
 gap, but it is a sum the GUI does itself (see GUI-GREEN-050). If
-`poo series parts` printed the mints through part K (its `MintsThrough`),
-the page could show poo's number instead.
+`poon series parts` printed the mints through part K (its `MintsThrough`),
+the page could show poon's number instead.
 
 ## Cost and risk
 
@@ -91,7 +91,7 @@ the page could show poo's number instead.
 Built on this branch.
 
 - views.mjs: picking the release file in Check a release previews
-  `poo series release … -check -`, runs, and poo says it "releases part
+  `poon series release … -check -`, runs, and poon says it "releases part
   2, serials 8 to 11", the same answer as for the path.
 - variable.mjs: Add a release with a picked file passes unchanged.
 - All ten e2e scripts and the gui Go tests pass locally.

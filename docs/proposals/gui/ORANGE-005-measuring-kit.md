@@ -12,12 +12,12 @@
 
 This proposal adds a repeatable way to measure the GUI, which every
 other ORANGE proposal uses. `gui/perf/perfgui` serves the real page and
-API, but its job runner simulates `poo watch` (a set rate of events in
-poo watch's shape), `poo node` (a set rate of log lines) and `poo big`
+API, but its job runner simulates `poon watch` (a set rate of events in
+poon watch's shape), `poon node` (a set rate of log lines) and `poon big`
 (a large result). Every other command runs through the real `cli.Main`.
 `gui/perf/measure.mjs` drives it in headless Chromium and prints one JSON
 object of numbers. There are also Go benchmarks for the job runner and
-the server. Nothing in `gui/perf` is released or used by `poo-gui`, and
+the server. Nothing in `gui/perf` is released or used by `poon-gui`, and
 it imports only `gui/...` and `pkg/cli`, so `TestImportsOnlyCLI` passes.
 
 ## How to run
@@ -40,7 +40,7 @@ script and task time, JS heap, DOM nodes).
 | What | Number |
 | --- | --- |
 | Page load (13 requests, 88 KB, no build step) | DOMContentLoaded 38 ms, first view drawn 95 ms (median of 5) |
-| A short command from the page (`/api/run`, `poo crypto`) | 2.0 ms median, 2.9 ms p90 |
+| A short command from the page (`/api/run`, `poon crypto`) | 2.0 ms median, 2.9 ms p90 |
 | Start a job and stream it to exit | 3.4 ms median, 4.4 ms p90 |
 | `/api/run` in Go around `cli.Main` | 0.9–1.1 ms |
 | Job output write | 370–655 ns (0–4 followers) |
@@ -54,7 +54,7 @@ weakening.
 
 ## For Source (through the coordinator)
 
-No core performance issue showed up from the GUI's side. `poo watch`
+No core performance issue showed up from the GUI's side. `poon watch`
 writes one `json.Encoder` line per event, which is right for a shell.
 ORANGE-002 joins those lines in the GUI's stream, so nothing is needed
 in `pkg/cli`. The known shutdown-timeout exit (GREEN-015 item 3) is

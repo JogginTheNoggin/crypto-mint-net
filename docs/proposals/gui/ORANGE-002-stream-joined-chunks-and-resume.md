@@ -11,7 +11,7 @@
 ## Summary
 
 The event stream sent one server-sent event for every write a command
-made. `poo watch` makes one write per event, so the browser parsed and
+made. `poon watch` makes one write per event, so the browser parsed and
 dispatched one message per watch event. The server now joins adjacent
 writes of the same stream into one `chunk` event, up to 64 KiB. Each
 chunk event also carries an SSE `id`, which is the seq to read next.

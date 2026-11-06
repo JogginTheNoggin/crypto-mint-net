@@ -4,22 +4,22 @@
 | --- | --- |
 | Status | proposed (prototyped) |
 | Based on | `main` @ `439b369` |
-| Area | `pkg/cli` (`seedFlags`, `claimCmd`, `payCmd`, `issuerSigner`), `pkg/cli/main.go` usage, `docs/modules/poo.md`, three `LEFT_OUT` reasons in `gui/e2e/parity.mjs` |
+| Area | `pkg/cli` (`seedFlags`, `claimCmd`, `payCmd`, `issuerSigner`), `pkg/cli/main.go` usage, `docs/modules/poon.md`, three `LEFT_OUT` reasons in `gui/e2e/parity.mjs` |
 | Effort | small |
 | Consensus | none: which key a command signs with, and refusals made before anything is sent. What a node accepts is unchanged. A series still allows an algorithm only by listing it in `key_algs` (D168) |
 | Decided by | Grey (Black may skip it) |
 
 ## Summary
 
-D168 added SLH-DSA-SHA2-128s. `poo keygen -alg slh-dsa-sha2-128s` makes the
+D168 added SLH-DSA-SHA2-128s. `poon keygen -alg slh-dsa-sha2-128s` makes the
 key, a series can list it in `key_algs`, and the wallet can hold it.
 
 The seed commands could not use it:
 
-- `poo claim`
-- `poo pay`
-- `poo series sign`
-- `poo series release`
+- `poon claim`
+- `poon pay`
+- `poon series sign`
+- `poon series release`
 
 They always built an Ed25519 key from the seed (`policy.NewEd25519Signer`
 in `seedFlags.signer`, and `policy.AlgEd25519` in the claim and pay
@@ -27,20 +27,20 @@ addresses).
 
 Green tried this as a user:
 
-1. Made an SLH-DSA key with `poo keygen -alg slh-dsa-sha2-128s`.
+1. Made an SLH-DSA key with `poon keygen -alg slh-dsa-sha2-128s`.
 2. Made a variable series with that key as the issuer, allowing
    `ed25519,slh-dsa-sha2-128s`.
-3. Ran `poo series sign` with the same seed file.
+3. Ran `poon series sign` with the same seed file.
 
 What went wrong:
 
-- **The issuer could not sign their own series.** `poo series sign` said
+- **The issuer could not sign their own series.** `poon series sign` said
   "this key's 1-of-1 address is c067…, not the series' issuer 5e55…", and
   there was no way to say which key was meant. The same applies to
-  `poo series release`.
-- **An SLH-DSA key could not claim or pay.** `poo claim` and `poo pay`
+  `poon series release`.
+- **An SLH-DSA key could not claim or pay.** `poon claim` and `poon pay`
   signed with the seed's Ed25519 key and paid its address, not the address
-  `poo keygen -alg` printed.
+  `poon keygen -alg` printed.
 - **A key the series does not allow was found only by the node.** The node
   answered "policy: key algorithm not allowed by the series", with no word
   of which algorithms the series allows.
@@ -58,7 +58,7 @@ journey on one node:
 ## Idea
 
 - **`-alg` on every command that takes a seed.** `addSeed` adds `-alg NAME`
-  (default `ed25519`, by name or number, as `poo keygen -alg` takes it).
+  (default `ed25519`, by name or number, as `poon keygen -alg` takes it).
   `seedFlags.signer` builds the key with `policy.NewSigner(alg, seed)`.
   `keygen` keeps its own `-alg`, and its seedFlags has none.
 - **Addresses follow the key.** The claim and pay addresses use
@@ -74,7 +74,7 @@ journey on one node:
   key's algorithm.
   - The seed is not asked for again: `signer` keeps the bytes it read, so
     a seed typed at a prompt (`-seed-file -`) is read once.
-- **Docs.** `poo help`, the usage errors and `docs/modules/poo.md` name
+- **Docs.** `poon help`, the usage errors and `docs/modules/poon.md` name
   `-alg` for claim, pay, series sign and series release.
 
 ## How it was tested
@@ -94,7 +94,7 @@ journey on one node:
 ## Also checked, no change needed
 
 - **D168's work tries.** On a series with `min_layer_strength` 20, a bare
-  `poo work` tried 2^22 = 2^(floor + 2), and its layer of strength 22
+  `poon work` tried 2^22 = 2^(floor + 2), and its layer of strength 22
   switched.
 - **In-place `limits -set`.**
   - `p2p.max_book` answered `in_place`.

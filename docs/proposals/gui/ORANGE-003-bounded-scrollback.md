@@ -14,14 +14,14 @@ The terminal, the running node's log, a running command's live output
 and the Jobs output pane each kept every write as a new `<span>`,
 forever. The terminal and the node log also read `scrollHeight` after
 every write, which forced a full layout of everything printed so far.
-Typing `poo watch` in the terminal under load froze the page for two
+Typing `poon watch` in the terminal under load froze the page for two
 minutes. A node logging 50 lines a second cost a little more every
 minute. At 200 lines a second the page stopped answering altogether.
 
 A small `scrollback` helper now writes into blocks of whole lines of
 about 4 KiB. It keeps the newest 1 MiB of text, as a terminal keeps a
 bounded scrollback, and scrolls to the end at most once a frame. With
-it, the same `poo watch` takes 1.1 s and a busy node log costs the same
+it, the same `poon watch` takes 1.1 s and a busy node log costs the same
 in minute 1 and minute 60. The text is shown exactly as printed, and
 only the oldest text is let go.
 
@@ -57,7 +57,7 @@ before still shows, in the same order and the same classes.
 
 `gui/perf/measure.mjs terminal node` against `perfgui` (ORANGE-005).
 
-**`poo watch` typed in the terminal, 20,000 events as fast as possible
+**`poon watch` typed in the terminal, 20,000 events as fast as possible
 (about 6 MB of text):**
 
 | | before | after |
@@ -86,7 +86,7 @@ the measuring script for over ten minutes and the run was killed.
 
 - A user who scrolls back more than about 1 MiB in one pane no longer
   sees the oldest text. The command's output is still in Jobs (the
-  server's 4 MiB) and `poo` is unchanged. The 1 MiB is a constant
+  server's 4 MiB) and `poon` is unchanged. The 1 MiB is a constant
   (`MAX_CHARS`) Grey can tune.
 - Output is now `pre > div.blk > span` instead of `pre > span`. The
   e2e checks read `innerText` and pass.

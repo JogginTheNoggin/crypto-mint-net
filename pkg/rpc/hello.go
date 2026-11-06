@@ -38,8 +38,8 @@ type HelloReply struct {
 // nonce.
 func helloMAC(token []byte, addr, nonce string) string {
 	m := hmac.New(sha256.New, token)
-	// The label stays "poo-rpc-hello" whatever the name (see pkg/brand).
-	m.Write([]byte("poo-rpc-hello\x00" + addr + "\x00" + nonce))
+	// The label stays "poon-rpc-hello" whatever the name (see pkg/brand).
+	m.Write([]byte("poon-rpc-hello\x00" + addr + "\x00" + nonce))
 	return hex.EncodeToString(m.Sum(nil))
 }
 

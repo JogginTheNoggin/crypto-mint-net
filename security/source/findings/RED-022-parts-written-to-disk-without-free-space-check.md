@@ -62,7 +62,7 @@ a reason to refuse (the way `errRevertBudget` waits):
   gets through as soon as there is room, a lying one never takes the room
   from the store;
 - default `PartsDir` to a directory inside the node's data directory, so it
-  is on the disk the operator planned for, and remove `poo-parts-*` files
+  is on the disk the operator planned for, and remove `poon-parts-*` files
   there at start;
 - count the bytes written against the sender's budget in the tracking, so
   one address cannot hold the disk with many progress slots;
@@ -83,7 +83,7 @@ by default) and 2% of the disk, the chase yields with `errPartsSpace`
 ("waiting for disk space for a large entry"), keeps its parts and goes on
 from their offset once there is room. Nothing is refused and no size is
 capped; when the space cannot be read the fetch goes on as before. The
-default directory inside the data directory, and clearing `poo-parts-*` at
+default directory inside the data directory, and clearing `poon-parts-*` at
 start, are Green's GREEN-033 (`pkg/daemon`), so they are not repeated here.
 Not done: charging the bytes written to the sender's budget (the reserve
 already keeps the store's room, whatever the number of senders), and the

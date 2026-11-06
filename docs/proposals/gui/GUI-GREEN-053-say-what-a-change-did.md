@@ -11,7 +11,7 @@
 ## Summary
 
 Since D168, a running node takes some changes **in place** and reloads
-for the rest. `poo policy limits -set` and `poo series add-release` both
+for the rest. `poon policy limits -set` and `poon series add-release` both
 say which happened: their JSON reply carries `saved`, `in_place` and
 `reloading`, and add-release adds a `note` when nothing changed. The
 GUI showed that reply only as a raw table, so the one answer a person
@@ -36,9 +36,9 @@ found in the same pass.
    `ties` still reload the node, which drops and re-dials its peers.
 3. **Add a release has the same gap.** A release is applied in place,
    applied by a reload (for example, a series followed by a list of
-   pools), or is already known. In the last case poo's `note` explains
+   pools), or is already known. In the last case poon's `note` explains
    why, but it sat in a table cell.
-4. **Tries on Work states no default.** Since D168, `poo work`'s default
+4. **Tries on Work states no default.** Since D168, `poon work`'s default
    follows the series' layer floor: 65,536, or 2^(floor+2) when that is
    larger. The field was blank, so a person could not tell that leaving
    it empty is the right choice for a strong series.
@@ -57,27 +57,27 @@ found in the same pass.
     apply it."
   - `saved` only: "Saved to node.json; no running node took it, so it
     applies when the node next starts."
-  - otherwise: "Nothing changed", followed by poo's `note` when there is
+  - otherwise: "Nothing changed", followed by poon's `note` when there is
     one.
 
-  The line goes above the raw result, which stays as poo printed it.
+  The line goes above the raw result, which stays as poon printed it.
   The helper reads only those four fields, so the GUI holds no rule
   (D84): the list of limits that apply in place stays in Source
   (`nodepolicy.InPlace`). A later command with the same reply shape can
   opt in with one call.
 - **Set limits** calls it, and its help text now says that the node
-  applies the limits at once where poo can, or else reloads, and that
+  applies the limits at once where poon can, or else reloads, and that
   the line over the result says which.
 - **Add a release** calls it.
 - **Tries** gets the placeholder "default 65536, or more for a series
   with a high layer floor; with For: as many as fit". parity.mjs
-  (GUI-GREEN-043) already compares the stated 65536 with `poo work -h`.
+  (GUI-GREEN-043) already compares the stated 65536 with `poon work -h`.
 - **The plan** now names SLH-DSA-SHA2-128s and says why the larger sets
   are not there.
 
 ## For Source (not built here)
 
-- **Mark which limits apply in place.** `poo policy limits` could give
+- **Mark which limits apply in place.** `poon policy limits` could give
   each limit an `in_place` field, from `nodepolicy.InPlace`. The
   Settable limits table could then show which limits change without a
   reload before Save, without copying Source's list into the GUI. This
@@ -99,4 +99,4 @@ This PR.
   checks the line "the running node applied it at once, with no reload".
 - variable.mjs: Add a release checks that the line says the node took
   the release, in place or by a reload.
-- parity.mjs checks Tries' stated default against poo.
+- parity.mjs checks Tries' stated default against poon.

@@ -5,7 +5,7 @@
 | Severity | low |
 | Status | mitigated in the GUI (GUI/Blue, Round 27C), merged; mitigation verified by GUI/Red R28B @ adcf216; the real fix, a part chain that stops on cancel, is routed to Source |
 | Found on | main @ b9fed52 (PR #182, Series and keys → "Release a part", Show parts, Check a release; D165, D168) |
-| Component | gui/web/static/views/crypto.js (`releaseForm`: Preview runs `poo series parts FILE -from K -to K` for any K); gui/jobs/jobs.go (Stop is `Job.Cancel`, a context cancel; a cancelled job still counts against `DefaultMaxRunning` = 16); pkg/series/parts.go (`PartID` hashes up to K part ids and never looks at a context); pkg/cli/seriesparts.go (`series parts`, `series release -part`, `-check` call `PartID`) |
+| Component | gui/web/static/views/crypto.js (`releaseForm`: Preview runs `poon series parts FILE -from K -to K` for any K); gui/jobs/jobs.go (Stop is `Job.Cancel`, a context cancel; a cancelled job still counts against `DefaultMaxRunning` = 16); pkg/series/parts.go (`PartID` hashes up to K part ids and never looks at a context); pkg/cli/seriesparts.go (`series parts`, `series release -part`, `-check` call `PartID`) |
 | Surface | local (the GUI process: its CPU and its job slots) |
 | Fixed by | GUI/Blue, Round 27C (crypto.js `farPart`, views.js `form` ask and `runJob` Stop note; e2e in gui/e2e/views.mjs). Source: a `ctx` check between `partChunk` chunks (routed through GUI/Grey) |
 
@@ -17,23 +17,23 @@ part ids the first time a process needs it. That runs at about 3.7
 million parts a second here: part 10^7 took 2.7 s, so part 5×10^10 takes
 close to 4 hours, and part 10^12 about 3 days.
 
-In a shell, Ctrl-C ends `poo`, since it is its own process. The GUI runs
-`poo` in its own process (cli.Main), and Stop only cancels the job's
+In a shell, Ctrl-C ends `poon`, since it is its own process. The GUI runs
+`poon` in its own process (cli.Main), and Stop only cancels the job's
 context. `PartID` never checks that context. So:
 
 1. In Release a part, a part typed with a few zeros too many (50000000000
-   for 50) and Preview starts `poo series parts FILE -from 50000000000
+   for 50) and Preview starts `poon series parts FILE -from 50000000000
    -to 50000000000`. The status reads "running…" and a CPU core is busy.
 2. **Stop does nothing.** The button goes, the status still says
    "running…", and the job keeps hashing. `/api/jobs` lists it as not
-   done. Closing poo-gui waits 15 s and gives up ("jobs: still running
+   done. Closing poon-gui waits 15 s and gives up ("jobs: still running
    after 15s").
 3. **Each such job keeps one of the 16 job slots.** After 16 of them, a
    Preview typed again for instance, every new command is refused, the
    views' own refreshes included: "jobs: too many commands running; stop
    one first". (Stop node still works: it cancels the node's job, and
    the node does look at its context.) Stop can't free a slot, so only a restart
-   of poo-gui does.
+   of poon-gui does.
 
 The same holds for Show parts with a far From or To, Sign (`series
 release -part K` works out part K−1), and Check a release or Add a
@@ -44,12 +44,12 @@ release edited to part 10^11 is refused in under a second).
 
 ## Reproduction
 
-poo-gui at b9fed52, `r25/series.json` (variable, 8 mints, part size 4,
+poon-gui at b9fed52, `r25/series.json` (variable, 8 mints, part size 4,
 no max parts). Playwright, with the script kept outside the repository.
 
 1. Series and keys → Release a part. Series file r25/series.json, Part
    `50000000000`, Preview.
-   - CPU of poo-gui: 0.00 s/s idle, 1.40 s/s while previewing.
+   - CPU of poon-gui: 0.00 s/s idle, 1.40 s/s while previewing.
    - Press Stop. After 1.5 s the status still reads "running…", and the
      CPU stays at 1.40 s/s for the next 4 s.
 2. Through the page's own `api.js`, start 16 previews of far parts and
@@ -57,7 +57,7 @@ no max parts). Playwright, with the script kept outside the repository.
    - `/api/jobs`: 16 not done, 2 s after the cancels.
    - `api.start(['version'])`: "jobs: too many commands running; stop
      one first". Opening Series and keys shows the same error.
-3. Closing poo-gui: "poo-gui: jobs: still running after 15s".
+3. Closing poon-gui: "poon-gui: jobs: still running after 15s".
 
 ## Impact
 
@@ -66,7 +66,7 @@ typed by the user, or it comes from a release the issuer signed. But a
 slip of the keyboard leaves a job that looks stoppable and isn't. It
 holds a core for hours. Once 16 are stuck, the GUI can't run any new
 command, not even a refresh of the node's status, and the only way out
-is to restart poo-gui. Rated **low**.
+is to restart poon-gui. Rated **low**.
 
 ## Recommendation
 
@@ -81,11 +81,11 @@ is to restart poo-gui. Rated **low**.
 - **GUI/Blue (crypto.js), meanwhile:**
   - Before Preview, Sign or Show parts runs on a part above about 10^8
     (some 30 s here), confirm it with the cost: "Part 50000000000 takes
-    poo about 50000000000 hashes to work out (hours), and it can't be
+    poon about 50000000000 hashes to work out (hours), and it can't be
     stopped once started. Run it?" The GUI knows K, so this needs no
-    poo call.
+    poon call.
   - In `runJob`, if a job hasn't ended a few seconds after Stop, say so
-    instead of "running…": "Stop asked; poo is still working and will
+    instead of "running…": "Stop asked; poon is still working and will
     end on its own. It holds one of 16 job slots until then." Then the
     user knows why later commands are refused.
 - e2e (views.mjs): Release a part with Part 50000000000. Expect the
@@ -94,7 +94,7 @@ is to restart poo-gui. Rated **low**.
 
 ## Fix (GUI/Blue, Round 27C)
 
-The GUI can't make poo's part chain stop: that is pkg/series, Source's.
+The GUI can't make poon's part chain stop: that is pkg/series, Source's.
 It now asks before it starts one, and says what Stop did when the job
 runs on.
 
@@ -102,17 +102,17 @@ runs on.
   gui/web/static/views/crypto.js runs before Release a part's Preview
   and before "Parts of a variable series" (From or To). For a part of
   10^8 or more, compared as BigInt, it confirms with the cost: "Part K
-  takes poo about K hashes to work out, some 30 s for each 10^8, so a far
+  takes poon about K hashes to work out, some 30 s for each 10^8, so a far
   part takes hours. Once started, Stop cannot end it, and it holds one of
   the GUI's job slots until it ends. Run it?" Declined, nothing runs.
   This uses a new `ask(values)` option on `form()` in views.js: a
   question to confirm before the job starts, or nothing. It is checked
   after the required fields and before `danger`'s confirm. Sign needs no
   second ask, because Preview has already worked out the chain in this
-  poo-gui process.
-- **Stop says when poo runs on.** In `runJob`, if a job has not ended
+  poon-gui process.
+- **Stop says when poon runs on.** In `runJob`, if a job has not ended
   3 s (`STOP_WAIT`) after Stop, the status changes from "running…" to
-  "Stop asked; poo is still working and will end on its own. Until then
+  "Stop asked; poon is still working and will end on its own. Until then
   it holds one of the GUI's job slots (Jobs lists it)." (`run-status
   stop-pending`). That applies to every form and panel, not only parts.
   A later "too many commands running" then has its reason on the page.
@@ -143,19 +143,19 @@ I checked this with Playwright on adcf216, on the 8-mint series with no
 max parts.
 
 - **Release a part, Part 50000000000.** Preview asks "Part 50000000000
-  takes poo about 50000000000 hashes to work out, …". Declining starts
+  takes poon about 50000000000 hashes to work out, …". Declining starts
   no job. `050000000000` asks too, since it is read as BigInt.
 - **Other spellings can't skip the ask.** The Part field is a number
-  input. `5e10` gets past the GUI's digits-only check, but poo's
+  input. `5e10` gets past the GUI's digits-only check, but poon's
   `flag.Uint64` refuses it at once ("invalid value "5e10" for flag
-  -from"), so nothing hashes. poo would take `0x…` or `1_000…` (base 0),
+  -from"), so nothing hashes. poon would take `0x…` or `1_000…` (base 0),
   but a number input won't hold either.
 - **Stop note.** The e2e (views.mjs) shows `stop-pending` within 10 s
   after accepting. All five suites pass.
 - **R26B note taken.** A release that doesn't match the preview is no
   longer offered Save as file.
 - **Hardening, not a finding.** "Run in terminal" on the same form's
-  line runs `poo series parts … -from 50000000000 …` with no ask: one
+  line runs `poon series parts … -from 50000000000 …` with no ask: one
   click from the form, not typed. The job then hangs as before. Blue's
   fix note leaves the terminal out, and the line is on show, but the
   button could ask `farPart` too, or open the line in the terminal

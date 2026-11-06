@@ -17,7 +17,7 @@ keeps the key off the node's machine:
 1. Make a key with a key file.
 2. Create a watch-only wallet.
 3. Record the key with Record a shared policy (`ed25519:PUB`).
-4. Claim mint 5 with `poo claim -seed-file`, in the terminal, then Watch
+4. Claim mint 5 with `poon claim -seed-file`, in the terminal, then Watch
    mint 5.
 5. Pay 30 with a co-signing file.
 6. Sign, with Show only first.
@@ -35,8 +35,8 @@ and one of them cost the units of the payment.
   view's Claim a mint is refused for a watch-only wallet.
 - **Pay with no co-signing file holds the units, and nothing can sign
   them.** On a watch-only wallet, Pay without Co-signing file ends with
-  exit 0 and poo prints "signatures missing (per leg, per input): [[1]]
-  / pass -out FILE …". But poo has already recorded the payment.
+  exit 0 and poon prints "signatures missing (per leg, per input): [[1]]
+  / pass -out FILE …". But poon has already recorded the payment.
   - Balance went from 100 to 0.
   - Payments sent lists the leg as `unsigned`.
   - Pay again with a co-signing file says "not enough spendable units:
@@ -55,18 +55,18 @@ and one of them cost the units of the payment.
   key to a payment sent". Each step says where it runs ("Where the key
   is" or "Here") and has a button that goes to its form. The first step
   is a link to Make a key in Series and keys.
-  - The claim step says the claim is made where the key is, with `poo
+  - The claim step says the claim is made where the key is, with `poon
     claim -seed-file`, since the wallet holds no key.
   - The Pay step says to give a co-signing file every time.
 - **Pay's one confirm warns when Co-signing file is empty.** It still
-  asks "Run poo wallet pay …?". When the field is empty it adds: "No
+  asks "Run poon wallet pay …?". When the field is empty it adds: "No
   co-signing file is filled in. If this wallet is watch-only, or pays
-  from a shared policy, fill one in first: without it poo records the
+  from a shared policy, fill one in first: without it poon records the
   payment and holds its units, but writes no file for the key to sign."
   The GUI cannot tell which kind of wallet it is, so the warning says
   "if". It replaces the plain question, so there is still one dialog. To
   do this, a form can now pass `dangerText(values)`.
-- **A line after the fact.** When poo printed "signatures missing" with no
+- **A line after the fact.** When poon printed "signatures missing" with no
   co-signing file, the result opens with: "Nothing was sent, and no file
   was written for the key to sign. The wallet has recorded this payment
   and holds its units: Payments sent lists it as unsigned. Next time,
@@ -76,26 +76,26 @@ and one of them cost the units of the payment.
 
 ## For Source (not built here)
 
-1. **Refuse before recording.** `poo wallet pay` with signatures missing
+1. **Refuse before recording.** `poon wallet pay` with signatures missing
    and no `-out` should refuse before it records the payment, as it
    refuses on too few units. Otherwise it should give a way to write the
-   file again or drop the payment, for example `poo wallet pay -resume
-   TID -out FILE` and `poo wallet cancel TID`. Today the units stay held
+   file again or drop the payment, for example `poon wallet pay -resume
+   TID -out FILE` and `poon wallet cancel TID`. Today the units stay held
    with nothing to sign, and I found no command that gives them back. This matters most for watch-only wallets, but a shared
    policy has the same problem.
-2. **The watch-only error for claim says the wrong thing.** `poo wallet
-   claim` on a watch-only wallet says "sign elsewhere, with poo sign, and
-   submit the signed file". `poo sign` signs payments, not claims. The
-   claim is made with `poo claim -seed-file` where the key is (D193). The
+2. **The watch-only error for claim says the wrong thing.** `poon wallet
+   claim` on a watch-only wallet says "sign elsewhere, with poon sign, and
+   submit the signed file". `poon sign` signs payments, not claims. The
+   claim is made with `poon claim -seed-file` where the key is (D193). The
    same error on `wallet address` and `wallet seed` would read better as
    "it holds no private key".
-3. **`poo wallet passwd` asks first, then refuses.** On a watch-only
+3. **`poon wallet passwd` asks first, then refuses.** On a watch-only
    wallet it asks for a new passphrase, and only then refuses.
 4. **Ideas:**
-   - `poo keygen` could print the key as `ALG:HEX` (e.g. `"key":
-     "ed25519:d404…"`), ready for `poo wallet policy -key`. Today a
+   - `poon keygen` could print the key as `ALG:HEX` (e.g. `"key":
+     "ed25519:d404…"`), ready for `poon wallet policy -key`. Today a
      person joins `alg` and `public_key` by hand.
-   - A `poo claim -out` that writes the claim for `poo sign`, as `wallet
+   - A `poon claim -out` that writes the claim for `poon sign`, as `wallet
      pay -out` does for a payment, would let a key that never touches a
      networked machine claim too. Today the claiming key must be on a
      machine that reaches a node.
@@ -114,7 +114,7 @@ and one of them cost the units of the payment.
 
 About 50 lines in wallet.js, 3 in views.js and 4 in style.css. Pay keeps
 one confirm, and its text is longer only when Co-signing file is empty.
-No rule, consensus, policy or `/api/` change. The GUI reads only poo's
+No rule, consensus, policy or `/api/` change. The GUI reads only poon's
 "signatures missing" line, and decides nothing about the wallet.
 
 ## Prototype

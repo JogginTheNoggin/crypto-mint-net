@@ -171,7 +171,7 @@ running node with a changed pool.
 | D172: entry skeleton, `BodySource`, `BodyCache`, `entry_cache_mib` | No verdict reads a body outside memory. Selection is the same at any cache size, and with every read failing (tested) |
 | D172: windowed replay at start | The same `AddEntry` path, a window at a time. It ends where a whole-log replay ends (tested) |
 | D172: open-file warning | A warning |
-| D173 (RED-084): `ErrUnreadable`; serving says `not held`; queries say `unreadable`; `poo doctor` warns | Missing information for this node's peers and callers, never a verdict |
+| D173 (RED-084): `ErrUnreadable`; serving says `not held`; queries say `unreadable`; `poon doctor` warns | Missing information for this node's peers and callers, never a verdict |
 | D173: `Rivals` from the skeleton | Reads every input from the items. It can't miss a rival, and decides nothing |
 | ORANGE-038 (carried in #202): witnesses stripped from released items; chase walks parents from the skeleton | Displaced sorting matches `CheckAgainst` (above). The chase needs only parents |
 | D173: cache in real bytes, 256 MiB default (owner-approved) | Memory only |

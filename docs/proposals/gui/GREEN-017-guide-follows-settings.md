@@ -12,7 +12,7 @@
 
 A mismatch: when Settings names a root or node policy, the views use it,
 but the Getting started steps did not. "Write a node policy" then wrote to
-`~/.poo` while the Node view looked in the root from Settings. Now the
+`~/.poon` while the Node view looked in the root from Settings. Now the
 steps that take `-root` and `-policy` (`init`, `node`, `status`,
 `wallet create`, `wallet address`) add them, and show them in the line.
 
@@ -38,5 +38,5 @@ nothing of its own: the flags are visible in the step before it runs.
 ## Prototype
 
 `start.js`. `gui/e2e/qol.mjs` sets a root in Settings and checks that
-"Write a node policy" shows `poo init -example -root /tmp/qol-root`, while
-"Check the tool" still shows `poo version`.
+"Write a node policy" shows `poon init -example -root /tmp/qol-root`, while
+"Check the tool" still shows `poon version`.

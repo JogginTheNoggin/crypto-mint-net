@@ -17,7 +17,7 @@
     the book (`MaxUnlisted`).
   - An address the node learns takes the place of the oldest of them when
     the book or its range is full.
-  - `poo peer remove -imported` takes them out in one step.
+  - `poon peer remove -imported` takes them out in one step.
 - **RED-059.**
   - The plan totals the blocks and says how much of IPv4 the ranges
     cover.

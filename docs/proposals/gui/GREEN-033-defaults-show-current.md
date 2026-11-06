@@ -15,7 +15,7 @@ floor and layer rate. All four start empty, and the only place that shows
 the current values is the one-line summary in the Schedule panel above.
 With this change, each field's placeholder shows the value set now, for
 example "now 1" or "now auto". An empty field still sends nothing, so it
-keeps that value, just as `poo grind schedule set` does.
+keeps that value, just as `poon grind schedule set` does.
 
 ## Problem
 
@@ -24,23 +24,23 @@ keeps that value, just as `poo grind schedule set` does.
 - The summary line leaves out the layer rate when the floor is 0. A rate
   set earlier (say 5) stays in node.json but shows nowhere. Setting a
   floor again brings that old rate back without warning.
-- `poo grind schedule set` with no flags succeeds and changes nothing. In
+- `poon grind schedule set` with no flags succeeds and changes nothing. In
   the GUI, Set with every field empty looks like it did something.
 
 ## Idea
 
 - `form()` returns `hint(name, text)`, which sets a field's placeholder.
   It changes nothing else, and no value is filled in or sent.
-- Each time the Schedule panel draws `poo grind schedule`'s reply, the
+- Each time the Schedule panel draws `poon grind schedule`'s reply, the
   Work view sets the four placeholders from its `grind` section. A
-  missing value shows poo's default, such as "0: every core but one".
-  This is poo's printed output shown again; the GUI keeps no defaults of
+  missing value shows poon's default, such as "0: every core but one".
+  This is poon's printed output shown again; the GUI keeps no defaults of
   its own.
 - Because the layer rate placeholder always shows "now 5", the hidden
   rate is visible again.
 
 Left for Grey to judge: turning Set off while every field is empty. That
-would match how poo treats it, but it is a small change in how the form
+would match how poon treats it, but it is a small change in how the form
 behaves, so it is not in the prototype.
 
 ## Cost and risk

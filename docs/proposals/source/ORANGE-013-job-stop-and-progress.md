@@ -71,7 +71,7 @@ With this change it ran at 55.5 ns against 53.6 ns, which is within the
 | `Manager.Renew`, two goroutines at once | 259 ns (the manager's mutex) |
 | `POST /v1/grind/{id}/renew`, round trip through `rpc.Client` | 105 µs, 10.5 KB and 105 allocations |
 
-`poo grind run` renews every 5 s, so a followed job spends 0.002% of a
+`poon grind run` renews every 5 s, so a followed job spends 0.002% of a
 core on its lease. No change is needed.
 
 ### Stop and live schedule changes

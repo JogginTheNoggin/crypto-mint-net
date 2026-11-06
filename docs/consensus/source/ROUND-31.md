@@ -180,12 +180,12 @@ changes only how the node asks its router.
 
 ## GUI ORANGE-023: report unused snapshots as a count
 
-GUI Orange asks Source to print `snapshots_unused` in `poo status` as a
+GUI Orange asks Source to print `snapshots_unused` in `poon status` as a
 count with a few reasons, and not one line per pool.
 
 - **Clear.** It is output only. Which snapshots are used, and the replay
   that follows when one isn't, stay the same.
-- **Keep the full list somewhere.** `poo doctor`, the start log or
+- **Keep the full list somewhere.** `poon doctor`, the start log or
   `-reverify` should still list each pool's reason. That way a damaged
   file, as opposed to an upgrade, stays visible (GREEN-055's point).
 
@@ -195,7 +195,7 @@ count with a few reasons, and not one line per pool.
 | --- | --- |
 | D182: `SnapshotPrint` (ORANGE-040 proposal 1 in part); the header fingerprint kept | Same records and the same fingerprint as before (Black's every-step restore runs). The RED-088 start check stays |
 | D182: `snapshotDue`, `snapshots.due`, doctor's "behind" (ORANGE-040 proposal 2) | When the node writes its own file. A late snapshot costs a replay |
-| D182: `p2p.port_map`, gateway, lease; machine-local; `poo init -port-map` | Node policy, off by default. Whether this node can be dialled is information |
+| D182: `p2p.port_map`, gateway, lease; machine-local; `poon init -port-map` | Node policy, off by default. Whether this node can be dialled is information |
 | D182: advertised address from the router, confirmed by dial-back; inbound limits unchanged | What the node says about itself. No inbound cap or verdict changes |
 | D183 (RED-090): self-check token in `Agent`; `sawSelfProbe` in the self branch | The self connection is still refused. The token decides only whether to advertise. No wire change |
 | D183 (RED-091, RED-092): failed mappings removed, lifetimes checked, renewal capped, stop not delayed | What the node asks its router |

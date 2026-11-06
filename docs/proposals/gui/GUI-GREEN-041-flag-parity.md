@@ -1,4 +1,4 @@
-# GUI-GREEN-041: Forms take the flags poo takes: Build/Work grinding, the wallet's series, named transactions
+# GUI-GREEN-041: Forms take the flags poon takes: Build/Work grinding, the wallet's series, named transactions
 
 | Field | Value |
 | --- | --- |
@@ -12,8 +12,8 @@ The first proposal under the GUI-GREEN prefix.
 
 ## Summary
 
-GREEN-039 and GREEN-040 made every poo command reachable. This round
-checks a level deeper: for each form, the flags `poo CMD -h` lists
+GREEN-039 and GREEN-040 made every poon command reachable. This round
+checks a level deeper: for each form, the flags `poon CMD -h` lists
 against the flags the form can send. Three real gaps remained:
 
 1. **Build an entry and Add a layer** had no `-device`, `-threads`,
@@ -22,11 +22,11 @@ against the flags the form can send. Three real gaps remained:
    jobs, but a one-off build or layer always used the defaults and could
    not be timed.
 2. **The Wallet view** sent `-series` from only 3 of its 17 forms
-   (Balance, Pay, Claim). Every `poo wallet` command takes `-series`. With
+   (Balance, Pay, Claim). Every `poon wallet` command takes `-series`. With
    two series followed, New address, Request, Receive and the rest
    failed with no way to say which.
 3. **What has arrived** had no `-serial N -tid HASH` pairs. Those are the
-   transactions a payer named, which `poo wallet receive` checks first.
+   transactions a payer named, which `poon wallet receive` checks first.
 
 ## Idea
 
@@ -40,22 +40,22 @@ against the flags the form can send. Three real gaps remained:
    per browser like the file. The three per-form Series fields go, so
    there is one place to set it.
 3. Receive gets two list fields: "Transactions the payer named" and
-   "Their mint serials", in the same order. poo pairs them and refuses
+   "Their mint serials", in the same order. poon pairs them and refuses
    counts that differ ("pairs with -tid").
 
-No logic is added: each field is one flag, and poo checks the values.
+No logic is added: each field is one flag, and poon checks the values.
 
 ## Checked and left alone
 
-- `-wide` on the listing commands only changes poo's text tables. The GUI
+- `-wide` on the listing commands only changes poon's text tables. The GUI
   reads JSON.
 - The filter flags (`-address`, `-tid`, `-kind`, …) on `ledger`,
   `pending`, `pools` and `watch` are already in Explore and Watch,
   through `filterFields`.
-- `poo node -log-level/-log-format` aren't in "Run the node". The live
+- `poon node -log-level/-log-format` aren't in "Run the node". The live
   log there is for reading, and a level choice would be a small follow-up
   if Grey wants it.
-- `poo sim`'s 14 tuning flags: GREEN-040's form names the terminal for
+- `poon sim`'s 14 tuning flags: GREEN-040's form names the terminal for
   those.
 
 ## Cost and risk
@@ -68,7 +68,7 @@ nothing stored, because those fields were never kept.
 
 On `claude/gui-green`.
 
-- `gui/e2e/views.mjs` checks the Build preview `poo build … -serial 5
+- `gui/e2e/views.mjs` checks the Build preview `poon build … -serial 5
   -device cpu -threads 2 -for 5s -bytes`, and the Work preview with
   `-device cpu -start 7`.
 - `gui/e2e/qol.mjs` checks that the view's series reaches Balance, and

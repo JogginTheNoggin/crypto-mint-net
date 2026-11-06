@@ -1,4 +1,4 @@
-# BLUE-015: `poo submit` reads a file or standard input; the full token may submit an entry of any size
+# BLUE-015: `poon submit` reads a file or standard input; the full token may submit an entry of any size
 
 | Field | Value |
 | --- | --- |
@@ -10,27 +10,27 @@
 
 ## Summary
 
-- `poo submit entry|layer` takes the hex as one argument, as before, or
+- `poon submit entry|layer` takes the hex as one argument, as before, or
   from `-f FILE` or standard input (`-`, or `-f -`), read whole and
   trimmed. An entry over 64 KiB no longer hits Linux's 128 KiB limit on
   one argument.
 - Testing a large body through the real RPC, as asked, found a second
   bound: `MaxBody` (8 MiB) refused any entry over about 4 MiB, from both
-  `poo submit` and the GUI. `POST /v1/entry` with the full token is no
+  `poon submit` and the GUI. `POST /v1/entry` with the full token is no
   longer bounded, since the node takes an entry of any size from a peer.
   Every other request, and every view-token request, is bounded as
   before.
 - The node's own refusal of a view-token POST to `/v1/entry` is checked:
   403 before the body is read, however large the body.
-- It is consistent with GREEN-039: `poo build -bytes` and `poo work
-  -bytes` print what `poo submit` reads.
+- It is consistent with GREEN-039: `poon build -bytes` and `poon work
+  -bytes` print what `poon submit` reads.
 
 ## What changed
 
 - `pkg/cli/submit.go`: `-f`, `-`, and `submitHex`.
 - `pkg/rpc/rpc.go`: `ServeHTTP` skips `MaxBytesReader` for a full-token
   `POST /v1/entry`.
-- Docs: D144, `docs/modules/poo.md`, `docs/modules/rpc.md`.
+- Docs: D144, `docs/modules/poon.md`, `docs/modules/rpc.md`.
 
 ## Tests added
 

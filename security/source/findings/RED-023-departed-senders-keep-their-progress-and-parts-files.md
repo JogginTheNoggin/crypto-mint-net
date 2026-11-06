@@ -19,7 +19,7 @@ sender is gone as `Gone` before it takes the progress, so the progress is
 never taken and never dropped. It leaves `h.prog` only when 256 other
 progresses push it out (C-2 never forgets a worked one for an unworked one),
 or when the host stops, and the file stays on disk until the node
-restarts (GREEN-033 removes `poo-parts-*` at start). A sender needs no
+restarts (GREEN-033 removes `poon-parts-*` at start). A sender needs no
 identity: the id in `h.prog` is the node id of the hello, which costs
 nothing to change.
 

@@ -1,4 +1,4 @@
-# RED-087: Every release build names itself `poo (devel)`, so the "never trust a pool an older build computed" check cannot tell one release from another
+# RED-087: Every release build names itself `poon (devel)`, so the "never trust a pool an older build computed" check cannot tell one release from another
 
 | Field | Value |
 | --- | --- |
@@ -27,9 +27,9 @@ I built a one-line program that prints `node.buildID()` and `cli.Version`
 (throwaway, removed), with the release script's flags:
 
 ```
--X cli.Version=0.1.0  ->  cli.Version="0.1.0"  buildID="poo (devel)"
--X cli.Version=0.2.0  ->  cli.Version="0.2.0"  buildID="poo (devel)"
-plain `go build`      ->  buildID="poo v0.0.0-20261105054118-cf8c859ca57e+dirty cf8c859ca57e...+modified"
+-X cli.Version=0.1.0  ->  cli.Version="0.1.0"  buildID="poon (devel)"
+-X cli.Version=0.2.0  ->  cli.Version="0.2.0"  buildID="poon (devel)"
+plain `go build`      ->  buildID="poon v0.0.0-20261105054118-cf8c859ca57e+dirty cf8c859ca57e...+modified"
 ```
 
 So snapshots written by v0.1.0 are used by v0.2.0, and by every later release,
@@ -58,7 +58,7 @@ or the selection code does not retire the snapshots written before it.
 - Make the id carry the release: pass `cli.Version` and `cli.Commit` (they are
   set by `-X`) into the node (`node.Options.Build`, or a package variable the
   `cli` package sets in `init`; `node` cannot import `cli`), and use them
-  before the build info: `poo 0.2.0 <commit>`. For a dev build keep the module
+  before the build info: `poon 0.2.0 <commit>`. For a dev build keep the module
   version and revision, and for `+modified` add a hash of the executable
   (`os.Executable`, hashed once) so two dirty builds differ.
 - Add a constant `snapshotSemantics` that is bumped by hand in the same
@@ -75,7 +75,7 @@ info.
 
 ## Resolution
 
-Fixed in BLUE-031 (D181). The build id is now `poo snap<N> <version>
+Fixed in BLUE-031 (D181). The build id is now `poon snap<N> <version>
 <commit>`, followed by the module version and VCS revision when the
 binary records them. The cli package hands its `Version` and `Commit`
 (set by `-X` in the release script) to the node with `node.SetRelease`

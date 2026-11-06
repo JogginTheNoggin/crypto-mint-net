@@ -30,7 +30,7 @@ logged in a filterable way.
 - Default `info` level and text format, which read the same as today.
 - `debug` adds per-message peer traffic, `warn` keeps offences, blocks
   and store repairs.
-- `poo node -log-level debug` overrides the policy for one run.
+- `poon node -log-level debug` overrides the policy for one run.
 - Consensus packages stay untouched: they return errors, and the callers
   log them.
 
@@ -66,11 +66,11 @@ in Source Round 2 Part B:
 - **`pkg/daemon`.** Its own lines (started, listening, reloading, stopped)
   go through the node's logger, and `Options.LogLevel` and `LogFormat`
   pass the overrides on.
-- **`poo node -log-level L -log-format F`**, checked before the node
+- **`poon node -log-level L -log-format F`**, checked before the node
   starts.
 - **Docs.** `docs/modules/logging.md` (formats, the events at each level,
   and the rule "a peer's data only as a size or type"), the `log` section
-  in `nodepolicy.md`, and the `poo node` row in `poo.md`.
+  in `nodepolicy.md`, and the `poon node` row in `poon.md`.
 - **Tests.** `pkg/logging` (the exact plain lines, levels, json and text,
   bad settings), `pkg/daemon/log_test.go` (plain by default, json from the
   policy with node, p2p and rpc components, the run's level overriding the
