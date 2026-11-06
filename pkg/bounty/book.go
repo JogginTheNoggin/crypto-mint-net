@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -261,9 +260,11 @@ func (m *Mine) expired(now time.Time) bool {
 
 // Held is an offer from a peer this node keeps, with what it did with it.
 type Held struct {
-	ID       hash.Hash `json:"id"`
-	Offer    Offer     `json:"offer"`
-	From     string    `json:"from"`
+	ID    hash.Hash `json:"id"`
+	Offer Offer     `json:"offer"`
+	From  string    `json:"from"`
+	// Addr is the sender's network address key (RED-116).
+	Addr     string    `json:"addr,omitempty"`
 	Received time.Time `json:"received"`
 	// Lease is what the payer granted, if anything.
 	Lease *HeldLease `json:"lease,omitempty"`
@@ -319,8 +320,10 @@ type Book struct {
 	heldOrd  []hash.Hash
 	grinders map[string]*grinder
 	payers   map[string]*PayerRecord
-	// heldPer counts the held offers from each peer (ORANGE-046 P3).
-	heldPer map[string]int
+	// heldPer counts the held offers from each peer (ORANGE-046 P3), and
+	// heldAddr those from each network address (RED-116).
+	heldPer  map[string]int
+	heldAddr map[string]int
 	// heldSwept is when held offers were last checked for their time.
 	heldSwept time.Time
 	// pending says a save is waiting on its timer (ORANGE-046 P2).
@@ -394,7 +397,7 @@ var saveDelay = 200 * time.Millisecond
 func Open(cfg Config, path string) (*Book, error) {
 	cfg.fill()
 	b := &Book{cfg: cfg, now: time.Now, path: path, mine: map[hash.Hash]*Mine{}, held: map[hash.Hash]*Held{},
-		grinders: map[string]*grinder{}, payers: map[string]*PayerRecord{}, heldPer: map[string]int{}}
+		grinders: map[string]*grinder{}, payers: map[string]*PayerRecord{}, heldPer: map[string]int{}, heldAddr: map[string]int{}}
 	if path == "" {
 		return b, nil
 	}
@@ -418,9 +421,12 @@ func Open(cfg Config, path string) (*Book, error) {
 		return nil, fmt.Errorf("%s: format %d is not a format", path, f.Format)
 	}
 	b.kept = f.kept
-	done, err := doneIDs(b.donePath())
+	done, unread, err := doneIDs(b.donePath())
 	if err != nil {
 		return nil, err
+	}
+	if unread > 0 {
+		b.dropped = append(b.dropped, fmt.Sprintf("%s: %d lines with no offer id this release reads", DoneFileName, unread))
 	}
 	// The file is checked as an offer and a claim are when they are made:
 	// what fails is left out and reported, never paid (RED-114).
@@ -436,7 +442,11 @@ func Open(cfg Config, path string) (*Book, error) {
 			m.Offer = o
 		}
 		if m != nil && done[m.ID] {
-			continue // moved to the done file before a crash
+			// Moved to the done file before a crash. The done file's copy
+			// is the later one (its payment recorded), so this one is left
+			// out, and said, as every other drop is (RED-117).
+			b.dropped = append(b.dropped, fmt.Sprintf("offer %d: %s is in %s already, finished", i, m.ID.Short(), DoneFileName))
+			continue
 		}
 		if why := checkMine(m); why != "" {
 			b.dropped = append(b.dropped, fmt.Sprintf("offer %d: %s", i, why))
@@ -502,47 +512,83 @@ func (b *Book) donePath() string {
 	return filepath.Join(filepath.Dir(b.path), DoneFileName)
 }
 
-// doneIDs reads the ids of the offers in the done file.
-func doneIDs(path string) (map[hash.Hash]bool, error) {
+// doneIDs reads the ids of the offers in the done file. Only the start
+// of each line is read, where the id is, and the rest is skipped as it
+// streams, so a line of any length costs a few KiB (RED-117). It also
+// says how many lines it could not read an id from.
+func doneIDs(path string) (map[hash.Hash]bool, int, error) {
 	ids := map[hash.Hash]bool{}
 	if path == "" {
-		return ids, nil
+		return ids, 0, nil
 	}
 	f, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return ids, nil
+		return ids, 0, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer f.Close()
-	dec := json.NewDecoder(bufio.NewReader(f))
+	r := bufio.NewReader(f)
+	first, _, err := linePrefix(r, maxDoneHead)
+	if len(first) == 0 && err != nil {
+		return ids, 0, nil // empty
+	}
 	var head struct {
 		Kind   string `json:"kind"`
 		Format int    `json:"format"`
 	}
-	if err := dec.Decode(&head); err != nil {
-		if errors.Is(err, io.EOF) {
-			return ids, nil
-		}
-		return nil, fmt.Errorf("%s: %w", path, err)
+	if json.Unmarshal(first, &head) != nil || head.Kind != DoneFileKind {
+		return nil, 0, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
 	}
-	if head.Kind != DoneFileKind {
-		return nil, fmt.Errorf("%s: not a %s file", path, DoneFileKind)
-	}
+	bad := 0
 	for {
-		var m struct {
-			ID hash.Hash `json:"id"`
-		}
-		if err := dec.Decode(&m); err != nil {
-			if errors.Is(err, io.EOF) {
-				return ids, nil
+		line, whole, err := linePrefix(r, len(doneIDPrefix)+2*hash.Size+1)
+		if len(line) > 0 {
+			rest, ok := bytes.CutPrefix(line, []byte(doneIDPrefix))
+			var id hash.Hash
+			var perr error = errors.New("no id")
+			if ok && len(rest) > 2*hash.Size && rest[2*hash.Size] == '"' {
+				id, perr = hash.Parse(string(rest[:2*hash.Size]))
 			}
-			// A line cut short by a crash ends the file; what it held
-			// is still in bounties.json.
-			return ids, nil
+			switch {
+			case perr == nil:
+				ids[id] = true
+			case whole:
+				// Not a line this release writes; a line cut short by a
+				// crash at the end of the file is not counted.
+				bad++
+			}
 		}
-		ids[m.ID] = true
+		if err != nil {
+			return ids, bad, nil
+		}
+	}
+}
+
+// doneIDPrefix is how each done line begins: the offer's id comes first.
+const doneIDPrefix = `{"id":"`
+
+// maxDoneHead bounds the done file's first line.
+const maxDoneHead = 4 << 10
+
+// linePrefix reads one line from r and returns its first max bytes,
+// skipping the rest without holding it; whole says the line ended with a
+// newline. err is io.EOF at the end.
+func linePrefix(r *bufio.Reader, max int) (prefix []byte, whole bool, err error) {
+	for {
+		chunk, err := r.ReadSlice('\n')
+		if room := max - len(prefix); room > 0 {
+			prefix = append(prefix, chunk[:min(len(chunk), room)]...)
+		}
+		switch {
+		case err == nil:
+			return bytes.TrimRight(prefix, "\r\n"), true, nil
+		case errors.Is(err, bufio.ErrBufferFull):
+			continue
+		default:
+			return prefix, false, err
+		}
 	}
 }
 
@@ -677,10 +723,7 @@ func (b *Book) expire() {
 		h := b.held[id]
 		if h.Offer.OpenSeconds > 0 && now.After(h.Received.Add(time.Duration(h.Offer.OpenSeconds)*time.Second)) {
 			delete(b.held, id)
-			b.heldPer[h.From]--
-			if b.heldPer[h.From] <= 0 {
-				delete(b.heldPer, h.From)
-			}
+			b.uncount(h)
 			return true
 		}
 		return false
@@ -708,11 +751,16 @@ func (b *Book) forgetGrinder() {
 			leased[l.Peer] = true
 		}
 	}
-	for k := range b.grinders {
-		if !leased[k] {
-			delete(b.grinders, k)
-			return
+	// The record that earned least goes, so a grinder that earned more
+	// leases keeps them (RED-116).
+	drop, least := "", -1
+	for k, g := range b.grinders {
+		if !leased[k] && (least < 0 || g.filled < least) {
+			drop, least = k, g.filled
 		}
+	}
+	if least >= 0 {
+		delete(b.grinders, drop)
 	}
 }
 
@@ -741,7 +789,10 @@ func (b *Book) Post(o Offer) (Mine, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if !b.cfg.Post {
-		return Mine{}, fmt.Errorf("%w: set bounty.post to post offers", ErrOff)
+		return Mine{}, fmt.Errorf("%w: poo policy limits -set bounty.post=1 posts offers", ErrOff)
+	}
+	if missing := unsetSpend(b.cfg); missing != "" {
+		return Mine{}, fmt.Errorf("%w: %s not set, so this node posts no offer; poo policy limits -set bounty.max_amount=N -set bounty.budget=N", ErrOff, missing)
 	}
 	b.expire()
 	total, over := mulCheck(o.Amount, uint64(o.Count))
@@ -773,6 +824,20 @@ func (b *Book) Post(o Offer) (Mine, error) {
 		return Mine{}, err
 	}
 	return b.clone(m), nil
+}
+
+// unsetSpend names the spending limits posting needs that cfg leaves
+// unset (GREEN-062): empty when both are set.
+func unsetSpend(cfg Config) string {
+	switch {
+	case cfg.MaxAmount == 0 && cfg.Budget == 0:
+		return "bounty.max_amount and bounty.budget are"
+	case cfg.MaxAmount == 0:
+		return "bounty.max_amount is"
+	case cfg.Budget == 0:
+		return "bounty.budget is"
+	}
+	return ""
 }
 
 func mulCheck(a, b uint64) (uint64, bool) {
@@ -1007,7 +1072,12 @@ func (b *Book) Paid(id hash.Hash, nonce uint64, tids []hash.Hash) (Ack, string, 
 
 // Receive keeps an offer a peer sent, if this node takes offers and the
 // offer pays at least MinPrice. It reports whether the offer was kept.
-func (b *Book) Receive(peer string, o Offer) bool {
+func (b *Book) Receive(peer string, o Offer) bool { return b.ReceiveFrom(peer, "", o) }
+
+// ReceiveFrom is Receive from a peer at network address addr: the offers
+// held from one address are bounded as one peer's are, since a node id
+// costs nothing (RED-116). An empty addr is not bounded.
+func (b *Book) ReceiveFrom(peer, addr string, o Offer) bool {
 	if o.Check() != nil {
 		return false
 	}
@@ -1033,21 +1103,46 @@ func (b *Book) Receive(peer string, o Offer) bool {
 			b.dropHeld(i)
 		}
 	}
-	if len(b.heldOrd) >= b.cfg.Held {
-		b.dropHeld(0)
+	if addr != "" && b.heldAddr[addr] >= b.cfg.PerPeer {
+		if i := slices.IndexFunc(b.heldOrd, func(hid hash.Hash) bool { return b.held[hid].Addr == addr }); i >= 0 {
+			b.dropHeld(i)
+		}
 	}
-	b.held[id] = &Held{ID: id, Offer: o, From: peer, Received: b.now()}
+	if len(b.heldOrd) >= b.cfg.Held {
+		// The oldest goes, but not one this node holds a lease on
+		// (RED-116).
+		now := b.now()
+		i := slices.IndexFunc(b.heldOrd, func(hid hash.Hash) bool {
+			l := b.held[hid].Lease
+			return l == nil || !l.Until.After(now)
+		})
+		b.dropHeld(max(i, 0))
+	}
+	b.held[id] = &Held{ID: id, Offer: o, From: peer, Addr: addr, Received: b.now()}
 	b.heldOrd = append(b.heldOrd, id)
 	b.heldPer[peer]++
+	if addr != "" {
+		b.heldAddr[addr]++
+	}
 	return true
 }
 
 func (b *Book) dropHeld(i int) {
-	from := b.held[b.heldOrd[i]].From
+	h := b.held[b.heldOrd[i]]
 	delete(b.held, b.heldOrd[i])
 	b.heldOrd = slices.Delete(b.heldOrd, i, i+1)
-	if b.heldPer[from]--; b.heldPer[from] <= 0 {
-		delete(b.heldPer, from)
+	b.uncount(h)
+}
+
+// uncount takes a dropped held offer out of the counts.
+func (b *Book) uncount(h *Held) {
+	if b.heldPer[h.From]--; b.heldPer[h.From] <= 0 {
+		delete(b.heldPer, h.From)
+	}
+	if h.Addr != "" {
+		if b.heldAddr[h.Addr]--; b.heldAddr[h.Addr] <= 0 {
+			delete(b.heldAddr, h.Addr)
+		}
 	}
 }
 

@@ -243,6 +243,13 @@ built.
   (`in_place` in the reply). `poo series parts` adds `mints_released`,
   and a command refused only because its part is not released yet exits
   with code 3.
+- **Round 37 fixes (D199):**
+  - A bounty offer is at most 1,024 bytes, alone or in a list.
+  - Offers held from one network address are bounded as one peer's
+    are; an IPv6 /64 counts as one address for offers and leases; an
+    offer this node has a lease on is kept when the held list is full.
+  - The bounty done file is read a line's start at a time, and an offer
+    left out for being done is reported.
 - **Round 37 (D198):**
   - The bounty market is turned on and tuned with `poo policy limits
     -set bounty.post=1` and the other `bounty.*` limits; `poo status`

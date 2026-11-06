@@ -163,3 +163,34 @@ func (p Policy) BountyConfig() (bounty.Config, bool) {
 		Held:                b.HeldOffers, MinPrice: b.MinPrice,
 	}, true
 }
+
+// BountyNotes says what in the bounty settings will not work as a person
+// most likely meant (GREEN-062): posting turned on with no spending
+// limits, which refuses every offer, and one offer allowed more than the
+// whole budget. poo policy limits -set shows them after a change.
+func (p Policy) BountyNotes() []string {
+	b := p.Bounty
+	if b == nil {
+		return nil
+	}
+	var notes []string
+	if b.Post {
+		switch {
+		case b.MaxAmount == 0 && b.Budget == 0:
+			notes = append(notes, "bounty.post is on, but bounty.max_amount and bounty.budget are not set, so no offer can be posted")
+		case b.MaxAmount == 0:
+			notes = append(notes, "bounty.post is on, but bounty.max_amount is not set, so no offer can be posted")
+		case b.Budget == 0:
+			notes = append(notes, "bounty.post is on, but bounty.budget is not set, so no offer can be posted")
+		}
+	}
+	if b.Budget != 0 && b.MaxAmount > b.Budget {
+		notes = append(notes, fmt.Sprintf("bounty.max_amount %d is over bounty.budget %d, so one offer can pay at most %d", b.MaxAmount, b.Budget, b.Budget))
+	}
+	return notes
+}
+
+// OnOff reports whether the bound is an on/off setting (1 on, 0 off),
+// such as bounty.post, which poo policy limits -set also takes as on or
+// off (GREEN-062).
+func (b Bound) OnOff() bool { return b.Min == 1 && b.Max == 1 && b.Default == 0 }

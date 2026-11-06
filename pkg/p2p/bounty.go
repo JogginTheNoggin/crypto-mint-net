@@ -42,7 +42,12 @@ type bountyAckKey struct {
 }
 
 // ErrNoBounty is a market call on a node whose policy has the market off.
-var ErrNoBounty = errors.New("the bounty market is off: set bounty.post or bounty.take in node.json")
+var ErrNoBounty = errors.New("the bounty market is off: poo policy limits -set bounty.take=1 takes peers' offers; -set bounty.post=1 with bounty.max_amount and bounty.budget posts them")
+
+// ErrNoTake is asking for or working peers' offers on a node that only
+// posts: it keeps no peer's offer, so the answers would be dropped
+// (GREEN-062).
+var ErrNoTake = fmt.Errorf("%w: this node does not take peers' offers; poo policy limits -set bounty.take=1 turns it on", bounty.ErrOff)
 
 // ErrPayerGone is a take or claim whose payer is not connected.
 var ErrPayerGone = errors.New("the peer that sent the offer is not connected")
@@ -150,12 +155,22 @@ func (h *Host) holdsLayer(k engine.PoolKey, e hash.Hash, nonce uint64) bool {
 	return held
 }
 
-// hostOf is addr's host, or addr when it has no port.
+// hostOf is the key the market limits a network address by: addr's IPv4
+// address, its IPv6 /64 (one site may hold every address in one,
+// RED-116), or its host name when it is not an address.
 func hostOf(addr string) string {
-	if host, _, err := net.SplitHostPort(addr); err == nil {
+	host := addr
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		host = h
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
 		return host
 	}
-	return addr
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String()
+	}
+	return (&net.IPNet{IP: ip.Mask(net.CIDRMask(64, 128)), Mask: net.CIDRMask(64, 128)}).String()
 }
 
 // BountyPools returns, in order, the followed pools of series that hold
@@ -178,6 +193,9 @@ func (h *Host) AskBounties(series hash.Hash) (int, error) {
 	if h.cfg.Bounty == nil {
 		return 0, ErrNoBounty
 	}
+	if !h.cfg.Bounty.Config().Take {
+		return 0, ErrNoTake
+	}
 	n := 0
 	for _, p := range h.bountyPeers() {
 		p.send(bountyMsg(wire.TypeBountyListReq, bounty.ListReq{Series: series}.Encode()))
@@ -192,6 +210,9 @@ func (h *Host) TakeBounty(ctx context.Context, id hash.Hash, rate uint64, payTo 
 	b := h.cfg.Bounty
 	if b == nil {
 		return bounty.Grant{}, ErrNoBounty
+	}
+	if !b.Config().Take {
+		return bounty.Grant{}, ErrNoTake
 	}
 	held, ok := b.HeldOffer(id)
 	if !ok {
@@ -307,7 +328,7 @@ func (h *Host) handleBounty(p *peer, m wire.Message) error {
 			return bad(err)
 		}
 		if _, ok := h.n.Engine().Series(o.Series); ok {
-			b.Receive(p.id, o)
+			b.ReceiveFrom(p.id, hostOf(p.addr), o)
 		}
 	case wire.TypeBountyListReq:
 		q, err := bounty.DecodeListReq(m.Body)
@@ -324,7 +345,7 @@ func (h *Host) handleBounty(p *peer, m wire.Message) error {
 		}
 		for _, o := range os {
 			if _, ok := h.n.Engine().Series(o.Series); ok {
-				b.Receive(p.id, o)
+				b.ReceiveFrom(p.id, hostOf(p.addr), o)
 			}
 		}
 	case wire.TypeBountyTake:

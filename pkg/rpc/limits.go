@@ -25,6 +25,9 @@ type LimitsReply struct {
 	// InPlace says the running node applied the change without a reload
 	// (D168): every changed limit is one nodepolicy.InPlace names.
 	InPlace bool `json:"in_place,omitempty"`
+	// Notes say what in the settings will not work as most likely meant,
+	// such as bounty.post on with no bounty.budget (GREEN-062).
+	Notes []string `json:"notes,omitempty"`
 }
 
 func (h *Handler) setLimits(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +58,7 @@ func (h *Handler) setLimits(w http.ResponseWriter, r *http.Request) {
 		writeError(w, &Error{Message: err.Error(), Code: CodeInvalid, Status: http.StatusUnprocessableEntity})
 		return
 	}
-	out := LimitsReply{Limits: p.Limits()}
+	out := LimitsReply{Limits: p.Limits(), Notes: p.BountyNotes()}
 	if changed {
 		if err := nodepolicy.Save(path, p); err != nil {
 			h.policyMu.Unlock()
