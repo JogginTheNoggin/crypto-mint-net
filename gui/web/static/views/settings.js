@@ -16,7 +16,7 @@ export const settingsView = {
     cmds.checked = where.showCommands();
     cmds.addEventListener('input', () => where.setShowCommands(cmds.checked));
     const f = el('form', { class: 'fields' },
-      el('label', {}, el('span', {}, 'Folder holding the node policies'), r),
+      el('label', {}, el('span', {}, 'Root folder (holds the node policies)'), r),
       el('label', {}, el('span', {}, 'Node policy'), p),
       el('label', {}, el('span', {}, 'Theme'), theme),
       el('label', { class: 'check show-commands' }, el('span', {}, 'Show the command behind each action (to learn it, copy it or run it in the terminal)'), cmds),

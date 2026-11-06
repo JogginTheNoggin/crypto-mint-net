@@ -684,7 +684,7 @@ try {
   // (GUI-037), and starts with its prefix.
   const keys = await page.evaluate(async () => {
     const store = await import('/store.js');
-    return { prefix: store.PREFIX, names: [store.HISTORY, store.WHERE, store.THEME, store.WALLET, store.WALLET_SERIES], used: Object.keys(localStorage) };
+    return { prefix: store.PREFIX, names: [store.HISTORY, store.WHERE, store.THEME, store.WALLET, store.WALLET_SERIES, store.SHOW_COMMANDS], used: Object.keys(localStorage) };
   });
   assert.ok(keys.used.length > 0, 'the page saved something');
   for (const k of keys.used) assert.ok(keys.names.includes(k) && k.startsWith(keys.prefix), `storage key ${k} is in store.js`);

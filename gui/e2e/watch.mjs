@@ -102,11 +102,10 @@ try {
   if (shots) await page.screenshot({ path: join(shots, 'ledger-picture.png'), fullPage: true });
   await page.click('nav a[data-id=watch]');
 
-  // The tid in a row links to Explore, which runs poon tx on it.
+  // The tid in a row links to the Ledger view, which runs poon tx on it (R41).
   await live.locator(`tr.ev-tx a.lookup[href*="${tid}"]`).first().click();
-  const looked = section('A transaction');
-  await looked.locator('.run-status.ok').waitFor();
-  assert.equal(await looked.locator('.cmd code').innerText(), `poon tx ${tid}`);
+  await page.locator('.ledger-body dl.facts', { hasText: 'In the selected ledger' }).waitFor();
+  assert.ok((await page.locator('.ledger-cmds .cmd code').allTextContents()).includes(`poon tx ${tid}`));
   // The Pools view's lookups run poon unspent and poon tx (Source GREEN-008).
   await page.click('nav a[data-id=pools]');
   const pay = section('Where a payment stands');
