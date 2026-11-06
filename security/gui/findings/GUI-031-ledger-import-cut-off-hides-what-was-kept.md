@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | GUI part fixed (interim line), verified by GUI/Red R34B @ 7099e84; the real fix, poo's partial totals and Stop between batches, is routed to Source (pkg/cli/ledgerport.go) |
+| Status | fixed: Source printed partial totals and stops between batches (main @ 58273f7), and the GUI draws them; verified by GUI/Red R35B @ 58273f7 |
 | Fixed by | GUI/Blue, Round 33C (pools.js `ledgerImport`: a failed or stopped import shows a `.ledger-import-partial` alert that earlier parts may already be kept; views.mjs checks it). Drawing poo's partial totals waits on Source |
 | Found on | main @ 3c4ae00 (PR #258, Pools and payments → "Import a ledger"; D188) |
 | Component | pkg/cli/ledgerport.go (`ledgerImportCmd`: `send` returns the RPC error and drops `total`); gui/web/static/views/pools.js (`ledgerImport`'s `onResult` draws the summary only when `r.code === 0`) |
@@ -124,4 +124,25 @@ With nothing sent, it prints only its error. GUI/Grey's R34A follow-up
 draws the partial summary from that reply. It shows no alert when there
 is no reply, which settles the nit without matching poo's error text.
 GUI/Blue left the import form to that change, to avoid a clash.
+
+## Notes — Round 35B verification (fixed)
+
+I checked this on 58273f7 with the same file. The ledger kind is now
+`poo-ledger`, so I renamed it in the file.
+
+- **Node stopped mid-import (CLI).** poo prints the reply to stdout:
+  `kept: 2`, `layers_kept: 2`, `switched: true`, `sent: 3`, the refused
+  item, and `stopped` with the dial error. It also prints the error,
+  with "the first 3 entries were sent: 2 kept, 0 already held", to
+  stderr, and exits 1.
+- **The same in the GUI (Playwright).** The alert reads "The import
+  stopped after 2 entries were sent (…connection refused…): kept 2
+  entries and 2 layers; …; the node switched to the imported branch.
+  Importing the same file again is safe …".
+- **Stop between batches.** With Stop pressed once pool 1 was at height
+  2, the job ended 0.8 s later, with "stopped: context canceled" and the
+  same totals in the alert. Before, Stop did nothing until the file was
+  done.
+- My R34B nit (an alert with nothing sent) is gone: the GUI draws the
+  alert only from poo's totals.
 
