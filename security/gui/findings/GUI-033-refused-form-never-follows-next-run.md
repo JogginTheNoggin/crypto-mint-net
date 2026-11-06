@@ -4,10 +4,10 @@
 | --- | --- |
 | Severity | low |
 | Status | fixed; verified by GUI/Red R37B @ 7eb16ab |
-| Fixed by | GUI/Blue, Round 36C (views.js: both refusal paths only stop following a job (`unfollow`), and a submitted form clears `area.gone` before `runJob`; qol.mjs checks that after each refusal the next Sign shows poo's masked prompt and Stop ends the job) |
+| Fixed by | GUI/Blue, Round 36C (views.js: both refusal paths only stop following a job (`unfollow`), and a submitted form clears `area.gone` before `runJob`; qol.mjs checks that after each refusal the next Sign shows poon's masked prompt and Stop ends the job) |
 | Found on | main @ d25f777 (#296, #298: GUI-032's `refuse` on Sign with a key kept elsewhere) |
 | Component | gui/web/static/views.js (`form`'s submit handler: the `refuse` path, and the GUI-026 required-field path, call `leave(area)`, which sets `area.gone = true`; nothing sets it back, and `runJob` returns at once when `area.gone`) |
-| Surface | local (the GUI page and poo-gui's job slots) |
+| Surface | local (the GUI page and poon-gui's job slots) |
 
 ## Summary
 
@@ -26,7 +26,7 @@ Nothing clears `area.gone` again. So every later run of that form,
 until the view is opened again, starts a job that the page never
 follows:
 - The status reads "running…" for ever, and the result never shows.
-- If poo asks for something (a seed, a key, a passphrase), the masked
+- If poon asks for something (a seed, a key, a passphrase), the masked
   prompt never shows, and the job waits on its input for ever.
 - Stop does nothing: its `onclick` is set only after the `area.gone`
   check. The job stays not done.
@@ -35,7 +35,7 @@ follows:
   job slots, as in GUI-028.
 
 GUI-032's own refusal leads straight into this. The message says
-'Untick "The key is in a file" and poo asks for the key in a masked
+'Untick "The key is in a file" and poon asks for the key in a masked
 field'. A user who does that, and presses Sign, gets a job waiting for
 a key in a prompt that is never drawn.
 
@@ -46,14 +46,14 @@ it.
 
 ## Reproduction
 
-poo-gui at d25f777, Playwright. pay.json is
+poon-gui at d25f777, Playwright. pay.json is
 `{"hash":"sha256","legs":[{"serial":1}]}`.
 
 1. Wallet → Sign with a key kept elsewhere. Co-signing file pay.json.
    Tick "The key is in a file", and put 64 hex digits in Key file. Press
    Sign: "Nothing was run: Key file holds what looks like a key …", and
    the field is emptied. This is right.
-2. Untick the box, as the message says. The line reads `poo sign
+2. Untick the box, as the message says. The line reads `poon sign
    pay.json -key-file -`. Press Sign.
    - After 3 s there is no masked prompt (`form.ask` not visible), and
      the status reads "running…". `/api/jobs` lists the sign job as not
@@ -68,8 +68,8 @@ show the prompt, and later the exit, as they should.
 
 Nothing leaks, and nothing is sent: a job waiting on a key that never
 comes signs nothing. But the form looks hung, Stop doesn't work, and
-each retry takes another job slot. After 16, poo-gui refuses every
-command until those jobs are stopped from Jobs, or poo-gui is
+each retry takes another job slot. After 16, poon-gui refuses every
+command until those jobs are stopped from Jobs, or poon-gui is
 restarted. It is reached by following the GUI's own advice, on the
 form made for keys kept off the machine. Rated **low**.
 

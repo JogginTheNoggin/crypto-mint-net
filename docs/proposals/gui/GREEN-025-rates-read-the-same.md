@@ -26,7 +26,7 @@ exact value is in the tooltip. The found table's hashes also go through
 
 ## Cost and risk
 
-About 10 lines. `rate` is only used by `poo grind` today. If another
+About 10 lines. `rate` is only used by `poon grind` today. If another
 command ever prints a `rate` that isn't tries a second, the key check
 would need its context.
 

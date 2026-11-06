@@ -1,4 +1,4 @@
-# BLUE-036: What poo sign shows and checks; raw keys self-tested; key files never echoed; no unrecorded pay; ledger files read twice
+# BLUE-036: What poon sign shows and checks; raw keys self-tested; key files never echoed; no unrecorded pay; ledger files read twice
 
 | Field | Value |
 | --- | --- |
@@ -8,11 +8,11 @@
 | Code | `f835882` |
 | Decisions | D194 |
 | With | GREEN-060 (#289) and ORANGE-045 (#286), both carried: they change the same `sign.go`, `pay.go` and `main.go`, and merged cleanly. |
-| Review | No consensus change. The transaction byte form is unchanged; `variable` is a field in a tool's file. For White: payment files gain `"variable"`, and an older `poo sign` ignores it (it still fails on variable series, as before). `poo ledger import` from a pipe now refuses a file whose entries come first. |
+| Review | No consensus change. The transaction byte form is unchanged; `variable` is a field in a tool's file. For White: payment files gain `"variable"`, and an older `poon sign` ignores it (it still fails on variable series, as before). `poon ledger import` from a pipe now refuses a file whose entries come first. |
 
 ## Summary
 
-- **RED-104.** `poo sign` shows `series`, `hash` and `spends`; a series
+- **RED-104.** `poon sign` shows `series`, `hash` and `spends`; a series
   mismatch is refused; signatures are checked before writing.
 - **RED-105.** `Unsigned.Variable` and `tx.DecodeVariable`.
 - **RED-106.** `NewRawSigner` self-tests every key.

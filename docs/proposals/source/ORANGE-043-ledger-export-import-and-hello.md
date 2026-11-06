@@ -10,7 +10,7 @@
 
 ## Summary
 
-D188 adds `poo ledger export` and `poo ledger import`. D186 adds a
+D188 adds `poon ledger export` and `poon ledger import`. D186 adds a
 release, features and extensions to the hello. I measured both. The
 ledgers have 10,000 and 100,000 entries, each with four transactions and
 a layer, made with Ed25519 or ML-DSA-65 owners.
@@ -32,7 +32,7 @@ a layer, made with Ed25519 or ML-DSA-65 owners.
 **2. Import read the whole file into memory: 1.8 GB for a 292 MB file.
 Fixed here.**
 
-`poo ledger import` decoded the whole file, every item as bytes, before
+`poon ledger import` decoded the whole file, every item as bytes, before
 sending the first batch.
 
 | owners | entries | peak heap before | with the fix |
@@ -55,7 +55,7 @@ The client's own share was the file times about six. It is now one batch
 the `entries` list one entry at a time, handing each to the batcher. The
 file format is unchanged.
 - **Key order.** When the entries come before the fields that name the
-  file and its pool (`kind`, `format`, `series`, `pool`), which `poo
+  file and its pool (`kind`, `format`, `series`, `pool`), which `poon
   ledger export` never writes, they are held and given after the header,
   as before.
 - **A file that turns out bad.** Today a broken file sends nothing.

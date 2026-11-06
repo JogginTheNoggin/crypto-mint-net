@@ -12,7 +12,7 @@
 ## Summary
 
 - **RED-043.**
-  - A default `poo policy import` (and `POST /v1/policy/import`) takes
+  - A default `poon policy import` (and `POST /v1/policy/import`) takes
     only what to follow: series, follows and accepted issuers.
   - Every other setting in the file is a node setting. The plan lists
     those as "skipped, node settings (-settings takes them)".
@@ -52,7 +52,7 @@
 - `pkg/p2p/discovery.go` and `addr.go`: `registryClient`, `viaProxy` and
   `publicDialer`.
 - Docs:
-  - `docs/modules/nodepolicy.md`, `poo.md`, `rpc.md` and `registry.md`
+  - `docs/modules/nodepolicy.md`, `poon.md`, `rpc.md` and `registry.md`
   - `docs/running-a-node.md`
   - `docs/decisions.md` (D150)
 

@@ -27,7 +27,7 @@ Node b: `issuers.any: false`, one listed series followed and unused
 unused"). Settings exported from a default node (`any: true`):
 
 ```
-$ poo settings import s.json -replace
+$ poon settings import s.json -replace
   read first: ... issuers.any
   ~ issuers.any: false -> true
 ```

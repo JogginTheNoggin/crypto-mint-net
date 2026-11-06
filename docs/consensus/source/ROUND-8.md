@@ -150,7 +150,7 @@ GREEN-033, ORANGE-017 and the queued GUI-014 source fix are clear.
 Clear, with one condition. Waiting for disk space never refuses an
 entry, and an entry larger than a node's disk is a physical limit, not a
 coded one. The condition: the wait must be visible to the operator,
-beyond a chase log line, for example in `poo node` status or a warning
+beyond a chase log line, for example in `poon node` status or a warning
 event. A heavier ledger waiting on disk space should not look like a
 healthy node.
 

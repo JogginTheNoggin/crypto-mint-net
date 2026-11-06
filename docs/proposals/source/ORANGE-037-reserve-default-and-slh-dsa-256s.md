@@ -11,7 +11,7 @@
 ## Summary
 
 D170 removed the network-wide witness size caps, added SLH-DSA-SHA2-256s
-(algorithm 11), made the reserve series the `poo init` default and made far
+(algorithm 11), made the reserve series the `poon init` default and made far
 part ids cancellable. I measured each one. Nothing needs fixing now, and I
 make two proposals.
 
@@ -102,7 +102,7 @@ measured.
 
 **Proposal 1: a `series_ceiling` default of 4 MiB.** D170 lets Orange and
 Red recommend one. 4 MiB is `CeilingLimit`, so every series that
-`poo series new` writes without `-any-ceiling` is still taken. It bounds
+`poon series new` writes without `-any-ceiling` is still taken. It bounds
 the worst single witness a node can be asked to check at about 3 s of one
 core (Ed25519 at 0.7 ms per KiB), against about 12 s with no ceiling. The
 reserve series and every series made with the tool's default are

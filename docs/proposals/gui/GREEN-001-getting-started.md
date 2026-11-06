@@ -10,7 +10,7 @@
 
 ## Summary
 
-A first view that walks a new user through poo as eight command lines,
+A first view that walks a new user through poon as eight command lines,
 each with a "Run in terminal" button: version, demo, crypto, init, node,
 status, wallet create, wallet address. It teaches the headless tool while
 using the GUI, and adds no logic.
@@ -26,7 +26,7 @@ points at an order of steps.
 ## Idea
 
 - A "Getting started" view, first in the navigation, with numbered steps.
-  Each step is a title, one sentence, the `poo` command line in code, and
+  Each step is a title, one sentence, the `poon` command line in code, and
   a button that types it into the terminal and runs it.
 - The button is `openInTerminal`, the same path the views use. The guide
   never runs anything itself, and every line works unchanged in a shell,
@@ -42,7 +42,7 @@ Later, if Grey wants: mark a step done when its job exits 0 (read from
 
 About 50 lines of JavaScript and a few CSS rules. It changes the default
 landing view from Node to Getting started; an alternative is to place it
-second, or show it only while `poo policy list` is empty.
+second, or show it only while `poon policy list` is empty.
 
 The step texts are prose about commands, so they can go stale when a
 command changes. They only describe; the command validates.
@@ -55,4 +55,4 @@ terminal).
 
 ## Decision
 
-Adopted as the landing view. Every step is a poo command line typed into the terminal, so it teaches the headless tool too.
+Adopted as the landing view. Every step is a poon command line typed into the terminal, so it teaches the headless tool too.

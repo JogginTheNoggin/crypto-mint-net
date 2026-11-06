@@ -13,7 +13,7 @@
 
 The Watch view caps the visible event table at `MAX_EVENTS = 1000` rows (older
 rows are removed), which is good. But three sibling buffers in the same view have
-no cap, so a long-running `poo watch` against a busy node can grow the tab's memory
+no cap, so a long-running `poon watch` against a busy node can grow the tab's memory
 without limit:
 
 1. **`held`** — while the view is paused, every arriving event is pushed to `held`

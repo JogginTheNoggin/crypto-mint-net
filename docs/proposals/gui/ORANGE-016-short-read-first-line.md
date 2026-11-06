@@ -34,7 +34,7 @@ a time) and in "Output as printed".
 | 10,000 (190 KB file) | 0.34 to 0.61 s, 35,344 px (293,195 characters), 0.19 to 0.40 s | 0.26 s, 151 px (684 characters), 0.10 s |
 | 50,000 (1 MB file) | 1.6 to 2.1 s, 183,041 px (1,500,371 characters), 1.1 to 1.3 s | 1.46 s, 151 px (685 characters), 0.52 s |
 
-`poo` alone makes the 50,000-peer plan in 0.46 s. The 1.5 s that is
+`poon` alone makes the 50,000-peer plan in 0.46 s. The 1.5 s that is
 left is mostly the browser reading 6.9 MB of JSON and the result view
 (`render.js`) drawing it. The main gain is not time. Apply and the
 table are now in reach, and a screen reader no longer reads out 1.5

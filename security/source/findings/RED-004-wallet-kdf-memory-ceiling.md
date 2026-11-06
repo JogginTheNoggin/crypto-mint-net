@@ -41,7 +41,7 @@ starts swapping, before the passphrase is even checked. `passes = 100` over
 4 GiB is also minutes of CPU, not the "hours" the bound rules out but still
 far beyond a legitimate wallet's ~64 MiB / 3 passes.
 
-`poo wallet -wallet <path>` opens whatever file the path names, so this
+`poon wallet -wallet <path>` opens whatever file the path names, so this
 applies whenever a user opens a wallet file they did not create themselves
 (one received, restored from a backup of unknown provenance, or placed by
 another program).
@@ -51,7 +51,7 @@ another program).
 1. Create a valid wallet, then edit its JSON `kdf` block to
    `{"name":"argon2id","iterations":100,"memory":4194304,"threads":1,
    "salt":"…"}` (memory in KiB = 4 GiB). The settings pass `check`.
-2. Run any `poo wallet` command that unseals the seed against that file with
+2. Run any `poon wallet` command that unseals the seed against that file with
    any passphrase.
 3. The process attempts a single ~4 GiB allocation in `argon2.IDKey` before
    the passphrase is verified; on a host with less memory it OOMs.
@@ -65,7 +65,7 @@ ceiling admits a 4 GiB cost — which the fix should lower.
 Low, and partly by design — the wallet file is normally the owner's own
 (the threat model treats "someone with the wallet file" as able to read it,
 not to attack the opener). The residual risk is a user opening a wallet file
-from someone else: a single crafted field turns `poo wallet` into a local
+from someone else: a single crafted field turns `poon wallet` into a local
 OOM / long stall. No secret leaks and nothing is forged; it is a
 denial-of-service against the person opening the file.
 

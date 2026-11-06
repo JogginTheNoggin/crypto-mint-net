@@ -106,7 +106,7 @@ will review any such setting.
 
 ## RED-071 and D165: a variable series' JSON
 
-An older `poo` ignored the new keys and read a variable series' JSON as a
+An older `poon` ignored the new keys and read a variable series' JSON as a
 fixed series with another id. That was never a fork: the id differed, so
 nothing on the network was confused. It did break the "unknown means
 unreadable" rule for files.
@@ -118,7 +118,7 @@ older reader therefore finds no hash and refuses the series.
 - `UnmarshalJSON` refuses keys it does not know (`ErrUnknownKey`), so a
   later extension is unreadable rather than misread.
 - Black checked that no key has ever been removed from `Params`. Every
-  series JSON that any `poo` has written is read the same way.
+  series JSON that any `poon` has written is read the same way.
 - `Params` is never embedded in another JSON struct, so the new methods
   cannot capture a wider object.
 

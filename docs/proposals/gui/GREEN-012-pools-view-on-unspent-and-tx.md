@@ -1,4 +1,4 @@
-# GREEN-012: The Pools view's lookups on poo unspent and poo tx
+# GREEN-012: The Pools view's lookups on poon unspent and poon tx
 
 | Field | Value |
 | --- | --- |
@@ -12,8 +12,8 @@
 
 The Pools and payments view's two lookups now run the newer commands that
 Source/Green's GREEN-008 recommends. "Holdings of a mint" runs
-`poo unspent -serial N` instead of `poo holdings`. "Where a payment
-stands" runs `poo tx TID` instead of `poo payment -serial N -tid TID`, so
+`poon unspent -serial N` instead of `poon holdings`. "Where a payment
+stands" runs `poon tx TID` instead of `poon payment -serial N -tid TID`, so
 the serial becomes optional (`-in-serial`). The GUI then shows the same
 answers as Explore, in the same shape, and no longer depends on the older
 commands. This is step 2 of Source GREEN-008, and it does not wait for
@@ -38,7 +38,7 @@ that `running-a-node.md` uses both pairs.
 
 - Switch the two forms' argv builders. Nothing else changes: the titles
   and the command preview stay, and both commands exist today.
-- Keep "Followed pools" on `poo status` for now. `pools` lacks `waiting`
+- Keep "Followed pools" on `poon status` for now. `pools` lacks `waiting`
   and `stored_records`, so switching it waits for Source GREEN-008 step 1,
   which adds them. After that, the Pools view and Explore's Pools form
   are the same command, and one of them can go.
@@ -48,12 +48,12 @@ that `running-a-node.md` uses both pairs.
 ## Cost and risk
 
 About 6 changed lines. Scripts are not affected, since the older
-commands stay in `poo`. If Source/Grey declines GREEN-008, this still
+commands stay in `poon`. If Source/Grey declines GREEN-008, this still
 stands on its own, because `unspent` and `tx` are the documented M10
 commands.
 
 ## Prototype
 
 `poolsView` in `views.js`. `gui/e2e/watch.mjs` checks that both forms
-preview `poo unspent -serial 5` and `poo tx TID`, and that the unspent
+preview `poon unspent -serial 5` and `poon tx TID`, and that the unspent
 lookup succeeds against a live node.

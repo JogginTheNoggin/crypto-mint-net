@@ -4,20 +4,20 @@
 | --- | --- |
 | Status | proposed (prototyped) |
 | Based on | `main` @ `1a1c729` |
-| Area | `pkg/cli` (`keygen`, `followedAddresses`, `cryptoCmd`), `docs/modules/poo.md` |
+| Area | `pkg/cli` (`keygen`, `followedAddresses`, `cryptoCmd`), `docs/modules/poon.md` |
 | Effort | small |
 | Consensus | none. Output only: `keygen` adds fields, and `crypto` gains `-o table`. Addresses, the reserve series and every rule are unchanged |
 | Decided by | Grey (Black may skip it) |
 
 ## Summary
 
-D170 made the built-in reserve series what `poo init` follows by default.
-Its hash is SHA-512/256. `poo keygen` still prints `address` under
+D170 made the built-in reserve series what `poon init` follows by default.
+Its hash is SHA-512/256. `poon keygen` still prints `address` under
 `-hash sha256` by default.
 
 Green followed a new node's path:
 
-1. Ran `poo init`, then `poo keygen -alg slh-dsa-sha2-256s -seed-file seed`.
+1. Ran `poon init`, then `poon keygen -alg slh-dsa-sha2-256s -seed-file seed`.
 2. Claimed mint 40 with the same key.
 
 The claim's output address was `122af1…`, but keygen's `address` was
@@ -26,24 +26,24 @@ series, and the reserve series hashes the policy with SHA-512/256.
 
 A newcomer reads keygen's `address` as "my address" and gives it to a
 payer. A payment there is to an address no key of theirs can spend in the
-reserve series. Nothing warned them. `poo wallet address` gets it right,
+reserve series. Nothing warned them. `poon wallet address` gets it right,
 because it builds the address from the series, but `keygen` is what
 `running-a-node.md` and the GUI's Make key form use first.
 
 Two other things Green checked:
 
-- **`poo crypto` printed JSON only.** It now lists `max_signatures_per_witness`
+- **`poon crypto` printed JSON only.** It now lists `max_signatures_per_witness`
   (D170), the number a person compares across algorithms, which reads best
   as a table.
 - **The rest of D170 worked as documented.**
-  - `poo init` follows the reserve and prints its full id.
+  - `poon init` follows the reserve and prints its full id.
   - A claim signed with SLH-DSA-SHA2-256s took 0.8 s and was accepted under
     the 128 KiB ceiling.
-  - `poo crypto` shows SLH-DSA-256s with 4 signatures per witness.
+  - `poon crypto` shows SLH-DSA-256s with 4 signatures per witness.
 
 ## Idea
 
-- **`series_addresses`.** `poo keygen` reads the current node policy (it
+- **`series_addresses`.** `poon keygen` reads the current node policy (it
   now takes `-root`, `-policy` and `-dir`, like other commands). When the
   policy lists series, keygen adds one entry per series:
   - `series`: the series id;
@@ -59,7 +59,7 @@ Two other things Green checked:
   read, keygen prints exactly what it printed before. The existing fields,
   `address_sha256` included, are unchanged, so scripts, vectors and the GUI
   read them as before.
-- **`poo crypto -o table`.** It prints hashes, key algorithms and policy
+- **`poon crypto -o table`.** It prints hashes, key algorithms and policy
   types as tables, through the shared `addOutput`.
 
 ## How it was tested
@@ -86,7 +86,7 @@ Two other things Green checked:
 ## Ideas for later
 
 - `running-a-node.md`'s first-key step could say to read
-  `series_addresses`, or to use `poo wallet address`, which is
+  `series_addresses`, or to use `poon wallet address`, which is
   series-aware.
 - The GUI's Make key form could show `series_addresses` beside the key.
   That is GUI Grey's call.

@@ -10,9 +10,9 @@
 
 ## Summary
 
-Round 37 fixed a race in gui/jobs. A refresh that ended at once could be dropped before the page asked for its events. poo-gui now runs with `KeepNew: 10 * time.Second`: `trim` drops no finished job started less than 10 s ago.
+Round 37 fixed a race in gui/jobs. A refresh that ended at once could be dropped before the page asked for its events. poon-gui now runs with `KeepNew: 10 * time.Second`: `trim` drops no finished job started less than 10 s ago.
 
-That exemption has no bound. In 10 s, poo-gui now keeps every finished job, whatever `MaxJobs` (64) and `MaxTotalOutput` (64 MiB) say. A burst of quick jobs that print a lot holds all of their output:
+That exemption has no bound. In 10 s, poon-gui now keeps every finished job, whatever `MaxJobs` (64) and `MaxTotalOutput` (64 MiB) say. A burst of quick jobs that print a lot holds all of their output:
 
 - With 4 MiB jobs started one after another for 3 s, the runner kept 188 jobs and a 756 MB heap.
 - Before the fix, the same burst kept 16 jobs and a 68 MB heap.
@@ -32,7 +32,7 @@ if j := r.jobs[id]; j.Done() && (j.Refresh || !refreshOnly) && now.Sub(j.Started
 
 These hold only for jobs older than 10 s. `MaxRunning` (16) still bounds the jobs running at once. But a quick job finishes in milliseconds, so it does not bound how many finished jobs pile up.
 
-Who can start jobs that fast: anything that holds the page's token, such as the page itself, a script, or a page reload that refreshes every panel. A person clicking does not get near this. The limits exist so that no client, including a buggy one, can make poo-gui hold unbounded output.
+Who can start jobs that fast: anything that holds the page's token, such as the page itself, a script, or a page reload that refreshes every panel. A person clicking does not get near this. The limits exist so that no client, including a buggy one, can make poon-gui hold unbounded output.
 
 ## Measurements
 

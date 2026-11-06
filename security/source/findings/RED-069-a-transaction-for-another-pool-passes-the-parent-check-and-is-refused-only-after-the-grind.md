@@ -18,7 +18,7 @@ not on a mint of the entry's pool"), but only after `entry.BuildWith` has
 ground the entry.
 
 `POST /v1/build` takes the pool from the request and the transactions from
-`txs`, so the two can disagree. `poo claim -parent` names the pool from the
+`txs`, so the two can disagree. `poon claim -parent` names the pool from the
 serial, so it cannot. A script or a GUI that builds with the wrong pool can.
 
 ## How I checked it

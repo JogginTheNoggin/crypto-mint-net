@@ -21,8 +21,8 @@ no heavier ledger is refused (D115). B4 (D132), C-6 and D133 still hold.
 - **RED-029.** A sender that trickles a part a chase, or lets parts
   requests time out, ranks as slow at the disk reserve, whatever size it
   claims, so an honest fetch that is moving takes its room.
-- **RED-030.** `poo follow`, `poo unfollow`, `poo wallet follow` and
-  `poo init -force` no longer write `node.json` behind a running node.
+- **RED-030.** `poon follow`, `poon unfollow`, `poon wallet follow` and
+  `poon init -force` no longer write `node.json` behind a running node.
 
 ## What changed
 
@@ -44,7 +44,7 @@ no heavier ledger is refused (D115). B4 (D132), C-6 and D133 still hold.
 - `pkg/cli/wallet.go`: `walletFollow` goes through the node's follow RPC
   when the node answers, and takes the lock otherwise.
 - `pkg/cli/node.go`: `init -dir` takes the lock.
-- Docs: D136, `docs/modules/p2p.md` and `poo.md`.
+- Docs: D136, `docs/modules/p2p.md` and `poon.md`.
 
 ## Tests added
 

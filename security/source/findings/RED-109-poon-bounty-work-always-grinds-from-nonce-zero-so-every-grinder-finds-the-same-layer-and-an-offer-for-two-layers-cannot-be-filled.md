@@ -1,4 +1,4 @@
-# RED-109: `poo bounty work` always grinds from nonce 0, so every grinder finds the same layer: an offer for two layers cannot be filled, and a second offer on the same entry is paid for the same layer
+# RED-109: `poon bounty work` always grinds from nonce 0, so every grinder finds the same layer: an offer for two layers cannot be filled, and a second offer on the same entry is paid for the same layer
 
 | Field | Value |
 | --- | --- |
@@ -24,7 +24,7 @@ grinder, and every call, finds the same nonce.** Three results:
 2. **A second offer on the same entry is accepted with the nonce the payer
    already holds.** The claim is "accepted", recorded as owed, and the
    engine's answer to the layer ("known") is only logged at debug level
-   (`handleBountyClaim`). `poo bounty pay` then pays the amount without
+   (`handleBountyClaim`). `poon bounty pay` then pays the amount without
    looking at whether the layer was new.
 3. If ordinary grinders also start at nonce 0, a layer already in the ledger is
    found again here and sold to the payer a second time (not checked).
@@ -44,7 +44,7 @@ payer owes: offer 670870f5 claim nonce=227480
 payer owes: offer 5004e294 claim nonce=227480
 ```
 
-`poo bounty pay` paid the first claim. Paying the second failed only because the
+`poon bounty pay` paid the first claim. Paying the second failed only because the
 test wallet's one coin was still in flight ("0 held, 10 asked"); I did not run
 it further, so the second payment is from the code, not a run. The returned
 strength was 19, not 8: the grinder gives the best layer of the block, which
@@ -57,14 +57,14 @@ is fine for the payer but is also what makes the nonce fixed.
 - In `handleBountyClaim`, ask the engine whether the layer is new for that
   entry before answering `accepted`. A known layer gets its own outcome (not
   owed), and the engine's answer is part of what the payer reads in
-  `poo bounty list`.
-- `poo bounty pay` should refuse (or warn and need `-force`) when two owed claims
+  `poon bounty list`.
+- `poon bounty pay` should refuse (or warn and need `-force`) when two owed claims
   on the same entry have the same nonce.
 
 ## Not tested
 
-Two grinders at once; whether the ordinary `poo grind` starts at 0 too.
+Two grinders at once; whether the ordinary `poon grind` starts at 0 too.
 
 ## Resolution
 
-Fixed in BLUE-037 (D197). `poo bounty work` grinds from a random nonce, and a layer the payer holds is answered `known` and not owed (RED-110). Test: `TestBountyMarket` fills a two-layer offer with two work calls.
+Fixed in BLUE-037 (D197). `poon bounty work` grinds from a random nonce, and a layer the payer holds is answered `known` and not owed (RED-110). Test: `TestBountyMarket` fills a two-layer offer with two work calls.

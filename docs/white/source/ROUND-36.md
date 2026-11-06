@@ -43,16 +43,16 @@ bounty, GREEN-061 and payment tests in `pkg/cli`, all pass at `ecc4cac`.
 
 | Item | Verdict | Notes |
 | --- | --- | --- |
-| D195 W-23: payment file `kind` `poo-payment`, `format` 1, unknown keys kept (top level and legs) | compatible | Done as asked. A file with neither field (dev builds, before D195) still reads. A higher format is refused with a message to use a later release |
+| D195 W-23: payment file `kind` `poon-payment`, `format` 1, unknown keys kept (top level and legs) | compatible | Done as asked. A file with neither field (dev builds, before D195) still reads. A higher format is refused with a message to use a later release |
 | D195 W-24: wallet keeps unknown top-level keys | compatible | Done. Same limits as `node.json` (256, 64 KiB, depth 64) |
 | D195 `pkg/keepjson` | compatible | Matches keys the way `encoding/json` does, with case folded (`strings.EqualFold`), so `"Format"` is not kept beside `format`. See Proposal 4 |
 | D196: feature `bounty` version 1, listed only when node policy turns the market on | compatible | The name is registered in `wire.go` and wire.md and is never reused. Peers are matched with `wire.Has(..., 1)`, so a version 2 can follow (W-29) |
 | D196: wire types 70 to 76 | compatible | They are new types, and a node that does not know them ignores them, as every release has. They are in the wire.md table |
 | D196: message layouts | compatible with conditions | Every decoder reads the fields it knows and ignores trailing bytes (`r.Err()`, not `Finish`), and a list holds each offer as `Bytes` of at most 1 KiB. That's right for later phases. **Condition:** W-27 (offer id) |
 | D196: unknown offer `kind`, unknown ack `outcome` | compatible | An unknown kind is refused by `Offer.Check`, so the offer is ignored. An unknown outcome is shown as `outcome N` and counts as neither accepted nor paid. W-29 makes both rules |
-| D196: `bounties.json` (`kind` `poo-bounties`, `format` 1) | compatible with conditions | A format or kind it does not know stops the node from starting (`daemon.go:149`). That fails safe, but the message should say the file is from a later release. **Condition:** W-28 |
+| D196: `bounties.json` (`kind` `poon-bounties`, `format` 1) | compatible with conditions | A format or kind it does not know stops the node from starting (`daemon.go:149`). That fails safe, but the message should say the file is from a later release. **Condition:** W-28 |
 | D196: node.json `bounty` section | compatible | It is an object, so an older release keeps it on save (D184, W-11). It is off when absent, and every limit has a floor and a ceiling |
-| D196: RPC `/v1/bounty*`, `poo bounty ...` | compatible | New endpoints and commands only. The GUI uses the terminal for now (GUI/White's to track) |
+| D196: RPC `/v1/bounty*`, `poon bounty ...` | compatible | New endpoints and commands only. The GUI uses the terminal for now (GUI/White's to track) |
 | D196: a watch-only wallet cannot pay a bounty yet | compatible | Refused with a message. Adding it later changes no file |
 | GREEN-061 (#299): `find_pool` in `POST /v1/bounty/post`, and the pool checked against the entry | compatible | Optional (`omitempty`). An older node refuses the unknown field (`DisallowUnknownFields`), so a newer client never posts on pool 0 by mistake |
 | BLUE-037 (#304, D197): random start, outcomes 9 `known` and 10 `no lease`, leases per address, `From` kept, acks and records bounded, `bounties.json` checked on open | compatible | The outcomes are new codes in a feature no release has shipped yet. Entries that fail the check on open are dropped and logged, never paid, so an older file keeps loading |
@@ -130,7 +130,7 @@ compatible with conditions.**
   offers out on its first save. That works.
 - Conditions:
   - The done file names itself. If it is JSON lines, make the first line
-    `{"kind":"poo-bounties-done","format":1}`, and refuse a later format.
+    `{"kind":"poon-bounties-done","format":1}`, and refuse a later format.
   - Append to the done file and sync it before removing the offer from
     `bounties.json`. A crash in between then leaves the offer in both
     files, never in neither. The reader drops an offer it finds twice,
@@ -184,9 +184,9 @@ local release builds happen at tag time (W-9).
 
 GUI/White (#308) says the proposed Bounty view (#305) can tell the
 market is off only by matching the text of `p2p.ErrNoBounty`. Error text
-is not an interface: a reworded message or the "poo" rename would break
+is not an interface: a reworded message or the "poon" rename would break
 the view without anyone noticing. **Ask (Round 37A, small):** add
 `bounty: {"post": bool, "take": bool}` to `GET /v1/status`
-(`StatusReply`) and `poo status`, read from node policy and always
+(`StatusReply`) and `poon status`, read from node policy and always
 present. It is an added field, so older clients ignore it. The GUI reads
 the field and keeps the text match only as a fallback for older nodes.

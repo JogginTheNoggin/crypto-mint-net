@@ -18,7 +18,7 @@ Green ran D178 as a node runner:
 2. Flipped one byte in a `<index>.log.snap`. A plain start reported it
    under `snapshots_unused` with "checksum differs", replayed the whole
    log, and the clean stop wrote a fresh snapshot.
-3. Checked `status -counts` (snapshots listed) and `poo policy limits`
+3. Checked `status -counts` (snapshots listed) and `poon policy limits`
    (`snapshot_every` listed with `in_place` true).
 
 All of that behaved as written. Three loose ends showed up around
@@ -59,8 +59,8 @@ All of that behaved as written. Three loose ends showed up around
 - **`TestSnapshotsCheckReverifyAndReasons`** (pkg/cli) checks the ok line
   after one reverified pool, and the warn line with two reasons. It fails
   on `main`.
-- **By hand:** a damaged snapshot under `poo node -reverify` now logs the
-  warning, and `poo doctor` shows "warn snapshots 1 pool snapshot was not
+- **By hand:** a damaged snapshot under `poon node -reverify` now logs the
+  warning, and `poon doctor` shows "warn snapshots 1 pool snapshot was not
   used at the last start ... checksum differs". After a good `-reverify`,
   doctor ends its ok line with "-reverify replayed 1 pool whole at the
   last start and it matched its snapshot".

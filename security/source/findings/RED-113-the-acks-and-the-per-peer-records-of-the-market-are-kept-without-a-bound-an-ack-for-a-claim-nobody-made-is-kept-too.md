@@ -16,7 +16,7 @@ up-to-16 tids, whether or not this node has made a claim; `Held.Acks` is only
 dropped with the offer, and an offer with `open_seconds` 0 never expires
 (it leaves only when the held list is full). `payers[peer]` and
 `grinders[peer]` get an entry per id and never lose one. `HeldOffers()` copies
-every ack on each call (`poo bounty list`, the node's status view).
+every ack on each call (`poon bounty list`, the node's status view).
 
 At the budget (120 discovery-class messages a minute per address) one sender
 adds about 7,200 acks an hour; 24 inbound peers 170,000.

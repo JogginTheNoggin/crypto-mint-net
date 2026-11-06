@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | done: commands by Source (D113), Schedule panel and forms in Work (Round 7) |
 | Based on | claude/gui-4-watch @ 8b044ac |
-| Area | pkg/cli (new poo grind schedule), then gui/web/static/work.js |
+| Area | pkg/cli (new poon grind schedule), then gui/web/static/work.js |
 | Effort | medium |
 | Decided by | (Grey) |
 
@@ -24,7 +24,7 @@ jerry's M11 request says work is assigned "by hand, on a schedule, or
 automatically". By hand works in the CLI and the GUI. Scheduled and
 automatic jobs come only from node.json's `grind.jobs`, and today the
 only way to change them is to edit the file by hand and then
-`poo reload`. In the GUI, the only sign of them is `source: policy` rows
+`poon reload`. In the GUI, the only sign of them is `source: policy` rows
 in the jobs list.
 
 ## Idea
@@ -33,10 +33,10 @@ Commands (Source/Grey), named to match `follow`:
 
 | Command | Does |
 | --- | --- |
-| `poo grind schedule [-o json\|table]` | The section: `device`, `threads`, and `jobs` numbered from 1 |
-| `poo grind schedule add TARGET [-series ID] [-pool K] [-serial N] [-device D] [-threads N] [-hours 22-06] [-until-from W] [-no-reload]` | Appends a job, checks it as node.json's loader does (`MaxGrindJobs`, hours, threads), writes, and reloads a running node |
-| `poo grind schedule remove N\|-all [-no-reload]` | Removes jobs |
-| `poo grind schedule set [-device D] [-threads N] [-no-reload]` | The section's defaults |
+| `poon grind schedule [-o json\|table]` | The section: `device`, `threads`, and `jobs` numbered from 1 |
+| `poon grind schedule add TARGET [-series ID] [-pool K] [-serial N] [-device D] [-threads N] [-hours 22-06] [-until-from W] [-no-reload]` | Appends a job, checks it as node.json's loader does (`MaxGrindJobs`, hours, threads), writes, and reloads a running node |
+| `poon grind schedule remove N\|-all [-no-reload]` | Removes jobs |
+| `poon grind schedule set [-device D] [-threads N] [-no-reload]` | The section's defaults |
 
 Two mismatches to settle while doing it:
 - JOB FLAGS take `-for`, but a node.json job has no `for`: policy jobs
@@ -46,11 +46,11 @@ Two mismatches to settle while doing it:
   can resolve the serial to its pool as `run` does, and say which.
 
 The GUI then shows (Grey, in a later round):
-- A **Schedule** panel on `poo grind schedule -o json`: one row per job,
+- A **Schedule** panel on `poon grind schedule -o json`: one row per job,
   with the same columns as GREEN-023, plus Remove (runs
-  `poo grind schedule remove N`).
+  `poon grind schedule remove N`).
 - An **Add to schedule** form on the Run a job fields, minus "For",
-  plus "Only in hours". Its preview shows `poo grind schedule add …`.
+  plus "Only in hours". Its preview shows `poon grind schedule add …`.
 - **Defaults** with the device choices from GREEN-024.
 
 ## Cost and risk

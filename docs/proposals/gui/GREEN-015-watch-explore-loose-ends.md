@@ -19,10 +19,10 @@ for Grey, not prototyped:
    for a `dt` element whose text is `next`.
 3. `gui/e2e/watch.mjs` fails about 1 run in 6, on 93ed36a and on this
    branch alike. The cause is in the headless node, not the GUI: after
-   Stop node, `poo node` prints "node stopped" and then
-   `poo: context deadline exceeded`, and exits 1 instead of 0.
-4. A Source loose end: `poo tx` and `poo unspent` accept `-kind`, which
-   only means something for `poo watch`.
+   Stop node, `poon node` prints "node stopped" and then
+   `poon: context deadline exceeded`, and exits 1 instead of 0.
+4. A Source loose end: `poon tx` and `poon unspent` accept `-kind`, which
+   only means something for `poon watch`.
 
 ## Problem and idea
 
@@ -38,9 +38,9 @@ for Grey, not prototyped:
    small change to `runJob`'s callers.
 3. **Flaky stop (a Source issue).** `pkg/rpc/server.go` gives
    `srv.Shutdown` 5 seconds. When a request is still in a handler after
-   that, `Shutdown` returns `context.DeadlineExceeded`, and `poo node`
+   that, `Shutdown` returns `context.DeadlineExceeded`, and `poon node`
    reports it as a failure even though the node itself stopped cleanly.
-   The run that failed had `poo status` refreshes from the Node view in
+   The run that failed had `poon status` refreshes from the Node view in
    flight. Options for Source/Grey: treat a shutdown timeout as a
    warning, not an exit-1 error; or close the remaining connections
    (`srv.Close`) after the deadline, and exit 0. In the meantime,

@@ -33,11 +33,11 @@ reasons in its file. No byte form, wire or consensus change.
 - **RED-004** (`pkg/wallet/keystore.go`): Argon2id at most 1 GiB and 8 GiB
   in passes times memory, PBKDF2 at most 10,000,000; `wallet.CheckKDF`.
 - **RED-005** (`pkg/cli/node.go`, `main.go`): `seedFlags` reads
-  `POO_SEED` or `-seed-file` (`-` for standard input); `-seed` is
+  `POON_SEED` or `-seed-file` (`-` for standard input); `-seed` is
   refused for `claim` and `pay`. `keygen` gains `-seed-file` and keeps
   `-seed` for test vectors (the GUI's tests use it).
 - Docs: D96 to D98, `docs/running-a-node.md` (local networks need
-  `allow_local_peers`; seeds from `POO_SEED`), `docs/modules/poo.md`,
+  `allow_local_peers`; seeds from `POON_SEED`), `docs/modules/poon.md`,
   `nodepolicy.md`, `peers.md`. Finding files carry a Resolution section.
 
 ## Tests added
@@ -59,10 +59,10 @@ go test -race ./pkg/p2p ./pkg/wallet ./pkg/cli
 go test -run 'PublicIP|Learnable|PlantLocal|ConfiguredLocal|MissingChunksResentOnce' -v ./pkg/p2p
 ```
 
-By hand: two `poo node`s on one machine find each other through
+By hand: two `poon node`s on one machine find each other through
 discovery only with `"allow_local_peers": true`; a listed `-peer
-127.0.0.1:…` connects either way. `poo claim -seed …` fails and names
-`POO_SEED`.
+127.0.0.1:…` connects either way. `poon claim -seed …` fails and names
+`POON_SEED`.
 
 For the GUI teams: `claim` and `pay` no longer accept `-seed`. `keygen
 -seed` still works.

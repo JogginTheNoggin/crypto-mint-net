@@ -1,21 +1,21 @@
-# ORANGE-027: Let `poo ledger import` send a ledger as it reads it, and say how far it got
+# ORANGE-027: Let `poon ledger import` send a ledger as it reads it, and say how far it got
 
 | Field | Value |
 | --- | --- |
 | Status | accepted; Source Grey queued it for Source R34A |
 | Based on | main @ 3c4ae00 |
-| Area | `ledgerImportCmd` in pkg/cli/ledgerport.go (Source). The GUI runs it in poo-gui's own process from the Pools view's "Import a ledger" form |
+| Area | `ledgerImportCmd` in pkg/cli/ledgerport.go (Source). The GUI runs it in poon-gui's own process from the Pools view's "Import a ledger" form |
 | Effort | small |
 | Decided by | |
 
 ## Summary
 
-`poo ledger import` decodes the whole ledger file into memory, then
+`poon ledger import` decodes the whole ledger file into memory, then
 sends it to the node in batches of 256 entries. For a 100,000-entry
 ledger (58.6 MB) that costs:
 
-- **On the command line:** 195 MB of memory in `poo`.
-- **In the GUI:** poo-gui runs the command in its own process. It grew
+- **On the command line:** 195 MB of memory in `poon`.
+- **In the GUI:** poon-gui runs the command in its own process. It grew
   from 14 MB to 198 MB when given a path, and peaked at 383 MB when the
   file was picked in the browser and sent as input. It stayed at 90 to
   198 MB afterwards.
@@ -31,7 +31,7 @@ The proposal is for Source:
 - print a progress line to stderr after each batch, which the GUI's
   live pane already shows.
 
-ORANGE-012 and ORANGE-014 did the same for `poo submit entry` and the
+ORANGE-012 and ORANGE-014 did the same for `poon submit entry` and the
 policy file pick.
 
 ## Problem
@@ -56,18 +56,18 @@ The export side already streams: `writeLedgerFile` writes page by page,
 ## Measurements
 
 The setup is the same as ORANGE-026: one pool of N entries made by a
-throwaway Go test, the real `poo` at 3c4ae00, and a second node holding
+throwaway Go test, the real `poon` at 3c4ae00, and a second node holding
 nothing that receives the import. Memory is the child's peak RSS for
-`poo`, and `ps` sampled every 200 ms for poo-gui.
+`poon`, and `ps` sampled every 200 ms for poon-gui.
 
-| Entries (file) | `poo ledger import`: time, peak RSS | GUI by path: time, poo-gui RSS | GUI picked file: time, poo-gui RSS |
+| Entries (file) | `poon ledger import`: time, peak RSS | GUI by path: time, poon-gui RSS | GUI picked file: time, poon-gui RSS |
 | --- | --- | --- | --- |
 | 2,000 (1.2 MB) | 0.70 s, 18 MB | 0.84 s, 14 → 21 MB | 1.4 s, peak 23 MB |
 | 20,000 (11.7 MB) | 8.4 s, 55 MB | 7.9 s, 14 → 58 MB | 9.0 s, peak 55 MB |
 | 100,000 (58.6 MB) | 44.5 s, 195 MB | 48.7 s, 14 → 198 MB | 51.3 s, peak 383 MB, 90 MB after |
 
 The page stayed idle the whole time: no long tasks, and frame gaps of
-17 to 33 ms. Importing the same file a second time, poo replied that
+17 to 33 ms. Importing the same file a second time, poon replied that
 all 100,000 entries and layers were already known.
 
 The receiving node held 27, 117 and 519 MB after these imports. That is

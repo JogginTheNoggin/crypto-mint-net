@@ -176,7 +176,7 @@ that doesn't matter for consensus:
   `Book.TakeFrom`. Nothing in the peer book, the tracker or the chase
   uses it. The done file is read in bounded pieces. These are memory
   limits on market state.
-- **`poo status` and the CLI (W-30, GREEN-062).** Display and messages.
+- **`poon status` and the CLI (W-30, GREEN-062).** Display and messages.
 
 ## Clear
 
@@ -184,12 +184,12 @@ that doesn't matter for consensus:
 | --- | --- |
 | D198 (W-27): an offer named by the SHA-256 of its bytes, passed on as received | Market naming. Nothing in the ledger carries an offer |
 | D198 (W-28, W-29): `bounties.json` keeps later fields; the bounty version rule in wire.md | A node's own file. The rule follows Round 32 and Round 33's terms |
-| D198 (W-30): `bounty` in `poo status` | Display |
+| D198 (W-30): `bounty` in `poon status` | Display |
 | D198 (ORANGE-046 P1 to P4): done file, timed lease saves, per-peer held counts, `keepjson` scan | Market files and memory. The `keepjson` output is byte for byte the same |
 | D198: claimed layers at or above the floor go to the engine; only a layer under the floor is an `InvalidItem` (Black's Round 36 recommendations) | The ordinary pushed-layer path with every check. No valid layer is an offence. A separate budget lane, at most about 2% of the push budget |
 | D198 (GUI-GREEN-062): settable bounty limits; amounts up to 2^53 - 1 | Node policy. A refused `node.json` is the owner's file |
 | D199 (RED-116, RED-117): held offers and leases per address and /64; done file read in bounded pieces | Market memory. The address key is read only by the market |
-| GREEN-062 (carried in #317): on and off in `poo policy limits -set`, `ErrNoTake`, notes | CLI and messages |
+| GREEN-062 (carried in #317): on and off in `poon policy limits -set`, `ErrNoTake`, notes | CLI and messages |
 | Red (PR #312): RED-115 to RED-117; ORANGE-047 (PR #313) proposals 1 to 3 | Findings, fixed in #317. The proposals change how a node reads its own files, not verdicts |
 
 ## With a condition

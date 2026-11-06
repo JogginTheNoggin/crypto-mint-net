@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | proposed |
 | Based on | `main` @ `6b56136` |
-| Area | `pkg/bounty`, `pkg/p2p` (bounty messages, D196), `pkg/rpc` (`poo bounty work`), `pkg/keepjson` and `pkg/wallet` (D195) |
+| Area | `pkg/bounty`, `pkg/p2p` (bounty messages, D196), `pkg/rpc` (`poon bounty work`), `pkg/keepjson` and `pkg/wallet` (D195) |
 | Effort | measurements only; four proposals |
 | Decided by | Grey; White in Part D for Proposals 1 and 3 |
 
@@ -13,7 +13,7 @@
 D196 adds the bounty market, where a node pays peers to grind layers on
 its entries. D195 keeps the fields a later release adds to the wallet
 and payment files (`keepjson`). BASE.md asked for the per-peer cost of
-bounty messages, the rate `poo bounty work` states, and `keepjson` on a
+bounty messages, the rate `poon bounty work` states, and `keepjson` on a
 large wallet.
 
 **1. A full list of 64 offers is 6.4 KB and decodes in 9 µs. Taking it
@@ -70,10 +70,10 @@ nothing removes it. Here each old offer had 16 layers handed in and paid:
 - `max_open` bounds only the open offers, and `budget` only what is owed.
   Neither bounds the history.
 
-**4. `poo bounty work` states a rate 5 to 15% below `poo grind bench`.
+**4. `poon bounty work` states a rate 5 to 15% below `poon grind bench`.
 That is safe.**
 
-| hash | rate stated (`bountyRate`) | `bountyWork`'s grinding | `poo grind bench` |
+| hash | rate stated (`bountyRate`) | `bountyWork`'s grinding | `poon grind bench` |
 | --- | --- | --- | --- |
 | SHA-256 | 25.1–26.8 M/s | 26.3–26.4 M/s | 28.6–29.5 M/s |
 | SHA-512/256 | 8.4–10.6 M/s | 9.4–10.2 M/s | 10.5–11.2 M/s |
@@ -112,7 +112,7 @@ one takes up to four times as long.**
 **Proposal 1: keep `bounties.json` to what is still owed.** When an
 offer is closed and every accepted layer is paid, move it out of
 `bounties.json`, for example to an append-only `bounties-done.jsonl`
-that is written once per offer and read only by `poo bounty list -all`.
+that is written once per offer and read only by `poon bounty list -all`.
 Then the file, each save, each `expire` and the start depend on the open
 and unpaid offers, which `max_open` and `budget` bound. White should say
 how an older release reads a book that no longer holds an offer it

@@ -13,7 +13,7 @@
 
 RED-013 added `policyMu`, so two `PUT /v1/grind/schedule` calls no longer
 interleave inside the node. That lock does not cover the change itself.
-`poo grind schedule add | remove | set` works in the client:
+`poon grind schedule add | remove | set` works in the client:
 
 1. `GET /v1/grind/schedule` reads the whole section;
 2. the change is made to that copy in the CLI process, and that copy is also
@@ -33,7 +33,7 @@ Remove's reply comes back, gives one of:
 - the removed job back, because the Add's PUT carries the old list plus the new job;
 - the new job gone, because the Remove's PUT lands last.
 
-A terminal or script `poo grind schedule …` running at the same time as the
+A terminal or script `poon grind schedule …` running at the same time as the
 GUI has the same race.
 
 **Residual from GUI-013.** `-target` checks the target only. Several scheduled
@@ -51,7 +51,7 @@ shown, the first job is removed elsewhere, and Remove on row 1 sends
 3. List the schedule. Depending on which PUT landed last, either `tip 22-06`
    is back or `tip 08-12` is missing, although both commands reported success.
 
-From a shell, two `poo grind schedule add …` commands started together leave
+From a shell, two `poon grind schedule add …` commands started together leave
 only one of the two new jobs.
 
 ## Impact
@@ -101,7 +101,7 @@ GUI, as a stopgap:
 - **GREEN-030 jump list, safe.** Titles come from the view's own `h2`
   `textContent`, and the buttons only scroll and focus. The hash router is not
   touched.
-- **ORANGE-011, safe.** At most one `poo crypto` runs at a time from the key
+- **ORANGE-011, safe.** At most one `poon crypto` runs at a time from the key
   fields.
 - **Source m10-watch @ 0fd59fa, for what the GUI uses.** `policyMu` now
   serialises follow, unfollow and the schedule PUT inside the node (RED-013),

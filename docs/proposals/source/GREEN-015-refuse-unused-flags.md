@@ -11,9 +11,9 @@
 ## Summary
 
 Three commands share one flag set across their subcommands and silently
-ignore the flags that do not apply. `poo peer unblock -range ADDR` unblocks
-only the address and leaves the range blocked. `poo sim load -share 0.4`
-runs with no attacker. `poo policy list -fresh` does nothing. In each
+ignore the flags that do not apply. `poon peer unblock -range ADDR` unblocks
+only the address and leaves the range blocked. `poon sim load -share 0.4`
+runs with no attacker. `poon policy list -fresh` does nothing. In each
 case, the person believes the flag took effect. With this change, such a
 flag is refused with a message naming the subcommands that use it.
 Prototyped, with a test.
@@ -49,7 +49,7 @@ each command's flags, so a new flag needs one line there.
 About 30 lines. A command line that worked before still works, unless it
 passed a flag that was being ignored. That is the point of the change, but
 it can break a script that passed such a flag. No doc or script in the
-repository does; I checked every `poo sim` and `poo peer` line.
+repository does; I checked every `poon sim` and `poon peer` line.
 
 ## Prototype
 
@@ -57,5 +57,5 @@ On `claude/source-green`: `pkg/cli/flagscope.go` and
 `flagscope_test.go` (six refusals, and two lines that still pass), wired
 into `peerCmd`, `policyCmd` (`node.go`) and `simCmd` (`sim.go`).
 
-The same sweep found one doc gap, fixed on the branch: `poo build
--max-tries` was missing from `docs/modules/poo.md`.
+The same sweep found one doc gap, fixed on the branch: `poon build
+-max-tries` was missing from `docs/modules/poon.md`.

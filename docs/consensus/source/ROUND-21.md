@@ -40,7 +40,7 @@ Every ledger a node is given is still checked and selected as before.
 None of this reaches the engine.
 - `AddPeer`, `LabelPeer`, `ConnectImported` and `Book.PromoteImported`
   change which addresses the connection manager dials.
-- The filters only select what `poo peers` and `poo tracking` print.
+- The filters only select what `poon peers` and `poon tracking` print.
 - An import:
   - adds addresses as `unlisted`;
   - takes blocks only with `-blocks`, never on an address the node

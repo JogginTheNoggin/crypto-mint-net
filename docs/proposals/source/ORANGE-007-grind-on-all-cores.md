@@ -24,7 +24,7 @@ for M11, so the engine still uses one.
 
 `Engine.GrindLayer` and `Engine.BuildEntry` run `layer.Grind` and
 `entry.BuildContext` on the calling goroutine. A builder that wants all
-its cores has to run several `poo work` commands on different nonce
+its cores has to run several `poon work` commands on different nonce
 ranges and keep the best by hand.
 
 ## Measurements
@@ -57,7 +57,7 @@ would close the gap. An entry search usually ends in a few rounds anyway
   lower nonce has been tried. It checks the context between rounds, as
   `BuildContext` did (RED-006).
 - For M11: a node policy setting such as `grind_workers` (0 = all cores),
-  passed through `Engine.GrindLayer`, `Engine.BuildEntry` and `poo work`.
+  passed through `Engine.GrindLayer`, `Engine.BuildEntry` and `poon work`.
   Defaulting to 1 keeps today's behaviour.
 
 ## Cost and risk

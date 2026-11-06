@@ -114,7 +114,7 @@ advertised.
 - **Retries:** they start at 1 minute and double up to 30 minutes. A
   router that cannot loop back costs one map, one dial of up to 10 s and
   one unmap every 30 minutes, indefinitely. That is cheap, but it adds and
-  removes the mapping each time. `poo doctor` already tells the owner to
+  removes the mapping each time. `poon doctor` already tells the owner to
   set the address by hand, so nothing more is needed.
 
 ## Proposals

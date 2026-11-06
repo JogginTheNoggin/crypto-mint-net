@@ -63,7 +63,7 @@ named the offer by 4 bytes), and carries Green's GREEN-064.
 ### What it changes
 
 - **The setting.** `bounty.max_strength` (0 to 255, where 0 sends 255,
-  meaning any), and `-max-strength` on `poo bounty list -ask` and `poo
+  meaning any), and `-max-strength` on `poon bounty list -ask` and `poon
   bounty work`.
 - **The wire.** Message 71 is `Hash` series ∥ `U8` max strength, and
   message 73 is `Hash` offer ∥ `U64` rate ∥ `Hash` pay-to ∥ `U8` max
@@ -120,7 +120,7 @@ named the offer by 4 bytes), and carries Green's GREEN-064.
 - **Leg state names (W-34).** These are frozen values in the wallet
   file. `sentFor` treats a state it doesn't know as sent, so a later
   release's state can never make a paid claim look unpaid.
-- **A dropped leg is resent, not replaced (RED-120).** `poo bounty pay`
+- **A dropped leg is resent, not replaced (RED-120).** `poon bounty pay`
   refreshes the earlier payment from the node and resends its dropped
   legs with the wallet's own `Refresh` and `Resend`. It records the
   payment only when every leg is sent. Resending gives nodes the same
@@ -141,7 +141,7 @@ named the offer by 4 bytes), and carries Green's GREEN-064.
 | D202: payers list and lease only offers at or under the asker's max strength; grinders drop stronger offers | Market answers. Not an offence, no ranking. A false value costs time |
 | D202 (W-34): memo start `bounty ` and leg state names frozen; an unknown state read as sent | Wallet records. No transaction carries a memo. It can only prevent a second payment |
 | D202 (W-33, W-35): kept fields as checked hints; `done` always returned | A node's own files; output |
-| D202 (GUI-GREEN-064): notes in `poo bounty list` and `poo status`; Min 0 on amount and switch limits; `=on` wording | Display and node policy |
+| D202 (GUI-GREEN-064): notes in `poon bounty list` and `poon status`; Min 0 on amount and switch limits; `=on` wording | Display and node policy |
 | D203 (RED-120): a dropped bounty payment resent, not replaced | The wallet resends the same transaction. Nodes check it as any transaction |
 | D203 (RED-121): memo names the offer by 16 bytes | Wallet record. Not in any transaction |
 | GREEN-064 (carried in #346): `NotReceived` message, ask over own setting refused, `grind bench` `minute_strength` | CLI messages and a measurement |

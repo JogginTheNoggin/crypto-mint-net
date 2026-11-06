@@ -306,12 +306,12 @@ entry "Superseded by Dn".
 ### D25. Saving, archiving and deleting node policies
 
 - **Decision:** Node policies live under one root directory
-  (`$POO_HOME`, default `~/.poo`). A saved policy is
+  (`$POON_HOME`, default `~/.poon`). A saved policy is
   `policies/<name>/node.json` with its data beside it, so using it again
   picks up where it left off. Archiving moves the directory, data included,
-  to `archive/<name>`. `poo policy use` on an archived policy starts from
+  to `archive/<name>`. `poon policy use` on an archived policy starts from
   scratch (its data is deleted and its settings are saved again).
-  `poo policy unarchive` takes it out by hand and picks up where it left
+  `poon policy unarchive` takes it out by hand and picks up where it left
   off (`-fresh` drops the data). Delete removes it for good. A running node
   holds a lock on its directory, so it cannot be archived or deleted.
 - **Why:** These are the design's expected meanings. What archiving is for
@@ -899,7 +899,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 - **Decision:** A payment from a shared policy that this wallet cannot
   complete is written as an `Unsigned` JSON file: each leg's transaction
   and, per input, the policy and the signatures gathered. Co-signers add
-  theirs (`poo wallet cosign`) and the payer submits it (`poo wallet
+  theirs (`poon wallet cosign`) and the payer submits it (`poon wallet
   submit`); submission only accepts a payment the wallet recorded, so its
   inputs stay reserved and followed.
 - **Why:** The tid leaves out witnesses (the design's transaction id), so every
@@ -913,7 +913,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 - **Decision:** Light mode is not a separate client: it is a full node
   whose node policy follows only the pools of the mints the wallet
-  watches (`poo wallet follow`). It checks every rule for those pools.
+  watches (`poon wallet follow`). It checks every rule for those pools.
   Verifying only some mints of a pool, or trusting another node's
   answers, is not done.
 - **Why:** The design's following model already lets a node keep less,
@@ -1031,7 +1031,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 ### D78. Reproducible release archives, published as drafts
 
-- **Decision:** `scripts/release.sh VERSION` builds `poo` for Linux,
+- **Decision:** `scripts/release.sh VERSION` builds `poon` for Linux,
   macOS, Windows (amd64 and arm64) and FreeBSD (amd64) with
   `CGO_ENABLED=0 -trimpath -buildvcs=false -buildid=`, packs each with
   fixed times and owners, and writes `SHA256SUMS`. Pushing a tag `vX.Y.Z`
@@ -1145,8 +1145,8 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 ### D84. The commands are a library; the GUI runs the same code
 
-- **Decision:** Every `poo` command lives in package `pkg/cli`, behind
-  `cli.Main(ctx, args, Stdio{In, Out, Err})`. `cmd/poo` is only the process
+- **Decision:** Every `poon` command lives in package `pkg/cli`, behind
+  `cli.Main(ctx, args, Stdio{In, Out, Err})`. `cmd/poon` is only the process
   around it: arguments, the standard streams, and an interrupt or SIGTERM
   that cancels the context. Commands get input and cancellation from the
   invocation, never from process globals, so one process can run several
@@ -1161,7 +1161,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 ### D85. The GUI is a local web app in Go
 
-- **Decision:** The GUI is the program `poo-gui`. It serves a page on a
+- **Decision:** The GUI is the program `poon-gui`. It serves a page on a
   loopback address and opens it in the system browser, or in a browser
   app window with `-app`. The page is plain HTML, CSS and JavaScript,
   embedded in the binary, with no framework, npm or CDN. A native webview
@@ -1189,7 +1189,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   the GUI still builds on the same source.
 - **Tier:** Implementation.
 
-### D87. Every GUI action is a `poo` command line
+### D87. Every GUI action is a `poon` command line
 
 - **Decision:** The GUI does everything by running a command line through
   `cli.Main` as a job, with its own context, input and output. A view
@@ -1207,14 +1207,14 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 ### D88. The GUI server is locked to this machine and this browser
 
-- **Decision:** `poo-gui` listens only on loopback and refuses any other
+- **Decision:** `poon-gui` listens only on loopback and refuses any other
   address. A random secret, made at each launch, is in the address it
   opens. The first visit trades the secret for an HttpOnly, SameSite=Strict
   cookie, which every API call needs. Requests with a different Host are
-  refused. Changes must be POSTs with the `X-Poo-GUI` header and no
+  refused. Changes must be POSTs with the `X-Poon-GUI` header and no
   foreign Origin. A strict Content-Security-Policy is sent. Job input is
   dropped when the job ends, and the terminal masks a passphrase prompt.
-  Release archives ship `poo` alone and `poo-gui` separately (G5).
+  Release archives ship `poon` alone and `poon-gui` separately (G5).
 - **Why:** Whoever can reach the GUI can run any command, including
   spending from a wallet. Loopback stops other machines. The secret and
   cookie stop other local users and other pages. The Host check stops DNS
@@ -1227,13 +1227,13 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 - **Decision:** Every job's `cli.Stdio` carries a `Secret` reader. It
   writes the prompt to standard error, reads one line that is never
   written to the output, and marks the job's state `secret` while it
-  waits; the page masks that line and only that line. `poo-gui
+  waits; the page masks that line and only that line. `poon-gui
   -view-only` sets `cli.Stdio.ViewOnly` on every job and shows a "view
   only" badge; `GET /api/info` reports it.
 - **Why:** The core now says when it reads a secret and decides what a
   view-only invocation may run (D101). Taking both from it keeps the GUI
   free of its own rules, as D86 and D87 require: what the GUI masks and
-  refuses is exactly what headless `poo` hides and refuses. It replaces
+  refuses is exactly what headless `poon` hides and refuses. It replaces
   masking every input line (GUI-003), which hid ordinary answers too.
 - **Tier:** Implementation.
 
@@ -1279,7 +1279,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 ### D92. A running node reloads its node policy in place
 
 - **Decision:** `pkg/daemon` is the one place that runs a node. On a
-  reload (`POST /v1/reload`, `POST /v1/follow`, SIGHUP to `poo node`)
+  reload (`POST /v1/reload`, `POST /v1/follow`, SIGHUP to `poon node`)
   it ends the watch streams, stops the host and the interface, closes
   the node, and opens it again with the node policy on disk, in the same
   process. Stores of pools no longer followed stay on disk.
@@ -1300,8 +1300,8 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   parts, pools and mints of a series in one entry. Removing pools from a
   series followed whole lists the rest. A mint followed only through its
   pool cannot be removed alone. Both validate the series and ranges, and
-  the policy is validated before it is saved. Every front end (`poo
-  follow`, `poo unfollow`, `poo wallet follow`, `POST /v1/follow`) goes
+  the policy is validated before it is saved. Every front end (`poon
+  follow`, `poon unfollow`, `poon wallet follow`, `POST /v1/follow`) goes
   through them.
 - **Why:** Edits from several tools must leave one clean list, not a
   growing pile of overlapping entries, and must never save a policy the
@@ -1332,7 +1332,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   key, from `golang.org/x/crypto/argon2`. The wallet file names the
   derivation and its settings (`name`, `iterations`, `memory`,
   `threads`), so wallets sealed with PBKDF2 under D64 still open.
-  `Rekey` (`poo wallet passwd`) moves a PBKDF2 wallet to Argon2id
+  `Rekey` (`poon wallet passwd`) moves a PBKDF2 wallet to Argon2id
   with the defaults and keeps an Argon2id wallet's own settings. Opening
   refuses settings outside fixed limits (at most 4 GiB and 100 passes for
   Argon2id, 100,000,000 iterations for PBKDF2, at least 8 KiB per lane)
@@ -1391,16 +1391,16 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 ### D98. A seed is never a command-line argument
 
-- **Decision:** `poo claim` and `poo pay` read the key's seed from
-  `POO_SEED` or `-seed-file FILE` (`-` for standard input). `-seed` is
-  refused with an error that names the alternatives. `poo keygen` takes
+- **Decision:** `poon claim` and `poon pay` read the key's seed from
+  `POON_SEED` or `-seed-file FILE` (`-` for standard input). `-seed` is
+  refused with an error that names the alternatives. `poon keygen` takes
   `-seed-file` too and keeps `-seed HEX` for reproducible test vectors,
   documented as visible to other users; with neither it makes a random
-  seed, and it does not read `POO_SEED`, so an exported seed is never
+  seed, and it does not read `POON_SEED`, so an exported seed is never
   reused for a new key by accident.
 - **Why:** Red finding RED-005: a seed in an argument is readable by every
   user of the machine through the process list and `/proc/<pid>/cmdline`,
-  and stays in the shell's history and the GUI terminal's. `poo wallet`
+  and stays in the shell's history and the GUI terminal's. `poon wallet`
   already reads its passphrase this way. `keygen -seed` stays because the
   GUI's tests and the design's vectors use fixed seeds, and a seed made
   for a vector holds nothing.
@@ -1419,7 +1419,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   with the context's error; the RPC passes the request's context, so a
   client that goes away, or a shutdown, ends the search. `entry.Build`
   and `engine.Build` keep their signatures, with no limit, for callers in
-  process. `poo build -max-tries 0` now means the node's limit.
+  process. `poon build -max-tries 0` now means the node's limit.
 - **Why:** Red finding RED-006: a build with no limit on a series with a
   high minimum entry strength searched for up to 2^64 nonces holding both
   the node's and the engine's locks, so one request froze the RPC and all
@@ -1445,18 +1445,18 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 ### D101. View-only mode, and secrets read through the caller
 
 - **Decision:** An invocation of `pkg/cli` is **view-only** when
-  `Stdio.ViewOnly` is set, when `$POO_VIEW_ONLY` is `1`, or when its
+  `Stdio.ViewOnly` is set, when `$POON_VIEW_ONLY` is `1`, or when its
   arguments start with `-view-only`. Then every command that talks to the
   node dials with `rpc.view-token` (D100), and a fixed table in
   `pkg/cli/scope.go` lets only the commands that read run: anything not
-  listed, a new command included, is refused with `view-only: poo X
+  listed, a new command included, is refused with `view-only: poon X
   changes things` before it runs. A test fails until every command is
   classified. Separately, `Stdio.Secret`, when set, reads every
-  passphrase and seed in place of `In`; `cmd/poo` sets it when standard
+  passphrase and seed in place of `In`; `cmd/poon` sets it when standard
   input is a terminal, reading with echo off through `golang.org/x/term`
   and prompting on standard error.
 - **Why:** The owner wants a GUI view mode that is the headless code,
-  not a second implementation: `poo-gui -view-only` only sets the
+  not a second implementation: `poon-gui -view-only` only sets the
   variable. Two layers keep it honest: the node refuses writes from the
   view token whatever the client does, and the table stops local writes
   (node policy, wallet file) that the node never sees. Refusing by default
@@ -1483,7 +1483,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 ### D103. The address view is bounded per request
 
-- **Decision:** `watch.AddressPage` (behind `GET /v1/address` and `poo
+- **Decision:** `watch.AddressPage` (behind `GET /v1/address` and `poon
   address`) looks at no more than 50×`limit` entries per request in all
   followed pools, at most `limit` matching items per pool, from height
   `below` down (0: the tips). The reply's `next` lists each pool it did
@@ -1500,7 +1500,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 - **Decision:** The node logs through `log/slog` (`pkg/logging`, formats
   `plain`, `text` and `json`, levels from the node policy's `log` section
-  or `poo node -log-level` and `-log-format`). Text from a peer goes only
+  or `poon node -log-level` and `-log-format`). Text from a peer goes only
   into attributes, which are quoted, never into the message, and the
   debug line for each received message is capped at 200 a second per
   host, with the number dropped logged after. When the local interface
@@ -1510,7 +1510,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   fail.
 - **Why:** GREEN-006, with Red's review of the debug level: a peer must
   not be able to forge log lines or fill a disk. The stop: GUI GREEN-015
-  item 3 saw `poo node` exit 1 with "context deadline exceeded"; a watch
+  item 3 saw `poon node` exit 1 with "context deadline exceeded"; a watch
   that subscribed after the hub closed during a stop or reload waited
   forever and held the shutdown past its deadline.
 - **Tier:** Implementation.
@@ -1543,16 +1543,16 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
 
 ### D106. A reload onto a broken policy is refused, and seeds are read hidden
 
-- **Decision:** `POST /v1/reload` (and `poo reload`, and `poo follow`
+- **Decision:** `POST /v1/reload` (and `poon reload`, and `poon follow`
   through it) loads the node policy first, and answers 422 with the
   reason if it does not load; SIGHUP does the same check, logs "reload
-  refused" and keeps running on the policy it started with. `poo wallet
+  refused" and keeps running on the policy it started with. `poon wallet
   create -restore -` reads the seed like a passphrase, through
   `Stdio.Secret` when a front end gives one, and `cli.SecretFlags()` names
   the flags whose values can be secrets (`seed`, `restore`) for front ends
   that keep command lines.
 - **Why:** GREEN-011: a mistake in `node.json` followed by a reload
-  stopped the node for good while `poo reload` printed "reloaded". GUI-006:
+  stopped the node for good while `poon reload` printed "reloaded". GUI-006:
   a seed on the command line can be read by other users (as with D98),
   and the GUI's terminal masks secrets in its history. The hex form of
   `-restore` still works, for scripts.
@@ -1623,7 +1623,7 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   best branch while none is selected. Jobs work in 2-second slices from a
   random nonce and may be limited by `for`, `hours` and `until_from`;
   at most 16 run at once and the last 32 ended are kept. Jobs come from
-  `poo grind`, `/v1/grind` or `node.json`'s `grind` section. A build or
+  `poon grind`, `/v1/grind` or `node.json`'s `grind` section. A build or
   work request may grind for at most 4 minutes (`MaxGrindFor`, under the
   client's timeout); longer work is a job. Starting and stopping jobs are
   writes, which the view token cannot do.
@@ -1645,11 +1645,11 @@ Superseded in part by D55 (invalid entries and weak layers are flags).
   `cli.ErrorCode(err)` maps an error to a stable code: the node's own
   `rpc.Code*`, or `no_node` (wrapped `rpc.ErrNotRunning`, which `Dial` now
   returns, or a refused dial), `view_only` (`cli.ErrViewOnly`), `no_input`
-  or `error`. `poo doctor` takes `-o json|table` (`-json` stays), and a
-  failed check carries `fix_args`, the `poo` arguments that fix it. An
-  interrupted `poo grind run` stops its job, prints an `end` line and
+  or `error`. `poon doctor` takes `-o json|table` (`-json` stays), and a
+  failed check carries `fix_args`, the `poon` arguments that fix it. An
+  interrupted `poon grind run` stops its job, prints an `end` line and
   exits 0.
-- **Why:** The GUI must treat secrets and errors exactly as `poo` does
+- **Why:** The GUI must treat secrets and errors exactly as `poon` does
   without copying lists or matching messages (GUI-009, GREEN-021,
   GREEN-022, the owner's rule that the two never diverge).
 - **Tier:** Implementation.
@@ -1687,12 +1687,12 @@ the chase queue instead of being dropped.
 
 - **Decision:** A `grind.Spec` may carry a `lease` (1s to 10m). The job
   stops, with that reason, unless it is renewed (`Manager.Renew`,
-  `POST /v1/grind/{id}/renew`) within it. `poo grind run` asks for a
-  15-second lease and renews it every 5 seconds, and `poo` (but not
-  `poo node`, which reloads) stops on SIGHUP as on an interrupt,
+  `POST /v1/grind/{id}/renew`) within it. `poon grind run` asks for a
+  15-second lease and renews it every 5 seconds, and `poon` (but not
+  `poon node`, which reloads) stops on SIGHUP as on an interrupt,
   unless SIGHUP is ignored already, as under `nohup` (GUI-011). A target
   `tx:TID`, with `until_from`, follows one payment through
-  `Engine.Payment`, the call `poo tx` reads: entries while it is pending,
+  `Engine.Payment`, the call `poon tx` reads: entries while it is pending,
   then layers on its entry until from(e) reaches the goal; it fails if
   the payment was held and is gone. A job that would work now is refused
   at `Start` if a device cannot grind one of its hashes; one with `hours`
@@ -1720,7 +1720,7 @@ the chase queue instead of being dropped.
   section, and `PUT /v1/grind/schedule` replaces it: the node validates
   and saves it, then `Manager.Schedule` stops the jobs the policy started,
   takes the new defaults and starts the new jobs, reporting any that did
-  not start. `poo grind schedule` lists, adds (the job flags without
+  not start. `poon grind schedule` lists, adds (the job flags without
   `-for`, which a job that runs within its hours has no use for), removes
   (by number from 1, or `-all`) and sets the defaults, through the node
   when it runs and in `node.json` when it does not. Without `add`,
@@ -1861,7 +1861,7 @@ a chase takes in after checking their work are not charged.
   per-peer budget reworked by D116. GREEN-020 (the start state outside a
   job's hours, shorter tables), ORANGE-012 (SIMD lane grinders behind
   `GOEXPERIMENT=simd`, `layer.Search`) and ORANGE-013 (the ended channel
-  and progress ticker) are merged. GREEN-031 and GUI-013: `poo grind
+  and progress ticker) are merged. GREEN-031 and GUI-013: `poon grind
   schedule remove N -target T` removes nothing unless each numbered job
   grinds T.
 - **Why:** Each was reviewed in Round 6 and measured or tested; the guard
@@ -1890,7 +1890,7 @@ a chase takes in after checking their work are not charged.
     256 MiB in all).
   - **RED-018.** A layer floor sends at most 16 extra layers per search,
     the strongest first, and 50 a second across searches.
-  - **RED-019.** `poo grind run` retries a failed renewal while the lease
+  - **RED-019.** `poon grind run` retries a failed renewal while the lease
     may still hold, and stops renewing only for a job the node does not
     know or that is done.
 - **Why:** Red's Round 7 findings. Under D115, nothing here refuses a
@@ -1959,7 +1959,7 @@ a chase takes in after checking their work are not charged.
 - **Decision:** GREEN-032 (`nodepolicy.Grind.IsZero` counts every field,
   so a section of only `layer_floor` or `layer_rate` is saved and
   checked; the `-layer-floor` flag of the schedule's `set`, and `-layer-rate`
-  added here; `poo CMD -h` exits 0). ORANGE-014 (`policy.Registry.CheckAll`
+  added here; `poon CMD -h` exits 0). ORANGE-014 (`policy.Registry.CheckAll`
   checks many witnesses on every core and remembers the set as one key,
   on Black's conditions C-4). ORANGE-015 (`Engine.Tip` for events and
   stated weight, no branch walk). ORANGE-016 (`grind.layer_rate`, 10 a
@@ -2030,8 +2030,8 @@ a chase takes in after checking their work are not charged.
     RED-021 stays.
   - **RED-022's condition.** A chase that waits for disk space logs a
     warning, its group's new `waiting` and `waiting_since` fields show it
-    in `poo chases`, `poo doctor` warns about it, and the metric
-    `poo_chases_waiting_disk` counts it. Every yield or stall records its
+    in `poon chases`, `poon doctor` warns about it, and the metric
+    `poon_chases_waiting_disk` counts it. Every yield or stall records its
     reason in `waiting`.
 - **Why:** Black's Round 8 review (docs/consensus/source/ROUND-8.md).
   Under the default budgets a long heavier branch overran the sender's
@@ -2057,7 +2057,7 @@ a chase takes in after checking their work are not charged.
   removes another job, even one with the same target. `GET` and the
   replies carry the section's `version`; a `PUT` with `If-Match` replaces
   only that version, and an edit may name one too. A stale change fails
-  with code `conflict`. `poo grind schedule add|remove|set` sends edits;
+  with code `conflict`. `poon grind schedule add|remove|set` sends edits;
   without a running node it applies the same edit to node.json.
   `rpc.Client` gains `GrindEditSchedule` and `GrindReplaceSchedule`.
 - **Why:** GUI-014 (GUI Red, PR #39): a client read the section and wrote
@@ -2071,7 +2071,7 @@ a chase takes in after checking their work are not charged.
   `Tx.Size`, encodings are presized, and a kept entry's size is checked
   before it is encoded, so a large item is encoded once). GREEN-033 (the
   daemon puts large-entry parts in `<data dir>/parts`, mode 0700, and
-  removes `poo-parts-*` leftovers when it starts; `layer_rate` documented
+  removes `poon-parts-*` leftovers when it starts; `layer_rate` documented
   in nodepolicy.md).
 - **Why:** Measured or found in Round 8 Part B and cleared by Black.
 - **Tier:** Implementation (node policy). The bytes are unchanged
@@ -2080,7 +2080,7 @@ a chase takes in after checking their work are not charged.
 ### D127. `grind.layer_rate` is at most 50 (GUI-015)
 
 - **Decision:** `nodepolicy.MaxLayerRate` is 50 layers a second, down
-  from 1,000. A section asking for more does not validate, so `poo grind
+  from 1,000. A section asking for more does not validate, so `poon grind
   schedule set -layer-rate`, the RPC and the GUI's form refuse it.
 - **Why:** GUI-015 (GUI Red, PR #42): peers take 6,000 layers a minute
   from one node by default (100 a second) and flag a node that keeps
@@ -2108,7 +2108,7 @@ a chase takes in after checking their work are not charged.
     finished one, or a chase that ends otherwise lets them go.
   - **RED-025.** `nodepolicy.Load` brings a `grind.layer_rate` over
     `MaxLayerRate` down to it and notes it in `Policy.Lowered`; the node
-    logs a warning and `poo doctor` shows one. Writes stay strict. A bound
+    logs a warning and `poon doctor` shows one. Writes stay strict. A bound
     is only ever lowered this way.
 - **Why:** RED-023: a sender that left kept disk and memory until the
   node restarted, and with D123's disk reserve could keep honest
@@ -2153,7 +2153,7 @@ a chase takes in after checking their work are not charged.
   peers already serve, so a long listing takes 16 times fewer requests
   under the pace (a 100,000-entry bare run in about a second instead of
   two minutes); `WeightlessPages` stays at 64 pages, as Black prefers.
-  GREEN-034: `poo grind schedule` prints the section's version, and
+  GREEN-034: `poon grind schedule` prints the section's version, and
   `add`, `remove` and `set` take `-if-version V`. The schedule replies
   carry `limits` (`nodepolicy.Limits()`: the most jobs, threads,
   `layer_floor` and `layer_rate`, and the default rate), so the GUI
@@ -2253,7 +2253,7 @@ a chase takes in after checking their work are not charged.
 
 ### D134. GUI-017: offline schedule edits take the data directory's lock
 
-- **Decision:** With no node answering, `poo grind schedule add`,
+- **Decision:** With no node answering, `poon grind schedule add`,
   `remove` and `set` change `node.json` under `nodepolicy.Lock(dir)`,
   taken without waiting. A running node holds that lock, so an edit is
   refused, and `node.json` left as it was, when a node answered the dial
@@ -2285,7 +2285,7 @@ a chase takes in after checking their work are not charged.
       reply's `started` lists the running job of each scheduled job,
       kept or new, in the schedule's order.
     - `Policy.Lowered` is a list of `nodepolicy.Lowered` (the field, the
-      value written, the value used and `FixArgs`), and `poo doctor`
+      value written, the value used and `FixArgs`), and `poon doctor`
       offers `grind schedule set -layer-rate 50` as the fix_args of a
       lowered `layer_rate` (GUI/Grey's ask).
     - The prototyped bench reason and the `node` log component, as
@@ -2314,11 +2314,11 @@ a chase takes in after checking their work are not charged.
     a waiting chase is ranked by its own last chase too. A sender that
     trickles a part a chase gives way to a fetch that is moving, whatever
     size it claims. Among fetches that are moving, D132's order stands.
-  - **RED-030.** `poo follow`, `poo unfollow` and `poo init -force` write
+  - **RED-030.** `poon follow`, `poon unfollow` and `poon init -force` write
     `node.json` only under `nodepolicy.Lock`, through the helper
     `lockPolicy` that D134's schedule edit now uses too. When a node is
     holding the lock, the write is refused and nothing is changed.
-    `poo wallet follow` changes the follow list through the node when it
+    `poon wallet follow` changes the follow list through the node when it
     answers (the series' rule is removed, then the wallet's pools are
     added and applied), and otherwise writes under the same lock.
 - **Why:**
@@ -2392,7 +2392,7 @@ a chase takes in after checking their work are not charged.
     every other check still run during the replay, so a tampered store
     is refused as before.
   - GREEN-036 as written: when `-root`, `-policy` or `-dir` chose the
-    policy, `poo doctor` adds `-dir DIR` to every `fix_args`, so a fix
+    policy, `poon doctor` adds `-dir DIR` to every `fix_args`, so a fix
     changes the policy that was checked. A schedule change to
     `layer_floor` or `layer_rate` restarts no job, since the grinder
     reads both at each search. Only `device` and `threads` restart jobs
@@ -2400,7 +2400,7 @@ a chase takes in after checking their work are not charged.
 - **Why:** Measured or found in Round 11 Part B and cleared by Black.
   ORANGE-021: restart with 20,000 entries went from 1.7–2.2 s to
   0.86–0.95 s on 4 cores.
-- **Tier:** Implementation (the node's start-up, `poo doctor` and the
+- **Tier:** Implementation (the node's start-up, `poon doctor` and the
   grinder).
 
 ### D139. Round 12 fixes: RED-031 to RED-034, GUI-018 (BLUE-013)
@@ -2432,7 +2432,7 @@ a chase takes in after checking their work are not charged.
     (`reqWindow.start`), and goes on rising.
   - **GUI-018.** `POST /v1/follow` takes `replace`, which puts the given
     pools and mints in place of the series' rule in one change under
-    `policyMu` (`nodepolicy.ReplaceFollow`). `poo wallet follow` sends one
+    `policyMu` (`nodepolicy.ReplaceFollow`). `poon wallet follow` sends one
     such request; with no node it uses the same function under the lock.
 - **Why:** Red's Round 12 findings showed that each rank of D137 had a
   shape an attacker could hold: a trickler that takes 1 MiB a chase and
@@ -2515,14 +2515,14 @@ a chase takes in after checking their work are not charged.
   - GREEN-037 as written: `/v1/status` reports `policy_changed` when
     `node.json` differs from the policy the node runs, ignoring the
     grind section (it applies live; `nodepolicy.Policy.SameApplied`).
-    `poo doctor` warns with the fix `poo reload`.
+    `poon doctor` warns with the fix `poon reload`.
   - ORANGE-022 is superseded, as Black ruled. Its finding (two slow
     fetches taking turns deleting each other's files) is closed by
     D139's cuts by bytes and D140's margin. Its test,
     `TestTwoSlowFetchesBothFinish`, is kept, and it runs in CI's long
     step.
 - **Why:** Found in Round 12 Part B and cleared by Black.
-- **Tier:** Implementation (status, `poo doctor` and node policy).
+- **Tier:** Implementation (status, `poon doctor` and node policy).
 
 ### D142. Round 13 fixes: RED-035, RED-036, RED-037; ORANGE-023 (BLUE-014)
 
@@ -2571,17 +2571,17 @@ a chase takes in after checking their work are not charged.
 ### D143. Round 14: GREEN-038 adopted; three commands for parity; notes on D140
 
 - **Decision:**
-  - **GREEN-038 as written.** `poo follow -series S ... -replace`
+  - **GREEN-038 as written.** `poon follow -series S ... -replace`
     follows exactly the given pools and mints in place of the series'
     rule, in one change, through the node or under the lock offline,
     as the GUI's `POST /v1/follow` with `replace` does (GUI-018, D139).
     `TestEveryClientCallHasACommand` fails when an `rpc.Client` method
-    has no `poo` command and is not listed with a reason.
-  - **Its three proposals, built.** `poo submit entry` and
-    `poo submit layer` hand the node an entry or a layer made elsewhere,
+    has no `poon` command and is not listed with a reason.
+  - **Its three proposals, built.** `poon submit entry` and
+    `poon submit layer` hand the node an entry or a layer made elsewhere,
     in the hex its API prints. Each is decoded before the node is asked
     and then checked as one from a peer is: the command adds no rule and
-    skips none. `poo grind jobs ID` prints one job, as the GUI's job view
+    skips none. `poon grind jobs ID` prints one job, as the GUI's job view
     reads it. `submit` is a write command, refused under a view-only
     token. Three calls remain listed in `noCommandYet`, each with its
     reason.
@@ -2602,14 +2602,14 @@ a chase takes in after checking their work are not charged.
 - **Tier:** Implementation (the command line and docs). No rule of
   validity or selection, no byte form and no limit changes. Tests:
   `TestSubmitEntryAndLayer` (an entry and a layer from one node selected
-  on another through `poo submit`), `TestGrindCommands` (`grind jobs
+  on another through `poon submit`), `TestGrindCommands` (`grind jobs
   ID`), the view-only scope test, `TestFollowReplace` and
   `TestEveryClientCallHasACommand`.
 
 ### D144. Round 14 fix: RED-038 (BLUE-015)
 
 - **Decision:**
-  - `poo submit entry|layer` takes the hex as its one argument, as
+  - `poon submit entry|layer` takes the hex as its one argument, as
     before, or from a file (`-f FILE`) or standard input (`-`, or
     `-f -`), whole and trimmed (`submitHex`).
   - The RPC's `MaxBody` (8 MiB) no longer bounds `POST /v1/entry` with
@@ -2617,14 +2617,14 @@ a chase takes in after checking their work are not charged.
     token, is bounded as before; the view token is refused before the
     body is read.
 - **Why:** Red's Round 14 finding. Linux limits one argument to 128 KiB,
-  so an entry over 64 KiB could not be submitted with `poo`, while the
+  so an entry over 64 KiB could not be submitted with `poon`, while the
   GUI could. Testing a large body through the real RPC, as the
   coordinator asked, showed a second bound: `MaxBody` refused any entry
-  over about 4 MiB from both `poo submit` and the GUI. The node takes an
+  over about 4 MiB from both `poon submit` and the GUI. The node takes an
   entry of any size from a peer, in parts (D117), so its owner must be
   able to hand it one too (jerry's headless-and-GUI rule; D115's spirit:
   no size cap on what the node can take). Consistent with GREEN-039's
-  `-bytes`, whose output is what `poo submit` reads.
+  `-bytes`, whose output is what `poon submit` reads.
 - **What is left:** the node decodes a submitted entry whole in memory,
   as it does one from a peer (D117), and only the full token can send
   one. Not run with a valid entry over 64 KiB: the tests use the real
@@ -2646,19 +2646,19 @@ a chase takes in after checking their work are not charged.
     and writes only if the bytes are those `Open` read or the last
     `Save` wrote. Otherwise it writes nothing and returns `ErrChanged`,
     which tells the user to run the command again. A new wallet whose
-    file appeared meanwhile gets `ErrExists`. So a `poo wallet` command
+    file appeared meanwhile gets `ErrExists`. So a `poon wallet` command
     left waiting at its prompt can no longer undo another command's
     change, a new passphrase included. Refusing was chosen over merging:
     the wallet file has no merge rule, and a merge that guessed could
     bring back the old sealed seed.
-  - **GUI-020.** `poo wallet create` and `poo wallet passwd` ask for a
+  - **GUI-020.** `poon wallet create` and `poon wallet passwd` ask for a
     new passphrase twice when it is typed through `Stdio.Secret` (a
     hidden terminal, or the GUI's masked field), and change nothing if
     the two differ. A passphrase piped on standard input, or given by an
     environment variable or a file, is read once, so scripts work as
     before.
   - **GREEN-039 as written,** merged with BLUE-015 (D144). `build` and
-    `work` take `-bytes`, which keeps the hex that `poo submit` reads. A
+    `work` take `-bytes`, which keeps the hex that `poon submit` reads. A
     missing parent is named in the error, with what to do. `grind jobs
     ID` reads its flags after the id.
   - **Black's Round 14 note on memory.** `POST /v1/entry` decodes the hex
@@ -2688,7 +2688,7 @@ a chase takes in after checking their work are not charged.
     wallet is held, its `Save` does not take the lock again. A file that
     is no longer this seed's (its first key differs) or that changed its
     format or key algorithm is `ErrChanged`.
-  - `poo wallet pay`, `claim`, `submit` and `resend` hold the wallet,
+  - `poon wallet pay`, `claim`, `submit` and `resend` hold the wallet,
     after the passphrase prompt, from before they act on the node until
     after they save. Other commands' saves wait for the release; one that
     read the file before the hold is refused (D145), having sent nothing.
@@ -2716,7 +2716,7 @@ a chase takes in after checking their work are not charged.
 ### D147. Round 16: the entry body's buffer grows; submit sends the hex as read; Windows locks node.json; waiting wallet commands keep other changes
 
 - **Decision:**
-  - **GREEN-040 as written.** `poo submit` reads a `-bytes` reply as it
+  - **GREEN-040 as written.** `poon submit` reads a `-bytes` reply as it
     was printed (`entry`; `layer` or `layer.layer`), and bare hex as
     before. A missing wallet says how to make one.
   - **ORANGE-025, with the size hint changed.** `POST /v1/entry` reads
@@ -2729,7 +2729,7 @@ a chase takes in after checking their work are not charged.
     both. A false length now sets aside at most 64 MiB, or twice what was
     sent. An honest large entry costs a copy or two on the way in. There
     is still no bound on the size read.
-  - **GUI ORANGE-012, taken into Source.** `poo submit entry` checks that
+  - **GUI ORANGE-012, taken into Source.** `poon submit entry` checks that
     the entry decodes, lets the decoded form go, and sends the hex as it
     was read (`rpc.Client.SubmitEntryHex`). It no longer encodes the
     entry again. The node gets the same JSON. GUI/Orange measured a 128
@@ -2810,19 +2810,19 @@ a chase takes in after checking their work are not charged.
 
 - **Decision:**
   - **Bundles.** One JSON file, a bundle (`nodepolicy.Bundle`, kind
-    `poo-node-policies`, format 1), carries node policies between nodes.
+    `poon-node-policies`, format 1), carries node policies between nodes.
     Its scope is a series (one series, how it is followed, its issuer),
     a policy (one node policy) or a node (every saved node policy, each
     by name, with the current one marked). A `settings` member is
     reserved for the node's settings, which a later format adds. The
     owner asked for this on 2026-11-02, for sharing, several machines and
     backups.
-  - **Export** (`poo policy export`) leaves out the machine-local
+  - **Export** (`poon policy export`) leaves out the machine-local
     settings (`nodepolicy.MachineLocal`: `rpc`, `no_sync`, `p2p.listen`,
     `p2p.advertise`, the grind device and threads) unless `-full`, and
     always the unused `fast_catch_up` and `depth_limit`. No secret is in
     a bundle, since none is in node.json.
-  - **Import** (`poo policy import FILE`) prints a plan and changes
+  - **Import** (`poon policy import FILE`) prints a plan and changes
     nothing without `-apply`. FILE `-` reads standard input, so the GUI
     can hand over a file picked in the browser. The default merge only adds: new series,
     follows merged as `AddFollow` does, accepted issuers, peers,
@@ -2895,7 +2895,7 @@ a chase takes in after checking their work are not charged.
       registries, grind jobs, tracking, the p2p switches and limits, `k`
       and `issuers.any`. The plan lists them in `skipped_settings` and
       leaves them alone, whether merging or replacing.
-    - `MergeOptions.Settings` (`poo policy import -settings`, the
+    - `MergeOptions.Settings` (`poon policy import -settings`, the
       endpoint's `settings`, implied by `full`) takes them. The plan's
       `defences` then names each changed line that touches `Defences`,
       and the CLI prints those first.
@@ -2911,7 +2911,7 @@ a chase takes in after checking their work are not charged.
     (`addFollows`) against the series built once. The result is the same
     as `AddFollow` one by one.
   - **RED-045.**
-    - `poo policy import` plans every node policy first and applies only
+    - `poon policy import` plans every node policy first and applies only
       if all plans succeeded. A later failure names what was saved.
     - A full-token `POST /v1/policy/import` takes up to `MaxImportBody`,
       so any bundle the CLI reads fits.
@@ -2942,7 +2942,7 @@ a chase takes in after checking their work are not charged.
     own check (D149) for a rotation made between the unlock and the
     hold.
   - **The previewed file (GUI-023's Source half).** `ReadBundle` sets
-    the file's SHA-256 as `Bundle.Digest`. `poo policy import` prints
+    the file's SHA-256 as `Bundle.Digest`. `poon policy import` prints
     it, and with `-json` gives it as `digest` on every row. The new flag
     `-if-digest D` refuses, before any change, a file whose digest is
     not D. The GUI passes the digest it previewed with Apply, and the
@@ -3016,7 +3016,7 @@ a chase takes in after checking their work are not charged.
       soon as it hears of it. The change is an improvement, not a rule.
     - Now `nodepolicy.MaxCheckSeconds` is 3600. A negative value, or one
       over that, is read as one hour. `Load` notes it in `Lowered`, as it
-      does for `grind.layer_rate`, so `poo doctor` shows it. `p2p.FromPolicy`
+      does for `grind.layer_rate`, so `poon doctor` shows it. `p2p.FromPolicy`
       reads it the same way.
     - `ping_seconds: -1` stays as it is. No consensus rule changes.
   - **Merged with this round:**
@@ -3107,13 +3107,13 @@ a chase takes in after checking their work are not charged.
       grind defaults and jobs, and `issuers.any`. node.json holds no key,
       seed, passphrase or RPC token, and the wallet is a separate file,
       so none of those can be in the file.
-    - `poo settings export [-full] [-out FILE]` writes a bundle of scope
+    - `poon settings export [-full] [-out FILE]` writes a bundle of scope
       `settings` (`nodepolicy.ScopeSettings`, made by `ExportSettings`).
       It uses the same file format as a policy bundle, format 1.
       Machine-local settings (`MachineLocal`) are left out unless
       `-full`.
-    - `poo settings import FILE|- [-apply] [-prefer-file] [-replace]
-      [-full] [-map-path OLD=NEW]... [-if-digest D]` is `poo policy
+    - `poon settings import FILE|- [-apply] [-prefer-file] [-replace]
+      [-full] [-map-path OLD=NEW]... [-if-digest D]` is `poon policy
       import` with `MergeOptions.SettingsOnly`. It reuses the same
       reading, plan, conflicts, defences-first lines, digest, apply,
       running-node path (`POST /v1/policy/import`) and view-only refusal.
@@ -3121,9 +3121,9 @@ a chase takes in after checking their work are not charged.
       `-replace`, the file's settings replace the node's, and what the
       node follows stays its own.
     - The two commands refuse each other's files with a hint:
-      - `poo policy import` refuses a settings file.
-      - `poo settings import` refuses a series file or an `-all` file.
-      - `poo settings import` takes the settings part of a policy file
+      - `poon policy import` refuses a settings file.
+      - `poon settings import` refuses a series file or an `-all` file.
+      - `poon settings import` takes the settings part of a policy file
         or a node.json.
   - **Moving to another machine.**
     - `-map-path OLD=NEW` (repeatable, on both imports) rewrites a
@@ -3229,15 +3229,15 @@ a chase takes in after checking their work are not charged.
     mint policy but has not picked. Imports land there. `Record.Label` is
     the owner's name for an address (at most 128 bytes of UTF-8, no
     control characters, `peers.CheckLabel`). Sources `hand` and `import`.
-  - **By hand:** `poo peer add|remove|label|connect` (`POST /v1/peer`
+  - **By hand:** `poon peer add|remove|label|connect` (`POST /v1/peer`
     actions `add`, `remove`, `label`, `connect`). `add` puts the address in
     as a candidate for every mint policy the node covers, refusing a local
     one unless `p2p.allow_local_peers` or `-keep`. `-keep` and `remove`
     edit `p2p.peers` in node.json. With the node stopped they work on the
     files.
-  - **Filters:** `poo peers -category -mint-policy -label -addr` and
-    `poo tracking -blocked -timed-out`.
-  - **Export and import** (`pkg/peerport`, kind `poo-peers`, format 1):
+  - **Filters:** `poon peers -category -mint-policy -label -addr` and
+    `poon tracking -blocked -timed-out`.
+  - **Export and import** (`pkg/peerport`, kind `poon-peers`, format 1):
     the whole book or chosen categories (the book states, `blocked`,
     `timed-out`) with labels and blocks. An import:
     - adds every address unlisted, for the file's mint policies; sets a
@@ -3253,7 +3253,7 @@ a chase takes in after checking their work are not charged.
     candidates after the archive step, the manager promotes imported
     addresses to candidates, oldest first (`Book.PromoteImported`), before
     peer lists and registries. `p2p.no_dial_imported` turns it off;
-    `poo peer connect -imported` promotes them all and runs the manager.
+    `poon peer connect -imported` promotes them all and runs the manager.
 - **Why:** jerry asked for filters, adding peers by hand, and exporting
   and importing the peer book (all or by category), with imports landing
   unlisted unless a blocked list is shared, and for a way to start
@@ -3283,7 +3283,7 @@ a chase takes in after checking their work are not charged.
     - An address learned any other way takes the place of the oldest
       such record when the book or its range is full, so a file never
       blocks discovery.
-    - `poo peer remove -imported` (`POST /v1/peers/forget-imported`,
+    - `poon peer remove -imported` (`POST /v1/peers/forget-imported`,
       `Book.ForgetImported`) takes them all out. A record the node learned, promoted or verified
       stays, and so do blocks.
   - **RED-059.**
@@ -3304,7 +3304,7 @@ a chase takes in after checking their work are not charged.
     - Table cells and keys are escaped (`termSafe`).
   - **RED-062.**
     - `peerport.ImportIf` plans and applies in one call, only when the plan
-      has the given digest. `poo peers import -apply -if-digest` and the
+      has the given digest. `poon peers import -apply -if-digest` and the
       node's `if_digest` use it.
     - The preview says the addresses will be tried when the node is short
       of peers, and how `p2p.no_dial_imported` stops that.
@@ -3356,7 +3356,7 @@ a chase takes in after checking their work are not charged.
     address until it is under the bound.
   - Also merges GREEN-046 (offline `peer add` checks before it writes;
     zero times read `-`), ORANGE-031 (tracker trim backoff, the book's
-    range cache) and adds a `poo tracking` pointer to `poo peers -h`.
+    range cache) and adds a `poon tracking` pointer to `poon peers -h`.
 - **Left fixed, on purpose:** the chase queue and its pacing
   (`QueueLimit`, `ChaseSlice`, `WeightlessPages`, `RequestPace`), the
   manager's interval, and the peer file's own caps. A user setting on
@@ -3382,7 +3382,7 @@ a chase takes in after checking their work are not charged.
   - **Engine memory limits are bounded (RED-063).** `seen_size` (65,536;
     1,024 to 4,194,304), `max_pending` (10,000; 16 to 1,048,576) and
     `ties` (64; 1 to 4,096) are D159 `Bound`s: listed in
-    `nodepolicy.Bounds`, checked in `Validate`, so `poo doctor`, the
+    `nodepolicy.Bounds`, checked in `Validate`, so `poon doctor`, the
     settings import's "does not fit" check and the GUI form take them with
     the rest. The seen list's ring and set grow with the items it holds,
     not with the setting, so a large `seen_size` costs nothing at start.
@@ -3398,7 +3398,7 @@ a chase takes in after checking their work are not charged.
     60 s to 365 days), then, for an address the owner gave (`hand`,
     `config`), any learned one; oldest first in each. A record the owner
     added, configured or labelled, and one the node reached, never gives
-    way. The owner's own `poo peer add` therefore always finds a place
+    way. The owner's own `poon peer add` therefore always finds a place
     unless the book is all such records.
   - **A lowered `max_book` is applied (RED-064).** `Book.Fit` trims a book
     over its limits in the same order; the node calls it on start and
@@ -3454,26 +3454,26 @@ a chase takes in after checking their work are not charged.
     claim. `Engine.PoolID` gives the pool_id.
   - `POST /v1/build` takes `parent` (an entry hash, `root` or
     `before-claim:N`) and `txs`, and replies with `parent` and `refused`.
-  - `poo claim -parent HASH|root|before-claim [-max-tries N] [-work N]`
+  - `poon claim -parent HASH|root|before-claim [-max-tries N] [-work N]`
     builds the claim into an entry on that parent instead of submitting it
-    as pending, and prints the command that adds weight to it. `poo build
+    as pending, and prints the command that adds weight to it. `poon build
     -parent` builds the pending transactions that fit there.
-  - `poo policy limits -set NAME=VALUE` (repeatable) and `POST
+  - `poon policy limits -set NAME=VALUE` (repeatable) and `POST
     /v1/policy/limits` set the bounded settings (`Policy.SetLimits`),
     checked whole first: through the running node, which saves node.json
     under its lock and reloads, or in node.json with the node stopped.
     `Policy.Limits` is now built from `Bounds` and `limitField`, so a new
     bound is listed, checked and settable from one place.
-  - Merges GREEN-047 (`poo policy limits`), ORANGE-032 (the book's kept
+  - Merges GREEN-047 (`poon policy limits`), ORANGE-032 (the book's kept
     counts, the tracker log re-slice; its ceiling costs are in
     nodepolicy.md), BLUE-023 (D160) and Black's Round 22 review.
 - **Left out:** a grind target that names a mint's rival claim: a rival
-  claim is an entry, and `poo grind start ENTRY` already grinds it, with
+  claim is an entry, and `poon grind start ENTRY` already grinds it, with
   `-until-from` for a goal. A pin that keeps a lighter local branch from
   pruning: `k: -1` keeps every branch.
 - **Why:** jerry: "go back to an existing claim and work on making our
   own", "lets include that and anything else related that is missing".
-  The GUI needs a command to set limits, since it only runs poo.
+  The GUI needs a command to set limits, since it only runs poon.
 - **Consensus:** none. A rival entry is checked by `AddEntry` like any
   entry from a peer, and selection is by weight as before. Building on a
   parent other than the tip was always valid (a rival branch,
@@ -3495,11 +3495,11 @@ a chase takes in after checking their work are not charged.
   - **The node proves itself before a command sends the token
     (RED-066).** `rpc.Dial` and `DialView` first ask `GET /v1/hello` with
     a random nonce and send the token only if the reply holds
-    HMAC-SHA256(token, `poo-rpc-hello`, the address in `rpc.addr`, the
+    HMAC-SHA256(token, `poon-rpc-hello`, the address in `rpc.addr`, the
     nonce). A process on a stale `rpc.addr`'s port knows neither token, and
     the node at another address signs that address, so neither gets the
     token. The failure wraps `ErrNotRunning`, so commands fall back as when
-    no node runs. `poo doctor` names both cases. I chose the proof rather
+    no node runs. `poon doctor` names both cases. I chose the proof rather
     than Red's lock check: probing the data directory lock could make a
     node that is starting at the same moment fail to take it, and the lock
     does nothing on platforms without one.
@@ -3572,9 +3572,9 @@ a chase takes in after checking their work are not charged.
   - **Not followed yet.** `nodepolicy.ErrVariableNotFollowed` wraps
     `series.ErrUnreadable`. A node refuses to follow a variable series
     until phase 2 builds its transactions.
-  - **Tools.** `poo series new -variable -part-size -max-parts -issuer`,
-    `poo series sign`, `poo series release -part | -check` and
-    `poo series parts`.
+  - **Tools.** `poon series new -variable -part-size -max-parts -issuer`,
+    `poon series sign`, `poon series release -part | -check` and
+    `poon series parts`.
   - **Vectors.** `pkg/vectors/testdata/variable.json`.
 - **Choices made here, within the documents:**
   - Format version 2 for the new fields, as encoding.md's stability rule
@@ -3621,15 +3621,15 @@ a chase takes in after checking their work are not charged.
   - **Peer import (GUI/Orange's report).** `rpc.PeersImportRequest` carries
     `file_digest`. `peerport.File.Digest` is left out of JSON, so a running
     node computed the import digest with an empty file digest, and every
-    `poo peers import -apply -if-digest` against it was refused as not
+    `poon peers import -apply -if-digest` against it was refused as not
     previewed. The node now uses the caller's file digest, which is the one
     its preview covered.
-  - **Peer counts (GUI ORANGE-017).** `poo peers -counts` and
+  - **Peer counts (GUI ORANGE-017).** `poon peers -counts` and
     `GET /v1/peers?counts=1` reply with the connections and
     `counts{addresses, connected, states}`, without the book's records. A
     full book of 16,384 addresses is about 12.8 MB of JSON for each
     refresh.
-  - **An empty -parent (GUI/Blue).** `poo claim` and `poo build` refuse an
+  - **An empty -parent (GUI/Blue).** `poon claim` and `poon build` refuse an
     explicitly empty `-parent`. Before, it read as if `-parent` had been
     left out, so the claim was submitted.
 - **Left out, for a later Part A:** the `-set` that arrives while the node
@@ -3669,7 +3669,7 @@ a chase takes in after checking their work are not charged.
     and answer "not released yet" with no hashing otherwise. Only then may
     it ask for `PartID`. This is for the phase 2 design and is not built
     here.
-  - **A variable series' JSON is unreadable to an older poo (RED-071).**
+  - **A variable series' JSON is unreadable to an older poon (RED-071).**
     - `Params.MarshalJSON` writes a variable series' hash as
       `variable_hash` and leaves `hash` out. A node built before D163
       ignores unknown keys, so it finds hash 0, which names no hash, and
@@ -3735,32 +3735,32 @@ a chase takes in after checking their work are not charged.
     part id costs time, in bounded memory (D165).
   - **Part 1 needs the issuer witness.** A variable series listed without
     its `issuer_witness` is kept and not followed (`nodepolicy.ErrNoPartOne`,
-    unreadable, never invalid). `poo init -series` and `poo doctor` say so.
-    `poo series sign` now prints `{series_id, params, issuer_witness}`, a
-    file `poo init -series` and `poo series info` read, checking the id
+    unreadable, never invalid). `poon init -series` and `poon doctor` say so.
+    `poon series sign` now prints `{series_id, params, issuer_witness}`, a
+    file `poon init -series` and `poon series info` read, checking the id
     and the witness.
-  - **Giving a node a release.** `poo series add-release RELEASE` and
+  - **Giving a node a release.** `poon series add-release RELEASE` and
     `POST /v1/series/release` check the release, save it in node.json and
     reload the node. With the node stopped, the command changes node.json
     under the policy lock. `GET /v1/series` adds `variable{released,
     next_part, mints, units, release}` for a variable series, which
-    `poo series followed` prints. A client applies the node's release to
+    `poon series followed` prints. A client applies the node's release to
     its own copy of the series, so a claim it builds on a released part is
     checked against the same parts.
   - **Round 25 tooling.**
-    - `poo policy limits -set` (and `add-release`) sent while the node is
+    - `poon policy limits -set` (and `add-release`) sent while the node is
       still reloading from an earlier change used to fail with a bare EOF.
       The client now dials again for up to 20 seconds while the connection
       is dropped. Both calls are idempotent, so a retry is safe.
-    - `poo series info` reads a signed series file, prints the supply type,
+    - `poon series info` reads a signed series file, prints the supply type,
       part size and largest number of parts (left out when uncapped), and
       `-h` prints its usage instead of opening a file named "-h"
       (GUI-GREEN-051).
-    - `poo peers -counts` prints `node_id`, `listen`, the connections
+    - `poon peers -counts` prints `node_id`, `listen`, the connections
       (`peers`, which the GUI's Peers panel shows) and `counts`, without
       the empty `book` list (GREEN-049's idea). `GET /v1/peers?counts=1` is unchanged.
-    - `poo series parts -o table` lists one row per part (GREEN-049's idea).
-    - `poo series release FILE -check -` reads the release from standard
+    - `poon series parts -o table` lists one row per part (GREEN-049's idea).
+    - `poon series release FILE -check -` reads the release from standard
       input, so the GUI can check one it has just signed (GUI-027).
   - **Left out:** ORANGE-033's in-place `-set` (a limit applied without a
     reload). The reload path is what makes a change take effect everywhere
@@ -3800,7 +3800,7 @@ a chase takes in after checking their work are not charged.
   - **A bad kept release is left out, not the series (RED-073).** A
     release is information the node was given. One that does not check
     is left out: the series is followed with the parts proven without it
-    (part 1 at least), the node logs a warning, `poo doctor` shows a
+    (part 1 at least), the node logs a warning, `poon doctor` shows a
     `releases` warning, and `add-release` of a valid one replaces it. An
     import drops a release that does not check, and names it in the plan
     (`dropped_releases`).
@@ -3808,7 +3808,7 @@ a chase takes in after checking their work are not charged.
     already known is checked in full on the CLI and RPC path too, so a
     forged one is refused instead of answered with `added: false`. Only
     the peer path (phase 3) may take a known part without hashing. Release
-    JSON refuses a key it does not know (`ErrUnknownKey`). The keys `poo
+    JSON refuses a key it does not know (`ErrUnknownKey`). The keys `poon
     series release` adds for people (`part_id`, the serial and pool
     ranges, `mints`, `units`) are read and ignored.
   - **The chain is not worked out again on each load (RED-075).**
@@ -3876,13 +3876,13 @@ a chase takes in after checking their work are not charged.
       gives, the node reloads onto the saved node.json instead: a series
       followed by a list of pools (its coverage can change) and a series
       followed whole that the release makes large enough to be indexed by
-      the pools in use (D154). `poo series add-release` and `POST
+      the pools in use (D154). `poon series add-release` and `POST
       /v1/series/release` take the same path and reply `in_place`, or
       `reloading`.
     - A series is built before its transactions are read (Black, Round
       25): a release only names a series the node built at start, and a
       release changes nothing about how a transaction is decoded.
-  - **In-place `poo policy limits -set` (ORANGE-033, on Black's Round 25
+  - **In-place `poon policy limits -set` (ORANGE-033, on Black's Round 25
     terms).**
     - `nodepolicy.InPlace` names the limits a running node applies with no
       reload: `p2p.max_book`, `p2p.book_per_range`, `p2p.retry_seconds`,
@@ -3896,7 +3896,7 @@ a chase takes in after checking their work are not charged.
     - The change is taken against the policy the node runs with
       (`node.Running`), not the node.json read before it. When node.json
       holds anything else the node does not run yet, such as a hand edit
-      waiting for `poo reload`, the reload is used, so that edit is never
+      waiting for `poon reload`, the reload is used, so that edit is never
       left out (`nodepolicy.SameButInPlace`). `GET /v1/status`'s
       `policy_changed` compares with the running policy too.
     - `p2p.verified_per_range`, `p2p.registry_seconds`, `max_pending` and
@@ -3923,13 +3923,13 @@ a chase takes in after checking their work are not charged.
     raised floors in the reserve series advice, jerry 08:16).
     `rpc.WorkTriesFor(series)` is the node's cap on one work call: 2^24,
     or 2^(floor + 4) when the layer floor (`min_layer_strength`) makes that
-    larger, at most 2^40. `rpc.DefaultWorkTries(series)` is `poo work`'s
+    larger, at most 2^40. `rpc.DefaultWorkTries(series)` is `poon work`'s
     default with no `-tries` or `-for`: 2^16, or 2^(floor + 2) when that
-    is larger, within the cap. `poo build -work N` is capped the same way
+    is larger, within the cap. `poon build -work N` is capped the same way
     by the node.
   - **GUI Grey's asks (GUI-GREEN-052):** a command refused only because
     its part is not released yet exits 3 (`cli.ExitWaiting`, `cli.ExitCode`),
-    as the RPC answers 409 `waiting`; `poo series parts` adds
+    as the RPC answers 409 `waiting`; `poon series parts` adds
     `mints_released` to each part, the mints that exist once it is
     released.
 - **Consensus:** none new. Passing releases is information: a node that
@@ -3971,12 +3971,12 @@ a chase takes in after checking their work are not charged.
       witness is over the series' `max_witness`.
     - The error says how many of the keys' signatures fit: at most 14
       ML-DSA-87, or 8 SLH-DSA-SHA2-128s.
-    - `CheckPolicy` runs it, so `poo wallet policy`, a payment request,
+    - `CheckPolicy` runs it, so `poon wallet policy`, a payment request,
       and a payer's check before paying an address with its policy all
       refuse such a policy.
-    - `poo crypto` prints `max_signatures_per_witness` for each algorithm.
+    - `poon crypto` prints `max_signatures_per_witness` for each algorithm.
       *(D170: the decode limits are gone. The check now uses the worst
-      case and the series' ceiling only, and `poo crypto` counts against
+      case and the series' ceiling only, and `poon crypto` counts against
       a ceiling, the reserve series' by default.)*
     - The decode limits stay as they are. The check is never part of
       checking a witness. Every witness that decodes and fits already
@@ -4006,7 +4006,7 @@ a chase takes in after checking their work are not charged.
   - **A large work request is bounded in time (RED-081).** A work request
     with more than `MaxWorkTries` (2^24) tries and no `for` stops at
     `MaxGrindFor` (4 minutes), as a `for` request does. The reply says
-    `stopped_on_time`, or the error says where it stopped. `poo work -h`
+    `stopped_on_time`, or the error says where it stopped. `poon work -h`
     says so.
 - **Consensus:** none.
   - `CheckSpendable` refuses only policies that no valid witness could
@@ -4082,10 +4082,10 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
   - **Red's condition 1 as tool and node policy, not a rule** (jerry chose
     Black's approach). No design document changes, and `max_witness` 0
     stays a valid series.
-    - `poo series new` writes a 128 KiB ceiling by default and refuses
+    - `poon series new` writes a 128 KiB ceiling by default and refuses
       `-max-witness 0` or one above `CeilingLimit` (4 MiB) without
-      `-any-ceiling`. `poo init -series FILE` refuses such a file the same
-      way. `poo init -example` is exempt: it is the documents' worked
+      `-any-ceiling`. `poon init -series FILE` refuses such a file the same
+      way. `poon init -example` is exempt: it is the documents' worked
       example.
     - Node policy `series_ceiling` (0, the default: off): when set, a
       policy import declines a series it would add whose ceiling is not
@@ -4103,7 +4103,7 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
     even the smallest witness is over, and how many of the keys'
     signatures surely fit. `policy.MaxK(alg, ceiling)` gives the largest
     k of a k-of-k policy of one algorithm under a ceiling, params
-    included. `poo crypto [-max-witness N]` shows it for every algorithm,
+    included. `poon crypto [-max-witness N]` shows it for every algorithm,
     against the reserve ceiling by default.
   - **SLH-DSA-SHA2-256s, key algorithm 11** (Red's revised list, jerry
     20:21). FIPS 205 category 5: 64-byte keys, 29,792-byte signatures,
@@ -4121,23 +4121,23 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
       (`series.ReserveID`). `pkg/series/testdata/reserve.json` holds its
       params, their canonical byte form and the id;
       `TestReserveSeriesPinned` checks all three.
-    - `poo init` with no `-series`, `-example` or `-reserve` follows it
+    - `poon init` with no `-series`, `-example` or `-reserve` follows it
       and prints "the built-in reserve series" with its full id.
       `-reserve` adds it beside others and `-no-series` follows none.
-    - `poo series info`, `poo series followed` and the RPC's series list
+    - `poon series info`, `poon series followed` and the RPC's series list
       add `"builtin": "reserve"` only when the full id matches, never on a
       prefix, so a look-alike id is not named the reserve (Red's earlier
       advice).
     - It is node policy, not a rule: any node may follow any series.
-  - **`in_place` on every limit** (GUI-GREEN-053). `poo policy limits`
+  - **`in_place` on every limit** (GUI-GREEN-053). `poon policy limits`
     and the RPC's limits reply say, for each bounded setting, whether a
     running node applies a change without a reload, from the same
     `nodepolicy.InPlace` list the node uses.
   - **A far part id can be cancelled** (GUI-028). `Series.PartIDContext`,
     `UnsignedContext` and `CheckReleaseContext` stop when their context
     is done, between two chunks of hashes, and keep what they worked out.
-    `poo series release`, `poo series release -check`, `poo series parts`,
-    `poo series info` and `poo series add-release` with the node stopped
+    `poon series release`, `poon series release -check`, `poon series parts`,
+    `poon series info` and `poon series add-release` with the node stopped
     (`nodepolicy.Policy.CheckReleaseContext`) use the command's context, so a GUI job's
     Cancel (or Ctrl-C) stops a part far out instead of hashing for hours.
     Stopping says nothing about validity. The plain methods are unchanged.
@@ -4185,14 +4185,14 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
     `POST /v1/series/release` and the RPC policy check use the request's
     context. A part above 2^20 is logged when its check starts.
   - **RED-083.** `series_ceiling` is now a bounded setting (0, or 1,024
-    bytes to 1 GiB), settable with `poo policy limits -set`. An import
+    bytes to 1 GiB), settable with `poon policy limits -set`. An import
     plan lists in `unbounded` each series it adds, or whose follow it
     changes, that sets no witness ceiling or one above 4 MiB
     (`nodepolicy.CeilingWarning`, `CeilingLimit`). The text plan prints
     declined and unbounded series, each declined one with the number of
     follow rules left out, and says `nothing else to change` rather than
-    `nothing to change` when it declined one. `poo series info`,
-    `poo series followed`, `GET /v1/series` and `poo doctor` (`ceiling`)
+    `nothing to change` when it declined one. `poon series info`,
+    `poon series followed`, `GET /v1/series` and `poon doctor` (`ceiling`)
     show the warning for followed series.
   - **Not done here.** A 4 MiB `series_ceiling` default for new nodes
     (Orange #188, proposal 1): it would decline the documents' example
@@ -4242,11 +4242,11 @@ conditions from `consensus/red-size-caps-review.md` and the doc list from
     record is an entry whose hash is the one asked for.
   - **`entry_cache_mib`** (node policy, bounded 1 to 1,048,576, default
     512) bounds the cache across all pools, and is applied in place.
-    `GET /v1/status` (`poo status`) shows `bodies` (bound, use, hits,
+    `GET /v1/status` (`poon status`) shows `bodies` (bound, use, hits,
     loads, errors, held, in memory, located) and `/v1/metrics` the
-    `poo_entry_cache_*` and `poo_entry_body_*` series.
+    `poon_entry_cache_*` and `poon_entry_body_*` series.
   - **Open-file warning (ORANGE-037, proposal 2).** A node logs one
-    warning at start, and `poo doctor` an `open-files` check, when the
+    warning at start, and `poon doctor` an `open-files` check, when the
     soft open file limit is below the followed pools plus 256.
     `GET /v1/status` shows `file_limit`.
   - **Deferred.** The sidecar index file of the plan moves to R30, beside
@@ -4300,7 +4300,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - **Defence in depth.** A panic while handling one peer message closes
     that peer, is logged with its stack, and is not counted against the
     peer. The process runs on.
-  - **`poo doctor` warns** (`bodies`) when the running node counted
+  - **`poon doctor` warns** (`bodies`) when the running node counted
     failed body reads, and says to check the disk and restart: on start
     the node cuts a pool log at its first damaged record and fetches the
     rest again from peers. Refetching in place, with no restart, is left
@@ -4415,7 +4415,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   The ceiling is the node's, so a file cannot lift it by replacing it.
   (GUI Red's nit, leaving out `digest` from `-json` when nothing
   changes, is left for a round where the GUI changes with it: the GUI
-  views e2e applies a no-op plan today.) A comment that said `poo init` writes
+  views e2e applies a no-op plan today.) A comment that said `poon init` writes
   `series_ceiling` is corrected: nothing writes it; the default stays off
   (jerry, 2026-11-04). GUI-029's ask is already met by the plan's
   `unbounded` list (D171), which the GUI shows; `defences` stays the list
@@ -4425,7 +4425,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Tier:** Node policy, CLI. `pkg/nodepolicy/replaceceiling_test.go`:
   `TestReplaceHonoursSeriesCeiling`.
 
-### D177. Round 29 fixes: RED-085 and RED-086, and `poo status -counts` (BLUE-030)
+### D177. Round 29 fixes: RED-085 and RED-086, and `poon status -counts` (BLUE-030)
 
 - **Decision:**
   - **RED-085.** `PreverifyTx`, `PreverifyEntry`, `PreverifyPage` and
@@ -4450,7 +4450,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     spends costs 3 units an entry where it cost 2, so the 200,000 a minute
     default paces such reverts about a third sooner; it is a setting, and
     a new default is for Grey and Orange to measure.
-  - **`poo status -counts`** (GUI ORANGE-021): one row of totals per
+  - **`poon status -counts`** (GUI ORANGE-021): one row of totals per
     followed series (pools, entries, branches, pending, waiting, stored
     records) with the same notes (replay, bodies, file limit, policy
     changed), so a view that refreshes often does not print a row for
@@ -4507,11 +4507,11 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     until the next one.
   - **Trust and `-reverify`** (jerry, 2026-11-05: trust the node's own
     snapshot, with a flag to check everything).
-    `poo node -reverify` ignores the snapshots on that start, replays
+    `poon node -reverify` ignores the snapshots on that start, replays
     every log whole, and where a snapshot covered the whole log compares
     the pool the replay built with the snapshot's fingerprint
     (`ledger.Pool.Fingerprint`), reporting `reverified` and
-    `reverify_differed` in `/v1/status` and `poo doctor`. A difference
+    `reverify_differed` in `/v1/status` and `poon doctor`. A difference
     would be a bug; the node runs on the replay.
   - **Disk errors.** A body that fails to read back marks its pool
     damaged: its snapshot is removed and none is written. An engine that
@@ -4532,10 +4532,10 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - **The sidecar index** is the snapshot's index section, so it is built
     now rather than deferred: a start from a snapshot reads no record the
     snapshot covers. The plan's separate index file is not needed.
-  - **Status and doctor.** `/v1/status` and `poo status -counts` carry
+  - **Status and doctor.** `/v1/status` and `poon status -counts` carry
     `snapshots` (pools, missing, the oldest's age, the most records a
     start would replay, bytes, `snapshot_every`); `replay` gains
-    `snapshots`, `snapshot_records`, `snapshots_unused`. `poo doctor` adds
+    `snapshots`, `snapshot_records`, `snapshots_unused`. `poon doctor` adds
     a `snapshots` check.
 - **Why:** jerry's priority (2026-11-04): disk-backed state, thinking
   long term. A start replayed and re-checked every record. Measured on 4
@@ -4572,10 +4572,10 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   it. In-place repair needs a fetch-by-hash path into the log and its own
   fault tests; it is proposed for a later round.
 
-### D179. `builtin` in `poo status -counts` (GUI-GREEN-056)
+### D179. `builtin` in `poon status -counts` (GUI-GREEN-056)
 
-- **Decision:** Each row of `poo status -counts` carries `builtin`, as
-  `poo series followed` does (`"reserve"` for the default series), so the
+- **Decision:** Each row of `poon status -counts` carries `builtin`, as
+  `poon series followed` does (`"reserve"` for the default series), so the
   GUI can name the series rather than show only its hash.
 - **Why:** GUI Green, R30B (PR #217).
 - **Consensus:** None. Display only.
@@ -4583,7 +4583,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 
 ### D180. No digest for an import that changes nothing (GUI Red's R29 nit)
 
-- **Decision:** `poo policy import -json` and `poo settings import -json`
+- **Decision:** `poon policy import -json` and `poon settings import -json`
   leave out `digest` when no plan changes anything, as the text preview
   already did (GREEN-043). The GUI, since GUI R30 (#220), says "Nothing to
   apply" for such a preview and offers no Apply.
@@ -4613,12 +4613,12 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     With `-reverify` comparing a full replay with the same fingerprint,
     the two together compare a replay with what the snapshot restores.
     Under `-reverify`, a pool whose snapshot does not reach the end of the
-    log is listed in `reverify_not_compared`, and `poo doctor` warns,
+    log is listed in `reverify_not_compared`, and `poon doctor` warns,
     never "ok". Red's other option, replaying up to the snapshot's offset,
     is not built.
   - **RED-089.** `<index>.log.snap.tmp` is removed when its log is
     opened, whatever the policy, and counted in `snapshot_tmp_removed`;
-    `poo doctor`'s `snapshots` check names it.
+    `poon doctor`'s `snapshots` check names it.
   - **GREEN-055 (#224) is carried:** it changes the same `-reverify` code.
 - **Why:** D178's guard against a pool an older build computed relied on
   a build id that every release build shared, and its full check compared
@@ -4650,8 +4650,8 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - **Proposal 2.** A pool's snapshot is due after
     `max(snapshot_every, records in its log / 10)` new records
     (`snapshotDue`), so a large pool is gathered less often while a small
-    one keeps `snapshot_every`. `poo status` shows `snapshots.due`, and
-    `poo doctor` measures "behind" against the larger of the two.
+    one keeps `snapshot_every`. `poon status` shows `snapshots.due`, and
+    `poon doctor` measures "behind" against the larger of the two.
   - **Proposal 3** (gather outside the node lock) is not built yet.
 - **Decision (port mapping, Source Red's recommendation, approved by
   jerry for Round 31):**
@@ -4660,7 +4660,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     names one. `p2p.port_map_gateway` names the router's IP address. When
     it is empty, the default route's gateway is found on Linux only.
     `p2p.port_map_seconds` is the lease asked for, from 120 to 86,400
-    seconds, 3,600 by default, applied on reload. `poo init -port-map`
+    seconds, 3,600 by default, applied on reload. `poon init -port-map`
     sets the mode.
   - **Only the gateway is spoken to.**
     - PCP and NAT-PMP use a UDP socket connected to the gateway's
@@ -4684,7 +4684,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
        node id) before it offers the address to peers.
     3. If the dial does not come back, the mapping is removed and nothing
        is advertised. Many routers cannot loop a connection back;
-       `poo doctor` then names the address to set by hand.
+       `poon doctor` then names the address to set by hand.
     4. A new external address on renewal is confirmed again before use.
     5. A `p2p.advertise` set by hand always wins, and then no mapping is
        asked for.
@@ -4695,9 +4695,9 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     machine-local (`MachineLocal`). A shared policy or settings file
     therefore never opens a port on another machine. `-full` carries
     them.
-  - **Reporting.** `GET /v1/status` and `poo status` show `port_map`:
+  - **Reporting.** `GET /v1/status` and `poon status` show `port_map`:
     its mode, state, method, the router's address, the advertised
-    address, the lease and any error. `poo doctor` adds a `port-map`
+    address, the lease and any error. `poon doctor` adds a `port-map`
     check when the policy asks for one.
 - **Why:** Before this, a node behind a home router could make only
   outbound connections unless its owner forwarded a port by hand. Red's
@@ -4724,7 +4724,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Decision:**
   - **RED-090.** The dial-back now proves it reached this node's own
     listener. `confirmSelf` puts a fresh random 128-bit token in the
-    hello it sends (`Agent` is `poo-self-check/` and the token in hex, so
+    hello it sends (`Agent` is `poon-self-check/` and the token in hex, so
     the wire format is unchanged). The listener's handshake, on an
     inbound hello with this node's own id, records a token `confirmSelf`
     is waiting on (`sawSelfProbe`). Only that record confirms the
@@ -4795,11 +4795,11 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   between peers) as proposed. Neither proposal is decided here.
 - **Decision:**
   - **GUI ORANGE-023.** `replay.snapshots_unused` and
-    `replay.reverify_not_compared` in `GET /v1/status` and `poo status`
+    `replay.reverify_not_compared` in `GET /v1/status` and `poon status`
     carry at most `node.MaxReasons` (8) reasons. New
     `snapshots_unused_count` and `reverify_not_compared_count` give the
     whole number. The node's start log names every pool with its reason,
-    as before, and `poo doctor` counts all of them and says the rest are
+    as before, and `poon doctor` counts all of them and says the rest are
     in the start log. Black's condition (doctor or the start log still
     lists each pool) holds.
   - **W-1.** `nodepolicy.Load` keeps the settings in `node.json` that
@@ -4810,15 +4810,15 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     set. The node warns once at start, naming them. Exports and bundles
     carry only what this release knows. A file holding unknown settings
     is written with its keys in sorted order.
-  - **W-10.** `GET /v1/status` and `poo status` (with `-counts`) carry
+  - **W-10.** `GET /v1/status` and `poon status` (with `-counts`) carry
     `release`: the `version` and `commit` that `node.SetRelease`
-    records, the same ones `poo version` prints. GUI/White decides what
+    records, the same ones `poon version` prints. GUI/White decides what
     the GUI does on a mismatch.
   - **Not taken this round:**
     - ORANGE-041 proposal 1 (a parallel fingerprint by sections). If it
       is taken later, it follows Black's terms in ROUND-31.md.
     - Proposal 2 (PCP and NAT-PMP sent together under `auto`).
-    - WHITE-002 step 1 (`poo/VERSION` in the hello Agent). It tells every
+    - WHITE-002 step 1 (`poon/VERSION` in the hello Agent). It tells every
       peer the exact release, so it waits for White's and Black's review
       of the whole proposal.
     - Green's idea of a command to set `p2p.port_map` or `p2p.advertise`
@@ -4847,7 +4847,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     as the decoder always did. `Save` writes the setting under its own
     name and drops the other spelling, so a setting the owner turned off
     stays off, and a lookalike key cannot override the real one.
-    - `FoldedSettings` names these keys, and the node and `poo doctor`
+    - `FoldedSettings` names these keys, and the node and `poon doctor`
       warn.
     - When kept settings go back in, none is written beside a key that
       folds to its name (`holdsFolded`).
@@ -4926,8 +4926,8 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `p2p.announce_version` (machine-local): `""` or `release` sends the
     running release; `none` sends an empty release. The features list is
     always sent.
-  - `poo peers` shows each connected peer's `release` and
-    `claimed_features`; `poo peers -counts` counts peers by release.
+  - `poon peers` shows each connected peer's `release` and
+    `claimed_features`; `poon peers -counts` counts peers by release.
 - **Black's terms (#253), all kept:**
   1. Only the wire half of D76 is amended. Byte form v1,
      `TestByteFormV1Frozen` and the Round 24 and 25 cross-version vectors
@@ -4955,15 +4955,15 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/p2p/hello_features_test.go`: `TestHeavierWhateverTheHelloClaims`.
   - `pkg/nodepolicy/announce_test.go`: `TestAnnounceVersion`.
 
-### D187. Round 33: default ports 7336 and 7337, written by `poo init`, and the alpha version
+### D187. Round 33: default ports 7336 and 7337, written by `poon init`, and the alpha version
 
 - **Decision (jerry, 2026-11-05):**
   - The local command port is `127.0.0.1:7336` and the peer port `:7337`,
     in place of 8645 and 8646 (which other applications use).
-  - `poo init` writes both into a new `node.json` when `-listen` and
+  - `poon init` writes both into a new `node.json` when `-listen` and
     `-p2p` are not given (White's W-7), so a later change of default
     never moves an existing node.
-  - `poo version` says `0.1.0-alpha.1-dev` until the first tag,
+  - `poon version` says `0.1.0-alpha.1-dev` until the first tag,
     `v0.1.0-alpha.1`.
   - `release.yml` marks a tag with a `-` (alpha, beta, rc) as a
     pre-release.
@@ -4982,16 +4982,16 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 
 - **Decision (jerry, 2026-11-05: "Yes"; "All imports should still be
   verified"):**
-  - `poo ledger export -pool K [-series ID] [-from H] [-to H] [-out
+  - `poon ledger export -pool K [-series ID] [-from H] [-to H] [-out
     FILE]` writes a stretch of the pool's selected ledger, oldest first,
-    as a JSON ledger file (`"kind": "poo ledger"`, format 1). The header
+    as a JSON ledger file (`"kind": "poon ledger"`, format 1). The header
     gives the series, pool, range, height, tip and weight. Each entry
     has its height, hash, parent, transaction and layer counts, and
     `item`: the entry's byte form with its layer nonces, base64, exactly
     as a peer sends it. It is read page by page (`GET
     /v1/ledger/export`, at most 256 entries or 8 MiB a page), and the
     export stops if the node switches ledgers part way.
-  - `poo ledger import FILE|-` sends the items in batches (`POST
+  - `poon ledger import FILE|-` sends the items in batches (`POST
     /v1/ledger/import`). The node puts every entry and layer through the
     same checks as an entry a peer sent when asked
     (`engine.Requested`): nothing in the file is trusted and there is no
@@ -5016,7 +5016,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 ### D189. Round 33 fixes: RED-097, RED-098, RED-099 and GUI-031 (BLUE-034), with ORANGE-043 and GREEN-058
 
 - **Decision:**
-  - **RED-097.** `poo ledger export` asks for every page after the first
+  - **RED-097.** `poon ledger export` asks for every page after the first
     only up to the header's `to`.
     - Each later page must start at the next height and carry on from
       the last entry written. An empty page after one that promised more
@@ -5038,7 +5038,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
       a call holds at most one batch plus one item, and an entry of any
       size can still be imported alone. Unknown fields and trailing
       values are refused, as before.
-    - `poo ledger import -dry-run` sends nothing and needs no node. It
+    - `poon ledger import -dry-run` sends nothing and needs no node. It
       checks that each item decodes and matches its summary (parent,
       transaction count, and hash when node.json knows the series), that
       the items chain at consecutive heights, and that the last one is
@@ -5055,7 +5055,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - **GUI-031.**
     - `importLedger` checks the command's context before each batch, so
       a stop ends an import at the next batch.
-    - On an error or a stop after a batch was kept, `poo ledger import`
+    - On an error or a stop after a batch was kept, `poon ledger import`
       prints its reply (`LedgerImportReply`: the totals so far, `sent`
       and `stopped`) and exits non-zero. The GUI can draw the partial
       summary from it.
@@ -5078,7 +5078,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/rpc/blue034_internal_test.go`: `TestBlue034ImportCallBounded`.
   - `pkg/wire/blue034_test.go`: `TestBlue034OldHelloNamed`.
 
-### D190. Round 34: ports 7732 and 7733, wider hello limits, `poo-ledger`, no offence for bad extras
+### D190. Round 34: ports 7732 and 7733, wider hello limits, `poon-ledger`, no offence for bad extras
 
 - **Merged first:** Blue's #266 (BLUE-034, D189, carrying Green's #259
   and Orange's #265, ORANGE-043), Red's #257 (RED-097 to RED-099),
@@ -5087,7 +5087,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Decision:**
   - **Ports (jerry, 2026-11-05 21:36; W-16).** The default local command
     port is `127.0.0.1:7732` and the peer port `:7733`, in place of 7336
-    and 7337 (D187). `poo init` still writes them into a new node.json.
+    and 7337 (D187). `poon init` still writes them into a new node.json.
     Nothing is released, so no node moves.
   - **W-14.** `wire.MaxExtValue` is 64 KiB (was 1 KiB) and
     `wire.MaxFeatures` 255 (was 64, the most a `U8` count says), so a
@@ -5100,8 +5100,8 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     so the node keeps none of a peer's hello extensions for the life of
     the connection (`theirs.Ext = nil`). With W-14, keeping them could
     have held 2 MiB a connection.
-  - **W-15.** A ledger file's kind is `poo-ledger` (was `poo ledger`),
-    like `poo-peers` and `poo-node-policies`. Nothing is released, so no
+  - **W-15.** A ledger file's kind is `poon-ledger` (was `poon ledger`),
+    like `poon-peers` and `poon-node-policies`. Nothing is released, so no
     old name is read.
   - **Black's condition on D186 term 4.** A failure inside the release,
     features or extensions list of a hello, ping or pong is
@@ -5110,7 +5110,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     a ping or pong (a short body, trailing bytes, a bad contact) is still
     an `InvalidMessage` offence, as for every message. D186 term 4 reads
     that way from now on.
-  - `gui/e2e/parity.mjs` lists `poo ledger import -dry-run` as left out
+  - `gui/e2e/parity.mjs` lists `poon ledger import -dry-run` as left out
     until GUI Round 34 adds it.
   - W-12 (a total cap on kept settings) stays deferred.
 - **Why:** jerry's ports; limits frozen at the tag must leave room for
@@ -5168,7 +5168,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/rpc/blue035_internal_test.go`: `TestBlue035ImportReadStops`.
   - `pkg/cli/blue035_test.go`: `TestBlue035LedgerHeaderBounded`.
 
-### D192. Round 35: White's frozen limits and signing steps, the empty token, neutral default-series wording, the "poo" name in one place
+### D192. Round 35: White's frozen limits and signing steps, the empty token, neutral default-series wording, the "poon" name in one place
 
 - **Merged first:** Blue's #280 (BLUE-035, D191, with Green's #277),
   Red's #275, Orange's #276 (ORANGE-044, docs), White's #281 and Black's
@@ -5180,13 +5180,13 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     wire version 1 from the first public tag.
   - **W-19.** `wire.MaxHelloFrame` (3 MiB) is written into
     [protocol/wire.md](protocol/wire.md) as frozen with wire version 1.
-  - **W-20.** `poo ledger import` reads a header key it does not know
+  - **W-20.** `poon ledger import` reads a header key it does not know
     under the same 4 KiB bound as a known one (the key itself too) and
     drops it, so a file from a later release still imports; at most
     `MaxLedgerUnknownKeys` (64) of them, and none twice.
   - **W-21.** [releasing.md](releasing.md) says how a release is signed
     and checked: maintainers' SSH keys in
-    [allowed_signers](allowed_signers) under one name, `poo-release`;
+    [allowed_signers](allowed_signers) under one name, `poon-release`;
     any one of them signs `SHA256SUMS` (`ssh-keygen -Y sign -n file`);
     a retired key gets `valid-before`. No key is tied to one person, and
     the file holds no key until a maintainer adds theirs.
@@ -5195,18 +5195,18 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     (`rpc.ErrEmptyToken`): with an empty token anyone could compute the
     hello proof, so a client would trust any server.
   - **Neutral wording.** The built-in series is "the built-in default
-    series" in help and output, `poo init -default-series` names it (was
-    `-reserve`), and `builtin` is `"default"` in `poo series info`,
-    `poo series followed` and keygen's `series_addresses`. The series
+    series" in help and output, `poon init -default-series` names it (was
+    `-reserve`), and `builtin` is `"default"` in `poon series info`,
+    `poon series followed` and keygen's `series_addresses`. The series
     itself, its id and its file are unchanged.
-  - **The "poo" name in one place.** `pkg/brand` holds the program name,
+  - **The "poon" name in one place.** `pkg/brand` holds the program name,
     the data folder, the user agent and the prefixes of metric names,
     file kinds and temporary files; the code takes them from there, so a
     rename is one edit plus the strings brand.go lists as frozen (the
-    wallet key label `PoO-wallet-` and the RPC label `poo-rpc-hello`,
+    wallet key label `PoO-wallet-` and the RPC label `poon-rpc-hello`,
     which old keys and tokens depend on). The name is not changed.
   - **Registry URL.** There is no built-in registry URL yet. When one is
-    added it is a single default in the code that `poo init` does not
+    added it is a single default in the code that `poon init` does not
     write into node.json, so a new name or domain changes one line.
 - **Why:** White's freeze list must be settled before the first tag;
   the placeholder names will change (jerry, 2026-11-06).
@@ -5223,26 +5223,26 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 
 - **Decision:** jerry asked for an option to use keys the node never
   holds, as with a cold wallet. All of it is optional and node-side:
-  - **Your own key.** `poo keygen -raw -seed-file F` takes a private key
+  - **Your own key.** `poon keygen -raw -seed-file F` takes a private key
     made elsewhere, in the algorithm's own raw form
     (`policy.NewRawSigner`: an Ed25519 seed or seed and public key, an
     ECDSA or secp256k1 scalar, an ML-DSA seed, an SLH-DSA key), and
     prints its public key and addresses, never the key.
-  - **A watch-only wallet.** `poo wallet create -watch-only` makes a
+  - **A watch-only wallet.** `poon wallet create -watch-only` makes a
     wallet file with no seed (`"watch_only": true`). It follows
-    addresses made from public keys (`poo wallet policy -key ALG:PUB`),
-    follows mints (`poo wallet watch`), shows balances and prepares
-    payments (`poo wallet pay -out`), but refuses anything that needs a
+    addresses made from public keys (`poon wallet policy -key ALG:PUB`),
+    follows mints (`poon wallet watch`), shows balances and prepares
+    payments (`poon wallet pay -out`), but refuses anything that needs a
     private key, a claim included (`wallet.ErrWatchOnly`); a claim is
-    made where the key is, with `poo claim -seed-file`. Its change goes back to the first input's
+    made where the key is, with `poon claim -seed-file`. Its change goes back to the first input's
     address, or to `-change ADDR`.
-  - **Sign elsewhere.** `poo sign FILE -key-file K` adds the signatures
+  - **Sign elsewhere.** `poon sign FILE -key-file K` adds the signatures
     one key gives to an unsigned payment, on any machine, even
     one that never runs a node, and writes the file back (0600) or to
     `-out`; `-show` prints what each leg spends and pays first. It
     refuses a key that signs none of the inputs. The unsigned file now
-    names its series' hash (`hash`), so `poo sign` needs no node; `-hash`
-    is for an older file. The signed file is sent with `poo wallet
+    names its series' hash (`hash`), so `poon sign` needs no node; `-hash`
+    is for an older file. The signed file is sent with `poon wallet
     submit`, as before.
 - **Why:** someone who does not trust the software, or wants no private
   key on a networked machine, can still use the coin.
@@ -5257,23 +5257,23 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     keygen -raw agree, a watch-only wallet claims and pays through a cold
     key, the wrong key is refused, the payment is submitted and kept).
 - **For Black (Part D):** please confirm no rule changed: a payment
-  signed by `poo sign` is the same transaction the wallet would sign,
+  signed by `poon sign` is the same transaction the wallet would sign,
   and the watch-only change default spends nothing new.
 
-### D194. Round 35 fixes: what poo sign shows and checks, raw keys self-tested, key files never echoed, no unrecorded pay, ledger files read twice (BLUE-036)
+### D194. Round 35 fixes: what poon sign shows and checks, raw keys self-tested, key files never echoed, no unrecorded pay, ledger files read twice (BLUE-036)
 
 - **Merged first:** Green's #289 (GREEN-060: the cold-key steps with the
-  key never on the node, `poo wallet claim -to-policy -out`, `poo keygen
+  key never on the node, `poon wallet claim -to-policy -out`, `poon keygen
   -out`) and Orange's #286 (ORANGE-045: one signature per key per
   transaction).
 - **Decision:**
-  - **RED-104.** `poo sign` prints the payment's `series`, the `hash`
+  - **RED-104.** `poon sign` prints the payment's `series`, the `hash`
     each tid uses, and each leg's `spends` (`tid:index`).
     `Unsigned.DecodeLeg` refuses a leg whose series is not the file's.
     `SignWith` checks each signature it adds under the key's verifier.
     The optional `-series` and `-expect-*` flags are not added.
   - **RED-105.** `Unsigned.Variable` (`"variable": true`, written by
-    `poo wallet pay` and `wallet claim -to-policy`) marks a
+    `poon wallet pay` and `wallet claim -to-policy`) marks a
     variable-supply series. `tx.DecodeVariable` reads the part for a
     series the process has not built. A file without the mark that fails
     to decode gets an error that names the mark.
@@ -5289,13 +5289,13 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - **GUI-032.** `seedFlags.read` never returns the path or the OS
     error's text. It says only that the key or seed file does not exist,
     cannot be read, or could not be read. The hidden prompt and the
-    errors say "key" for `poo sign` and `keygen -raw`.
-  - **GUI-GREEN-061.** `poo wallet pay` refuses up front on a watch-only
+    errors say "key" for `poon sign` and `keygen -raw`.
+  - **GUI-GREEN-061.** `poon wallet pay` refuses up front on a watch-only
     wallet with no `-out`. For a payment that needs other signatures and
     has no `-out`, it refuses before the wallet is saved, so nothing is
     recorded or held. `wallet passwd` refuses a watch-only wallet before
     it asks for a passphrase. The watch-only claim error already points
-    at `claim -to-policy` and `poo sign` (GREEN-060).
+    at `claim -to-policy` and `poon sign` (GREEN-060).
 - **Why:** an offline signer must see and check what it signs; a key
   must give an address it can spend; a GUI field must not print a pasted
   key back; and a payment nobody can finish must not hold units.
@@ -5310,14 +5310,14 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 ### D195. Files keep what a later release adds: the payment file's kind and format, the wallet's unknown keys (W-23, W-24)
 
 - **Decision:**
-  - **W-23.** A payment file (`wallet.Unsigned`, written by `poo wallet
-    pay -out` and read by `poo sign`, `poo wallet sign` and `poo
-    submit`) carries `"kind": "poo-payment"` (`brand.KindPrefix` +
+  - **W-23.** A payment file (`wallet.Unsigned`, written by `poon wallet
+    pay -out` and read by `poon sign`, `poon wallet sign` and `poon
+    submit`) carries `"kind": "poon-payment"` (`brand.KindPrefix` +
     `payment`) and `"format": 1`. A file of another kind is refused as
     not a payment, a format above 1 is refused with a message to use a
     later release, and a file with neither (written before this round)
     is still read. Unknown top-level and leg keys are kept and written
-    back, so `poo sign` passes on what a later release added.
+    back, so `poon sign` passes on what a later release added.
   - **W-24.** A wallet file keeps unknown top-level keys and writes them
     back on every save.
   - New `pkg/keepjson`: `Split` reads the fields a struct does not know
@@ -5367,9 +5367,9 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     as a layer from that peer, and a claim below the target counts as an
     invalid item against the peer. Outcomes: accepted, paid, too weak,
     filled, closed, reserved, mismatch, repeat.
-  - **Payment is an ordinary wallet payment** made by `poo bounty pay`;
+  - **Payment is an ordinary wallet payment** made by `poon bounty pay`;
     the node then tells the grinder the payment's tids (outcome paid).
-  - `poo bounty post | list [-ask] | work ID -to ADDR | pay ID [-claim
+  - `poon bounty post | list [-ask] | work ID -to ADDR | pay ID [-claim
     NONCE] | cancel ID`; RPC `/v1/bounty` and `/v1/bounty/{post,
     cancel, ask, work, paid}`. Posted offers are kept in
     `bounties.json`; offers from peers are kept in memory.
@@ -5402,7 +5402,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   3 (pruning paid offers, saving off the inbox worker, a cheaper
   `Receive`) are for Grey.
 - **Decision:**
-  - **RED-109.** `poo bounty work` starts at a random nonce.
+  - **RED-109.** `poon bounty work` starts at a random nonce.
   - **RED-110.** `Book.Claim` takes `known` (the pool holds that layer,
     from `ledger.Pool.HasLayer`). A claim with no lease is `no lease`
     (outcome 10), and a known layer is `known` (outcome 9) and not owed.
@@ -5421,7 +5421,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     more than the count, each at least the offer's strength, no repeated
     nonce). What fails is left out and listed by `Dropped`, which the
     daemon logs. `Owed` saturates instead of wrapping. A preview with
-    `-yes` for `poo bounty pay` is not added (a new flag needs a GUI
+    `-yes` for `poon bounty pay` is not added (a new flag needs a GUI
     form); `pay` pays only claims that passed these checks.
 - **Why:** a grinder must be able to fill a multi-layer offer, a payer
   must not owe for a layer it holds, and the limits must hold against
@@ -5461,12 +5461,12 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     at bounty version 1; a change they must not ignore is bounty version
     2, sent only to peers listing 2 or more; a new outcome must read
     safely as not paid; relaying passes on the bytes received.
-  - **W-30.** `poo status` (`GET /v1/status`) always has `bounty:
+  - **W-30.** `poon status` (`GET /v1/status`) always has `bounty:
     {"post", "take"}` from the running policy.
   - **ORANGE-046 P1.** An offer that needs nothing more (cancelled,
     expired or filled, every claim paid, no lease) moves to
     `bounties-done.jsonl` beside `bounties.json`: a first line naming it
-    (`poo-bounties-done`, format 1), then one offer a line, appended and
+    (`poon-bounties-done`, format 1), then one offer a line, appended and
     synced before the offer leaves `bounties.json`. An offer found in
     both after a crash is left out of the book. Done offers are no longer
     listed.
@@ -5494,18 +5494,18 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
        `bounty.budget`, `bounty.max_leases_per_grinder`,
        `bounty.lease_floor_seconds`, `bounty.lease_ceiling_seconds`,
        `bounty.held_offers`, `bounty.min_price`), listed and set by
-       `poo policy limits`, applied on reload. The on-off settings take
+       `poon policy limits`, applied on reload. The on-off settings take
        1 or 0; amounts are at most 2^53 - 1, so a node.json with a larger
        amount is now refused.
     2. Every ack prints `outcome_name` beside `outcome`.
     3. Offers print `state` (open, filled, closed, expired; a peer's
        offer: open, leased, taken, filled, closed) and `closes`.
-    4. `poo bounty pay` short of units, with earlier payments, says the
+    4. `poon bounty pay` short of units, with earlier payments, says the
        change of an earlier payment is spendable once an entry holds it.
 - **Why:** older and newer nodes must name an offer alike; files must
   survive a later release; the market's file and inbox costs must not
   grow with its history; valid weight is never thrown away; and a front
-  end must read the market without poo's tables.
+  end must read the market without poon's tables.
 - **Consensus:** None. A layer handed to the engine from a claim is an
   ordinary pushed layer, checked like any other; the rest is files, node
   policy and output.
@@ -5529,7 +5529,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 ### D199. Round 37 fixes: bounty offers bounded in bytes, held offers and leases per address and /64, the done file read in bounded pieces (BLUE-038)
 
 - **Merged first:** Green's #314 (GREEN-062: turning the bounty market
-  on with `poo policy limits -set`). Orange's #313 (ORANGE-047,
+  on with `poon policy limits -set`). Orange's #313 (ORANGE-047,
   re-measurements and three proposals) is docs only and is not merged
   here; its proposals are for Grey, and proposal 3 also needs White.
 - **Decision:**
@@ -5595,9 +5595,9 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - **GUI-GREEN-063.** (1) A filled offer stays filled after its time
     runs out. (2) An offer that finishes by the clock moves to the done
     file (the clock closed it without a save before), and a start moves
-    any that finished while the node was stopped. (3) `poo policy limits`
+    any that finished while the node was stopped. (3) `poon policy limits`
     marks `bounty.post` and `bounty.take` with `"switch": true`.
-  - **GUI Orange R37B.** `poo status -counts` carries `bounty` too.
+  - **GUI Orange R37B.** `poon status -counts` carries `bounty` too.
   - Black's optional idea (spend a layer budget unit on a claimed layer)
     is not taken: Black measured the claim lane at about 2% of the layer
     budget, every layer in it checked in full.
@@ -5622,8 +5622,8 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 
 ### D201. Round 38 fixes: the done file read from its offset only when the line there is the one named, a cut line ended before the next record, and bounty pay records the wallet's payment instead of paying twice (BLUE-039)
 
-- **Merged first:** Green's #328 (GREEN-063: `poo wallet watch -tid` and
-  `poo bounty list -done N`). Orange's #329 (ORANGE-048) is measurements
+- **Merged first:** Green's #328 (GREEN-063: `poon wallet watch -tid` and
+  `poon bounty list -done N`). Orange's #329 (ORANGE-048) is measurements
   only and is not merged here; it asks nothing of Blue.
 - **Decision:**
   - **RED-118.**
@@ -5643,12 +5643,12 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
       memory and file agree. If the offer reached the done file before
       the failure, the payment stands and `bounties.json` is saved again
       on the timer.
-    - `poo bounty pay` looks in the wallet's `Sent` list before it sends:
+    - `poon bounty pay` looks in the wallet's `Sent` list before it sends:
       memo `bounty <short id>`, the claim's address, amount and series,
       every leg pending or selected, no tid recorded on another claim.
       Found, it is recorded with the node and nothing is sent
       (`recorded` in the output). A payment sent only in part is refused.
-    - Not taken: a "paying" mark in `bounties.json` and a new `poo bounty
+    - Not taken: a "paying" mark in `bounties.json` and a new `poon bounty
       paid` command. The wallet's record is the mark, and a new command
       or flag needs a GUI form.
 - **Why:** a payer must never pay one layer twice, and a grinder's owed
@@ -5672,7 +5672,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     cannot tell which grinder can finish which, and expected time
     depends on the grinder's hardware. So the grinder says it:
     - `bounty.max_strength` (0 to 255; 0, unset, sends 255: any) and
-      `-max-strength S` on `poo bounty list -ask` and `poo bounty work`
+      `-max-strength S` on `poon bounty list -ask` and `poon bounty work`
       (over 255 refused). The flag wins over the limit.
     - Message 71 (list request) and 73 (take) carry a `U8` max strength.
       It is a required field of bounty version 1, not a trailing extra:
@@ -5688,13 +5688,13 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
     `sentFor` treats a leg state it does not know as sent: only no state,
     `unsigned`, `dropped` and `void` count as unsent, so a later release's
     state can never make a paid claim look unpaid and be paid twice.
-  - **W-35.** `?done=N` (and `poo bounty list -done N`) always returns
+  - **W-35.** `?done=N` (and `poon bounty list -done N`) always returns
     `done`, `[]` when nothing is finished; without it `done` is left out.
   - **W-33 (rule only).** A kept field that describes other data (such as
     `done_size` or `done_last`) is a hint: it is checked against that
     data before use, and a wrong hint costs time, never correctness.
   - **GUI-GREEN-064.**
-    - `poo bounty list` and `poo status` (`bounty.notes`) carry the
+    - `poon bounty list` and `poon status` (`bounty.notes`) carry the
       limits notes when `bounty.post` is on but `bounty.max_amount` or
       `bounty.budget` is not set, so `post: true` is not read as "posting
       works".
@@ -5722,7 +5722,7 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   docs only and asks nothing of Blue.
 - **Decision:**
   - **RED-120.** `sentFor` now returns a payment of the claim whose legs
-    are each sent or dropped, and says when some are dropped. `poo
+    are each sent or dropped, and says when some are dropped. `poon
     bounty pay` then refreshes that payment from the node and resends its
     dropped legs (the wallet's own `Refresh` and `Resend`), saves the
     wallet, and looks again. When every leg is sent, it records the
@@ -5753,8 +5753,8 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
 - **Decision.** Merged first: Blue's #346 (BLUE-040, D203, with Green's
   #343 GREEN-064), Red's #342 (RED-120, RED-121), Orange's #340
   (ORANGE-049, measured), White's #347, Black's #351 (all clear).
-  - **poo is now poon (jerry):** proof of ownership network, or node.
-    Entries before this one keep the name they were written with.
+  - **The tool is now poon (jerry):** proof of ownership network, or node.
+    D205 then renamed it in every earlier record too.
     - The command and binary: `poon` (`cmd/poon`); the GUI: `poon-gui`
       (`gui/cmd/poon-gui`). Error lines start `poon:`.
     - The data folder: `~/.poon`. Environment variables start `POON_`
@@ -5766,7 +5766,8 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
       `poon_`; the hello's agent is `poon`; the release signers' principal
       is `poon-release`.
     - Unchanged, as `pkg/brand` lists: the wallet key label `PoO-wallet-`,
-      the RPC hello label `poo-rpc-hello`, every byte form and hash label.
+      the RPC hello label, every byte form and hash label. D205 then
+      renamed the RPC hello label too.
       No consensus byte, id or hash changes.
     - Nothing is released, so nothing reads the old names.
     - A later rename changes `brand.Name` and `brand.EnvPrefix` and then
@@ -5789,3 +5790,23 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   - `pkg/bounty/green065_test.go`: `TestGUIGreen065HeldFilledByAccepts`
   - `pkg/nodepolicy/limits_test.go`: `TestLimitsSayWhatZeroMeans`
   - `pkg/cli/bounty_test.go`: `TestBountyMarket` (`asked`)
+
+### D205. Round 40 follow-up: every use of the old name renamed, the RPC hello label included (jerry)
+- **Decision.** jerry asked for "everything", since nothing is released:
+  - The RPC hello proof label is `poon-rpc-hello`. A client and node
+    built before this change no longer prove each other; nothing released
+    has the old label.
+  - Every record in the repository uses `poon`: earlier decisions,
+    findings, proposals, reviews, the changelog and the file names that
+    carried the old name (renamed with `git mv`, so their history
+    follows). Only the name changed; no record lost any other text.
+  - Kept: `PoO`, the protocol's own name (Proof of Ownership), in the
+    consensus hash labels from the design documents (`PoO-tx`,
+    `PoO-entry`, `PoO-pool`, ...), the wallet key labels (`PoO-wallet-`)
+    and the snapshot magic. It is not the tool's name, and changing a hash
+    label changes every id, so it would need jerry's approval as a
+    consensus change.
+- **Why:** jerry's call: one name everywhere before the first release.
+- **Consensus:** None. The RPC label is local between `poon` and its own
+  node.
+- **Tier:** RPC, docs.

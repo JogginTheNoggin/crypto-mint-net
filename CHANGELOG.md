@@ -259,8 +259,8 @@ built.
   - The tool is now `poon` (proof of ownership network, or node), and the
     GUI `poon-gui`: the data folder is `~/.poon`, environment variables
     start `POON_` (`POON_HOME`, `POON_PASSPHRASE`, `POON_SEED`, ...),
-    shared files' kinds start `poon-`, metrics start `poon_`. The name is
-    kept in `pkg/brand`.
+    shared files' kinds start `poon-`, metrics start `poon_`, and the RPC
+    hello label is `poon-rpc-hello` (D205). The name is kept in `pkg/brand`.
   - `poon bounty list -ask` says how many peers it asked, with a note
     when none could be; a grinder's held offer reads filled once the
     payer accepted every layer it asks for; `poon policy limits` says

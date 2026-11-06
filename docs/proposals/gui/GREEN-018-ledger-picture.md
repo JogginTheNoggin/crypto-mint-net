@@ -11,7 +11,7 @@
 ## Summary
 
 The second half of GREEN-006. When Explore shows a page of
-`poo ledger`, a small picture appears above the table. Each entry is a
+`poon ledger`, a small picture appears above the table. Each entry is a
 bar, oldest on the left, linked to its parent, with its exact own weight
 above it, its height and transaction count below, and the rest of its
 fields in a tooltip. When the page starts at the tip, the newest bar is
@@ -26,7 +26,7 @@ and numbers.
 ## Idea
 
 - `ledgerPicture(page)` draws inline SVG from the JSON that
-  `poo ledger` printed, using the `onResult` hook Grey added for paging.
+  `poon ledger` printed, using the `onResult` hook Grey added for paging.
   It does not re-render or replace the table.
 - Every number shown is a printed field. The only arithmetic is scaling
   bar heights to the largest own weight on the page, and the caption says
@@ -44,7 +44,7 @@ arrive.
 
 ## Cost and risk
 
-About 50 lines. The risk is the picture implying more than poo printed.
+About 50 lines. The risk is the picture implying more than poon printed.
 Labelling exact values and showing only printed links keeps it honest.
 
 ## Prototype

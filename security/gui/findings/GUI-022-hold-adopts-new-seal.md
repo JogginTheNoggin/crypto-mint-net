@@ -49,23 +49,23 @@ can sit at its masked prompt indefinitely, and it is listed in Jobs.
 
 ## Reproduction
 
-poo at 052d032, `poo init -example`, and a wallet made with passphrase
+poon at 052d032, `poon init -example`, and a wallet made with passphrase
 `old`. The driving script uses two processes, one waiting on its stdin
 prompt.
 
 **Stale `passwd` overrides the rotation:**
 
-1. Start `poo wallet passwd -passphrase-file old.txt` (holding `old`). It
+1. Start `poon wallet passwd -passphrase-file old.txt` (holding `old`). It
    unlocks with `old` and waits at `new passphrase:`.
-2. Run `poo wallet passwd` with `POO_PASSPHRASE=old` and
-   `POO_NEW_PASSPHRASE=rotated`. It prints `passphrase changed`.
+2. Run `poon wallet passwd` with `POON_PASSPHRASE=old` and
+   `POON_NEW_PASSPHRASE=rotated`. It prints `passphrase changed`.
 3. Answer step 1 with `mine`. It prints `passphrase changed`.
 4. `wallet seed` with `rotated` fails with "wallet: wrong passphrase".
    With `mine` it succeeds, and with `old` it fails.
 
 **Stale command accepted on the old passphrase:**
 
-1. Start `poo wallet address -label slow` with no passphrase in the
+1. Start `poon wallet address -label slow` with no passphrase in the
    environment. It reads the wallet and waits at `passphrase:`.
 2. `passwd` changes `old` to `new`.
 3. Answer step 1 with `old`. It gives out an address, saves, and exits 0.
@@ -122,7 +122,7 @@ Keep D146's merge for everything but the seal:
 GUI/Blue makes no GUI change. The seal check and `Hold` live in pkg/wallet
 and pkg/cli, which the GUI's forms and terminal run as is. A guard only
 in the GUI could not cover the terminal or other shells, and would make
-the GUI act differently from headless poo. GUI/Blue passed the finding
+the GUI act differently from headless poon. GUI/Blue passed the finding
 to Source through GUI/Grey. Once Source's fix lands, GUI/Blue can add a
 GUI e2e check: leave one wallet form at its passphrase prompt, change the
 passphrase in another, and expect the waiting one to be refused with the

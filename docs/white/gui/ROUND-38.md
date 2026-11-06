@@ -13,13 +13,13 @@ Checked locally (Actions has no runner): #336 is a fast-forward over
 `1e71cf0`. On it I ran `go -C gui vet ./...`, `go -C gui test -race
 ./...`, the Windows amd64 and macOS arm64 cross-builds, and
 `gui/e2e/qol.mjs`, `views.mjs`, `parity.mjs` (82 commands) and
-`terminal.mjs` on a poo-gui built as `0.1.0-alpha.1`. All pass.
+`terminal.mjs` on a poon-gui built as `0.1.0-alpha.1`. All pass.
 
 ## Items
 
 ### #324 GUI R38A: Bounty tables in pages of 500
 
-Verdict: **clear**. This changes only how much is drawn at once. poo's
+Verdict: **clear**. This changes only how much is drawn at once. poon's
 JSON is unchanged, and the page says how many rows remain.
 
 ### #327 GUI R38A: switch limits, limits notes, bounty state
@@ -42,7 +42,7 @@ Verdict: **clear**
 Verdict: **clear**
 
 - `secretLine` now checks a key-file value in linear time. What it
-  hides is unchanged, and so are the `poo-gui-history` key and shape,
+  hides is unchanged, and so are the `poon-gui-history` key and shape,
   so saved history needs nothing on upgrade.
 - GUI-GREEN-064 (#331): wording and layout for switches and notes, with
   CHANGELOG and FEATURES lines.

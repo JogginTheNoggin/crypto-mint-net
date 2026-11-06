@@ -1,4 +1,4 @@
-# GREEN-017: Four rough edges in `poo grind`
+# GREEN-017: Four rough edges in `poon grind`
 
 | Field | Value |
 | --- | --- |
@@ -26,9 +26,9 @@ This is a proposal only. Item 1 goes against `TestJobLimits`, which says
 ## Problem and idea
 
 **1. A device that cannot work is found only after the job starts.**
-`poo grind start tip -device gpu:0` prints a job in state `running`, and
+`poon grind start tip -device gpu:0` prints a job in state `running`, and
 the job then ends `failed` a moment later. A person who starts a job and
-walks away finds out hours later. `poo work -device gpu:0` refuses at once.
+walks away finds out hours later. `poon work -device gpu:0` refuses at once.
 The idea is a check in `Manager.Start`: for each hash the job would grind
 (the hashes of the followed pools, narrowed by `-series`), run `Choose`
 with the given `-device` and `-threads`, and refuse the start if one

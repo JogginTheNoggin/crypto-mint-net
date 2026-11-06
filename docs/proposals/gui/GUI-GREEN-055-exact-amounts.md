@@ -10,18 +10,18 @@
 
 ## Summary
 
-The GUI showed some amounts **wrong**. poo prints amounts, balances and
+The GUI showed some amounts **wrong**. poon prints amounts, balances and
 totals as JSON numbers (Go `uint64`), and the GUI read every result with
 `JSON.parse`. JavaScript numbers are exact only up to 2^53
 (9,007,199,254,740,991), so any larger whole number was shown rounded.
-This happens with no error. The output poo printed was right; only what
+This happens with no error. The output poon printed was right; only what
 the GUI drew from it was wrong.
 
 On the reserve series (10^14 units a mint, D170), 91 mints already pass
 2^53, so a wallet's `total` or an address's `balance` could be off by a
 few units. A series with more than 2^53 units in a mint shows the error
-straight away. I checked this with a real `poo` on main @ 4e1c601:
-`poo series new -mints 32 -pool-size 32 -supply 100000000000000001`
+straight away. I checked this with a real `poon` on main @ 4e1c601:
+`poon series new -mints 32 -pool-size 32 -supply 100000000000000001`
 printed `"supply": 100000000000000001`, and the New series parameters
 form showed **100000000000000000**.
 
@@ -31,13 +31,13 @@ and uses it wherever a result is drawn.
 ## Problem
 
 - **Amounts are what people check.** A balance or a supply that is off by
-  one unit says the GUI cannot be trusted with money, even when poo is
+  one unit says the GUI cannot be trusted with money, even when poon is
   right.
 - **Source half-solved this already.** Pool weights and a series' total
   `units` are printed as decimal strings. `amount`, `balance`, `total`
   and a series' `supply` are still numbers. With the reserve as the
   default, these are the fields that grow large.
-- **Nothing showed it.** No error, no warning. Copy output copies poo's
+- **Nothing showed it.** No error, no warning. Copy output copies poon's
   exact text, so a person comparing the two would see a mismatch and not
   know which to believe.
 
@@ -78,13 +78,13 @@ and uses it wherever a result is drawn.
 About 30 lines in render.js. A result with no 16-digit run takes the
 plain path. Code that reads specific fields is unchanged, except the two
 series panels and Watch, which only print what they read. No rule,
-consensus or policy change: the GUI shows exactly what poo printed.
+consensus or policy change: the GUI shows exactly what poon printed.
 
 ## Prototype
 
 This PR.
 - views.mjs runs New series parameters with `-supply 100000000000000001`
-  against the real poo and checks that the supply row reads exactly that.
+  against the real poon and checks that the supply row reads exactly that.
   With `JSON.parse` it reads `100000000000000000`; I checked that the
   test fails without the fix.
 - qol.mjs checks `parseJSON` on its own:

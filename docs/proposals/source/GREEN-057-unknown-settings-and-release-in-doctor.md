@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | proposed (prototyped) |
 | Based on | `main` @ `6260590` |
-| Area | `pkg/nodepolicy` (`UnknownDropped`), `pkg/node` (a start warning), `pkg/cli` (doctor: `policy` lines, a new `release` check), docs (nodepolicy, poo) |
+| Area | `pkg/nodepolicy` (`UnknownDropped`), `pkg/node` (a start warning), `pkg/cli` (doctor: `policy` lines, a new `release` check), docs (nodepolicy, poon) |
 | Effort | small |
 | Consensus | none: what doctor and the start log say about node.json and the running release. Nothing is read, kept or saved differently |
 | Decided by | Grey (Black may skip it; White may want to look, as it builds on W-1 and W-10) |
@@ -19,9 +19,9 @@ Green ran D184 as a node runner:
    - `series[0].future_in_list` inside a list entry.
 2. Started the node. It warned about `future_top` and `p2p.future_inner`
    only.
-3. Saved with `poo policy limits -set recent_window=20`. The two named
+3. Saved with `poon policy limits -set recent_window=20`. The two named
    settings were kept, and `series[0].future_in_list` was gone.
-4. Read `release` in `poo status` and in `poo status -counts`, and
+4. Read `release` in `poon status` and in `poon status -counts`, and
    checked the snapshot count fields.
 
 Everything behaved as D184 describes. D184 does say unknowns inside list
@@ -57,12 +57,12 @@ entries are not kept. Three loose ends showed up:
     or to correct a misspelt key.
 - **Doctor, `release`.** This new check comes after `rpc`, when the node
   answers.
-  - It is ok when the node's version and commit match this `poo`'s.
-  - It warns when they differ: "the node runs 0.1.0-dev, but this poo
-    is 0.1.1-dev; if this poo is the upgrade, restart the node".
+  - It is ok when the node's version and commit match this `poon`'s.
+  - It warns when they differ: "the node runs 0.1.0-dev, but this poon
+    is 0.1.1-dev; if this poon is the upgrade, restart the node".
   - It also warns when the node gives no release, which means a node
     from before W-10.
-- **Docs.** nodepolicy.md, under W-1, and the `poo doctor` row in poo.md.
+- **Docs.** nodepolicy.md, under W-1, and the `poon doctor` row in poon.md.
 
 ## How it was tested
 
@@ -78,7 +78,7 @@ entries are not kept. Three loose ends showed up:
 - **By hand:**
   - The start log shows both warnings.
   - Doctor shows the two `policy` lines.
-  - A `poo` built with `-X ...cli.Version=0.1.1-dev` warns on
+  - A `poon` built with `-X ...cli.Version=0.1.1-dev` warns on
     `release` against the running 0.1.0-dev node.
 - **Checks run locally:**
   - gofmt, go vet and staticcheck;

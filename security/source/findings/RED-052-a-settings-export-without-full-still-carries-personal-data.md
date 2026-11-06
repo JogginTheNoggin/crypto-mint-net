@@ -18,8 +18,8 @@ settings only with `-full`. That is true of keys and tokens, but node.json
 holds other things that identify the owner or open a door, and
 `MachineLocal` (`rpc`, `no_sync`, `p2p.listen`, `p2p.advertise`,
 `grind.device`, `grind.threads`, `grind.jobs.device`,
-`grind.jobs.threads`) does not list them. A plain `poo settings export`
-(and `poo policy export`) writes all of these:
+`grind.jobs.threads`) does not list them. A plain `poon settings export`
+(and `poon policy export`) writes all of these:
 
 | In the file | Why it is personal |
 | --- | --- |
@@ -38,14 +38,14 @@ never leaves them out.
 A node.json with the first four rows, then:
 
 ```
-$ poo settings export | grep -n "alice\|hunter2\|SECRET\|192.168"
+$ poon settings export | grep -n "alice\|hunter2\|SECRET\|192.168"
 18:            "192.168.1.20:8646"
 21:            "/home/alice/regs/mine.json",
 22:            "https://bob:hunter2@reg.example/list.json?key=SECRET"
 27:            "192.168.1.20:8646": "detailed"
 ```
 
-`poo policy export` writes the same. The file is meant to be shared
+`poon policy export` writes the same. The file is meant to be shared
 ("share a setup"), so this goes out with it.
 
 ## What could happen
@@ -79,7 +79,7 @@ Whether the GUI export form shows the same file. It uses the same code
 
 Fixed (D156).
 
-- A plain export, `poo settings export` and `poo policy export` alike,
+- A plain export, `poon settings export` and `poon policy export` alike,
   leaves out what is personal (`nodepolicy.Personal`, in
   `ExportPolicy`, which `ExportSettings` uses). That covers three things:
   - a registry that is a local file;

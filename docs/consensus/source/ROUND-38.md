@@ -41,7 +41,7 @@ payment sent but not recorded), and carries Green's GREEN-063.
   older nodes don't know is ignored, as dispatch already does. Black will
   check phase 2 against these terms when it is built.
 - **Every file change is a node's own file.** The done file, `done_size`,
-  `done_last`, the wallet's single-pass read and write, and `poo bounty
+  `done_last`, the wallet's single-pass read and write, and `poon bounty
   pay`'s check of the wallet's sent list never touch transaction bytes or
   tids.
 
@@ -93,7 +93,7 @@ D200 took the first option.
     payment can't be owed twice.
   - This decides what the market owes, never what a ledger holds.
 - **Payments are recorded, never sent twice (RED-119).** `Book.Paid` puts a
-  claim back to unpaid when its save fails. `poo bounty pay` looks for a
+  claim back to unpaid when its save fails. `poon bounty pay` looks for a
   matching payment in the wallet's `Sent` list (memo, address, amount,
   series, legs pending or selected, no tid used by another claim) and
   records it rather than sending again.
@@ -104,11 +104,11 @@ D200 took the first option.
   made. `wallet.Open` and `Save` decode and encode directly.
   `TestOrange047FileBytesUnchanged` compares both paths byte for byte. A
   payment file's transaction bytes go through the same `Unsigned`
-  decoding, so `poo sign` still signs the tid every node computes.
+  decoding, so `poon sign` still signs the tid every node computes.
 - **Offer states (GUI-GREEN-063).** Filled stays filled, offers that
   finish by the clock move to the done file, and `switch` marks appear in
   the limits list. All of this is display and market state.
-- **`poo wallet watch -tid` and `poo bounty list -done` (GREEN-063).**
+- **`poon wallet watch -tid` and `poon bounty list -done` (GREEN-063).**
   `-tid` asks the node for a transaction through the existing `Tx` call,
   and adds that transaction's mint to the wallet's watch list. `-done`
   reads the done file. Both are reads.
@@ -123,8 +123,8 @@ D200 took the first option.
 | D200 (ORANGE-047 P2, P3): `SplitValid`, `JoinValid`; wallet read and written in one pass | Tool files, the same bytes (tested). Transaction bytes and tids are unchanged |
 | D200 (GUI-GREEN-063, GUI Orange R37B): filled stays filled, offers done by the clock archived, `switch` marks, `bounty` in `status -counts` | Market state and display |
 | D201 (RED-118): `done_last`, torn and trimmed done files | A node's own file. A payment is never owed twice |
-| D201 (RED-119): failed `Paid` save rolled back; `poo bounty pay` records the wallet's earlier payment | Market records. The payment is an ordinary transaction, and a match only avoids sending a second |
-| GREEN-063 (carried in #332): `poo wallet watch -tid`, `poo bounty list -done` | Reads through existing calls |
+| D201 (RED-119): failed `Paid` save rolled back; `poon bounty pay` records the wallet's earlier payment | Market records. The payment is an ordinary transaction, and a match only avoids sending a second |
+| GREEN-063 (carried in #332): `poon wallet watch -tid`, `poon bounty list -done` | Reads through existing calls |
 | Red (PR #326): RED-118, RED-119 | Findings, fixed in #332. Neither touches a rule |
 | ORANGE-048 (PR #329) | Measurements only. No code and no proposals |
 

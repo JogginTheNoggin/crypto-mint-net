@@ -27,7 +27,7 @@ owner's decisions.
 
 ## Problem
 
-The repository says "Pre-release" and `poo version` prints `0.1.0-dev`.
+The repository says "Pre-release" and `poon version` prints `0.1.0-dev`.
 There is a release workflow and reproducible builds (D78), but no
 decision on what the first public build is called, what it promises,
 what must be done first, or how later versions relate to it. Without
@@ -58,8 +58,8 @@ it.
 ### 2. Version numbers
 
 - **Release version**: SemVer, `MAJOR.MINOR.PATCH[-stage.N]`, one for
-  `poo` and `poo-gui` from one tag (agreed with GUI/White). Printed by
-  `poo version`, set by `-ldflags` in `scripts/release.sh`.
+  `poon` and `poon-gui` from one tag (agreed with GUI/White). Printed by
+  `poon version`, set by `-ldflags` in `scripts/release.sh`.
 - **Separate numbers that do not follow the release**: byte form (v1,
   frozen), wire version byte (1, frozen), hello `Protocol` (rises when
   peers gain a new optional ability, see WHITE-002), and each file's
@@ -76,20 +76,20 @@ it.
 | # | Item | Owner | Why |
 | --- | --- | --- | --- |
 | R1 | Choose a license and add `LICENSE` | the owner | Without one the code is not open source: "all rights reserved" (README) |
-| R2 | New default ports (P2P 8646, RPC 8645 today) and W-7: `poo init` writes the port into `node.json` | the owner picks; Grey builds | Changing them after public nodes exist moves every node that left `listen` empty |
-| R3 | A way for a first node to find peers: at least one registry file the project publishes (for example in the repo or on the release page) and `poo init` naming it, or docs that say how to get one | the owner (where it lives); Grey | Today a new node has no peers unless given `-registry` or `-peer` |
+| R2 | New default ports (P2P 8646, RPC 8645 today) and W-7: `poon init` writes the port into `node.json` | the owner picks; Grey builds | Changing them after public nodes exist moves every node that left `listen` empty |
+| R3 | A way for a first node to find peers: at least one registry file the project publishes (for example in the repo or on the release page) and `poon init` naming it, or docs that say how to get one | the owner (where it lives); Grey | Today a new node has no peers unless given `-registry` or `-peer` |
 | R4 | W-1: `node.json` keeps fields an older release does not know | Grey (R32A suggested) | Rolling back an alpha must not drop settings |
-| R5 | W-10: node release version and commit in `GET /v1/status` and `poo status` | Grey (R32A suggested) | GUI and support need to know what a node runs |
+| R5 | W-10: node release version and commit in `GET /v1/status` and `poon status` | Grey (R32A suggested) | GUI and support need to know what a node runs |
 | R6 | WHITE-002: hello carries the release and features; hello, ping and pong end with an extensions list (owner's choice, 2026-11-05) | Grey | The hello and ping layouts freeze at the tag, so this is the last chance to add them without breaking released nodes |
-| R7 | Release checklist run locally (no Actions runner): all checks of `docs/releasing.md` and two `scripts/release.sh` builds with equal `SHA256SUMS`. GUI set: `go -C gui vet ./...`, `go -C gui test -race ./...`, windows/amd64 and darwin/arm64 builds, and every gui-e2e script listed in `.github/workflows/ci.yml`, run against the `poo-gui` that `release.sh` built so the `-ldflags` version is covered | White runs the Source part; GUI/White runs the GUI set and records it in its review | `release.yml` cannot run today |
+| R7 | Release checklist run locally (no Actions runner): all checks of `docs/releasing.md` and two `scripts/release.sh` builds with equal `SHA256SUMS`. GUI set: `go -C gui vet ./...`, `go -C gui test -race ./...`, windows/amd64 and darwin/arm64 builds, and every gui-e2e script listed in `.github/workflows/ci.yml`, run against the `poon-gui` that `release.sh` built so the `-ldflags` version is covered | White runs the Source part; GUI/White runs the GUI set and records it in its review | `release.yml` cannot run today |
 | R8 | Sign `SHA256SUMS` (for example `ssh-keygen -Y sign` with a key the owner holds; its public key in the README) | the owner holds the key; White writes the steps | Reproducible builds prove what the code builds to; a signature proves the owner published it |
 | R9 | README "Status" says alpha, what that means, and how to report a bug; `SECURITY.md` has a private way to report | Grey | First public readers land there |
 | R10 | `CHANGELOG.md`: "Unreleased (0.1.0)" becomes `0.1.0-alpha.1` with the date, a GUI group of bullets, a "Known issues" list (naming GUI/White G1, settings reset on restart, if not fixed by then) | Grey and GUI/Grey at Part A; White checks | Users need to know what is missing |
-| R11 | `poo-gui` install path: documented as from the archives or `go -C gui build`, not `go install` (the `gui/go.mod` replace) | GUI/Grey docs | `go install .../poo-gui@tag` fails today (GUI/White G3) |
+| R11 | `poon-gui` install path: documented as from the archives or `go -C gui build`, not `go install` (the `gui/go.mod` replace) | GUI/Grey docs | `go install .../poon-gui@tag` fails today (GUI/White G3) |
 | R12 | Release workflow marks a pre-release tag as a GitHub pre-release (`--prerelease` when the tag has a `-`) | Grey | So the page does not show an alpha as "Latest" |
 
 Nice before alpha, not blocking: the GUI keeps its settings across
-restarts (GUI/White G1); `poo doctor` prints each data file's format
+restarts (GUI/White G1); `poon doctor` prints each data file's format
 (W-2); a release note that the first start after an upgrade replays every
 pool (W-6).
 
@@ -140,8 +140,8 @@ lowers the risk of users trusting it with value.
 | Question | Answer | What follows |
 | --- | --- | --- |
 | 1. Name | `v0.1.0-alpha.1`, as recommended | `pkg/cli.Version` on main becomes `0.1.0-alpha.1-dev`; R12 marks the tag a GitHub pre-release |
-| 2. Ports | Anything under 10000 that does not clash with existing applications (the owner thinks mobile software uses 8645 and 8646); the owner then picked 7336 and 7337 (built in R33A), and later (2026-11-05 21:36) moved them to **7732 and 7733** for the next round | **7732 for the local RPC and 7733 for peers** (W-7), keeping today's pattern (RPC one below peers). Both are unassigned in the IANA registry (checked 2026-11-05 against its CSV); no registry can rule out every unofficial use. With W-7, `poo init` also writes the ports into `node.json` from now on |
-| 3. First registry | On a website, for now | R3: the registry file lives on the owner's website. `poo init` names its URL by default once the owner gives it, and the docs say how to change it. White checks that the file is served over `https` and that a node still starts when it cannot be reached |
+| 2. Ports | Anything under 10000 that does not clash with existing applications (the owner thinks mobile software uses 8645 and 8646); the owner then picked 7336 and 7337 (built in R33A), and later (2026-11-05 21:36) moved them to **7732 and 7733** for the next round | **7732 for the local RPC and 7733 for peers** (W-7), keeping today's pattern (RPC one below peers). Both are unassigned in the IANA registry (checked 2026-11-05 against its CSV); no registry can rule out every unofficial use. With W-7, `poon init` also writes the ports into `node.json` from now on |
+| 3. First registry | On a website, for now | R3: the registry file lives on the owner's website. `poon init` names its URL by default once the owner gives it, and the docs say how to change it. White checks that the file is served over `https` and that a node still starts when it cannot be reached |
 | 4. Alpha series | The default series (reserve) | No test series. The alpha notes say plainly that the network is live on the reserve default series and that the software is alpha (see Stages) |
 | License | Not yet | R1 stays open. A public alpha without a license can still be read and run, but it is not open source until a license is added. The owner decides when |
 

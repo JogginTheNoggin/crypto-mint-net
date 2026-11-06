@@ -11,14 +11,14 @@
 ## Summary
 
 The Getting started guide still stops at wallets. It has never mentioned
-`poo doctor`, `poo watch` or `poo grind`, even though the Health check,
+`poon doctor`, `poon watch` or `poon grind`, even though the Health check,
 the Watch view and the Work view are now some of the GUI's largest
 parts. This adds four steps after "Look at the node":
 
-- Check its health: `poo doctor`
-- Watch it work: `poo watch`
-- See what can grind: `poo grind devices`
-- Help secure the ledger: `poo grind start tip`
+- Check its health: `poon doctor`
+- Watch it work: `poon watch`
+- See what can grind: `poon grind devices`
+- Help secure the ledger: `poon grind start tip`
 
 Each step about the node or wallet also gets an "Open the X view" link to
 the view that runs the same command with forms.
@@ -34,8 +34,8 @@ the view that runs the same command with forms.
 ## Idea
 
 - Four new entries in `steps`, in the same shape as the rest. Each is one
-  `poo` command line and runs only in the terminal. The commands and
-  their wording come from `poo help` and `poo grind help`.
+  `poon` command line and runs only in the terminal. The commands and
+  their wording come from `poon help` and `poon grind help`.
 - An optional `view` on a step adds a plain `#/view` link after the
   "Run in terminal" button. The steps that get one are status and doctor
   (Node), watch (Watch), the two grind steps (Work), and the two wallet
@@ -47,11 +47,11 @@ the view that runs the same command with forms.
 
 About 20 lines. No logic. The steps run nothing on their own: the
 terminal runs exactly what is shown. `grind start tip` needs a running
-node, as the step before it says, and poo explains if there isn't one.
+node, as the step before it says, and poon explains if there isn't one.
 
 ## Prototype
 
 On `claude/gui-green`. `gui/e2e/qol.mjs` checks that "Help secure the
-ledger" shows `poo grind start tip` and links `#/work`. It also checks
+ledger" shows `poon grind start tip` and links `#/work`. It also checks
 that the "Check its health" link opens the Node view. All eight e2e
 scripts pass.

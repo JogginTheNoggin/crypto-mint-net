@@ -11,11 +11,11 @@
 
 ## What is wrong
 
-1. **Offline `poo peer add ADDR -keep -label X` loses the label.**
+1. **Offline `poon peer add ADDR -keep -label X` loses the label.**
    `peerOffline` lists the address in node.json and returns after
    `CheckLabel`; it never opens the book. The reply says `"kept": true`,
    the help says "add and label". With a running node the label is set.
-2. **A bad label comes after the save.** `poo peer add ADDR -keep -label
+2. **A bad label comes after the save.** `poon peer add ADDR -keep -label
    $'x\x01y'` offline prints `peers: a label has no control characters`
    but node.json already lists the address (`grep` finds it). The same
    order holds for `remove` (node.json first, then the book).
@@ -24,7 +24,7 @@
    plan, then calls `run(true)`, which plans again. A running node's book
    and tracker can change in between (a peer learned, a block lifted), so
    what is applied is not what was checked; through the node it is two
-   requests. D154 made `poo policy import` bind the digest to the plan
+   requests. D154 made `poon policy import` bind the digest to the plan
    for this reason.
 4. **The preview does not say the addresses will be dialled.** Only the
    apply line says "the node tries them when it is short of peers". By
@@ -35,7 +35,7 @@
 
 ## How I checked it
 
-Items 1 and 2 by running `poo peer add ... -keep` offline (output above;
+Items 1 and 2 by running `poon peer add ... -keep` offline (output above;
 no `peers.json` was made by the add). Items 3 and 4 by reading the code
 (`peersImportCmd`, `Host.manage`).
 
@@ -68,7 +68,7 @@ Fixed (D158), with GREEN-046.
    repeated here, so Grey merges both.
 3. `peerport.ImportIf` plans and applies in one call, and applies only
    when the plan it just made has the given digest (`ErrNotPreviewed`
-   otherwise, and nothing changes). `poo peers import -apply -if-digest`
+   otherwise, and nothing changes). `poon peers import -apply -if-digest`
    uses it offline, and sends `if_digest` to a running node, which does
    the same in its one request (409 `conflict` on a mismatch).
 4. The preview notes that "once applied, the node tries these addresses

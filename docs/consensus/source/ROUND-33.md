@@ -6,7 +6,7 @@ This round gets the node ready for the first alpha:
 - the hello carries the release and features, and hello, ping and pong
   each end in an extension list (D186, WHITE-002 as revised, jerry's
   "hello only, both extensible");
-- new default ports, which `poo init` now writes (D187);
+- new default ports, which `poon init` now writes (D187);
 - ledger export and import, where every imported entry is fully checked
   (D188, jerry's rule).
 
@@ -22,7 +22,7 @@ and Green's GREEN-058.
     the same bytes on both.
   - Only the wire half of D76 is amended, as Black's term 1 required.
 - **Nothing decides on a peer's release, features or extensions.** They
-  are read only for `PeerInfo`, `poo peers` and the counts.
+  are read only for `PeerInfo`, `poon peers` and the counts.
   `TestHeavierWhateverTheHelloClaims` shows a heavier ledger is taken
   whatever the hello claims.
 - **An import goes through exactly the path of an entry a peer sent.**
@@ -57,7 +57,7 @@ Black checked each of the terms from Round 32 against the code.
 | Term | Holds? | What Black checked |
 | --- | --- | --- |
 | 1. Only the wire half of D76 | Yes | `TestByteFormV1Frozen` and the cross-version vectors are unchanged on `3c4ae00` and `c569810`. None of hello, ping or pong is part of any entry, layer, transaction, id, hash or signature |
-| 2. Display and optional extras only | Yes | `Release` and `Features` are read only for `PeerInfo`, which feeds `poo peers` and the counts. `Ext` is decoded and held, and nothing reads it. Nothing in `peers`, `tracking`, `chase`, `ledger`, `engine` or `node` reads any of them |
+| 2. Display and optional extras only | Yes | `Release` and `Features` are read only for `PeerInfo`, which feeds `poon peers` and the counts. `Ext` is decoded and held, and nothing reads it. Nothing in `peers`, `tracking`, `chase`, `ledger`, `engine` or `node` reads any of them |
 | 3. Baseline kept, nothing gated | Yes | No code checks a feature. `TestHeavierWhateverTheHelloClaims` covers a peer whose hello claims anything |
 | 4. Unknown skipped; malformed closes only that connection, no lasting offence | **Hello yes; ping and partial pong no** | See the condition below |
 | 5. Old and new builds can't talk | Yes | `TestHelloMalformed`. D189 names it with `wire.ErrOldHello` and the CHANGELOG says so |
@@ -179,10 +179,10 @@ own file, and a file is checked again in full when it is imported.
 
 | Item | Why it is clear |
 | --- | --- |
-| D186: release, features and extensions in hello, ping and pong; `p2p.announce_version`; `poo peers` release and claimed features | Wire layout before any release. Nothing decides on them. Byte form v1 frozen and identical across builds. Terms 1, 2, 3, 5 and 6 hold (term 4 is under the condition) |
-| D187: ports 7336 and 7337 written by `poo init`; `0.1.0-alpha.1-dev`; pre-release tags | Node policy and release tooling |
-| D188: `poo ledger export` | Reads the selected ledger. A file is only a carrier |
-| D188: `poo ledger import`, every item through `HandleEntryFrom` and `HandleLayerFrom` as `Requested` | The same checks as an entry from a peer. Nothing in a file is trusted. Not forwarded |
+| D186: release, features and extensions in hello, ping and pong; `p2p.announce_version`; `poon peers` release and claimed features | Wire layout before any release. Nothing decides on them. Byte form v1 frozen and identical across builds. Terms 1, 2, 3, 5 and 6 hold (term 4 is under the condition) |
+| D187: ports 7336 and 7337 written by `poon init`; `0.1.0-alpha.1-dev`; pre-release tags | Node policy and release tooling |
+| D188: `poon ledger export` | Reads the selected ledger. A file is only a carrier |
+| D188: `poon ledger import`, every item through `HandleEntryFrom` and `HandleLayerFrom` as `Requested` | The same checks as an entry from a peer. Nothing in a file is trusted. Not forwarded |
 | ORANGE-043 (carried in #266): streamed file; `PreverifyPage` on import batches | The same `CheckWitnesses`, which only fills the cache. Every entry is still fully checked in order |
 | D189 (RED-097): the export ends where its header says, or fails | Tool output |
 | D189 (RED-098): import call bounded at 256 items and 8 MiB after the first; `-dry-run` | No entry refused by size (the first item has no bound). The p2p path is untouched |

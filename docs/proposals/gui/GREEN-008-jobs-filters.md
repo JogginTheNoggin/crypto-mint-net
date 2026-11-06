@@ -18,7 +18,7 @@ job, with a count such as `×12`.
 ## Problem
 
 Panels refresh on a timer, so after a minute on the Node view the Jobs
-list is mostly `poo status`. The command the user actually ran from a
+list is mostly `poon status`. The command the user actually ran from a
 form or the terminal is hard to find, and there is no way to see only
 what failed or when something ran.
 
@@ -28,7 +28,7 @@ what failed or when something ran.
   job is kept, and "Output", "Stop" and "Run again in terminal" work as
   before on the row shown.
 - The time comes from the `started` field the server already returns.
-- Running jobs are never grouped, so a running `poo node` always has its
+- Running jobs are never grouped, so a running `poon node` always has its
   own row and Stop button.
 
 ## Cost and risk
@@ -40,7 +40,7 @@ switching grouping off.
 ## Prototype
 
 `jobsView` in `views.js`, the `.job-tools` CSS, and checks in
-`gui/e2e/qol.mjs` (two `poo status` runs show as one row, the text filter,
+`gui/e2e/qol.mjs` (two `poon status` runs show as one row, the text filter,
 and Failed only).
 
 ## Decision

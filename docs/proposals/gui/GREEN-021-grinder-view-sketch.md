@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | adopted: the Work view on poo grind (M11) |
+| Status | adopted: the Work view on poon grind (M11) |
 | Based on | claude/gui-4-watch @ 50a0edd |
 | Area | a future Work view; asks for the M11 commands (Source/Grey) |
 | Effort | medium |
@@ -13,7 +13,7 @@
 M11, the grinders, is Source/Grey's Round 5 priority, and its GUI view
 comes after the commands exist. This proposal sketches that view now, so
 the commands can be shaped to fit it. The GUI would still only run
-`poo` commands and show what they print.
+`poon` commands and show what they print.
 
 ## Problem
 
@@ -27,7 +27,7 @@ except text, such as a speed printed as prose every few seconds.
 A **Work** view with four parts:
 
 1. **Devices.** A table from a device-listing command (for example
-   `poo grind devices -o json`): name, kind (CPU or GPU), cores or
+   `poon grind devices -o json`): name, kind (CPU or GPU), cores or
    compute units, instruction sets, which hashes have a fast grinder,
    and which one auto would pick, with the reason. A select sets the
    device for the commands below, like the wallet file in GREEN-016.
@@ -49,9 +49,9 @@ is being written:
 - A streaming mode that prints one JSON object per line: start (device,
   hash, target), periodic progress (`tries`, `elapsed_ms`,
   `rate_per_s`, `best_strength`), found (entry or layer hash, strength),
-  and end (reason). This is the same convention as `poo watch`.
+  and end (reason). This is the same convention as `poon watch`.
 - Exit cleanly on cancel, with exit 0 and an `end` line, so Stop is not
-  shown as a failure. Compare the `poo node` shutdown in GREEN-015.
+  shown as a failure. Compare the `poon node` shutdown in GREEN-015.
 - Report the chosen device and the reason in the start line, so "what
   was picked" is shown, not guessed.
 

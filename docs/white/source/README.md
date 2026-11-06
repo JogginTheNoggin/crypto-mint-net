@@ -23,7 +23,7 @@ blockers, because nothing has been released yet.
 
 | White owns | White does not own |
 | --- | --- |
-| Version numbers (`poo version`, `pkg/cli.Version`), the changelog, release notes, tags proposed to the owner | Consensus rules and hard-fork risk: that is Black. A change that needs a new rule goes to Black |
+| Version numbers (`poon version`, `pkg/cli.Version`), the changelog, release notes, tags proposed to the owner | Consensus rules and hard-fork risk: that is Black. A change that needs a new rule goes to Black |
 | Format versions of every file and message a node keeps or exchanges (table below) | The GUI: GUI/White reviews `gui/` |
 | Upgrade tests: a new build reads an old data folder, settings file, policy, peer and settings export, wallet; and talks to an older peer | Security findings: that is Red. A compatibility break that is also an exploit goes to Red as a note |
 | Downgrade and rollback: going back one release loses nothing that cannot be fetched again, or the release notes say so | Speed: that is Orange |
@@ -133,18 +133,18 @@ Checked on `origin/main` @ 4c0f708 (2026-11-05).
 | Wire messages | `pkg/wire` | header byte `Version` 1, must equal | Read | A different byte is malformed and drops the peer |
 | Wire message types | `pkg/wire`, `pkg/p2p` (dispatch) | type numbers, never reused | Read | Unknown types are ignored, by design |
 | Wire header flags | `pkg/wire` (Decode) | none | Read | Unknown flags are malformed and drop the peer (W-4) |
-| Hello | `pkg/wire` (messages.go), `pkg/p2p` | `Protocol` 1 (highest spoken), `Agent` "poo" | Any protocol 1 or more is accepted | Same; nothing negotiates down yet (W-4) |
+| Hello | `pkg/wire` (messages.go), `pkg/p2p` | `Protocol` 1 (highest spoken), `Agent` "poon" | Any protocol 1 or more is accepted | Same; nothing negotiates down yet (W-4) |
 | Pool log | `pkg/store` | header `PoO-log\x01` | Read | An unknown record kind stops the node at start (`pkg/node` "unknown record kind") (W-3) |
 | Pool snapshot | `pkg/node`, `pkg/ledger` | `PoO-snap\x01`, record version 1, and a build id | Ignored unless the same build wrote it, so every upgrade replays once (D178, RED-087) | Ignored, replayed |
 | `node.json` | `pkg/nodepolicy` | `format` 1, must equal | Read | Unknown fields are silently ignored, and lost if the older node saves the file (W-1) |
-| Policy export bundle | `pkg/nodepolicy` (bundle.go) | `kind` "poo-node-policies", `format` 1; a bare policy file is accepted | Read | Refused: `DisallowUnknownFields` and format must equal |
+| Policy export bundle | `pkg/nodepolicy` (bundle.go) | `kind` "poon-node-policies", `format` 1; a bare policy file is accepted | Read | Refused: `DisallowUnknownFields` and format must equal |
 | Settings export | `pkg/nodepolicy` (settings.go) | same bundle (`kind`, `format` 1) | Read | Refused, as above |
-| Peer export | `pkg/peerport` | `kind` "poo-peers", `format` 1 | Read | Refused: `DisallowUnknownFields` and format must equal |
+| Peer export | `pkg/peerport` | `kind` "poon-peers", `format` 1 | Read | Refused: `DisallowUnknownFields` and format must equal |
 | Peer book file | `pkg/peers` | `format` | Read | Not checked here yet (W-2) |
 | Address registry | `pkg/registry` | `format` 1 | Read | Format 1 only |
 | Wallet | `pkg/wallet` (`wallet.json`) | `format` 1, must equal | Read | Refused |
 | Local RPC | `pkg/rpc` | path prefix `/v1/`; requests decoded with `DisallowUnknownFields` | Read | A newer client sending a new field to an older node is refused (fine while the GUI ships in the same binary) |
-| Tool version | `pkg/cli.Version` "0.1.0-dev", set by `-ldflags` in release builds | `poo version` | | |
+| Tool version | `pkg/cli.Version` "0.1.0-dev", set by `-ldflags` in release builds | `poon version` | | |
 | Release archives | `scripts/release.sh`, `.github/workflows/release.yml` | tag `vX.Y.Z`, `SHA256SUMS`, reproducible (D78) | | |
 
 ## Gaps found (suggestions for Grey, R32A or later)
@@ -153,16 +153,16 @@ None of these is a consensus question. Each is node or tool behaviour.
 
 | Id | Gap | Why it matters | Suggestion | When |
 | --- | --- | --- | --- | --- |
-| W-1 | `nodepolicy.Load` uses plain `json.Unmarshal`, so an older release ignores `node.json` fields it does not know, and any save it makes (`poo follow`, `poo policy limits -set`, `poo reload` paths that save) writes the file back without them. Found by reading | A rollback silently drops settings, including defences such as limits and blocks | Keep unknown top-level and nested keys on load and write them back on save (a raw-JSON side map), and warn once at start that the file has settings this release does not know. Add a test: a file with an extra field survives Load then Save | Before v0.1.0 |
-| W-2 | No single place lists every file in a data folder and its format. Some files (peer book) are not checked against a format on read | An upgrade or rollback cannot be tested without knowing what to test | A small `pkg/node` (or `docs/`) table of data-folder files and formats, and `poo doctor` printing each file's format | R32 or R33 |
+| W-1 | `nodepolicy.Load` uses plain `json.Unmarshal`, so an older release ignores `node.json` fields it does not know, and any save it makes (`poon follow`, `poon policy limits -set`, `poon reload` paths that save) writes the file back without them. Found by reading | A rollback silently drops settings, including defences such as limits and blocks | Keep unknown top-level and nested keys on load and write them back on save (a raw-JSON side map), and warn once at start that the file has settings this release does not know. Add a test: a file with an extra field survives Load then Save | Before v0.1.0 |
+| W-2 | No single place lists every file in a data folder and its format. Some files (peer book) are not checked against a format on read | An upgrade or rollback cannot be tested without knowing what to test | A small `pkg/node` (or `docs/`) table of data-folder files and formats, and `poon doctor` printing each file's format | R32 or R33 |
 | W-3 | A pool log record kind the binary does not know stops the node at start | Fine as fail-closed, but it makes a future record kind a one-way upgrade | Before adding any record kind: either let an older node skip unknown kinds it can refetch, or bump the log header and say so in the release notes. Nothing to change now; White checks it when a kind is added | Rule only |
 | W-4 | Wire: header version byte and header flags must match exactly, and the hello's `Protocol` is accepted but never used to choose behaviour | Any future header change disconnects every older peer | Nothing to build now (wire v2 is not wanted, per the owner). Record the rule: a header change is only made behind a hello `Protocol` check, with Black's and the owner's sign-off | Rule only |
 | W-5 | No upgrade tests: nothing keeps a data folder, `node.json`, exports and wallet from an earlier build and checks a new build reads them | Compatibility is only as good as its tests | After v0.1.0 is tagged, commit a small fixture data folder and files written by v0.1.0 under `testdata/compat/v0.1.0/` and a test that opens each with the current code. Until then, a fixture from the current format 1 | Fixture now, release copy at v0.1.0 |
-| W-6 | Snapshots are thrown away on every new build, so the first start after an upgrade replays every pool | Upgrades of large nodes take longer than users expect | Keep the safe behaviour (RED-087); say in the release notes and in `poo node` output that the first start after an upgrade replays. Optional later: key the build id on `snapshotSemantics` plus format, not the commit, once Black and Red agree it is safe | Release note now |
-| W-7 | Default ports (P2P TCP 8646, control 8645) will change before release (owner, 2026-11-05). An empty `listen` in `node.json` means the default, so a default change moves existing nodes, and peer books keep the old port | Existing nodes would move port on upgrade; peers would dial the old one | When the owner picks new ports: have `poo init` write the port into `node.json` from then on, keep empty meaning the default, and list the change in the changelog. Before v0.1.0 nobody is affected | When the owner decides |
-| W-8 | No deprecation mechanism: flags and settings are removed outright | Scripts and saved files break on upgrade | A helper that marks a flag or setting deprecated (still works, prints a warning, listed by `poo doctor`), and the rule above | After v0.1.0 |
+| W-6 | Snapshots are thrown away on every new build, so the first start after an upgrade replays every pool | Upgrades of large nodes take longer than users expect | Keep the safe behaviour (RED-087); say in the release notes and in `poon node` output that the first start after an upgrade replays. Optional later: key the build id on `snapshotSemantics` plus format, not the commit, once Black and Red agree it is safe | Release note now |
+| W-7 | Default ports (P2P TCP 8646, control 8645) will change before release (owner, 2026-11-05). An empty `listen` in `node.json` means the default, so a default change moves existing nodes, and peer books keep the old port | Existing nodes would move port on upgrade; peers would dial the old one | When the owner picks new ports: have `poon init` write the port into `node.json` from then on, keep empty meaning the default, and list the change in the changelog. Before v0.1.0 nobody is affected | When the owner decides |
+| W-8 | No deprecation mechanism: flags and settings are removed outright | Scripts and saved files break on upgrade | A helper that marks a flag or setting deprecated (still works, prints a warning, listed by `poon doctor`), and the rule above | After v0.1.0 |
 | W-9 | GitHub Actions has no runner, so the Release workflow cannot build a tag | A tag would produce no draft release | Until fixed, White runs `scripts/release.sh` twice locally and compares `SHA256SUMS`, and the owner uploads by hand. The release checklist says so | Until the runner is fixed |
-| W-10 | A running node does not report its release version over the local RPC (`GET /v1/status` has no version), so a client of another release, such as a separately installed `poo-gui`, cannot tell it is talking to a different version. Raised by GUI/White | Mixed versions on one machine fail in confusing ways instead of saying so | Add the release version and commit (the values `node.SetRelease` already records, the same ones `poo version` prints) to the status reply, and have `poo status` show them. GUI/White then decides what the GUI does on a mismatch | R32A |
+| W-10 | A running node does not report its release version over the local RPC (`GET /v1/status` has no version), so a client of another release, such as a separately installed `poon-gui`, cannot tell it is talking to a different version. Raised by GUI/White | Mixed versions on one machine fail in confusing ways instead of saying so | Add the release version and commit (the values `node.SetRelease` already records, the same ones `poon version` prints) to the status reply, and have `poon status` show them. GUI/White then decides what the GUI does on a mismatch | R32A |
 
 ## How White works with the other teams
 
@@ -176,7 +176,7 @@ None of these is a consensus question. Each is node or tool behaviour.
   they share (release version, archives, changelog, release approval,
   compatibility of the headless code) and follows its lead, not the other
   way around.
-  Agreed so far (2026-11-05): `poo` and `poo-gui` carry one release
+  Agreed so far (2026-11-05): `poon` and `poon-gui` carry one release
   version from one tag (as [docs/releasing.md](../../releasing.md)
   already says), and the changelog stays one file with a GUI group of
   bullets.

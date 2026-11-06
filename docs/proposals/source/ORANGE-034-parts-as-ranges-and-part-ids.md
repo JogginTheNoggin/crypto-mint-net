@@ -24,11 +24,11 @@ the release preview from the headless output.
 
 | Output | `08404df` | This change |
 | --- | --- | --- |
-| `poo series parts` | ranges: first and last serial and pool, part id | the same, plus `mints` and `units` |
-| `poo series release -check` | first and last serial, part id | the same, plus first and last pool |
-| `poo series info` on a variable series | **part 1's pools only; no supply type, part size, cap or parts** | `supply_type`, `part_size`, `max_parts`, and parts 1 to 10 as rows of ranges |
-| `poo series release -part K` (the file the issuer publishes) | **the release's four fields only** | those four fields first, then the part id, its serials and pools as ranges, `mints` and `units` |
-| `poo series info` on a fixed series | unchanged | unchanged, byte for byte (no new keys) |
+| `poon series parts` | ranges: first and last serial and pool, part id | the same, plus `mints` and `units` |
+| `poon series release -check` | first and last serial, part id | the same, plus first and last pool |
+| `poon series info` on a variable series | **part 1's pools only; no supply type, part size, cap or parts** | `supply_type`, `part_size`, `max_parts`, and parts 1 to 10 as rows of ranges |
+| `poon series release -part K` (the file the issuer publishes) | **the release's four fields only** | those four fields first, then the part id, its serials and pools as ranges, `mints` and `units` |
+| `poon series info` on a fixed series | unchanged | unchanged, byte for byte (no new keys) |
 
 Every part is one short row, whatever its size. `TestSeriesPartsAsRanges`
 uses parts of a million mints and checks that `series info` stays under
@@ -46,7 +46,7 @@ Fixed here.**
 `PartID(k)` takes k hashes the first time, by design (each part id
 chains on the one before). It kept every id it worked out, which costs
 32 bytes per part plus the slice's growth, and the growth also made it
-4 times slower. Any series file reaches it through `poo series parts
+4 times slower. Any series file reaches it through `poon series parts
 -from K` with a large K. A phase 2 node holding an issuer's release of a
 far part would reach it too.
 
@@ -104,7 +104,7 @@ Same machine as ORANGE-012: 4 vCPU Xeon at 2.10 GHz, Go 1.27.3, ext4,
 16 GiB.
 
 How they were taken:
-- **Outputs:** `poo series new -variable`, `info`, `release -part`,
+- **Outputs:** `poon series new -variable`, `info`, `release -part`,
   `release -check` and `parts`, on `08404df` and this change.
 - **Part ids:** a test-only harness in `pkg/series` called `PartID(k)`
   on a fresh variable series (example params, M = 4) for k = 10⁶, 10⁷ and

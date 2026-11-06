@@ -28,7 +28,7 @@ the 32 bytes a peer writes in its hello; nothing proves them. Three ways in:
   looks up `bwait.grants[g.Offer]` and sends to its channel before (and
   whether or not) the sender is the offer's `From`. The book's own `Granted`
   does check the sender and records no lease, but the waiting call has
-  already been answered, so a third peer can answer a `poo bounty work` that
+  already been answered, so a third peer can answer a `poon bounty work` that
   waits for the payer and the call grinds for as long as the attacker named
   (at most the call's four minutes).
 

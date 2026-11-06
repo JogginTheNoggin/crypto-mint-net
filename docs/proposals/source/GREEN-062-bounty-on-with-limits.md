@@ -1,20 +1,20 @@
-# GREEN-062: Turning the bounty market on with `poo policy limits -set`
+# GREEN-062: Turning the bounty market on with `poon policy limits -set`
 
 | Field | Value |
 | --- | --- |
 | Status | proposed (prototyped) |
 | Based on | `main` @ `bf90ffd` |
-| Area | `pkg/cli` (`poo policy limits -set` takes on/off; the help line for `bounty post`), `pkg/nodepolicy` (`BountyNotes`, `Bound.OnOff`), `pkg/rpc` (`notes` in the limits reply; `bounty work` checks take), `pkg/p2p` (`ErrNoBounty` text, `ErrNoTake`), `pkg/bounty` (posting names unset spending limits), docs (running-a-node, modules/bounty, modules/poo) |
+| Area | `pkg/cli` (`poon policy limits -set` takes on/off; the help line for `bounty post`), `pkg/nodepolicy` (`BountyNotes`, `Bound.OnOff`), `pkg/rpc` (`notes` in the limits reply; `bounty work` checks take), `pkg/p2p` (`ErrNoBounty` text, `ErrNoTake`), `pkg/bounty` (posting names unset spending limits), docs (running-a-node, modules/bounty, modules/poon) |
 | Effort | small |
 | Consensus | none: messages, CLI parsing and one optional reply field. What a node accepts into a ledger does not change |
 | Decided by | Grey; Black to confirm no rule changed; White may note the local RPC field below; GUI Grey or Green for the Bounty view's off line |
 
 ## Summary
 
-BASE.md asked Green to try turning the market on with `poo policy limits
+BASE.md asked Green to try turning the market on with `poon policy limits
 -set` as a new user. Green used two fresh nodes, with the commands in
 running-a-node.md, both with the node stopped and while it ran. Turning
-the market on works: the node reloads, `poo status` shows `bounty`, and
+the market on works: the node reloads, `poon status` shows `bounty`, and
 the peers see each other's feature again. Five things got in the way:
 
 1. **`-set bounty.post=on` (or `=true`) was refused** with "want
@@ -28,16 +28,16 @@ the peers see each other's feature again. Five things got in the way:
    bounty.take in node.json", although D198 made both settable with one
    command.
 4. **A node that only posts asked peers for offers and dropped every
-   answer.** `poo bounty list -ask` came back with an empty `held` and no
-   reason. `poo bounty work ID` said "no offer with that id was
+   answer.** `poon bounty list -ask` came back with an empty `held` and no
+   reason. `poon bounty work ID` said "no offer with that id was
    received", when the reason is that `bounty.take` is off.
-5. **The `poo help` line for `bounty post` still said `-pool K`.**
-   GREEN-061 made the pool optional and updated `poo bounty`'s own usage,
+5. **The `poon help` line for `bounty post` still said `-pool K`.**
+   GREEN-061 made the pool optional and updated `poon bounty`'s own usage,
    but missed this one.
 
 ## The change
 
-- `poo policy limits -set` takes `on`, `off`, `true`, `false`, `yes` and
+- `poon policy limits -set` takes `on`, `off`, `true`, `false`, `yes` and
   `no` for an on/off setting (`Bound.OnOff`: range 1 to 1, default 0,
   which is `bounty.post` and `bounty.take`). A bad value says what the
   setting takes ("bounty.post is 1 (on) or 0 (off), not "maybe"") or
@@ -49,14 +49,14 @@ the peers see each other's feature again. Five things got in the way:
   Nothing is refused, because a person may set them in the next command.
 - `Book.Post` names the unset limits and the command that sets them:
   "bounty.max_amount and bounty.budget are not set, so this node posts no
-  offer; poo policy limits -set bounty.max_amount=N -set bounty.budget=N".
+  offer; poon policy limits -set bounty.max_amount=N -set bounty.budget=N".
   The off message names `-set bounty.post=1`.
 - `ErrNoBounty` names the commands instead of node.json. The new
   `ErrNoTake` (wrapping `bounty.ErrOff`) is returned by
-  `poo bounty list -ask` and `poo bounty work` on a node whose
+  `poon bounty list -ask` and `poon bounty work` on a node whose
   `bounty.take` is off.
-- `poo help` shows `bounty post -entry HASH [-pool K | -serial N]`.
-- Docs: running-a-node.md, modules/bounty.md and modules/poo.md mention
+- `poon help` shows `bounty post -entry HASH [-pool K | -serial N]`.
+- Docs: running-a-node.md, modules/bounty.md and modules/poon.md mention
   on/off and `notes`.
 
 ## How it was tested
@@ -81,14 +81,14 @@ behaves as before.
 
 ## For White
 
-The `poo policy limits` reply (`/v1/policy/limits`) gains an optional
+The `poon policy limits` reply (`/v1/policy/limits`) gains an optional
 `notes` list. An older node leaves it out, and readers that ignore
 unknown fields are unaffected. No file or wire format changes.
 
 ## For the GUI
 
 The Bounty view's fixed off line (`gui/web/static/views/bounty.js`,
-`offNote`) still says to edit node.json and restart. Since D198, `poo
+`offNote`) still says to edit node.json and restart. Since D198, `poon
 policy limits -set bounty.take=on` (or the Limits form) does it with a
 reload. Green has not edited GUI files. That one line is for GUI Grey
 or GUI Green.

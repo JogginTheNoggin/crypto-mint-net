@@ -1,4 +1,4 @@
-# GUI-GREEN-043: A field's stated default is poo's: a check, and one wrong hint
+# GUI-GREEN-043: A field's stated default is poon's: a check, and one wrong hint
 
 | Field | Value |
 | --- | --- |
@@ -10,14 +10,14 @@
 
 ## Summary
 
-Many fields state poo's default in their placeholder, such as "default
+Many fields state poon's default in their placeholder, such as "default
 16", "default 60000", "default 1,2,4,8" or "default ed25519". Those values
-are copies of poo's, and nothing checked them. A change in Source would
+are copies of poon's, and nothing checked them. A change in Source would
 leave the GUI telling users something untrue.
 
 This extends GUI-GREEN-042's `parity.mjs`. Every field whose placeholder
 states a default value is filled alone, which shows which flag it is. Its
-value is then compared with the `(default X)` that `poo CMD -h` prints
+value is then compared with the `(default X)` that `poon CMD -h` prints
 for that flag. Go leaves a zero default out, so it counts as 0.
 
 To keep the comparison exact, only values are checked: numbers, lists,
@@ -31,11 +31,11 @@ one Source help slip.
 
 - **Schedule a job** reuses the job fields of a one-off job. Its Threads
   says "default: every core but one", and its Device says "default:
-  node.json, else auto". But `poo grind schedule add -h` says threads
+  node.json, else auto". But `poon grind schedule add -h` says threads
   default to the section's. That is the Schedule defaults form just
-  below, which poo applies to every scheduled job. A user who set
+  below, which poon applies to every scheduled job. A user who set
   Schedule defaults to 1 thread is told the job will use every core.
-- **For Source:** `poo grind start -h` and `poo grind run -h` say
+- **For Source:** `poon grind start -h` and `poon grind run -h` say
   `-series` defaults to "the only followed series". But a job with no
   `-series`, `-pool` or `-serial` leaves its spec's series empty and
   grinds every followed series. `grind help` and the GUI both say so.
@@ -45,10 +45,10 @@ one Source help slip.
 ## Idea
 
 1. In `work.js`, `scheduled(fd)` rewords Device and Threads for Schedule
-   a job: "default: the section's, see Schedule defaults", as poo
+   a job: "default: the section's, see Schedule defaults", as poon
    documents it. The other job forms keep their wording.
 2. In `parity.mjs`, the stated-default pass: each mismatch is reported as
-   "poo sim load -nodes: the GUI says default 15, poo says 16". It needs
+   "poon sim load -nodes: the GUI says default 15, poon says 16". It needs
    at least 6 such fields, so a broken reader can't pass without
    checking anything.
 3. For Source: give `grind start` and `run` their own `-series` help,

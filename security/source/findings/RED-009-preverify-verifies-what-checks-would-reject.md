@@ -58,7 +58,7 @@ the item was bad until later, if at all:
 - **Entries.** `PreverifyEntry` gates on `entry.CheckShape`, which the
   proposal calls "the entry's work". CheckShape's work gate is
   `Strength() >= MinEntryStrength`, and `MinEntryStrength` is **0 by
-  default** (`poo series new` defaults `-min-entry-strength 0`, "0: none";
+  default** (`poon series new` defaults `-min-entry-strength 0`, "0: none";
   `EntriesHaveNonce()` is `MinEntryStrength > 0`), so for such a series the
   gate is empty: any entry of the right series and pool with its
   transactions in order passes it. An entry whose parent the node does not

@@ -12,7 +12,7 @@
 ## What is wrong
 
 D170 keeps `max_witness` 0 valid and makes it a tool and node-policy matter:
-`poo series new` and `poo init -series` refuse it, and `series_ceiling`
+`poon series new` and `poon init -series` refuse it, and `series_ceiling`
 lets a node decline such a series on import. Two places leave a gap:
 
 1. **A shared policy file is the documented way series spread, and
@@ -26,21 +26,21 @@ lets a node decline such a series on import. Two places leave a gap:
    that did nothing and no reason. The follow rule for that series is
    dropped with it, also unsaid.
 
-`poo doctor` also reports `ok series 1 accepted` for a followed series with
+`poon doctor` also reports `ok series 1 accepted` for a followed series with
 no ceiling.
 
 ## How I checked it
 
 ```
-$ poo policy export -dir n1 -out pexp.json          # n1 follows the documents' example, max_witness 0
-$ poo init -dir r1                                   # the reserve series
-$ poo policy import -dir r1 pexp.json
+$ poon policy export -dir n1 -out pexp.json          # n1 follows the documents' example, max_witness 0
+$ poon init -dir r1                                   # the reserve series
+$ poon policy import -dir r1 pexp.json
   + series: d0b927f7                                 # no mention of the ceiling
   series d0b927f7: follows every pool (2)
 $ # series_ceiling 1048576 set in r1/node.json (it has no `policy limits` name)
-$ poo policy import -dir r1 pexp.json
+$ poon policy import -dir r1 pexp.json
   nothing to change                                  # text plan
-$ poo policy import -dir r1 -json pexp.json         # "declined": ["d0b927f7: the series sets no witness ceiling, and series_ceiling is 1048576"]
+$ poon policy import -dir r1 -json pexp.json         # "declined": ["d0b927f7: the series sets no witness ceiling, and series_ceiling is 1048576"]
 ```
 
 ## What could happen
@@ -58,11 +58,11 @@ same shape; scaled from the 581 KB case, not run.)
 
 - Print `declined` in the text plan, and do not say `nothing to change` when
   something was declined. Name the follow rules dropped with it.
-- Always warn in the plan (and in `poo series info`, `poo series followed`
-  and `poo doctor`) for a followed or added series with no ceiling or one
+- Always warn in the plan (and in `poon series info`, `poon series followed`
+  and `poon doctor`) for a followed or added series with no ceiling or one
   above `CeilingLimit`: "no witness ceiling: one witness can take seconds
   and hundreds of MB to check".
-- Make `series_ceiling` settable and shown by `poo policy limits`, and
+- Make `series_ceiling` settable and shown by `poon policy limits`, and
   consider writing it (4 MiB) in new nodes' node.json, so a node opts in to
   a looser series instead of opting out.
 - Test: the plan of a no-ceiling series prints the warning; a declined
@@ -78,9 +78,9 @@ Fixed in BLUE-028 (D171). An import plan lists in `unbounded` each series
 it adds with no witness ceiling or one above 4 MiB, and the text plan
 prints it as a warning. A declined series is printed too, with the number
 of follow rules left out, and the plan says `nothing else to change`.
-`poo series info`, `poo series followed`, `GET /v1/series` and
-`poo doctor` (`ceiling`) warn for followed series. `series_ceiling` is now
-settable with `poo policy limits -set`. Its default stays 0: a 4 MiB
+`poon series info`, `poon series followed`, `GET /v1/series` and
+`poon doctor` (`ceiling`) warn for followed series. `series_ceiling` is now
+settable with `poon policy limits -set`. Its default stays 0: a 4 MiB
 default would decline the documents' example series, so it is left to
 Grey and jerry. Tests: `TestImportWarnsOfUnboundedSeries`,
 `TestDeclinedSeriesCountsItsFollows`, `TestSeriesCeilingIsBounded`,

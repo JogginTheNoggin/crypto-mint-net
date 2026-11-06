@@ -10,13 +10,13 @@
 
 ## Summary
 
-A mismatch between the GUI and `poo`:
+A mismatch between the GUI and `poon`:
 - "Act on a peer" showed Seconds, Whole range, Clear and Tracking
   template for every action.
 - Its range box was labelled "(block, unblock)".
 - "Unarchive fresh" showed for use, archive and delete too.
 
-Since Source's GREEN-015, `poo` refuses a flag given to an action that
+Since Source's GREEN-015, `poon` refuses a flag given to an action that
 doesn't read it ("-range does nothing for unblock; it is for block").
 So the GUI offered combinations that could only fail. Now a field can
 say which actions it belongs to. It is shown, and sent, only while the
@@ -25,7 +25,7 @@ action select holds one of them.
 ## Problem
 
 Using the Peers view: choose unblock, tick "Whole range (block,
-unblock)" as the label suggests, and press Apply. `poo` refuses it. The
+unblock)" as the label suggests, and press Apply. `poon` refuses it. The
 same happens with Seconds on delete, and with Fresh on use. The label was
 wrong, and the other fields were noise for the action chosen.
 
@@ -39,16 +39,16 @@ wrong, and the other fields were noise for the action chosen.
 
   | Command | Flag | Actions |
   | --- | --- | --- |
-  | `poo peer` | seconds | timeout, block |
-  | `poo peer` | range | block |
-  | `poo peer` | what | clear |
-  | `poo peer` | template | template |
-  | `poo policy` | fresh | unarchive |
+  | `poon peer` | seconds | timeout, block |
+  | `poon peer` | range | block |
+  | `poon peer` | what | clear |
+  | `poon peer` | template | template |
+  | `poon policy` | fresh | unarchive |
 
-- The copy can drift. The lasting fix is for GREEN-004's `poo help -json`
+- The copy can drift. The lasting fix is for GREEN-004's `poon help -json`
   to print each flag's owners from those same maps. Then the GUI reads
   them and keeps no list of its own. Until then, a drift only means that
-  `poo` refuses, which it does today.
+  `poon` refuses, which it does today.
 
 ## Cost and risk
 
@@ -59,7 +59,7 @@ About 20 lines in `form()`, plus the two field lists. Forms without
 
 On the branch. `gui/e2e/qol.mjs` checks:
 - block shows Seconds and Whole range, and previews
-  `poo peer block -range ADDR`;
-- switching to unblock hides both and previews `poo peer unblock ADDR`,
+  `poon peer block -range ADDR`;
+- switching to unblock hides both and previews `poon peer unblock ADDR`,
   with the ticked box no longer sent;
 - clear shows only Clear.

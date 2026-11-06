@@ -10,7 +10,7 @@ Part A (D190) does five things:
 - widens the hello's room for later fields (64 KiB extensions, 255
   features);
 - keeps none of a peer's hello extensions;
-- renames the ledger file kind to `poo-ledger`;
+- renames the ledger file kind to `poon-ledger`;
 - meets Round 33's condition with `wire.ErrBadExtras`.
 
 Blue's D191 fixes RED-100 to RED-103, and carries Green's GREEN-059. It:
@@ -90,7 +90,7 @@ Blue's D191 fixes RED-100 to RED-103, and carries Green's GREEN-059. It:
   unchanged).
 - **Extensions not kept (ORANGE-043 proposal 1).** No tag is registered,
   so `theirs.Ext = nil`. Nothing could read them anyway.
-- **`poo-ledger`.** A file name. Imports still run every check.
+- **`poon-ledger`.** A file name. Imports still run every check.
 
 ## Bounds on frames, queues and files (D191)
 
@@ -171,7 +171,7 @@ Black's view, for Grey and White:
 | D190 (W-14, W-17): `MaxExtValue` 64 KiB, `MaxFeatures` 255, frozen at the tag | Wire room for later optional fields. Nothing decides on them |
 | D190: a peer's hello extensions not kept | Memory. Nothing read them |
 | D190: `ErrBadExtras` ends only the connection (Round 33's condition) | Condition met and tested at the frozen maximum. Term 4 reworded as Black allowed |
-| D190 (W-15): `poo-ledger` | A file name |
+| D190 (W-15): `poon-ledger` | A file name |
 | D191 (RED-100): frames read as they arrive; 3 MiB hello frame; handshakes count against `max_inbound` | Every valid hello fits (about 2.0 MiB). `MaxFrame` unchanged after the hello. Delays are lack of information |
 | D191 (RED-103): inbox queues bounded in bytes; one message always taken | Replies bypass the inbox. No entry refused by size. A dropped push is missing information |
 | D191 (RED-101, RED-102): import read stops past the batch bound; ledger header bounded | The first item has no bound. Every imported entry is checked as from a peer |

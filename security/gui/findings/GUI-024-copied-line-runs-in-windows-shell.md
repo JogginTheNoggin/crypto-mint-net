@@ -11,7 +11,7 @@
 
 ## Summary
 
-GUI-GREEN-046 added **Copy** next to the `poo` line each form and panel
+GUI-GREEN-046 added **Copy** next to the `poon` line each form and panel
 shows. Its aim is that "the line can go into a shell, a script, a
 service file or a note, and run the same command there". It copies
 `api.quote(args)`.
@@ -49,7 +49,7 @@ doesn't need to follow a link at all. Pasting an address someone sent
 
 ## Reproduction
 
-poo-gui at 4dc7d3d, with the Playwright script kept outside the
+poon-gui at 4dc7d3d, with the Playwright script kept outside the
 repository. The GUI was run on Linux, and `/api/info` was answered with
 `grammar: "windows"` (as a Windows server answers), so the page quotes
 as it does on Windows.
@@ -61,20 +61,20 @@ as it does on Windows.
 
 | payload | line shown and copied (Windows) | in a Windows shell |
 | --- | --- | --- |
-| `x$(calc)` | `poo address x$(calc)` | PowerShell runs `calc` |
-| `a;calc` | `poo address a;calc` | PowerShell runs `poo address a`, then `calc` |
-| `x"&calc&"y` | `poo address "x\"&calc&\"y"` | cmd.exe runs `poo address "x\"`, then `calc`, then `\"y"` |
+| `x$(calc)` | `poon address x$(calc)` | PowerShell runs `calc` |
+| `a;calc` | `poon address a;calc` | PowerShell runs `poon address a`, then `calc` |
+| `x"&calc&"y` | `poon address "x\"&calc&\"y"` | cmd.exe runs `poon address "x\"`, then `calc`, then `\"y"` |
 
 With the POSIX grammar, the same three lines are copied as
-`poo address 'x$(calc)'`, `poo address 'a;calc'` and
-`poo address 'x"&calc&"y'`. Each is one argument, and nothing else runs.
+`poon address 'x$(calc)'`, `poon address 'a;calc'` and
+`poon address 'x"&calc&"y'`. Each is one argument, and nothing else runs.
 
 The shells weren't run here, since this machine has no Windows. The
 rows follow PowerShell's argument-mode expansion and cmd.exe's quote
 toggling. `calc` stands for any command.
 
 "Run in terminal" is not affected. The GUI terminal splits the line
-with its own grammar and runs poo in-process, with no shell.
+with its own grammar and runs poon in-process, with no shell.
 
 ## Impact
 
@@ -82,7 +82,7 @@ A user on Windows who copies a line from the GUI and pastes it into
 PowerShell or cmd.exe can run commands that someone else wrote. Those
 commands run as the user, with their files, their wallet and their node.
 That is what the feature invites the user to do: "build a command with a
-form, copy it, and run it". The line on show looks like one `poo`
+form, copy it, and run it". The line on show looks like one `poon`
 command, and only careful reading of the quoting shows otherwise.
 
 It needs a Windows user, a field filled with someone else's text (a link,
@@ -99,7 +99,7 @@ GUI/Blue, in the page (and `shell.Quote` if Copy should match it):
   - For PowerShell, put each word that isn't plainly safe
     (`^[A-Za-z0-9_\-.,\/:=+\\]+$`, and not starting with `@`) in single quotes, with `'` doubled. Single-quoted text is
     literal in PowerShell: no `$`, `;` or backtick is read. Start the line
-    with `& poo` or plain `poo`, and label the button "Copy (PowerShell)".
+    with `& poon` or plain `poon`, and label the button "Copy (PowerShell)".
   - cmd.exe can't safely quote every string (`%` and `!` expand even
     inside quotes). If cmd.exe is to be supported, turn Copy off when a
     word holds `"`, `%`, `!`, `^`, `&`, `|`, `<` or `>`, as it is turned
@@ -154,11 +154,11 @@ These were checked with Playwright on f4f7945, with `/api/info` answering
 - **Copy is off** for `x$(calc)`, `x"&calc&"y`, `a;calc`, ``x`(calc)``,
   `a@b`, `%PATH%` and `--%`. Its title gives the reason. The line on show
   still uses `quote`, as before.
-- **Copy is on** for `a b`, which is copied as `poo address "a b"`. That
+- **Copy is on** for `a b`, which is copied as `poon address "a b"`. That
   is literal in both PowerShell and cmd.exe.
 - A spaced word that ends in `\` (`C:\a b\`) is refused, because
   CommandLineToArgvW would read the closing `\"` as an escaped quote.
 - `-foo` is copied bare. That is safe for both shells, since neither
-  reads `-` as special. poo then takes it as a flag, but the GUI runs
+  reads `-` as special. poon then takes it as a flag, but the GUI runs
   the same args, so it is not part of this finding.
 - POSIX is unchanged: every word not plainly safe is single-quoted.

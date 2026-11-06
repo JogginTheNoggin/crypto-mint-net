@@ -33,7 +33,7 @@ D172 never expected `false` for a held entry:
 
 The node does not notice the damage in any other way: the skeleton in memory
 is complete, selection and switching are unaffected, `bodies.errors` rises
-in `poo status`, and `poo doctor` says nothing.
+in `poon status`, and `poon doctor` says nothing.
 
 ## How I checked it
 
@@ -85,8 +85,8 @@ switched between 0, 1 KiB and 1 GiB, 60 compactions, `-race`: 28,116 reads,
   compile silently, or check every caller (grep `\.Entry(`).
 - Recover from a damaged body: the node can fetch the entry again from a peer
   (its hash is known) and append it as a new record, so `bodies.errors` falls
-  to 0 by itself. Until then `poo doctor` warns ("N entry bodies cannot be
-  read from the log") and `poo status` shows it.
+  to 0 by itself. Until then `poon doctor` warns ("N entry bodies cannot be
+  read from the log") and `poon status` shows it.
 - Defence in depth: recover from a panic in a peer's message handler by
   closing that peer, so any nil left in a serving path cannot stop the node.
 - Tests: damage one entry record under a running node with a cold cache; a
@@ -113,7 +113,7 @@ Fixed in BLUE-029 (D173).
   `GET /payment` says `unreadable`, and the ledger and address pages count
   `unreadable` entries.
 - A panic while handling a peer message closes only that peer.
-- `poo doctor` warns (`bodies`) and says to check the disk and restart.
+- `poon doctor` warns (`bodies`) and says to check the disk and restart.
   Refetching in place without a restart is left for later.
 
 Tests: `TestDamagedLogDoesNotCrashServing` (your reproduction: it panicked

@@ -1,20 +1,20 @@
-# ORANGE-045: Round 35 measured; `poo sign` signed each input apart, and skipped header keys
+# ORANGE-045: Round 35 measured; `poon sign` signed each input apart, and skipped header keys
 
 | Field | Value |
 | --- | --- |
 | Status | proposed |
 | Based on | `main` @ `866a4ac` |
-| Area | `pkg/wallet` (`SignWith`, `addSigs`; `poo sign`, D193), `pkg/cli` (ledger header, D192 W-20) |
+| Area | `pkg/wallet` (`SignWith`, `addSigs`; `poon sign`, D193), `pkg/cli` (ledger header, D192 W-20) |
 | Effort | one small change and one test; two proposals |
 | Decided by | Grey; Black in Part D for the signing change |
 
 ## Summary
 
-D193 adds `poo sign`, which signs an unsigned payment with a key kept
-off the node. D192 lets `poo ledger import` skip up to 64 header keys it
+D193 adds `poon sign`, which signs an unsigned payment with a key kept
+off the node. D192 lets `poon ledger import` skip up to 64 header keys it
 does not know. I measured both.
 
-**1. `poo sign` signed the same message once for every input. It now
+**1. `poon sign` signed the same message once for every input. It now
 signs once per transaction, four times faster at four inputs a
 transaction. Fixed here.**
 
@@ -98,8 +98,8 @@ unsigned payment repeats its policy in hex: 3.9 KB per input for an
 ML-DSA-65 key, and more for a multi-key policy. A list of policies, with
 each input naming one by index, would make the unsigned file about half
 as large for post-quantum keys. That changes the file format, so White
-should say how an older `poo sign` would read it. It is optional: today's
-files stay well under the 64 MiB that `poo sign -` reads from standard
+should say how an older `poon sign` would read it. It is optional: today's
+files stay well under the 64 MiB that `poon sign -` reads from standard
 input.
 
 Parked: the wallet's `pay` path end to end, which needs a node. The
@@ -112,7 +112,7 @@ The machine has 4 vCPUs (Xeon with SHA-NI, AVX2 and AVX-512), has 15 GiB
 of memory and runs Go 1.27.3. The harness was an internal test in
 `pkg/cli`, outside the commit.
 
-- **`poo sign`:**
+- **`poon sign`:**
   - Unsigned payments made in the test: L legs, each a transaction with
     I inputs.
   - Every input is owned by one single-key address of the algorithm.

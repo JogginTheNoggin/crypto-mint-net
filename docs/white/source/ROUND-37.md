@@ -11,7 +11,7 @@ D198 did White's Round 36 asks as written:
 - W-27: offers are named by their bytes (`Offer.Raw`).
 - W-28: `bounties.json` keeps later fields at three levels.
 - W-29: the rule is in wire.md.
-- W-30: `bounty` is in `poo status`.
+- W-30: `bounty` is in `poon status`.
 
 White answers D198's four questions below. One small ask:
 
@@ -47,8 +47,8 @@ tests in `pkg/p2p`, and the bounty, GREEN-06x and limits tests in
 | D198 W-27: `Offer.Raw`, id = SHA-256 of the bytes received, lists pass on the bytes | compatible | Done. On load, the bytes are the offer and the fields beside them are for people. `checkMine` refuses an entry whose id is not the hash of its bytes |
 | D198 W-28: `bounties.json` keeps later fields (top, offer, claim); a later format refused with a clear message | compatible | Done |
 | D198 W-29: the rule in wire.md | compatible | Text checked. It says what White asked. See W-32 for the one thing it leaves out |
-| D198 W-30: `bounty: {post, take}` always in `poo status` | compatible | An added field. GUI R37A (#315) reads it |
-| D198 ORANGE-046 P1: `bounties-done.jsonl`, header `poo-bounties-done` format 1, appended and synced before removal | compatible with conditions | An older release with no done file only loses history. **Condition:** W-31 |
+| D198 W-30: `bounty: {post, take}` always in `poon status` | compatible | An added field. GUI R37A (#315) reads it |
+| D198 ORANGE-046 P1: `bounties-done.jsonl`, header `poon-bounties-done` format 1, appended and synced before removal | compatible with conditions | An older release with no done file only loses history. **Condition:** W-31 |
 | D198 ORANGE-046 P2: leases saved on a 200 ms timer; post, cancel, accepted claim and payment still written before they answer | compatible | Meets White's condition. Losing a lease to a crash only means the grinder takes it again |
 | D198 ORANGE-046 P3, P4 | compatible | P4 has the byte-for-byte test White asked for (`TestOrange046ScanMatchesTheMap`) |
 | D198: claimed layers at or above the series floor go to the engine | n/a (Black) | No file or message change |

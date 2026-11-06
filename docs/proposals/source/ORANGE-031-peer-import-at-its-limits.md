@@ -72,7 +72,7 @@ need updating everywhere a record is added or removed. I did not think
 it was worth the risk for an import.
 
 **No change needed:**
-- **The filters** (`poo peers -category -mint-policy -label -addr`)
+- **The filters** (`poon peers -category -mint-policy -label -addr`)
   filter `Book.Records()`: 3 ms for 4,096 records.
 - **Dialling imported addresses:**
   - `PromoteImported` scans and sorts the book: 1.3–1.9 ms at 4,096
@@ -80,7 +80,7 @@ it was worth the risk for an import.
     30 s.
   - The manager then dials at most the slots it is short, each in its
     own goroutine with the dial timeout, as for any candidate.
-  - `poo peer connect -imported` promotes them all (1.5–2.1 ms), but
+  - `poon peer connect -imported` promotes them all (1.5–2.1 ms), but
     the manager still dials only what it has room for.
   - A file of dead addresses costs a few failed dials per manage pass,
     each with its back-off (`Retry`).

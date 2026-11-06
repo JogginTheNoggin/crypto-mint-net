@@ -14,8 +14,8 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/cli"
 )
 
-// TestPooPassthrough checks "poon-gui poon ARGS" is "poon ARGS".
-func TestPooPassthrough(t *testing.T) {
+// TestPoonPassthrough checks "poon-gui poon ARGS" is "poon ARGS".
+func TestPoonPassthrough(t *testing.T) {
 	for _, args := range [][]string{{"version"}, {"crypto"}, {"nope"}} {
 		var a, ae, b, be bytes.Buffer
 		ca := run(context.Background(), append([]string{"poon"}, args...), cli.Stdio{Out: &a, Err: &ae}, nil)

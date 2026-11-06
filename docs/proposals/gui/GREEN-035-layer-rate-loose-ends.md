@@ -19,10 +19,10 @@ There are two small gaps around `grind.layer_rate`:
    rate while the floor is 0. GREEN-033 noted this. The rate stays in
    node.json and comes back with the next floor without warning. The line
    now ends "no layer floor (layer rate 5 kept for when one is set)".
-2. **Source, a request.** When `poo doctor` warns that Load lowered
+2. **Source, a request.** When `poon doctor` warns that Load lowered
    `grind.layer_rate` to the new maximum (D129/D130), its fix is only
    text. The GUI's Health check can turn a fix into a "Run in terminal"
-   button only when poo gives `fix_args`, as `init` and `node` already do.
+   button only when poon gives `fix_args`, as `init` and `node` already do.
 
 ## Problem
 
@@ -30,7 +30,7 @@ There are two small gaps around `grind.layer_rate`:
   "device auto, 1 thread." Months later they set floor 100 and get rate 5
   back, which they no longer remember setting.
 - (2) The warning says "grind.layer_rate N is over the most, M: M is
-  used". Its fix is "lower it in PATH (poo grind schedule set, or edit
+  used". Its fix is "lower it in PATH (poon grind schedule set, or edit
   the file)". The user has to work out the command on their own. If the
   file is never fixed, the warning shows on every doctor run.
 
@@ -38,7 +38,7 @@ There are two small gaps around `grind.layer_rate`:
 
 1. In `scheduleTable`, when there is no floor and `layer_rate` is set,
    the line says the rate is kept and has no effect for now. The text
-   comes from poo's own reply, and nothing new is worked out.
+   comes from poon's own reply, and nothing new is worked out.
 2. In doctor's lowered check, set
    `FixArgs: ["grind", "schedule", "set", "-layer-rate", "<M>"]`, where M
    is the maximum Load used. It writes the value the node already runs

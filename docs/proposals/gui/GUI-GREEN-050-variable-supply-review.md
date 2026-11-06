@@ -36,10 +36,10 @@ keeps to D84.
 
 | Plan line | Note | Suggested wording |
 | --- | --- | --- |
-| New series: "The form says that N and M must both be whole multiples of the pool size" | This is a consensus rule. Written in the GUI, it is a copy that can drift from Source. The headless command already refuses a bad N or M with its own message, and hints.js can add a next step under that message. | Leave the rule out of the form. Show poo's refusal, as every other form does. If a hint is wanted, take it from the flag's `-h` text. |
-| Release a part: "The next part number by default" | If the GUI works out "next", it holds a rule, and the design lets a release of part k also release every part before it. | Leave the field empty, so poo picks its default. A placeholder that states poo's default is checked by GUI-GREEN-043. |
-| Explore: "A transaction past the highest known release shown as waiting for a release" | Only poo knows the highest release it has seen. The GUI must not compare a serial with a range itself. | Show the state poo's JSON gives for the transaction (for example a status field), and ask Source for one if it is missing. |
-| Series info: "the total supply so far" | This is N + (k − 1) × M, which is a rule if the GUI computes it. | Show it only as a field of poo's output, never computed in the page. |
+| New series: "The form says that N and M must both be whole multiples of the pool size" | This is a consensus rule. Written in the GUI, it is a copy that can drift from Source. The headless command already refuses a bad N or M with its own message, and hints.js can add a next step under that message. | Leave the rule out of the form. Show poon's refusal, as every other form does. If a hint is wanted, take it from the flag's `-h` text. |
+| Release a part: "The next part number by default" | If the GUI works out "next", it holds a rule, and the design lets a release of part k also release every part before it. | Leave the field empty, so poon picks its default. A placeholder that states poon's default is checked by GUI-GREEN-043. |
+| Explore: "A transaction past the highest known release shown as waiting for a release" | Only poon knows the highest release it has seen. The GUI must not compare a serial with a range itself. | Show the state poon's JSON gives for the transaction (for example a status field), and ask Source for one if it is missing. |
+| Series info: "the total supply so far" | This is N + (k − 1) × M, which is a rule if the GUI computes it. | Show it only as a field of poon's output, never computed in the page. |
 
 ### What the forms should say, because of the design
 
@@ -47,10 +47,10 @@ keeps to D84.
   withdraw it", and a leaked or lost signer key has lasting effects. The
   Release form's confirmation should say that the release is permanent
   and that it also releases every earlier part, not only
-  "Run poo …?". A confirm text that a form can set (see Open points) is
+  "Run poon …?". A confirm text that a form can set (see Open points) is
   enough for this.
 - **Max parts left empty means no cap.** Wherever the GUI shows max
-  parts, it should say "no cap" when poo prints none, never 0.
+  parts, it should say "no cap" when poon prints none, never 0.
 - **The signer.** The design names a k of n signer policy as the way to
   reduce both key risks. The New series form's help could say so, in one
   line, beside the issuer field.
@@ -92,7 +92,7 @@ fields too.
 - **views.mjs:** checks that Parent in "Build a rival claim" is marked
   and that Layer tries, which is optional, is not.
 
-This is a style rule only, and it changes nothing in `poo`.
+This is a style rule only, and it changes nothing in `poon`.
 
 ## Open points for Grey
 

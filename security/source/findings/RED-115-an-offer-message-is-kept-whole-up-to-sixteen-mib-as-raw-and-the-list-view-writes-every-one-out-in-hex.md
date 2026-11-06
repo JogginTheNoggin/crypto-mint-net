@@ -22,7 +22,7 @@ So each offer held can cost up to 16 MiB. The held list is 256 offers by
 default (4,096 at most) and 64 from one peer, so one peer can make the node hold
 64 × 16 MiB = 1 GiB, and several peers up to 4 GiB (from the counts, not run).
 The bytes are then written out each time the market is listed: `Offer.Raw` is
-JSON `raw`, as hex, in `GET /v1/bounty` (what `poo bounty list` and a GUI view
+JSON `raw`, as hex, in `GET /v1/bounty` (what `poon bounty list` and a GUI view
 read), so the reply is twice the held bytes and is built in memory in one piece.
 
 Offers are not passed on, so the node's memory is the only cost.
@@ -56,7 +56,7 @@ more than the 64 a peer may hold. I did not run 16 MiB offers or the full
 ## Not tested
 
 16 MiB offers; the 256-offer and 64-per-peer totals; the same through the real
-RPC and `poo bounty list`.
+RPC and `poon bounty list`.
 
 ## Resolution
 

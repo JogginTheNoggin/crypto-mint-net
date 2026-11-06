@@ -21,7 +21,7 @@ Three small mismatches in the Watch view, fixed:
 ## Problem
 
 - The Kinds field expected exact words (`tx,entry,layer,selected,…`), and
-  a typo was only caught by `poo watch` after pressing Start. All the
+  a typo was only caught by `poon watch` after pressing Start. All the
   other filters are open-ended values, but kinds are a fixed set.
 - Watch printed `2026-10-27 22:34:01.706323438` (UTC, no zone shown),
   while Jobs printed `9:32:06 PM` (local). Side by side they disagreed by
@@ -37,13 +37,13 @@ Three small mismatches in the Watch view, fixed:
 - The local time is computed from the event's own `time` field. Nothing
   is reordered or dropped.
 
-`KINDS` is still a list kept in the GUI. GREEN-004 (`poo help -json`)
-would let it come from `poo` instead.
+`KINDS` is still a list kept in the GUI. GREEN-004 (`poon help -json`)
+would let it come from `poon` instead.
 
 ## Cost and risk
 
 About 30 lines. `gui/e2e/watch.mjs` changed from typing "tx, selected" to
-ticking two boxes; it checks the same `poo watch -kind tx,selected`
+ticking two boxes; it checks the same `poon watch -kind tx,selected`
 preview.
 
 ## Prototype

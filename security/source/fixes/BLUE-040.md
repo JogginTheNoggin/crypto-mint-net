@@ -12,7 +12,7 @@
 
 ## Summary
 
-- **RED-120.** `poo bounty pay` refreshes and resends a dropped earlier
+- **RED-120.** `poon bounty pay` refreshes and resends a dropped earlier
   payment of the claim, then records it; it never pays anew over one.
 - **RED-121.** `BountyMemoID` (16 bytes) in the memo and in `sentFor`.
 

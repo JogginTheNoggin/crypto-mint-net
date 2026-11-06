@@ -156,7 +156,7 @@ Only the time the bodies are read changes.
 | D176: replace imports honour `series_ceiling` | Which series a node adds is information |
 | D177 (RED-085): read paths fail the engine through `under` | No lock left held. Stopping decides nothing |
 | D177 (RED-086): view cost counts makers (3 units a spend) | Pacing through the revert budget (D111, D116). Nothing is refused |
-| D177: `poo status -counts` | Tooling |
+| D177: `poon status -counts` | Tooling |
 | ORANGE-039: the pending pool kept in insertion order; measurements | Which pending transactions this node builds with, oldest first as before. Not selection |
 | GREEN-054: flags after the word; Red (PR #210): RED-085, RED-086 | Tooling, and findings fixed in PR #213 |
 

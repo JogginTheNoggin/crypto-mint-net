@@ -28,7 +28,7 @@ is not a consensus change.
   - the add stores the id before it sets the flag, so a reader that sees
     the flag also sees the id;
   - it passes under `-race`, with Blue's concurrent add-and-read test.
-- **WHITE-002 step 1 (`poo/VERSION` in the hello) is not a consensus
+- **WHITE-002 step 1 (`poon/VERSION` in the hello) is not a consensus
   change.** `Agent` is free text that nothing decides on: no check, no
   peer score, no chase and no ledger reads it. Step 2 is clear on the
   terms below.
@@ -102,7 +102,7 @@ them back on save.
 
 ## WHITE-002: nodes share their version and features
 
-### Step 1: `poo/VERSION` in the hello's `Agent`
+### Step 1: `poon/VERSION` in the hello's `Agent`
 
 Black confirms this is **not a consensus change**.
 
@@ -115,8 +115,8 @@ Black confirms this is **not a consensus change**.
   Nothing in `peers`, `tracking`, `chase`, `ledger`, `engine` or `node`
   reads it.
 - **No wire change.** `Agent` is already up to 256 bytes of text, and
-  every node accepts any text. `poo/` doesn't collide with the self-check
-  prefix `poo-self-check/`.
+  every node accepts any text. `poon/` doesn't collide with the self-check
+  prefix `poon-self-check/`.
 - **Nothing hashed or signed carries it.** The hello isn't part of any
   entry, layer, transaction or id.
 - **What it costs is privacy, not agreement.** It tells peers which
@@ -172,7 +172,7 @@ for the owner:
 | D185 (RED-096): `Merge` keeps kept settings | Node policy import |
 | D185 (GUI ORANGE-024): the variable series set as a `sync.Map` | The same ids, added and read at the same points. Passes under `-race`. Fixed forms are identical |
 | GREEN-057 (#247) and ORANGE-042 (#249), carried in #251 | Doctor checks; one-pass insert and measurements |
-| WHITE-002 step 1 (`poo/VERSION` in the hello) | Not consensus. Nothing decides on `Agent`. No wire change. Step 2 is clear on the terms above |
+| WHITE-002 step 1 (`poon/VERSION` in the hello) | Not consensus. Nothing decides on `Agent`. No wire change. Step 2 is clear on the terms above |
 | WHITE-001; Red (PR #246): RED-093 to RED-096 | A process plan; findings fixed in #251. Neither touches a rule |
 
 ## Items for the owner

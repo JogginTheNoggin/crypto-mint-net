@@ -27,8 +27,8 @@ view. No byte form, wire or consensus change.
   from height `below` down, sets `Address.Next` (pool, below) for each
   pool it did not finish, and stops on a done context. `AddressOf` calls
   it from the tips. `pkg/rpc`: `/v1/address` takes `below` and passes the
-  request context; `Client.AddressPage`. `pkg/cli`: `poo address -below`.
-- Docs: D102, D103, `docs/modules/rpc.md`, `watch.md`, `poo.md`.
+  request context; `Client.AddressPage`. `pkg/cli`: `poon address -below`.
+- Docs: D102, D103, `docs/modules/rpc.md`, `watch.md`, `poon.md`.
 
 ## Tests added
 

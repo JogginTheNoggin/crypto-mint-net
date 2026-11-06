@@ -182,7 +182,7 @@ your permission, and it should be done in a specific way.**
 
 ## Work tries (D168, RED-081)
 
-`WorkTriesFor` and `DefaultWorkTries` size how long one `poo work` call
+`WorkTriesFor` and `DefaultWorkTries` size how long one `poon work` call
 grinds. RED-081 bounds a large request in time. Both affect only this
 node's own grinding. A layer is valid by its strength, whoever grinds it
 and however long.

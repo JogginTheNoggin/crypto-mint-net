@@ -39,8 +39,8 @@ at `cf7e940`. Nothing needs the owner.
 | D202 W-34: `BountyMemo` start and leg state names frozen; unknown state counts as sent | compatible | Done. `TestW34UnknownLegStateIsSent` |
 | D202 W-35: `done` always returned when asked for | compatible | Done |
 | D202 W-33: rule text | compatible | Matches White's rule |
-| D202 GUI-GREEN-064: `bounty.notes` in `poo bounty list` and `poo status`; amount limits and switches with Min 0; error text says `=on` | compatible | Added fields and a wider listed range: every value that was valid still is. The front end reads W-30's field, not the error text |
-| GREEN-064 (#343): `minute_strength` in `poo grind bench` | compatible | Added output field, `omitempty` (0 means not measured) |
+| D202 GUI-GREEN-064: `bounty.notes` in `poon bounty list` and `poon status`; amount limits and switches with Min 0; error text says `=on` | compatible | Added fields and a wider listed range: every value that was valid still is. The front end reads W-30's field, not the error text |
+| GREEN-064 (#343): `minute_strength` in `poon grind bench` | compatible | Added output field, `omitempty` (0 means not measured) |
 | BLUE-040 RED-120: a dropped bounty payment is resent, not replaced | compatible | It uses the wallet's own `Refresh` and `Resend`. No new leg state, no new file field |
 | BLUE-040 RED-121: memo id is the first 16 bytes of the offer id; a 4-byte memo no longer matches | compatible with a note | Only dev builds ever wrote the 4-byte form. See W-36 |
 

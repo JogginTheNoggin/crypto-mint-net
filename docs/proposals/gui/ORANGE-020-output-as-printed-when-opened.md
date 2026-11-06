@@ -10,7 +10,7 @@
 
 ## Summary
 
-Five panels draw poo's JSON their own way and keep the original in a
+Five panels draw poon's JSON their own way and keep the original in a
 closed "Output as printed" `details`:
 
 - the Node view's Health check and Variable series panels;
@@ -39,19 +39,19 @@ copy was laid out on opening anyway.
 in `onResult`, after the result has been drawn and laid out, visible, for
 one frame. For a large answer that hidden copy is most of the view:
 
-- **Variable series:** `poo series followed` at 4,096 series is 2.9 MB.
+- **Variable series:** `poon series followed` at 4,096 series is 2.9 MB.
   `render.js` draws 500 rows, each with the series' parameters as a
   nested list, which comes to 32,000 elements. The panel's own table, at
   500 rows (ORANGE-019), is 4,000.
 - **Health check:** its folded copy is small, 75 elements.
 
 Most people never open "Output as printed": it is there for a script or
-a bug report, and Copy output copies poo's exact text either way.
+a bug report, and Copy output copies poon's exact text either way.
 
 ## Measurements
 
-The setup was a real `poo node` here, following 4,096 signed variable
-series, and the real `poo-gui` with Chromium through Playwright. The
+The setup was a real `poon node` here, following 4,096 signed variable
+series, and the real `poon-gui` with Chromium through Playwright. The
 probe opened the Node view and waited for the Variable series table. It
 sampled for 15 s, then (in a second set) opened that panel's "Output as
 printed". Builds ran back to back: main @ b9fed52, then this branch.
@@ -88,7 +88,7 @@ each build gave the following:
 - Direct `runJob` calls, such as Release a part and the policy import's
   Apply, do not pass `lazy` and are unchanged.
 
-The GUI still shows only what poo printed, and the same `render.js`
+The GUI still shows only what poon printed, and the same `render.js`
 draws it. Only the moment it is drawn changes.
 
 ## Cost and risk
@@ -107,7 +107,7 @@ panel:
 
 - before opening, the folded result holds `.undrawn` and no table or
   list;
-- opening it draws poo's output;
+- opening it draws poon's output;
 - closing and opening it again does not draw it a second time.
 
 All ten e2e scripts pass.

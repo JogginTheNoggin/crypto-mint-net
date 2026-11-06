@@ -1,4 +1,4 @@
-# GREEN-020: A Health check panel on poo doctor
+# GREEN-020: A Health check panel on poon doctor
 
 | Field | Value |
 | --- | --- |
@@ -10,21 +10,21 @@
 
 ## Summary
 
-Source Round 4 added `poo doctor`, which checks a node policy, its files,
+Source Round 4 added `poon doctor`, which checks a node policy, its files,
 series, RPC and P2P and suggests a fix for each problem. The GUI had no
 way to show it. Now the Node view opens with a "Health check" panel that
-runs `poo doctor -json` and draws the report as a checklist: an ok, warn,
+runs `poon doctor -json` and draws the report as a checklist: an ok, warn,
 fail or skip pill, the check's name and detail, and its fix. A fix that
-is exactly one `poo` command line (for example `poo node`) gets a "Run in
+is exactly one `poon` command line (for example `poon node`) gets a "Run in
 terminal" button. The output as printed is kept under a fold.
 
 ## Problem
 
 - New users meet problems one view at a time (no policy, then no node,
   then files readable by others), and each shows up as a different
-  error. `poo doctor` answers all of them at once, but only in a shell.
+  error. `poon doctor` answers all of them at once, but only in a shell.
 - The GUI's own hints (GREEN-007) and node banner (GREEN-011) match
-  error text. `poo doctor` is the headless tool's own diagnosis, so the
+  error text. `poon doctor` is the headless tool's own diagnosis, so the
   GUI should show that instead of guessing.
 
 ## Idea
@@ -34,7 +34,7 @@ terminal" button. The output as printed is kept under a fold.
   `doctorReport`, and moves the raw result into a "Output as printed"
   fold. Everything shown is a field doctor printed.
 - A fix becomes a button only when it matches one plain command line.
-  Prose fixes ("poo init (or poo init -example …), or pick one with
+  Prose fixes ("poon init (or poon init -example …), or pick one with
   -policy or -dir") are shown as text. GREEN-022 asks Source for a
   structured fix, so the GUI need not tell the two apart.
 - The panel runs when the view opens, and on Refresh. It has no timer,
@@ -55,6 +55,6 @@ shows "exit 1" above the report, which is honest but a little loud.
 ## Prototype
 
 On the branch. `gui/e2e/qol.mjs` checks the failing policy check, its
-printed fix, the `poo doctor -json` preview and the raw fold.
-`gui/e2e/watch.mjs` checks that, after `poo init`, policy is ok and the
-rpc warning offers `poo node` as a button.
+printed fix, the `poon doctor -json` preview and the raw fold.
+`gui/e2e/watch.mjs` checks that, after `poon init`, policy is ok and the
+rpc warning offers `poon node` as a button.

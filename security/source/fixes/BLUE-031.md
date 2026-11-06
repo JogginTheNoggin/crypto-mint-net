@@ -13,7 +13,7 @@
 ## Summary
 
 - **RED-087.**
-  - The build id is `poo snap<N> <version> <commit>`, then the module
+  - The build id is `poon snap<N> <version> <commit>`, then the module
     version and VCS revision.
   - `cli` calls `node.SetRelease(Version, Commit)` at init.
   - A dirty tree adds an executable hash.

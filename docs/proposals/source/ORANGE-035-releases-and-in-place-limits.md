@@ -26,14 +26,14 @@ so `CheckRelease` works out `part_id(k − 1)` from part 1 again. That runs
 in four places:
 - on every start;
 - on every reload;
-- twice on `poo series add-release`: the handler checks the kept release
+- twice on `poon series add-release`: the handler checks the kept release
   and the new one, then the node reloads;
-- in `poo doctor` and the wallet.
+- in `poon doctor` and the wallet.
 
 | Kept release at part 10,000,000 | `e93eb29` | This change |
 | --- | --- | --- |
 | `Accepted` (start, reload, doctor) | 2.68–2.77 s each time | first build in a process 2.7 s, then 0.09–0.4 ms |
-| `poo series add-release` of the next part: reply | 2.91 s | 3.7 ms |
+| `poon series add-release` of the next part: reply | 2.91 s | 3.7 ms |
 | Then the node answering again (reload) | 5.62 s | 5.0 ms |
 | Part 1,000,000 | 0.24–0.26 s each time | the same, once |
 
@@ -60,7 +60,7 @@ Still linear, by design, and not changed here:
 - **The first start of a node process.** It is 2.7 s at part 10⁷. A
   node would need to trust its own node.json to skip it, and Black should
   decide that.
-- **Each `poo` command that builds a claim.** It runs in a new process
+- **Each `poon` command that builds a claim.** It runs in a new process
   and checks the node's release again (`cli/node.go`, "checked here
   too"), at the same 2.7 s for part 10⁷. The GUI runs `cli.Main` in one
   process, so it pays only once.
@@ -110,7 +110,7 @@ A fixed transaction keeps its bytes and tid, which D166 tests.
 
 **4. Design for Black: applying limits and releases in place.**
 
-Today `poo policy limits -set` and `poo series add-release` save
+Today `poon policy limits -set` and `poon series add-release` save
 node.json and then reload the whole node. A reload replays the store,
 saves and loads the book and the tracker, and rebuilds the p2p host, so
 every peer disconnects. ORANGE-033 measured the cost:

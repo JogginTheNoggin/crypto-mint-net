@@ -4,7 +4,7 @@
 - **Severity:** Medium (High on a shared/multi-user host; Low on a single-user desktop)
 - **Status:** fixed (merged by GUI/Grey into claude/gui-5-release at fca4369, verified)
 - **Fix branch:** `claude/gui-blue`
-- **Component:** `gui/server/server.go` (`URL`, cookie swap), `gui/cmd/poo-gui/main.go` (`openURL`, `serve`)
+- **Component:** `gui/server/server.go` (`URL`, cookie swap), `gui/cmd/poon-gui/main.go` (`openURL`, `serve`)
 
 ## What
 
@@ -30,14 +30,14 @@ several places that outlive or escape the loopback boundary:
    `Referrer-Policy: no-referrer` stop the secret from leaking onward in
    referers, but history persists it on disk indefinitely.
 
-3. **The terminal stdout** where poo-gui runs also contains the secret (needed
+3. **The terminal stdout** where poon-gui runs also contains the secret (needed
    to show the user the URL), so any capture of that output (tmux logs, CI
    logs, screen recordings, scrollback shipped in a bug report) leaks it.
 
 4. **No expiry / single-use.** The `?t=` token equals the long-lived cookie
    value and is accepted for the entire lifetime of the process. It is never
    rotated and never invalidated after first use, so a secret recovered from
-   any of the channels above grants access for as long as poo-gui runs.
+   any of the channels above grants access for as long as poon-gui runs.
 
 ## Why it matters
 
@@ -49,7 +49,7 @@ enough for the rest of the session. That turns "local-only admin tool" into
 
 ## Reproduce
 
-- `poo-gui -app` (or default) on a multi-user box; from another shell run
+- `poon-gui -app` (or default) on a multi-user box; from another shell run
   `ps -ww -ax | grep -- --app=` (or `tr '\0' ' ' </proc/<browser-pid>/cmdline`)
   and read the `?t=` secret. Open `http://127.0.0.1:<port>/?t=<secret>` → full
   access.
@@ -67,7 +67,7 @@ enough for the rest of the session. That turns "local-only admin tool" into
   loopback URL and delivering the token another way:
   - write the token to a `0600` file in the user's runtime dir and have the
     page/opener read it, or
-  - open `http://127.0.0.1:<port>/` and have poo-gui print a short-lived
+  - open `http://127.0.0.1:<port>/` and have poon-gui print a short-lived
     device-code the user pastes once, or
   - on Chromium `-app`, pass a profile/landing page rather than the secret in
     `--app=`.
@@ -85,7 +85,7 @@ finding is about where the secret travels, not how it is compared.
 ## Fix (GUI/Blue, branch `claude/gui-blue`)
 
 - `?t=` is now a one-time sign-in token with a time limit (`server.SignInURL`). The first visit spends it and sets a session cookie that is an independent random value, so the cookie is no longer the token. A spent or expired token gets a 403. The server stores only SHA-256 hashes of tokens and cookies.
-- The address poo-gui opens itself lives for 1 minute and is not printed. The banner shows only the plain `http://127.0.0.1:PORT/`. With `-no-open`, poo-gui prints an address that lives for 5 minutes. Pressing Enter in poo-gui's window prints a fresh address, so expiry never locks a user out.
+- The address poon-gui opens itself lives for 1 minute and is not printed. The banner shows only the plain `http://127.0.0.1:PORT/`. With `-no-open`, poon-gui prints an address that lives for 5 minutes. Pressing Enter in poon-gui's window prints a fresh address, so expiry never locks a user out.
 - Result: history, logs and scrollback only ever hold spent or expired tokens. The process-argv channel shrinks to the time between the browser starting and spending the token (usually under a second). This residual is documented in docs/gui.md (Security), with `-no-open` recommended on shared hosts. A file-based hand-off was considered and rejected, because snap-packaged browsers cannot read `/tmp` or dot-directories, so it would break the default open on Ubuntu.
 - Kept: entropy, HttpOnly, SameSite=Strict, no-referrer.
-- Regression tests: `TestSignIn`, `TestSignInTokenOneUse`, `TestSignInTokenExpires` (gui/server); `TestServeOpensAndStops`, `TestNoOpenPrintsOneUseAddresses` (gui/cmd/poo-gui); browser e2e check that a used address is refused in a second browser context (gui/e2e/terminal.mjs).
+- Regression tests: `TestSignIn`, `TestSignInTokenOneUse`, `TestSignInTokenExpires` (gui/server); `TestServeOpensAndStops`, `TestNoOpenPrintsOneUseAddresses` (gui/cmd/poon-gui); browser e2e check that a used address is refused in a second browser context (gui/e2e/terminal.mjs).

@@ -23,13 +23,13 @@
 - **RED-073.**
   - A kept release that does not check is left out (`Accepted.ReleaseErr`):
     the series is followed at the parts proven without it, the node logs
-    it, and `poo doctor` warns under `releases`.
+    it, and `poon doctor` warns under `releases`.
   - `add-release` of a valid release replaces it.
   - An import drops it and names it (`dropped_releases`).
 - **RED-074.**
   - `Policy.AddRelease` checks every release in full, also one of a known
     part.
-  - Release JSON refuses unknown keys. The keys that `poo series release`
+  - Release JSON refuses unknown keys. The keys that `poon series release`
     adds for people are read and ignored.
 - **RED-075.**
   - ORANGE-035 shares part ids within a process.
@@ -37,7 +37,7 @@
     `part_id(k − 1)` from it when the entry matches the kept release
     exactly, and the witness is still checked.
   - The RPC checks a release before taking the policy lock.
-  - By hand, at part 20,000,000: `poo doctor` takes 10 ms with the cache
+  - By hand, at part 20,000,000: `poon doctor` takes 10 ms with the cache
     and 8.6 s without it.
 - **RED-076.** The `series_id` text is printed with `%q`.
 

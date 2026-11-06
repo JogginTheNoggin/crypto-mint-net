@@ -17,7 +17,7 @@ The view now draws arrived events once per animation frame, in one
 fragment, with one click handler for the whole table. While live it lays
 out only the newest 200 of the 1000 kept rows. The result is 60 frames a
 second at 200 events a second, 58 at 1000, and almost four times the
-throughput when events come as fast as possible. What poo watch prints,
+throughput when events come as fast as possible. What poon watch prints,
 the 1000-row bound (GUI-007) and the Pause and Clear behaviour are all
 unchanged. Pause and Resume draw what was held at once.
 
@@ -46,7 +46,7 @@ table, and the page around it, about once a frame. Script time was small
 ## Measurements
 
 Run with `gui/perf/measure.mjs watch` against `perfgui`, which streams
-synthetic events in poo watch's shape through the real server and page
+synthetic events in poon watch's shape through the real server and page
 (ORANGE-005). Headless Chromium on a 4-core container. The Before figures
 are base 9b4b19c. The After figures are this branch, which also includes
 ORANGE-002's joined stream events.

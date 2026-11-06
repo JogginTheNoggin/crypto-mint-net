@@ -21,7 +21,7 @@ limit, and no heavier ledger is refused (D115).
 - **RED-024 (medium).** A timeout no longer throws away a large entry's
   parts; the next chase goes on from the offset it reached.
 - **RED-025 (low).** A node.json with a `layer_rate` over the new most
-  (50) opens, at 50, with a warning in the log and in `poo doctor`. Writes
+  (50) opens, at 50, with a warning in the log and in `poon doctor`. Writes
   still refuse it.
 
 There is no change to byte forms, the wire or consensus.

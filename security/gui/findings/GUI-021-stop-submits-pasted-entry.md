@@ -1,4 +1,4 @@
-# GUI-021: Stop on `poo submit -f -` hands the pasted entry or layer to the node, because Stop is the GUI's only end of input
+# GUI-021: Stop on `poon submit -f -` hands the pasted entry or layer to the node, because Stop is the GUI's only end of input
 
 | Field | Value |
 | --- | --- |
@@ -12,7 +12,7 @@
 ## Summary
 
 The new Submit form takes "From a file: `-`", "to paste it when asked".
-poo then runs `poo submit entry|layer -f -`, and `submitHex` reads
+poon then runs `poon submit entry|layer -f -`, and `submitHex` reads
 standard input with `io.ReadAll`, so it reads until end of input.
 
 The GUI has no way to send end of input:
@@ -33,13 +33,13 @@ pastes the wrong entry, or one from a node they don't trust, and presses
 Stop to back out has handed it to their node anyway.
 
 This also breaks the rule that the GUI terminal works as headless does. In
-a shell, Ctrl-C kills `poo submit … -f -` and nothing is sent. Ctrl-D is
+a shell, Ctrl-C kills `poon submit … -f -` and nothing is sent. Ctrl-D is
 what sends it. In the GUI terminal, Ctrl-C does what Ctrl-D does.
 
 ## Reproduction
 
-poo-gui at 55cf745, two data directories from
-`poo init -example -listen 127.0.0.1:0 -p2p 127.0.0.1:0`, A and B, each
+poon-gui at 55cf745, two data directories from
+`poon init -example -listen 127.0.0.1:0 -p2p 127.0.0.1:0`, A and B, each
 with a node run as a GUI job. Every step below goes through the GUI's
 `/api/jobs`, the same requests the forms send.
 
@@ -111,14 +111,14 @@ All of it is in the GUI's job layer and page. pkg/cli is unchanged.
   - `gui/server`: `TestJobEOF`.
   - e2e `views.mjs`: Stop on the Submit form's `-f -` job fails on the
     stopped read, and nothing is decoded. "Send and end input" reaches
-    poo.
+    poon.
   - e2e `terminal.mjs`: the same for Ctrl-C and Ctrl-D.
   - Both e2e checks fail on the old code.
 - docs/gui.md (How it works, and the terminal's keys).
 
 ## Notes — Round 16B verification (held up)
 
-These were checked live against poo-gui at main 6a1cdce. Two
+These were checked live against poon-gui at main 6a1cdce. Two
 `init -example` data directories, A and B, each ran a node as a GUI job,
 and every step used the GUI's `/api/jobs` requests.
 
@@ -139,5 +139,5 @@ and every step used the GUI's `/api/jobs` requests.
     "no input", so a cancelled prompt never goes ahead.
   - Input after an EOF is refused with 409, so nothing can be added once
     the input has ended.
-  - `/eof` is behind the same `X-Poo-GUI` header and Origin check as every
+  - `/eof` is behind the same `X-Poon-GUI` header and Origin check as every
     other POST, and the token covers it.

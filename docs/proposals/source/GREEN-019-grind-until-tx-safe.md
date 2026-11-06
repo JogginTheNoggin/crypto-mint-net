@@ -19,9 +19,9 @@ from it, from(e), reaches `-until-from W`. Proposal only.
 
 ## Problem
 
-`poo pay` and `poo tx TID` give a TID. `grind start` takes `tip`,
+`poon pay` and `poon tx TID` give a TID. `grind start` takes `tip`,
 `pending` or an entry hash, and `-until-from` also takes an entry hash. To
-say "until my payment is safe", the person runs `poo tx TID`, copies the
+say "until my payment is safe", the person runs `poon tx TID`, copies the
 entry, and starts the job, and if the payment is still pending there is no
 entry yet, so they have to come back later.
 
@@ -40,5 +40,5 @@ entry yet, so they have to come back later.
 
 The job follows one TID through its states, so it needs a test for each
 path (pending then included, already included, dropped). The safe weight
-must come from the same code that `poo tx` uses, so the two can never
+must come from the same code that `poon tx` uses, so the two can never
 disagree.

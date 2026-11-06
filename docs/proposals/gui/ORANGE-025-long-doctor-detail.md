@@ -1,4 +1,4 @@
-# ORANGE-025: Cut a long Health check line, and let `poo doctor` sum up
+# ORANGE-025: Cut a long Health check line, and let `poon doctor` sum up
 
 | Field | Value |
 | --- | --- |
@@ -11,7 +11,7 @@
 ## Summary
 
 The Health check is the first panel of the Node view. It draws each
-`poo doctor` check on one line. The `ceiling` check names every
+`poon doctor` check on one line. The `ceiling` check names every
 followed series that sets no witness ceiling, joined into one detail
 string. At 4,096 such series, that detail is 455,000 characters. The
 Health check panel becomes 52,346 px tall, and every other panel of the
@@ -20,14 +20,14 @@ Node view is pushed 52,000 px down the page.
 The prototype on this branch shows the first 1,000 characters of a
 detail, followed by "…" and a "Show all N characters" toggle that shows
 the whole text while it is open. With it the panel is 695 px tall. The
-text is poo's own and nothing is computed: the cut is only on screen,
+text is poon's own and nothing is computed: the cut is only on screen,
 like the 500-row cut on tables (ORANGE-019) and the "Read first" line
 (ORANGE-016).
 
-For Source: `poo doctor` could sum up this check the way its snapshots
+For Source: `poon doctor` could sum up this check the way its snapshots
 check already does, with the number of series and the first few ids
 ("4096 followed series set no witness ceiling: 1800ac16, …, and 4091
-more"). That would keep `poo doctor` readable in a terminal too.
+more"). That would keep `poon doctor` readable in a terminal too.
 
 ## Problem
 
@@ -52,21 +52,21 @@ the Node view is unusable: the panels a person opens the view for are
 ## Measurements
 
 The setup was the probe home with 4,096 signed variable series and no
-witness ceiling (ORANGE-019), the real `poo` and `poo-gui`, and
+witness ceiling (ORANGE-019), the real `poon` and `poon-gui`, and
 Chromium through Playwright at 1280 by 900. The probe opened the Node
 view, waited for the Health check, and measured that panel. Builds
 alternated.
 
 | Health check at 4,096 series | main @ 5f80582 | this branch |
 | --- | --- | --- |
-| `poo doctor -o json` | 456 KB, 1.7 to 2.0 s | the same |
+| `poon doctor -o json` | 456 KB, 1.7 to 2.0 s | the same |
 | Characters in the panel | 455,841 | 2,214 |
 | Longest line | 454,776 characters | 1,149 |
 | Panel height | 52,346 px | 695 px |
 | Node view busy, 3 runs | 0.74 to 0.79 s | 0.61 to 0.72 s |
 | Node view settled, 3 runs | 1.74 to 1.89 s | 1.64 to 1.78 s |
 
-The settle time hardly changes, because it waits on `poo doctor`
+The settle time hardly changes, because it waits on `poon doctor`
 itself; ORANGE-024 is about that. The page work is smaller, and the
 view is usable again.
 
@@ -79,11 +79,11 @@ panel looks exactly as before.
    1,000 characters as before. A longer one shows its first 1,000
    characters and "…", with a `details` "Show all N characters". While
    that is open, the line shows the whole text, and closing it shows
-   the cut again. Copy output and "Output as printed" still carry poo's
+   the cut again. Copy output and "Output as printed" still carry poon's
    whole answer.
 2. **Source (proposed):** the `ceiling` check prints a count and the
    first few series ids instead of every one, as the `snapshots` check
-   already does. The warning for each series stays in `poo series
+   already does. The warning for each series stays in `poon series
    followed`, which the Followed series panel already shows in its
    warning column, 500 rows at a time.
 
@@ -95,7 +95,7 @@ panel looks exactly as before.
   all of it.
 - **Compatibility (White):** nothing stored and no API path changes.
   The GUI still reads `checks[].detail` as a string, so output from an
-  older `poo` draws the same way.
+  older `poon` draws the same way.
 
 ## Prototype
 

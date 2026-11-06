@@ -16,7 +16,7 @@ These are five fixes from Source Round 7. None adds a depth limit or a size cap,
 - **RED-016 (high).** Claiming a huge entry now costs the node disk only as the sender actually sends the bytes. Parts go to a temporary file, and the first part must start with the right parent. A fetch is spread over several time slices. A node that holds nothing asks for work before it fetches a whole ledger.
 - **RED-017 (medium).** A parts reply no longer encodes the item under the engine lock, and each item is encoded once per fetch.
 - **RED-018 (low).** A layer floor sends at most 16 extra layers per search and 50 a second.
-- **RED-019 (low).** `poo grind run` retries a failed lease renewal.
+- **RED-019 (low).** `poon grind run` retries a failed lease renewal.
 
 There is no change to byte forms, the wire or consensus.
 
@@ -32,7 +32,7 @@ There is no change to byte forms, the wire or consensus.
 - `pkg/p2p/serve.go`: `replier.parts` copies the item under the lock and encodes it through `partsCache`.
 - `pkg/node/node.go`: `MaxKeptLayers` (16), `KeptPerSecond` (50) and a `keptBucket` token bucket in `WorkWith`.
 - `pkg/cli/grind.go`: `renew` takes a `renewer`, the tick and a warning writer. `errOf` (in `main.go`) gives an invocation's error output.
-- Docs: D120, plus `docs/modules/p2p.md`, `grind.md` and `poo.md`.
+- Docs: D120, plus `docs/modules/p2p.md`, `grind.md` and `poon.md`.
 
 ## Tests added
 

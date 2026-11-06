@@ -10,8 +10,8 @@
 
 ## Summary
 
-M2's `poo holdings`, `poo payment` and `poo status` now overlap with M10's
-`poo unspent`, `poo tx` and `poo pools`, and in each pair the M10
+M2's `poon holdings`, `poon payment` and `poon status` now overlap with M10's
+`poon unspent`, `poon tx` and `poon pools`, and in each pair the M10
 command shows more. Keep the old names, so scripts and the GUI keep
 working, but document the M10 command as the one to use. Later, serve both
 from the same `pkg/watch` code, so that there is only one answer to "what
@@ -38,7 +38,7 @@ separately in `pkg/rpc` (`/v1/holdings` and `/v1/payment`) and in
 ## Idea
 
 1. **Now (docs only).** Mark `holdings` and `payment` in the usage and
-   `poo.md` as "older form of unspent / tx, kept for scripts", and switch
+   `poon.md` as "older form of unspent / tx, kept for scripts", and switch
    `running-a-node.md` part 4 to `tx` and `unspent`. Give `pools` the
    two fields only `status` has (`waiting`, `stored_records`), so `pools`
    is a superset and `status` becomes `pools` plus `replay`.
@@ -51,7 +51,7 @@ separately in `pkg/rpc` (`/v1/holdings` and `/v1/payment`) and in
 
 Smaller naming mismatches found in the same sweep, for Grey to fix or
 leave:
-- `poo series info` prints `series_id`, while every other reply says
+- `poon series info` prints `series_id`, while every other reply says
   `series`.
 - `/v1/tx` submit replies with `id`, while views say `tid`.
 

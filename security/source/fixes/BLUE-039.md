@@ -8,7 +8,7 @@
 | Code | `8ee7aa6` |
 | Decisions | D201 |
 | With | GREEN-063 (#328), carried: it changes the same `book.go` and `cli/bounty.go`. ORANGE-048 (#329) is measurements only, nothing to fix. |
-| Review | No consensus change: the market is outside the ledger (D196). For White: `bounties.json` gains `done_last` (an older release keeps it as a later field, W-28); `poo bounty pay` output gains `recorded`. No new flag or command. |
+| Review | No consensus change: the market is outside the ledger (D196). For White: `bounties.json` gains `done_last` (an older release keeps it as a later field, W-28); `poon bounty pay` output gains `recorded`. No new flag or command. |
 
 ## Summary
 
@@ -17,7 +17,7 @@
   and logs it. A cut last line is reported; `archive` starts a new line
   after it and truncates a failed partial write.
 - **RED-119.** A failed `Paid` save is rolled back in memory.
-  `poo bounty pay` records a payment the wallet already sent for the
+  `poon bounty pay` records a payment the wallet already sent for the
   claim instead of sending again; a payment sent only in part is refused.
 
 ## Consensus

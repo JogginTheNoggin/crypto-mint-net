@@ -5,8 +5,8 @@
 | Severity | Medium (phase 2 is where it reaches the network; today it is the issuer's own tools and any file they sign) |
 | Status | fixed |
 | Found | Source Round 24 Part B, on `main` @ `08404df` (D163) |
-| Area | `pkg/series` (`PartID`, `partChain`, `CheckRelease`, `Unsigned`), `pkg/cli` (`poo series parts`, `poo series release`) |
-| Raised by | Red, and Source Green saw it too (measured with the poo binary) |
+| Area | `pkg/series` (`PartID`, `partChain`, `CheckRelease`, `Unsigned`), `pkg/cli` (`poon series parts`, `poon series release`) |
+| Raised by | Red, and Source Green saw it too (measured with the poon binary) |
 | For Black | **Read the note on node policy below.** The fix is memory and speed, not a refusal. A node policy that refuses a part number it will not work out would let two nodes that hold the same release disagree about whether it is valid, which is a hard fork by the owner's definition. |
 | Fixed by | `claude/project-thread-ggo8dt` @ `c05286b` (BLUE-025) |
 
@@ -38,18 +38,18 @@ make it work out a long chain (the code says so). That is enough:
 ## How I checked it
 
 A variable series (40 mints, pools of 4, parts of 8, no limit), built with
-`poo series new -variable`.
+`poon series new -variable`.
 
-1. A local call: `poo series parts v.json -from 30000000 -to 30000001`.
+1. A local call: `poon series parts v.json -from 30000000 -to 30000001`.
    After 10 seconds the process held 1.5 GB resident and was still growing
    (3.1 GB virtual). Source Green measured 2.9 GB and 23 s at part 20,000,000.
 2. A release signed by the issuer's key for part 2³⁶ (a file of 459 bytes,
    built with the series package and the issuer's seed), then
-   `poo series release v.json -check huge-release.json`:
+   `poon series release v.json -check huge-release.json`:
    1.5 GB resident after 8 s, 2.7 GB after 14 s, still growing. It is
    killed by the memory limit before it ends (2³⁶ ids are 2 TB).
 
-`poo series release v.json -part 4000000000` (the issuer signing, by
+`poon series release v.json -part 4000000000` (the issuer signing, by
 mistake) does the same through `Unsigned`.
 
 ## What could happen

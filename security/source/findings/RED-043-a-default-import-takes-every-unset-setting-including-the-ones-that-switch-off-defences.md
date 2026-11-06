@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found on | `main` @ b17e892 (Source Round 17 Part B) |
 | Component | pkg/nodepolicy/bundle.go (`Merge`, `mergeInto`, `MachineLocal`), pkg/cli/policyport.go, pkg/rpc/policyimport.go |
-| Surface | a bundle file from someone else; `poo policy import -apply`, `POST /v1/policy/import` |
+| Surface | a bundle file from someone else; `poon policy import -apply`, `POST /v1/policy/import` |
 | Fixed by | `claude/project-thread-ggo8dt` @ cfd1cbd (BLUE-018) |
 
 ## Summary

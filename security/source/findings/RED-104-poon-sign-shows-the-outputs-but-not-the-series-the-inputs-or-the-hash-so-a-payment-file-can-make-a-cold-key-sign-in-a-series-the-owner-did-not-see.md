@@ -1,4 +1,4 @@
-# RED-104: `poo sign` shows the outputs but not the series, the spent inputs or the hash it used, so a payment file can have a cold key sign in a series the owner did not see
+# RED-104: `poon sign` shows the outputs but not the series, the spent inputs or the hash it used, so a payment file can have a cold key sign in a series the owner did not see
 
 | Field | Value |
 | --- | --- |
@@ -11,7 +11,7 @@
 
 ## What is wrong
 
-`poo sign` is the step where a person decides, on an offline machine, what
+`poon sign` is the step where a person decides, on an offline machine, what
 a cold key authorises. The file comes from the online machine, which is the
 machine an attacker is assumed to hold. What the command prints, with
 `-show` or when it signs, is for each leg: the mint **serial**, the **tid**,
@@ -34,7 +34,7 @@ It does not print:
   hash prints a tid that matches nothing online; the signature it adds would then
   fail in the node (not run), with no sign on the offline machine of why.
 
-`poo sign` also never checks the signatures it adds (`SignWith` returns a
+`poon sign` also never checks the signatures it adds (`SignWith` returns a
 count), so a wrong key reaches the file as an invalid signature (see
 RED-106).
 
@@ -43,7 +43,7 @@ RED-106).
 `pkg/cli` test (throwaway, removed; copy kept with Red's notes): a payment
 file whose `series` is `aa…` and whose one leg's transaction is in series
 `bb…` (both made up), paying `dd…` 1000 from one input, key an Ed25519 seed.
-`poo sign -show` and `poo sign` both succeeded. The output, in full, is the
+`poon sign -show` and `poon sign` both succeeded. The output, in full, is the
 leg `{serial 5, tid, inputs 1, outputs [dd… 1000]}`, the key and address, and
 `"added": 1`. Neither series appears anywhere in it.
 
@@ -66,7 +66,7 @@ and `hash` in every file it writes (read from the code only).
 
 ## Resolution
 
-Fixed in BLUE-036 (D194). `poo sign` prints the payment's `series`, the
+Fixed in BLUE-036 (D194). `poon sign` prints the payment's `series`, the
 `hash` each tid uses, and each leg's `spends` as `tid:index`. A file
 whose series is not its transactions' is refused (`Unsigned.DecodeLeg`),
 and `SignWith` checks each signature before it is written. The optional

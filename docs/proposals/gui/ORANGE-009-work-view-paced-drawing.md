@@ -11,7 +11,7 @@
 ## Summary
 
 The live run in the Work view did all of its drawing for every line
-`poo grind run` printed. It built a new SVG chart for every progress
+`poon grind run` printed. It built a new SVG chart for every progress
 line, rewrote the counts, and prepended a table row for every found
 line. When a grind finds layers quickly (an easy target, or several
 pools), it prints hundreds to thousands of lines a second. At 200 lines
@@ -68,7 +68,7 @@ mostly the SVG no longer being rebuilt for every progress line.
 
 Re-check of the earlier gains on 8b044ac (unchanged by this proposal):
 Watch runs at 60 fps at 200 events/s with the main thread 21% busy, and
-takes 20,000 events in 0.56 s at full rate. `poo watch` in the terminal
+takes 20,000 events in 0.56 s at full rate. `poon watch` in the terminal
 finishes in 0.57 s. The node log at 50 lines/s keeps the main thread
 0.41–0.52 s busy in each 10 s. A 3.9 MB text result shows in 0.21 s.
 
@@ -79,7 +79,7 @@ line and a progress line. With an easy target, finds come thousands of
 times a second, so does `progress`, and each `rate` is measured over a
 slice of a few milliseconds, which makes it noisy. Emitting `progress`
 at most about once a second per job (found lines unchanged) would make
-the stream and the rate steadier for every consumer, `poo grind run` in
+the stream and the rate steadier for every consumer, `poon grind run` in
 a shell included. The GUI copes either way after this change.
 
 ## Cost and risk

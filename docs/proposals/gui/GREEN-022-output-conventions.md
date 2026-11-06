@@ -11,13 +11,13 @@
 ## Summary
 
 Three small mismatches in how commands print, found while wiring
-`poo doctor` into the GUI. Each one makes the GUI either parse text or
+`poon doctor` into the GUI. Each one makes the GUI either parse text or
 special-case a command:
 
-1. `poo doctor` takes `-json`, while the M10 commands take
+1. `poon doctor` takes `-json`, while the M10 commands take
    `-o json|table`.
 2. Doctor's `fix` is free text that mixes a command with prose, such as
-   "poo init (or poo init -example to try the worked example), or pick
+   "poon init (or poon init -example to try the worked example), or pick
    one with -policy or -dir".
 3. Errors carry no stable code, so the GUI's next-step hints (GREEN-007)
    and node banner (GREEN-011) match message text.
@@ -31,7 +31,7 @@ For Source/Grey to decide, smallest first:
    the prose `fix` when the fix is a single command. The GUI then offers
    a button for exactly that argv and shows the prose as it is.
 3. Have the common errors print a short stable code, for example
-   `poo: E_NO_NODE: rpc: is the node running? …`, or include it in a
+   `poon: E_NO_NODE: rpc: is the node running? …`, or include it in a
    JSON error object under `-o json`. The GUI matches the code, and the
    wording can change freely.
 

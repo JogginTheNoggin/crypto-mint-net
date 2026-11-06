@@ -12,7 +12,7 @@
 
 ## Summary
 
-poo-gui has two checks for a key typed where a key file's path goes:
+poon-gui has two checks for a key typed where a key file's path goes:
 
 - **The terminal's saved history** (GUI-034). `api.secretLine` joins the
   words after `-key-file` or `-seed-file` into one value, up to a word
@@ -35,13 +35,13 @@ four-space indent. Pasted into the terminal's one-line input, that is
 one word per 15 bytes, which is 30 hex digits. That is under the 32
 that `LooksLikeKey` needs, so no word passes.
 
-poo itself refuses the line before reading any file ("poo: usage: poo
+poon itself refuses the line before reading any file ("poon: usage: poon
 sign FILE|- -key-file KEYFILE …"), and its error doesn't repeat the
 words. The history check works. Only the Jobs list keeps the key.
 
 ## Reproduction
 
-poo-gui at 21c34c8, a fresh `POO_HOME`, Playwright. pay.json is
+poon-gui at 21c34c8, a fresh `POON_HOME`, Playwright. pay.json is
 `{"hash":"sha256","legs":[{"serial":1}]}`. The key is 64 hex digits,
 `c0ffee…beef`.
 
@@ -60,15 +60,15 @@ Then read `/api/jobs`:
 | 2 | all 3 openssl lines, in clear | no |
 | 3 | `<hidden>`, then the last 32 digits in clear | yes |
 
-None of the three lines is in localStorage `poo-gui-history`, which is
-right. Each job's output is only poo's usage line.
+None of the three lines is in localStorage `poon-gui-history`, which is
+right. Each job's output is only poon's usage line.
 
 ## Impact
 
 The same as GUI-032 step 3 and GUI-034, for a key typed with spaces:
 
-- a key kept off the online machine sits in poo-gui's job list on it, up
-  to 64 jobs, until poo-gui restarts;
+- a key kept off the online machine sits in poon-gui's job list on it, up
+  to 64 jobs, until poon-gui restarts;
 - anyone with the GUI session can read it (GUI-001's threat model);
 - the Jobs view shows it on screen.
 
@@ -93,7 +93,7 @@ terminal-only. Rated **low**.
   the front-end and Go checks the same, as GUI-032 asked for.
 - **Optional, simpler.** On any key file flag whose joined run looks
   like a key, hide every argument after the flag. Such a line is a
-  mistake poo refuses anyway, so nothing useful is lost from the Jobs
+  mistake poon refuses anyway, so nothing useful is lost from the Jobs
   list.
 - **Test (TestRedactKeyFile).** Add the three lines above: groups of 8,
   openssl's 15-byte lines, and two halves of 32. Expect no hex group in

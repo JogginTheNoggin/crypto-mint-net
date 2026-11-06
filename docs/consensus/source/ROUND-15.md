@@ -11,7 +11,7 @@ accepts:
 - D145 adds the wallet's compare-and-write lock and confirms new
   passphrases.
 - BLUE-016 holds the wallet lock until a command saves.
-- GREEN-040 lets `poo submit` read a `-bytes` reply.
+- GREEN-040 lets `poon submit` read a `-bytes` reply.
 
 The parts that touch entries are the RPC's entry body (D145's streamed
 hex, ORANGE-025's single read). Black checked them for a size bound and
@@ -71,7 +71,7 @@ and the entry goes through every check a pushed entry gets.
 | D145: GUI-020, confirming a new passphrase | The CLI and GUI only |
 | D145: GREEN-039 adopted, and the streamed hex | Output, hints and the local RPC's parsing. The same bytes reach the same checks (see above) |
 | BLUE-016 (RED-039): pay, claim, submit and resend hold the wallet lock until they save | Wallet and CLI only. What the node is sent, and what it accepts, are unchanged |
-| GREEN-040: `poo submit` reads a `-bytes` reply | CLI input only. The hex it finds is decoded and submitted as before |
+| GREEN-040: `poon submit` reads a `-bytes` reply | CLI input only. The hex it finds is decoded and submitted as before |
 | ORANGE-025: the entry body read once | Memory only, with no bound (see above) |
 | Red PR #65 (RED-039) | The finding. Its fix is BLUE-016 |
 

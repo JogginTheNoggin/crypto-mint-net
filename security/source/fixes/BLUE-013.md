@@ -26,7 +26,7 @@ D133 still hold, and B4's and B5's cases still pass under the new rule.
 - **RED-034.** Drops while probing hold the pace only with nearly as much
   sent as at the first drops (seven eighths). Otherwise the probe halves,
   not below where it began, and goes on rising.
-- **GUI-018.** `poo wallet follow` sends one `replace` request, applied
+- **GUI-018.** `poon wallet follow` sends one `replace` request, applied
   under `policyMu`, so the series is never off node.json in between.
 
 ## What changed

@@ -15,7 +15,7 @@
   The wallet, the peer book, the tracker, the policy manager and
   `nodepolicy.Save` all use it now, so a crash leaves the old file or the
   new one and never an empty one.
-- **RED-040.** `Client.SubmitEntryHex` sets `Content-Length`. `poo
+- **RED-040.** `Client.SubmitEntryHex` sets `Content-Length`. `poon
   submit` no longer sends a chunked body, so the node's ORANGE-025
   sizing applies. This is independent of ORANGE-026 (PR #74), which
   changes the node's side.
@@ -24,7 +24,7 @@
     node. They hold it only to save, and `status` keeps a leg state that
     another command changed in the meantime.
   - Any command that has to wait for the lock prints "waiting for another
-    poo wallet command (or the GUI) to finish with …" on its error
+    poon wallet command (or the GUI) to finish with …" on its error
     output, then waits.
 
 ## What changed

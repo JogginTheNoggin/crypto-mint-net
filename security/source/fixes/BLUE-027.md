@@ -19,7 +19,7 @@
     over `max_witness`.
   - `CheckPolicy` runs it, so the wallet, payment requests and payers
     refuse such a policy.
-  - `poo crypto` shows `max_signatures_per_witness` (ML-DSA-87: 14,
+  - `poon crypto` shows `max_signatures_per_witness` (ML-DSA-87: 14,
     SLH-DSA-SHA2-128s: 8).
 - **RED-078.**
   - A release from a peer has its witness checked on arrival.

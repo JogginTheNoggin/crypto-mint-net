@@ -1,10 +1,10 @@
-# GREEN-047: poo policy limits, and which other limits could be settable
+# GREEN-047: poon policy limits, and which other limits could be settable
 
 | Field | Value |
 | --- | --- |
 | Status | adopted (D161): part 1; part 2 is a survey for Black |
 | Based on | `main` @ `b997eb0` |
-| Area | `pkg/nodepolicy` (`Policy.Limits`), `pkg/cli` (`poo policy limits`, view-only scope), `gui/e2e/parity.mjs` (one `LEFT_OUT_SUBS` line), docs |
+| Area | `pkg/nodepolicy` (`Policy.Limits`), `pkg/cli` (`poon policy limits`, view-only scope), `gui/e2e/parity.mjs` (one `LEFT_OUT_SUBS` line), docs |
 | Effort | small (part 1); part 2 is a list for Grey and Black |
 | Consensus | none for part 1. Part 2 lists limits to keep fixed where a setting could touch the heavier-ledger rule (Black first) |
 | Decided by | Grey; Black for anything in part 2 |
@@ -17,7 +17,7 @@ the GUI", but only tests call it. To learn a limit's name, range or
 default, a person has to read `nodepolicy.md` or `decisions.md`, and
 then edit node.json blind.
 
-**Part 1, prototyped:** `poo policy limits [-o FORMAT]` prints each
+**Part 1, prototyped:** `poon policy limits [-o FORMAT]` prints each
 settable limit with:
 
 - its place in node.json
@@ -37,12 +37,12 @@ which should stay fixed.
 ## Part 1: Idea
 
 - `nodepolicy.Limit{Name, Min, Max, Default, Set, Used}` and `Policy.Limits()`. `checkBounds` loops over `Limits()` instead of its own copy of the list, so the list is kept in one place, not two.
-- `poo policy limits` takes `-o json|table`, `-policy` and `-dir`. It is in the view-only read list (`scope.go`). It is in `poo help` and in completion, through the usage line.
+- `poon policy limits` takes `-o json|table`, `-policy` and `-dir`. It is in the view-only read list (`scope.go`). It is in `poon help` and in completion, through the usage line.
 - `gui/e2e/parity.mjs`: one `LEFT_OUT_SUBS` line for `policy limits`, as was done for `settings` in D155. The terminal runs it, and a GUI view is GUI Grey's call. That line is the only change outside Source's files. Without it, the parity check fails on any new subcommand.
-- Docs: a `poo.md` row, and one sentence in `nodepolicy.md` under the limits table.
+- Docs: a `poon.md` row, and one sentence in `nodepolicy.md` under the limits table.
 
 ```
-$ poo policy limits -o table
+$ poon policy limits -o table
 NAME                           MIN   MAX       DEFAULT  SET  USED
 p2p.max_book                   256   65536     4096     0    4096
 p2p.book_per_range             1     4096      16       0    16
@@ -65,8 +65,8 @@ Green read the constants in `pkg/p2p`, `pkg/rpc`, `pkg/engine`,
 **Already settable, but without bounds (sent to Red):**
 
 - `max_pending`, `seen_size` and `ties` are top-level node.json fields. They are checked only for being non-negative.
-- A huge `seen_size` (10^15) passes `Validate` and `poo doctor`. `poo node` then panics at start ("makeslice: len out of range", `engine.NewSeen`). A shared settings file can carry such a value: `poo settings import` lists it under "read first" but takes it.
-- Green passed this to Red through the coordinator, and did not fix it. D159's `Bound` (a floor, a ceiling, 0 = default) is the obvious shape. Once bounded, these would also show in `poo policy limits`.
+- A huge `seen_size` (10^15) passes `Validate` and `poon doctor`. `poon node` then panics at start ("makeslice: len out of range", `engine.NewSeen`). A shared settings file can carry such a value: `poon settings import` lists it under "read first" but takes it.
+- Green passed this to Red through the coordinator, and did not fix it. D159's `Bound` (a floor, a ceiling, 0 = default) is the obvious shape. Once bounded, these would also show in `poon policy limits`.
 
 **Could be settable (node policy, local resource use only):**
 

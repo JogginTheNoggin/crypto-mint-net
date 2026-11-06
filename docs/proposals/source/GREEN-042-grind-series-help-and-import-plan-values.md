@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | adopted (D151) |
 | Based on | `main` @ `b17e892` |
-| Area | `pkg/cli` (`addClientSeries`, `grind start`/`run`, `policy import` plan output), `docs/modules/poo.md` |
+| Area | `pkg/cli` (`addClientSeries`, `grind start`/`run`, `policy import` plan output), `docs/modules/poon.md` |
 | Effort | small |
 | Consensus | none: help text and command-line output only |
 | Decided by | Grey (Black may skip it) |
@@ -26,7 +26,7 @@ there is something to apply.
 - `addClientSeries(fs, usage)` is `addClient` with its own `-series` help. `addClient` calls it with the old text, so every other command is unchanged. `addJob` passes "default: every followed series; -pool and -serial need one, and take the only followed series", which is what `grind` does.
 - `planLine(field, value, short)` formats one added or removed line. A set item `a.b.[X]` becomes `a.b: X`; a field with a value becomes `field: value`; a field without one stays as it was. `printPlan` uses it for both `+` and `-` lines. Changed lines (`~`) already showed was and now.
 - The "dry run" line is printed only if some plan is not empty. Importing a node's own export prints "nothing to change" and stops there.
-- `poo.md`: the `grind start` row says `-series` defaults to every followed series.
+- `poon.md`: the `grind start` row says `-series` defaults to every followed series.
 
 This is one helper with a usage argument, not a new flag set, so a later
 command whose `-series` default differs takes the same path.
@@ -46,5 +46,5 @@ The plan's JSON (`-json`), which the GUI reads, is unchanged.
 
 ## Also noticed
 
-- `docs/FEATURES.md` covers every command in `poo help` except `holdings`, the older form of `unspent -serial`. Grey can decide whether to list it.
+- `docs/FEATURES.md` covers every command in `poon help` except `holdings`, the older form of `unspent -serial`. Grey can decide whether to list it.
 - Still open from GREEN-020: errors name `until_from` where the person typed `-until-from`, and no command renews a lease.

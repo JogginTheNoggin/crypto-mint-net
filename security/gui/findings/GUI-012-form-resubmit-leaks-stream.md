@@ -6,7 +6,7 @@
 | Status | fixed (PR #37, merged Round 8; verified by GUI/Red R8B @ a93ccb6) |
 | Found on | claude/gui-4-watch @ b20bf8f |
 | Component | gui/web/static/views.js (`runJob`, `form`; the ORANGE-010 `leave`) |
-| Surface | local (browser tab, poo-gui job and stream slots) |
+| Surface | local (browser tab, poon-gui job and stream slots) |
 | Fixed by | GUI/Blue on claude/gui-blue (Round 7C) |
 
 ## Summary
@@ -26,9 +26,9 @@ extra press of a form's button while the earlier job is still going:
 - removes the earlier job's input box from the page. A job that was waiting for
   a passphrase or seed (most Wallet forms, Create or restore, Make a key with
   `-seed-file -`) then waits forever. It keeps one of the 16 running-job slots
-  until it is stopped from Jobs or poo-gui exits.
+  until it is stopped from Jobs or poon-gui exits.
 
-poo-gui serves plain HTTP/1.1, so the browser allows about six connections to
+poon-gui serves plain HTTP/1.1, so the browser allows about six connections to
 it. After a handful of extra presses, the leaked streams use them all up and
 every later fetch queues. The GUI stalls in the same way ORANGE-010 fixed for
 view switches.
@@ -39,7 +39,7 @@ view switches.
    wallet set, or Create or restore). Press the button. The masked passphrase
    field appears.
 2. Without answering, press the button again, five or six times.
-3. Jobs lists that many `poo wallet …` jobs still waiting. The page's
+3. Jobs lists that many `poon wallet …` jobs still waiting. The page's
    `/events` requests stay open (devtools → Network), and any further panel or
    view hangs on "running…" until those jobs are stopped from Jobs.
 
@@ -49,7 +49,7 @@ for as long as it runs.
 ## Impact
 
 The user's own GUI stalls, and jobs that wait for input are orphaned. No other
-origin can cause this (`SameSite=Strict`, `X-Poo-GUI`), and nothing leaks.
+origin can cause this (`SameSite=Strict`, `X-Poon-GUI`), and nothing leaks.
 Rated **low**, as ORANGE-010 would have been.
 
 ## Recommendation

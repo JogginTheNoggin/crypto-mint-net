@@ -24,7 +24,7 @@
     `unbounded`, and the text plan prints them.
   - The text plan prints declined series with the follow rules they took.
   - `series info`, `series followed`, `GET /v1/series` and `doctor` warn.
-  - `series_ceiling` is settable with `poo policy limits -set`.
+  - `series_ceiling` is settable with `poon policy limits -set`.
 
 ## Consensus
 

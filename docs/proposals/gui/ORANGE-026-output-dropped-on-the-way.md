@@ -11,10 +11,10 @@
 ## Summary
 
 Round 33 added "Export a pool's ledger" to the Pools view (D188). With
-no file given, poo prints the ledger into the page, and the form offers
+no file given, poon prints the ledger into the page, and the form offers
 Save as file.
 
-poo-gui keeps only the last 4 MiB of a command's output
+poon-gui keeps only the last 4 MiB of a command's output
 (`jobs.DefaultMaxOutput`). A page that falls more than that far behind
 loses the part in between. The event stream then sends a `dropped`
 event, but `runJob` does not listen for it, so nothing tells the user.
@@ -46,12 +46,12 @@ affected: 100,000 entries are written in 1.4 s, with the page idle.
   given. `runJob` gives handlers for chunk, state, exit and error only,
   so it adds up what arrives as if it were everything.
 - **Why the page falls behind:** each chunk event is parsed and written
-  to the live pane. At 58 MB, that takes longer than poo takes to print
+  to the live pane. At 58 MB, that takes longer than poon takes to print
   it (1.4 s to a file), so the reader is soon more than 4 MiB behind.
   A reader that does nothing else (a probe that only adds up chunks)
   kept up and got all 58.6 MB with no drop. The page's own work is what
   makes it lag.
-- **Why the gap can read as whole:** `poo ledger export` writes one
+- **Why the gap can read as whole:** `poon ledger export` writes one
   entry per line. The dropped chunks are whole writes, so what is left
   is often still valid JSON with fewer entries.
 
@@ -59,14 +59,14 @@ The same applies to any command that prints more than 4 MiB quickly
 with Save as file offered. Node policies, settings, peers and series
 exports use the same pattern. None of them was measured over 4 MiB
 here, but a large peer export could get there (the 16,384-address book
-prints 12.8 MB in `poo peers`).
+prints 12.8 MB in `poon peers`).
 
 ## Measurements
 
 The ledgers came from a throwaway Go test, which is not committed. It
 builds one pool of N entries in a test series, one claim and one layer
-per entry. The real `poo` (main @ 3c4ae00) served them, and the real
-`poo-gui` ran in Chromium through Playwright. A second node, following
+per entry. The real `poon` (main @ 3c4ae00) served them, and the real
+`poon-gui` ran in Chromium through Playwright. A second node, following
 the same series and holding nothing, received the imports.
 
 On the command line:
@@ -114,8 +114,8 @@ stay off the page (see Idea, point 3).
    `form` call `incomplete(area)` for such a result. It removes any
    Save as file button and puts this alert at the top:
 
-   > Part of this output was dropped: poo printed it faster than the
-   > page could take it, and poo-gui keeps only the last 4 MiB of a
+   > Part of this output was dropped: poon printed it faster than the
+   > page could take it, and poon-gui keeps only the last 4 MiB of a
    > command's output. What is shown, and what Copy output copies, has
    > a gap. Write it to a file instead: the form's file field where it
    > has one, or -out in the terminal.
@@ -125,18 +125,18 @@ stay off the page (see Idea, point 3).
    already says the copy has a gap.
 3. **For GUI Grey to weigh:** the export form could say that a long
    ledger belongs in a file, for example in its "To a file" field's
-   placeholder. A Save as file that streams from poo-gui would not help,
-   because poo-gui keeps only 4 MiB itself. The file field is the way
+   placeholder. A Save as file that streams from poon-gui would not help,
+   because poon-gui keeps only 4 MiB itself. The file field is the way
    that never loses anything.
 
 The GUI computes nothing new. It reports what the stream said, and
-keeps poo's output as it arrived.
+keeps poon's output as it arrived.
 
 ## Cost and risk
 
 - About 20 lines in views.js and one qol.mjs check.
 - **Risk:** a result that only lost part of a long live log (a node log
-  or a long `poo watch` in a form) now carries the alert too. That is
+  or a long `poon watch` in a form) now carries the alert too. That is
   true, and those panels offer no Save as file.
 - **Compatibility (White):** no API path or stored key changes. The page
   reads an event the server already sends.

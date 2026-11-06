@@ -29,7 +29,7 @@ ideas for Grey, not prototyped:
 ## Idea
 
 - The banner comes from the result of a command the GUI already runs
-  (for example the Node view's `poo status`). It decides nothing new: it
+  (for example the Node view's `poon status`). It decides nothing new: it
   shows that one command's failure in one place. Panels whose command
   fails with the same error collapse to "Needs a running node (see
   above)", with a toggle to see the raw error.

@@ -128,7 +128,7 @@ guard. It flakes under `-race` and load.
 | BLUE-011: no host-wide byte budget | Right under D115. Such a budget would let cheap worked progress repeatedly wipe an honest chase still counting |
 | ORANGE-020 (`PageOwners`, `PreverifyPage`) | It only fills the verified-witness list ahead of time, on every core. `HandleEntryFrom` and `AddEntry` still check every entry in full. A preview that fails just stops early. ORANGE-014's C-4 conditions apply to the shared list as before |
 | GREEN-035 | Grinding job slots, schedule restarts, `grind bench` and log wording. Nothing a node accepts |
-| GUI ask: doctor `fix_args` when `layer_rate` is lowered | Advice in `poo doctor` |
+| GUI ask: doctor `fix_args` when `layer_rate` is lowered | Advice in `poon doctor` |
 | GUI-017: LOCK_NB lock for offline schedule edits | Local file locking for node.json |
 
 ## Items for the owner

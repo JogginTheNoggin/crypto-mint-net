@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | proposed (prototyped) |
 | Based on | `main` @ `941049d`, merged with `main` after #256 |
-| Area | `pkg/cli` (`writeLedgerFile`, `ledgerImportCmd`), docs (poo) |
+| Area | `pkg/cli` (`writeLedgerFile`, `ledgerImportCmd`), docs (poon) |
 | Effort | small |
 | Consensus | none: what the CLI accepts and what its errors say. The node checks every imported entry in full, as before (D188) |
 | Decided by | Grey (Black may skip it) |
@@ -13,9 +13,9 @@
 
 Green ran Round 33 as a node runner:
 
-- **D187.** `poo init` wrote 7336 and 7337. No `8645` or `8646` is left
+- **D187.** `poon init` wrote 7336 and 7337. No `8645` or `8646` is left
   in the docs, only in GUI e2e test data.
-- **D186.** Two local nodes connected. `poo peers` showed the peer's
+- **D186.** Two local nodes connected. `poon peers` showed the peer's
   `release` and `claimed_features`, and `-counts` counted releases.
 - **D188.** Green built entries on one node and exported them, imported
   them into a second node, imported them again, and tried the error
@@ -45,18 +45,18 @@ first, so this PR keeps only the two other loose ends:
   - An unknown series: the error adds "the file is for series S, which
     this node does not know; add the series to the node policy, follow
     pool K, then import again".
-  - A pool not followed: the error adds "poo follow -series S -pool K,
+  - A pool not followed: the error adds "poon follow -series S -pool K,
     then import again".
   - A batch that fails after others went through: the error adds "the
     first N of M entries were sent: X kept, Y already held".
-- **Docs.** The export and import rows in poo.md.
+- **Docs.** The export and import rows in poon.md.
 
 ## How it was tested
 
 - **`TestLedgerExportPastTipAndImportHints`** (pkg/cli) covers:
   - `-from 5` on a ledger 1 high is refused;
   - an import into a node without the series names the series;
-  - a file changed to pool 7 names the `poo follow` command.
+  - a file changed to pool 7 names the `poon follow` command.
 
   It fails on `main`.
 - **`TestLedgerExportImport`** (D188, with #256's pool 0 case) still
@@ -69,6 +69,6 @@ first, so this PR keeps only the two other loose ends:
 
 ## Ideas for later
 
-- `poo peers -o table` shows `claimed_features` as `[4]`. Listing the
+- `poon peers -o table` shows `claimed_features` as `[4]`. Listing the
   names would make the column useful.
 - "wrote 1 entries" could read "wrote 1 entry".

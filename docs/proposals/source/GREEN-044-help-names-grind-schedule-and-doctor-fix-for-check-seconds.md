@@ -4,35 +4,35 @@
 | --- | --- |
 | Status | adopted (D155) |
 | Based on | `main` @ `4240d32` |
-| Area | `pkg/cli` (`poo help`, completion, `poo doctor`) |
+| Area | `pkg/cli` (`poon help`, completion, `poon doctor`) |
 | Effort | small |
 | Consensus | none: help text, completion and a doctor hint only |
 | Decided by | Grey (Black may skip it) |
 
 ## Summary
 
-GUI Green found that the grind line in `poo help` leaves out `schedule`.
-Completion builds its list from that line, so `poo grind sch<TAB>`
+GUI Green found that the grind line in `poon help` leaves out `schedule`.
+Completion builds its list from that line, so `poon grind sch<TAB>`
 offered nothing either. The line now names `schedule`. Completion now
 reads grind's own usage, as it already does for `wallet` and `sim`, so a
-new grind subcommand needs no second list. A test checks that the `poo
+new grind subcommand needs no second list. A test checks that the `poon
 help` line names every subcommand.
 
-While trying D153 as a user, Green also found that `poo doctor` gives a
+While trying D153 as a user, Green also found that `poon doctor` gives a
 wrong fix for `p2p.check_seconds: -1`. The fix said "lower it in PATH
-(poo grind schedule set, or edit the file)". The value is not too high,
+(poon grind schedule set, or edit the file)". The value is not too high,
 and no grind command writes it. The fix now says "set p2p.check_seconds
 to 3600 in PATH".
 
 ## Idea
 
-- `pkg/cli/main.go`: `poo grind devices|bench|start|run|schedule|jobs|stop`.
+- `pkg/cli/main.go`: `poon grind devices|bench|start|run|schedule|jobs|stop`.
 - `subcommands("grind")` reads `grindUsage`, like `wallet` and `sim`. Its list is now devices, bench, start, run, jobs, stop, schedule and help.
-- `poo doctor`: a lowered value with no `FixArgs` gets the fix "set FIELD to NOW in PATH". A value that has a command, `grind.layer_rate`, keeps it (GREEN-035).
+- `poon doctor`: a lowered value with no `FixArgs` gets the fix "set FIELD to NOW in PATH". A value that has a command, `grind.layer_rate`, keeps it (GREEN-035).
 
 ## Testing
 
-- `TestHelpLineNamesEverySubcommand`: the `poo help` line for `grind` and for `sim` names every subcommand of its own usage, and `grind sch` completes to `schedule`. It fails on `main`.
+- `TestHelpLineNamesEverySubcommand`: the `poon help` line for `grind` and for `sim` names every subcommand of its own usage, and `grind sch` completes to `schedule`. It fails on `main`.
 - `TestDoctorLoweredWithoutCommandNamesTheValue`: `check_seconds: -1` gets "set p2p.check_seconds to 3600 in PATH" and no `fix_args`.
 - `TestComplete`, `TestProbeOnlyReads` (which now also probes `grind schedule -h`) and `TestDoctorLoweredHasFixArgs` pass.
 - gofmt, vet, staticcheck, and `go test -race ./...` pass.

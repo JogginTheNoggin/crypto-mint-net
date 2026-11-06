@@ -10,7 +10,7 @@
 
 ## Summary
 
-`poo grind bench -o table` and `poo grind jobs -o table` printed `{6}`
+`poon grind bench -o table` and `poon grind jobs -o table` printed `{6}`
 where the plan should be, and rates such as `27737159.883412345`. The
 generic table now spreads a nested object of up to eight scalar fields
 into dotted columns (`PLAN.DEVICE`, `PLAN.THREADS`, ...), counts an array
@@ -34,7 +34,7 @@ and the table printed every digit.
   mode, unless `-wide` is given. Whole numbers, which include every
   amount, are never touched.
 
-After the change, `poo grind bench -seconds 0.2 -o table` prints:
+After the change, `poon grind bench -seconds 0.2 -o table` prints:
 
 ```
 PLAN.DEVICE  PLAN.KIND  PLAN.GRINDER  PLAN.HASH  PLAN.THREADS  PLAN.REASON                                     TRIES    SECONDS  RATE

@@ -2,15 +2,15 @@
 
 | Field | Value |
 | --- | --- |
-| Status | adopted (GUI Round 30 Part A, on Source D177 `poo status -counts`) |
+| Status | adopted (GUI Round 30 Part A, on Source D177 `poon status -counts`) |
 | Based on | main @ 4e1c601 |
-| Area | gui/web/static/views/node.js (the Followed pools panel), and one `poo status` output choice in pkg/cli (Source) |
+| Area | gui/web/static/views/node.js (the Followed pools panel), and one `poon status` output choice in pkg/cli (Source) |
 | Effort | small |
 | Decided by | |
 
 ## Summary
 
-The Node view's Followed pools panel runs `poo status` every 5 s. `poo
+The Node view's Followed pools panel runs `poon status` every 5 s. `poon
 status` prints one row for every followed pool. Since D170, a new node
 follows the built-in reserve series out of the box, which has 1,024
 pools. So the first thing a newcomer sees on the Node view refreshes
@@ -19,17 +19,17 @@ busy, with a pause of about 150 ms on every refresh.
 
 A node that follows 4,096 series has 8,192 pools. There each refresh is
 2.8 MB, the pauses reach 280 ms with frame gaps up to 433 ms, and
-poo-gui holds 140 MB.
+poon-gui holds 140 MB.
 
 With a series of 2 pools, the same panel costs 1% with no pauses. This
 proposal brings the timed refresh down to that cost:
 
-- **Source:** a `poo status` option that prints the per-series totals
+- **Source:** a `poon status` option that prints the per-series totals
   and the notes (entry cache, file limit, policy changed) without a row
-  for every pool. It works the way `poo peers -counts` leaves out the
+  for every pool. It works the way `poon peers -counts` leaves out the
   book (ORANGE-017).
 - **GUI:** the timed panel uses that option. The per-pool table stays
-  one press away, either in a "Pools" form that runs plain `poo status`
+  one press away, either in a "Pools" form that runs plain `poon status`
   when asked or as a Refresh on a second panel that has no timer.
 
 This is the same approach ORANGE-017 took for the peer book, and it is
@@ -40,7 +40,7 @@ about output only.
 The panel exists to show where the node stands, and that changes often.
 The per-pool rows of a series mostly do not change: on a new reserve
 node, all 1,024 rows read height 0, weight 0 and no entries. Yet each
-refresh sends every row through poo-gui's job stream, parses it in the
+refresh sends every row through poon-gui's job stream, parses it in the
 page and draws 500 rows again. `render.js` caps the table at 500 rows,
 but it still builds and lays out 10,500 elements every 5 s.
 
@@ -51,22 +51,22 @@ default (D170) is what made the 1,024-pool case the common one.
 
 ## Measurements
 
-These were measured with a real `poo node` and the real `poo-gui` at
+These were measured with a real `poon node` and the real `poon-gui` at
 4e1c601, in Chromium through Playwright. The probe opened the Node view,
 waited 8 s, then sampled it for 60 s. Each home was run twice.
 
-| Node follows | `poo status` prints, in | Page busy | Long tasks a minute, longest | Longest frame gap | poo-gui RSS |
+| Node follows | `poon status` prints, in | Page busy | Long tasks a minute, longest | Longest frame gap | poon-gui RSS |
 | --- | --- | --- | --- | --- | --- |
 | a series of 2 pools | 1 KB | 1% | none | 17 to 33 ms | 17 MB |
-| the reserve series, 1,024 pools (`poo init`) | 352 KB, 21 to 33 ms | 5% | 12 to 13, 145 to 161 ms | 167 ms | 30 MB |
+| the reserve series, 1,024 pools (`poon init`) | 352 KB, 21 to 33 ms | 5% | 12 to 13, 145 to 161 ms | 167 ms | 30 MB |
 | 4,096 series, 8,192 pools | 2.8 MB, 201 ms | 6% | 20 to 21, 224 to 279 ms | 367 to 433 ms | 136 to 145 MB |
 
 With the reserve series, the two pool tables in the Node view are most
 of it. Out of 23,477 elements:
 
-- Followed pools (`poo status`, timed) has 10,594 elements and 500 of
+- Followed pools (`poon status`, timed) has 10,594 elements and 500 of
   1,024 rows.
-- What the node follows (`poo follow`, run once) has 12,546 elements and
+- What the node follows (`poon follow`, run once) has 12,546 elements and
   501 rows.
 
 Opening the Node view on the reserve series, three runs of each build
@@ -82,10 +82,10 @@ cold start, not Round 28.
 
 ## Idea
 
-1. **Source:** `poo status` gets an output choice that leaves out the
+1. **Source:** `poon status` gets an output choice that leaves out the
    pool rows, with its name for Source to pick (for example `-counts` or
    `-series`). It should still print, per followed series, the counts
-   poo already knows (pools, entries, pending, waiting, stored records),
+   poon already knows (pools, entries, pending, waiting, stored records),
    plus `bodies`, `file_limit`, `replay` and `policy_changed` as today.
    The GUI must not add up the rows itself (D84). That is why this needs
    Source.
@@ -93,7 +93,7 @@ cold start, not Round 28.
    The entry cache, file limit and policy-changed notes come from the
    same fields as now. The per-pool table moves to a panel or form
    without a timer.
-3. What the node follows (`poo follow`) is not on a timer and costs
+3. What the node follows (`poon follow`) is not on a timer and costs
    12,546 elements once. It is left as it is.
 
 ## Cost and risk
@@ -119,12 +119,12 @@ None.
 
 ## Measured after adoption (Round 30)
 
-Source built `poo status -counts` (D177), and GUI Grey's Part A runs it
+Source built `poon status -counts` (D177), and GUI Grey's Part A runs it
 on the 5 s refresh, with the per-pool table in an Each pool panel that
 runs once when the view opens. Measured on main @ 0ade046 with the same
 probe, 60 s each, twice:
 
-| Node follows | Timed answer | Page busy | Long tasks a minute, longest | Longest frame gap | poo-gui RSS |
+| Node follows | Timed answer | Page busy | Long tasks a minute, longest | Longest frame gap | poon-gui RSS |
 | --- | --- | --- | --- | --- | --- |
 | the reserve series, 1,024 pools | 629 B, 21 ms | 1 to 2% | none | 33 ms | 20 MB |
 | 4,096 series, 8,192 pools | 910 KB, 157 ms | 4% | 12, 84 to 103 ms | 100 to 117 ms | 81 to 85 MB |

@@ -115,7 +115,7 @@ of Part A's changes are clear.
 | D135: ORANGE-020 adopted | Cleared in Round 10. `PreverifyPage` only fills the verified-witness list. Every entry is still checked in full |
 | D135: GREEN-035 adopted | Grinding job slots, schedule restarts and `Policy.Lowered`. Nothing a node accepts |
 | ORANGE-021, warming the store's witnesses on restart | `Policy.Warm` runs the same satisfaction check as `CheckCached`. It remembers only a pass, under the same key (the whole witness and the TID). The later check still runs the size, address and allowed checks before it consults the list. A witness that fails is not remembered and fails again on replay, so a tampered store is refused as before. Decoding is unchanged, and a record that fails to decode is still not kept. ORANGE-014's C-4 conditions apply as before |
-| GREEN-036, doctor `fix_args` name the checked policy | Advice in `poo doctor` |
+| GREEN-036, doctor `fix_args` name the checked policy | Advice in `poon doctor` |
 | GREEN-036, floor and rate changes keep running jobs | The grinder reads them at each search. It is the node's own grinding only |
 
 ## Items for the owner

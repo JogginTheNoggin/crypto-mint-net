@@ -12,7 +12,7 @@
 ## Summary
 
 The new **Schedule defaults** form (D122) sets `layer_floor` and `layer_rate`
-with `poo grind schedule set -layer-floor N -layer-rate R`. `layer_rate` is the
+with `poon grind schedule set -layer-floor N -layer-rate R`. `layer_rate` is the
 largest number of extra layers a second that `layer_floor` makes the node send.
 The core accepts 0 to `MaxLayerRate` = **1000**. The form's only guidance is the
 placeholder "most layers a second the floor adds (0: default)".
@@ -33,7 +33,7 @@ sends more layers than its peers take for as long as grinding finds them.
 Peers drop the extra (strongest first is not guaranteed past the budget) and
 then time out and block the node. Its transactions, entries and layers stop
 reaching those peers too, not only the extra layers. Nothing in the GUI or
-`poo grind schedule set` warns about this.
+`poon grind schedule set` warns about this.
 
 ## Reproduction
 
@@ -42,7 +42,7 @@ reaching those peers too, not only the extra layers. Nothing in the GUI or
    series).
 2. Work → Schedule defaults: Layer floor `1`, Layer rate `1000`, then Set.
    Start a grind job on `tip`.
-3. On a peer, `poo tracking` / `poo peer` shows over-budget flags for this
+3. On a peer, `poon tracking` / `poon peer` shows over-budget flags for this
    node's address building up each minute, then a time-out, then a block.
 
 ## Impact
@@ -95,24 +95,24 @@ Rated **low**.
 - **The limit is the core's.** Source Grey took this finding in its Round 9
   Part A. D127 lowers `nodepolicy.MaxLayerRate` from 1000 to 50, half of the
   100 a second that default peers take from one node. A section asking for
-  more doesn't validate, so `poo grind schedule set -layer-rate`, the RPC
-  and the GUI form all refuse it. Since the most poo allows is now under
+  more doesn't validate, so `poon grind schedule set -layer-rate`, the RPC
+  and the GUI form all refuse it. Since the most poon allows is now under
   the peer budget, the warning or confirm above 100 that this finding
   recommended can no longer trigger, so the GUI doesn't add one.
-- **The form says why there is a limit and leaves the number to poo**
+- **The form says why there is a limit and leaves the number to poon**
   (`gui/web/static/work.js`). The Layer rate field's help now explains that
   peers take only so many layers a second from one node, time out and then
-  block a node that keeps sending more, and that poo keeps the rate well
+  block a node that keeps sending more, and that poon keeps the rate well
   inside that and refuses a higher one, naming the range. The GUI may import
   only `pkg/cli`, and `pkg/cli` doesn't export `MaxLayerRate`, so the GUI
   doesn't copy the number. That way it can't drift from the core.
 - **Test.** `e2e/work.mjs` checks the help text. It submits a Layer rate of
-  100000, then checks that the form shows poo's refusal ("layer_rate must be
+  100000, then checks that the form shows poon's refusal ("layer_rate must be
   0 (the default, N) to M") and that the schedule keeps the rate it had. It
   passes on this branch (core cap 1000), and also on this branch with
   claude/m10-watch @ 1ae4d46 merged in (core cap 50).
-- **Asked of Source (via GUI/Grey).** Make the limit visible through poo, so
+- **Asked of Source (via GUI/Grey).** Make the limit visible through poon, so
   the GUI can show the exact range up front and so can a script. For
-  example, put `layer_rate_max` in `poo grind schedule`'s reply, or export
+  example, put `layer_rate_max` in `poon grind schedule`'s reply, or export
   it from `pkg/cli` the way `cli.SecretFlags` is. The GUI would then set
   the field's range from it.

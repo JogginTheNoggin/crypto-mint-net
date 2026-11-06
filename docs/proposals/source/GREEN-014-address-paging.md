@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | adopted |
 | Based on | `claude/m10-watch` @ `7e68fe0` |
-| Area | `pkg/watch` (`AddressPage`), so `GET /v1/address` and `poo address` |
+| Area | `pkg/watch` (`AddressPage`), so `GET /v1/address` and `poon address` |
 | Effort | small |
 | Decided by | Grey, Source Round 4 |
 

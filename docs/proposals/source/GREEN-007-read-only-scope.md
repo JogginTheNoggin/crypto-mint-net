@@ -17,7 +17,7 @@ The scope comes in two parts. The first is a second RPC token,
 the branch, with tests. The second is a read-only mode in `pkg/cli` that
 refuses every command that changes state and talks to the node with the
 view token. That part is a proposal only. Both parts live in the headless
-core, so `poo` and the GUI enforce the same rule with the same code. The
+core, so `poon` and the GUI enforce the same rule with the same code. The
 idea comes from GUI-005 (GUI/Red), which notes that the GUI's one secret
 is all-or-nothing control of the node.
 
@@ -62,8 +62,8 @@ it is set:
 - Commands that write local files without the RPC are refused too:
   `init`, `policy use/archive/delete`, the wallet commands that change
   the wallet, and `follow`/`unfollow`, which also edit the policy.
-- Read commands that only read local files stay allowed: `poo policy
-  list` and `poo wallet` balances.
+- Read commands that only read local files stay allowed: `poon policy
+  list` and `poon wallet` balances.
 
 The GUI could then offer a view mode that runs `cli.Run` with
 `ReadOnly: true` (GUI/Grey's call). Its secret would then be worth only

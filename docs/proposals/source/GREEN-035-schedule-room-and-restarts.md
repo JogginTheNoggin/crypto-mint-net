@@ -39,7 +39,7 @@ say "the schedule changed", so the jobs list explains itself.
 
 **3. Bench (prototyped).** `grind bench` keeps the last reason a device
 was passed over. If nothing was measured, it returns that reason:
-`poo: grind: threads must be 0 to 1024`. Test:
+`poon: grind: threads must be 0 to 1024`. Test:
 `TestGrindBenchNothingMeasured`.
 
 **4. Log line (prototyped).** `node.Open` logs the note with the `node`
@@ -48,7 +48,7 @@ component: `node: warning: policy value lowered file=node.json note=...`.
 **5. A fix command in `doctor` (proposal).** The doctor's lowered-value
 warning has a fix in words, but no `fix_args`. If `Policy.Lowered` held
 the field and the value it was lowered to, not only a sentence, the
-doctor could offer `poo grind schedule set -layer-rate 50` as `fix_args`
+doctor could offer `poon grind schedule set -layer-rate 50` as `fix_args`
 (GREEN-022). That changes `Lowered`'s type, so it is left to Grey.
 
 ## Testing

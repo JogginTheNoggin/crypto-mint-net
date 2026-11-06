@@ -2,23 +2,24 @@
 // it, in one place, so a later rename is one change here (D192). Nothing
 // here is consensus: no hash, id or signature covers these strings.
 //
-// Some strings carry the name but must never follow a rename, because a
-// change would break what earlier releases made or would split nodes:
-//   - the wallet's key derivation label "PoO-wallet-..." (pkg/wallet):
-//     a new label gives every wallet new keys;
-//   - the RPC hello proof label "poo-rpc-hello" (pkg/rpc): a client and
+// The tool was renamed poon (proof of ownership network, or node) in
+// Source Round 40 (D204), and every use of the old name went with it,
+// labels included (D205), since nothing was released.
+//
+// Some strings must never follow a later rename, because a change would
+// break what earlier releases made or would split nodes:
+//   - the RPC hello proof label "poon-rpc-hello" (pkg/rpc): a client and
 //     node of different releases would no longer prove each other;
+//   - the "PoO-" labels (wallet keys, hashes, snapshots): PoO is the
+//     protocol's name, Proof of Ownership, not the tool's, and a new wallet
+//     label gives every wallet new keys;
 //   - every byte form and wire layout (frozen, D76, D186).
 //
 // Those stay where they are, written out, with a comment pointing here.
-//
-// The name was "poo" until Source Round 40, then "poon" (proof of
-// ownership network, or node; D204). Help text, messages and docs write the
-// name out, so a later rename changes Name and EnvPrefix here and then
-// replaces the word as a whole word (not inside "pool" or the labels above)
-// in pkg/, cmd/, scripts/ and the living docs, and moves cmd/NAME and
-// docs/modules/NAME.md. Historical records (decisions, findings, proposals,
-// reviews) keep the name they were written with.
+// Help text, messages and docs write the name out, so a later rename
+// changes Name and EnvPrefix here and then replaces the word as a whole
+// word (not inside "pool") in the code and docs, and moves cmd/NAME and
+// docs/modules/NAME.md.
 package brand
 
 const (

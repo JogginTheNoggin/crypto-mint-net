@@ -13,7 +13,7 @@ Checked locally (Actions has no runner): #349 fast-forwards over
 `21c34c8`. On it I ran `go -C gui vet ./...`, `go -C gui test -race
 ./...`, the Windows amd64 and macOS arm64 cross-builds, and
 `gui/e2e/qol.mjs`, `views.mjs`, `parity.mjs` (82 commands) and
-`terminal.mjs` on a poo-gui built as `0.1.0-alpha.1`. All pass.
+`terminal.mjs` on a poon-gui built as `0.1.0-alpha.1`. All pass.
 
 ## Items
 
@@ -39,7 +39,7 @@ Verdict: **clear**
   `-key-file`/`-seed-file` in the Jobs list, and the page's
   `secretLine` reads the value the same way, capped at 512 characters.
   This is redaction only: the core gets the same arguments,
-  `/api/jobs` keeps its shape, and the `poo-gui-history` key and shape
+  `/api/jobs` keeps its shape, and the `poon-gui-history` key and shape
   are unchanged.
 - GUI-GREEN-065 (#345): wording for max strength, with CHANGELOG and
   FEATURES lines.

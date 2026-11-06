@@ -12,10 +12,10 @@
 
 Round 16's "Send and end input" (GUI-021) lets Submit read a pasted entry
 to its end with `submit -f -`. But any paste over 1 MiB never reached
-`poo`. The whole line goes in one request, and the server takes at most
+`poon`. The whole line goes in one request, and the server takes at most
 1 MiB per request (`MaxBody`). In hex, that means no entry over about
 500 KiB could be pasted. Worse, the button ended the input even though
-the send had failed. `poo` then read nothing and reported "entry: decode:
+the send had failed. `poon` then read nothing and reported "entry: decode:
 encoding: input too short", which hides the real cause. The
 "request body too large" error only showed in the output after that.
 
@@ -28,12 +28,12 @@ fix.
 
 | Pasted into Submit (`-f -`) | Before | After |
 | --- | --- | --- |
-| 128 KiB entry, 359 KiB of hex | reaches `poo`, 185 ms | reaches `poo`, 184 ms |
-| 450 KiB entry, 1,078 KiB of hex | refused: "request body too large", then "input too short" | reaches `poo`, 341 ms |
-| 1 MiB entry, 2,156 KiB of hex | refused, 1.15 s | reaches `poo`, 0.81 s |
-| 4 MiB entry, 8,265 KiB of hex | refused, 5.7 s | reaches `poo`, 4.7 s |
+| 128 KiB entry, 359 KiB of hex | reaches `poon`, 185 ms | reaches `poon`, 184 ms |
+| 450 KiB entry, 1,078 KiB of hex | refused: "request body too large", then "input too short" | reaches `poon`, 341 ms |
+| 1 MiB entry, 2,156 KiB of hex | refused, 1.15 s | reaches `poon`, 0.81 s |
+| 4 MiB entry, 8,265 KiB of hex | refused, 5.7 s | reaches `poon`, 4.7 s |
 
-"Reaches `poo`" means `poo` decoded the whole entry and went on to ask
+"Reaches `poon`" means `poon` decoded the whole entry and went on to ask
 the node. The test had no node running, so each run ended with "is the
 node running?". Most of the 4.7 s for 8 MiB is the browser handling an
 8 MiB text field. A file (`-f FILE`) is still the better way for an
@@ -63,4 +63,4 @@ entry that size.
 
 ## Consensus
 
-None. This only changes how the page hands typed text to `poo`.
+None. This only changes how the page hands typed text to `poon`.

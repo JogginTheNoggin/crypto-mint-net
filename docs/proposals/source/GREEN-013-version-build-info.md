@@ -1,4 +1,4 @@
-# GREEN-013: `poo version -v` for bug reports
+# GREEN-013: `poon version -v` for bug reports
 
 | Field | Value |
 | --- | --- |
@@ -10,7 +10,7 @@
 
 ## Summary
 
-`poo version` prints only `0.1.0-dev`. With this change, `poo version -v`
+`poon version` prints only `0.1.0-dev`. With this change, `poon version -v`
 also prints the Go version, the platform, the commit (with a flag if the
 working tree was modified), the commit time and the version of every
 dependency, all read from the binary's own build information. `-o table`
@@ -26,7 +26,7 @@ its commit; it just doesn't say it.
 ## Idea
 
 `runtime/debug.ReadBuildInfo`: `vcs.revision`, `vcs.modified` and
-`vcs.time`, plus `Deps` (with replacements). Plain `poo version` is
+`vcs.time`, plus `Deps` (with replacements). Plain `poon version` is
 unchanged.
 
 **Note for Grey.** `scripts/release.sh` builds with `-buildvcs=false`
@@ -38,7 +38,7 @@ the script alone, since releases are Grey's.
 
 ## Cost and risk
 
-`poo version` used to ignore its arguments, and now it parses flags. It
+`poon version` used to ignore its arguments, and now it parses flags. It
 still accepts `-root`, `-policy` and `-dir`, which scripts and
 `TestViewOnly` pass to every command, and ignores them. A flag it doesn't
 know is now an error instead of being silently ignored.
@@ -50,4 +50,4 @@ holding the binary can't already get from `go version -m`.
 
 On `claude/source-green`: `pkg/cli/version.go` and `version_test.go`,
 `version` routed to `versionCmd` in `main.go` with its usage line, and the
-`poo.md` row.
+`poon.md` row.

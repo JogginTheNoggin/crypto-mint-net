@@ -27,10 +27,10 @@ good release refuses while a bad one is kept.
    for a series the node does not list yet:
 
 ```
-$ poo policy import -dir n5 pexp_forged.json
+$ poon policy import -dir n5 pexp_forged.json
   + series: 8dfdf9a3
   warning: series 8dfdf9a3: release: ... signature for key 0; it is listed but unused until accepted (issuers)
-$ poo policy import -dir n5 -apply -no-reload pexp_forged.json      -> saved
+$ poon policy import -dir n5 -apply -no-reload pexp_forged.json      -> saved
 ```
 
    The plan warns, `-apply` goes on, and node.json has the series with the
@@ -44,14 +44,14 @@ node: warning: follow rule names a series not known or not accepted follow=0 ser
 node: started dir=n3 pools=0 ...
 ```
 
-   It runs, listens and answers, following no pool. `poo doctor`: "warn
+   It runs, listens and answers, following no pool. `poon doctor`: "warn
    series 0 accepted, 1 not ... fix: correct or remove it in the policy".
 
 3. The repair the docs point to does not work:
 
 ```
-$ poo series add-release -dir n5 rel3.json
-poo: the release node.json keeps: series: invalid release: witness: ... signature for key 0
+$ poon series add-release -dir n5 rel3.json
+poon: the release node.json keeps: series: invalid release: witness: ... signature for key 0
 ```
 
    The owner has to edit node.json by hand, or remove the series and lose
@@ -81,7 +81,7 @@ owner cannot fix it with `add-release`.
 
 Fixed in BLUE-026 (D167).
 
-- A kept release that does not check is left out, never the series: `Accepted` reports it in `Accepted.ReleaseErr`, the series is followed with the parts proven without it (part 1), the node logs a warning, and `poo doctor` shows a `releases` warning with the fix.
+- A kept release that does not check is left out, never the series: `Accepted` reports it in `Accepted.ReleaseErr`, the series is followed with the parts proven without it (part 1), the node logs a warning, and `poon doctor` shows a `releases` warning with the fix.
 - `Policy.AddRelease` builds the series without the bad release, so a valid release replaces it.
 - An import (merge or replace) drops a release that does not check and names it in the plan (`dropped_releases`, printed as a warning).
 - Tests: `TestBadKeptReleaseIsReplaced`, and `TestVariableFollowed` now expects the series accepted.

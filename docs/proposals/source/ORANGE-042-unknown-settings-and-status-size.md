@@ -81,7 +81,7 @@ about 255 bytes a pool.**
 
 What is left is the `pools` list: one row of about 255 bytes for every
 followed pool. That is 2.1 MB and about 50 ms of the node's time a reply
-at 8,192 pools. `poo status -counts`, which its help describes as "for a
+at 8,192 pools. `poon status -counts`, which its help describes as "for a
 view that refreshes often", fetches the whole reply and sums it in the
 client. Each status reply also loads `node.json` again to set
 `policy_changed`. With the fix above, that costs at most a few
@@ -91,7 +91,7 @@ milliseconds.
 
 **Proposal 1: let a status request leave out the pool rows.** Add a
 query, for example `GET /v1/status?pools=series`. It would return one
-row of totals per followed series, the same totals `poo status -counts`
+row of totals per followed series, the same totals `poon status -counts`
 computes now. `-counts` and a front end that refreshes often would then
 use it. At 8,192 pools of one series the reply would go from 2.1 MB to
 about 1 KB, and from about 50 ms to well under 1 ms.

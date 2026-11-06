@@ -3,7 +3,7 @@
 // every request needs a session cookie, which a browser gets by opening a
 // one-time sign-in address (docs/gui.md, Security).
 //
-// API (JSON; changes are POSTs carrying the X-Poo-GUI header):
+// API (JSON; changes are POSTs carrying the X-Poon-GUI header):
 //
 //	POST /api/jobs              {args} or {line}  start a job: {id, args, command};
 //	                            [refresh]         refresh: a view re-running it on a timer
@@ -52,7 +52,7 @@ const CookieName = "poon_gui"
 
 // Header must be sent with every POST; a cross-site page cannot send it
 // without a preflight, which the server never answers.
-const Header = "X-Poo-GUI"
+const Header = "X-Poon-GUI"
 
 // MaxBody bounds a request body.
 const MaxBody = 1 << 20

@@ -20,7 +20,7 @@
   reads no body. `Payment` says `unreadable` and still finds rivals.
 - watch ledger and address pages count `unreadable` entries.
 - A panic while handling one peer message closes that peer only.
-- `poo doctor` warns (`bodies`).
+- `poon doctor` warns (`bodies`).
 - The body cache counts byte form plus 1 KiB, and `entry_cache_mib`
   defaults to 256.
 
