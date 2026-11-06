@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | proposed, prototype on this branch |
+| Status | adopted (GUI Round 38 Part A, the prototype as is) |
 | Based on | main @ 7eb16ab |
 | Area | `trim` in gui/jobs/jobs.go, plus a test in gui/jobs/jobs_test.go |
 | Effort | small |

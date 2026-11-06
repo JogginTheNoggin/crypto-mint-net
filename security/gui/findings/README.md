@@ -5,6 +5,43 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 38 Part B reviewed main @ 1e71cf0 (#324, #327):
+- the bounty.post and bounty.take switches in Set limits, and poo's
+  notes over the result;
+- the Bounty view reading `status -counts`, with times in local words;
+- `rowsTable` (500 rows at a time) for the Bounty, Variable series and
+  Followed series tables;
+- the jobs trim bound for `KeepNew` (twice the limits, ORANGE-028);
+- GUI/Blue's GUI-034 fix.
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol`, `variable` and `terminal` e2e tests pass.
+
+There are no new findings.
+
+Fixed and verified: **GUI-034.** A key typed after `-key-file` (plain,
+`=`, colon-separated, quoted in groups, or after a tab) stays out of
+the saved history, and a path is still saved. See its R38B notes for a
+hardening note: `secretLine` is quadratic in the words after the flag.
+
+Held up:
+- **The switches.** A switch (`switch: true` from poo) is a select of
+  unchanged, on and off. Unchanged sends nothing. On and off are sent as
+  `bounty.post=on` or `off`, and poo takes them (`set` 1, then 0). poo
+  refuses `2` and `-1` ("is 1 (on) or 0 (off)"). Set limits keeps its
+  confirm. poo's notes, such as bounty.post on with no budget, are drawn
+  as text.
+- **`rowsTable`** builds every cell with `el()` as text or a node, and
+  Show more adds 500 rows at a time. Up to 4,096 peer offers
+  (`bounty.held_offers`) open with 500 drawn.
+- **`when()`** draws poo's RFC 3339 time with `toLocaleString`, and puts
+  poo's own text in the tooltip. Text that isn't a time is shown as
+  printed.
+- **The trim bound.** Past twice `MaxJobs` or `MaxTotalOutput`, the
+  oldest finished jobs go whatever their age. So a burst of quick jobs
+  is now capped, where my R37B note only said it lasted 10 s. Running jobs are
+  never dropped.
+
 Round 37 Part B reviewed main @ 7eb16ab (#310, #315):
 - the Bounty market view, which reads `status` bounty {post, take} and
   shows offer state and closing time;
@@ -1081,4 +1118,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | fixed: Source partial totals and Stop between batches, GUI alert; verified R35B @ 58273f7 |
 | [GUI-032](GUI-032-key-pasted-into-key-file-is-kept.md) | Low | A key pasted into "Key file" on Sign with a key kept elsewhere goes on the command line, into poo's error, and into the Jobs list and the job's replayable output | fixed (Blue R35C, Source #291; separators and shell.Redact, Blue R36C); verified R37B @ 7eb16ab |
 | [GUI-033](GUI-033-refused-form-never-follows-next-run.md) | Low | After a form refuses to run (GUI-032's refuse, or a missing required field), its next run is never followed: no masked prompt, Stop does nothing, and the job waits on input holding a slot | fixed (GUI/Blue R36C); verified R37B @ 7eb16ab |
-| [GUI-034](GUI-034-key-after-key-file-saved-in-terminal-history.md) | Low | A key typed after -key-file in the terminal is saved whole to the browser's history (localStorage), though Jobs now shows it as <hidden> | fixed (GUI/Blue R37C) |
+| [GUI-034](GUI-034-key-after-key-file-saved-in-terminal-history.md) | Low | A key typed after -key-file in the terminal is saved whole to the browser's history (localStorage), though Jobs now shows it as <hidden> | fixed (GUI/Blue R37C); verified R38B @ 1e71cf0 |
