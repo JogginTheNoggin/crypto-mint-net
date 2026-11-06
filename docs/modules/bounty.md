@@ -26,7 +26,10 @@ The package has two parts:
 ## The steps
 
 1. **Post.** `poo bounty post -entry HASH -strength S -amount A [-count
-   N] [-open SECONDS]` makes an offer on an entry the node holds. The
+   N] [-open SECONDS] [-pool K | -serial N]` makes an offer on an entry
+   the node holds. With no `-pool` or `-serial` the node finds the pool
+   that holds the entry; a named pool that does not hold it is refused,
+   since a layer on it would be paid for and not kept (GREEN-061). The
    strength must be at least the series' layer floor. What all open
    offers and unpaid layers owe must fit `budget`, and one offer must fit
    `max_amount`. The offer goes to every connected peer that lists the

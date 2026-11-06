@@ -19,7 +19,7 @@ import (
 // until node.json's bounty section turns it on.
 
 const bountyUsage = `usage:
-  poo bounty post -pool K -entry HASH -strength S -amount A [-count N] [-open SECONDS]
+  poo bounty post -entry HASH [-pool K | -serial N] -strength S -amount A [-count N] [-open SECONDS]
   poo bounty list [-ask]
   poo bounty work ID -to ADDR [-max-seconds N]
   poo bounty pay ID [-claim NONCE] [-wallet FILE]
@@ -83,8 +83,12 @@ func bountyPost(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// With neither -pool nor -serial the node finds the pool that holds
+	// the entry, rather than taking pool 0 (GREEN-061).
+	named := false
+	fs.Visit(func(f *flag.Flag) { named = named || f.Name == "pool" || f.Name == "serial" })
 	rep, err := cl.BountyPost(rpc.BountyPostRequest{PoolRef: rpc.PoolRef{Series: s.ID(), Pool: pool}, Entry: e,
-		Strength: uint8(*strength), Amount: *amount, Count: uint16(*count), OpenSeconds: uint32(*open)})
+		Strength: uint8(*strength), Amount: *amount, Count: uint16(*count), OpenSeconds: uint32(*open), FindPool: !named})
 	if err != nil {
 		return err
 	}

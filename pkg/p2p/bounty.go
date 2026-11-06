@@ -12,6 +12,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/engine"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/layer"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/ledger"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wire"
 )
 
@@ -109,6 +110,15 @@ func (h *Host) PostBounty(o bounty.Offer) (bounty.Mine, int, error) {
 	if h.poolByKey(engine.PoolKey{Series: o.Series, Index: o.Pool}) == nil {
 		return bounty.Mine{}, 0, fmt.Errorf("this node does not follow pool %d of series %s", o.Pool, o.Series.Short())
 	}
+	if !h.holdsEntry(engine.PoolKey{Series: o.Series, Index: o.Pool}, o.Entry) {
+		// A layer on an entry the pool does not hold is not kept, yet an
+		// accepted claim for it is still owed (GREEN-061).
+		hint := ""
+		if ks := h.BountyPools(o.Series, o.Entry); len(ks) > 0 {
+			hint = fmt.Sprintf("; it is in pool %d", ks[0])
+		}
+		return bounty.Mine{}, 0, fmt.Errorf("pool %d of series %s does not hold entry %s, so a layer on it would be paid for and not kept%s", o.Pool, o.Series.Short(), o.Entry.Short(), hint)
+	}
 	if s, _ := h.n.Engine().Series(o.Series); int(o.Strength) < int(s.Params().MinLayerStrength) {
 		return bounty.Mine{}, 0, fmt.Errorf("strength %d is under the series' layer floor %d, so no node would keep the layer", o.Strength, s.Params().MinLayerStrength)
 	}
@@ -122,6 +132,26 @@ func (h *Host) PostBounty(o bounty.Offer) (bounty.Mine, int, error) {
 		sent++
 	}
 	return m, sent, nil
+}
+
+// holdsEntry reports whether the pool k holds the entry e.
+func (h *Host) holdsEntry(k engine.PoolKey, e hash.Hash) bool {
+	held := false
+	h.n.Engine().Ledger(k, func(l *ledger.Pool) { held = l.Has(e) })
+	return held
+}
+
+// BountyPools returns, in order, the followed pools of series that hold
+// the entry e: what poo bounty post offers on when no pool is named
+// (GREEN-061).
+func (h *Host) BountyPools(series, e hash.Hash) []uint64 {
+	var ks []uint64
+	for _, pi := range h.sortedPools() {
+		if pi.key.Series == series && h.holdsEntry(pi.key, e) {
+			ks = append(ks, pi.key.Index)
+		}
+	}
+	return ks
 }
 
 // AskBounties asks every connected peer that takes part for its open

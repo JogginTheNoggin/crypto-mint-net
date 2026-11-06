@@ -331,13 +331,15 @@ until each turns it on in node.json, then restarts:
 "bounty": {"post": true, "take": true, "max_amount": 5000, "budget": 20000}
 ```
 
-The payer posts an offer on an entry it holds, and the grinder finds,
-works and claims it:
+The payer posts an offer on an entry it holds (`ENTRY` is the `hash`
+that `poo build` prints, or a pool's `tip` in `poo pools`; the node finds
+the pool that holds it), and the grinder finds, works and claims it:
 
 ```sh
 # on the payer: pay 1000 units for each of 2 layers of strength 28
 ./poo bounty post -entry ENTRY -strength 28 -amount 1000 -count 2
 # on the grinder: ask peers for offers, then work one
+./poo wallet create                     # once, if it has no wallet yet
 ./poo wallet address                    # a fresh address to be paid to
 ./poo bounty list -ask
 ./poo bounty work OFFER_ID -to ADDRESS
