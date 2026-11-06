@@ -611,6 +611,70 @@ func doneIDs(path string, from int64) (map[hash.Hash]bool, int, int64, error) {
 	}
 }
 
+// MaxDoneList bounds how many finished offers Done returns, and
+// maxDoneLine how long a done line Done reads; a longer one is skipped.
+const (
+	MaxDoneList = 256
+	maxDoneLine = 1 << 20
+)
+
+// Done returns the last n offers of the done file, oldest first, and how
+// many lines it skipped (too long, or not an offer this release reads):
+// the offers that needed nothing more and left poo bounty list
+// (GREEN-063). The file streams, so it costs one line at a time.
+func (b *Book) Done(n int) ([]Mine, int, error) {
+	n = min(max(n, 0), MaxDoneList)
+	path := b.donePath()
+	if n == 0 || path == "" {
+		return nil, 0, nil
+	}
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+	r := bufio.NewReader(f)
+	first, _, err := linePrefix(r, maxDoneHead)
+	if len(first) == 0 && err != nil {
+		return nil, 0, nil
+	}
+	var head struct {
+		Kind   string `json:"kind"`
+		Format int    `json:"format"`
+	}
+	if json.Unmarshal(first, &head) != nil || head.Kind != DoneFileKind || head.Format < 1 || head.Format > DoneFileFormat {
+		return nil, 0, fmt.Errorf("%s: not a %s file of format %d", path, DoneFileKind, DoneFileFormat)
+	}
+	ring := make([]Mine, 0, n)
+	next, skipped := 0, 0
+	for {
+		line, whole, err := linePrefix(r, maxDoneLine+1)
+		if len(line) > 0 {
+			var m Mine
+			switch {
+			case len(line) > maxDoneLine:
+				skipped++
+			case !whole:
+				// Cut short at the end: being written now, or by a crash.
+			case json.Unmarshal(line, &m) != nil || m.ID.IsZero():
+				skipped++
+			case len(ring) < n:
+				ring = append(ring, m)
+			default:
+				ring[next] = m
+				next = (next + 1) % n
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	return append(ring[next:], ring[:next]...), skipped, nil
+}
+
 // doneIDPrefix is how each done line begins: the offer's id comes first.
 const doneIDPrefix = `{"id":"`
 
