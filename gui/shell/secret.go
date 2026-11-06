@@ -33,6 +33,61 @@ func secretFlag(arg string) (secret, inline bool) {
 	return false, false
 }
 
+// keyFileFlags take the path of a file that holds a key or a seed. A path
+// is not a secret, but a key pasted where the path goes is (GUI-032): it
+// would show in the Jobs list, so a value that LooksLikeKey is hidden.
+var keyFileFlags = []string{"key-file", "seed-file"}
+
+// keyFileFlag reports whether args[i] is a key file flag whose value
+// LooksLikeKey, and whether it carries its value after "=".
+func keyFileFlag(args []string, i int) (secret, inline bool) {
+	arg := args[i]
+	if !strings.HasPrefix(arg, "-") {
+		return false, false
+	}
+	name, val, inline := strings.Cut(strings.TrimPrefix(strings.TrimPrefix(arg, "-"), "-"), "=")
+	found := false
+	for _, f := range keyFileFlags {
+		found = found || name == f
+	}
+	if !found {
+		return false, false
+	}
+	if !inline {
+		if i+1 >= len(args) {
+			return false, false
+		}
+		val = args[i+1]
+	}
+	return LooksLikeKey(val), inline
+}
+
+// LooksLikeKey reports whether s, given where a path goes, is a key: 32
+// or more hex digits in a row once the separators a key is often printed
+// with are taken out (colons, spaces, dashes, a dot at the end), and no /
+// or \ or other dot in it. The Wallet view's looksLikeKey is the same
+// test (GUI-032, GUI/Red R36B).
+func LooksLikeKey(s string) bool {
+	t := strings.TrimRight(strings.TrimSpace(s), ".")
+	if strings.ContainsAny(t, "/\\.") {
+		return false
+	}
+	run := 0
+	for _, c := range t {
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'f', c >= 'A' && c <= 'F':
+			run++
+			if run >= 32 {
+				return true
+			}
+		case c == ':' || c == '-' || c == ' ' || c == '\t' || c == '\n' || c == '\r':
+		default:
+			run = 0
+		}
+	}
+	return false
+}
+
 // command returns args' first word that is not a flag: the poo command.
 func command(args []string) string {
 	for _, a := range args {
@@ -52,6 +107,9 @@ func Redact(args []string) ([]string, bool) {
 	var out []string
 	for i := 0; i < len(args); i++ {
 		secret, inline := secretFlag(args[i])
+		if !secret {
+			secret, inline = keyFileFlag(args, i)
+		}
 		if !secret {
 			continue
 		}

@@ -76,3 +76,34 @@ func TestSecretOutput(t *testing.T) {
 		}
 	}
 }
+
+// TestRedactKeyFile is GUI-032: a key pasted where -key-file or
+// -seed-file wants a path is hidden in a job's command line, written
+// plain or with the separators a key is often printed with (GUI/Red
+// R36B); a path is left as it is.
+func TestRedactKeyFile(t *testing.T) {
+	key := strings.Repeat("ab", 32)
+	colon := strings.TrimSuffix(strings.Repeat("ab:", 32), ":")
+	groups := strings.Repeat("abcdef01 ", 4) + "abcdef01"
+	cases := []struct {
+		args, want []string
+		redacted   bool
+	}{
+		{[]string{"sign", "pay.json", "-key-file", key}, []string{"sign", "pay.json", "-key-file", Hidden}, true},
+		{[]string{"sign", "pay.json", "--key-file=" + colon}, []string{"sign", "pay.json", "--key-file=" + Hidden}, true},
+		{[]string{"sign", "pay.json", "-key-file", groups}, []string{"sign", "pay.json", "-key-file", Hidden}, true},
+		{[]string{"sign", "pay.json", "-key-file", key + "."}, []string{"sign", "pay.json", "-key-file", Hidden}, true},
+		{[]string{"keygen", "-seed-file", key}, []string{"keygen", "-seed-file", Hidden}, true},
+		{[]string{"sign", "pay.json", "-key-file", "-"}, []string{"sign", "pay.json", "-key-file", "-"}, false},
+		{[]string{"sign", "pay.json", "-key-file", "/keys/" + key}, []string{"sign", "pay.json", "-key-file", "/keys/" + key}, false},
+		{[]string{"sign", "pay.json", "-key-file", "cold.key"}, []string{"sign", "pay.json", "-key-file", "cold.key"}, false},
+		{[]string{"sign", "pay.json", "-key-file", strings.Repeat("ab", 15)}, []string{"sign", "pay.json", "-key-file", strings.Repeat("ab", 15)}, false},
+		{[]string{"sign", "pay.json", "-key-file"}, []string{"sign", "pay.json", "-key-file"}, false},
+	}
+	for _, c := range cases {
+		got, red := Redact(c.args)
+		if !reflect.DeepEqual(got, c.want) || red != c.redacted {
+			t.Errorf("Redact(%q) = %q, %v; want %q, %v", c.args, got, red, c.want, c.redacted)
+		}
+	}
+}
