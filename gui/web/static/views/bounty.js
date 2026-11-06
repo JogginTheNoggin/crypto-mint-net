@@ -46,11 +46,15 @@ const stateText = s => (typeof s === 'string' ? STATES[s] || s : '');
 // reader's own time zone and words, with poo's text in the tooltip and
 // the datetime attribute (GUI-GREEN-063). Text that is not a time is
 // shown as printed.
+// One formatter for every time cell: toLocaleString with options builds
+// a new one each call, 88 ms per 1,500 cells (GUI/Orange R38B).
+let fmt = null;
 export function when(s) {
   if (typeof s !== 'string' || !s) return '';
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return s;
-  return el('time', { datetime: s, title: s }, d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }));
+  fmt = fmt || new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return el('time', { datetime: s, title: s }, fmt.format(d));
 }
 // open says an offer can still take layers: poo says open, or (an older
 // node) says nothing. Cancel and Work are offered only then; poo still
