@@ -115,11 +115,27 @@ export function secretLine(text) {
   return words.some((w, i) => {
     const m = /^--?(key-file|seed-file)(=(.*))?$/.exec(w);
     if (!m) return false;
-    const rest = [...(m[2] !== undefined ? [m[3]] : []), ...words.slice(i + 1)];
-    for (let k = 1; k <= rest.length; k++) if (looksLikeKey(rest.slice(0, k).join(' '))) return true;
-    return false;
+    // A key's hex run, once there, stays as words are added, until a word
+    // that marks a path or a file (/ \ or .); so the value is read up to
+    // that word, or KEY_RUN characters, and tested once without it and
+    // once with it (a key may end in a dot). A long line costs time in
+    // proportion to its length (GUI/Red R38B).
+    let v = '';
+    for (let j = m[2] !== undefined ? i : i + 1; j < words.length; j++) {
+      const x = j === i ? m[3] : words[j];
+      const w = v ? `${v} ${x}` : x;
+      if (w.length > KEY_RUN) break;
+      if (/[/\\.]/.test(x)) return looksLikeKey(v) || looksLikeKey(w);
+      v = w;
+    }
+    return looksLikeKey(v);
   });
 }
+
+// KEY_RUN is the most characters after a key file flag that secretLine
+// reads as one value: far past any key written with separators (an
+// SLH-DSA-256s secret key is 128 bytes, 383 characters as colon hex).
+const KEY_RUN = 512;
 
 // looksLikeKey says s, given where a path goes, is a key: 32 or more hex
 // digits in a row once the separators a key is often printed with are

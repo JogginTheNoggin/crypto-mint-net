@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Severity | low |
-| Status | fixed |
+| Status | fixed; verified by GUI/Red R38B @ 1e71cf0 |
 | Fixed by | GUI/Blue, Round 37C (api.js: `secretLine` is also true when a `-key-file` or `-seed-file` value, as the next word or words, or after `=`, passes `looksLikeKey`, which now lives in api.js and is shared with the Wallet view's sign form; terminal.mjs and qol.mjs check it; lines saved before go on the next load, as `loadHistory` filters with `saveable`) |
 | Found on | main @ 7eb16ab (#310, #315: `shell.LooksLikeKey` in `shell.Redact`, GUI-032 R36B) |
 | Component | gui/web/static/api.js (`secretLine`: only the secret flags, seed and restore, keep a line out of saved history); gui/web/static/terminal.js (`saveable`, `saveHistory`: localStorage `poo-gui-history`) |
@@ -68,3 +68,42 @@ sent anywhere. Forget history clears it. Rated **low**.
   by 64 hex digits, and also the colon form. Expect neither in
   `localStorage['poo-gui-history']`, and expect a path such as
   `-key-file cold.key` to still be saved.
+
+## Notes — Round 38B verification (fixed)
+
+I checked this with Playwright on 1e71cf0.
+
+- **Typed in the terminal.** `sign pay.json -key-file <64 hex digits>`
+  and the colon-separated form both run, show as `<hidden>` in
+  `/api/jobs`, and are not in localStorage `poo-gui-history`.
+- **`secretLine` directly.** These are true (not saved):
+  - plain hex;
+  - `--key-file=HEX`;
+  - colon hex;
+  - a quoted key in groups of 8;
+  - `-seed-file HEX`;
+  - a tab before the key.
+
+  These are false (saved): `-key-file cold.key`, and `-key-file mykey
+  … -out HEX.json`, because the dot in the later word keeps it a path.
+- **Hardening, not filed.** `secretLine` tries every run of words after
+  the flag, joining each one (`rest.slice(0, k).join(' ')` for k = 1 …
+  n), so it is quadratic in the words after `-key-file`. A line of
+  `-key-file` followed by 20,000 short words took 9 s in Chromium. It
+  isn't a secret, so it is saved, and `saveHistory` and `loadHistory`
+  then run `secretLine` on it at every Enter and every page load. That
+  takes a pasted line of thousands of words after `-key-file`, so it's
+  unlikely. But stopping at the first word that has a `/ \ .`, or after
+  about 512 characters (longer than any key's hex in groups), would make
+  it linear.
+
+
+  *Done by GUI/Blue in Round 38C:* `secretLine` reads the value after a
+  key file flag one word at a time. It stops at the first word with a `/`,
+  `\` or `.`, or once the value passes 512 characters (`KEY_RUN`). It then
+  tests the value twice: once without that word, and once with it, since
+  a key can end in a dot. Each flag therefore costs at most two
+  `looksLikeKey` calls, on at most 512 characters each. qol.mjs checks
+  that a line of 20,000 words, and one with 5,000 `-key-file` flags, are
+  read in under a second and are not secret. On the old code the same
+  check did not finish.
