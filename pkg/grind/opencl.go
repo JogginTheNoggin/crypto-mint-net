@@ -84,7 +84,7 @@ var cl struct {
 // loadOpenCL opens the OpenCL library and finds its entry points.
 func loadOpenCL() error {
 	cl.once.Do(func() {
-		if v := os.Getenv("POON_OPENCL"); v == "off" || v == "0" {
+		if v := os.Getenv("POON_OPENCL"); openCLOff(v) {
 			cl.err = errors.New("turned off by POON_OPENCL")
 			return
 		}
@@ -535,6 +535,10 @@ func matchOpenCL(sys []sysGPU, devs []clDevice, err error) []Device {
 
 func init() {
 	gpuProbe = probeOpenCLGPUs
+	openCLStatus = func() string {
+		devs, err := openCLDevices()
+		return openCLStatusOf(len(devs), err)
+	}
 	for id := range kernelNames {
 		Default.Register(Grinder{
 			Name: "gpu-opencl", Kind: GPU, Hash: id,

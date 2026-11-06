@@ -59,6 +59,9 @@ type GrindStats struct {
 // DevicesReply is the reply of /v1/grind/devices.
 type DevicesReply struct {
 	Devices []grind.Device `json:"devices"`
+	// OpenCL says what the node's GPU grinder found, or why nothing
+	// (GREEN-066).
+	OpenCL string `json:"opencl,omitempty"`
 }
 
 // SetGrind lets the interface run grind jobs on m. Without one, build and
@@ -272,7 +275,7 @@ func stats(p grind.Plan, tried uint64, t0 time.Time) *GrindStats {
 }
 
 func (h *Handler) grindDevices(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, DevicesReply{Devices: h.devices()})
+	writeJSON(w, DevicesReply{Devices: h.devices(), OpenCL: grind.OpenCLStatus()})
 }
 
 func (h *Handler) needGrind(w http.ResponseWriter) bool {

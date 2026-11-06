@@ -388,5 +388,37 @@ func (h funcHasher) Hash(suffix []byte) hash.Hash { return h.f(h.prefix, suffix)
 // grinder is built in (D208).
 var gpuProbe = probeGPUs
 
+// openCLStatus says what the GPU grinder found; the OpenCL build sets it.
+var openCLStatus = func() string { return "this build has no GPU grinder (OpenCL)" }
+
+// OpenCLStatus says, in one line, what the GPU grinder found: how many
+// OpenCL devices, or why none (turned off, no library, no driver). poon
+// grind devices and doctor show it, so a machine whose GPU is not listed
+// says why even when no GPU was found to hang a note on (GREEN-066).
+func OpenCLStatus() string { return openCLStatus() }
+
+// openCLStatusOf is OpenCLStatus from what the OpenCL probe found.
+func openCLStatusOf(n int, err error) string {
+	switch {
+	case err != nil:
+		return "no GPU grinder: " + err.Error()
+	case n == 0:
+		return "no GPU grinder: an OpenCL driver is installed but lists no GPU"
+	case n == 1:
+		return "OpenCL: 1 device"
+	}
+	return fmt.Sprintf("OpenCL: %d devices", n)
+}
+
+// openCLOff reports whether a $POON_OPENCL value turns the GPU grinder
+// off: off, 0, false or no, in any case (GREEN-066).
+func openCLOff(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "off", "0", "false", "no":
+		return true
+	}
+	return false
+}
+
 // threadsOf is runtime.NumCPU, a variable for tests.
 var threadsOf = runtime.NumCPU

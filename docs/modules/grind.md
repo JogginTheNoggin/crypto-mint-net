@@ -70,7 +70,12 @@ and Windows, amd64 and arm64.
   with a GPU.
 - **Failures.** If the driver fails mid-search, that range and every later
   one are searched on the CPU instead, with the same result.
-- `$POON_OPENCL=off` turns it off. `$POON_OPENCL_ALL=1` also takes OpenCL
+- **Status.** `OpenCLStatus` says in one line how many OpenCL devices
+  were found, or why none (turned off, no library, no driver, no GPU
+  listed). `poon grind devices` prints it as `opencl` (the node's when it
+  answers), and `poon doctor`'s grind line adds it when no GPU grinds, so
+  a machine whose GPU is not listed at all still says why (GREEN-066).
+- `$POON_OPENCL=off` (or `0`, `false`, `no`, in any case) turns it off. `$POON_OPENCL_ALL=1` also takes OpenCL
   devices that are not GPUs, such as PoCL on a CPU, which is how the tests
   run on a machine with no GPU.
 
