@@ -29,7 +29,7 @@ header's value. Three consequences:
 3. **It silently checks nothing** when the snapshot is not at the end of the log
    (`check.off == l.Size() && check.records == l.Records()`), as after a crash,
    a kill, or any records taken since the last periodic snapshot. Then
-   `reverified` is 0, `reverify_differed` is 0 and `poon doctor` says `ok` (its
+   `reverified` is 0, `reverify_differed` is 0 and `poo doctor` says `ok` (its
    `snapshotsCheck` mentions `-reverify` only when `Differed > 0`). An operator
    who asked for a full check is told nothing went wrong.
 
@@ -79,14 +79,14 @@ refuses every one of them.
   `Forget`, replay whole) and say so in `snapshots_unused`. It costs a pass over
   the skeleton and the unspent set, and it makes every start a differential of
   Restore against Snapshot. If that is thought too dear at 10^7 entries, do it
-  under `-reverify` and `poon doctor`.
+  under `-reverify` and `poo doctor`.
 - Under `-reverify`, also load the snapshot (into a scratch engine, or before
   the replay) and compare its restored fingerprint with the replay's, not with
   the header's. That is the comparison the flag is described as making.
 - When the snapshot does not reach the end of the log, `-reverify` can still
   compare at the snapshot's own offset: replay the log up to `header.off` and
   fingerprint there. If that is not wanted, report `reverified 0 of N pools`
-  in `poon doctor` as a warning ("nothing was compared: the snapshot is behind
+  in `poo doctor` as a warning ("nothing was compared: the snapshot is behind
   the log"), never as `ok`.
 - Tests: a snapshot with a planted body and a good header is refused at start
   and reported by `-reverify`; a snapshot behind the log is reported as not
@@ -106,7 +106,7 @@ Fixed in BLUE-031 (D181).
   with the header's `print`. On a difference the snapshot is forgotten,
   the reason goes in `snapshots_unused`, and the log is replayed whole.
 - Under `-reverify`, a snapshot behind the log is listed in
-  `reverify_not_compared`, and `poon doctor` warns.
+  `reverify_not_compared`, and `poo doctor` warns.
 - Replaying up to the snapshot's offset is not built.
 - Since every normal start now checks the restore against the same
   fingerprint that `-reverify` checks the replay against, the two

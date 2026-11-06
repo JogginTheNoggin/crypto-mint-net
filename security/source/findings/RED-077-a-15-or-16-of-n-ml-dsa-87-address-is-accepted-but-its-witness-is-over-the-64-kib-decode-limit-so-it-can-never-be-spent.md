@@ -40,7 +40,7 @@ ml-dsa-87  k=n=16  witness=115,754 B  decode err: encoding: length 74132 above l
 ```
 
 With a wallet on a node running the reserve series (SHA-512/256, key algs
-1, 8, 9, types 1, 2, `max_witness` 131072), `poon wallet policy -k 14`, `-k 15`
+1, 8, 9, types 1, 2, `max_witness` 131072), `poo wallet policy -k 14`, `-k 15`
 and `-k 16` over 16 ML-DSA-87 keys all print an address, exit 0.
 
 ## What could happen
@@ -61,7 +61,7 @@ allows. The reserve is also one for which the doc points people at ML-DSA-87.
   `Registry.CheckPolicy` (so `wallet policy`, `wallet.CheckPolicy` and the
   payer's check before paying an address with its policy all use it).
   Say the limit in the error: "at most 14 ML-DSA-87 signatures fit".
-- Show the limit in `poon crypto` next to each algorithm (the largest k that
+- Show the limit in `poo crypto` next to each algorithm (the largest k that
   fits), and in the docs.
 - Do not raise the decode limits to fit: that is a consensus change.
 - For the default series doc: say ML-DSA-87 custody is at most 14 of 16, or
@@ -80,8 +80,8 @@ under 64 KiB).
 Fixed in BLUE-027 (D169), together with RED-079.
 
 - `policy.Registry.CheckSpendable` adds up the least witness data a policy can be satisfied with (K of the smallest signatures among a threshold's keys, the K cheapest parts of a k-of-policies, an empty hashlock preimage). It refuses the policy (`ErrUnspendable`) when that is over `MaxDataSize`, when the params are over `MaxParamsSize`, or when the witness is over the series' `max_witness`. The error says how many signatures fit ("at most 14 of these keys' signatures fit").
-- `Registry.CheckPolicy` runs it, so `poon wallet policy`, `wallet.CheckPolicy`, a payment request and a payer's check before paying an address with its policy all refuse a 15- or 16-of-n ML-DSA-87 policy.
-- `poon crypto` prints `max_signatures_per_witness` for each algorithm (ML-DSA-87: 14).
+- `Registry.CheckPolicy` runs it, so `poo wallet policy`, `wallet.CheckPolicy`, a payment request and a payer's check before paying an address with its policy all refuse a 15- or 16-of-n ML-DSA-87 policy.
+- `poo crypto` prints `max_signatures_per_witness` for each algorithm (ML-DSA-87: 14).
 - The decode limits are unchanged. The check is never part of checking a witness, and every witness that decodes already passes it.
 - The Reserve Currency Default Series document (project knowledge, not the repository) still says 16-of-16 ML-DSA-87 fits. I've passed that to the coordinator for jerry, since documents are his to change.
 - Test: `TestCheckSpendable` (14 of 16 passes, 15 of 16 is refused, 16 of 16 ML-DSA-65 passes).

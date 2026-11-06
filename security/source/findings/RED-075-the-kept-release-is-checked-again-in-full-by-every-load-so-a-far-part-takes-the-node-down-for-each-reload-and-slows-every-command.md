@@ -14,7 +14,7 @@
 
 `CheckRelease` hashes k part ids the first time a process needs part k (D165
 keeps the memory bounded, so only time is spent). The chain is kept in the
-`Series` value, and every `poon` command and every node reload builds new
+`Series` value, and every `poo` command and every node reload builds new
 ones. `Accepted()` calls `AddRelease(*si.Release)` for the kept release, so
 each load pays k hashes again, for a release that was checked when it was
 added.
@@ -25,15 +25,15 @@ A variable series (parts of 8, pools of 4) and releases signed by its issuer,
 checked in this container (about 4.3 million hashes a second):
 
 ```
-poon series release -check, part 3,000,000        0.7 s
-poon series add-release -dir n4, part 150,000,000  34 s  (policyMu held: `policy limits -set` waited 34 s)
+poo series release -check, part 3,000,000        0.7 s
+poo series add-release -dir n4, part 150,000,000  34 s  (policyMu held: `policy limits -set` waited 34 s)
 then, with that release in n4/node.json:
-poon doctor -dir n4                                43 s
-poon wallet balance -dir n4                        37 s
+poo doctor -dir n4                                43 s
+poo wallet balance -dir n4                        37 s
 node reload (after the add, and after each one)   ~40 s with rpc.addr gone (the RPC does not answer)
 ```
 
-`poon series followed`, `status` and `policy limits` (no load of `Accepted()`)
+`poo series followed`, `status` and `policy limits` (no load of `Accepted()`)
 stay at 8 ms. Memory stays at 21 MB (RED-070 is fixed). A part number of
 2^36 is about 4.4 hours at this rate, 2^40 about 70 days, each time.
 
@@ -67,5 +67,5 @@ Fixed in BLUE-026 (D167), with ORANGE-035 (#167).
 - Across processes the node keeps its own cache, `releases-checked.json` beside node.json: the series, part and previous id of each kept release it checked in full. `Load` uses an entry only when it matches the kept release, and seeds that one id. The witness is still checked each time, which needs no chain. A missing, damaged or stale cache costs time only. The cache is never exported.
 - The RPC checks a release before it takes `policyMu`, and the add after it finds the ids already worked out.
 - No cap on parts (D165).
-- Checked by hand: a release of part 20,000,000, then `poon doctor -dir n` takes 10 ms with the cache and 8.6 s without it.
+- Checked by hand: a release of part 20,000,000, then `poo doctor -dir n` takes 10 ms with the cache and 8.6 s without it.
 - Tests: `TestCheckedReleasesCache`, `TestTrustReleaseSeedsOnlyThatPart`.

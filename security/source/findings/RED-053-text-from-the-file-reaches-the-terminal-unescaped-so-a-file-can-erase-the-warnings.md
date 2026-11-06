@@ -36,7 +36,7 @@ A settings bundle that sets `max_peers` to 100000, `no_relay`,
 end of the screen):
 
 ```
-$ poon settings import hide.json -prefer-file > hide.out
+$ poo settings import hide.json -prefer-file > hide.out
 ```
 
 `hide.out` holds, as bytes, the "read first" line, the lines for
@@ -58,7 +58,7 @@ registry string also lets the file print a line of its own that looks
 like part of the plan (`note: fake line` printed on its own line in my
 test).
 
-Same for `poon policy import` (the strings are the same).
+Same for `poo policy import` (the strings are the same).
 
 ## What could happen
 

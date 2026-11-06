@@ -35,7 +35,7 @@ The file has to be crafted (a node.json taken from a guide, a backup or a
 helper), but that is the case W-1 was asked about, and the effect is that a
 defence the owner switched off, or the interface's `allow_remote` (which D149
 keeps out of the token holder's reach), is switched on again by a routine
-`poon` command or a restart, with no warning that it happened.
+`poo` command or a restart, with no warning that it happened.
 
 ## How I checked it
 
@@ -76,7 +76,7 @@ Fixed in BLUE-033 (D185). A key is known when `encoding/json` would fill
 a field from it: the exact name, or one equal under Unicode case folding
 (`fieldFor`). Such a key is never kept as unknown. `Load` applies it,
 `Save` writes the setting under its own name in its place, and
-`FoldedSettings`, the start warning and `poon doctor` name it. No kept
+`FoldedSettings`, the start warning and `poo doctor` name it. No kept
 setting is written beside a key that folds to its name. Red's two cases
 now hold the owner's value after a save. Tests:
 `TestBlue033FoldedKeyIsTheSetting`, `TestBlue033UnicodeFoldedKey`.

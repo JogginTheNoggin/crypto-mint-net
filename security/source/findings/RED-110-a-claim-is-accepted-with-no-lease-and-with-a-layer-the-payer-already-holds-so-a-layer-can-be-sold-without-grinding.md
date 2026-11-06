@@ -25,8 +25,8 @@ target and claim it with its own `pay_to`; the payer owes the price. The lease
 protocol, the rate statement and the "one grinder at a time" rule play no part.
 The grinder also earns more leases for the layers it "filled" (`filled++`).
 
-The payer pays by hand, so the loss needs `poon bounty pay`; nothing in the
-command or in `poon bounty list` says that the layer was already held.
+The payer pays by hand, so the loss needs `poo bounty pay`; nothing in the
+command or in `poo bounty list` says that the layer was already held.
 
 ## How I checked it
 
@@ -44,8 +44,8 @@ I did not take a layer from another node's ledger with a second real node.
 - Require a lease for a claim; a claim without one is `reserved` or `closed`.
 - Before `accepted`, ask the engine whether the layer is new; if it is known,
   answer with a new outcome (`known`) and owe nothing. Keep the engine's
-  answer in the claim record, and show it in `poon bounty list` and
-  `poon bounty pay`.
+  answer in the claim record, and show it in `poo bounty list` and
+  `poo bounty pay`.
 - Optionally, the offer may say the layer must be one the payer's node did not
   hold when the offer was posted.
 

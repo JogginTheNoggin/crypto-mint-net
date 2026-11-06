@@ -1,4 +1,4 @@
-# RED-030: `poon follow`, `poon unfollow` and `poon wallet follow` still write node.json without the data directory lock
+# RED-030: `poo follow`, `poo unfollow` and `poo wallet follow` still write node.json without the data directory lock
 
 | Field | Value |
 | --- | --- |
@@ -11,23 +11,23 @@
 
 ## Summary
 
-GUI-017 (D134) takes `nodepolicy.Lock` for an offline `poon grind schedule`
+GUI-017 (D134) takes `nodepolicy.Lock` for an offline `poo grind schedule`
 edit, so node.json is never written behind a running node whose RPC did not
 answer (the node's next write would undo it). Other commands change node.json
 with no lock:
 
-- `poon follow` / `poon unfollow`: when `dialNode` or the follow call fails with
+- `poo follow` / `poo unfollow`: when `dialNode` or the follow call fails with
   anything but an `rpc.Error` ("the node did not answer: change the file
   instead"), it loads, edits and saves node.json;
-- `poon wallet follow`: loads and saves node.json first and only then
+- `poo wallet follow`: loads and saves node.json first and only then
   tries the node (no lock either way);
-- `poon init -dir` with `-force`.
+- `poo init -dir` with `-force`.
 
 ## Reproduction
 
 A temporary test in `pkg/cli` (not committed): `init -example`, then the test
 holds `nodepolicy.Lock(dir)` as a running node does (no `rpc.addr`), and runs
-`poon unfollow -series <id> -no-reload -dir <dir>`:
+`poo unfollow -series <id> -no-reload -dir <dir>`:
 
 ```
 follow under another's lock: err=<nil> changed=true
@@ -60,10 +60,10 @@ Fixed by BLUE-012 (decision D136), as recommended. `lockPolicy`
 gives D134's two messages. The offline schedule edit now uses it too.
 
 What each command does:
-- `poon follow` and `poon unfollow`, with no node answering, write
+- `poo follow` and `poo unfollow`, with no node answering, write
   `node.json` only under the lock.
-- `poon init -dir` writes under the lock, which covers `-force`.
-- `poon wallet follow`, when the node answers, changes the follow list
+- `poo init -dir` writes under the lock, which covers `-force`.
+- `poo wallet follow`, when the node answers, changes the follow list
   through the node: it removes the series' rule without a reload, then
   adds the wallet's pools and applies them. Otherwise it writes under the
   lock.

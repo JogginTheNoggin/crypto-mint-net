@@ -22,7 +22,7 @@ max_leases_per_grinder`, 4 by default). What is left:
   (256), and a node id is a self-chosen value. Four ids from one address, within
   the discovery budget (a 64-offer list counts as one message), replace the whole
   held list, oldest first, so the legitimate offers a taker held are gone and
-  its `poon bounty list` shows only the junk. They are junk by the market's own checks
+  its `poo bounty list` shows only the junk. They are junk by the market's own checks
   (a followed series, any entry, a price over `min_price`).
 - **Earned leases.** When the grinder records reach `maxPeerRecords`,
   `forgetGrinder` drops *any* record with no lease, including one with `filled > 0`,

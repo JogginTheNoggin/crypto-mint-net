@@ -1,4 +1,4 @@
-# RED-040: `Client.SubmitEntryHex` sends the body chunked, so the node never sees a Content-Length and ORANGE-025's sizing does not apply to `poon submit`
+# RED-040: `Client.SubmitEntryHex` sends the body chunked, so the node never sees a Content-Length and ORANGE-025's sizing does not apply to `poo submit`
 
 | Field | Value |
 | --- | --- |
@@ -20,7 +20,7 @@ tail)` and hands it to `http.NewRequest`. Go sets `ContentLength` only for
 the request goes out with `Transfer-Encoding: chunked` and no length. The
 node sees `r.ContentLength == -1`, `readSized` is called with `stated < 0`,
 and the buffer doubles with no bound from 64 MiB on, copying at each step.
-The one client that sends large entries (`poon submit -f`) is exactly the one
+The one client that sends large entries (`poo submit -f`) is exactly the one
 that defeats the sizing.
 
 ## Reproduction
@@ -64,7 +64,7 @@ a `Content-Length`.
 ## Resolution
 
 Fixed (D148). `Client.SubmitEntryHex` sets the body's `Content-Length`
-(`doReader` takes a length), so `poon submit` no longer sends a chunked
+(`doReader` takes a length), so `poo submit` no longer sends a chunked
 body and the node's sizing applies. Test: `TestSubmitEntryHexSendsItsLength`,
 through the client; on b502960 it fails with "Content-Length -1, chunked
 true".

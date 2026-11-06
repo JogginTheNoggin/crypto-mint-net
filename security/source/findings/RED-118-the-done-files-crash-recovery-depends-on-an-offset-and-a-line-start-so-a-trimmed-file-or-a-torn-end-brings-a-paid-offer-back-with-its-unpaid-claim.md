@@ -15,7 +15,7 @@ The done file is how a start finds an offer that was paid and archived, but
 whose `bounties.json` (with the claim still unpaid) came back after a crash
 between the two writes. D200 reads only the part of the done file past
 `done_size` and takes each line's id from its first 72 bytes. The offer it
-fails to find is loaded as live, with its unpaid claim, and `poon bounty pay`
+fails to find is loaded as live, with its unpaid claim, and `poo bounty pay`
 will pay it again. Two ways it fails with no hostile act:
 
 1. **The offset is trusted.** `from` must land on a line start. If the done
@@ -72,6 +72,6 @@ Fixed in BLUE-039 (D201).
 - `bounties.json` records, beside `done_size`, the id on the line that ends there (`done_last`). A start reads from `done_size` only when the byte before it is a newline and the line it ends begins with that id. Otherwise it reads the whole file and says so in the log ("changed since bounties.json was written"). That covers the trimmed first record (the exact-end case), an offset part way into a line, and a file shorter than the offset. A file from D200 with no `done_last` is read in full once.
 - A start says when the done file's last line has no newline. `archive` writes a newline first when the file does not end in one, so the next record is a line of its own. A write that fails part way is truncated back, so no cut line names an offer still in `bounties.json`.
 - A cut last line's id still counts as done: only an offer that needs nothing more is ever written there, and a payment is recorded only after the wallet sent it.
-- The claim's payment where the done file is lost: `poon bounty pay` finds it in the wallet (RED-119).
+- The claim's payment where the done file is lost: `poo bounty pay` finds it in the wallet (RED-119).
 
 Tests: `TestBlue039TrimmedDoneFile`, `TestBlue039TornDoneFile`.

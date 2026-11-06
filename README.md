@@ -66,7 +66,7 @@ You need Go 1.27 or later (the `go` command fetches the toolchain `go.mod` names
 ```sh
 git clone https://github.com/JogginTheNoggin/crypto-mint-net
 cd crypto-mint-net
-go test ./...            # run every test
+go test ./...             # run every test
 go run ./cmd/poon demo    # four in-process full nodes: payment, double spend, recovery
 go run ./cmd/poon keygen  # a key and its 1-of-1 address
 go run ./cmd/poon series example > series.json

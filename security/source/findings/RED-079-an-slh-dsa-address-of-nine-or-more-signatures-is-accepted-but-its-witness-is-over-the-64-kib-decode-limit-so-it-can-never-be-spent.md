@@ -53,7 +53,7 @@ The one fix in RED-077 covers this: `policy.CheckSpendable(rules, p)`, which
 sums the worst-case witness data of the policy (k signatures of the largest
 size among its keys, or the k largest) and refuses a policy whose data is
 over `MaxDataSize` or whose witness is over the series' `max_witness`. Call it
-from `Registry.CheckPolicy`, show the limit in `poon crypto`, and name SLH-DSA
+from `Registry.CheckPolicy`, show the limit in `poo crypto`, and name SLH-DSA
 in the doc comment as one of the algorithms that reach it.
 Test: a 9-of-10 SLH-DSA policy and a mixed one are refused; 8-of-10 passes.
 
@@ -66,4 +66,4 @@ oversize field.
 
 ## Resolution
 
-Fixed in BLUE-027 (D169) by the same check as RED-077: `CheckSpendable` in `CheckPolicy`. A 9-of-10 SLH-DSA-SHA2-128s policy, and a mix whose K smallest signatures add up past 64 KiB, are refused where the address is made. An 8-of-10 policy passes. The `slhdsa.go` comment names the check. `poon crypto` shows 8 for SLH-DSA-SHA2-128s. Test: `TestCheckSpendable`.
+Fixed in BLUE-027 (D169) by the same check as RED-077: `CheckSpendable` in `CheckPolicy`. A 9-of-10 SLH-DSA-SHA2-128s policy, and a mix whose K smallest signatures add up past 64 KiB, are refused where the address is made. An 8-of-10 policy passes. The `slhdsa.go` comment names the check. `poo crypto` shows 8 for SLH-DSA-SHA2-128s. Test: `TestCheckSpendable`.

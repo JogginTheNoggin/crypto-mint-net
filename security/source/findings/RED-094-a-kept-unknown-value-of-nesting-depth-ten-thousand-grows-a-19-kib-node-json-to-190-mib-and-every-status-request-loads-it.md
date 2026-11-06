@@ -34,7 +34,7 @@ lands everywhere node.json is read:
   `policy_changed`), with no lock, so each poll by a front end reads and
   decodes 190 MiB (the load alone took 1.7 to 2.6 s here; memory was not
   measured), and polls that overlap would add up.
-- Every start, `poon reload`, and every settings command that saves
+- Every start, `poo reload`, and every settings command that saves
   (`policyMu` is held during the 2 s `Save`).
 - The disk: 190 MiB for a setting file, plus the temporary file of the same
   size while it is written.

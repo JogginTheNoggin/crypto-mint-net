@@ -1,4 +1,4 @@
-# RED-019: `poon grind run` stops renewing its lease after one failed request
+# RED-019: `poo grind run` stops renewing its lease after one failed request
 
 | Field | Value |
 | --- | --- |
@@ -11,7 +11,7 @@
 
 ## Summary
 
-`poon grind run` starts a job with a 15-second lease and renews it every 5
+`poo grind run` starts a job with a 15-second lease and renews it every 5
 seconds:
 
 ```go
@@ -61,4 +61,4 @@ lease would have run out since the last success. Any other failure is
 tried again at the next tick. The first failure in a row is written to the
 invocation's error output (`errOf`), so it shows in the GUI terminal as in
 a shell. The end event already carries the job's reason, which
-`poon grind run` prints. Test: `TestRenewSurvivesAFailure` (`pkg/cli`).
+`poo grind run` prints. Test: `TestRenewSurvivesAFailure` (`pkg/cli`).

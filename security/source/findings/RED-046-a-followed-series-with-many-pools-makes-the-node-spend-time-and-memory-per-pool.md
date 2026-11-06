@@ -6,7 +6,7 @@
 | Status | fixed in part |
 | Found on | `main` @ 533dbcd (Source Round 18 Part B) |
 | Component | pkg/node/node.go (`load`, `logPath`), pkg/engine/engine.go (`FollowedPools`); pkg/nodepolicy/bundle.go (`Merge`, `Followed`) |
-| Surface | a bundle file from someone else; `poon policy import -apply` (the default import), `POST /v1/policy/import` |
+| Surface | a bundle file from someone else; `poo policy import -apply` (the default import), `POST /v1/policy/import` |
 | Fixed by | `claude/project-thread-ggo8dt` @ a133161 (BLUE-019) |
 
 ## Summary
@@ -51,7 +51,7 @@ for a normal series (the series line is cut at 60 characters, so `mints`
 may be the only sign, and nothing says how many pools follow from it). The
 operator has to know that `-series` with `-pool` is how a big series is
 followed, and that a whole-series follow of a huge one is the trap. The same
-holds without a bundle (`poon follow` of a series listed with huge params),
+holds without a bundle (`poo follow` of a series listed with huge params),
 but a bundle is how a stranger's series reaches node.json.
 
 ## Recommendation

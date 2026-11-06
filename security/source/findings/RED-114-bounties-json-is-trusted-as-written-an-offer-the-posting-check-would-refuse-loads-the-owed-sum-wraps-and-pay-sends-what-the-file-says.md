@@ -1,4 +1,4 @@
-# RED-114: `bounties.json` is trusted as written: an offer the posting check would refuse loads, the owed sum wraps, and `poon bounty pay` sends what the file says
+# RED-114: `bounties.json` is trusted as written: an offer the posting check would refuse loads, the owed sum wraps, and `poo bounty pay` sends what the file says
 
 | Field | Value |
 | --- | --- |
@@ -21,7 +21,7 @@ the file has them, with no preview and no question.
 
 The file is 0600 in the node's directory, as the wallet is; the wallet itself
 needs its passphrase. Someone who can write the node's directory (a plugin, a
-backup tool, a shared account) can add a claim that `poon bounty pay` will
+backup tool, a shared account) can add a claim that `poo bounty pay` will
 pay when the owner next runs it, with a wallet the attacker cannot open.
 
 ## How I checked it
@@ -36,7 +36,7 @@ because the wrapped sum was still large. I did not run `bounty pay` on it.
 
 - `Open` re-runs `Offer.Check` and drops (and reports) what fails; caps the
   number of offers and claims; uses `mulCheck` in `Owed`.
-- `poon bounty pay` prints what it is about to pay (to whom, how much, which
+- `poo bounty pay` prints what it is about to pay (to whom, how much, which
   nonce, whether the layer was new) and takes a `-yes` for scripts.
 - Optionally, keep a MAC of the file under a key from the wallet seed.
 
@@ -46,4 +46,4 @@ A file of a million offers; `bounty pay` on a forged claim.
 
 ## Resolution
 
-Fixed in part in BLUE-037 (D197). `Open` re-checks each offer and its claims, leaves out what fails, and the daemon logs it. `Owed` saturates instead of wrapping. The `-yes` preview for `poon bounty pay` is not added, since a new flag needs a GUI form. Test: `TestBlue037FileChecked`.
+Fixed in part in BLUE-037 (D197). `Open` re-checks each offer and its claims, leaves out what fails, and the daemon logs it. `Owed` saturates instead of wrapping. The `-yes` preview for `poo bounty pay` is not added, since a new flag needs a GUI form. Test: `TestBlue037FileChecked`.

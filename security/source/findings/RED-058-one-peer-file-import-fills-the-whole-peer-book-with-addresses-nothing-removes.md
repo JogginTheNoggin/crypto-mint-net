@@ -5,7 +5,7 @@
 | Severity | Medium |
 | Status | fixed |
 | Found | Source Round 21 Part B, on `main` @ `8662766` (D157) |
-| Area | `pkg/peerport` (`Import`), `pkg/peers` (`AddUnlisted`, `Limits`, `PromoteImported`), `pkg/cli` (`poon peers import`) |
+| Area | `pkg/peerport` (`Import`), `pkg/peers` (`AddUnlisted`, `Limits`, `PromoteImported`), `pkg/cli` (`poo peers import`) |
 | For Black | No consensus rule is touched. The peer book is node policy. |
 | Fixed by | `claude/project-thread-ggo8dt` @ 282571b (BLUE-022) |
 
@@ -29,10 +29,10 @@ A 4.8 MB peer file of 25,088 addresses in 49 x 256 different /16 ranges
 (two a range):
 
 ```
-$ poon peers import big.json -apply        # 2.4 s
+$ poo peers import big.json -apply        # 2.4 s
   refused 59.254.1.5:8646: the peer book is full (4096)
   ...
-$ poon peers import big.json | grep -c refused
+$ poo peers import big.json | grep -c refused
 20992
 ```
 
@@ -51,8 +51,8 @@ discovery for the 256 /16 ranges where honest nodes sit (a cloud
 provider's, say). Host names are their own range each (`host:NAME`), so
 4096 names fill the book with no range limit at all.
 
-There is no command that takes out the unlisted addresses together: `poon
-peer delete` and `poon peer remove` take one address each (4096 commands),
+There is no command that takes out the unlisted addresses together: `poo
+peer delete` and `poo peer remove` take one address each (4096 commands),
 or the owner deletes `peers.json` and loses everything else in it
 (verified peers, archive, labels).
 
@@ -73,7 +73,7 @@ no sign in the preview beyond the refused lines.
 - Let an unlisted record go when it has been in the book a set time and
   no manager pass has promoted it (a plain expiry, not a cap on what can
   be followed).
-- Add one command that forgets by category or source (`poon peers forget
+- Add one command that forgets by category or source (`poo peers forget
   -category unlisted`, or `-source import`), and have the preview name it.
 - Let the learning paths replace the oldest unlisted record when the book
   is full, so a full book never blocks discovery.
@@ -99,7 +99,7 @@ one command to forget them.
   by hand) deletes the oldest imported-only record when the book is full,
   and does the same within a range when that range is full. So 16 junk
   addresses in an honest /16, or 4096 host names, never block discovery.
-- `poon peer remove -imported` takes them all out (`Book.ForgetImported`, `POST /v1/peers/forget-imported`).
+- `poo peer remove -imported` takes them all out (`Book.ForgetImported`, `POST /v1/peers/forget-imported`).
   Promoted, learned or verified records stay, and so do the tracker's
   blocks. The import preview names the command.
 - Not built: an expiry for unlisted records. With the share and the

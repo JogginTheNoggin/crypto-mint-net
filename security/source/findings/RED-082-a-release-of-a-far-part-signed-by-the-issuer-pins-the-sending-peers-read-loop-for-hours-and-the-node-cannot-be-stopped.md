@@ -13,7 +13,7 @@
 ## What is wrong
 
 D170 made the part-id chain walk cancellable (`PartIDContext`,
-`CheckReleaseContext`), but only for the commands (`poon series release`,
+`CheckReleaseContext`), but only for the commands (`poo series release`,
 `add-release` with the node stopped, and so on). The node's own paths still
 call `s.CheckRelease(r)` with `context.Background()`: `node.AddRelease`
 (p2p type 14 and `POST /v1/series/release`).
@@ -40,7 +40,7 @@ b.cancel() (stop the host):     b did NOT stop within 20 s
 ```
 
 I killed the test process after about 70 s at 122% CPU. The host's `Run`
-never returned, so `poon node` could not shut down on SIGINT either, except
+never returned, so `poo node` could not shut down on SIGINT either, except
 by kill.
 
 ## What could happen
@@ -65,7 +65,7 @@ by kill.
   it runs, further releases of that series are held as the window already
   does.
 - Optionally bound the time of one full check on the p2p path and report
-  "checking part k" in `poon status` / the log, so an owner can see it.
+  "checking part k" in `poo status` / the log, so an owner can see it.
 - Tests: a release of part 2^36 with a junk previous does not stop the host
   from stopping within a second; a peer that sent it can still send a
   transaction while it is checked.

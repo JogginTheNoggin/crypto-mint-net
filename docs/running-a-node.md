@@ -20,7 +20,7 @@ policy names. With `poon` on your `PATH`:
 
 ```sh
 source <(poon completion bash)                          # bash, this shell
-poon completion zsh > "${fpath[1]}/_poon"                # zsh
+poon completion zsh > "${fpath[1]}/_poon"               # zsh
 poon completion fish > ~/.config/fish/completions/poon.fish   # fish
 ```
 
@@ -53,11 +53,11 @@ exits.
 ## 4. Claim, pay and settle
 
 ```sh
-./poon keygen > alice.json          # note "seed"
-./poon keygen > bob.json            # note "address_sha256"
-export POON_SEED=ALICE_SEED        # or -seed-file FILE; never on the command line
+./poon keygen > alice.json           # note "seed"
+./poon keygen > bob.json             # note "address_sha256"
+export POON_SEED=ALICE_SEED          # or -seed-file FILE; never on the command line
 ./poon claim -serial 5
-./poon build -pool 1 -work 100000   # an entry, then a layer that selects it
+./poon build -pool 1 -work 100000    # an entry, then a layer that selects it
 ./poon pay -serial 5 -to BOB_ADDRESS -amount 30
 ./poon build -pool 1 -work 100000
 ./poon tx -in-serial 5 TID_FROM_PAY  # where the payment stands
@@ -83,7 +83,7 @@ behind one seed and a passphrase, uses a fresh address for every payment,
 and follows each payment's weight:
 
 ```sh
-export POON_PASSPHRASE='a long passphrase'   # or -passphrase-file FILE
+export POON_PASSPHRASE='a long passphrase'    # or -passphrase-file FILE
 ./poon wallet create -wallet alice.wallet     # then: poon wallet seed, and back it up
 ./poon wallet create -wallet bob.wallet
 ./poon wallet watch -wallet alice.wallet -serial 5

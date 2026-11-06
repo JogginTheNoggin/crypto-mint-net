@@ -14,7 +14,7 @@
 
 D160 lets a learned record that the node never reached give way to a new
 address. A record the node *reached* never gives way, to anyone, the
-owner's own `poon peer add` and `p2p.peers` included
+owner's own `poo peer add` and `p2p.peers` included
 (`strongSource` may take only the place of a learned record that was never
 reached). `Reached` is set when a dial completes its handshake (`Tried(ok)`)
 or when a record is verified, and it is saved in the book file.
@@ -62,9 +62,9 @@ I did not run two real nodes over the wire; the book-level calls are the ones
 - An eclipse that survives the owner's repair. The book file keeps the
   reached records across restarts. The owner who notices adds an honest peer
   to `p2p.peers`, restarts, and the node still dials only the attacker's
-  names, because the honest entry is refused without a message. `poon peer add`
+  names, because the honest entry is refused without a message. `poo peer add`
   says "book full". The only way out is deleting records one at a time with
-  `poon peer remove` or deleting the book file.
+  `poo peer remove` or deleting the book file.
 - It is cheap: one machine, one wildcard record. Without names the same
   needs one reachable host in each of up to `max_book / book_per_range`
   network ranges (256 /16 ranges by default, 16 at `max_book` 256).

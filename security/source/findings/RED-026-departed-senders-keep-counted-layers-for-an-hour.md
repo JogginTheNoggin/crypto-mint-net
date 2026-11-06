@@ -72,10 +72,10 @@ ledger; everything it forgets is rebuilt by asking the sender again.
 - Count the bytes progress holds (layers, hashes, parts) against one
   budget for the host, and when it is over, forget the progress with the
   least shown first (as C-2 does), connected or not. Show the bytes in
-  `poon chases` and the metrics.
+  `poo chases` and the metrics.
 
 Test: as above; after the sender leaves and the grace passes, the heap is
-within a few MB of its base and `poon chases` shows no progress for it.
+within a few MB of its base and `poo chases` shows no progress for it.
 
 ## Resolution
 
@@ -93,7 +93,7 @@ The host-wide byte budget is not added. Forgetting the least shown,
 connected or not, would let cheap worked progress make an honest chase
 that is still counting forget its count over and over, which D115 rules
 out. What remains for each entry (the hash listed, its mark and the entry
-fetched) is what RED-015 left. Showing kept bytes in `poon chases` is also
+fetched) is what RED-015 left. Showing kept bytes in `poo chases` is also
 not done.
 
 Tests: `TestKeptProgressHoldsNothingPerLayer` (`pkg/p2p`). 2,000 layers

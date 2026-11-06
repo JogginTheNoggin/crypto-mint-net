@@ -12,7 +12,7 @@
 ## What is wrong
 
 Since D191/D192 an `entries` list that comes before `kind`, `format`,
-`series` and `pool` is spooled to `os.CreateTemp("", "poon-ledger-*.spool")`,
+`series` and `pool` is spooled to `os.CreateTemp("", "poo-ledger-*.spool")`,
 one item at a time, and replayed after the header. Four things follow:
 
 - **No bound.** The spool takes as many bytes as the file has: nothing is
@@ -34,7 +34,7 @@ one item at a time, and replayed after the header. Four things follow:
 `pkg/cli` test (throwaway, removed; copy kept with Red's notes) with
 `TMPDIR` set to an empty directory: a 27.8 MB file of 20,000 entries (1,023
 byte items) followed by the four fields. At the moment `head` ran, the
-directory held `poon-ledger-<n>.spool`, mode `-rw-------`, 31,288,890 bytes;
+directory held `poo-ledger-<n>.spool`, mode `-rw-------`, 31,288,890 bytes;
 after the call it was empty. I did not run a kill, or a tmpfs.
 
 ## Suggested fix (Blue's call)
@@ -44,7 +44,7 @@ after the call it was empty. I did not run a kill, or a tmpfs.
 - Put a limit on the spool (for example refuse over a
   few GiB) and name the temp directory in the error.
 - Put the spool next to the file being imported, or in the wallet/node data
-  directory, not in the system temp, and remove stale `poon-ledger-*.spool`
+  directory, not in the system temp, and remove stale `poo-ledger-*.spool`
   at the start of the next import.
 
 ## Not tested

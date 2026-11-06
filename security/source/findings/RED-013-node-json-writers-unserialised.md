@@ -32,7 +32,7 @@ read the old file each write back only their own change.
 
 Whoever does this holds the control token (the owner, a GUI, a script, the
 terminal), so it is not an attack by a stranger. It is easy to do by
-accident: a GUI schedule editor and `poon grind schedule add` in a terminal,
+accident: a GUI schedule editor and `poo grind schedule add` in a terminal,
 or two scripts, or a double click sending the same PUT twice.
 
 ## Reproduction
@@ -46,7 +46,7 @@ rounds=3000  loads ok=2784  corrupt=216  save errors=7722
 first corrupt load: invalid character '"' after top-level value
 ```
 
-A corrupt `node.json` fails `Load`, so the next `poon node` start refuses to
+A corrupt `node.json` fails `Load`, so the next `poo node` start refuses to
 run, and every RPC that loads it answers with an error until the file is
 repaired by hand.
 
@@ -63,7 +63,7 @@ the file a live API that more than one program (GUI, CLI, scripts) edits.
   mutex held from `Load` to `Save` for follow, unfollow and schedule, and
   take the same lock for `Manager.Schedule` (below).
 - Make `Save` safe on its own: write to `os.CreateTemp(dir, FileName+".*")`,
-  `Sync` it, rename it, and sync the directory, so even an offline `poon`
+  `Sync` it, rename it, and sync the directory, so even an offline `poo`
   command racing the node cannot tear the file.
 - `Manager.Schedule` is `StopAll("policy")` then `Start` for each job, with
   no lock across the two; two overlapping calls can leave the old and the new
@@ -79,11 +79,11 @@ them and exactly that one's jobs running.
 Fixed by BLUE-007 (decision D114). `nodepolicy.Save` writes to its own
 `os.CreateTemp` file next to `node.json`, syncs it, renames it and syncs the
 directory, removing the temporary file on any error. Concurrent writers, the
-offline `poon` commands included, can no longer tear the file. In the
+offline `poo` commands included, can no longer tear the file. In the
 node, `rpc.Handler.policyMu` is held from `Load` to `Save` for follow,
 unfollow and `PUT /v1/grind/schedule`, which also applies the schedule
 under it. `grind.Manager.Schedule` takes its own mutex, so two calls never
-leave both policies' jobs running. A `poon` command editing `node.json`
+leave both policies' jobs running. A `poo` command editing `node.json`
 offline while the node edits it can still lose one of the two updates (no
 lock is shared across processes). Tests: `TestConcurrentSavesNeverTear`
 (`pkg/nodepolicy`, 200 rounds of four writers, no leftover files),

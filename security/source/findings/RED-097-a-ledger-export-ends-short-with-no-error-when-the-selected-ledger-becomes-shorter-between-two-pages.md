@@ -1,4 +1,4 @@
-# RED-097: `poon ledger export` ends with no error, and a header that promises more, when the selected ledger becomes shorter between two pages
+# RED-097: `poo ledger export` ends with no error, and a header that promises more, when the selected ledger becomes shorter between two pages
 
 | Field | Value |
 | --- | --- |
@@ -18,7 +18,7 @@ lastHash`. The selected ledger can switch to one that is **shorter and
 heavier** (weight, not height, selects). Then `Export` is asked for a height
 above the new tip, takes the early return (`from > end`), and gives an empty
 page with `Next == 0` and no error. The loop sees `Next == 0` and ends:
-the file is closed as valid JSON, `poon ledger export` prints
+the file is closed as valid JSON, `poo ledger export` prints
 `wrote 2 entries to …` and exits 0, while the header, written from the
 first page, says `to: 5, height: 5`.
 

@@ -36,7 +36,7 @@ held, and the lock serves every other peer, the RPC and the chase.
 Nothing in front of the revert makes an attacker pay:
 
 - `entry.CheckShape` needs `Strength() >= MinEntryStrength`, which is 0 by
-  default (`poon series new`), so there is no work gate.
+  default (`poo series new`), so there is no work gate.
 - The parent test is `parentOf`: it holds for the pool id and for any held
   entry. A fork at the pool id is the most expensive and is always held.
 - The stateless transaction checks and `CheckShape` are cheap and need no

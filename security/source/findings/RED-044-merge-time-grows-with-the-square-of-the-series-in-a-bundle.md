@@ -6,7 +6,7 @@
 | Status | fixed |
 | Found on | `main` @ b17e892 (Source Round 17 Part B) |
 | Component | pkg/nodepolicy/bundle.go (`mergeInto`), pkg/nodepolicy/follow.go (`AddFollow`, `checkFollow`, `series`) |
-| Surface | a bundle file from someone else; `poon policy import` (a dry run is the default), `POST /v1/policy/import` |
+| Surface | a bundle file from someone else; `poo policy import` (a dry run is the default), `POST /v1/policy/import` |
 | Fixed by | `claude/project-thread-ggo8dt` @ cfd1cbd (BLUE-018) |
 
 ## Summary
@@ -39,7 +39,7 @@ about 9 minutes. I did not run the larger sizes.
 ## Impact
 
 CPU only, but it needs nothing from the operator beyond looking at the file:
-`poon policy import hostile.json` is a dry run, and it hangs. Through the
+`poo policy import hostile.json` is a dry run, and it hangs. Through the
 node's endpoint the merge runs under `policyMu`, so follow changes and
 schedule edits wait behind it for the whole time, and the full token holder's
 own import is what starts it.

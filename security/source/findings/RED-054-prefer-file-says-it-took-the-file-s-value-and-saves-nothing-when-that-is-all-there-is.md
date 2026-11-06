@@ -22,7 +22,7 @@ digest and no "dry run" line, and `-apply` saves nothing.
 A node with `issuers.any: false` and a settings file with it `true`:
 
 ```
-$ poon settings import s.json -prefer-file -apply
+$ poo settings import s.json -prefer-file -apply
   read first: ... issuers.any
   ! issuers.any: took the file's true (was false)
   nothing to change
@@ -30,7 +30,7 @@ $ grep any node.json
     "any": false
 ```
 
-`poon policy import pol.json -settings -prefer-file -apply` does the same.
+`poo policy import pol.json -settings -prefer-file -apply` does the same.
 When another setting also changes (I added `p2p.max_peers`), the same
 command saves and `issuers.any` becomes `true`. So the result depends on
 whether something else differs.

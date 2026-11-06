@@ -17,28 +17,28 @@ without a reload. `SameButInPlace` strips `Grind`, `P2P.Peers` and `Lowered`
 before comparing, with the comment that these are "applied by the grind
 manager" and "already in the running book". That is so when the RPC changed
 them; it is not so when the owner edited node.json by hand and then ran
-`poon policy limits -set`. The change is then applied in place, `SetRunning`
+`poo policy limits -set`. The change is then applied in place, `SetRunning`
 makes the running policy equal to node.json, and from then on nothing
 shows that the hand edit was never applied. The doc comment of `applyInPlace`
 promises the opposite: "anything else edited by hand leaves it to the reload".
 
 ## How I checked it
 
-A scratch node (`poon init -example`), running:
+A scratch node (`poo init -example`), running:
 
 ```
 $ # edit node.json by hand: p2p.peers = ["127.0.0.1:19999"], grind.jobs = [{"target":"tip"}]
-$ poon policy limits -dir n1 -set p2p.max_book=2000
+$ poo policy limits -dir n1 -set p2p.max_book=2000
 { ..., "saved": true, "in_place": true }
-$ poon peers -dir n1 -counts       addresses 0       (the manual peer is not in the book)
-$ poon grind jobs -dir n1          []                (the job is not running)
-$ poon doctor -dir n1              ok p2p ... 0 in the peer book; ok grind ... jobs in the policy: 0
-$ poon reload -dir n1              reloaded
-$ poon peers -dir n1 -counts       addresses 1
-$ poon grind jobs -dir n1          [ { "id": 1, "spec": { "target": "tip", "source": "policy" }, ... } ]
+$ poo peers -dir n1 -counts       addresses 0       (the manual peer is not in the book)
+$ poo grind jobs -dir n1          []                (the job is not running)
+$ poo doctor -dir n1              ok p2p ... 0 in the peer book; ok grind ... jobs in the policy: 0
+$ poo reload -dir n1              reloaded
+$ poo peers -dir n1 -counts       addresses 1
+$ poo grind jobs -dir n1          [ { "id": 1, "spec": { "target": "tip", "source": "policy" }, ... } ]
 ```
 
-(`poon doctor` reads the running policy, so it also shows nothing wrong.)
+(`poo doctor` reads the running policy, so it also shows nothing wrong.)
 
 ## What could happen
 

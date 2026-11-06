@@ -16,9 +16,9 @@ bytes to `slhdsa.PrivateKey.UnmarshalBinary`, then takes the public key as
 `SK`'s `PK.seed ∥ PK.root` **as given**. `PK.root` is derived from the other
 three fields; nothing recomputes it. A key file with a damaged or mistyped
 root (a copy-paste slip, a different key's root) is accepted, and
-`poon keygen -raw` prints a public key and an address for it. Money sent to
+`poo keygen -raw` prints a public key and an address for it. Money sent to
 that address cannot be spent: every signature the key makes fails
-verification under the public key it was given. `poon sign` then adds those
+verification under the public key it was given. `poo sign` then adds those
 invalid signatures to the payment file without checking them (RED-104), and
 the failure shows up at the node.
 
@@ -43,7 +43,7 @@ root one bit off: accepted; public key matches the real one: false; its signatur
   key (a few ms to about a second for SLH-DSA-128s here; the test above took
   0.8 s for both keys), and refuse on failure. Doing the same self-test in
   `NewRawSigner` for every algorithm makes this the one rule.
-- Have `poon sign` verify each signature it adds against the policy's key
+- Have `poo sign` verify each signature it adds against the policy's key
   before writing the file.
 
 ## Not tested

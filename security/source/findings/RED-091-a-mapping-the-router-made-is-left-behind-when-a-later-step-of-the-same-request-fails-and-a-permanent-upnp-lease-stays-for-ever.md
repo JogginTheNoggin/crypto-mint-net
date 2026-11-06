@@ -56,7 +56,7 @@ requests the router saw: 1, lifetimes asked [3600] (none is a removal)
 ## What could happen
 
 - A port stays open to the internet after the node was stopped, with no
-  record in `poon status` (the status shows a failure, not a mapping). With
+  record in `poo status` (the status shows a failure, not a mapping). With
   `port_map` an owner has agreed to a mapping while the node runs, not after.
 - Each retry (every 1 to 30 minutes) asks again, so a router that fails the
   second step every time is asked to add the same mapping again and again.

@@ -17,7 +17,7 @@ bidirectional overrides and bytes that are not UTF-8. A label gets only
 the first of those, so these are accepted: U+202E (right-to-left
 override), U+2028 (line separator), U+200B (zero width space), U+061C
 (Arabic letter mark). The plan prints a label from a file escaped, but
-`poon peers -o table` and `poon tracking` print the stored label as it is.
+`poo peers -o table` and `poo tracking` print the stored label as it is.
 
 ## How I checked it
 
@@ -53,7 +53,7 @@ bytes that are not UTF-8.
 
 - `peers.CheckLabel`, `nodepolicy`'s `checkText` and the CLI's `termSafe`
   all use it. Red's four examples are refused.
-- The table renderer (`-o table`: `poon peers`, `poon tracking` and every
+- The table renderer (`-o table`: `poo peers`, `poo tracking` and every
   other table) escapes every cell and key through `termSafe`. A label
   stored before this fix shows escaped, not raw.
 - Tests: `TestLabelRefusesInvisibleText` (pkg/peers), `TestTextAndSafe`

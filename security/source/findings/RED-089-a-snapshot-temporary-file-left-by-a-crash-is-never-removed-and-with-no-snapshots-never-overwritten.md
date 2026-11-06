@@ -17,7 +17,7 @@ is as large as the snapshot (which grows with the entries held). Nothing at star
 successful snapshot write truncates and reuses the same path, so it goes away
 then. With `no_snapshots`, or for a pool that stays below `snapshot_every`
 records and is not closed cleanly, it stays for ever, and nothing reports it
-(`poon status -counts`, `poon doctor`).
+(`poo status -counts`, `poo doctor`).
 
 ## How I checked it
 
@@ -29,7 +29,7 @@ removed, `no_snapshots` on, start and clean stop: the file is still there. With
 
 Remove `<index>.log.snap.tmp` when a pool's log is opened, whatever the policy
 is (the rename is the only way it becomes a snapshot, so a leftover is never
-wanted), and count it in `poon doctor`'s `snapshots` check if one is found.
+wanted), and count it in `poo doctor`'s `snapshots` check if one is found.
 
 ## Not tested
 
@@ -39,5 +39,5 @@ A real crash during a write (the file was created by hand).
 
 Fixed in BLUE-031 (D181). `<index>.log.snap.tmp` is removed when its
 log is opened, before the `no_snapshots` check, and counted in
-`snapshot_tmp_removed`. `poon doctor`'s `snapshots` check names it.
+`snapshot_tmp_removed`. `poo doctor`'s `snapshots` check names it.
 Test: `TestSnapshotTmpRemoved`.

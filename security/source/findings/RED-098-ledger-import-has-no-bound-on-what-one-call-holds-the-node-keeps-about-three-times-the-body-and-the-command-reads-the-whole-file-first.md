@@ -1,4 +1,4 @@
-# RED-098: A ledger import call has no bound on its body (the node holds about three times what is sent), and `poon ledger import` reads the whole file into memory, though export streams
+# RED-098: A ledger import call has no bound on its body (the node holds about three times what is sent), and `poo ledger import` reads the whole file into memory, though export streams
 
 | Field | Value |
 | --- | --- |
@@ -19,7 +19,7 @@
    byte. An item over the series' size limits is refused only after that.
 2. **The command.** `ledgerImportCmd` does `json.NewDecoder(r).Decode(&f)`
    on the whole file, so every item of the file is in memory at once,
-   though `poon ledger export` takes care to stream ("a long ledger never sits
+   though `poo ledger export` takes care to stream ("a long ledger never sits
    whole in memory"). A ledger that exports fine can be too big to import, and
    a file from someone else of any size is read whole before the first
    check.
@@ -54,13 +54,13 @@ large file.
   import, and cap the total.
 - Make the command read the file as a stream (`json.Decoder.Token`) and
   send a batch when it is full, as export writes it.
-- Let `poon ledger import -dry-run` read and check a file against the node
+- Let `poo ledger import -dry-run` read and check a file against the node
   without keeping anything, or print the summary computed from the items.
 
 ## Not tested
 
 The command on a file of several GiB; peak memory of the real
-`poon ledger import`.
+`poo ledger import`.
 
 ## Resolution
 
@@ -68,7 +68,7 @@ Fixed in BLUE-034 (D189). ORANGE-043 (#265, carried) streams the file in
 the command. The node reads `POST /v1/ledger/import` item by item, and
 refuses a call past 256 items, or past 8 MiB in the items after the
 first. The first item stays unbounded, as an entry is (D144), so a call
-holds at most one batch and one item. `poon ledger import -dry-run`
+holds at most one batch and one item. `poo ledger import -dry-run`
 checks a file against itself (decoding, summaries, the chain, the
 header's end and tip, and hashes when node.json knows the series) with
 no node. Tests: `TestBlue034ImportCallBounded`, `TestBlue034DryRun`.

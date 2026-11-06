@@ -17,8 +17,8 @@
    exit 0, `"added": false`. A user who feeds a file to `add-release` to see
    whether it is genuine is told it is fine.
 
-2. `poon series add-release` reads the file with plain `json.Unmarshal` into
-   `series.Release`. An unknown key is accepted (`poon series release -check`
+2. `poo series add-release` reads the file with plain `json.Unmarshal` into
+   `series.Release`. An unknown key is accepted (`poo series release -check`
    prints `valid: true` for a release with `"extra": 1`), and node.json is
    saved without it. Series files refuse unknown keys since D165 (RED-071),
    so a later field of a release would be dropped here instead of making
@@ -27,11 +27,11 @@
 ## How I checked it
 
 ```
-$ poon series add-release -dir n1 t_stale_forged.json     (part 2, witness changed, node at part 2)
+$ poo series add-release -dir n1 t_stale_forged.json     (part 2, witness changed, node at part 2)
 { "part": 2, "released": 2, "mints": 48, "added": false }        exit 0
-$ poon series release -check t_stale_forged.json v.json
-poon: series: invalid release: witness: policy: witness does not satisfy the policy: signature for key 0
-$ poon series add-release -dir n1 t_p3_forged.json        (part 3, forged)  -> invalid, exit 1
+$ poo series release -check t_stale_forged.json v.json
+poo: series: invalid release: witness: policy: witness does not satisfy the policy: signature for key 0
+$ poo series add-release -dir n1 t_p3_forged.json        (part 3, forged)  -> invalid, exit 1
 ```
 
 So the same file is "invalid" to `-check` and "ok" to `add-release`.
@@ -57,5 +57,5 @@ path. Nothing about ledgers is affected.
 Fixed in BLUE-026 (D167).
 
 - `Policy.AddRelease` (the CLI and RPC path) checks every release in full, also one of a part already known, so a forged one is refused. The free answer for a known part stays in `Series.AddRelease`, for the peer path.
-- Release JSON refuses a key it does not know (`series.ErrUnknownKey`). The keys `poon series release` adds for people (`part_id`, the ranges, `mints`, `units`) are read and ignored.
+- Release JSON refuses a key it does not know (`series.ErrUnknownKey`). The keys `poo series release` adds for people (`part_id`, the ranges, `mints`, `units`) are read and ignored.
 - Tests: `TestAddReleaseChecksAKnownPart` (another key's release of part 2, and the kept release with a changed previous id, are refused), `TestReleaseFileKeys`.

@@ -153,7 +153,7 @@ Fixed by BLUE-004 (decision D103). `watch.AddressPage` looks at no more
 than 50×`limit` entries per request across all pools, stops a pool after
 `limit` matches, starts from `below` (0: the tips), and returns `next`
 (pool and `below`) for each unfinished pool. It checks the request's
-context before each pool and every 256 entries. `/v1/address` and `poon
+context before each pool and every 256 entries. `/v1/address` and `poo
 address` take `below`; `AddressOf` and `Client.Address` keep their
 signatures. A snapshot or read lock for views was not added: with the
 bound, one request holds the lock for at most 50,000 entries. Tests:
