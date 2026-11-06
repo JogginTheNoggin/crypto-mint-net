@@ -72,8 +72,13 @@ holds is answered "known" and is not owed, so a public layer cannot be
 sold (RED-110, D197). Other outcomes: filled, closed, reserved (leased
 to another grinder) and repeat.
 
-The leases from one network address are limited to
-`max_leases_per_grinder` in all, whatever node ids it uses (RED-112).
+The leases from one network address (an IPv4 address, or an IPv6 /64)
+are limited to `max_leases_per_grinder` in all, whatever node ids it
+uses (RED-112, RED-116). The offers held from one address are bounded as
+one peer's are (64), and when the held list is full the oldest offer
+goes, but not one this node holds a lease on. When the grinder records
+are full, the one that earned least goes (RED-116). An offer is at most
+1,024 bytes, alone or in a list (RED-115, D199).
 An offer received again from another peer keeps the peer that sent it
 first as its payer, and only that peer's grants and acks answer this
 node's take and claim (RED-111). A held offer keeps its newest 16 acks,
@@ -109,7 +114,11 @@ naming `bounty.take` (GREEN-062).
 bytes (`offer.raw`, W-27), and keeps fields a later release wrote (W-28).
 An offer that needs nothing more (cancelled, expired or filled, every
 claim paid, no lease) moves to `bounties-done.jsonl`, one offer a line,
-appended and synced first (ORANGE-046 P1, D198). A lease is saved on a
+appended and synced first (ORANGE-046 P1, D198). At start only the
+first bytes of each done line (where the id is) are read, so a line of
+any length costs little; an offer found in both files is left out with a
+warning in the log, as is a count of done lines with no id (RED-117,
+D199). A lease is saved on a
 short timer; an accepted claim is on disk before its ack is sent.
 
 ## What the lists say

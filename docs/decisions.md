@@ -5525,3 +5525,41 @@ count `entry_cache_mib` in real bytes, with a 256 MiB default.
   the done file's kind and format, the W-29 text in wire.md, and that a
   node.json amount over 2^53 - 1 being refused is acceptable before the
   tag.
+
+### D199. Round 37 fixes: bounty offers bounded in bytes, held offers and leases per address and /64, the done file read in bounded pieces (BLUE-038)
+
+- **Merged first:** Green's #314 (GREEN-062: turning the bounty market
+  on with `poo policy limits -set`). Orange's #313 (ORANGE-047,
+  re-measurements and three proposals) is docs only and is not merged
+  here; its proposals are for Grey, and proposal 3 also needs White.
+- **Decision:**
+  - **RED-115.** `MaxOfferBytes` is 1,024. `DecodeOffer` refuses a
+    longer body, and a list item has the same bound, so a held offer's
+    `raw` is at most 1 KiB (2 KiB as hex). `raw` stays in the JSON,
+    because `bounties.json` names an offer by its bytes (W-27) and
+    `HeldOffer` hashes them for the id.
+  - **RED-116.**
+    - `Book.ReceiveFrom(peer, addr, offer)` bounds the offers held from
+      one address by the per-peer bound (64).
+    - When the held list is full, the oldest offer without a live
+      lease goes.
+    - p2p's address key is the IPv4 address, or the IPv6 /64.
+    - `forgetGrinder` drops the unleased record with the smallest
+      `filled`.
+    - Ending unused leases early is not taken.
+  - **RED-117.** `doneIDs` reads the first bytes of each line (the id
+    comes first) and skips the rest as it streams. Lines with no id are
+    counted. An offer found in both files is left out as before (the
+    done copy records its payment, so keeping it would owe it again),
+    but it is now reported in `Dropped` and logged. Orange's proposal 1
+    (read only the end of the file) is left for Grey.
+- **Why:** memory a peer can make a node hold must follow a small bound,
+  free node ids and addresses in one /64 must not multiply a limit, and a
+  start must not cost a line's length.
+- **Consensus:** None. The market is outside the ledger (D196).
+- **Tier:** Bounty, P2P.
+  - `pkg/bounty/blue038_test.go`:
+    - `TestBlue038OfferBytesBounded`
+    - `TestBlue038HeldPerAddress`
+    - `TestBlue038DoneFileBounded`
+  - `pkg/p2p/blue038_internal_test.go`: `TestBlue038AddressKey`.

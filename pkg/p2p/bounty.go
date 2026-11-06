@@ -155,12 +155,22 @@ func (h *Host) holdsLayer(k engine.PoolKey, e hash.Hash, nonce uint64) bool {
 	return held
 }
 
-// hostOf is addr's host, or addr when it has no port.
+// hostOf is the key the market limits a network address by: addr's IPv4
+// address, its IPv6 /64 (one site may hold every address in one,
+// RED-116), or its host name when it is not an address.
 func hostOf(addr string) string {
-	if host, _, err := net.SplitHostPort(addr); err == nil {
+	host := addr
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		host = h
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
 		return host
 	}
-	return addr
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String()
+	}
+	return (&net.IPNet{IP: ip.Mask(net.CIDRMask(64, 128)), Mask: net.CIDRMask(64, 128)}).String()
 }
 
 // BountyPools returns, in order, the followed pools of series that hold
@@ -318,7 +328,7 @@ func (h *Host) handleBounty(p *peer, m wire.Message) error {
 			return bad(err)
 		}
 		if _, ok := h.n.Engine().Series(o.Series); ok {
-			b.Receive(p.id, o)
+			b.ReceiveFrom(p.id, hostOf(p.addr), o)
 		}
 	case wire.TypeBountyListReq:
 		q, err := bounty.DecodeListReq(m.Body)
@@ -335,7 +345,7 @@ func (h *Host) handleBounty(p *peer, m wire.Message) error {
 		}
 		for _, o := range os {
 			if _, ok := h.n.Engine().Series(o.Series); ok {
-				b.Receive(p.id, o)
+				b.ReceiveFrom(p.id, hostOf(p.addr), o)
 			}
 		}
 	case wire.TypeBountyTake:
