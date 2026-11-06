@@ -7,7 +7,7 @@
 | Found | Source Round 40 Part B, on `main` @ `46b638d` (D203, D204) |
 | Area | `pkg/bounty/book.go` (`Acked`, `MaxAcks`), `pkg/cli/bounty.go` (`sentFor`, `BountyMemoID`), `pkg/daemon/daemon.go` and `pkg/p2p/chase.go` (`TempPrefix`) |
 | Fixed by | |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-041) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 3ab7875 (BLUE-041) |
 | For Black | Not a rule. |
 
 ## 1. A held offer of more than 16 layers never reads filled (GUI-GREEN-065)

@@ -7,7 +7,7 @@
 | Found | Source Round 40 Part B, on `main` @ `46b638d` (D204, the rename to `poon`) |
 | Area | `pkg/brand/brand.go` (`EnvPrefix`), `pkg/cli/scope.go` (`viewOnlyEnv`), `pkg/cli/node.go` (`defaultRoot`, seed), `pkg/cli/wallet.go` (passphrase) |
 | Fixed by | |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-041) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 3ab7875 (BLUE-041) |
 | For Black | Not a rule. No consensus byte is involved. |
 
 ## What is wrong
