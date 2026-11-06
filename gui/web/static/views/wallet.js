@@ -5,7 +5,7 @@ import { el, flag, flags, form, mountAll } from '../views.js';
 
 // The Wallet view's wallet file, kept per browser like the Settings flags.
 const WALLET_KEY = 'poo-gui-wallet';
-const walletFile = () => { try { return localStorage.getItem(WALLET_KEY) || ''; } catch (_) { return ''; } };
+export const walletFile = () => { try { return localStorage.getItem(WALLET_KEY) || ''; } catch (_) { return ''; } };
 const setWalletFile = v => { try { localStorage.setItem(WALLET_KEY, v); } catch (_) { /* storage off */ } };
 const walletSeries = () => { try { return localStorage.getItem(WALLET_KEY + '-series') || ''; } catch (_) { return ''; } };
 // signNote is the line over poo sign's reply (D193): which key signed,

@@ -68,6 +68,7 @@ layer: each action is still a `poo` command line run through `cli.Main`.
 | [GUI-GREEN-059](GUI-GREEN-059-ledger-export-in-a-line.md) | A ledger export shown in the page is a line and Save as file, not 5 MB of base64 drawn (2.5 s and 6,578 elements down to 0.26 s and 37); Save as file only for one whole ledger file | small | yes | adopted (R34A) |
 | [GUI-GREEN-060](GUI-GREEN-060-jump-list-as-a-row.md) | The Jump to list on every long view was drawn as a second 170 px sidebar (the view list's `nav` rule); now a row (Wallet: 485 px tall down to 78); a note for Source on dev-build commits in the release line | small | yes | proposed |
 | [GUI-GREEN-061](GUI-GREEN-061-cold-key-steps.md) | Review of the cold-key forms on a real node: the seven steps in one place, and Pay warns before a watch-only payment with no co-signing file (which holds its units with no file to sign); four Source asks | small | yes | proposed |
+| [GUI-GREEN-062](GUI-GREEN-062-bounty-market-view.md) | A Bounty market view over `poo bounty` (offers and claims as tables, Pay/Cancel/Work on each row, the five forms), walked end to end between two real nodes; four Source asks (settable bounty limits, outcome names, offer state and closing time, filled offers left in peers' lists) | medium | yes | proposed |
 
 ## Orange (performance)
 
