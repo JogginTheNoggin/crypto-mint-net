@@ -23,7 +23,29 @@ try {
 
   await page.click('nav a[data-id=work]');
   // Devices: the table poon grind devices prints, with the CPU in it.
-  await section('Devices').locator('.result', { hasText: 'cpu' }).waitFor();
+  // Drawn as a table (D208): the CPU row, which a node answered for, and
+  // the line that no GPU was found (there is none here).
+  const devs = section('Devices');
+  await devs.locator('table.grind-devices tr.device-cpu', { hasText: 'cpu' }).waitFor();
+  await devs.locator('.devices-from', { hasText: 'running node' }).waitFor();
+  await devs.locator('.devices-no-gpu').waitFor();
+  await devs.locator('details.raw').waitFor({ state: 'attached' });
+  // A GPU row as poon prints one, drawn by the same code: its id, what auto
+  // picks it for, and poon's note when it cannot grind. (GPU grinding is
+  // tested only on a machine with one.)
+  const drawn = await page.evaluate(async () => {
+    const { devicesTable } = await import('/views/work.js');
+    const t = devicesTable({ devices: [
+      { id: 'cpu', kind: 'cpu', name: 'A CPU', threads: 4, hashes: ['sha256'], generic: true, auto_for: ['sha3-256'] },
+      { id: 'gpu:0', kind: 'gpu', name: 'A GPU', hashes: ['sha256', 'sha512-256'], auto_for: ['sha256', 'sha512-256'] },
+      { id: 'gpu:1', kind: 'gpu', name: 'Another GPU', hashes: [], note: 'no OpenCL driver' }], from_node: true });
+    document.body.append(t); // innerText needs it laid out
+    const out = { rows: [...t.querySelectorAll('tbody tr')].map(r => r.innerText), noGpu: !!t.querySelector('.devices-no-gpu') };
+    t.remove();
+    return out;
+  });
+  assert.deepEqual(drawn.rows, ['cpu\tA CPU\tsha256 (any other hash, slower)\tsha3-256\t4 threads', 'gpu:0\tA GPU\tsha256, sha512-256\tsha256, sha512-256\t', 'gpu:1\tAnother GPU\tnone\tnone\tno OpenCL driver']);
+  assert.equal(drawn.noGpu, false, 'no "no GPU" line when one is listed');
 
   // A pending transaction, ground into an entry by a job on "pending".
   poon(['claim', '-serial', '5'], { POON_SEED: 'a1'.repeat(32) });
@@ -277,7 +299,7 @@ try {
     await page.waitForTimeout(100);
   }
   await page.click('nav a[data-id=work]');
-  await section('Devices').locator('.result', { hasText: 'cpu' }).waitFor();
+  await section('Devices').locator('table.grind-devices tr.device-cpu').waitFor();
   await page.click('nav a[data-id=node]');
   // A node.json change left for a reload (GREEN-038): Followed pools says
   // so while poon status reports policy_changed (Source GREEN-037), and its
