@@ -83,7 +83,11 @@ func (c *Config) fill() {
 
 // Lease is an offer held by one grinder until Until.
 type Lease struct {
-	Peer     string    `json:"peer"`
+	Peer string `json:"peer"`
+	// Addr is the grinder's network address (its host, no port): leases
+	// are limited per address as well as per node id, since a node id
+	// costs nothing (RED-112).
+	Addr     string    `json:"addr,omitempty"`
 	PayTo    hash.Hash `json:"pay_to"`
 	Rate     uint64    `json:"rate"`
 	Until    time.Time `json:"until"`
@@ -122,7 +126,13 @@ func (m *Mine) Owed() uint64 {
 	if !m.Closed {
 		n += uint64(m.Offer.Count) - uint64(min(len(m.Claims), int(m.Offer.Count)))
 	}
-	return n * m.Offer.Amount
+	// A sum too large to hold reads as the most there is, never as a
+	// small one (RED-114).
+	owed, over := mulCheck(n, m.Offer.Amount)
+	if over {
+		return math.MaxUint64
+	}
+	return owed
 }
 
 func (m *Mine) free() int { return int(m.Offer.Count) - len(m.Claims) - len(m.Leases) }
@@ -146,6 +156,14 @@ type Held struct {
 	// Acks are the payer's answers to this node's claims.
 	Acks []Ack `json:"acks,omitempty"`
 }
+
+// MaxAcks bounds the acks kept for one held offer, the newest kept
+// (RED-113).
+const MaxAcks = 16
+
+// maxPeerRecords bounds the payers and grinders the book remembers
+// (RED-113).
+const maxPeerRecords = 4096
 
 // HeldLease is a lease this node holds on a peer's offer.
 type HeldLease struct {
@@ -179,6 +197,8 @@ type Book struct {
 	heldOrd  []hash.Hash
 	grinders map[string]*grinder
 	payers   map[string]*PayerRecord
+	// dropped says what Open left out of the file, and why (RED-114).
+	dropped []string
 }
 
 // FileName is the file, in the node's data directory, that keeps the
@@ -220,8 +240,15 @@ func Open(cfg Config, path string) (*Book, error) {
 	if f.Kind != FileKind || f.Format != FileFormat {
 		return nil, fmt.Errorf("%s: not a %s file of format %d", path, FileKind, FileFormat)
 	}
-	for _, m := range f.Offers {
-		if m == nil || m.ID != m.Offer.ID() {
+	// The file is checked as an offer and a claim are when they are made:
+	// what fails is left out and reported, never paid (RED-114).
+	for i, m := range f.Offers {
+		if why := checkMine(m); why != "" {
+			b.dropped = append(b.dropped, fmt.Sprintf("offer %d: %s", i, why))
+			continue
+		}
+		if _, dup := b.mine[m.ID]; dup {
+			b.dropped = append(b.dropped, fmt.Sprintf("offer %d: %s appears twice", i, m.ID.Short()))
 			continue
 		}
 		b.mine[m.ID] = m
@@ -229,6 +256,43 @@ func Open(cfg Config, path string) (*Book, error) {
 	}
 	return b, nil
 }
+
+// checkMine says what is wrong with an offer read from the file, or "".
+func checkMine(m *Mine) string {
+	switch {
+	case m == nil:
+		return "empty"
+	case m.ID != m.Offer.ID():
+		return "its id is not its offer's"
+	}
+	if err := m.Offer.Check(); err != nil {
+		return err.Error()
+	}
+	if _, over := mulCheck(m.Offer.Amount, uint64(m.Offer.Count)); over {
+		return "it pays more than a sum can hold"
+	}
+	if len(m.Claims) > int(m.Offer.Count) || len(m.Leases) > int(m.Offer.Count) {
+		return "more claims or leases than layers asked for"
+	}
+	seen := map[uint64]bool{}
+	for _, c := range m.Claims {
+		if c.Strength < int(m.Offer.Strength) {
+			return fmt.Sprintf("a claim of strength %d on an offer of %d", c.Strength, m.Offer.Strength)
+		}
+		if seen[c.Nonce] {
+			return fmt.Sprintf("two claims with nonce %d", c.Nonce)
+		}
+		seen[c.Nonce] = true
+		if len(c.Paid) > MaxTIDs {
+			return "a payment with too many legs"
+		}
+	}
+	return ""
+}
+
+// Dropped says what Open left out of the file, and why: an offer or
+// claim the posting or claiming checks would refuse (RED-114).
+func (b *Book) Dropped() []string { return slices.Clone(b.dropped) }
 
 // SetClock replaces the clock; tests use it.
 func (b *Book) SetClock(now func() time.Time) { b.mu.Lock(); b.now = now; b.mu.Unlock() }
@@ -281,10 +345,38 @@ func (b *Book) expire() {
 func (b *Book) grinderOf(peer string) *grinder {
 	g := b.grinders[peer]
 	if g == nil {
+		if len(b.grinders) >= maxPeerRecords {
+			b.forgetGrinder()
+		}
 		g = &grinder{}
 		b.grinders[peer] = g
 	}
 	return g
+}
+
+// forgetGrinder drops one grinder record that holds no lease, so the
+// records stay bounded (RED-113). Called with mu held.
+func (b *Book) forgetGrinder() {
+	leased := map[string]bool{}
+	for _, m := range b.mine {
+		for _, l := range m.Leases {
+			leased[l.Peer] = true
+		}
+	}
+	for k := range b.grinders {
+		if !leased[k] {
+			delete(b.grinders, k)
+			return
+		}
+	}
+}
+
+// filled is how many layers peer handed in, without making a record.
+func (b *Book) filled(peer string) int {
+	if g := b.grinders[peer]; g != nil {
+		return g.filled
+	}
+	return 0
 }
 
 // ErrOff is a market action this node's policy does not allow.
@@ -422,7 +514,12 @@ func ExpectedSeconds(strength uint8, rate uint64) float64 {
 
 // Take answers a grinder's take: a new lease, the one extension of a
 // lease it holds, or a refusal with its reason.
-func (b *Book) Take(peer string, t Take) Grant {
+func (b *Book) Take(peer string, t Take) Grant { return b.TakeFrom(peer, "", t) }
+
+// TakeFrom is Take from a grinder at network address addr (its host):
+// the leases from one address are limited as one grinder's are, since a
+// node id costs nothing (RED-112). An empty addr is not limited.
+func (b *Book) TakeFrom(peer, addr string, t Take) Grant {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.expire()
@@ -451,21 +548,31 @@ func (b *Book) Take(peer string, t Take) Grant {
 	if m.free() <= 0 {
 		return refuse("leased or filled")
 	}
-	held, work := 0, exp
+	held, work, fromAddr := 0, exp, 0
 	for _, o := range b.mine {
 		if i := o.lease(peer); i >= 0 {
 			held++
 			work += ExpectedSeconds(o.Offer.Strength, o.Leases[i].Rate)
 		}
+		if addr != "" {
+			for _, l := range o.Leases {
+				if l.Addr == addr {
+					fromAddr++
+				}
+			}
+		}
 	}
-	allowed := min(b.cfg.MaxLeasesPerGrinder, 1+b.grinderOf(peer).filled)
+	allowed := min(b.cfg.MaxLeasesPerGrinder, 1+b.filled(peer))
 	if held >= allowed {
 		return refuse(fmt.Sprintf("lease limit %d reached; each layer handed in earns one more, up to %d", allowed, b.cfg.MaxLeasesPerGrinder))
+	}
+	if fromAddr >= b.cfg.MaxLeasesPerGrinder {
+		return refuse(fmt.Sprintf("lease limit %d reached for this network address", b.cfg.MaxLeasesPerGrinder))
 	}
 	if work > b.cfg.LeaseCeiling.Seconds() {
 		return refuse("the stated rate does not cover another lease")
 	}
-	m.Leases = append(m.Leases, Lease{Peer: peer, PayTo: t.PayTo, Rate: t.Rate, Until: b.now().Add(dur)})
+	m.Leases = append(m.Leases, Lease{Peer: peer, Addr: addr, PayTo: t.PayTo, Rate: t.Rate, Until: b.now().Add(dur)})
 	_ = b.save()
 	g.Seconds = uint32(dur.Seconds())
 	return g
@@ -473,9 +580,11 @@ func (b *Book) Take(peer string, t Take) Grant {
 
 // Claim answers a grinder's claim. strength is the claimed layer's
 // strength on the offer's entry, worked out by the caller with the
-// series' hash. An accepted claim ends the grinder's lease and is kept
+// series' hash, and known says the caller's node holds that layer
+// already. A claim needs the grinder's lease, and a known layer is not
+// owed (RED-110). An accepted claim ends the grinder's lease and is kept
 // until it is paid.
-func (b *Book) Claim(peer string, c Claim, strength int) Ack {
+func (b *Book) Claim(peer string, c Claim, strength int, known bool) Ack {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.expire()
@@ -499,8 +608,12 @@ func (b *Book) Claim(peer string, c Claim, strength int) Ack {
 		a.Outcome = Mismatch
 	case i < 0 && m.free() <= 0:
 		a.Outcome = Reserved
+	case i < 0:
+		a.Outcome = NoLease
 	case strength < int(m.Offer.Strength):
 		a.Outcome = TooWeak
+	case known:
+		a.Outcome = Known
 	default:
 		a.Outcome = Accepted
 		if i >= 0 {
@@ -552,8 +665,9 @@ func (b *Book) Receive(peer string, o Offer) bool {
 	}
 	b.expire()
 	id := o.ID()
-	if h, ok := b.held[id]; ok {
-		h.From = peer
+	if _, ok := b.held[id]; ok {
+		// Kept from the peer that sent it first: another peer sending it
+		// again does not become its payer (RED-111).
 		return true
 	}
 	if _, mine := b.mine[id]; mine {
@@ -610,6 +724,12 @@ func (b *Book) Acked(peer string, a Ack) {
 	}
 	p := b.payers[peer]
 	if p == nil {
+		if len(b.payers) >= maxPeerRecords {
+			for k := range b.payers { // bounded (RED-113)
+				delete(b.payers, k)
+				break
+			}
+		}
 		p = &PayerRecord{}
 		b.payers[peer] = p
 	}
@@ -620,6 +740,9 @@ func (b *Book) Acked(peer string, a Ack) {
 		p.Paid++
 	}
 	h.Acks = append(h.Acks, a)
+	if len(h.Acks) > MaxAcks { // the newest kept (RED-113)
+		h.Acks = slices.Delete(h.Acks, 0, len(h.Acks)-MaxAcks)
+	}
 	if a.Outcome == Accepted {
 		h.Lease = nil
 	}
@@ -641,6 +764,18 @@ func (b *Book) HeldOffers() []Held {
 		out = append(out, h)
 	}
 	return out
+}
+
+// HeldFrom returns the peer an offer this node holds came from: the only
+// peer whose grants and acks for it count (RED-111).
+func (b *Book) HeldFrom(id hash.Hash) (string, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	h := b.held[id]
+	if h == nil {
+		return "", false
+	}
+	return h.From, true
 }
 
 // HeldOffer returns one offer a peer sent.

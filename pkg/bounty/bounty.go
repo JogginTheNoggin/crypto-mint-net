@@ -245,14 +245,16 @@ func DecodeClaim(b []byte) (Claim, error) {
 
 // Outcomes of a claim.
 const (
-	Accepted uint8 = 1 // the layer is good; payment follows
-	Paid     uint8 = 2 // paid: TIDs name the payment's legs
-	TooWeak  uint8 = 3 // below the target, or not on the entry
-	Filled   uint8 = 4 // the offer has all the layers it wanted
-	Closed   uint8 = 5 // no such open offer
-	Reserved uint8 = 6 // leased to another grinder
-	Mismatch uint8 = 7 // the address is not the one the lease named
-	Repeat   uint8 = 8 // this layer was claimed already
+	Accepted uint8 = 1  // the layer is good; payment follows
+	Paid     uint8 = 2  // paid: TIDs name the payment's legs
+	TooWeak  uint8 = 3  // below the target, or not on the entry
+	Filled   uint8 = 4  // the offer has all the layers it wanted
+	Closed   uint8 = 5  // no such open offer
+	Reserved uint8 = 6  // leased to another grinder
+	Mismatch uint8 = 7  // the address is not the one the lease named
+	Repeat   uint8 = 8  // this layer was claimed already
+	Known    uint8 = 9  // the payer's node holds this layer already (RED-110)
+	NoLease  uint8 = 10 // the grinder holds no lease on the offer (RED-110)
 )
 
 // OutcomeName names an outcome for output.
@@ -274,6 +276,10 @@ func OutcomeName(o uint8) string {
 		return "address mismatch"
 	case Repeat:
 		return "repeat"
+	case Known:
+		return "known"
+	case NoLease:
+		return "no lease"
 	}
 	return fmt.Sprintf("outcome %d", o)
 }

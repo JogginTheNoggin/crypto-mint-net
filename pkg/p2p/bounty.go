@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"slices"
 	"sync"
 	"time"
@@ -139,6 +140,22 @@ func (h *Host) holdsEntry(k engine.PoolKey, e hash.Hash) bool {
 	held := false
 	h.n.Engine().Ledger(k, func(l *ledger.Pool) { held = l.Has(e) })
 	return held
+}
+
+// holdsLayer reports whether the pool k holds the layer of nonce on the
+// entry e.
+func (h *Host) holdsLayer(k engine.PoolKey, e hash.Hash, nonce uint64) bool {
+	held := false
+	h.n.Engine().Ledger(k, func(l *ledger.Pool) { held = l.HasLayer(e, nonce) })
+	return held
+}
+
+// hostOf is addr's host, or addr when it has no port.
+func hostOf(addr string) string {
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	return addr
 }
 
 // BountyPools returns, in order, the followed pools of series that hold
@@ -315,7 +332,7 @@ func (h *Host) handleBounty(p *peer, m wire.Message) error {
 		if err != nil {
 			return bad(err)
 		}
-		p.send(bountyMsg(wire.TypeBountyGrant, b.Take(p.id, t).Encode()))
+		p.send(bountyMsg(wire.TypeBountyGrant, b.TakeFrom(p.id, hostOf(p.addr), t).Encode()))
 	case wire.TypeBountyGrant:
 		g, err := bounty.DecodeGrant(m.Body)
 		if err != nil {
@@ -325,7 +342,8 @@ func (h *Host) handleBounty(p *peer, m wire.Message) error {
 		ch, t := h.bwait.grants[g.Offer], h.bwait.takes[g.Offer]
 		h.bwait.mu.Unlock()
 		b.Granted(p.id, g, t.PayTo)
-		if ch != nil {
+		// Only the offer's payer answers the waiting call (RED-111).
+		if from, ok := b.HeldFrom(g.Offer); ch != nil && ok && from == p.id {
 			select {
 			case ch <- g:
 			default:
@@ -342,7 +360,7 @@ func (h *Host) handleBounty(p *peer, m wire.Message) error {
 		h.bwait.mu.Lock()
 		ch := h.bwait.acks[bountyAckKey{a.Offer, a.Nonce}]
 		h.bwait.mu.Unlock()
-		if ch != nil {
+		if from, ok := b.HeldFrom(a.Offer); ch != nil && ok && from == p.id {
 			select {
 			case ch <- a:
 			default:
@@ -360,14 +378,17 @@ func (h *Host) handleBountyClaim(p *peer, m wire.Message) error {
 	}
 	mine, ok := b.Get(c.Offer)
 	strength := -1
+	known := false
 	var l layer.Layer
 	if ok {
 		if s, sok := h.n.Engine().Series(mine.Offer.Series); sok {
 			l = layer.Layer{Entry: mine.Offer.Entry, Nonce: c.Nonce}
 			strength = l.Strength(s.Hash())
+			// A layer the pool holds already is not owed (RED-110).
+			known = h.holdsLayer(engine.PoolKey{Series: mine.Offer.Series, Index: mine.Offer.Pool}, mine.Offer.Entry, c.Nonce)
 		}
 	}
-	a := b.Claim(p.id, c, strength)
+	a := b.Claim(p.id, c, strength, known)
 	p.send(bountyMsg(wire.TypeBountyAck, a.Encode()))
 	switch a.Outcome {
 	case bounty.Accepted:

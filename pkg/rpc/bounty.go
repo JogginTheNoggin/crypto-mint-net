@@ -2,6 +2,8 @@ package rpc
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -286,7 +288,11 @@ func (h *Handler) bountyWork(w http.ResponseWriter, r *http.Request) {
 	gctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	const chunk = 1 << 20
-	for start := uint64(0); gctx.Err() == nil; start += chunk {
+	// A random start, so two grinders, or two calls, find different
+	// layers (RED-109).
+	var sb [8]byte
+	_, _ = rand.Read(sb[:])
+	for start := binary.BigEndian.Uint64(sb[:]) >> 1; gctx.Err() == nil; start += chunk {
 		l, st, err := layer.GrindHash(id, held.Offer.Entry, start, chunk, workers)
 		if err != nil {
 			writeError(w, badRequest("%v", err))
