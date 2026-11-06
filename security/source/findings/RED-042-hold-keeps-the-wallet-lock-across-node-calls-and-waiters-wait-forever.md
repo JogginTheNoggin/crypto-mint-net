@@ -34,7 +34,7 @@ per-leg loop are from the code.
 ## Impact
 
 A hang, not a loss: nothing is paid twice and nothing is corrupted. But a
-person running `poo wallet status` to see whether a payment landed waits
+person running `poon wallet status` to see whether a payment landed waits
 behind the `pay` that is waiting for the node, and cannot see why; the GUI
 and the terminal share the wallet by design (jerry's rule), so the GUI's
 wallet tab freezes the same way.
@@ -45,7 +45,7 @@ wallet tab freezes the same way.
    `submit`, `resend`), and let the read-only ones (`status`, `receive`
    without `-tid`) read without the lock.
 2. Wait with a limit and a word: try `flock(LOCK_EX|LOCK_NB)` in a loop,
-   and after a second print "waiting for another poo wallet command to
+   and after a second print "waiting for another poon wallet command to
    finish (it is using <wallet>)", giving up after a stated time with an
    error that says the same.
 3. Optionally, hold the lock only across the submit+save of a `pay`, not

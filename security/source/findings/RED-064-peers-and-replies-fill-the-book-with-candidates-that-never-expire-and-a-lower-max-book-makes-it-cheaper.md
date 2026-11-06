@@ -23,7 +23,7 @@ nothing removes them:
   are ever evicted.
 - A failed candidate only waits longer to be tried again (`Failures`, at
   most 16 doublings); it is never dropped. The only `Delete` is by hand
-  (`poo peer remove`).
+  (`poon peer remove`).
 - The book is saved and loaded as it is, so a full book is full after a
   restart.
 
@@ -44,7 +44,7 @@ max_book 256  (16 ranges):  reply add: peers: book full   hand add: peers: book 
 max_book 4096 (256 ranges): reply add: peers: book full   hand add: peers: book full   import: peers: book full
 ```
 
-Even `poo peer add` by the owner (`FromHand`) is refused, so the owner must
+Even `poon peer add` by the owner (`FromHand`) is refused, so the owner must
 first find and delete the junk one address at a time.
 
 The path to `Add` from a connected peer is a peer list reply or a follow
@@ -104,7 +104,7 @@ Fixed (D160). I followed Red's first, second and fourth points.
   In each class the oldest goes first. A record the owner added,
   configured or labelled never gives way, and neither does one the node
   reached.
-- So the owner's `poo peer add` always finds a place in a book full of
+- So the owner's `poon peer add` always finds a place in a book full of
   junk. A junk address the node tries and fails gives way to the next
   learned one at once, and an untried one gives way after a day.
 - A lowered `max_book` is applied. `Book.Fit` trims a book over its

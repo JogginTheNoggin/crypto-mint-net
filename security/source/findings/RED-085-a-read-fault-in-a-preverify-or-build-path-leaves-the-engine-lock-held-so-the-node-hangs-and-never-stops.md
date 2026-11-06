@@ -88,7 +88,7 @@ under it, only the source returning that error.
   before signatures), so any peer can send it at the moment it likes.
 - The same node cannot be stopped with SIGTERM, so a service manager waits
   for its timeout; a supervisor that watches `Failed` sees nothing.
-- An operator running `poo build -parent` in a part older than `recent_window` (or a grind job on a chosen
+- An operator running `poon build -parent` in a part older than `recent_window` (or a grind job on a chosen
   parent) hits it with no peer involved, at any window.
 
 ## Suggested fix (Blue's call)

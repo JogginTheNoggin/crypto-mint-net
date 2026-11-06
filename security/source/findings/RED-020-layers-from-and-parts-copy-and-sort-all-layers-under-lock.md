@@ -26,7 +26,7 @@ refused with an empty reply.
 
 An entry with many layers is the case D121 added the paging for, and it is
 cheap to make: a series may set `min_layer_strength` to 0 (the default of
-`poo series create`), where every nonce is a layer. Any grinder's entry gets
+`poon series create`), where every nonce is a layer. Any grinder's entry gets
 there as well.
 
 ## Reproduction

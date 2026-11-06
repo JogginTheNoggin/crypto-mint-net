@@ -1,4 +1,4 @@
-# RED-005: `poo claim`, `poo pay` and `poo keygen` take the raw seed on the command line
+# RED-005: `poon claim`, `poon pay` and `poon keygen` take the raw seed on the command line
 
 | Field | Value |
 | --- | --- |
@@ -11,7 +11,7 @@
 
 ## Summary
 
-`poo claim`, `poo pay` and `poo keygen` read a 32-byte wallet seed — the one
+`poon claim`, `poon pay` and `poon keygen` read a 32-byte wallet seed — the one
 secret that controls every key derived from it — as a plain command-line
 flag:
 
@@ -30,8 +30,8 @@ seedHex := fs.String("seed", "", "32-byte seed in hex (random if empty)")  // ke
 
 There is no stdin / environment / file alternative on these commands — the
 seed must be put on the command line to use them. This is in contrast to
-`poo wallet`, which was deliberately built to keep a *sealed* seed and to
-read its passphrase only from `$POO_PASSPHRASE`, `-passphrase-file` or
+`poon wallet`, which was deliberately built to keep a *sealed* seed and to
+read its passphrase only from `$POON_PASSPHRASE`, `-passphrase-file` or
 standard input (pkg/cli/wallet.go). The claim/pay/keygen path bypasses all
 of that and handles the unsealed seed in the clear.
 
@@ -50,9 +50,9 @@ A secret on a command line leaks several ways:
 ## Reproduction
 
 1. On a multi-user host, user A runs
-   `poo pay -seed <64 hex> -serial 0 -to <addr> -amount 1`.
+   `poon pay -seed <64 hex> -serial 0 -to <addr> -amount 1`.
 2. While it runs (it dials the node and fetches holdings, so it is not
-   instantaneous), user B runs `cat /proc/$(pgrep -f '^poo pay')/cmdline |
+   instantaneous), user B runs `cat /proc/$(pgrep -f '^poon pay')/cmdline |
    tr '\0' ' '` and reads the seed.
 3. Separately, `fc -l` / `history` shows user A's own shell has recorded the
    seed on disk.
@@ -71,11 +71,11 @@ Blue/Grey may raise it if shared-host use is expected.
 
 ## Recommendation
 
-- Read the seed the way `poo wallet` reads its passphrase: from
-  `$POO_SEED` / standard input / a `-seed-file`, never a flag. Remove the
+- Read the seed the way `poon wallet` reads its passphrase: from
+  `$POON_SEED` / standard input / a `-seed-file`, never a flag. Remove the
   `-seed` string flag from `claim`, `pay` and `keygen`, or keep it only
   behind an explicit `-seed-unsafe` with a stderr warning.
-- Better, let `claim`/`pay` use the sealed wallet (like `poo wallet pay`),
+- Better, let `claim`/`pay` use the sealed wallet (like `poon wallet pay`),
   so a raw seed is never needed for everyday spending.
 - Document in `docs/running-a-node.md` that a seed must never be passed as
   an argument.
@@ -87,9 +87,9 @@ fixed seed still works through the new input path for reproducible vectors.
 ## Resolution
 
 Fixed by BLUE-002 (decision D98). `claim` and `pay` read the seed from
-`POO_SEED` or `-seed-file` (`-` for standard input) and refuse `-seed`
+`POON_SEED` or `-seed-file` (`-` for standard input) and refuse `-seed`
 with an error naming them. `keygen` gains `-seed-file` and keeps `-seed`
 for test vectors only (the GUI's tests use it), documented as visible to
-other users. Docs: `docs/running-a-node.md`, `docs/modules/poo.md`. Test:
+other users. Docs: `docs/running-a-node.md`, `docs/modules/poon.md`. Test:
 `TestSeedNotOnCommandLine` in `pkg/cli`; the existing claim and pay tests
 now pass the seed in a file.

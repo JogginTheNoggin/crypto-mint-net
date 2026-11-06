@@ -1,4 +1,4 @@
-# RED-047: `poo policy import -if-digest ""` applies the file unchecked, so an unset shell variable turns the protection off
+# RED-047: `poon policy import -if-digest ""` applies the file unchecked, so an unset shell variable turns the protection off
 
 | Field | Value |
 | --- | --- |
@@ -14,7 +14,7 @@
 `-if-digest` ties an apply to the file that was previewed. The flag is a
 string with the default `""`, and the check is
 `if *ifDigest != "" && !strings.EqualFold(*ifDigest, b.Digest)`. A flag given
-as an empty string is therefore the same as no flag: `poo policy import f.json
+as an empty string is therefore the same as no flag: `poon policy import f.json
 -apply -if-digest "$DIGEST"` with `DIGEST` unset or empty (a failed
 preview, a parse that returned nothing, a missing JSON field) applies the
 file without the check, silently. The protection fails open at the one place

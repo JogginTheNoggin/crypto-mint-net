@@ -27,8 +27,8 @@ shows.
 
 ```
 $ python3 -c '... "series_id": "\x1b[2J\x1b[31mFAKE\x07" ...'  > s_esc.json
-$ poo init -dir nx -series s_esc.json
-poo: s_esc.json: series_id <ESC>[2J<ESC>[31mFAKE<BEL> is not the id of its params (8dfdf9a3...)
+$ poon init -dir nx -series s_esc.json
+poon: s_esc.json: series_id <ESC>[2J<ESC>[31mFAKE<BEL> is not the id of its params (8dfdf9a3...)
 ```
 
 The bytes `033 [ 2 J` and `\a` reach the terminal: the screen is cleared and
