@@ -33,7 +33,9 @@ built.
   one line with Save as file, offered only for one whole ledger file, and
   poo's output is folded under Output as printed (GUI-GREEN-059). A long
   view's Jump to list is a row across the view, not a narrow column
-  (GUI-GREEN-060).
+  (GUI-GREEN-060). The Wallet view lists the seven steps of a key kept
+  off the machine, and Pay warns before it runs with no co-signing file
+  (GUI-GREEN-061).
 - **Cryptographic choice:** a series can use SHA-256, SHA-512/256,
   SHA3-256, BLAKE2b-256 or BLAKE3; allow Ed25519, ECDSA (P-256, P-384,
   P-521, secp256k1), BIP-340 Schnorr and ML-DSA-44/65/87 keys; and allow
