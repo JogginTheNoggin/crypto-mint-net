@@ -34,7 +34,7 @@ v0.1.0 by itself; G1 and G2 are the ones worth fixing first.
 | --- | --- |
 | G1 | **Done** in GUI R32A (#242): poo-gui comes back on the port it used last (`last-port` in poo-gui's config folder); `-listen` still overrides. Notes in ROUND-32.md |
 | G2 | **Done**: node release in status (W-10) and shown beside the GUI's in the Node view (#254, R33A) |
-| G3 | Decided with Source White (WHITE-001 R11): document archives or `go -C gui build` for 0.1; require-at-tag later. Docs still open (ROUND-33.md) |
+| G3 | Decided with Source White (WHITE-001 R11): document archives or `go -C gui build` for 0.1; require-at-tag later. Docs **done** (#269, R34A) |
 | G4 | **Done**: version in the header (#244, merged R33A) |
 | G5, G6 | Open, after the first release |
 | G7 | In WHITE-001 R10 |

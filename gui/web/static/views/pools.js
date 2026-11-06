@@ -17,16 +17,41 @@ const grindFlags = v => [...flag('device', v.device), ...flag('threads', v.threa
 // ledgerSummary says what a ledger file poo printed holds, or returns
 // null when the text is not one whole ledger file: one that does not
 // parse, is not poo's ledger kind, or holds fewer entries than its own
-// from and to say (GUI-GREEN-059). It only reads poo's fields; the file
+// from and to say (GUI-GREEN-059). A format other than 1 gets a neutral
+// line (White R34D N2). It only reads poo's fields; the file
 // is checked in full by the node that imports it.
 export function ledgerSummary(text) {
   let f;
   try { f = JSON.parse(text); } catch (_) { return null; }
-  if (!f || f.kind !== 'poo-ledger' || !Array.isArray(f.entries)) return null;
+  if (!f || f.kind !== 'poo-ledger') return null;
+  // A later format may lay the file out differently: say so plainly and
+  // still offer it to save, rather than call a good file cut (White N2).
+  if (Number.isInteger(f.format) && f.format !== 1) return `A ledger file in format ${f.format}, which this poo-gui does not read; poo checks it in full on import.`;
+  if (!Array.isArray(f.entries)) return null;
   const n = f.entries.length;
   if (n !== (f.to >= f.from ? f.to - f.from + 1 : 0)) return null;
   return n ? `A ledger file of pool ${f.pool}: ${n} ${n === 1 ? 'entry' : 'entries'}, heights ${f.from} to ${f.to} of ${f.height}.`
     : `A ledger file of pool ${f.pool} with no entries: the selected ledger's height is ${f.height}.`;
+}
+
+// exportResult draws a ledger export's result: one whole ledger file is
+// said in a line, with Save as file and poo's output folded under Output
+// as printed (GUI-GREEN-059); anything else is folded too, never offered
+// to save, and gets one alert.
+export function exportResult(r, area) {
+  if (r.code !== 0 || !r.out.trim().startsWith('{')) return;
+  const said = ledgerSummary(r.out);
+  const raw = area.querySelector('.result');
+  if (!said) {
+    // Output poo-gui dropped in part gets ORANGE-026's alert, which
+    // says the same; one alert is enough. Either way the text is not
+    // drawn until asked for: it cannot be saved (GUI/Orange R34B).
+    if (!r.dropped) area.prepend(el('p', { class: 'next-step ledger-partial', role: 'alert' }, 'This output is not one whole ledger file, so it is not offered to save. Fill in To a file and export again: poo then writes the file itself.'));
+    if (raw) raw.parentNode.insertBefore(rawFold(raw), raw.nextSibling);
+    return;
+  }
+  const note = el('p', { class: 'hint ledger-exported', role: 'status' }, said);
+  if (raw) { raw.replaceWith(note); area.append(saveAs(r.out, 'ledger.json'), rawFold(raw)); } else area.append(note, saveAs(r.out, 'ledger.json'));
 }
 
 // importNote is the line over poo ledger import's reply: what a -dry-run
@@ -81,17 +106,7 @@ export const poolsView = {
       // 6,500 page elements (GUI-GREEN-059). The page says what it holds
       // and keeps poo's output under Output as printed, drawn when opened.
       // A text that is not one whole ledger file is never offered to save.
-      onResult: (r, area) => {
-        if (r.code !== 0 || !r.out.trim().startsWith('{')) return;
-        const said = ledgerSummary(r.out);
-        const raw = area.querySelector('.result');
-        if (!said) {
-          area.prepend(el('p', { class: 'next-step ledger-partial', role: 'alert' }, 'This output is not one whole ledger file, so it is not offered to save. Fill in To a file and export again: poo then writes the file itself.'));
-          return;
-        }
-        const note = el('p', { class: 'hint ledger-exported', role: 'status' }, said);
-        if (raw) { raw.replaceWith(note); area.append(saveAs(r.out, 'ledger.json'), rawFold(raw)); } else area.append(note, saveAs(r.out, 'ledger.json'));
-      } });
+      onResult: exportResult });
     let picker = null;
     const ledgerImport = form(ctx, { title: 'Import a ledger', about: 'Gives the node the entries and layers of a ledger file. Each is checked as if a peer had sent it: valid ones are kept, the rest are listed with poo\'s reason, and the node switches to a heavier branch only as it would for a peer.',
       fields: [{ name: 'file', label: 'Ledger file', placeholder: 'a path on this machine, or pick one below', required: true },

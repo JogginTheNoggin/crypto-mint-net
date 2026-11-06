@@ -125,8 +125,14 @@ try {
   await page.selectOption('#nav-menu', 'wallet');
   await page.locator('h1', { hasText: 'Wallet' }).waitFor();
   if (shots) await page.screenshot({ path: join(shots, 'narrow.png') });
+  // The Jump to list is a row across the view, never the view list's
+  // 170 px sidebar with its background and border (GUI-GREEN-060).
+  const jumpBox = () => page.evaluate(() => { const n = document.querySelector('nav.jump'), cs = getComputedStyle(n); return { wide: n.getBoundingClientRect().width > 0.9 * document.querySelector('#main').getBoundingClientRect().width, bg: cs.backgroundColor, border: cs.borderRightWidth + ' ' + cs.borderBottomWidth }; });
+  assert.deepEqual(await jumpBox(), { wide: true, bg: 'rgba(0, 0, 0, 0)', border: '0px 0px' }, 'the jump list when narrow');
   await page.setViewportSize({ width: 1280, height: 800 });
   assert.ok(!(await page.locator('#nav-menu').isVisible()), 'menu hidden when wide');
+  assert.deepEqual(await jumpBox(), { wide: true, bg: 'rgba(0, 0, 0, 0)', border: '0px 0px' }, 'the jump list when wide');
+  assert.equal(await page.locator('nav#nav').evaluate(n => Math.round(n.getBoundingClientRect().width)), 170, 'the view list keeps its width');
 
   // A system that asks for more contrast gets firmer colours, in both themes.
   const muted = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--muted').trim());
@@ -343,9 +349,27 @@ try {
     const entry = h => `{"height":${h},"hash":"${'a'.repeat(64)}","item":"AAAA"}`;
     const file = (from, to, n, kind = 'poo-ledger') => `{\n  "kind": "${kind}",\n  "format": 1,\n  "pool": 3,\n  "from": ${from},\n  "to": ${to},\n  "height": 9,\n  "entries":[${Array.from({ length: n }, (_, i) => '\n    ' + entry(from + i)).join(',')}\n  ]\n}\n`;
     const whole = file(2, 4, 3);
-    return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poo settings')), ledgerSummary('wrote 3 entries to x')];
+    return [ledgerSummary(whole), ledgerSummary(file(1, 1, 1)), ledgerSummary(file(10, 9, 0)), ledgerSummary(whole.slice(0, -40)), ledgerSummary(whole.slice(40)), ledgerSummary(file(2, 4, 2)), ledgerSummary(file(2, 4, 3, 'poo settings')), ledgerSummary('wrote 3 entries to x'), ledgerSummary('{"kind":"poo-ledger","format":2,"pages":[]}')];
   });
-  assert.deepEqual(ls, ['A ledger file of pool 3: 3 entries, heights 2 to 4 of 9.', 'A ledger file of pool 3: 1 entry, heights 1 to 1 of 9.', 'A ledger file of pool 3 with no entries: the selected ledger\'s height is 9.', null, null, null, null, null]);
+  assert.deepEqual(ls, ['A ledger file of pool 3: 3 entries, heights 2 to 4 of 9.', 'A ledger file of pool 3: 1 entry, heights 1 to 1 of 9.', 'A ledger file of pool 3 with no entries: the selected ledger\'s height is 9.', null, null, null, null, null,
+    'A ledger file in format 2, which this poo-gui does not read; poo checks it in full on import.'], 'a later format gets a neutral line, not the cut-file alert (White N2)');
+  // A ledger export that is not one whole file is folded under Output as
+  // printed, not drawn, and gets one alert: its own, or ORANGE-026's when
+  // poo-gui dropped part of the output (GUI/Orange R34B notes).
+  const ex = await page.evaluate(async () => {
+    const { exportResult } = await import('/views/pools.js');
+    const { incomplete, el } = await import('/views.js');
+    const cut = '{"kind": "poo-ledger", "format": 1, "entries": [';
+    return [false, true].map(dropped => {
+      const area = el('div', {}, el('div', { class: 'result' }, cut));
+      const r = { code: 0, out: cut, err: '', dropped };
+      exportResult(r, area);
+      if (dropped) incomplete(area);
+      return [area.querySelectorAll('[role=alert]').length, area.querySelectorAll('.ledger-partial').length, area.querySelectorAll('.output-dropped').length,
+        !!area.querySelector('details.raw:not([open]) > .result'), area.querySelectorAll('.result:not(details.raw .result)').length, area.querySelectorAll('.save-as').length];
+    });
+  });
+  assert.deepEqual(ex, [[1, 1, 0, true, 0, 0], [1, 0, 1, true, 0, 0]], 'a cut ledger export is folded and has one alert');
   // The Followed series table names the reserve series by poo's builtin
   // field only (D170), and draws a variable series' mints from what is
   // released (GUI-GREEN-054).

@@ -5,6 +5,60 @@ newest GUI/Grey branch (what counts as "main" until jerry merges) and writes
 reports with suggested fixes. Red never implements fixes — GUI/Blue does, on
 its own branch, and notifies GUI/Grey to review and merge.
 
+Round 34 Part B reviewed main @ 7099e84 (#269, which merged #260 to
+#264):
+- the Peers view's lines on the releases connected peers claim (White
+  S3, D186);
+- the poo-gui install notes in README.md and docs/gui.md;
+- GUI/Blue's interim line for GUI-031;
+- the dropped-output guard (ORANGE-026), and the ledger export summary
+  (GUI-GREEN-059);
+- the e2e sample addresses on port 7733.
+
+Actions is off, so I checked everything locally. The `views`,
+`viewonly`, `parity`, `qol` and `variable` e2e tests pass.
+
+There are no new findings.
+
+Held up:
+- **GUI-031's interim line.** I re-ran the R33B repro with Playwright: a
+  node stopped mid-import now gives the "did not finish … may already be
+  kept" alert above poo's error. See the R34B notes in GUI-031 for one
+  optional nit. Source's partial totals are still open.
+- **Claimed releases in Peers.** A peer's release reaches the page only
+  as poo's `release` and `counts.releases`. The wire allows 0 to 64
+  bytes of `0-9 A-Z a-z . - +` (`wire.ValidRelease`), so a peer can't
+  put spaces, a link, or markup in it. The GUI draws it as text, marked
+  as "the peer's own claim", and it chooses nothing.
+- **Dropped output.** `runJob` now keeps a `dropped` flag. `drawn`
+  removes Save as file and adds an alert when it is set. On top of
+  that, `ledgerSummary` offers Save as file only when the entry count
+  matches the file's own `from` and `to`. I checked that against poo's
+  real exports: the default, `-to 100` past the tip, `-from 2`, `-from
+  5` past the tip, and `-from 3 -to 9`. Each one gives a count that
+  matches, so a whole export is never refused. This closes my R33B
+  hardening note.
+- **Install notes.** `go -C gui build -o poo-gui ./cmd/poo-gui` writes
+  `gui/poo-gui`, as the comment says. The `go install …@TAG` caveat is
+  right while gui/go.mod has its `replace`.
+
+Notes, not filed:
+- **A crowd of peers can claim one release.** `counts.releases` is
+  sorted by count, so many connected peers (which costs only
+  connections) can put a made-up "v0.9.9-security" at the top of the
+  Peers line. The line says each is the peer's own claim, and the node
+  ignores it. If a later view ever compares peer releases with the
+  node's, or hints at an upgrade, it should go by a signed release
+  only, never by what peers claim.
+- **SHA256SUMS** sits beside the archives it covers, so it catches a
+  broken download but proves nothing about who built it. That is for
+  White's release plan (signatures), not the GUI.
+- **Port 7733 in the e2e samples.** The commit calls it "the next
+  default P2P port", but poo's default on main is still `:7337`
+  (`nodepolicy.DefaultP2PListen`). It is test data only (TEST-NET
+  addresses), so nothing breaks. GUI/Grey may want to check that it
+  matches what Source plans.
+
 Round 33 Part B reviewed main @ 3c4ae00 (#254, #258):
 - the node's release in the Node view, with a note when it differs from
   the GUI's (W-10, D184);
@@ -877,4 +931,4 @@ Internet is **not** in scope — the port is loopback-only — except through (b
 | [GUI-028](GUI-028-far-part-job-cannot-be-stopped.md) | Low | A far part number (Preview, Sign, Show parts, or an issuer-signed far release) starts a job that hashes for hours; Stop doesn't end it, and 16 such jobs fill every job slot until poo-gui restarts | mitigated by GUI/Blue (Round 27C: cost confirm, Stop note); mitigation verified R28B @ adcf216; core fix routed to Source |
 | [GUI-029](GUI-029-policy-import-adds-series-without-ceiling.md) | Low | Import node policies adds a series with no witness ceiling (or above 4 MiB) with nothing asked or shown, though New series and Write a node policy refuse it without -any-ceiling; series_ceiling is off by default | fixed as a warning (Source D171 `unbounded`, GUI/Blue Read first; Apply stays, per jerry); verified R29B @ 4e1c601 |
 | [GUI-030](GUI-030-replace-import-ignores-series-ceiling.md) | Low | Import node policies with Replace never checks series_ceiling, so a series the node set a ceiling to decline is added anyway, and one listed twice is kept twice | fixed by Source (D176, #207); verified R30B @ 0ade046 |
-| [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | GUI interim line done (Blue R33C); fix routed to Source (partial totals, Stop between batches), GUI summary after |
+| [GUI-031](GUI-031-ledger-import-cut-off-hides-what-was-kept.md) | Low | A ledger import that fails partway prints only the error; earlier batches are already kept, and may have switched the node to the imported branch, but no count is shown in poo or the GUI | GUI interim line done (Blue R33C), verified R34B @ 7099e84; fix routed to Source (partial totals, Stop between batches), GUI summary after |

@@ -192,6 +192,15 @@ which the headless tool then has too.
 The rule is enforced in code. `gui/imports_test.go` fails if any GUI
 package imports a package from the core module other than `pkg/cli`.
 
+The layers also keep to their own files: source teams do not change
+`gui/` (AGENTS.md). One recorded exception is Source commit `0cc9428`
+(D190, W-15), which renamed the ledger file kind to `poo-ledger` and
+changed the matching strings in `gui/` (`views/pools.js` and two e2e checks) in the
+same commit, so that no commit had the GUI and the node disagree. GUI Grey
+accepted it after the fact (GUI White R34D, note N1). A later rename of a
+string the GUI reads should go to GUI Grey as a finding, landing in the
+same round, rather than as a Source patch to `gui/`.
+
 ### The terminal's grammar
 
 The terminal splits a typed line into an argv exactly as the shell that
