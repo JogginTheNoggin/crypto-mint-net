@@ -7,7 +7,7 @@
 | Found | Source Round 41 Part B, on `main` @ `6cf8002`, from jerry's test findings item 7 (D196 and later; `pkg/p2p/host.go`, `pkg/bounty/book.go`) |
 | Area | `pkg/p2p/host.go` (the node id is `rand.Read` at each `Start`), `pkg/bounty/book.go` (`ReceiveFrom`, `Claim`, `lease`), `pkg/p2p/bounty.go` (`handleBountyClaim`) |
 | Fixed by | |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-042) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 4a30ad4 (BLUE-042) |
 | For Black | Not a rule. |
 
 ## What is wrong

@@ -7,7 +7,7 @@
 | Found | Source Round 41 Part B, on `main` @ `6cf8002` (D208, `pkg/grind/opencl.go`) |
 | Area | `pkg/grind/opencl.go` (`layerSearch`, `fail`, `cpuSearch`, `calibrate`), `pkg/layer/layer.go` (`grindChunk`) |
 | Fixed by | |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-042) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 4a30ad4 (BLUE-042) |
 | For Black | Not a rule: the nonce and strength a failed search returns are the CPU's, which I checked equal to `layer.GrindHash`. |
 
 ## What is wrong

@@ -5,6 +5,7 @@
 | Fixes | RED-124 (low), RED-125 (low, in part), RED-126 (low), RED-127 (low) |
 | Branch | `claude/project-thread-ggo8dt` (PR against `main`) |
 | Base | `main` @ `56c5e0a` (Source Round 41 Part C), with GREEN-066 (#372) merged in |
+| Code | `4a30ad4` |
 | Decisions | D209 |
 | With | GREEN-066 (#372), carried: it changes the same `grind.go` and `opencl.go`. ORANGE-051 (#373) is docs only. |
 | Review | No consensus change. For White: `POON_OPENCL_ALL` takes more on values; the node id now lasts the process (wire.md says so). No GPU was used; the OpenCL path was checked on PoCL. |

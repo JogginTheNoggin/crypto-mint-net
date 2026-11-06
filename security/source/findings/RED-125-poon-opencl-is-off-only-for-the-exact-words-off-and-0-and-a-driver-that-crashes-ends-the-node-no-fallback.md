@@ -7,7 +7,7 @@
 | Found | Source Round 41 Part B, on `main` @ `6cf8002` (D208) |
 | Area | `pkg/grind/opencl.go` (`loadOpenCL`, `openCLDevices`), `pkg/grind/opencl_unix.go` |
 | Fixed by | |
-| Fixed by | `claude/project-thread-ggo8dt` @ HASH (BLUE-042) |
+| Fixed by | `claude/project-thread-ggo8dt` @ 4a30ad4 (BLUE-042) |
 | For Black | Not a rule. |
 
 ## What is wrong
