@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -148,6 +149,22 @@ func TestBountyMarket(t *testing.T) {
 		t.Fatalf("a failed record: %v\n%s", err, out)
 	}
 	if err := os.Remove(donePath); err != nil {
+		t.Fatal(err)
+	}
+	// The wallet then reads its leg as dropped (as after a refresh while
+	// the node had lost it). Pay asks the node again and sends it again
+	// rather than paying anew (RED-120); the node holds it, so it is
+	// recorded as it is.
+	wpath := filepath.Join(payer, "w.json")
+	wraw, err := os.ReadFile(wpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`"state":\s*"pending"`)
+	if !re.Match(wraw) {
+		t.Fatalf("no pending leg in the wallet:\n%s", wraw)
+	}
+	if err := os.WriteFile(wpath, re.ReplaceAll(wraw, []byte(`"state": "dropped"`)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	var paid BountyPayReply

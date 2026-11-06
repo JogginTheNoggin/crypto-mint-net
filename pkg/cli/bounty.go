@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/bounty"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/hash"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/rpc"
+	"github.com/JogginTheNoggin/crypto-mint-net/pkg/series"
 	"github.com/JogginTheNoggin/crypto-mint-net/pkg/wallet"
 )
 
@@ -219,14 +221,15 @@ type BountyPayReply struct {
 	Recorded bool `json:"recorded,omitempty"`
 }
 
-// sentFor finds the wallet's payment of claim c of offer m: its memo,
-// address and amount, every leg sent, and no leg already recorded on
-// another claim. An earlier payment sent only in part is an error, as
-// paying again would pay more than once (RED-119).
 // BountyMemo starts the memo of a bounty payment, followed by the offer's
-// short id. Frozen (W-34, D202): a later release may add to the memo
-// after it, and readers match on its start.
+// memo id (BountyMemoID). Frozen (W-34, D202): a later release may add to
+// the memo after it, and readers match on its start.
 const BountyMemo = "bounty "
+
+// BountyMemoID is how a bounty memo names the offer: the first 16 bytes
+// of its id in hex, so two offers do not share a memo by chance (RED-121,
+// D203). A memo is BountyMemo + BountyMemoID(id).
+func BountyMemoID(id hash.Hash) string { return hex.EncodeToString(id[:16]) }
 
 // legSent says a leg in this state went out: pending or selected, or a
 // state a later release added, which is never read as unsent, so a
@@ -240,34 +243,46 @@ func legSent(state string) bool {
 	return true
 }
 
-func sentFor(w *wallet.Wallet, m *bounty.Mine, c *bounty.ClaimRecord) (*wallet.Sent, error) {
+// sentFor finds the wallet's payment of claim c of offer m: its memo,
+// address and amount, and no leg already recorded on another claim. It
+// returns a payment whose every leg is sent or dropped; resend says some
+// are dropped, which are sent again, never replaced: a dropped leg's
+// inputs are unspent, and poo wallet resend would send it later anyway
+// (RED-120). A payment whose legs are all void or unsigned is not found,
+// and one with some legs dead and others sent or dropped is an error, as
+// paying again would pay more than once (RED-119).
+func sentFor(w *wallet.Wallet, m *bounty.Mine, c *bounty.ClaimRecord) (p *wallet.Sent, resend bool, err error) {
 	used := map[hash.Hash]bool{}
 	for _, r := range m.Claims {
 		for _, t := range r.Paid {
 			used[t] = true
 		}
 	}
-	memo := BountyMemo + m.ID.Short()
+	memo := BountyMemo + BountyMemoID(m.ID)
 	for _, p := range w.Sent() {
 		if p.Claim || !strings.HasPrefix(p.Memo, memo) || p.Series != m.Offer.Series || p.To != c.PayTo || p.Amount != m.Offer.Amount || len(p.Legs) == 0 {
 			continue
 		}
-		sent, mine := 0, false
+		live, dropped, mine := 0, 0, false
 		for _, l := range p.Legs {
-			if legSent(l.State) {
-				sent++
+			switch {
+			case legSent(l.State):
+				live++
+			case l.State == wallet.StateDropped:
+				live++
+				dropped++
 			}
 			mine = mine || used[l.TID]
 		}
 		switch {
-		case mine || sent == 0:
-		case sent < len(p.Legs):
-			return nil, fmt.Errorf("an earlier payment of this claim (tid %s) was sent only in part: settle it by hand before paying again", p.Legs[0].TID.Short())
+		case mine || live == 0:
+		case live < len(p.Legs):
+			return nil, false, fmt.Errorf("an earlier payment of this claim (tid %s) was sent only in part: settle it by hand before paying again", p.Legs[0].TID.Short())
 		default:
-			return p, nil
+			return p, dropped > 0, nil
 		}
 	}
-	return nil, nil
+	return nil, false, nil
 }
 
 func bountyPay(args []string, out io.Writer) error {
@@ -341,9 +356,22 @@ func bountyPay(args []string, out io.Writer) error {
 	// The wallet's own record comes first: a payment it sent that the
 	// node did not record (a failed save, a stop in between, a restart)
 	// is recorded now, never paid twice (RED-119).
-	if prev, err := sentFor(w, mine, pick); err != nil {
+	prev, resend, err := sentFor(w, mine, pick)
+	if err == nil && resend {
+		// Dropped legs are sent again, not replaced (RED-120): first
+		// asked about, as the node may hold them after all, or one of
+		// their inputs may be spent (void), then resent.
+		if prev, err = resendPayment(w, s, n, prev, out); err == nil {
+			prev, resend, err = sentFor(w, mine, pick)
+		}
+		if err == nil && resend {
+			err = fmt.Errorf("an earlier payment of this claim (tid %s) was dropped by the node and is still not held after sending it again: run poo wallet sent, and settle it by hand before paying again", prev.Legs[0].TID.Short())
+		}
+	}
+	if err != nil {
 		return err
-	} else if prev != nil {
+	}
+	if prev != nil {
 		var tids []hash.Hash
 		for _, l := range prev.Legs {
 			tids = append(tids, l.TID)
@@ -354,7 +382,7 @@ func bountyPay(args []string, out io.Writer) error {
 		}
 		return writeJSON(out, BountyPayReply{Offer: id, Nonce: pick.Nonce, PayTo: pick.PayTo, Amount: mine.Offer.Amount, Sent: prev, Told: paid.Told, Recorded: true})
 	}
-	sent, u, err := w.Pay(s, n, pick.PayTo, mine.Offer.Amount, wallet.PayOptions{Memo: BountyMemo + id.Short()})
+	sent, u, err := w.Pay(s, n, pick.PayTo, mine.Offer.Amount, wallet.PayOptions{Memo: BountyMemo + BountyMemoID(id)})
 	if err == nil && u != nil {
 		return errPayNeedsOut(u.Missing())
 	}
@@ -381,4 +409,20 @@ func bountyPay(args []string, out io.Writer) error {
 		return fmt.Errorf("paid, but the node did not record it: %w", err)
 	}
 	return writeJSON(out, BountyPayReply{Offer: id, Nonce: pick.Nonce, PayTo: pick.PayTo, Amount: mine.Offer.Amount, Sent: sent, Told: paid.Told})
+}
+
+// resendPayment refreshes p's legs from the node and sends its dropped
+// legs again, saving the wallet either way.
+func resendPayment(w *wallet.Wallet, s *series.Series, n wallet.Node, p *wallet.Sent, out io.Writer) (*wallet.Sent, error) {
+	if _, err := w.Refresh(s, n, p); err != nil {
+		return nil, err
+	}
+	_, rerr := w.Resend(s, n, p)
+	if err := saveSent(w, out, "payment", p, rerr); err != nil {
+		return nil, err
+	}
+	if rerr != nil {
+		return nil, fmt.Errorf("an earlier payment of this claim (tid %s) was dropped by the node, and sending it again failed: %w", p.Legs[0].TID.Short(), rerr)
+	}
+	return p, nil
 }

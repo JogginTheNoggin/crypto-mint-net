@@ -57,12 +57,19 @@ The package has two parts:
    be paid to `ADDR`.
 4. **Pay.** `poo bounty list` on the payer shows each accepted claim.
    `poo bounty pay ID [-claim NONCE]` pays it from the wallet and tells
-   the grinder the payment's tids. It looks in the wallet first: a
-   payment of that claim the wallet sent (memo `bounty <short id>`, the
-   claim's address and amount, every leg sent, its tids on no other
-   claim) that the node never recorded is recorded now, and nothing is
-   sent again (`"recorded": true`). A payment sent only in part is
-   refused, to settle by hand (RED-119, D201).
+   the grinder the payment's tids. The payment's memo is `bounty `
+   followed by the first 16 bytes of the offer's id in hex (32
+   characters; RED-121, D203). It looks in the wallet first: a payment
+   of that claim the wallet sent (that memo, the claim's address and
+   amount, every leg sent, its tids on no other claim) that the node
+   never recorded is recorded now, and nothing is sent again
+   (`"recorded": true`). A payment sent only in part is refused, to
+   settle by hand (RED-119, D201). A payment with a dropped leg is asked
+   about again and its dropped legs are sent again, never replaced by a
+   new payment: a dropped leg's inputs are unspent and `poo wallet
+   resend` would send it later anyway (RED-120, D203). If the node still
+   does not hold it, or one of its inputs was spent beside a live leg,
+   the command stops for the payer to settle it by hand.
 5. **Cancel.** `poo bounty cancel ID` closes an offer; accepted claims
    stay owed.
 

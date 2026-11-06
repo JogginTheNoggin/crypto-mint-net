@@ -254,6 +254,12 @@ built.
     offer this node has a lease on is kept when the held list is full.
   - The bounty done file is read a line's start at a time, and an offer
     left out for being done is reported.
+- **Round 39 fixes (D203):**
+  - `poo bounty pay` sends a dropped earlier payment of the claim again
+    instead of making a new one, so a later `poo wallet resend` cannot
+    pay the grinder twice.
+  - The bounty payment memo names the offer by 16 bytes of its id (32
+    hex characters), not 4, so two offers never share a memo by chance.
 - **Round 39 (D202):**
   - A grinder states the strongest offer it works (`bounty.max_strength`,
     `-max-strength` on `poo bounty list -ask` and `work`); every bounty
